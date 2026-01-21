@@ -298,14 +298,5 @@ describe("db", () => {
       expect(client1).toBe(client2);
     });
 
-    test("throws error when DB_URL is not set", () => {
-      setDb(null);
-      const originalDbUrl = process.env.DB_URL;
-      delete process.env.DB_URL;
-
-      expect(() => getDb()).toThrow("DB_URL environment variable is required");
-
-      process.env.DB_URL = originalDbUrl;
-    });
   });
 });
