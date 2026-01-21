@@ -15,6 +15,10 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "paths": {
+      "#fp": ["./src/fp/index.ts"],
+      "#fp/*": ["./src/fp/*"],
+      "#test-utils": ["./src/test-utils/index.ts"],
+      "#test-utils/*": ["./src/test-utils/*"],
       "#src/*": ["./src/*"],
       "#test/*": ["./test/*"],
       "#lib/*": ["./src/lib/*"]

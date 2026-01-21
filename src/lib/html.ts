@@ -2,6 +2,7 @@
  * HTML template functions for the ticket reservation system
  */
 
+import { map, pipe, reduce } from "#fp";
 import type { Attendee, EventWithCount } from "./types.ts";
 
 const escapeHtml = (str: string): string =>
@@ -65,24 +66,24 @@ export const adminLoginPage = (error?: string): string =>
   `,
   );
 
+const joinStrings = reduce((acc: string, s: string) => acc + s, "");
+
+const renderEventRow = (e: EventWithCount): string => `
+  <tr>
+    <td>${escapeHtml(e.name)}</td>
+    <td>${e.attendee_count} / ${e.max_attendees}</td>
+    <td>${new Date(e.created).toLocaleDateString()}</td>
+    <td><a href="/admin/event/${e.id}">View</a></td>
+  </tr>
+`;
+
 /**
  * Admin dashboard page
  */
 export const adminDashboardPage = (events: EventWithCount[]): string => {
   const eventRows =
     events.length > 0
-      ? events
-          .map(
-            (e) => `
-        <tr>
-          <td>${escapeHtml(e.name)}</td>
-          <td>${e.attendee_count} / ${e.max_attendees}</td>
-          <td>${new Date(e.created).toLocaleDateString()}</td>
-          <td><a href="/admin/event/${e.id}">View</a></td>
-        </tr>
-      `,
-          )
-          .join("")
+      ? pipe(map(renderEventRow), joinStrings)(events)
       : '<tr><td colspan="4">No events yet</td></tr>';
 
   return layout(
@@ -130,6 +131,14 @@ export const adminDashboardPage = (events: EventWithCount[]): string => {
   );
 };
 
+const renderAttendeeRow = (a: Attendee): string => `
+  <tr>
+    <td>${escapeHtml(a.name)}</td>
+    <td>${escapeHtml(a.email)}</td>
+    <td>${new Date(a.created).toLocaleString()}</td>
+  </tr>
+`;
+
 /**
  * Admin event detail page
  */
@@ -139,17 +148,7 @@ export const adminEventPage = (
 ): string => {
   const attendeeRows =
     attendees.length > 0
-      ? attendees
-          .map(
-            (a) => `
-        <tr>
-          <td>${escapeHtml(a.name)}</td>
-          <td>${escapeHtml(a.email)}</td>
-          <td>${new Date(a.created).toLocaleString()}</td>
-        </tr>
-      `,
-          )
-          .join("")
+      ? pipe(map(renderAttendeeRow), joinStrings)(attendees)
       : '<tr><td colspan="3">No attendees yet</td></tr>';
 
   return layout(

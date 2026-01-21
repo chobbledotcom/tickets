@@ -4,6 +4,10 @@
   "type": "module",
   "packageManager": "bun@1.3.6",
   "imports": {
+    "#fp": "./src/fp/index.ts",
+    "#fp/*": "./src/fp/*",
+    "#test-utils": "./src/test-utils/index.ts",
+    "#test-utils/*": "./src/test-utils/*",
     "#lib/*": "./src/lib/*",
     "#src/*": "./src/*",
     "#test/*": "./test/*"
