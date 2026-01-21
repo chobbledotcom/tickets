@@ -1,6 +1,7 @@
 /**
  * Build script for Bunny Edge deployment
  * Bundles edge script into a single deployable file
+ * Secrets are injected at build time via environment variables
  */
 
 const result = await Bun.build({
@@ -9,6 +10,13 @@ const result = await Bun.build({
   target: "browser",
   format: "esm",
   minify: false,
+  define: {
+    "process.env.DB_URL": JSON.stringify(process.env.DB_URL || ""),
+    "process.env.DB_TOKEN": JSON.stringify(process.env.DB_TOKEN || ""),
+    "process.env.ADMIN_PASSWORD": JSON.stringify(
+      process.env.ADMIN_PASSWORD || "",
+    ),
+  },
   external: [
     "@bunny.net/edgescript-sdk",
     "@libsql/client",
