@@ -155,7 +155,7 @@ describe("fp", () => {
         { id: 2, name: "b" },
         { id: 1, name: "c" },
       ];
-      const result = uniqueBy((x: { id: number }) => x.id)(items);
+      const result = uniqueBy((x: { id: number; name: string }) => x.id)(items);
       expect(result).toEqual([
         { id: 1, name: "a" },
         { id: 2, name: "b" },
@@ -192,7 +192,9 @@ describe("fp", () => {
         { type: "b", value: 2 },
         { type: "a", value: 3 },
       ];
-      const result = groupBy((x: { type: string }) => x.type)(items);
+      const result = groupBy((x: { type: string; value: number }) => x.type)(
+        items,
+      );
       expect(result).toEqual({
         a: [
           { type: "a", value: 1 },

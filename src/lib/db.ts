@@ -62,9 +62,17 @@ export const initDb = async (): Promise<void> => {
       name TEXT NOT NULL,
       description TEXT NOT NULL,
       max_attendees INTEGER NOT NULL,
-      thank_you_url TEXT NOT NULL
+      thank_you_url TEXT NOT NULL,
+      unit_price INTEGER
     )
   `);
+
+  // Migration: add unit_price column if it doesn't exist (for existing databases)
+  try {
+    await client.execute("ALTER TABLE events ADD COLUMN unit_price INTEGER");
+  } catch {
+    // Column already exists, ignore error
+  }
 
   await client.execute(`
     CREATE TABLE IF NOT EXISTS attendees (
@@ -73,9 +81,19 @@ export const initDb = async (): Promise<void> => {
       name TEXT NOT NULL,
       email TEXT NOT NULL,
       created TEXT NOT NULL,
+      stripe_payment_id TEXT,
       FOREIGN KEY (event_id) REFERENCES events(id)
     )
   `);
+
+  // Migration: add stripe_payment_id column if it doesn't exist (for existing databases)
+  try {
+    await client.execute(
+      "ALTER TABLE attendees ADD COLUMN stripe_payment_id TEXT",
+    );
+  } catch {
+    // Column already exists, ignore error
+  }
 };
 
 /**
@@ -130,12 +148,13 @@ export const createEvent = async (
   description: string,
   maxAttendees: number,
   thankYouUrl: string,
+  unitPrice: number | null = null,
 ): Promise<Event> => {
   const created = new Date().toISOString();
   const result = await getDb().execute({
-    sql: `INSERT INTO events (created, name, description, max_attendees, thank_you_url)
-          VALUES (?, ?, ?, ?, ?)`,
-    args: [created, name, description, maxAttendees, thankYouUrl],
+    sql: `INSERT INTO events (created, name, description, max_attendees, thank_you_url, unit_price)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [created, name, description, maxAttendees, thankYouUrl, unitPrice],
   });
   return {
     id: Number(result.lastInsertRowid),
@@ -144,6 +163,7 @@ export const createEvent = async (
     description,
     max_attendees: maxAttendees,
     thank_you_url: thankYouUrl,
+    unit_price: unitPrice,
   };
 };
 
@@ -209,11 +229,12 @@ export const createAttendee = async (
   eventId: number,
   name: string,
   email: string,
+  stripePaymentId: string | null = null,
 ): Promise<Attendee> => {
   const created = new Date().toISOString();
   const result = await getDb().execute({
-    sql: "INSERT INTO attendees (event_id, name, email, created) VALUES (?, ?, ?, ?)",
-    args: [eventId, name, email, created],
+    sql: "INSERT INTO attendees (event_id, name, email, created, stripe_payment_id) VALUES (?, ?, ?, ?, ?)",
+    args: [eventId, name, email, created, stripePaymentId],
   });
   return {
     id: Number(result.lastInsertRowid),
@@ -221,7 +242,43 @@ export const createAttendee = async (
     name,
     email,
     created,
+    stripe_payment_id: stripePaymentId,
   };
+};
+
+/**
+ * Get an attendee by ID
+ */
+export const getAttendee = async (id: number): Promise<Attendee | null> => {
+  const result = await getDb().execute({
+    sql: "SELECT * FROM attendees WHERE id = ?",
+    args: [id],
+  });
+  if (result.rows.length === 0) return null;
+  return result.rows[0] as unknown as Attendee;
+};
+
+/**
+ * Update attendee's Stripe payment ID
+ */
+export const updateAttendeePayment = async (
+  attendeeId: number,
+  stripePaymentId: string,
+): Promise<void> => {
+  await getDb().execute({
+    sql: "UPDATE attendees SET stripe_payment_id = ? WHERE id = ?",
+    args: [stripePaymentId, attendeeId],
+  });
+};
+
+/**
+ * Delete an attendee (for cleanup on payment failure)
+ */
+export const deleteAttendee = async (attendeeId: number): Promise<void> => {
+  await getDb().execute({
+    sql: "DELETE FROM attendees WHERE id = ?",
+    args: [attendeeId],
+  });
 };
 
 /**

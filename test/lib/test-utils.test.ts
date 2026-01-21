@@ -5,6 +5,7 @@ import {
   mockRequest,
   randomString,
   resetDb,
+  wait,
 } from "#test-utils";
 
 describe("test-utils", () => {
@@ -82,6 +83,15 @@ describe("test-utils", () => {
       const str1 = randomString(20);
       const str2 = randomString(20);
       expect(str1).not.toBe(str2);
+    });
+  });
+
+  describe("wait", () => {
+    test("waits for specified milliseconds", async () => {
+      const start = Date.now();
+      await wait(50);
+      const elapsed = Date.now() - start;
+      expect(elapsed).toBeGreaterThanOrEqual(45);
     });
   });
 });

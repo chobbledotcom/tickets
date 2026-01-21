@@ -23,6 +23,9 @@
     "typecheck": "bunx tsc --noEmit",
     "precommit": "bun run typecheck && bun run lint && bun run cpd && bun run test:coverage"
   },
+  "dependencies": {
+    "stripe": "^17.0.0"
+  },
   "devDependencies": {
     "@bunny.net/edgescript-sdk": "^0.12.0",
     "@libsql/client": "^0.17.0",

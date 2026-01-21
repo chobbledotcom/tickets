@@ -24,6 +24,9 @@ jobs:
 
       - name: Build edge script
         run: bun run build:edge
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          CURRENCY_CODE: ${{ secrets.CURRENCY_CODE || 'GBP' }}
 
       - name: Deploy Script to Bunny Edge Scripting
         uses: BunnyWay/actions/deploy-script@main

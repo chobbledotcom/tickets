@@ -2,13 +2,18 @@
  * Ticket Reservation System - Bun Server
  */
 
+import { isPaymentsEnabled } from "./lib/config.ts";
 import {
   createAttendee,
   createEvent,
+  deleteAttendee,
   getAllEvents,
+  getAttendee,
   getAttendees,
+  getEvent,
   getEventWithCount,
   hasAvailableSpots,
+  updateAttendeePayment,
   verifyAdminPassword,
 } from "./lib/db.ts";
 import {
@@ -17,8 +22,16 @@ import {
   adminLoginPage,
   homePage,
   notFoundPage,
+  paymentCancelPage,
+  paymentErrorPage,
+  paymentSuccessPage,
   ticketPage,
 } from "./lib/html.ts";
+import {
+  createCheckoutSession,
+  retrieveCheckoutSession,
+} from "./lib/stripe.ts";
+import type { Attendee, Event, EventWithCount } from "./lib/types.ts";
 
 export const sessions = new Map<string, { expires: number }>();
 
@@ -157,8 +170,13 @@ const handleCreateEvent = async (request: Request): Promise<Response> => {
   const description = form.get("description") || "";
   const maxAttendees = Number.parseInt(form.get("max_attendees") || "0", 10);
   const thankYouUrl = form.get("thank_you_url") || "";
+  const unitPriceStr = form.get("unit_price");
+  const unitPrice =
+    unitPriceStr && unitPriceStr.trim() !== ""
+      ? Number.parseInt(unitPriceStr, 10)
+      : null;
 
-  await createEvent(name, description, maxAttendees, thankYouUrl);
+  await createEvent(name, description, maxAttendees, thankYouUrl, unitPrice);
   return redirect("/admin/");
 };
 
@@ -194,6 +212,46 @@ const handleTicketGet = async (eventId: number): Promise<Response> => {
 };
 
 /**
+ * Check if payment is required for an event
+ */
+const requiresPayment = (event: { unit_price: number | null }): boolean => {
+  return (
+    isPaymentsEnabled() && event.unit_price !== null && event.unit_price > 0
+  );
+};
+
+/**
+ * Get base URL from request
+ */
+const getBaseUrl = (request: Request): string => {
+  const url = new URL(request.url);
+  return `${url.protocol}//${url.host}`;
+};
+
+/**
+ * Handle payment flow for ticket purchase
+ */
+const handlePaymentFlow = async (
+  request: Request,
+  event: EventWithCount,
+  attendee: Attendee,
+): Promise<Response> => {
+  const baseUrl = getBaseUrl(request);
+  const session = await createCheckoutSession(event, attendee, baseUrl);
+
+  if (session?.url) {
+    return redirect(session.url);
+  }
+
+  // If Stripe session creation failed, clean up and show error
+  await deleteAttendee(attendee.id);
+  return htmlResponse(
+    ticketPage(event, "Failed to create payment session. Please try again."),
+    500,
+  );
+};
+
+/**
  * Handle POST /ticket/:id (reserve ticket)
  */
 const handleTicketPost = async (
@@ -221,7 +279,12 @@ const handleTicketPost = async (
     );
   }
 
-  await createAttendee(eventId, name.trim(), email.trim());
+  const attendee = await createAttendee(eventId, name.trim(), email.trim());
+
+  if (requiresPayment(event)) {
+    return handlePaymentFlow(request, event, attendee);
+  }
+
   return redirect(event.thank_you_url);
 };
 
@@ -315,6 +378,117 @@ const routeTicket = async (
   return null;
 };
 
+type PaymentCallbackData = { attendee: Attendee; event: Event };
+type PaymentCallbackResult =
+  | { success: true; data: PaymentCallbackData }
+  | { success: false; response: Response };
+
+/**
+ * Load and validate attendee/event for payment callbacks
+ */
+const loadPaymentCallbackData = async (
+  attendeeIdStr: string | null,
+): Promise<PaymentCallbackResult> => {
+  if (!attendeeIdStr) {
+    return {
+      success: false,
+      response: htmlResponse(paymentErrorPage("Invalid payment callback"), 400),
+    };
+  }
+
+  const attendee = await getAttendee(Number.parseInt(attendeeIdStr, 10));
+  if (!attendee) {
+    return {
+      success: false,
+      response: htmlResponse(paymentErrorPage("Attendee not found"), 404),
+    };
+  }
+
+  const event = await getEvent(attendee.event_id);
+  if (!event) {
+    return {
+      success: false,
+      response: htmlResponse(paymentErrorPage("Event not found"), 404),
+    };
+  }
+
+  return { success: true, data: { attendee, event } };
+};
+
+/**
+ * Handle GET /payment/success (Stripe redirect after successful payment)
+ */
+const handlePaymentSuccess = async (request: Request): Promise<Response> => {
+  const url = new URL(request.url);
+  const attendeeId = url.searchParams.get("attendee_id");
+  const sessionId = url.searchParams.get("session_id");
+
+  if (!sessionId) {
+    return htmlResponse(paymentErrorPage("Invalid payment callback"), 400);
+  }
+
+  const result = await loadPaymentCallbackData(attendeeId);
+  if (!result.success) {
+    return result.response;
+  }
+
+  const { attendee, event } = result.data;
+
+  // Verify payment with Stripe
+  const session = await retrieveCheckoutSession(sessionId);
+  if (!session || session.payment_status !== "paid") {
+    return htmlResponse(
+      paymentErrorPage("Payment verification failed. Please contact support."),
+      400,
+    );
+  }
+
+  // Update attendee with payment ID
+  const paymentId = session.payment_intent as string;
+  await updateAttendeePayment(attendee.id, paymentId);
+
+  return htmlResponse(paymentSuccessPage(event, event.thank_you_url));
+};
+
+/**
+ * Handle GET /payment/cancel (Stripe redirect after cancelled payment)
+ */
+const handlePaymentCancel = async (request: Request): Promise<Response> => {
+  const url = new URL(request.url);
+  const attendeeId = url.searchParams.get("attendee_id");
+
+  const result = await loadPaymentCallbackData(attendeeId);
+  if (!result.success) {
+    return result.response;
+  }
+
+  const { attendee, event } = result.data;
+
+  // Delete the unpaid attendee
+  await deleteAttendee(attendee.id);
+
+  return htmlResponse(paymentCancelPage(event, `/ticket/${event.id}`));
+};
+
+/**
+ * Route payment requests
+ */
+const routePayment = async (
+  request: Request,
+  path: string,
+  method: string,
+): Promise<Response | null> => {
+  if (method !== "GET") return null;
+
+  if (path === "/payment/success") {
+    return handlePaymentSuccess(request);
+  }
+  if (path === "/payment/cancel") {
+    return handlePaymentCancel(request);
+  }
+  return null;
+};
+
 /**
  * Handle incoming requests
  */
@@ -338,6 +512,9 @@ export const handleRequest = async (request: Request): Promise<Response> => {
 
   const ticketResponse = await routeTicket(request, path, method);
   if (ticketResponse) return ticketResponse;
+
+  const paymentResponse = await routePayment(request, path, method);
+  if (paymentResponse) return paymentResponse;
 
   return htmlResponse(notFoundPage(), 404);
 };
