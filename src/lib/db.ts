@@ -4,6 +4,7 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
+import { log } from "./log.ts";
 import type { Attendee, Event, EventWithCount, Settings } from "./types.ts";
 
 let db: Client | null = null;
@@ -118,10 +119,23 @@ export const verifyAdminPassword = async (
   password: string,
 ): Promise<boolean> => {
   const envPassword = process.env.ADMIN_PASSWORD;
+  log("verifyAdminPassword", {
+    inputLength: password.length,
+    envPasswordSet: !!envPassword,
+    envPasswordLength: envPassword?.length ?? 0,
+  });
+
   if (envPassword && password === envPassword) {
+    log("verifyAdminPassword: matched env password");
     return true;
   }
+
   const stored = await getSetting("admin_password");
+  log("verifyAdminPassword", {
+    storedPasswordSet: !!stored,
+    storedPasswordLength: stored?.length ?? 0,
+    matches: stored === password,
+  });
   return stored === password;
 };
 
