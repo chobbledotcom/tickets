@@ -9,29 +9,7 @@ import {
 } from "#lib/db.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest, sessions } from "#src/server.ts";
-
-const makeRequest = (path: string, options: RequestInit = {}): Request => {
-  return new Request(`http://localhost${path}`, options);
-};
-
-const makeFormRequest = (
-  path: string,
-  data: Record<string, string>,
-  cookie?: string,
-): Request => {
-  const body = new URLSearchParams(data).toString();
-  const headers: HeadersInit = {
-    "content-type": "application/x-www-form-urlencoded",
-  };
-  if (cookie) {
-    headers.cookie = cookie;
-  }
-  return new Request(`http://localhost${path}`, {
-    method: "POST",
-    headers,
-    body,
-  });
-};
+import { mockFormRequest, mockRequest } from "#test-utils";
 
 describe("server", () => {
   beforeEach(async () => {
@@ -47,7 +25,7 @@ describe("server", () => {
 
   describe("GET /", () => {
     test("returns home page", async () => {
-      const response = await handleRequest(makeRequest("/"));
+      const response = await handleRequest(mockRequest("/"));
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Ticket Reservation System");
@@ -56,7 +34,7 @@ describe("server", () => {
 
   describe("GET /health", () => {
     test("returns health status", async () => {
-      const response = await handleRequest(makeRequest("/health"));
+      const response = await handleRequest(mockRequest("/health"));
       expect(response.status).toBe(200);
       const json = await response.json();
       expect(json).toEqual({ status: "ok" });
@@ -65,7 +43,7 @@ describe("server", () => {
 
   describe("GET /admin/", () => {
     test("shows login page when not authenticated", async () => {
-      const response = await handleRequest(makeRequest("/admin/"));
+      const response = await handleRequest(mockRequest("/admin/"));
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Admin Login");
@@ -74,7 +52,7 @@ describe("server", () => {
     test("shows dashboard when authenticated", async () => {
       await getOrCreateAdminPassword();
       const loginResponse = await handleRequest(
-        makeFormRequest("/admin/login", {
+        mockFormRequest("/admin/login", {
           password: await getOrCreateAdminPassword(),
         }),
       );
@@ -93,7 +71,7 @@ describe("server", () => {
 
   describe("GET /admin (without trailing slash)", () => {
     test("shows login page when not authenticated", async () => {
-      const response = await handleRequest(makeRequest("/admin"));
+      const response = await handleRequest(mockRequest("/admin"));
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Admin Login");
@@ -104,7 +82,7 @@ describe("server", () => {
     test("rejects wrong password", async () => {
       await getOrCreateAdminPassword();
       const response = await handleRequest(
-        makeFormRequest("/admin/login", { password: "wrong" }),
+        mockFormRequest("/admin/login", { password: "wrong" }),
       );
       expect(response.status).toBe(401);
       const html = await response.text();
@@ -114,7 +92,7 @@ describe("server", () => {
     test("accepts correct password and sets cookie", async () => {
       const password = await getOrCreateAdminPassword();
       const response = await handleRequest(
-        makeFormRequest("/admin/login", { password }),
+        mockFormRequest("/admin/login", { password }),
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/");
@@ -124,7 +102,7 @@ describe("server", () => {
 
   describe("GET /admin/logout", () => {
     test("clears session and redirects", async () => {
-      const response = await handleRequest(makeRequest("/admin/logout"));
+      const response = await handleRequest(mockRequest("/admin/logout"));
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/");
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
@@ -134,7 +112,7 @@ describe("server", () => {
   describe("POST /admin/event", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        makeFormRequest("/admin/event", {
+        mockFormRequest("/admin/event", {
           name: "Test",
           description: "Desc",
           max_attendees: "100",
@@ -148,12 +126,12 @@ describe("server", () => {
     test("creates event when authenticated", async () => {
       const password = await getOrCreateAdminPassword();
       const loginResponse = await handleRequest(
-        makeFormRequest("/admin/login", { password }),
+        mockFormRequest("/admin/login", { password }),
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
       const response = await handleRequest(
-        makeFormRequest(
+        mockFormRequest(
           "/admin/event",
           {
             name: "New Event",
@@ -171,14 +149,14 @@ describe("server", () => {
 
   describe("GET /admin/event/:id", () => {
     test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(makeRequest("/admin/event/1"));
+      const response = await handleRequest(mockRequest("/admin/event/1"));
       expect(response.status).toBe(302);
     });
 
     test("returns 404 for non-existent event", async () => {
       const password = await getOrCreateAdminPassword();
       const loginResponse = await handleRequest(
-        makeFormRequest("/admin/login", { password }),
+        mockFormRequest("/admin/login", { password }),
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
@@ -193,7 +171,7 @@ describe("server", () => {
     test("shows event details when authenticated", async () => {
       const password = await getOrCreateAdminPassword();
       const loginResponse = await handleRequest(
-        makeFormRequest("/admin/login", { password }),
+        mockFormRequest("/admin/login", { password }),
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
@@ -212,13 +190,13 @@ describe("server", () => {
 
   describe("GET /ticket/:id", () => {
     test("returns 404 for non-existent event", async () => {
-      const response = await handleRequest(makeRequest("/ticket/999"));
+      const response = await handleRequest(mockRequest("/ticket/999"));
       expect(response.status).toBe(404);
     });
 
     test("shows ticket page for existing event", async () => {
       await createEvent("Test Event", "Description", 50, "https://example.com");
-      const response = await handleRequest(makeRequest("/ticket/1"));
+      const response = await handleRequest(mockRequest("/ticket/1"));
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Test Event");
@@ -229,7 +207,7 @@ describe("server", () => {
   describe("POST /ticket/:id", () => {
     test("returns 404 for non-existent event", async () => {
       const response = await handleRequest(
-        makeFormRequest("/ticket/999", {
+        mockFormRequest("/ticket/999", {
           name: "John",
           email: "john@example.com",
         }),
@@ -240,7 +218,7 @@ describe("server", () => {
     test("validates required fields", async () => {
       await createEvent("Event", "Desc", 50, "https://example.com");
       const response = await handleRequest(
-        makeFormRequest("/ticket/1", { name: "", email: "" }),
+        mockFormRequest("/ticket/1", { name: "", email: "" }),
       );
       expect(response.status).toBe(400);
       const html = await response.text();
@@ -250,7 +228,7 @@ describe("server", () => {
     test("validates name is required", async () => {
       await createEvent("Event", "Desc", 50, "https://example.com");
       const response = await handleRequest(
-        makeFormRequest("/ticket/1", {
+        mockFormRequest("/ticket/1", {
           name: "   ",
           email: "john@example.com",
         }),
@@ -261,7 +239,7 @@ describe("server", () => {
     test("validates email is required", async () => {
       await createEvent("Event", "Desc", 50, "https://example.com");
       const response = await handleRequest(
-        makeFormRequest("/ticket/1", { name: "John", email: "   " }),
+        mockFormRequest("/ticket/1", { name: "John", email: "   " }),
       );
       expect(response.status).toBe(400);
     });
@@ -269,7 +247,7 @@ describe("server", () => {
     test("creates attendee and redirects to thank you page", async () => {
       await createEvent("Event", "Desc", 50, "https://example.com/thanks");
       const response = await handleRequest(
-        makeFormRequest("/ticket/1", {
+        mockFormRequest("/ticket/1", {
           name: "John Doe",
           email: "john@example.com",
         }),
@@ -283,14 +261,14 @@ describe("server", () => {
     test("rejects when event is full", async () => {
       await createEvent("Event", "Desc", 1, "https://example.com");
       await handleRequest(
-        makeFormRequest("/ticket/1", {
+        mockFormRequest("/ticket/1", {
           name: "John",
           email: "john@example.com",
         }),
       );
 
       const response = await handleRequest(
-        makeFormRequest("/ticket/1", {
+        mockFormRequest("/ticket/1", {
           name: "Jane",
           email: "jane@example.com",
         }),
@@ -311,7 +289,7 @@ describe("server", () => {
 
   describe("404 handling", () => {
     test("returns 404 for unknown routes", async () => {
-      const response = await handleRequest(makeRequest("/unknown/path"));
+      const response = await handleRequest(mockRequest("/unknown/path"));
       expect(response.status).toBe(404);
     });
   });
@@ -351,7 +329,7 @@ describe("server", () => {
       // Log in first
       const password = await getOrCreateAdminPassword();
       const loginResponse = await handleRequest(
-        makeFormRequest("/admin/login", { password }),
+        mockFormRequest("/admin/login", { password }),
       );
       const cookie = loginResponse.headers.get("set-cookie") || "";
       const token = cookie.split("=")[1]?.split(";")[0] || "";
@@ -376,12 +354,12 @@ describe("server", () => {
     test("creates event with unit_price when authenticated", async () => {
       const password = await getOrCreateAdminPassword();
       const loginResponse = await handleRequest(
-        makeFormRequest("/admin/login", { password }),
+        mockFormRequest("/admin/login", { password }),
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
       const response = await handleRequest(
-        makeFormRequest(
+        mockFormRequest(
           "/admin/event",
           {
             name: "Paid Event",
@@ -399,7 +377,7 @@ describe("server", () => {
 
   describe("GET /payment/success", () => {
     test("returns error for missing params", async () => {
-      const response = await handleRequest(makeRequest("/payment/success"));
+      const response = await handleRequest(mockRequest("/payment/success"));
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("Invalid payment callback");
@@ -407,7 +385,7 @@ describe("server", () => {
 
     test("returns error for missing session_id", async () => {
       const response = await handleRequest(
-        makeRequest("/payment/success?attendee_id=1"),
+        mockRequest("/payment/success?attendee_id=1"),
       );
       expect(response.status).toBe(400);
       const html = await response.text();
@@ -416,7 +394,7 @@ describe("server", () => {
 
     test("returns error for non-existent attendee", async () => {
       const response = await handleRequest(
-        makeRequest("/payment/success?attendee_id=999&session_id=cs_test"),
+        mockRequest("/payment/success?attendee_id=999&session_id=cs_test"),
       );
       expect(response.status).toBe(404);
       const html = await response.text();
@@ -438,7 +416,7 @@ describe("server", () => {
       );
 
       const response = await handleRequest(
-        makeRequest(
+        mockRequest(
           `/payment/success?attendee_id=${attendee.id}&session_id=cs_invalid`,
         ),
       );
@@ -450,7 +428,7 @@ describe("server", () => {
 
   describe("GET /payment/cancel", () => {
     test("returns error for missing attendee_id", async () => {
-      const response = await handleRequest(makeRequest("/payment/cancel"));
+      const response = await handleRequest(mockRequest("/payment/cancel"));
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("Invalid payment callback");
@@ -458,7 +436,7 @@ describe("server", () => {
 
     test("returns error for non-existent attendee", async () => {
       const response = await handleRequest(
-        makeRequest("/payment/cancel?attendee_id=999"),
+        mockRequest("/payment/cancel?attendee_id=999"),
       );
       expect(response.status).toBe(404);
       const html = await response.text();
@@ -479,7 +457,7 @@ describe("server", () => {
       );
 
       const response = await handleRequest(
-        makeRequest(`/payment/cancel?attendee_id=${attendee.id}`),
+        mockRequest(`/payment/cancel?attendee_id=${attendee.id}`),
       );
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -526,7 +504,7 @@ describe("server", () => {
 
       // Try to reserve a ticket - should fail because Stripe key is invalid
       const response = await handleRequest(
-        makeFormRequest(`/ticket/${event.id}`, {
+        mockFormRequest(`/ticket/${event.id}`, {
           name: "John Doe",
           email: "john@example.com",
         }),
@@ -551,7 +529,7 @@ describe("server", () => {
       );
 
       const response = await handleRequest(
-        makeFormRequest(`/ticket/${event.id}`, {
+        mockFormRequest(`/ticket/${event.id}`, {
           name: "John Doe",
           email: "john@example.com",
         }),
@@ -577,7 +555,7 @@ describe("server", () => {
       );
 
       const response = await handleRequest(
-        makeFormRequest(`/ticket/${event.id}`, {
+        mockFormRequest(`/ticket/${event.id}`, {
           name: "John Doe",
           email: "john@example.com",
         }),
@@ -602,7 +580,7 @@ describe("server", () => {
       );
 
       const response = await handleRequest(
-        makeFormRequest(`/ticket/${event.id}`, {
+        mockFormRequest(`/ticket/${event.id}`, {
           name: "John Doe",
           email: "john@example.com",
         }),
@@ -645,7 +623,7 @@ describe("server", () => {
 
       // Now try to access payment success - attendee exists but event doesn't
       const response = await handleRequest(
-        makeRequest(
+        mockRequest(
           `/payment/success?attendee_id=${attendee.id}&session_id=cs_test`,
         ),
       );
@@ -673,7 +651,7 @@ describe("server", () => {
       // stripe-mock returns sessions with payment_status=unpaid by default
       // so this will return 400 (verification failed)
       const response = await handleRequest(
-        makeRequest(
+        mockRequest(
           `/payment/success?attendee_id=${attendee.id}&session_id=cs_test_mock`,
         ),
       );
