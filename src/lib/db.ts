@@ -117,6 +117,10 @@ export const getOrCreateAdminPassword = async (): Promise<string> => {
 export const verifyAdminPassword = async (
   password: string,
 ): Promise<boolean> => {
+  const envPassword = process.env.ADMIN_PASSWORD;
+  if (envPassword && password === envPassword) {
+    return true;
+  }
   const stored = await getSetting("admin_password");
   return stored === password;
 };

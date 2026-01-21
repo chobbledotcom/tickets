@@ -90,6 +90,26 @@ describe("db", () => {
       const result = await verifyAdminPassword("wrong");
       expect(result).toBe(false);
     });
+
+    test("verifyAdminPassword accepts ADMIN_PASSWORD env var", async () => {
+      const original = process.env.ADMIN_PASSWORD;
+      process.env.ADMIN_PASSWORD = "env-override-password";
+
+      const result = await verifyAdminPassword("env-override-password");
+      expect(result).toBe(true);
+
+      process.env.ADMIN_PASSWORD = original;
+    });
+
+    test("verifyAdminPassword ignores empty ADMIN_PASSWORD env var", async () => {
+      const original = process.env.ADMIN_PASSWORD;
+      process.env.ADMIN_PASSWORD = "";
+
+      const result = await verifyAdminPassword("");
+      expect(result).toBe(false);
+
+      process.env.ADMIN_PASSWORD = original;
+    });
   });
 
   describe("events", () => {
