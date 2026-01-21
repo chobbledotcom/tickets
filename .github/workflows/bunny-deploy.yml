@@ -1,0 +1,33 @@
+name: Deploy to Bunny Edge Scripting
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build edge script
+        run: bun run build:edge
+
+      - name: Deploy Script to Bunny Edge Scripting
+        uses: BunnyWay/actions/deploy-script@main
+        with:
+          script_id: ${{ secrets.BUNNY_SCRIPT_ID }}
+          file: "bunny-script.ts"
+          api_key: ${{ secrets.BUNNY_ACCESS_KEY }}
