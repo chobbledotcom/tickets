@@ -11,6 +11,7 @@ import {
   hasAvailableSpots,
   verifyAdminPassword,
 } from "./lib/db.ts";
+import { log } from "./lib/log.ts";
 import {
   adminDashboardPage,
   adminEventPage,
@@ -84,9 +85,11 @@ const htmlResponse = (html: string, status = 200): Response =>
  * Create redirect response
  */
 const redirect = (url: string, cookie?: string): Response => {
-  const headers: HeadersInit = { location: url };
+  const headers = new Headers();
+  headers.set("Location", url);
   if (cookie) {
-    headers["set-cookie"] = cookie;
+    headers.set("Set-Cookie", cookie);
+    log("redirect: setting cookie", { url, cookieLength: cookie.length });
   }
   return new Response(null, { status: 302, headers });
 };
