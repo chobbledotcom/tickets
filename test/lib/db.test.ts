@@ -32,6 +32,24 @@ describe("db", () => {
     setDb(null);
   });
 
+  describe("getDb", () => {
+    test("throws error when DB_URL is not set", () => {
+      setDb(null);
+      const originalDbUrl = process.env.DB_URL;
+      delete process.env.DB_URL;
+
+      try {
+        expect(() => getDb()).toThrow(
+          "DB_URL environment variable is required",
+        );
+      } finally {
+        if (originalDbUrl) {
+          process.env.DB_URL = originalDbUrl;
+        }
+      }
+    });
+  });
+
   describe("generatePassword", () => {
     test("generates 16 character password", () => {
       const password = generatePassword();

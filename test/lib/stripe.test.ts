@@ -8,29 +8,15 @@ import {
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
 
-/**
- * Check if stripe-mock is running on localhost:12111
- */
-const checkStripeMock = async (): Promise<boolean> => {
-  try {
-    const response = await fetch("http://localhost:12111/", {
-      signal: AbortSignal.timeout(500),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
 describe("stripe", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
     resetStripeClient();
+    // Clear Stripe-related env vars for unit tests
+    // stripe-mock config is set in test/setup.ts
     delete process.env.STRIPE_SECRET_KEY;
     delete process.env.CURRENCY_CODE;
-    delete process.env.STRIPE_MOCK_HOST;
-    delete process.env.STRIPE_MOCK_PORT;
   });
 
   afterEach(() => {
@@ -204,16 +190,11 @@ describe("stripe", () => {
   });
 
   describe("stripe-mock integration", () => {
-    test("creates checkout session with stripe-mock", async () => {
-      const mockAvailable = await checkStripeMock();
-      if (!mockAvailable) {
-        console.log("Skipping: stripe-mock not running on localhost:12111");
-        return;
-      }
+    // These tests require stripe-mock running on localhost:12111
+    // STRIPE_MOCK_HOST/PORT are set in test/setup.ts
 
+    test("creates checkout session with stripe-mock", async () => {
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
-      process.env.STRIPE_MOCK_HOST = "localhost";
-      process.env.STRIPE_MOCK_PORT = "12111";
 
       const event = {
         id: 1,
@@ -245,15 +226,7 @@ describe("stripe", () => {
     });
 
     test("retrieves checkout session with stripe-mock", async () => {
-      const mockAvailable = await checkStripeMock();
-      if (!mockAvailable) {
-        console.log("Skipping: stripe-mock not running on localhost:12111");
-        return;
-      }
-
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
-      process.env.STRIPE_MOCK_HOST = "localhost";
-      process.env.STRIPE_MOCK_PORT = "12111";
 
       // First create a session
       const event = {
@@ -287,20 +260,6 @@ describe("stripe", () => {
       );
       expect(retrievedSession).not.toBeNull();
       expect(retrievedSession?.id).toBe(createdSession?.id);
-    });
-
-    test("creates client with mock config", async () => {
-      const mockAvailable = await checkStripeMock();
-      if (!mockAvailable) {
-        console.log("Skipping: stripe-mock not running on localhost:12111");
-        return;
-      }
-
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
-      process.env.STRIPE_MOCK_HOST = "localhost";
-
-      const client = getStripeClient();
-      expect(client).not.toBeNull();
     });
   });
 });

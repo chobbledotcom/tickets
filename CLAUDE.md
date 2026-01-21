@@ -65,9 +65,11 @@ const result = reduce((acc, item) => {
 
 ## Environment Variables
 
-- `DB_URL` - Database URL (defaults to `file:tickets.db` for local SQLite)
-- `DB_TOKEN` - Database auth token (optional, for remote databases)
+- `DB_URL` - Database URL (required, e.g. `libsql://your-db.turso.io`)
+- `DB_TOKEN` - Database auth token (required for remote databases)
 - `PORT` - Server port (defaults to 3000)
+- `STRIPE_SECRET_KEY` - Stripe secret key (optional, enables payments when set)
+- `CURRENCY_CODE` - Currency code for payments (defaults to GBP)
 
 ## Lint Rules
 

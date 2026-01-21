@@ -498,23 +498,9 @@ describe("server", () => {
   });
 
   describe("ticket purchase with payments enabled", () => {
+    // These tests require stripe-mock running on localhost:12111
+    // STRIPE_MOCK_HOST/PORT are set in test/setup.ts
     const originalStripeKey = process.env.STRIPE_SECRET_KEY;
-    const originalStripeMockHost = process.env.STRIPE_MOCK_HOST;
-    const originalStripeMockPort = process.env.STRIPE_MOCK_PORT;
-
-    /**
-     * Check if stripe-mock is running on localhost:12111
-     */
-    const checkStripeMock = async (): Promise<boolean> => {
-      try {
-        const response = await fetch("http://localhost:12111/", {
-          signal: AbortSignal.timeout(500),
-        });
-        return response.ok;
-      } catch {
-        return false;
-      }
-    };
 
     afterEach(() => {
       resetStripeClient();
@@ -522,16 +508,6 @@ describe("server", () => {
         process.env.STRIPE_SECRET_KEY = originalStripeKey;
       } else {
         delete process.env.STRIPE_SECRET_KEY;
-      }
-      if (originalStripeMockHost) {
-        process.env.STRIPE_MOCK_HOST = originalStripeMockHost;
-      } else {
-        delete process.env.STRIPE_MOCK_HOST;
-      }
-      if (originalStripeMockPort) {
-        process.env.STRIPE_MOCK_PORT = originalStripeMockPort;
-      } else {
-        delete process.env.STRIPE_MOCK_PORT;
       }
     });
 
@@ -615,15 +591,7 @@ describe("server", () => {
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
-      const mockAvailable = await checkStripeMock();
-      if (!mockAvailable) {
-        console.log("Skipping: stripe-mock not running on localhost:12111");
-        return;
-      }
-
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
-      process.env.STRIPE_MOCK_HOST = "localhost";
-      process.env.STRIPE_MOCK_PORT = "12111";
 
       const event = await createEvent(
         "Paid Event",
@@ -687,15 +655,7 @@ describe("server", () => {
     });
 
     test("handles successful payment verification with stripe-mock", async () => {
-      const mockAvailable = await checkStripeMock();
-      if (!mockAvailable) {
-        console.log("Skipping: stripe-mock not running on localhost:12111");
-        return;
-      }
-
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
-      process.env.STRIPE_MOCK_HOST = "localhost";
-      process.env.STRIPE_MOCK_PORT = "12111";
 
       const event = await createEvent(
         "Paid Event",
@@ -710,17 +670,16 @@ describe("server", () => {
         "john@example.com",
       );
 
-      // Use a session ID that stripe-mock will accept
-      // stripe-mock uses predictable session IDs like cs_test_...
+      // stripe-mock returns sessions with payment_status=unpaid by default
+      // so this will return 400 (verification failed)
       const response = await handleRequest(
         makeRequest(
           `/payment/success?attendee_id=${attendee.id}&session_id=cs_test_mock`,
         ),
       );
 
-      // stripe-mock returns mock data, which may not have payment_status=paid
-      // This test verifies the code path runs; actual payment verification depends on mock
-      expect([200, 400]).toContain(response.status);
+      // stripe-mock returns unpaid status, so verification fails
+      expect(response.status).toBe(400);
     });
   });
 });
