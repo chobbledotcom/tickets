@@ -25,6 +25,8 @@ jobs:
       - name: Build edge script
         run: bun run build:edge
         env:
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_TOKEN: ${{ secrets.DB_TOKEN }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           CURRENCY_CODE: ${{ secrets.CURRENCY_CODE || 'GBP' }}
 
