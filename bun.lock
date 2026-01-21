@@ -5,6 +5,7 @@
     "": {
       "name": "test-searcher",
       "devDependencies": {
+        "@bunny.net/edgescript-sdk": "^0.12.0",
         "@libsql/client": "^0.17.0",
         "@types/bun": "^1.1.0",
         "jscpd": "^4.0.5",
@@ -21,7 +22,11 @@
 
     "@babel/types": ["@babel/types@7.28.6", "", { "dependencies": { "@babel/helper-string-parser": "^7.27.1", "@babel/helper-validator-identifier": "^7.28.5" } }, ""],
 
+    "@bunny.net/edgescript-sdk": ["@bunny.net/edgescript-sdk@0.12.0", "", { "dependencies": { "@hono/node-server": "^1.12.0", "hono": "^4.5.5" } }, "sha512-SLXBnPjxj1zNchNaGT2n8j5JWHzzfEYvpv4k3o1Cg1u4tAsnqzdmV7jTajLgFPdaJBdgrzuWzYXgDNqR51Ad2Q=="],
+
     "@colors/colors": ["@colors/colors@1.5.0", "", {}, ""],
+
+    "@hono/node-server": ["@hono/node-server@1.19.9", "", { "peerDependencies": { "hono": "^4" } }, "sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw=="],
 
     "@jscpd/badge-reporter": ["@jscpd/badge-reporter@4.0.3", "", { "dependencies": { "badgen": "^3.2.3", "colors": "^1.4.0", "fs-extra": "^11.2.0" } }, ""],
 
@@ -168,6 +173,8 @@
     "has-tostringtag": ["has-tostringtag@1.0.2", "", { "dependencies": { "has-symbols": "^1.0.3" } }, ""],
 
     "hasown": ["hasown@2.0.2", "", { "dependencies": { "function-bind": "^1.1.2" } }, ""],
+
+    "hono": ["hono@4.11.4", "", {}, "sha512-U7tt8JsyrxSRKspfhtLET79pU8K+tInj5QZXs1jSugO1Vq5dFj3kmZsRldo29mTBfcjDRVRXrEZ6LS63Cog9ZA=="],
 
     "human-signals": ["human-signals@1.1.1", "", {}, ""],
 

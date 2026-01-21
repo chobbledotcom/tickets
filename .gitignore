@@ -2,3 +2,4 @@ node_modules/
 tickets.db
 *.db
 .env
+dist/
