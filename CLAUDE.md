@@ -80,3 +80,54 @@ The Biome config enforces:
 - `noVar` - Use `const` (or `let` if needed)
 - `noDoubleEquals` - Use `===`
 - `maxComplexity: 7` - Break into smaller functions
+
+## Test Quality Standards
+
+All tests must meet these mandatory criteria:
+
+### 1. Tests Production Code, Not Reimplementations
+- Import and call actual production functions
+- Never copy-paste or reimplement production logic in tests
+- Import constants from production code, don't hardcode
+
+### 2. Not Tautological
+- Never assert a value you just set (e.g., `expect(true).toBe(true)`)
+- Always have production code execution between setup and assertion
+- Verify behavior, not that JavaScript assignment works
+
+### 3. Tests Behavior, Not Implementation Details
+- Verify observable outcomes (HTTP status, content, state changes)
+- Refactoring shouldn't break tests unless behavior changes
+- Answer "does it work?" not "is it structured this way?"
+
+### 4. Has Clear Failure Semantics
+- Test names describe the specific behavior being verified
+- When a test fails, it should be obvious what's broken
+- Use descriptive assertion messages
+
+### 5. Isolated and Repeatable
+- Tests clean up after themselves (use `beforeEach`/`afterEach`)
+- Tests don't depend on other tests running first
+- No time-dependent flakiness
+
+### 6. Tests One Thing
+- Each test has a single reason to fail
+- If you need "and" in the description, split the test
+
+### Test Utilities
+
+Use helpers from `#test-utils` instead of defining locally:
+
+```typescript
+import { mockRequest, mockFormRequest, createTestDb, resetDb } from "#test-utils";
+```
+
+### Anti-Patterns to Avoid
+
+| Anti-Pattern | What To Do Instead |
+|--------------|-------------------|
+| `expect(true).toBe(true)` | Assert on actual behavior/state |
+| Reimplementing production logic | Import and call production code |
+| Duplicating test helpers | Use `#test-utils` |
+| Magic numbers/strings | Import constants from production |
+| Testing private internals | Test public API behavior |

@@ -129,6 +129,19 @@ describe("fp", () => {
       sortBy<{ n: number }>("n")(original);
       expect(original).toEqual([{ n: 2 }, { n: 1 }]);
     });
+
+    test("preserves order of equal items", () => {
+      const items = [
+        { name: "b", id: 1 },
+        { name: "a", id: 2 },
+        { name: "a", id: 3 },
+      ];
+      const result = sortBy<{ name: string; id: number }>("name")(items);
+      // Items with same name should maintain relative order (stable sort)
+      expect(result[0]).toEqual({ name: "a", id: 2 });
+      expect(result[1]).toEqual({ name: "a", id: 3 });
+      expect(result[2]).toEqual({ name: "b", id: 1 });
+    });
   });
 
   describe("unique", () => {

@@ -3,3 +3,5 @@ tickets.db
 *.db
 .env
 dist/
+.bin/
+coverage/

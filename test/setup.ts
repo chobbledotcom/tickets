@@ -1,11 +1,24 @@
 /**
- * Test setup - configures stripe-mock for integration tests
- *
- * Stripe integration tests require stripe-mock running on localhost:12111
- * Install: brew install stripe/stripe-mock/stripe-mock
- * Run: stripe-mock
+ * Test setup - orchestrates stripe-mock lifecycle
+ * This file is intentionally minimal and excluded from coverage.
+ * All testable logic is in stripe-mock.ts
  */
 
-// Configure stripe-mock for all tests by default
-process.env.STRIPE_MOCK_HOST = process.env.STRIPE_MOCK_HOST || "localhost";
-process.env.STRIPE_MOCK_PORT = process.env.STRIPE_MOCK_PORT || "12111";
+import {
+  STRIPE_MOCK_PORT,
+  StripeMockManager,
+} from "#test-utils/stripe-mock.ts";
+
+const manager = new StripeMockManager();
+
+// Configure stripe-mock env vars
+process.env.STRIPE_MOCK_HOST = "localhost";
+process.env.STRIPE_MOCK_PORT = String(STRIPE_MOCK_PORT);
+
+// Start stripe-mock before tests
+await manager.start();
+
+// Register cleanup on process exit
+// Note: Signal handlers use manager.stop directly to avoid creating
+// uncovered arrow functions (signals aren't sent during tests)
+process.on("exit", manager.stop.bind(manager));

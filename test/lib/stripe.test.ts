@@ -104,11 +104,27 @@ describe("stripe", () => {
       expect(result).toBeNull();
     });
 
-    test("returns null for invalid session when key set but no mock", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
-      const result = await retrieveCheckoutSession("cs_invalid");
-      // Returns null because Stripe API call fails
-      expect(result).toBeNull();
+    test("returns null when Stripe API throws error", async () => {
+      const { spyOn } = await import("bun:test");
+
+      // Enable Stripe with mock
+      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      const client = getStripeClient();
+      if (!client) throw new Error("Expected client to be defined");
+
+      // Spy on the checkout.sessions.retrieve method and make it throw
+      const retrieveSpy = spyOn(
+        client.checkout.sessions,
+        "retrieve",
+      ).mockRejectedValue(new Error("Network error"));
+
+      try {
+        const result = await retrieveCheckoutSession("cs_test_123");
+        expect(result).toBeNull();
+        expect(retrieveSpy).toHaveBeenCalledWith("cs_test_123");
+      } finally {
+        retrieveSpy.mockRestore();
+      }
     });
   });
 
