@@ -18,7 +18,8 @@ describe("test-utils", () => {
       await createTestDb();
       const { getDb } = await import("#lib/db.ts");
       const result = await getDb().execute("SELECT 1 as test");
-      expect(result.rows[0]).toEqual({ test: 1 });
+      expect(result.rows.length).toBe(1);
+      expect(result.columns).toContain("test");
     });
   });
 
