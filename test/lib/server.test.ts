@@ -383,4 +383,103 @@ describe("server", () => {
       expect(sessions.has(token)).toBe(false);
     });
   });
+
+  describe("full login flow with cookie", () => {
+    test("login returns Set-Cookie header with session token", async () => {
+      const password = await getOrCreateAdminPassword();
+      const response = await handleRequest(
+        makeFormRequest("/admin/login", { password }),
+      );
+
+      expect(response.status).toBe(302);
+      const setCookie = response.headers.get("set-cookie");
+      expect(setCookie).not.toBeNull();
+      expect(setCookie).toContain("session=");
+      expect(setCookie).toContain("HttpOnly");
+      expect(setCookie).toContain("Path=/");
+    });
+
+    test("can access admin dashboard with session cookie", async () => {
+      const password = await getOrCreateAdminPassword();
+      const loginResponse = await handleRequest(
+        makeFormRequest("/admin/login", { password }),
+      );
+
+      // Extract just the session token from Set-Cookie
+      const setCookie = loginResponse.headers.get("set-cookie") || "";
+      const token = setCookie.split("=")[1]?.split(";")[0] || "";
+      expect(token.length).toBe(32);
+
+      // Use the token in a Cookie header
+      const dashboardResponse = await handleRequest(
+        new Request("http://localhost/admin/", {
+          headers: { cookie: `session=${token}` },
+        }),
+      );
+
+      expect(dashboardResponse.status).toBe(200);
+      const html = await dashboardResponse.text();
+      expect(html).toContain("Admin Dashboard");
+    });
+
+    test("can create event with session cookie and see it in dashboard", async () => {
+      const password = await getOrCreateAdminPassword();
+      const loginResponse = await handleRequest(
+        makeFormRequest("/admin/login", { password }),
+      );
+
+      const setCookie = loginResponse.headers.get("set-cookie") || "";
+      const token = setCookie.split("=")[1]?.split(";")[0] || "";
+
+      // Create an event
+      const createResponse = await handleRequest(
+        makeFormRequest(
+          "/admin/event",
+          {
+            name: "My Test Event",
+            description: "A test event",
+            max_attendees: "100",
+            thank_you_url: "https://example.com/thanks",
+          },
+          `session=${token}`,
+        ),
+      );
+
+      expect(createResponse.status).toBe(302);
+
+      // Verify event shows up in dashboard
+      const dashboardResponse = await handleRequest(
+        new Request("http://localhost/admin/", {
+          headers: { cookie: `session=${token}` },
+        }),
+      );
+
+      expect(dashboardResponse.status).toBe(200);
+      const html = await dashboardResponse.text();
+      expect(html).toContain("My Test Event");
+    });
+
+    test("without cookie, admin dashboard shows login page", async () => {
+      const response = await handleRequest(
+        new Request("http://localhost/admin/"),
+      );
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Admin Login");
+      expect(html).not.toContain("Admin Dashboard");
+    });
+
+    test("with invalid cookie, admin dashboard shows login page", async () => {
+      const response = await handleRequest(
+        new Request("http://localhost/admin/", {
+          headers: { cookie: "session=invalid-token-12345" },
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Admin Login");
+    });
+  });
 });

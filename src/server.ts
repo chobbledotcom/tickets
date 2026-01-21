@@ -42,6 +42,7 @@ const generateSessionToken = (): string => {
 const parseCookies = (request: Request): Map<string, string> => {
   const cookies = new Map<string, string>();
   const header = request.headers.get("cookie");
+  log("parseCookies", { hasHeader: !!header, headerLength: header?.length ?? 0 });
   if (!header) return cookies;
 
   for (const part of header.split(";")) {
@@ -50,6 +51,7 @@ const parseCookies = (request: Request): Map<string, string> => {
       cookies.set(key, value);
     }
   }
+  log("parseCookies", { cookieCount: cookies.size, keys: [...cookies.keys()] });
   return cookies;
 };
 
@@ -59,16 +61,25 @@ const parseCookies = (request: Request): Map<string, string> => {
 const isAuthenticated = (request: Request): boolean => {
   const cookies = parseCookies(request);
   const token = cookies.get("session");
+  log("isAuthenticated", { hasToken: !!token, tokenLength: token?.length ?? 0 });
+
   if (!token) return false;
 
   const session = sessions.get(token);
+  log("isAuthenticated", {
+    sessionFound: !!session,
+    sessionCount: sessions.size,
+  });
+
   if (!session) return false;
 
   if (session.expires < Date.now()) {
+    log("isAuthenticated", { expired: true });
     sessions.delete(token);
     return false;
   }
 
+  log("isAuthenticated", { valid: true });
   return true;
 };
 
@@ -117,17 +128,23 @@ const handleAdminGet = async (request: Request): Promise<Response> => {
  * Handle POST /admin/login
  */
 const handleAdminLogin = async (request: Request): Promise<Response> => {
+  log("handleAdminLogin: processing login");
   const form = await parseFormData(request);
   const password = form.get("password") || "";
 
   const valid = await verifyAdminPassword(password);
   if (!valid) {
+    log("handleAdminLogin: invalid password");
     return htmlResponse(adminLoginPage("Invalid password"), 401);
   }
 
   const token = generateSessionToken();
   const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
   sessions.set(token, { expires });
+  log("handleAdminLogin: session created", {
+    tokenLength: token.length,
+    sessionCount: sessions.size,
+  });
 
   return redirect(
     "/admin/",
@@ -151,7 +168,9 @@ const handleAdminLogout = (request: Request): Response => {
  * Handle POST /admin/event (create event)
  */
 const handleCreateEvent = async (request: Request): Promise<Response> => {
+  log("handleCreateEvent: checking auth");
   if (!isAuthenticated(request)) {
+    log("handleCreateEvent: not authenticated, redirecting");
     return redirect("/admin/");
   }
 
@@ -161,7 +180,9 @@ const handleCreateEvent = async (request: Request): Promise<Response> => {
   const maxAttendees = Number.parseInt(form.get("max_attendees") || "0", 10);
   const thankYouUrl = form.get("thank_you_url") || "";
 
+  log("handleCreateEvent: creating event", { name, maxAttendees });
   await createEvent(name, description, maxAttendees, thankYouUrl);
+  log("handleCreateEvent: event created");
   return redirect("/admin/");
 };
 
@@ -325,6 +346,8 @@ export const handleRequest = async (request: Request): Promise<Response> => {
   const url = new URL(request.url);
   const path = url.pathname;
   const method = request.method;
+
+  log("handleRequest", { method, path });
 
   if (path === "/" && method === "GET") {
     return htmlResponse(homePage());
