@@ -13,7 +13,13 @@ let db: Client | null = null;
  */
 export const getDb = (): Client => {
   if (!db) {
-    const url = process.env.DB_URL || "file:tickets.db";
+    const url = process.env.DB_URL;
+    if (!url) {
+      throw new Error(
+        "DB_URL environment variable is required. " +
+          'Use "file:tickets.db" for local development or a remote URL (libsql:, https:, wss:) for edge deployments.',
+      );
+    }
     db = createClient({
       url,
       authToken: process.env.DB_TOKEN,

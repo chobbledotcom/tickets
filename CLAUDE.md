@@ -65,7 +65,7 @@ const result = reduce((acc, item) => {
 
 ## Environment Variables
 
-- `DB_URL` - Database URL (defaults to `file:tickets.db` for local SQLite)
+- `DB_URL` - Database URL (required). Use `file:tickets.db` for local SQLite or a remote URL (`libsql:`, `https:`, `wss:`) for edge deployments
 - `DB_TOKEN` - Database auth token (optional, for remote databases)
 - `PORT` - Server port (defaults to 3000)
 
