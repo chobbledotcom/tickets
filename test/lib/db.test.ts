@@ -111,6 +111,47 @@ describe("db", () => {
       const result = await verifyAdminPassword("wrong");
       expect(result).toBe(false);
     });
+
+    test("verifyAdminPassword returns true for ADMIN_PASSWORD env var", async () => {
+      const originalEnv = process.env.ADMIN_PASSWORD;
+      process.env.ADMIN_PASSWORD = "env-password-123";
+
+      try {
+        await getOrCreateAdminPassword();
+        const result = await verifyAdminPassword("env-password-123");
+        expect(result).toBe(true);
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.ADMIN_PASSWORD = originalEnv;
+        } else {
+          delete process.env.ADMIN_PASSWORD;
+        }
+      }
+    });
+
+    test("verifyAdminPassword accepts both env var and database password", async () => {
+      const originalEnv = process.env.ADMIN_PASSWORD;
+      process.env.ADMIN_PASSWORD = "env-password-123";
+
+      try {
+        const dbPassword = await getOrCreateAdminPassword();
+
+        const envResult = await verifyAdminPassword("env-password-123");
+        expect(envResult).toBe(true);
+
+        const dbResult = await verifyAdminPassword(dbPassword);
+        expect(dbResult).toBe(true);
+
+        const wrongResult = await verifyAdminPassword("wrong");
+        expect(wrongResult).toBe(false);
+      } finally {
+        if (originalEnv !== undefined) {
+          process.env.ADMIN_PASSWORD = originalEnv;
+        } else {
+          delete process.env.ADMIN_PASSWORD;
+        }
+      }
+    });
   });
 
   describe("events", () => {
