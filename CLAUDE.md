@@ -1,6 +1,6 @@
-# test-searcher
+# tickets
 
-This project uses functional programming patterns from the `@chobble/js-toolkit`.
+A minimal ticket reservation system using Bun and libsql.
 
 ## Preferences
 
@@ -10,13 +10,13 @@ This project uses functional programming patterns from the `@chobble/js-toolkit`
 
 ## FP Imports
 
-```javascript
+```typescript
 import { pipe, filter, map, reduce, compact, unique } from "#fp";
 ```
 
 ### Common Patterns
 
-```javascript
+```typescript
 // Compose operations
 const processItems = pipe(
   filter(item => item.active),
@@ -56,11 +56,18 @@ const result = reduce((acc, item) => {
 
 ## Scripts
 
+- `bun start` - Run the server
 - `bun test` - Run tests
 - `bun run lint` - Check code with Biome
 - `bun run lint:fix` - Fix lint issues
 - `bun run cpd` - Check for duplicate code
 - `bun run precommit` - Run all checks (lint, cpd, tests)
+
+## Environment Variables
+
+- `DB_URL` - Database URL (defaults to `file:tickets.db` for local SQLite)
+- `DB_TOKEN` - Database auth token (optional, for remote databases)
+- `PORT` - Server port (defaults to 3000)
 
 ## Lint Rules
 

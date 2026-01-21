@@ -72,21 +72,11 @@
       }
     },
     {
-      "includes": ["scripts/**/*.ts"],
+      "includes": ["src/index.ts"],
       "linter": {
         "rules": {
           "suspicious": {
             "noConsole": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["src/edge/**/*.ts"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noNonNullAssertion": "off"
           }
         }
       }
