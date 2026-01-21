@@ -87,6 +87,13 @@ export const initDb = async (): Promise<void> => {
     )
   `);
 
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      expires INTEGER NOT NULL
+    )
+  `);
+
   log("initDb: tables ready");
 };
 
@@ -260,4 +267,67 @@ export const hasAvailableSpots = async (eventId: number): Promise<boolean> => {
   const event = await getEventWithCount(eventId);
   if (!event) return false;
   return event.attendee_count < event.max_attendees;
+};
+
+/**
+ * Generate a session token
+ */
+export const generateSessionToken = (): string => {
+  const chars =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let token = "";
+  for (let i = 0; i < 32; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return token;
+};
+
+/**
+ * Create a new session
+ */
+export const createSession = async (token: string, expires: number): Promise<void> => {
+  log("createSession", { tokenLength: token.length, expires });
+  await getDb().execute({
+    sql: "INSERT OR REPLACE INTO sessions (token, expires) VALUES (?, ?)",
+    args: [token, expires],
+  });
+};
+
+/**
+ * Get a session by token
+ */
+export const getSession = async (token: string): Promise<{ expires: number } | null> => {
+  const result = await getDb().execute({
+    sql: "SELECT expires FROM sessions WHERE token = ?",
+    args: [token],
+  });
+  if (result.rows.length === 0) {
+    log("getSession", { found: false });
+    return null;
+  }
+  const expires = Number(result.rows[0].expires);
+  log("getSession", { found: true, expires, isExpired: expires < Date.now() });
+  return { expires };
+};
+
+/**
+ * Delete a session
+ */
+export const deleteSession = async (token: string): Promise<void> => {
+  log("deleteSession", { tokenLength: token.length });
+  await getDb().execute({
+    sql: "DELETE FROM sessions WHERE token = ?",
+    args: [token],
+  });
+};
+
+/**
+ * Delete expired sessions
+ */
+export const cleanExpiredSessions = async (): Promise<void> => {
+  const now = Date.now();
+  await getDb().execute({
+    sql: "DELETE FROM sessions WHERE expires < ?",
+    args: [now],
+  });
 };

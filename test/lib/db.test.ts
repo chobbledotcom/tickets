@@ -1,15 +1,20 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import {
+  cleanExpiredSessions,
   createAttendee,
   createEvent,
+  createSession,
+  deleteSession,
   generatePassword,
+  generateSessionToken,
   getAllEvents,
   getAttendees,
   getDb,
   getEvent,
   getEventWithCount,
   getOrCreateAdminPassword,
+  getSession,
   getSetting,
   hasAvailableSpots,
   initDb,
@@ -317,6 +322,50 @@ describe("db", () => {
       const client2 = getDb();
       expect(client1).toBe(client2);
     });
+  });
 
+  describe("sessions", () => {
+    test("createSession and getSession work together", async () => {
+      const token = "test-session-token";
+      const expires = Date.now() + 1000;
+      await createSession(token, expires);
+
+      const session = await getSession(token);
+      expect(session).not.toBeNull();
+      expect(session?.expires).toBe(expires);
+    });
+
+    test("getSession returns null for non-existent session", async () => {
+      const session = await getSession("non-existent");
+      expect(session).toBeNull();
+    });
+
+    test("deleteSession removes session", async () => {
+      const token = "delete-me";
+      await createSession(token, Date.now() + 1000);
+
+      await deleteSession(token);
+      const session = await getSession(token);
+      expect(session).toBeNull();
+    });
+
+    test("cleanExpiredSessions removes only expired sessions", async () => {
+      await createSession("valid-session", Date.now() + 10000);
+      await createSession("expired-session", Date.now() - 1000);
+
+      await cleanExpiredSessions();
+
+      const valid = await getSession("valid-session");
+      const expired = await getSession("expired-session");
+
+      expect(valid).not.toBeNull();
+      expect(expired).toBeNull();
+    });
+
+    test("generateSessionToken returns 32-char string", () => {
+      const token = generateSessionToken();
+      expect(token.length).toBe(32);
+      expect(token).toMatch(/^[a-zA-Z0-9]+$/);
+    });
   });
 });

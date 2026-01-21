@@ -5,9 +5,13 @@
 import {
   createAttendee,
   createEvent,
+  createSession,
+  deleteSession,
+  generateSessionToken,
   getAllEvents,
   getAttendees,
   getEventWithCount,
+  getSession,
   hasAvailableSpots,
   verifyAdminPassword,
 } from "./lib/db.ts";
@@ -20,21 +24,6 @@ import {
   notFoundPage,
   ticketPage,
 } from "./lib/html.ts";
-
-export const sessions = new Map<string, { expires: number }>();
-
-/**
- * Generate a session token
- */
-const generateSessionToken = (): string => {
-  const chars =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let token = "";
-  for (let i = 0; i < 32; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return token;
-};
 
 /**
  * Parse cookies from request
@@ -58,24 +47,21 @@ const parseCookies = (request: Request): Map<string, string> => {
 /**
  * Check if request has valid session
  */
-const isAuthenticated = (request: Request): boolean => {
+const isAuthenticated = async (request: Request): Promise<boolean> => {
   const cookies = parseCookies(request);
   const token = cookies.get("session");
   log("isAuthenticated", { hasToken: !!token, tokenLength: token?.length ?? 0 });
 
   if (!token) return false;
 
-  const session = sessions.get(token);
-  log("isAuthenticated", {
-    sessionFound: !!session,
-    sessionCount: sessions.size,
-  });
+  const session = await getSession(token);
+  log("isAuthenticated", { sessionFound: !!session });
 
   if (!session) return false;
 
   if (session.expires < Date.now()) {
     log("isAuthenticated", { expired: true });
-    sessions.delete(token);
+    await deleteSession(token);
     return false;
   }
 
@@ -117,7 +103,7 @@ const parseFormData = async (request: Request): Promise<URLSearchParams> => {
  * Handle GET /admin/
  */
 const handleAdminGet = async (request: Request): Promise<Response> => {
-  if (!isAuthenticated(request)) {
+  if (!(await isAuthenticated(request))) {
     return htmlResponse(adminLoginPage());
   }
   const events = await getAllEvents();
@@ -140,11 +126,8 @@ const handleAdminLogin = async (request: Request): Promise<Response> => {
 
   const token = generateSessionToken();
   const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-  sessions.set(token, { expires });
-  log("handleAdminLogin: session created", {
-    tokenLength: token.length,
-    sessionCount: sessions.size,
-  });
+  await createSession(token, expires);
+  log("handleAdminLogin: session created", { tokenLength: token.length });
 
   return redirect(
     "/admin/",
@@ -155,11 +138,11 @@ const handleAdminLogin = async (request: Request): Promise<Response> => {
 /**
  * Handle GET /admin/logout
  */
-const handleAdminLogout = (request: Request): Response => {
+const handleAdminLogout = async (request: Request): Promise<Response> => {
   const cookies = parseCookies(request);
   const token = cookies.get("session");
   if (token) {
-    sessions.delete(token);
+    await deleteSession(token);
   }
   return redirect("/admin/", "session=; HttpOnly; Path=/; Max-Age=0");
 };
@@ -169,7 +152,7 @@ const handleAdminLogout = (request: Request): Response => {
  */
 const handleCreateEvent = async (request: Request): Promise<Response> => {
   log("handleCreateEvent: checking auth");
-  if (!isAuthenticated(request)) {
+  if (!(await isAuthenticated(request))) {
     log("handleCreateEvent: not authenticated, redirecting");
     return redirect("/admin/");
   }
@@ -193,7 +176,7 @@ const handleAdminEventGet = async (
   request: Request,
   eventId: number,
 ): Promise<Response> => {
-  if (!isAuthenticated(request)) {
+  if (!(await isAuthenticated(request))) {
     return redirect("/admin/");
   }
 
