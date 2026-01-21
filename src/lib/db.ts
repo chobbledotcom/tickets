@@ -4,7 +4,13 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
-import type { Attendee, Event, EventWithCount, Settings } from "./types.ts";
+import type {
+  Attendee,
+  Event,
+  EventWithCount,
+  Session,
+  Settings,
+} from "./types.ts";
 
 let db: Client | null = null;
 
@@ -97,6 +103,13 @@ export const initDb = async (): Promise<void> => {
   } catch {
     // Column already exists, ignore error
   }
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      token TEXT PRIMARY KEY,
+      expires INTEGER NOT NULL
+    )
+  `);
 };
 
 /**
@@ -302,4 +315,49 @@ export const hasAvailableSpots = async (eventId: number): Promise<boolean> => {
   const event = await getEventWithCount(eventId);
   if (!event) return false;
   return event.attendee_count < event.max_attendees;
+};
+
+/**
+ * Create a new session
+ */
+export const createSession = async (
+  token: string,
+  expires: number,
+): Promise<void> => {
+  await getDb().execute({
+    sql: "INSERT INTO sessions (token, expires) VALUES (?, ?)",
+    args: [token, expires],
+  });
+};
+
+/**
+ * Get a session by token
+ */
+export const getSession = async (token: string): Promise<Session | null> => {
+  const result = await getDb().execute({
+    sql: "SELECT token, expires FROM sessions WHERE token = ?",
+    args: [token],
+  });
+  if (result.rows.length === 0) return null;
+  return result.rows[0] as unknown as Session;
+};
+
+/**
+ * Delete a session by token
+ */
+export const deleteSession = async (token: string): Promise<void> => {
+  await getDb().execute({
+    sql: "DELETE FROM sessions WHERE token = ?",
+    args: [token],
+  });
+};
+
+/**
+ * Delete all expired sessions
+ */
+export const deleteExpiredSessions = async (): Promise<void> => {
+  await getDb().execute({
+    sql: "DELETE FROM sessions WHERE expires < ?",
+    args: [Date.now()],
+  });
 };
