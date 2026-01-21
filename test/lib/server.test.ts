@@ -118,6 +118,20 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/");
       expect(response.headers.get("set-cookie")).toContain("session=");
     });
+
+    test("accepts ADMIN_PASSWORD env var", async () => {
+      const original = process.env.ADMIN_PASSWORD;
+      process.env.ADMIN_PASSWORD = "env-test-password";
+
+      const response = await handleRequest(
+        makeFormRequest("/admin/login", { password: "env-test-password" }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("set-cookie")).toContain("session=");
+
+      process.env.ADMIN_PASSWORD = original;
+    });
   });
 
   describe("GET /admin/logout", () => {
