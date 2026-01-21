@@ -3,8 +3,10 @@ import { createClient } from "@libsql/client";
 import {
   createAttendee,
   createEvent,
+  deleteAttendee,
   generatePassword,
   getAllEvents,
+  getAttendee,
   getAttendees,
   getDb,
   getEvent,
@@ -15,6 +17,7 @@ import {
   initDb,
   setDb,
   setSetting,
+  updateAttendeePayment,
   verifyAdminPassword,
 } from "#lib/db.ts";
 
@@ -27,6 +30,24 @@ describe("db", () => {
 
   afterEach(() => {
     setDb(null);
+  });
+
+  describe("getDb", () => {
+    test("throws error when DB_URL is not set", () => {
+      setDb(null);
+      const originalDbUrl = process.env.DB_URL;
+      delete process.env.DB_URL;
+
+      try {
+        expect(() => getDb()).toThrow(
+          "DB_URL environment variable is required",
+        );
+      } finally {
+        if (originalDbUrl) {
+          process.env.DB_URL = originalDbUrl;
+        }
+      }
+    });
   });
 
   describe("generatePassword", () => {
@@ -107,6 +128,19 @@ describe("db", () => {
       expect(event.max_attendees).toBe(100);
       expect(event.thank_you_url).toBe("https://example.com/thanks");
       expect(event.created).toBeDefined();
+      expect(event.unit_price).toBeNull();
+    });
+
+    test("createEvent creates event with unit_price", async () => {
+      const event = await createEvent(
+        "Paid Event",
+        "Description",
+        50,
+        "https://example.com/thanks",
+        1000,
+      );
+
+      expect(event.unit_price).toBe(1000);
     });
 
     test("getAllEvents returns empty array when no events", async () => {
@@ -180,6 +214,85 @@ describe("db", () => {
       expect(attendee.name).toBe("John Doe");
       expect(attendee.email).toBe("john@example.com");
       expect(attendee.created).toBeDefined();
+      expect(attendee.stripe_payment_id).toBeNull();
+    });
+
+    test("createAttendee creates attendee with stripe_payment_id", async () => {
+      const event = await createEvent(
+        "Event",
+        "Desc",
+        50,
+        "https://example.com",
+      );
+      const attendee = await createAttendee(
+        event.id,
+        "John Doe",
+        "john@example.com",
+        "pi_test_123",
+      );
+
+      expect(attendee.stripe_payment_id).toBe("pi_test_123");
+    });
+
+    test("getAttendee returns null for missing attendee", async () => {
+      const attendee = await getAttendee(999);
+      expect(attendee).toBeNull();
+    });
+
+    test("getAttendee returns attendee by id", async () => {
+      const event = await createEvent(
+        "Event",
+        "Desc",
+        50,
+        "https://example.com",
+      );
+      const created = await createAttendee(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+      const fetched = await getAttendee(created.id);
+
+      expect(fetched).not.toBeNull();
+      expect(fetched?.name).toBe("John Doe");
+    });
+
+    test("updateAttendeePayment updates stripe_payment_id", async () => {
+      const event = await createEvent(
+        "Event",
+        "Desc",
+        50,
+        "https://example.com",
+      );
+      const attendee = await createAttendee(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+
+      await updateAttendeePayment(attendee.id, "pi_updated_123");
+
+      const updated = await getAttendee(attendee.id);
+      expect(updated?.stripe_payment_id).toBe("pi_updated_123");
+    });
+
+    test("deleteAttendee removes attendee", async () => {
+      const event = await createEvent(
+        "Event",
+        "Desc",
+        50,
+        "https://example.com",
+      );
+      const attendee = await createAttendee(
+        event.id,
+        "John Doe",
+        "john@example.com",
+      );
+
+      await deleteAttendee(attendee.id);
+
+      const fetched = await getAttendee(attendee.id);
+      expect(fetched).toBeNull();
     });
 
     test("getAttendees returns empty array when no attendees", async () => {

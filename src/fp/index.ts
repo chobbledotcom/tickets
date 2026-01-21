@@ -5,11 +5,34 @@
 
 /**
  * Compose functions left-to-right (pipe)
+ * Supports type transformations through the chain
  */
-export const pipe =
-  <T>(...fns: Array<(arg: T) => T>) =>
-  (value: T): T =>
-    fns.reduce((acc, fn) => fn(acc), value);
+export function pipe<A>(): (a: A) => A;
+export function pipe<A, B>(fn1: (a: A) => B): (a: A) => B;
+export function pipe<A, B, C>(fn1: (a: A) => B, fn2: (b: B) => C): (a: A) => C;
+export function pipe<A, B, C, D>(
+  fn1: (a: A) => B,
+  fn2: (b: B) => C,
+  fn3: (c: C) => D,
+): (a: A) => D;
+export function pipe<A, B, C, D, E>(
+  fn1: (a: A) => B,
+  fn2: (b: B) => C,
+  fn3: (c: C) => D,
+  fn4: (d: D) => E,
+): (a: A) => E;
+export function pipe<A, B, C, D, E, F>(
+  fn1: (a: A) => B,
+  fn2: (b: B) => C,
+  fn3: (c: C) => D,
+  fn4: (d: D) => E,
+  fn5: (e: E) => F,
+): (a: A) => F;
+export function pipe(
+  ...fns: Array<(arg: unknown) => unknown>
+): (value: unknown) => unknown {
+  return (value: unknown): unknown => fns.reduce((acc, fn) => fn(acc), value);
+}
 
 /**
  * Curried filter
