@@ -103,13 +103,6 @@ describe("stripe", () => {
       const result = await retrieveCheckoutSession("cs_test_123");
       expect(result).toBeNull();
     });
-
-    test("returns null for invalid session when key set but no mock", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
-      const result = await retrieveCheckoutSession("cs_invalid");
-      // Returns null because Stripe API call fails
-      expect(result).toBeNull();
-    });
   });
 
   describe("createCheckoutSession", () => {

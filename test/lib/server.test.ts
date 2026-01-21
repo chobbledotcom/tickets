@@ -659,5 +659,53 @@ describe("server", () => {
       // stripe-mock returns unpaid status, so verification fails
       expect(response.status).toBe(400);
     });
+
+    test("updates attendee and shows success when payment verified", async () => {
+      const { spyOn } = await import("bun:test");
+
+      // Mock retrieveCheckoutSession to return a paid session
+      const stripeModule = await import("#lib/stripe.ts");
+      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_test_paid",
+        payment_status: "paid",
+        payment_intent: "pi_test_123",
+      } as Awaited<ReturnType<typeof stripeModule.retrieveCheckoutSession>>);
+
+      try {
+        process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+
+        const event = await createEvent(
+          "Paid Event",
+          "Description",
+          50,
+          "https://example.com/thanks",
+          1000,
+        );
+        const attendee = await createAttendee(
+          event.id,
+          "John",
+          "john@example.com",
+        );
+
+        const response = await handleRequest(
+          mockRequest(
+            `/payment/success?attendee_id=${attendee.id}&session_id=cs_test_paid`,
+          ),
+        );
+
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Payment Successful");
+        expect(html).toContain("https://example.com/thanks");
+
+        // Verify attendee was updated with payment ID
+        const { getAttendee } = await import("#lib/db.ts");
+        const updatedAttendee = await getAttendee(attendee.id);
+        expect(updatedAttendee?.stripe_payment_id).toBe("pi_test_123");
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
   });
 });
