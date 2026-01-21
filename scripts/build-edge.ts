@@ -8,6 +8,7 @@
 const ENV_VARS = {
   DB_URL: process.env.DB_URL || "",
   DB_TOKEN: process.env.DB_TOKEN || "",
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "",
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || "",
   CURRENCY_CODE: process.env.CURRENCY_CODE || "GBP",
 };
@@ -26,6 +27,7 @@ const result = await Bun.build({
   define: {
     "process.env.DB_URL": JSON.stringify(ENV_VARS.DB_URL),
     "process.env.DB_TOKEN": JSON.stringify(ENV_VARS.DB_TOKEN),
+    "process.env.ADMIN_PASSWORD": JSON.stringify(ENV_VARS.ADMIN_PASSWORD),
     "process.env.STRIPE_SECRET_KEY": JSON.stringify(ENV_VARS.STRIPE_SECRET_KEY),
     "process.env.CURRENCY_CODE": JSON.stringify(ENV_VARS.CURRENCY_CODE),
   },

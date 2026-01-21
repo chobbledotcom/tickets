@@ -122,12 +122,21 @@ export const setSetting = async (key: string, value: string): Promise<void> => {
 };
 
 /**
- * Get admin password, creating one if it doesn't exist
+ * Get admin password
+ * Priority: 1) ADMIN_PASSWORD env var, 2) stored in database, 3) generate new
  */
 export const getOrCreateAdminPassword = async (): Promise<string> => {
+  // Check environment variable first
+  const envPassword = process.env.ADMIN_PASSWORD;
+  if (envPassword && envPassword.trim() !== "") {
+    return envPassword;
+  }
+
+  // Check database
   const existing = await getSetting("admin_password");
   if (existing) return existing;
 
+  // Generate and store new password
   const password = generatePassword();
   await setSetting("admin_password", password);
   return password;

@@ -67,9 +67,10 @@ const result = reduce((acc, item) => {
 
 - `DB_URL` - Database URL (required, e.g. `libsql://your-db.turso.io`)
 - `DB_TOKEN` - Database auth token (required for remote databases)
-- `PORT` - Server port (defaults to 3000)
+- `ADMIN_PASSWORD` - Admin password (optional, generates random if not set)
 - `STRIPE_SECRET_KEY` - Stripe secret key (optional, enables payments when set)
 - `CURRENCY_CODE` - Currency code for payments (defaults to GBP)
+- `PORT` - Server port (defaults to 3000)
 
 ## Lint Rules
 

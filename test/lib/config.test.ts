@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
+  getAdminPassword,
   getCurrencyCode,
   getDbToken,
   getDbUrl,
@@ -18,6 +19,7 @@ describe("config", () => {
     delete process.env.DB_URL;
     delete process.env.DB_TOKEN;
     delete process.env.PORT;
+    delete process.env.ADMIN_PASSWORD;
   });
 
   afterEach(() => {
@@ -69,13 +71,34 @@ describe("config", () => {
   });
 
   describe("getDbUrl", () => {
-    test("returns default when not set", () => {
-      expect(getDbUrl()).toBe("file:tickets.db");
+    test("returns undefined when not set", () => {
+      expect(getDbUrl()).toBeUndefined();
     });
 
     test("returns set value", () => {
       process.env.DB_URL = "libsql://test.turso.io";
       expect(getDbUrl()).toBe("libsql://test.turso.io");
+    });
+  });
+
+  describe("getAdminPassword", () => {
+    test("returns undefined when not set", () => {
+      expect(getAdminPassword()).toBeUndefined();
+    });
+
+    test("returns undefined when empty string", () => {
+      process.env.ADMIN_PASSWORD = "";
+      expect(getAdminPassword()).toBeUndefined();
+    });
+
+    test("returns undefined when whitespace only", () => {
+      process.env.ADMIN_PASSWORD = "   ";
+      expect(getAdminPassword()).toBeUndefined();
+    });
+
+    test("returns password when set", () => {
+      process.env.ADMIN_PASSWORD = "mysecretpassword";
+      expect(getAdminPassword()).toBe("mysecretpassword");
     });
   });
 

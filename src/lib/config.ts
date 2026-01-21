@@ -30,8 +30,17 @@ export const getCurrencyCode = (): string => {
 /**
  * Get database URL from environment
  */
-export const getDbUrl = (): string => {
-  return process.env.DB_URL || "file:tickets.db";
+export const getDbUrl = (): string | undefined => {
+  return process.env.DB_URL;
+};
+
+/**
+ * Get admin password from environment
+ * If not set, a random password will be generated and stored in the database
+ */
+export const getAdminPassword = (): string | undefined => {
+  const password = process.env.ADMIN_PASSWORD;
+  return password && password.trim() !== "" ? password : undefined;
 };
 
 /**
