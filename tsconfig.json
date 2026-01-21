@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true,
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "#fp": ["./chobble-template/packages/js-toolkit/fp/index.js"],
+      "#fp/*": ["./chobble-template/packages/js-toolkit/fp/*"],
+      "#test-utils": ["./chobble-template/packages/js-toolkit/test-utils/index.js"],
+      "#test-utils/*": ["./chobble-template/packages/js-toolkit/test-utils/*"],
+      "#src/*": ["./src/*"],
+      "#test/*": ["./test/*"],
+      "#lib/*": ["./src/lib/*"]
+    },
+    "types": ["bun-types"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts"],
+  "exclude": ["node_modules", "chobble-template"]
+}

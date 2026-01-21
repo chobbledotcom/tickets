@@ -1,0 +1,5 @@
+[test]
+root = "./test"
+timeout = 30000
+coverage = true
+coverageThreshold = { lines = 1.0, functions = 1.0 }
