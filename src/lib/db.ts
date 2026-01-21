@@ -46,7 +46,17 @@ export const generatePassword = (): string => {
  * Initialize database tables
  */
 export const initDb = async (): Promise<void> => {
+  const dbUrl = process.env.DB_URL as string;
+  log("initDb: connecting", {
+    urlPrefix: dbUrl?.substring(0, 20),
+    hasToken: !!process.env.DB_TOKEN,
+  });
+
   const client = getDb();
+
+  // Test connection with a simple query
+  await client.execute("SELECT 1");
+  log("initDb: connection verified");
 
   await client.execute(`
     CREATE TABLE IF NOT EXISTS settings (
@@ -76,6 +86,8 @@ export const initDb = async (): Promise<void> => {
       FOREIGN KEY (event_id) REFERENCES events(id)
     )
   `);
+
+  log("initDb: tables ready");
 };
 
 /**
