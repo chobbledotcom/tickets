@@ -6,12 +6,15 @@ import { isPaymentsEnabled } from "./lib/config.ts";
 import {
   createAttendee,
   createEvent,
+  createSession,
   deleteAttendee,
+  deleteSession,
   getAllEvents,
   getAttendee,
   getAttendees,
   getEvent,
   getEventWithCount,
+  getSession,
   hasAvailableSpots,
   updateAttendeePayment,
   verifyAdminPassword,
@@ -32,8 +35,6 @@ import {
   retrieveCheckoutSession,
 } from "./lib/stripe.ts";
 import type { Attendee, Event, EventWithCount } from "./lib/types.ts";
-
-export const sessions = new Map<string, { expires: number }>();
 
 /**
  * Generate a session token
@@ -68,16 +69,16 @@ const parseCookies = (request: Request): Map<string, string> => {
 /**
  * Check if request has valid session
  */
-const isAuthenticated = (request: Request): boolean => {
+const isAuthenticated = async (request: Request): Promise<boolean> => {
   const cookies = parseCookies(request);
   const token = cookies.get("session");
   if (!token) return false;
 
-  const session = sessions.get(token);
+  const session = await getSession(token);
   if (!session) return false;
 
   if (session.expires < Date.now()) {
-    sessions.delete(token);
+    await deleteSession(token);
     return false;
   }
 
@@ -116,7 +117,7 @@ const parseFormData = async (request: Request): Promise<URLSearchParams> => {
  * Handle GET /admin/
  */
 const handleAdminGet = async (request: Request): Promise<Response> => {
-  if (!isAuthenticated(request)) {
+  if (!(await isAuthenticated(request))) {
     return htmlResponse(adminLoginPage());
   }
   const events = await getAllEvents();
@@ -137,7 +138,7 @@ const handleAdminLogin = async (request: Request): Promise<Response> => {
 
   const token = generateSessionToken();
   const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-  sessions.set(token, { expires });
+  await createSession(token, expires);
 
   return redirect(
     "/admin/",
@@ -148,11 +149,11 @@ const handleAdminLogin = async (request: Request): Promise<Response> => {
 /**
  * Handle GET /admin/logout
  */
-const handleAdminLogout = (request: Request): Response => {
+const handleAdminLogout = async (request: Request): Promise<Response> => {
   const cookies = parseCookies(request);
   const token = cookies.get("session");
   if (token) {
-    sessions.delete(token);
+    await deleteSession(token);
   }
   return redirect("/admin/", "session=; HttpOnly; Path=/; Max-Age=0");
 };
@@ -161,7 +162,7 @@ const handleAdminLogout = (request: Request): Response => {
  * Handle POST /admin/event (create event)
  */
 const handleCreateEvent = async (request: Request): Promise<Response> => {
-  if (!isAuthenticated(request)) {
+  if (!(await isAuthenticated(request))) {
     return redirect("/admin/");
   }
 
@@ -187,7 +188,7 @@ const handleAdminEventGet = async (
   request: Request,
   eventId: number,
 ): Promise<Response> => {
-  if (!isAuthenticated(request)) {
+  if (!(await isAuthenticated(request))) {
     return redirect("/admin/");
   }
 

@@ -3,12 +3,14 @@ import { createClient } from "@libsql/client";
 import {
   createAttendee,
   createEvent,
+  createSession,
   getOrCreateAdminPassword,
+  getSession,
   initDb,
   setDb,
 } from "#lib/db.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
-import { handleRequest, sessions } from "#src/server.ts";
+import { handleRequest } from "#src/server.ts";
 import { mockFormRequest, mockRequest } from "#test-utils";
 
 describe("server", () => {
@@ -20,7 +22,6 @@ describe("server", () => {
 
   afterEach(() => {
     setDb(null);
-    sessions.clear();
   });
 
   describe("GET /", () => {
@@ -307,8 +308,8 @@ describe("server", () => {
     });
 
     test("expired session is deleted and shows login page", async () => {
-      // Add an expired session directly
-      sessions.set("expired-token", { expires: Date.now() - 1000 });
+      // Add an expired session directly to the database
+      await createSession("expired-token", Date.now() - 1000);
 
       const response = await handleRequest(
         new Request("http://localhost/admin/", {
@@ -320,12 +321,13 @@ describe("server", () => {
       expect(html).toContain("Admin Login");
 
       // Verify the expired session was deleted
-      expect(sessions.has("expired-token")).toBe(false);
+      const session = await getSession("expired-token");
+      expect(session).toBeNull();
     });
   });
 
   describe("logout with valid session", () => {
-    test("deletes session from sessions map", async () => {
+    test("deletes session from database", async () => {
       // Log in first
       const password = await getOrCreateAdminPassword();
       const loginResponse = await handleRequest(
@@ -335,7 +337,8 @@ describe("server", () => {
       const token = cookie.split("=")[1]?.split(";")[0] || "";
 
       expect(token).not.toBe("");
-      expect(sessions.has(token)).toBe(true);
+      const sessionBefore = await getSession(token);
+      expect(sessionBefore).not.toBeNull();
 
       // Now logout
       const logoutResponse = await handleRequest(
@@ -346,7 +349,8 @@ describe("server", () => {
       expect(logoutResponse.status).toBe(302);
 
       // Verify session was deleted
-      expect(sessions.has(token)).toBe(false);
+      const sessionAfter = await getSession(token);
+      expect(sessionAfter).toBeNull();
     });
   });
 

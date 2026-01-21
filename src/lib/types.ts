@@ -26,6 +26,11 @@ export interface Settings {
   value: string;
 }
 
+export interface Session {
+  token: string;
+  expires: number;
+}
+
 export interface EventWithCount extends Event {
   attendee_count: number;
 }

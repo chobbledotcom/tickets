@@ -3,7 +3,10 @@ import { createClient } from "@libsql/client";
 import {
   createAttendee,
   createEvent,
+  createSession,
   deleteAttendee,
+  deleteExpiredSessions,
+  deleteSession,
   generatePassword,
   getAllEvents,
   getAttendee,
@@ -12,6 +15,7 @@ import {
   getEvent,
   getEventWithCount,
   getOrCreateAdminPassword,
+  getSession,
   getSetting,
   hasAvailableSpots,
   initDb,
@@ -450,6 +454,44 @@ describe("db", () => {
       const client1 = getDb();
       const client2 = getDb();
       expect(client1).toBe(client2);
+    });
+  });
+
+  describe("sessions", () => {
+    test("createSession and getSession work together", async () => {
+      const expires = Date.now() + 1000;
+      await createSession("test-token", expires);
+
+      const session = await getSession("test-token");
+      expect(session).not.toBeNull();
+      expect(session?.token).toBe("test-token");
+      expect(session?.expires).toBe(expires);
+    });
+
+    test("getSession returns null for missing session", async () => {
+      const session = await getSession("nonexistent");
+      expect(session).toBeNull();
+    });
+
+    test("deleteSession removes session", async () => {
+      await createSession("delete-me", Date.now() + 1000);
+      await deleteSession("delete-me");
+
+      const session = await getSession("delete-me");
+      expect(session).toBeNull();
+    });
+
+    test("deleteExpiredSessions removes expired sessions", async () => {
+      await createSession("expired", Date.now() - 1000);
+      await createSession("valid", Date.now() + 10000);
+
+      await deleteExpiredSessions();
+
+      const expiredSession = await getSession("expired");
+      const validSession = await getSession("valid");
+
+      expect(expiredSession).toBeNull();
+      expect(validSession).not.toBeNull();
     });
   });
 });
