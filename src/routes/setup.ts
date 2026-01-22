@@ -131,12 +131,22 @@ export const handleSetupPost = async (
   // biome-ignore lint/suspicious/noConsole: Debug logging for edge script
   console.log("[Setup] Cookies parsed:", Array.from(cookies.keys()));
   // biome-ignore lint/suspicious/noConsole: Debug logging for edge script
-  console.log("[Setup] Cookie CSRF token present:", !!cookieCsrf, "length:", cookieCsrf.length);
+  console.log(
+    "[Setup] Cookie CSRF token present:",
+    !!cookieCsrf,
+    "length:",
+    cookieCsrf.length,
+  );
 
   const form = await parseFormData(request);
   const formCsrf = form.get("csrf_token") || "";
   // biome-ignore lint/suspicious/noConsole: Debug logging for edge script
-  console.log("[Setup] Form CSRF token present:", !!formCsrf, "length:", formCsrf.length);
+  console.log(
+    "[Setup] Form CSRF token present:",
+    !!formCsrf,
+    "length:",
+    formCsrf.length,
+  );
   // biome-ignore lint/suspicious/noConsole: Debug logging for edge script
   console.log("[Setup] CSRF tokens match:", cookieCsrf === formCsrf);
 
