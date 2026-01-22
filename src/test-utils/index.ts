@@ -3,6 +3,7 @@
  */
 
 import { createClient } from "@libsql/client";
+import { clearEncryptionKeyCache } from "../lib/crypto.ts";
 import { completeSetup, getSession, initDb, setDb } from "../lib/db.ts";
 
 /**
@@ -11,9 +12,34 @@ import { completeSetup, getSession, initDb, setDb } from "../lib/db.ts";
 export const TEST_ADMIN_PASSWORD = "testpassword123";
 
 /**
+ * Test encryption key (32 bytes base64-encoded)
+ * This is a valid AES-256 key for testing purposes only
+ */
+export const TEST_ENCRYPTION_KEY =
+  "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+
+/**
+ * Set up test encryption key in environment
+ */
+export const setupTestEncryptionKey = (): void => {
+  process.env.DB_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+  clearEncryptionKeyCache();
+};
+
+/**
+ * Clear test encryption key from environment
+ */
+export const clearTestEncryptionKey = (): void => {
+  delete process.env.DB_ENCRYPTION_KEY;
+  clearEncryptionKeyCache();
+};
+
+/**
  * Create an in-memory database for testing
+ * Also sets up the test encryption key
  */
 export const createTestDb = async (): Promise<void> => {
+  setupTestEncryptionKey();
   const client = createClient({ url: ":memory:" });
   setDb(client);
   await initDb();
@@ -22,6 +48,7 @@ export const createTestDb = async (): Promise<void> => {
 /**
  * Create an in-memory database with setup already completed
  * This is the common case for most tests
+ * Also sets up the test encryption key
  */
 export const createTestDbWithSetup = async (
   stripeKey: string | null = null,

@@ -2271,18 +2271,736 @@ var require_lib = __commonJS((exports, module) => {
 // src/edge/bunny-script.ts
 import * as BunnySDK from "https://esm.sh/@bunny.net/edgescript-sdk@0.10.0";
 
+// node_modules/@noble/ciphers/utils.js
+/*! noble-ciphers - MIT License (c) 2023 Paul Miller (paulmillr.com) */
+function isBytes(a) {
+  return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
+}
+function abool(b) {
+  if (typeof b !== "boolean")
+    throw new Error(`boolean expected, not ${b}`);
+}
+function abytes(value, length, title = "") {
+  const bytes = isBytes(value);
+  const len = value?.length;
+  const needsLen = length !== undefined;
+  if (!bytes || needsLen && len !== length) {
+    const prefix = title && `"${title}" `;
+    const ofLen = needsLen ? ` of length ${length}` : "";
+    const got = bytes ? `length=${len}` : `type=${typeof value}`;
+    throw new Error(prefix + "expected Uint8Array" + ofLen + ", got " + got);
+  }
+  return value;
+}
+function aexists(instance, checkFinished = true) {
+  if (instance.destroyed)
+    throw new Error("Hash instance has been destroyed");
+  if (checkFinished && instance.finished)
+    throw new Error("Hash#digest() has already been called");
+}
+function aoutput(out, instance) {
+  abytes(out, undefined, "output");
+  const min = instance.outputLen;
+  if (out.length < min) {
+    throw new Error("digestInto() expects output buffer of length at least " + min);
+  }
+}
+function u8(arr) {
+  return new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength);
+}
+function u32(arr) {
+  return new Uint32Array(arr.buffer, arr.byteOffset, Math.floor(arr.byteLength / 4));
+}
+function clean(...arrays) {
+  for (let i = 0;i < arrays.length; i++) {
+    arrays[i].fill(0);
+  }
+}
+function createView(arr) {
+  return new DataView(arr.buffer, arr.byteOffset, arr.byteLength);
+}
+var isLE = /* @__PURE__ */ (() => new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68)();
+function equalBytes(a, b) {
+  if (a.length !== b.length)
+    return false;
+  let diff = 0;
+  for (let i = 0;i < a.length; i++)
+    diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+var wrapCipher = (params, constructor) => {
+  function wrappedCipher(key, ...args) {
+    abytes(key, undefined, "key");
+    if (!isLE)
+      throw new Error("Non little-endian hardware is not yet supported");
+    if (params.nonceLength !== undefined) {
+      const nonce = args[0];
+      abytes(nonce, params.varSizeNonce ? undefined : params.nonceLength, "nonce");
+    }
+    const tagl = params.tagLength;
+    if (tagl && args[1] !== undefined)
+      abytes(args[1], undefined, "AAD");
+    const cipher = constructor(key, ...args);
+    const checkOutput = (fnLength, output) => {
+      if (output !== undefined) {
+        if (fnLength !== 2)
+          throw new Error("cipher output not supported");
+        abytes(output, undefined, "output");
+      }
+    };
+    let called = false;
+    const wrCipher = {
+      encrypt(data, output) {
+        if (called)
+          throw new Error("cannot encrypt() twice with same key + nonce");
+        called = true;
+        abytes(data);
+        checkOutput(cipher.encrypt.length, output);
+        return cipher.encrypt(data, output);
+      },
+      decrypt(data, output) {
+        abytes(data);
+        if (tagl && data.length < tagl)
+          throw new Error('"ciphertext" expected length bigger than tagLength=' + tagl);
+        checkOutput(cipher.decrypt.length, output);
+        return cipher.decrypt(data, output);
+      }
+    };
+    return wrCipher;
+  }
+  Object.assign(wrappedCipher, params);
+  return wrappedCipher;
+};
+function getOutput(expectedLength, out, onlyAligned = true) {
+  if (out === undefined)
+    return new Uint8Array(expectedLength);
+  if (out.length !== expectedLength)
+    throw new Error('"output" expected Uint8Array of length ' + expectedLength + ", got: " + out.length);
+  if (onlyAligned && !isAligned32(out))
+    throw new Error("invalid output, must be aligned");
+  return out;
+}
+function u64Lengths(dataLength, aadLength, isLE2) {
+  abool(isLE2);
+  const num = new Uint8Array(16);
+  const view = createView(num);
+  view.setBigUint64(0, BigInt(aadLength), isLE2);
+  view.setBigUint64(8, BigInt(dataLength), isLE2);
+  return num;
+}
+function isAligned32(bytes) {
+  return bytes.byteOffset % 4 === 0;
+}
+function copyBytes(bytes) {
+  return Uint8Array.from(bytes);
+}
+function randomBytes(bytesLength = 32) {
+  const cr = typeof globalThis === "object" ? globalThis.crypto : null;
+  if (typeof cr?.getRandomValues !== "function")
+    throw new Error("crypto.getRandomValues must be defined");
+  return cr.getRandomValues(new Uint8Array(bytesLength));
+}
+
+// node_modules/@noble/ciphers/_polyval.js
+var BLOCK_SIZE = 16;
+var ZEROS16 = /* @__PURE__ */ new Uint8Array(16);
+var ZEROS32 = u32(ZEROS16);
+var POLY = 225;
+var mul2 = (s0, s1, s2, s3) => {
+  const hiBit = s3 & 1;
+  return {
+    s3: s2 << 31 | s3 >>> 1,
+    s2: s1 << 31 | s2 >>> 1,
+    s1: s0 << 31 | s1 >>> 1,
+    s0: s0 >>> 1 ^ POLY << 24 & -(hiBit & 1)
+  };
+};
+var swapLE = (n) => (n >>> 0 & 255) << 24 | (n >>> 8 & 255) << 16 | (n >>> 16 & 255) << 8 | n >>> 24 & 255 | 0;
+function _toGHASHKey(k) {
+  k.reverse();
+  const hiBit = k[15] & 1;
+  let carry = 0;
+  for (let i = 0;i < k.length; i++) {
+    const t = k[i];
+    k[i] = t >>> 1 | carry;
+    carry = (t & 1) << 7;
+  }
+  k[0] ^= -hiBit & 225;
+  return k;
+}
+var estimateWindow = (bytes) => {
+  if (bytes > 64 * 1024)
+    return 8;
+  if (bytes > 1024)
+    return 4;
+  return 2;
+};
+
+class GHASH {
+  blockLen = BLOCK_SIZE;
+  outputLen = BLOCK_SIZE;
+  s0 = 0;
+  s1 = 0;
+  s2 = 0;
+  s3 = 0;
+  finished = false;
+  t;
+  W;
+  windowSize;
+  constructor(key, expectedLength) {
+    abytes(key, 16, "key");
+    key = copyBytes(key);
+    const kView = createView(key);
+    let k0 = kView.getUint32(0, false);
+    let k1 = kView.getUint32(4, false);
+    let k2 = kView.getUint32(8, false);
+    let k3 = kView.getUint32(12, false);
+    const doubles = [];
+    for (let i = 0;i < 128; i++) {
+      doubles.push({ s0: swapLE(k0), s1: swapLE(k1), s2: swapLE(k2), s3: swapLE(k3) });
+      ({ s0: k0, s1: k1, s2: k2, s3: k3 } = mul2(k0, k1, k2, k3));
+    }
+    const W = estimateWindow(expectedLength || 1024);
+    if (![1, 2, 4, 8].includes(W))
+      throw new Error("ghash: invalid window size, expected 2, 4 or 8");
+    this.W = W;
+    const bits = 128;
+    const windows = bits / W;
+    const windowSize = this.windowSize = 2 ** W;
+    const items = [];
+    for (let w = 0;w < windows; w++) {
+      for (let byte = 0;byte < windowSize; byte++) {
+        let s0 = 0, s1 = 0, s2 = 0, s3 = 0;
+        for (let j = 0;j < W; j++) {
+          const bit = byte >>> W - j - 1 & 1;
+          if (!bit)
+            continue;
+          const { s0: d0, s1: d1, s2: d2, s3: d3 } = doubles[W * w + j];
+          s0 ^= d0, s1 ^= d1, s2 ^= d2, s3 ^= d3;
+        }
+        items.push({ s0, s1, s2, s3 });
+      }
+    }
+    this.t = items;
+  }
+  _updateBlock(s0, s1, s2, s3) {
+    s0 ^= this.s0, s1 ^= this.s1, s2 ^= this.s2, s3 ^= this.s3;
+    const { W, t, windowSize } = this;
+    let o0 = 0, o1 = 0, o2 = 0, o3 = 0;
+    const mask = (1 << W) - 1;
+    let w = 0;
+    for (const num of [s0, s1, s2, s3]) {
+      for (let bytePos = 0;bytePos < 4; bytePos++) {
+        const byte = num >>> 8 * bytePos & 255;
+        for (let bitPos = 8 / W - 1;bitPos >= 0; bitPos--) {
+          const bit = byte >>> W * bitPos & mask;
+          const { s0: e0, s1: e1, s2: e2, s3: e3 } = t[w * windowSize + bit];
+          o0 ^= e0, o1 ^= e1, o2 ^= e2, o3 ^= e3;
+          w += 1;
+        }
+      }
+    }
+    this.s0 = o0;
+    this.s1 = o1;
+    this.s2 = o2;
+    this.s3 = o3;
+  }
+  update(data) {
+    aexists(this);
+    abytes(data);
+    data = copyBytes(data);
+    const b32 = u32(data);
+    const blocks = Math.floor(data.length / BLOCK_SIZE);
+    const left = data.length % BLOCK_SIZE;
+    for (let i = 0;i < blocks; i++) {
+      this._updateBlock(b32[i * 4 + 0], b32[i * 4 + 1], b32[i * 4 + 2], b32[i * 4 + 3]);
+    }
+    if (left) {
+      ZEROS16.set(data.subarray(blocks * BLOCK_SIZE));
+      this._updateBlock(ZEROS32[0], ZEROS32[1], ZEROS32[2], ZEROS32[3]);
+      clean(ZEROS32);
+    }
+    return this;
+  }
+  destroy() {
+    const { t } = this;
+    for (const elm of t) {
+      elm.s0 = 0, elm.s1 = 0, elm.s2 = 0, elm.s3 = 0;
+    }
+  }
+  digestInto(out) {
+    aexists(this);
+    aoutput(out, this);
+    this.finished = true;
+    const { s0, s1, s2, s3 } = this;
+    const o32 = u32(out);
+    o32[0] = s0;
+    o32[1] = s1;
+    o32[2] = s2;
+    o32[3] = s3;
+    return out;
+  }
+  digest() {
+    const res = new Uint8Array(BLOCK_SIZE);
+    this.digestInto(res);
+    this.destroy();
+    return res;
+  }
+}
+
+class Polyval extends GHASH {
+  constructor(key, expectedLength) {
+    abytes(key);
+    const ghKey = _toGHASHKey(copyBytes(key));
+    super(ghKey, expectedLength);
+    clean(ghKey);
+  }
+  update(data) {
+    aexists(this);
+    abytes(data);
+    data = copyBytes(data);
+    const b32 = u32(data);
+    const left = data.length % BLOCK_SIZE;
+    const blocks = Math.floor(data.length / BLOCK_SIZE);
+    for (let i = 0;i < blocks; i++) {
+      this._updateBlock(swapLE(b32[i * 4 + 3]), swapLE(b32[i * 4 + 2]), swapLE(b32[i * 4 + 1]), swapLE(b32[i * 4 + 0]));
+    }
+    if (left) {
+      ZEROS16.set(data.subarray(blocks * BLOCK_SIZE));
+      this._updateBlock(swapLE(ZEROS32[3]), swapLE(ZEROS32[2]), swapLE(ZEROS32[1]), swapLE(ZEROS32[0]));
+      clean(ZEROS32);
+    }
+    return this;
+  }
+  digestInto(out) {
+    aexists(this);
+    aoutput(out, this);
+    this.finished = true;
+    const { s0, s1, s2, s3 } = this;
+    const o32 = u32(out);
+    o32[0] = s0;
+    o32[1] = s1;
+    o32[2] = s2;
+    o32[3] = s3;
+    return out.reverse();
+  }
+}
+function wrapConstructorWithKey(hashCons) {
+  const hashC = (msg, key) => hashCons(key, msg.length).update(msg).digest();
+  const tmp = hashCons(new Uint8Array(16), 0);
+  hashC.outputLen = tmp.outputLen;
+  hashC.blockLen = tmp.blockLen;
+  hashC.create = (key, expectedLength) => hashCons(key, expectedLength);
+  return hashC;
+}
+var ghash = wrapConstructorWithKey((key, expectedLength) => new GHASH(key, expectedLength));
+var polyval = wrapConstructorWithKey((key, expectedLength) => new Polyval(key, expectedLength));
+
+// node_modules/@noble/ciphers/aes.js
+var BLOCK_SIZE2 = 16;
+var BLOCK_SIZE32 = 4;
+var EMPTY_BLOCK = /* @__PURE__ */ new Uint8Array(BLOCK_SIZE2);
+var POLY2 = 283;
+function validateKeyLength(key) {
+  if (![16, 24, 32].includes(key.length))
+    throw new Error('"aes key" expected Uint8Array of length 16/24/32, got length=' + key.length);
+}
+function mul22(n) {
+  return n << 1 ^ POLY2 & -(n >> 7);
+}
+function mul(a, b) {
+  let res = 0;
+  for (;b > 0; b >>= 1) {
+    res ^= a & -(b & 1);
+    a = mul22(a);
+  }
+  return res;
+}
+var sbox = /* @__PURE__ */ (() => {
+  const t = new Uint8Array(256);
+  for (let i = 0, x = 1;i < 256; i++, x ^= mul22(x))
+    t[i] = x;
+  const box = new Uint8Array(256);
+  box[0] = 99;
+  for (let i = 0;i < 255; i++) {
+    let x = t[255 - i];
+    x |= x << 8;
+    box[t[i]] = (x ^ x >> 4 ^ x >> 5 ^ x >> 6 ^ x >> 7 ^ 99) & 255;
+  }
+  clean(t);
+  return box;
+})();
+var rotr32_8 = (n) => n << 24 | n >>> 8;
+var rotl32_8 = (n) => n << 8 | n >>> 24;
+function genTtable(sbox2, fn) {
+  if (sbox2.length !== 256)
+    throw new Error("Wrong sbox length");
+  const T0 = new Uint32Array(256).map((_, j) => fn(sbox2[j]));
+  const T1 = T0.map(rotl32_8);
+  const T2 = T1.map(rotl32_8);
+  const T3 = T2.map(rotl32_8);
+  const T01 = new Uint32Array(256 * 256);
+  const T23 = new Uint32Array(256 * 256);
+  const sbox22 = new Uint16Array(256 * 256);
+  for (let i = 0;i < 256; i++) {
+    for (let j = 0;j < 256; j++) {
+      const idx = i * 256 + j;
+      T01[idx] = T0[i] ^ T1[j];
+      T23[idx] = T2[i] ^ T3[j];
+      sbox22[idx] = sbox2[i] << 8 | sbox2[j];
+    }
+  }
+  return { sbox: sbox2, sbox2: sbox22, T0, T1, T2, T3, T01, T23 };
+}
+var tableEncoding = /* @__PURE__ */ genTtable(sbox, (s) => mul(s, 3) << 24 | s << 16 | s << 8 | mul(s, 2));
+var xPowers = /* @__PURE__ */ (() => {
+  const p = new Uint8Array(16);
+  for (let i = 0, x = 1;i < 16; i++, x = mul22(x))
+    p[i] = x;
+  return p;
+})();
+function expandKeyLE(key) {
+  abytes(key);
+  const len = key.length;
+  validateKeyLength(key);
+  const { sbox2 } = tableEncoding;
+  const toClean = [];
+  if (!isAligned32(key))
+    toClean.push(key = copyBytes(key));
+  const k32 = u32(key);
+  const Nk = k32.length;
+  const subByte = (n) => applySbox(sbox2, n, n, n, n);
+  const xk = new Uint32Array(len + 28);
+  xk.set(k32);
+  for (let i = Nk;i < xk.length; i++) {
+    let t = xk[i - 1];
+    if (i % Nk === 0)
+      t = subByte(rotr32_8(t)) ^ xPowers[i / Nk - 1];
+    else if (Nk > 6 && i % Nk === 4)
+      t = subByte(t);
+    xk[i] = xk[i - Nk] ^ t;
+  }
+  clean(...toClean);
+  return xk;
+}
+function apply0123(T01, T23, s0, s1, s2, s3) {
+  return T01[s0 << 8 & 65280 | s1 >>> 8 & 255] ^ T23[s2 >>> 8 & 65280 | s3 >>> 24 & 255];
+}
+function applySbox(sbox2, s0, s1, s2, s3) {
+  return sbox2[s0 & 255 | s1 & 65280] | sbox2[s2 >>> 16 & 255 | s3 >>> 16 & 65280] << 16;
+}
+function encrypt(xk, s0, s1, s2, s3) {
+  const { sbox2, T01, T23 } = tableEncoding;
+  let k = 0;
+  s0 ^= xk[k++], s1 ^= xk[k++], s2 ^= xk[k++], s3 ^= xk[k++];
+  const rounds = xk.length / 4 - 2;
+  for (let i = 0;i < rounds; i++) {
+    const t02 = xk[k++] ^ apply0123(T01, T23, s0, s1, s2, s3);
+    const t12 = xk[k++] ^ apply0123(T01, T23, s1, s2, s3, s0);
+    const t22 = xk[k++] ^ apply0123(T01, T23, s2, s3, s0, s1);
+    const t32 = xk[k++] ^ apply0123(T01, T23, s3, s0, s1, s2);
+    s0 = t02, s1 = t12, s2 = t22, s3 = t32;
+  }
+  const t0 = xk[k++] ^ applySbox(sbox2, s0, s1, s2, s3);
+  const t1 = xk[k++] ^ applySbox(sbox2, s1, s2, s3, s0);
+  const t2 = xk[k++] ^ applySbox(sbox2, s2, s3, s0, s1);
+  const t3 = xk[k++] ^ applySbox(sbox2, s3, s0, s1, s2);
+  return { s0: t0, s1: t1, s2: t2, s3: t3 };
+}
+function ctr32(xk, isLE2, nonce, src, dst) {
+  abytes(nonce, BLOCK_SIZE2, "nonce");
+  abytes(src);
+  dst = getOutput(src.length, dst);
+  const ctr = nonce;
+  const c32 = u32(ctr);
+  const view = createView(ctr);
+  const src32 = u32(src);
+  const dst32 = u32(dst);
+  const ctrPos = isLE2 ? 0 : 12;
+  const srcLen = src.length;
+  let ctrNum = view.getUint32(ctrPos, isLE2);
+  let { s0, s1, s2, s3 } = encrypt(xk, c32[0], c32[1], c32[2], c32[3]);
+  for (let i = 0;i + 4 <= src32.length; i += 4) {
+    dst32[i + 0] = src32[i + 0] ^ s0;
+    dst32[i + 1] = src32[i + 1] ^ s1;
+    dst32[i + 2] = src32[i + 2] ^ s2;
+    dst32[i + 3] = src32[i + 3] ^ s3;
+    ctrNum = ctrNum + 1 >>> 0;
+    view.setUint32(ctrPos, ctrNum, isLE2);
+    ({ s0, s1, s2, s3 } = encrypt(xk, c32[0], c32[1], c32[2], c32[3]));
+  }
+  const start = BLOCK_SIZE2 * Math.floor(src32.length / BLOCK_SIZE32);
+  if (start < srcLen) {
+    const b32 = new Uint32Array([s0, s1, s2, s3]);
+    const buf = u8(b32);
+    for (let i = start, pos = 0;i < srcLen; i++, pos++)
+      dst[i] = src[i] ^ buf[pos];
+    clean(b32);
+  }
+  return dst;
+}
+function computeTag(fn, isLE2, key, data, AAD) {
+  const aadLength = AAD ? AAD.length : 0;
+  const h = fn.create(key, data.length + aadLength);
+  if (AAD)
+    h.update(AAD);
+  const num = u64Lengths(8 * data.length, 8 * aadLength, isLE2);
+  h.update(data);
+  h.update(num);
+  const res = h.digest();
+  clean(num);
+  return res;
+}
+var gcm = /* @__PURE__ */ wrapCipher({ blockSize: 16, nonceLength: 12, tagLength: 16, varSizeNonce: true }, function aesgcm(key, nonce, AAD) {
+  if (nonce.length < 8)
+    throw new Error("aes/gcm: invalid nonce length");
+  const tagLength = 16;
+  function _computeTag(authKey, tagMask, data) {
+    const tag = computeTag(ghash, false, authKey, data, AAD);
+    for (let i = 0;i < tagMask.length; i++)
+      tag[i] ^= tagMask[i];
+    return tag;
+  }
+  function deriveKeys() {
+    const xk = expandKeyLE(key);
+    const authKey = EMPTY_BLOCK.slice();
+    const counter = EMPTY_BLOCK.slice();
+    ctr32(xk, false, counter, counter, authKey);
+    if (nonce.length === 12) {
+      counter.set(nonce);
+    } else {
+      const nonceLen = EMPTY_BLOCK.slice();
+      const view = createView(nonceLen);
+      view.setBigUint64(8, BigInt(nonce.length * 8), false);
+      const g = ghash.create(authKey).update(nonce).update(nonceLen);
+      g.digestInto(counter);
+      g.destroy();
+    }
+    const tagMask = ctr32(xk, false, counter, EMPTY_BLOCK);
+    return { xk, authKey, counter, tagMask };
+  }
+  return {
+    encrypt(plaintext) {
+      const { xk, authKey, counter, tagMask } = deriveKeys();
+      const out = new Uint8Array(plaintext.length + tagLength);
+      const toClean = [xk, authKey, counter, tagMask];
+      if (!isAligned32(plaintext))
+        toClean.push(plaintext = copyBytes(plaintext));
+      ctr32(xk, false, counter, plaintext, out.subarray(0, plaintext.length));
+      const tag = _computeTag(authKey, tagMask, out.subarray(0, out.length - tagLength));
+      toClean.push(tag);
+      out.set(tag, plaintext.length);
+      clean(...toClean);
+      return out;
+    },
+    decrypt(ciphertext) {
+      const { xk, authKey, counter, tagMask } = deriveKeys();
+      const toClean = [xk, authKey, tagMask, counter];
+      if (!isAligned32(ciphertext))
+        toClean.push(ciphertext = copyBytes(ciphertext));
+      const data = ciphertext.subarray(0, -tagLength);
+      const passedTag = ciphertext.subarray(-tagLength);
+      const tag = _computeTag(authKey, tagMask, data);
+      toClean.push(tag);
+      if (!equalBytes(tag, passedTag))
+        throw new Error("aes/gcm: invalid ghash tag");
+      const out = ctr32(xk, false, counter, data);
+      clean(...toClean);
+      return out;
+    }
+  };
+});
+function isBytes32(a) {
+  return a instanceof Uint32Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint32Array";
+}
+function encryptBlock(xk, block) {
+  abytes(block, 16, "block");
+  if (!isBytes32(xk))
+    throw new Error("_encryptBlock accepts result of expandKeyLE");
+  const b32 = u32(block);
+  let { s0, s1, s2, s3 } = encrypt(xk, b32[0], b32[1], b32[2], b32[3]);
+  b32[0] = s0, b32[1] = s1, b32[2] = s2, b32[3] = s3;
+  return block;
+}
+function dbl(block) {
+  let carry = 0;
+  for (let i = BLOCK_SIZE2 - 1;i >= 0; i--) {
+    const newCarry = (block[i] & 128) >>> 7;
+    block[i] = block[i] << 1 | carry;
+    carry = newCarry;
+  }
+  if (carry) {
+    block[BLOCK_SIZE2 - 1] ^= 135;
+  }
+  return block;
+}
+function xorBlock(a, b) {
+  if (a.length !== b.length)
+    throw new Error("xorBlock: blocks must have same length");
+  for (let i = 0;i < a.length; i++) {
+    a[i] = a[i] ^ b[i];
+  }
+  return a;
+}
+class _CMAC {
+  buffer;
+  destroyed;
+  k1;
+  k2;
+  xk;
+  constructor(key) {
+    abytes(key);
+    validateKeyLength(key);
+    this.xk = expandKeyLE(key);
+    this.buffer = new Uint8Array(0);
+    this.destroyed = false;
+    const L = new Uint8Array(BLOCK_SIZE2);
+    encryptBlock(this.xk, L);
+    this.k1 = dbl(L);
+    this.k2 = dbl(new Uint8Array(this.k1));
+  }
+  update(data) {
+    const { destroyed, buffer } = this;
+    if (destroyed)
+      throw new Error("CMAC instance was destroyed");
+    abytes(data);
+    const newBuffer = new Uint8Array(buffer.length + data.length);
+    newBuffer.set(buffer);
+    newBuffer.set(data, buffer.length);
+    this.buffer = newBuffer;
+    return this;
+  }
+  digest() {
+    if (this.destroyed)
+      throw new Error("CMAC instance was destroyed");
+    const { buffer } = this;
+    const msgLen = buffer.length;
+    let n = Math.ceil(msgLen / BLOCK_SIZE2);
+    let flag;
+    if (n === 0) {
+      n = 1;
+      flag = false;
+    } else {
+      flag = msgLen % BLOCK_SIZE2 === 0;
+    }
+    const lastBlockStart = (n - 1) * BLOCK_SIZE2;
+    const lastBlockData = buffer.subarray(lastBlockStart);
+    let m_last;
+    if (flag) {
+      m_last = xorBlock(new Uint8Array(lastBlockData), this.k1);
+    } else {
+      const padded = new Uint8Array(BLOCK_SIZE2);
+      padded.set(lastBlockData);
+      padded[lastBlockData.length] = 128;
+      m_last = xorBlock(padded, this.k2);
+    }
+    let x = new Uint8Array(BLOCK_SIZE2);
+    for (let i = 0;i < n - 1; i++) {
+      const m_i = buffer.subarray(i * BLOCK_SIZE2, (i + 1) * BLOCK_SIZE2);
+      xorBlock(x, m_i);
+      encryptBlock(this.xk, x);
+    }
+    xorBlock(x, m_last);
+    encryptBlock(this.xk, x);
+    clean(m_last);
+    return x;
+  }
+  destroy() {
+    const { buffer, destroyed, xk, k1, k2 } = this;
+    if (destroyed)
+      return;
+    this.destroyed = true;
+    clean(buffer, xk, k1, k2);
+  }
+}
+var cmac = (key, message) => new _CMAC(key).update(message).digest();
+cmac.create = (key) => new _CMAC(key);
+
+// src/lib/crypto.ts
+var constantTimeEqual = (a, b) => {
+  if (a.length !== b.length) {
+    return false;
+  }
+  let result = 0;
+  for (let i = 0;i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+};
+var generateSecureToken = () => {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const base64 = btoa(String.fromCharCode(...bytes));
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+};
+var ENCRYPTION_PREFIX = "enc:1:";
+var cachedKeyBytes = null;
+var cachedKeySource = null;
+var getEncryptionKeyBytes = () => {
+  const keyString = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+  if (!keyString) {
+    throw new Error("DB_ENCRYPTION_KEY environment variable is required for database encryption");
+  }
+  if (cachedKeyBytes && cachedKeySource === keyString) {
+    return cachedKeyBytes;
+  }
+  const keyBytes = Uint8Array.from(atob(keyString), (c) => c.charCodeAt(0));
+  if (keyBytes.length !== 32) {
+    throw new Error(`DB_ENCRYPTION_KEY must be 32 bytes (256 bits), got ${keyBytes.length} bytes`);
+  }
+  cachedKeyBytes = keyBytes;
+  cachedKeySource = keyString;
+  return keyBytes;
+};
+var validateEncryptionKey = () => {
+  getEncryptionKeyBytes();
+};
+var encrypt2 = async (plaintext) => {
+  const key = getEncryptionKeyBytes();
+  const nonce = randomBytes(12);
+  const encoder = new TextEncoder;
+  const plaintextBytes = encoder.encode(plaintext);
+  const cipher = gcm(key, nonce);
+  const ciphertextBytes = cipher.encrypt(plaintextBytes);
+  const nonceBase64 = btoa(String.fromCharCode(...nonce));
+  const ciphertextBase64 = btoa(String.fromCharCode(...ciphertextBytes));
+  return `${ENCRYPTION_PREFIX}${nonceBase64}:${ciphertextBase64}`;
+};
+var decrypt = async (encrypted) => {
+  if (!encrypted.startsWith(ENCRYPTION_PREFIX)) {
+    throw new Error("Invalid encrypted data format");
+  }
+  const key = getEncryptionKeyBytes();
+  const withoutPrefix = encrypted.slice(ENCRYPTION_PREFIX.length);
+  const colonIndex = withoutPrefix.indexOf(":");
+  if (colonIndex === -1) {
+    throw new Error("Invalid encrypted data format: missing IV separator");
+  }
+  const nonceBase64 = withoutPrefix.slice(0, colonIndex);
+  const ciphertextBase64 = withoutPrefix.slice(colonIndex + 1);
+  const nonce = Uint8Array.from(atob(nonceBase64), (c) => c.charCodeAt(0));
+  const ciphertext = Uint8Array.from(atob(ciphertextBase64), (c) => c.charCodeAt(0));
+  const cipher = gcm(key, nonce);
+  const plaintextBytes = cipher.decrypt(ciphertext);
+  const decoder = new TextDecoder;
+  return decoder.decode(plaintextBytes);
+};
+var isEncrypted = (value) => {
+  return value.startsWith(ENCRYPTION_PREFIX);
+};
+
 // src/lib/db.ts
 import { createClient } from "https://esm.sh/@libsql/client@0.6.0/web";
 var db = null;
 var getDb = () => {
   if (!db) {
-    const url = "test";
+    const url = ":memory:";
     if (!url) {
       throw new Error("DB_URL environment variable is required");
     }
     db = createClient({
       url,
-      authToken: "test"
+      authToken: ""
     });
   }
   return db;
@@ -2368,29 +3086,47 @@ var isSetupComplete = async () => {
 };
 var completeSetup = async (adminPassword, stripeSecretKey, currencyCode) => {
   const hashedPassword = await Bun.password.hash(adminPassword);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
+  const encryptedHash = await encrypt2(hashedPassword);
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, encryptedHash);
   if (stripeSecretKey) {
-    await setSetting(CONFIG_KEYS.STRIPE_KEY, stripeSecretKey);
+    const encryptedKey = await encrypt2(stripeSecretKey);
+    await setSetting(CONFIG_KEYS.STRIPE_KEY, encryptedKey);
   }
   await setSetting(CONFIG_KEYS.CURRENCY_CODE, currencyCode);
   await setSetting(CONFIG_KEYS.SETUP_COMPLETE, "true");
 };
 var getStripeSecretKeyFromDb = async () => {
-  return getSetting(CONFIG_KEYS.STRIPE_KEY);
+  const value = await getSetting(CONFIG_KEYS.STRIPE_KEY);
+  if (!value)
+    return null;
+  if (isEncrypted(value)) {
+    return decrypt(value);
+  }
+  return value;
 };
 var getCurrencyCodeFromDb = async () => {
   const value = await getSetting(CONFIG_KEYS.CURRENCY_CODE);
   return value || "GBP";
 };
+var getAdminPasswordFromDb = async () => {
+  const value = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
+  if (!value)
+    return null;
+  if (isEncrypted(value)) {
+    return decrypt(value);
+  }
+  return value;
+};
 var verifyAdminPassword = async (password) => {
-  const stored = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-  if (stored === null)
+  const storedHash = await getAdminPasswordFromDb();
+  if (storedHash === null)
     return false;
-  return Bun.password.verify(password, stored);
+  return Bun.password.verify(password, storedHash);
 };
 var updateAdminPassword = async (newPassword) => {
   const hashedPassword = await Bun.password.hash(newPassword);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
+  const encryptedHash = await encrypt2(hashedPassword);
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, encryptedHash);
   await deleteAllSessions();
 };
 var createEvent = async (name, description, maxAttendees, thankYouUrl, unitPrice = null) => {
@@ -2452,18 +3188,32 @@ var getEventWithCount = async (id) => {
     return null;
   return result.rows[0];
 };
+var decryptAttendee = async (row) => {
+  const name = isEncrypted(row.name) ? await decrypt(row.name) : row.name;
+  const email = isEncrypted(row.email) ? await decrypt(row.email) : row.email;
+  const stripe_payment_id = row.stripe_payment_id && isEncrypted(row.stripe_payment_id) ? await decrypt(row.stripe_payment_id) : row.stripe_payment_id;
+  return { ...row, name, email, stripe_payment_id };
+};
 var getAttendees = async (eventId) => {
   const result = await getDb().execute({
     sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
     args: [eventId]
   });
-  return result.rows;
+  const rows = result.rows;
+  const decrypted = [];
+  for (const row of rows) {
+    decrypted.push(await decryptAttendee(row));
+  }
+  return decrypted;
 };
 var createAttendee = async (eventId, name, email, stripePaymentId = null) => {
   const created = new Date().toISOString();
+  const encryptedName = await encrypt2(name);
+  const encryptedEmail = await encrypt2(email);
+  const encryptedPaymentId = stripePaymentId ? await encrypt2(stripePaymentId) : null;
   const result = await getDb().execute({
     sql: "INSERT INTO attendees (event_id, name, email, created, stripe_payment_id) VALUES (?, ?, ?, ?, ?)",
-    args: [eventId, name, email, created, stripePaymentId]
+    args: [eventId, encryptedName, encryptedEmail, created, encryptedPaymentId]
   });
   return {
     id: Number(result.lastInsertRowid),
@@ -2481,12 +3231,13 @@ var getAttendee = async (id) => {
   });
   if (result.rows.length === 0)
     return null;
-  return result.rows[0];
+  return decryptAttendee(result.rows[0]);
 };
 var updateAttendeePayment = async (attendeeId, stripePaymentId) => {
+  const encryptedPaymentId = await encrypt2(stripePaymentId);
   await getDb().execute({
     sql: "UPDATE attendees SET stripe_payment_id = ? WHERE id = ?",
-    args: [stripePaymentId, attendeeId]
+    args: [encryptedPaymentId, attendeeId]
   });
 };
 var deleteAttendee = async (attendeeId) => {
@@ -2587,24 +3338,6 @@ var getCurrencyCode = async () => {
   return getCurrencyCodeFromDb();
 };
 
-// src/lib/crypto.ts
-var constantTimeEqual = (a, b) => {
-  if (a.length !== b.length) {
-    return false;
-  }
-  let result = 0;
-  for (let i = 0;i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
-};
-var generateSecureToken = () => {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  const base64 = btoa(String.fromCharCode(...bytes));
-  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-};
-
 // src/fp/index.ts
 function pipe(...fns) {
   return (value) => fns.reduce((acc, fn) => fn(acc), value);
@@ -2673,23 +3406,131 @@ var validateForm = (form, fields) => {
 };
 var renderError = (error) => error ? `<div class="error">${escapeHtml(error)}</div>` : "";
 
-// src/lib/html.ts
-var escapeCsvValue = (value) => {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+// src/templates/fields.ts
+var validateSafeUrl = (value) => {
+  if (value.startsWith("/"))
+    return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      return "URL must use https:// or http://";
+    }
+    return null;
+  } catch {
+    return "Invalid URL format";
   }
-  return value;
 };
-var generateAttendeesCsv = (attendees) => {
-  const header = "Name,Email,Registered";
-  const rows = pipe(map((a) => [
-    escapeCsvValue(a.name),
-    escapeCsvValue(a.email),
-    escapeCsvValue(new Date(a.created).toISOString())
-  ].join(",")), reduce((acc, row) => `${acc}
-${row}`, header))(attendees);
-  return rows;
+var validateNonNegativePrice = (value) => {
+  const num = Number.parseInt(value, 10);
+  if (Number.isNaN(num) || num < 0) {
+    return "Price must be 0 or greater";
+  }
+  return null;
 };
+var validateEmail = (value) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(value)) {
+    return "Please enter a valid email address";
+  }
+  return null;
+};
+var loginFields = [
+  { name: "password", label: "Password", type: "password", required: true }
+];
+var eventFields = [
+  { name: "name", label: "Event Name", type: "text", required: true },
+  {
+    name: "description",
+    label: "Description",
+    type: "textarea",
+    required: true
+  },
+  {
+    name: "max_attendees",
+    label: "Max Attendees",
+    type: "number",
+    required: true,
+    min: 1
+  },
+  {
+    name: "unit_price",
+    label: "Ticket Price (in pence/cents, leave empty for free)",
+    type: "number",
+    min: 0,
+    placeholder: "e.g. 1000 for 10.00",
+    validate: validateNonNegativePrice
+  },
+  {
+    name: "thank_you_url",
+    label: "Thank You URL",
+    type: "url",
+    required: true,
+    placeholder: "https://example.com/thank-you",
+    validate: validateSafeUrl
+  }
+];
+var ticketFields = [
+  { name: "name", label: "Your Name", type: "text", required: true },
+  {
+    name: "email",
+    label: "Your Email",
+    type: "email",
+    required: true,
+    validate: validateEmail
+  }
+];
+var setupFields = [
+  {
+    name: "admin_password",
+    label: "Admin Password *",
+    type: "password",
+    required: true,
+    hint: "Minimum 8 characters"
+  },
+  {
+    name: "admin_password_confirm",
+    label: "Confirm Admin Password *",
+    type: "password",
+    required: true
+  },
+  {
+    name: "stripe_secret_key",
+    label: "Stripe Secret Key (optional)",
+    type: "password",
+    placeholder: "sk_live_... or sk_test_...",
+    hint: "Leave empty to disable payments"
+  },
+  {
+    name: "currency_code",
+    label: "Currency Code",
+    type: "text",
+    pattern: "[A-Z]{3}",
+    hint: "3-letter ISO code (e.g., GBP, USD, EUR)"
+  }
+];
+var changePasswordFields = [
+  {
+    name: "current_password",
+    label: "Current Password",
+    type: "password",
+    required: true
+  },
+  {
+    name: "new_password",
+    label: "New Password",
+    type: "password",
+    required: true,
+    hint: "Minimum 8 characters"
+  },
+  {
+    name: "new_password_confirm",
+    label: "Confirm New Password",
+    type: "password",
+    required: true
+  }
+];
+
+// src/templates/layout.ts
 var escapeHtml2 = (str) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 var baseStyles = `
   body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem; }
@@ -2718,9 +3559,9 @@ var layout = (title, content) => `<!DOCTYPE html>
   ${content}
 </body>
 </html>`;
-var loginFields = [
-  { name: "password", label: "Password", type: "password", required: true }
-];
+
+// src/templates/admin.ts
+var joinStrings2 = reduce((acc, s) => acc + s, "");
 var adminLoginPage = (error) => layout("Admin Login", `
     <h1>Admin Login</h1>
     ${renderError(error)}
@@ -2729,7 +3570,6 @@ var adminLoginPage = (error) => layout("Admin Login", `
       <button type="submit">Login</button>
     </form>
   `);
-var joinStrings2 = reduce((acc, s) => acc + s, "");
 var renderEventRow = (e) => `
   <tr>
     <td>${escapeHtml2(e.name)}</td>
@@ -2804,58 +3644,6 @@ var adminEventPage = (event, attendees) => {
     </table>
   `);
 };
-var validateSafeUrl = (value) => {
-  if (value.startsWith("/"))
-    return null;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" && url.protocol !== "http:") {
-      return "URL must use https:// or http://";
-    }
-    return null;
-  } catch {
-    return "Invalid URL format";
-  }
-};
-var validateNonNegativePrice = (value) => {
-  const num = Number.parseInt(value, 10);
-  if (Number.isNaN(num) || num < 0) {
-    return "Price must be 0 or greater";
-  }
-  return null;
-};
-var eventFields = [
-  { name: "name", label: "Event Name", type: "text", required: true },
-  {
-    name: "description",
-    label: "Description",
-    type: "textarea",
-    required: true
-  },
-  {
-    name: "max_attendees",
-    label: "Max Attendees",
-    type: "number",
-    required: true,
-    min: 1
-  },
-  {
-    name: "unit_price",
-    label: "Ticket Price (in pence/cents, leave empty for free)",
-    type: "number",
-    min: 0,
-    placeholder: "e.g. 1000 for 10.00",
-    validate: validateNonNegativePrice
-  },
-  {
-    name: "thank_you_url",
-    label: "Thank You URL",
-    type: "url",
-    required: true,
-    placeholder: "https://example.com/thank-you",
-    validate: validateSafeUrl
-  }
-];
 var eventToFieldValues = (event) => ({
   name: event.name,
   description: event.description,
@@ -2873,50 +3661,39 @@ var adminEventEditPage = (event, csrfToken, error) => layout(`Edit: ${event.name
       <button type="submit">Save Changes</button>
     </form>
   `);
-var validateEmail = (value) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(value)) {
-    return "Please enter a valid email address";
-  }
-  return null;
-};
-var ticketFields = [
-  { name: "name", label: "Your Name", type: "text", required: true },
-  {
-    name: "email",
-    label: "Your Email",
-    type: "email",
-    required: true,
-    validate: validateEmail
-  }
-];
-var ticketPage = (event, error) => {
-  const spotsRemaining = event.max_attendees - event.attendee_count;
-  const isFull = spotsRemaining <= 0;
-  return layout(`Reserve Ticket: ${event.name}`, `
-    <h1>${escapeHtml2(event.name)}</h1>
-    <p>${escapeHtml2(event.description)}</p>
-    <p><strong>Spots remaining:</strong> ${spotsRemaining}</p>
+var adminSettingsPage = (csrfToken, error, success) => layout("Admin Settings", `
+    <h1>Admin Settings</h1>
+    <p><a href="/admin/">&larr; Back to Dashboard</a></p>
 
-    ${renderError(error)}
+    ${error ? `<div class="error">${escapeHtml2(error)}</div>` : ""}
+    ${success ? `<div class="success">${escapeHtml2(success)}</div>` : ""}
 
-    ${isFull ? '<div class="error">Sorry, this event is full.</div>' : `
-      <form method="POST" action="/ticket/${event.id}">
-        ${renderFields(ticketFields)}
-        <button type="submit">Reserve Ticket</button>
-      </form>
-    `}
+    <h2>Change Password</h2>
+    <p>Changing your password will log you out of all sessions.</p>
+    <form method="POST" action="/admin/settings">
+      <input type="hidden" name="csrf_token" value="${escapeHtml2(csrfToken)}">
+      ${renderFields(changePasswordFields)}
+      <button type="submit">Change Password</button>
+    </form>
   `);
+// src/templates/csv.ts
+var escapeCsvValue = (value) => {
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
 };
-var notFoundPage = () => layout("Not Found", `
-    <h1>Event Not Found</h1>
-    <p>The event you're looking for doesn't exist.</p>
-  `);
-var homePage = () => layout("Ticket Reservation System", `
-    <h1>Ticket Reservation System</h1>
-    <p>Welcome to the ticket reservation system.</p>
-    <p><a href="/admin/">Admin Login</a></p>
-  `);
+var generateAttendeesCsv = (attendees) => {
+  const header = "Name,Email,Registered";
+  const rows = pipe(map((a) => [
+    escapeCsvValue(a.name),
+    escapeCsvValue(a.email),
+    escapeCsvValue(new Date(a.created).toISOString())
+  ].join(",")), reduce((acc, row) => `${acc}
+${row}`, header))(attendees);
+  return rows;
+};
+// src/templates/payment.ts
 var paymentSuccessPage = (event, thankYouUrl) => layout("Payment Successful", `
     <h1>Payment Successful!</h1>
     <div class="success">
@@ -2942,35 +3719,35 @@ var paymentErrorPage = (message) => layout("Payment Error", `
     </div>
     <p><a href="/">Return to home</a></p>
   `);
-var setupFields = [
-  {
-    name: "admin_password",
-    label: "Admin Password *",
-    type: "password",
-    required: true,
-    hint: "Minimum 8 characters"
-  },
-  {
-    name: "admin_password_confirm",
-    label: "Confirm Admin Password *",
-    type: "password",
-    required: true
-  },
-  {
-    name: "stripe_secret_key",
-    label: "Stripe Secret Key (optional)",
-    type: "password",
-    placeholder: "sk_live_... or sk_test_...",
-    hint: "Leave empty to disable payments"
-  },
-  {
-    name: "currency_code",
-    label: "Currency Code",
-    type: "text",
-    pattern: "[A-Z]{3}",
-    hint: "3-letter ISO code (e.g., GBP, USD, EUR)"
-  }
-];
+// src/templates/public.ts
+var homePage = () => layout("Ticket Reservation System", `
+    <h1>Ticket Reservation System</h1>
+    <p>Welcome to the ticket reservation system.</p>
+    <p><a href="/admin/">Admin Login</a></p>
+  `);
+var ticketPage = (event, error) => {
+  const spotsRemaining = event.max_attendees - event.attendee_count;
+  const isFull = spotsRemaining <= 0;
+  return layout(`Reserve Ticket: ${event.name}`, `
+    <h1>${escapeHtml2(event.name)}</h1>
+    <p>${escapeHtml2(event.description)}</p>
+    <p><strong>Spots remaining:</strong> ${spotsRemaining}</p>
+
+    ${renderError(error)}
+
+    ${isFull ? '<div class="error">Sorry, this event is full.</div>' : `
+      <form method="POST" action="/ticket/${event.id}">
+        ${renderFields(ticketFields)}
+        <button type="submit">Reserve Ticket</button>
+      </form>
+    `}
+  `);
+};
+var notFoundPage = () => layout("Not Found", `
+    <h1>Event Not Found</h1>
+    <p>The event you're looking for doesn't exist.</p>
+  `);
+// src/templates/setup.ts
 var setupPage = (error, csrfToken) => layout("Setup", `
     <h1>Initial Setup</h1>
     <p>Welcome! Please configure your ticket reservation system.</p>
@@ -2988,42 +3765,380 @@ var setupCompletePage = () => layout("Setup Complete", `
     </div>
     <p><a href="/admin/">Go to Admin Dashboard</a></p>
   `);
-var changePasswordFields = [
-  {
-    name: "current_password",
-    label: "Current Password",
-    type: "password",
-    required: true
-  },
-  {
-    name: "new_password",
-    label: "New Password",
-    type: "password",
-    required: true,
-    hint: "Minimum 8 characters"
-  },
-  {
-    name: "new_password_confirm",
-    label: "Confirm New Password",
-    type: "password",
-    required: true
+// src/routes/utils.ts
+var getClientIp = (request, server) => {
+  if (server?.requestIP) {
+    const info = server.requestIP(request);
+    if (info?.address) {
+      return info.address;
+    }
   }
-];
-var adminSettingsPage = (csrfToken, error, success) => layout("Admin Settings", `
-    <h1>Admin Settings</h1>
-    <p><a href="/admin/">&larr; Back to Dashboard</a></p>
+  return "direct";
+};
+var parseCookies = (request) => {
+  const cookies = new Map;
+  const header = request.headers.get("cookie");
+  if (!header)
+    return cookies;
+  for (const part of header.split(";")) {
+    const [key, value] = part.trim().split("=");
+    if (key && value) {
+      cookies.set(key, value);
+    }
+  }
+  return cookies;
+};
+var getAuthenticatedSession = async (request) => {
+  const cookies = parseCookies(request);
+  const token = cookies.get("session");
+  if (!token)
+    return null;
+  const session = await getSession(token);
+  if (!session)
+    return null;
+  if (session.expires < Date.now()) {
+    await deleteSession(token);
+    return null;
+  }
+  return { token, csrfToken: session.csrf_token };
+};
+var isAuthenticated = async (request) => {
+  return await getAuthenticatedSession(request) !== null;
+};
+var validateCsrfToken = (expected, actual) => {
+  return constantTimeEqual(expected, actual);
+};
+var htmlResponse = (html, status = 200) => new Response(html, {
+  status,
+  headers: { "content-type": "text/html; charset=utf-8" }
+});
+var redirect = (url, cookie) => {
+  const headers = { location: url };
+  if (cookie) {
+    headers["set-cookie"] = cookie;
+  }
+  return new Response(null, { status: 302, headers });
+};
+var parseFormData = async (request) => {
+  const text = await request.text();
+  return new URLSearchParams(text);
+};
+var getBaseUrl = (request) => {
+  const url = new URL(request.url);
+  return `${url.protocol}//${url.host}`;
+};
 
-    ${error ? `<div class="error">${escapeHtml2(error)}</div>` : ""}
-    ${success ? `<div class="success">${escapeHtml2(success)}</div>` : ""}
+// src/routes/admin.ts
+var handleAdminGet = async (request) => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return htmlResponse(adminLoginPage());
+  }
+  const events = await getAllEvents();
+  return htmlResponse(adminDashboardPage(events, session.csrfToken));
+};
+var handleAdminLogin = async (request, server) => {
+  const clientIp = getClientIp(request, server);
+  if (await isLoginRateLimited(clientIp)) {
+    return htmlResponse(adminLoginPage("Too many login attempts. Please try again later."), 429);
+  }
+  const form = await parseFormData(request);
+  const validation = validateForm(form, loginFields);
+  if (!validation.valid) {
+    return htmlResponse(adminLoginPage(validation.error), 400);
+  }
+  const valid = await verifyAdminPassword(validation.values.password);
+  if (!valid) {
+    await recordFailedLogin(clientIp);
+    return htmlResponse(adminLoginPage("Invalid credentials"), 401);
+  }
+  await clearLoginAttempts(clientIp);
+  const token = generateSecureToken();
+  const csrfToken = generateSecureToken();
+  const expires = Date.now() + 24 * 60 * 60 * 1000;
+  await createSession(token, csrfToken, expires);
+  return redirect("/admin/", `session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=86400`);
+};
+var handleAdminLogout = async (request) => {
+  const session = await getAuthenticatedSession(request);
+  if (session) {
+    await deleteSession(session.token);
+  }
+  return redirect("/admin/", "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0");
+};
+var handleAdminSettingsGet = async (request) => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return redirect("/admin/");
+  }
+  return htmlResponse(adminSettingsPage(session.csrfToken));
+};
+var validateChangePasswordForm = (form) => {
+  const validation = validateForm(form, changePasswordFields);
+  if (!validation.valid) {
+    return validation;
+  }
+  const { values } = validation;
+  const currentPassword = values.current_password;
+  const newPassword = values.new_password;
+  const newPasswordConfirm = values.new_password_confirm;
+  if (newPassword.length < 8) {
+    return {
+      valid: false,
+      error: "New password must be at least 8 characters"
+    };
+  }
+  if (newPassword !== newPasswordConfirm) {
+    return { valid: false, error: "New passwords do not match" };
+  }
+  return { valid: true, currentPassword, newPassword };
+};
+var handleAdminSettingsPost = async (request) => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return redirect("/admin/");
+  }
+  const form = await parseFormData(request);
+  const csrfToken = form.get("csrf_token") || "";
+  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
+    return htmlResponse("Invalid CSRF token", 403);
+  }
+  const validation = validateChangePasswordForm(form);
+  if (!validation.valid) {
+    return htmlResponse(adminSettingsPage(session.csrfToken, validation.error), 400);
+  }
+  const isCurrentValid = await verifyAdminPassword(validation.currentPassword);
+  if (!isCurrentValid) {
+    return htmlResponse(adminSettingsPage(session.csrfToken, "Current password is incorrect"), 401);
+  }
+  await updateAdminPassword(validation.newPassword);
+  return redirect("/admin/", "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0");
+};
+var handleCreateEvent = async (request) => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return redirect("/admin/");
+  }
+  const form = await parseFormData(request);
+  const csrfToken = form.get("csrf_token") || "";
+  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
+    return htmlResponse("Invalid CSRF token", 403);
+  }
+  const validation = validateForm(form, eventFields);
+  if (!validation.valid) {
+    return redirect("/admin/");
+  }
+  const { values } = validation;
+  await createEvent(values.name, values.description, values.max_attendees, values.thank_you_url, values.unit_price);
+  return redirect("/admin/");
+};
+var handleAdminEventGet = async (request, eventId) => {
+  if (!await isAuthenticated(request)) {
+    return redirect("/admin/");
+  }
+  const event = await getEventWithCount(eventId);
+  if (!event) {
+    return htmlResponse(notFoundPage(), 404);
+  }
+  const attendees = await getAttendees(eventId);
+  return htmlResponse(adminEventPage(event, attendees));
+};
+var handleAdminEventEditGet = async (request, eventId) => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return redirect("/admin/");
+  }
+  const event = await getEventWithCount(eventId);
+  if (!event) {
+    return htmlResponse(notFoundPage(), 404);
+  }
+  return htmlResponse(adminEventEditPage(event, session.csrfToken));
+};
+var handleAdminEventEditPost = async (request, eventId) => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return redirect("/admin/");
+  }
+  const event = await getEventWithCount(eventId);
+  if (!event) {
+    return htmlResponse(notFoundPage(), 404);
+  }
+  const form = await parseFormData(request);
+  const csrfToken = form.get("csrf_token") || "";
+  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
+    return htmlResponse("Invalid CSRF token", 403);
+  }
+  const validation = validateForm(form, eventFields);
+  if (!validation.valid) {
+    return htmlResponse(adminEventEditPage(event, session.csrfToken, validation.error), 400);
+  }
+  const { values } = validation;
+  await updateEvent(eventId, values.name, values.description, values.max_attendees, values.thank_you_url, values.unit_price);
+  return redirect(`/admin/event/${eventId}`);
+};
+var handleAdminEventExport = async (request, eventId) => {
+  if (!await isAuthenticated(request)) {
+    return redirect("/admin/");
+  }
+  const event = await getEventWithCount(eventId);
+  if (!event) {
+    return htmlResponse(notFoundPage(), 404);
+  }
+  const attendees = await getAttendees(eventId);
+  const csv = generateAttendeesCsv(attendees);
+  const filename = `${event.name.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
+  return new Response(csv, {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="${filename}"`
+    }
+  });
+};
+var routeAdminEventEdit = async (request, path, method) => {
+  const editMatch = path.match(/^\/admin\/event\/(\d+)\/edit$/);
+  if (!editMatch?.[1])
+    return null;
+  const eventId = Number.parseInt(editMatch[1], 10);
+  if (method === "GET")
+    return handleAdminEventEditGet(request, eventId);
+  if (method === "POST")
+    return handleAdminEventEditPost(request, eventId);
+  return null;
+};
+var routeAdminEventExport = async (request, path, method) => {
+  const exportMatch = path.match(/^\/admin\/event\/(\d+)\/export$/);
+  if (exportMatch?.[1] && method === "GET") {
+    return handleAdminEventExport(request, Number.parseInt(exportMatch[1], 10));
+  }
+  return null;
+};
+var routeAdminEvent = async (request, path, method) => {
+  const editResponse = await routeAdminEventEdit(request, path, method);
+  if (editResponse)
+    return editResponse;
+  const exportResponse = await routeAdminEventExport(request, path, method);
+  if (exportResponse)
+    return exportResponse;
+  const eventMatch = path.match(/^\/admin\/event\/(\d+)$/);
+  if (eventMatch?.[1] && method === "GET") {
+    return handleAdminEventGet(request, Number.parseInt(eventMatch[1], 10));
+  }
+  return null;
+};
+var isAdminRoot = (path) => path === "/admin/" || path === "/admin";
+var routeAdminSettings = async (request, path, method) => {
+  if (path !== "/admin/settings")
+    return null;
+  if (method === "GET")
+    return handleAdminSettingsGet(request);
+  if (method === "POST")
+    return handleAdminSettingsPost(request);
+  return null;
+};
+var routeAdminAuth = async (request, path, method, server) => {
+  if (path === "/admin/login" && method === "POST") {
+    return handleAdminLogin(request, server);
+  }
+  if (path === "/admin/logout" && method === "GET") {
+    return handleAdminLogout(request);
+  }
+  return routeAdminSettings(request, path, method);
+};
+var routeAdminCore = async (request, path, method, server) => {
+  if (isAdminRoot(path) && method === "GET") {
+    return handleAdminGet(request);
+  }
+  if (path === "/admin/event" && method === "POST") {
+    return handleCreateEvent(request);
+  }
+  return routeAdminAuth(request, path, method, server);
+};
+var routeAdmin = async (request, path, method, server) => {
+  const coreResponse = await routeAdminCore(request, path, method, server);
+  if (coreResponse)
+    return coreResponse;
+  return routeAdminEvent(request, path, method);
+};
 
-    <h2>Change Password</h2>
-    <p>Changing your password will log you out of all sessions.</p>
-    <form method="POST" action="/admin/settings">
-      <input type="hidden" name="csrf_token" value="${escapeHtml2(csrfToken)}">
-      ${renderFields(changePasswordFields)}
-      <button type="submit">Change Password</button>
-    </form>
-  `);
+// src/routes/health.ts
+var handleHealthCheck = (method) => {
+  if (method !== "GET")
+    return null;
+  return new Response(JSON.stringify({ status: "ok" }), {
+    headers: { "content-type": "application/json" }
+  });
+};
+
+// src/routes/middleware.ts
+var BASE_SECURITY_HEADERS = {
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "strict-origin-when-cross-origin"
+};
+var getSecurityHeaders = (embeddable) => {
+  if (embeddable) {
+    return {
+      ...BASE_SECURITY_HEADERS
+    };
+  }
+  return {
+    ...BASE_SECURITY_HEADERS,
+    "x-frame-options": "DENY",
+    "content-security-policy": "frame-ancestors 'none'"
+  };
+};
+var isEmbeddablePath = (path) => /^\/ticket\/\d+$/.test(path);
+var isValidOrigin = (request) => {
+  const method = request.method;
+  if (method !== "POST") {
+    return true;
+  }
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
+  const requestUrl = new URL(request.url);
+  const requestHost = requestUrl.host;
+  if (origin) {
+    const originUrl = new URL(origin);
+    return originUrl.host === requestHost;
+  }
+  if (referer) {
+    const refererUrl = new URL(referer);
+    return refererUrl.host === requestHost;
+  }
+  return false;
+};
+var isValidContentType = (request) => {
+  if (request.method !== "POST") {
+    return true;
+  }
+  const contentType = request.headers.get("content-type") || "";
+  return contentType.startsWith("application/x-www-form-urlencoded");
+};
+var contentTypeRejectionResponse = () => new Response("Bad Request: Invalid Content-Type", {
+  status: 400,
+  headers: {
+    "content-type": "text/plain",
+    ...getSecurityHeaders(false)
+  }
+});
+var corsRejectionResponse = () => new Response("Forbidden: Cross-origin requests not allowed", {
+  status: 403,
+  headers: {
+    "content-type": "text/plain",
+    ...getSecurityHeaders(false)
+  }
+});
+var applySecurityHeaders = (response, embeddable) => {
+  const headers = new Headers(response.headers);
+  const securityHeaders = getSecurityHeaders(embeddable);
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    headers.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+};
 
 // node_modules/stripe/esm/net/HttpClient.js
 class HttpClient {
@@ -7750,298 +8865,9 @@ var retrieveCheckoutSession = async (sessionId) => {
   }
 };
 
-// src/server.ts
-var BASE_SECURITY_HEADERS = {
-  "x-content-type-options": "nosniff",
-  "referrer-policy": "strict-origin-when-cross-origin"
-};
-var getSecurityHeaders = (embeddable) => {
-  if (embeddable) {
-    return {
-      ...BASE_SECURITY_HEADERS
-    };
-  }
-  return {
-    ...BASE_SECURITY_HEADERS,
-    "x-frame-options": "DENY",
-    "content-security-policy": "frame-ancestors 'none'"
-  };
-};
-var isEmbeddablePath = (path) => /^\/ticket\/\d+$/.test(path);
-var isValidOrigin = (request) => {
-  const method = request.method;
-  if (method !== "POST") {
-    return true;
-  }
-  const origin = request.headers.get("origin");
-  const referer = request.headers.get("referer");
-  const requestUrl = new URL(request.url);
-  const requestHost = requestUrl.host;
-  if (origin) {
-    const originUrl = new URL(origin);
-    return originUrl.host === requestHost;
-  }
-  if (referer) {
-    const refererUrl = new URL(referer);
-    return refererUrl.host === requestHost;
-  }
-  return false;
-};
-var isValidContentType = (request) => {
-  if (request.method !== "POST") {
-    return true;
-  }
-  const contentType = request.headers.get("content-type") || "";
-  return contentType.startsWith("application/x-www-form-urlencoded");
-};
-var contentTypeRejectionResponse = () => new Response("Bad Request: Invalid Content-Type", {
-  status: 400,
-  headers: {
-    "content-type": "text/plain",
-    ...getSecurityHeaders(false)
-  }
-});
-var corsRejectionResponse = () => new Response("Forbidden: Cross-origin requests not allowed", {
-  status: 403,
-  headers: {
-    "content-type": "text/plain",
-    ...getSecurityHeaders(false)
-  }
-});
-var applySecurityHeaders = (response, embeddable) => {
-  const headers = new Headers(response.headers);
-  const securityHeaders = getSecurityHeaders(embeddable);
-  for (const [key, value] of Object.entries(securityHeaders)) {
-    headers.set(key, value);
-  }
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers
-  });
-};
-var getClientIp = (request, server) => {
-  if (server?.requestIP) {
-    const info = server.requestIP(request);
-    if (info?.address) {
-      return info.address;
-    }
-  }
-  return "direct";
-};
-var parseCookies = (request) => {
-  const cookies = new Map;
-  const header = request.headers.get("cookie");
-  if (!header)
-    return cookies;
-  for (const part of header.split(";")) {
-    const [key, value] = part.trim().split("=");
-    if (key && value) {
-      cookies.set(key, value);
-    }
-  }
-  return cookies;
-};
-var getAuthenticatedSession = async (request) => {
-  const cookies = parseCookies(request);
-  const token = cookies.get("session");
-  if (!token)
-    return null;
-  const session = await getSession(token);
-  if (!session)
-    return null;
-  if (session.expires < Date.now()) {
-    await deleteSession(token);
-    return null;
-  }
-  return { token, csrfToken: session.csrf_token };
-};
-var isAuthenticated = async (request) => {
-  return await getAuthenticatedSession(request) !== null;
-};
-var validateCsrfToken = (expected, actual) => {
-  return constantTimeEqual(expected, actual);
-};
-var htmlResponse = (html, status = 200) => new Response(html, {
-  status,
-  headers: { "content-type": "text/html; charset=utf-8" }
-});
-var redirect = (url, cookie) => {
-  const headers = { location: url };
-  if (cookie) {
-    headers["set-cookie"] = cookie;
-  }
-  return new Response(null, { status: 302, headers });
-};
-var parseFormData = async (request) => {
-  const text = await request.text();
-  return new URLSearchParams(text);
-};
-var handleAdminGet = async (request) => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return htmlResponse(adminLoginPage());
-  }
-  const events = await getAllEvents();
-  return htmlResponse(adminDashboardPage(events, session.csrfToken));
-};
-var handleAdminLogin = async (request, server) => {
-  const clientIp = getClientIp(request, server);
-  if (await isLoginRateLimited(clientIp)) {
-    return htmlResponse(adminLoginPage("Too many login attempts. Please try again later."), 429);
-  }
-  const form = await parseFormData(request);
-  const validation = validateForm(form, loginFields);
-  if (!validation.valid) {
-    return htmlResponse(adminLoginPage(validation.error), 400);
-  }
-  const valid = await verifyAdminPassword(validation.values.password);
-  if (!valid) {
-    await recordFailedLogin(clientIp);
-    return htmlResponse(adminLoginPage("Invalid credentials"), 401);
-  }
-  await clearLoginAttempts(clientIp);
-  const token = generateSecureToken();
-  const csrfToken = generateSecureToken();
-  const expires = Date.now() + 24 * 60 * 60 * 1000;
-  await createSession(token, csrfToken, expires);
-  return redirect("/admin/", `session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=86400`);
-};
-var handleAdminLogout = async (request) => {
-  const cookies = parseCookies(request);
-  const token = cookies.get("session");
-  if (token) {
-    await deleteSession(token);
-  }
-  return redirect("/admin/", "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0");
-};
-var handleAdminSettingsGet = async (request) => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return redirect("/admin/");
-  }
-  return htmlResponse(adminSettingsPage(session.csrfToken));
-};
-var validateChangePasswordForm = (form) => {
-  const validation = validateForm(form, changePasswordFields);
-  if (!validation.valid) {
-    return validation;
-  }
-  const { values } = validation;
-  const currentPassword = values.current_password;
-  const newPassword = values.new_password;
-  const newPasswordConfirm = values.new_password_confirm;
-  if (newPassword.length < 8) {
-    return {
-      valid: false,
-      error: "New password must be at least 8 characters"
-    };
-  }
-  if (newPassword !== newPasswordConfirm) {
-    return { valid: false, error: "New passwords do not match" };
-  }
-  return { valid: true, currentPassword, newPassword };
-};
-var handleAdminSettingsPost = async (request) => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return redirect("/admin/");
-  }
-  const form = await parseFormData(request);
-  const csrfToken = form.get("csrf_token") || "";
-  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
-    return htmlResponse("Invalid CSRF token", 403);
-  }
-  const validation = validateChangePasswordForm(form);
-  if (!validation.valid) {
-    return htmlResponse(adminSettingsPage(session.csrfToken, validation.error), 400);
-  }
-  const isCurrentValid = await verifyAdminPassword(validation.currentPassword);
-  if (!isCurrentValid) {
-    return htmlResponse(adminSettingsPage(session.csrfToken, "Current password is incorrect"), 401);
-  }
-  await updateAdminPassword(validation.newPassword);
-  return redirect("/admin/", "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0");
-};
-var handleCreateEvent = async (request) => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return redirect("/admin/");
-  }
-  const form = await parseFormData(request);
-  const csrfToken = form.get("csrf_token") || "";
-  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
-    return htmlResponse("Invalid CSRF token", 403);
-  }
-  const validation = validateForm(form, eventFields);
-  if (!validation.valid) {
-    return redirect("/admin/");
-  }
-  const { values } = validation;
-  await createEvent(values.name, values.description, values.max_attendees, values.thank_you_url, values.unit_price);
-  return redirect("/admin/");
-};
-var handleAdminEventGet = async (request, eventId) => {
-  if (!await isAuthenticated(request)) {
-    return redirect("/admin/");
-  }
-  const event = await getEventWithCount(eventId);
-  if (!event) {
-    return htmlResponse(notFoundPage(), 404);
-  }
-  const attendees = await getAttendees(eventId);
-  return htmlResponse(adminEventPage(event, attendees));
-};
-var handleAdminEventEditGet = async (request, eventId) => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return redirect("/admin/");
-  }
-  const event = await getEventWithCount(eventId);
-  if (!event) {
-    return htmlResponse(notFoundPage(), 404);
-  }
-  return htmlResponse(adminEventEditPage(event, session.csrfToken));
-};
-var handleAdminEventEditPost = async (request, eventId) => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return redirect("/admin/");
-  }
-  const event = await getEventWithCount(eventId);
-  if (!event) {
-    return htmlResponse(notFoundPage(), 404);
-  }
-  const form = await parseFormData(request);
-  const csrfToken = form.get("csrf_token") || "";
-  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
-    return htmlResponse("Invalid CSRF token", 403);
-  }
-  const validation = validateForm(form, eventFields);
-  if (!validation.valid) {
-    return htmlResponse(adminEventEditPage(event, session.csrfToken, validation.error), 400);
-  }
-  const { values } = validation;
-  await updateEvent(eventId, values.name, values.description, values.max_attendees, values.thank_you_url, values.unit_price);
-  return redirect(`/admin/event/${eventId}`);
-};
-var handleAdminEventExport = async (request, eventId) => {
-  if (!await isAuthenticated(request)) {
-    return redirect("/admin/");
-  }
-  const event = await getEventWithCount(eventId);
-  if (!event) {
-    return htmlResponse(notFoundPage(), 404);
-  }
-  const attendees = await getAttendees(eventId);
-  const csv = generateAttendeesCsv(attendees);
-  const filename = `${event.name.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
-  return new Response(csv, {
-    headers: {
-      "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="${filename}"`
-    }
-  });
+// src/routes/public.ts
+var handleHome = () => {
+  return htmlResponse(homePage());
 };
 var handleTicketGet = async (eventId) => {
   const event = await getEventWithCount(eventId);
@@ -8052,10 +8878,6 @@ var handleTicketGet = async (eventId) => {
 };
 var requiresPayment = async (event) => {
   return await isPaymentsEnabled() && event.unit_price !== null && event.unit_price > 0;
-};
-var getBaseUrl = (request) => {
-  const url = new URL(request.url);
-  return `${url.protocol}//${url.host}`;
 };
 var handlePaymentFlow = async (request, event, attendee) => {
   const baseUrl = getBaseUrl(request);
@@ -8087,71 +8909,6 @@ var handleTicketPost = async (request, eventId) => {
   }
   return redirect(event.thank_you_url);
 };
-var routeAdminEventEdit = async (request, path, method) => {
-  const editMatch = path.match(/^\/admin\/event\/(\d+)\/edit$/);
-  if (!editMatch?.[1])
-    return null;
-  const eventId = Number.parseInt(editMatch[1], 10);
-  if (method === "GET")
-    return handleAdminEventEditGet(request, eventId);
-  if (method === "POST")
-    return handleAdminEventEditPost(request, eventId);
-  return null;
-};
-var routeAdminEventExport = async (request, path, method) => {
-  const exportMatch = path.match(/^\/admin\/event\/(\d+)\/export$/);
-  if (exportMatch?.[1] && method === "GET") {
-    return handleAdminEventExport(request, Number.parseInt(exportMatch[1], 10));
-  }
-  return null;
-};
-var routeAdminEvent = async (request, path, method) => {
-  const editResponse = await routeAdminEventEdit(request, path, method);
-  if (editResponse)
-    return editResponse;
-  const exportResponse = await routeAdminEventExport(request, path, method);
-  if (exportResponse)
-    return exportResponse;
-  const eventMatch = path.match(/^\/admin\/event\/(\d+)$/);
-  if (eventMatch?.[1] && method === "GET") {
-    return handleAdminEventGet(request, Number.parseInt(eventMatch[1], 10));
-  }
-  return null;
-};
-var isAdminRoot = (path) => path === "/admin/" || path === "/admin";
-var routeAdminSettings = async (request, path, method) => {
-  if (path !== "/admin/settings")
-    return null;
-  if (method === "GET")
-    return handleAdminSettingsGet(request);
-  if (method === "POST")
-    return handleAdminSettingsPost(request);
-  return null;
-};
-var routeAdminAuth = async (request, path, method, server) => {
-  if (path === "/admin/login" && method === "POST") {
-    return handleAdminLogin(request, server);
-  }
-  if (path === "/admin/logout" && method === "GET") {
-    return handleAdminLogout(request);
-  }
-  return routeAdminSettings(request, path, method);
-};
-var routeAdminCore = async (request, path, method, server) => {
-  if (isAdminRoot(path) && method === "GET") {
-    return handleAdminGet(request);
-  }
-  if (path === "/admin/event" && method === "POST") {
-    return handleCreateEvent(request);
-  }
-  return routeAdminAuth(request, path, method, server);
-};
-var routeAdmin = async (request, path, method, server) => {
-  const coreResponse = await routeAdminCore(request, path, method, server);
-  if (coreResponse)
-    return coreResponse;
-  return routeAdminEvent(request, path, method);
-};
 var routeTicket = async (request, path, method) => {
   const match = path.match(/^\/ticket\/(\d+)$/);
   if (!match?.[1])
@@ -8165,6 +8922,85 @@ var routeTicket = async (request, path, method) => {
   }
   return null;
 };
+
+// src/routes/setup.ts
+var validateSetupForm = (form) => {
+  const validation = validateForm(form, setupFields);
+  if (!validation.valid) {
+    return validation;
+  }
+  const { values } = validation;
+  const password = values.admin_password;
+  const passwordConfirm = values.admin_password_confirm;
+  const currency = (values.currency_code || "GBP").toUpperCase();
+  if (password.length < 8) {
+    return { valid: false, error: "Password must be at least 8 characters" };
+  }
+  if (password !== passwordConfirm) {
+    return { valid: false, error: "Passwords do not match" };
+  }
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    return { valid: false, error: "Currency code must be 3 uppercase letters" };
+  }
+  return {
+    valid: true,
+    password,
+    stripeKey: values.stripe_secret_key || null,
+    currency
+  };
+};
+var handleSetupGet = async (isSetupComplete2) => {
+  if (await isSetupComplete2()) {
+    return redirect("/");
+  }
+  const csrfToken = generateSecureToken();
+  const response = htmlResponse(setupPage(undefined, csrfToken));
+  const headers = new Headers(response.headers);
+  headers.set("set-cookie", `setup_csrf=${csrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup/; Max-Age=3600`);
+  return new Response(response.body, {
+    status: response.status,
+    headers
+  });
+};
+var handleSetupPost = async (request, isSetupComplete2) => {
+  if (await isSetupComplete2()) {
+    return redirect("/");
+  }
+  const cookies = parseCookies(request);
+  const cookieCsrf = cookies.get("setup_csrf") || "";
+  const form = await parseFormData(request);
+  const formCsrf = form.get("csrf_token") || "";
+  if (!cookieCsrf || !formCsrf || !validateCsrfToken(cookieCsrf, formCsrf)) {
+    const newCsrfToken = generateSecureToken();
+    const response = htmlResponse(setupPage("Invalid or expired form. Please try again.", newCsrfToken), 403);
+    const headers = new Headers(response.headers);
+    headers.set("set-cookie", `setup_csrf=${newCsrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup/; Max-Age=3600`);
+    return new Response(response.body, {
+      status: response.status,
+      headers
+    });
+  }
+  const validation = validateSetupForm(form);
+  if (!validation.valid) {
+    return htmlResponse(setupPage(validation.error, formCsrf), 400);
+  }
+  await completeSetup(validation.password, validation.stripeKey, validation.currency);
+  return htmlResponse(setupCompletePage());
+};
+var isSetupPath = (path) => path === "/setup/" || path === "/setup";
+var routeSetup = async (request, path, method, isSetupComplete2) => {
+  if (!isSetupPath(path))
+    return null;
+  if (method === "GET") {
+    return handleSetupGet(isSetupComplete2);
+  }
+  if (method === "POST") {
+    return handleSetupPost(request, isSetupComplete2);
+  }
+  return null;
+};
+
+// src/routes/webhooks.ts
 var loadPaymentCallbackData = async (attendeeIdStr) => {
   if (!attendeeIdStr) {
     return {
@@ -8236,91 +9072,11 @@ var routePayment = async (request, path, method) => {
   }
   return null;
 };
-var validateSetupForm = (form) => {
-  const validation = validateForm(form, setupFields);
-  if (!validation.valid) {
-    return validation;
-  }
-  const { values } = validation;
-  const password = values.admin_password;
-  const passwordConfirm = values.admin_password_confirm;
-  const currency = (values.currency_code || "GBP").toUpperCase();
-  if (password.length < 8) {
-    return { valid: false, error: "Password must be at least 8 characters" };
-  }
-  if (password !== passwordConfirm) {
-    return { valid: false, error: "Passwords do not match" };
-  }
-  if (!/^[A-Z]{3}$/.test(currency)) {
-    return { valid: false, error: "Currency code must be 3 uppercase letters" };
-  }
-  return {
-    valid: true,
-    password,
-    stripeKey: values.stripe_secret_key || null,
-    currency
-  };
-};
-var handleSetupGet = async () => {
-  if (await isSetupComplete()) {
-    return redirect("/");
-  }
-  const csrfToken = generateSecureToken();
-  const response = htmlResponse(setupPage(undefined, csrfToken));
-  const headers = new Headers(response.headers);
-  headers.set("set-cookie", `setup_csrf=${csrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup/; Max-Age=3600`);
-  return new Response(response.body, {
-    status: response.status,
-    headers
-  });
-};
-var handleSetupPost = async (request) => {
-  if (await isSetupComplete()) {
-    return redirect("/");
-  }
-  const cookies = parseCookies(request);
-  const cookieCsrf = cookies.get("setup_csrf") || "";
-  const form = await parseFormData(request);
-  const formCsrf = form.get("csrf_token") || "";
-  if (!cookieCsrf || !formCsrf || !validateCsrfToken(cookieCsrf, formCsrf)) {
-    const newCsrfToken = generateSecureToken();
-    const response = htmlResponse(setupPage("Invalid or expired form. Please try again.", newCsrfToken), 403);
-    const headers = new Headers(response.headers);
-    headers.set("set-cookie", `setup_csrf=${newCsrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup/; Max-Age=3600`);
-    return new Response(response.body, {
-      status: response.status,
-      headers
-    });
-  }
-  const validation = validateSetupForm(form);
-  if (!validation.valid) {
-    return htmlResponse(setupPage(validation.error, formCsrf), 400);
-  }
-  await completeSetup(validation.password, validation.stripeKey, validation.currency);
-  return htmlResponse(setupCompletePage());
-};
-var isSetupPath = (path) => path === "/setup/" || path === "/setup";
-var routeSetup = async (request, path, method) => {
-  if (!isSetupPath(path))
-    return null;
-  if (method === "GET") {
-    return handleSetupGet();
-  }
-  if (method === "POST") {
-    return handleSetupPost(request);
-  }
-  return null;
-};
-var handleHealthCheck = (method) => {
-  if (method !== "GET")
-    return null;
-  return new Response(JSON.stringify({ status: "ok" }), {
-    headers: { "content-type": "application/json" }
-  });
-};
+
+// src/routes/index.ts
 var routeMainApp = async (request, path, method, server) => {
   if (path === "/" && method === "GET") {
-    return htmlResponse(homePage());
+    return handleHome();
   }
   const adminResponse = await routeAdmin(request, path, method, server);
   if (adminResponse)
@@ -8342,7 +9098,7 @@ var handleRequestInternal = async (request, server) => {
     if (healthResponse)
       return healthResponse;
   }
-  const setupResponse = await routeSetup(request, path, method);
+  const setupResponse = await routeSetup(request, path, method, isSetupComplete);
   if (setupResponse)
     return setupResponse;
   if (!await isSetupComplete()) {
@@ -8363,7 +9119,6 @@ var handleRequest = async (request, server) => {
   const response = await handleRequestInternal(request, server);
   return applySecurityHeaders(response, embeddable);
 };
-
 // src/edge/bunny-script.ts
 console.log("[Tickets] Edge script module loaded");
 var initialized = false;
@@ -8371,6 +9126,8 @@ console.log("[Tickets] Registering HTTP handler...");
 BunnySDK.net.http.serve(async (request) => {
   try {
     if (!initialized) {
+      console.log("[Tickets] Validating encryption key...");
+      validateEncryptionKey();
       console.log("[Tickets] Initializing database...");
       await initDb();
       initialized = true;

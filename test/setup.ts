@@ -4,12 +4,16 @@
  * All testable logic is in stripe-mock.ts
  */
 
+import { setupTestEncryptionKey } from "#test-utils";
 import {
   STRIPE_MOCK_PORT,
   StripeMockManager,
 } from "#test-utils/stripe-mock.ts";
 
 const manager = new StripeMockManager();
+
+// Configure encryption key for tests
+setupTestEncryptionKey();
 
 // Configure stripe-mock env vars
 process.env.STRIPE_MOCK_HOST = "localhost";

@@ -4,6 +4,7 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
+import { decrypt, encrypt } from "./crypto.ts";
 import type {
   Attendee,
   Event,
@@ -160,6 +161,7 @@ export const isSetupComplete = async (): Promise<boolean> => {
 /**
  * Complete initial setup by storing all configuration
  * Passwords are hashed using Argon2id before storage
+ * Sensitive values are encrypted at rest
  */
 export const completeSetup = async (
   adminPassword: string,
@@ -167,19 +169,23 @@ export const completeSetup = async (
   currencyCode: string,
 ): Promise<void> => {
   const hashedPassword = await Bun.password.hash(adminPassword);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
+  const encryptedHash = await encrypt(hashedPassword);
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, encryptedHash);
   if (stripeSecretKey) {
-    await setSetting(CONFIG_KEYS.STRIPE_KEY, stripeSecretKey);
+    const encryptedKey = await encrypt(stripeSecretKey);
+    await setSetting(CONFIG_KEYS.STRIPE_KEY, encryptedKey);
   }
   await setSetting(CONFIG_KEYS.CURRENCY_CODE, currencyCode);
   await setSetting(CONFIG_KEYS.SETUP_COMPLETE, "true");
 };
 
 /**
- * Get Stripe secret key from database
+ * Get Stripe secret key from database (decrypted)
  */
 export const getStripeSecretKeyFromDb = async (): Promise<string | null> => {
-  return getSetting(CONFIG_KEYS.STRIPE_KEY);
+  const value = await getSetting(CONFIG_KEYS.STRIPE_KEY);
+  if (!value) return null;
+  return decrypt(value);
 };
 
 /**
@@ -191,11 +197,13 @@ export const getCurrencyCodeFromDb = async (): Promise<string> => {
 };
 
 /**
- * Get admin password from database
+ * Get admin password hash from database (decrypted)
  * Returns null if setup hasn't been completed
  */
 export const getAdminPasswordFromDb = async (): Promise<string | null> => {
-  return getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
+  const value = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
+  if (!value) return null;
+  return decrypt(value);
 };
 
 /**
@@ -205,20 +213,21 @@ export const getAdminPasswordFromDb = async (): Promise<string | null> => {
 export const verifyAdminPassword = async (
   password: string,
 ): Promise<boolean> => {
-  const stored = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-  if (stored === null) return false;
-  return Bun.password.verify(password, stored);
+  const storedHash = await getAdminPasswordFromDb();
+  if (storedHash === null) return false;
+  return Bun.password.verify(password, storedHash);
 };
 
 /**
  * Update admin password and invalidate all existing sessions
- * Passwords are hashed using Argon2id before storage
+ * Passwords are hashed using Argon2id before storage and encrypted at rest
  */
 export const updateAdminPassword = async (
   newPassword: string,
 ): Promise<void> => {
   const hashedPassword = await Bun.password.hash(newPassword);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
+  const encryptedHash = await encrypt(hashedPassword);
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, encryptedHash);
   await deleteAllSessions();
 };
 
@@ -314,18 +323,36 @@ export const getEventWithCount = async (
 };
 
 /**
- * Get attendees for an event
+ * Decrypt attendee fields
+ */
+const decryptAttendee = async (row: Attendee): Promise<Attendee> => {
+  const name = await decrypt(row.name);
+  const email = await decrypt(row.email);
+  const stripe_payment_id = row.stripe_payment_id
+    ? await decrypt(row.stripe_payment_id)
+    : null;
+  return { ...row, name, email, stripe_payment_id };
+};
+
+/**
+ * Get attendees for an event (decrypted)
  */
 export const getAttendees = async (eventId: number): Promise<Attendee[]> => {
   const result = await getDb().execute({
     sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
     args: [eventId],
   });
-  return result.rows as unknown as Attendee[];
+  const rows = result.rows as unknown as Attendee[];
+  const decrypted: Attendee[] = [];
+  for (const row of rows) {
+    decrypted.push(await decryptAttendee(row));
+  }
+  return decrypted;
 };
 
 /**
  * Create a new attendee (reserve a ticket)
+ * Sensitive fields (name, email, stripe_payment_id) are encrypted at rest
  */
 export const createAttendee = async (
   eventId: number,
@@ -334,9 +361,14 @@ export const createAttendee = async (
   stripePaymentId: string | null = null,
 ): Promise<Attendee> => {
   const created = new Date().toISOString();
+  const encryptedName = await encrypt(name);
+  const encryptedEmail = await encrypt(email);
+  const encryptedPaymentId = stripePaymentId
+    ? await encrypt(stripePaymentId)
+    : null;
   const result = await getDb().execute({
     sql: "INSERT INTO attendees (event_id, name, email, created, stripe_payment_id) VALUES (?, ?, ?, ?, ?)",
-    args: [eventId, name, email, created, stripePaymentId],
+    args: [eventId, encryptedName, encryptedEmail, created, encryptedPaymentId],
   });
   return {
     id: Number(result.lastInsertRowid),
@@ -349,7 +381,7 @@ export const createAttendee = async (
 };
 
 /**
- * Get an attendee by ID
+ * Get an attendee by ID (decrypted)
  */
 export const getAttendee = async (id: number): Promise<Attendee | null> => {
   const result = await getDb().execute({
@@ -357,19 +389,20 @@ export const getAttendee = async (id: number): Promise<Attendee | null> => {
     args: [id],
   });
   if (result.rows.length === 0) return null;
-  return result.rows[0] as unknown as Attendee;
+  return decryptAttendee(result.rows[0] as unknown as Attendee);
 };
 
 /**
- * Update attendee's Stripe payment ID
+ * Update attendee's Stripe payment ID (encrypted at rest)
  */
 export const updateAttendeePayment = async (
   attendeeId: number,
   stripePaymentId: string,
 ): Promise<void> => {
+  const encryptedPaymentId = await encrypt(stripePaymentId);
   await getDb().execute({
     sql: "UPDATE attendees SET stripe_payment_id = ? WHERE id = ?",
-    args: [stripePaymentId, attendeeId],
+    args: [encryptedPaymentId, attendeeId],
   });
 };
 

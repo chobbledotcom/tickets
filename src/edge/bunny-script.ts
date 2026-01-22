@@ -4,6 +4,7 @@
  */
 
 import * as BunnySDK from "@bunny.net/edgescript-sdk";
+import { validateEncryptionKey } from "../lib/crypto.ts";
 import { initDb } from "../lib/db.ts";
 import { handleRequest } from "../server.ts";
 
@@ -18,6 +19,9 @@ console.log("[Tickets] Registering HTTP handler...");
 BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
   try {
     if (!initialized) {
+      // biome-ignore lint/suspicious/noConsole: Edge script logging
+      console.log("[Tickets] Validating encryption key...");
+      validateEncryptionKey();
       // biome-ignore lint/suspicious/noConsole: Edge script logging
       console.log("[Tickets] Initializing database...");
       await initDb();

@@ -34,9 +34,11 @@ import {
   updateEvent,
   verifyAdminPassword,
 } from "#lib/db.ts";
+import { setupTestEncryptionKey } from "#test-utils";
 
 describe("db", () => {
   beforeEach(async () => {
+    setupTestEncryptionKey();
     const client = createClient({ url: ":memory:" });
     setDb(client);
     await initDb();
