@@ -45,33 +45,6 @@ const ALIASING_PATTERN =
   /^(?:export\s+)?const\s+(\w+)\s*=\s*([a-zA-Z_]\w*)\s*;?\s*(?:\/\/.*)?$/;
 
 /**
- * Allowed let patterns:
- * - `let varName = null;` for lazy loading
- * - `let varName: Type | null = null;` for typed lazy loading/memoization
- */
-const ALLOWED_LET_PATTERNS = [
-  /^let\s+\w+\s*=\s*null\s*;?\s*(?:\/\/.*)?$/, // let x = null;
-  /^let\s+\w+\s*:\s*[\w<>[\]|, ]+\s*=\s*null\s*;?\s*(?:\/\/.*)?$/, // let x: Type = null;
-];
-
-const isAllowedLetPattern = (line: string): boolean =>
-  ALLOWED_LET_PATTERNS.some((pattern) => pattern.test(line));
-
-/**
- * Files allowed to have any let declarations (initialization flags)
- */
-const ALLOWED_FILES_LET = ["edge/bunny-script.ts"];
-
-/**
- * Specific allowed let declarations in format "file:lineContent"
- * For legitimate patterns like timing-safe comparison accumulators
- */
-const ALLOWED_LET_LINES = [
-  "lib/crypto.ts:let result = 0;", // timing-safe comparison accumulator
-  'test-utils/index.ts:let result = "";', // string builder in test utility
-];
-
-/**
  * Pattern to detect .then() usage - prefer async/await
  */
 const THEN_PATTERN = /\.then\s*\(/g;
@@ -149,40 +122,24 @@ describe("code quality", () => {
     });
   });
 
-  describe("no let declarations", () => {
-    test("should only use let for lazy loading (let x = null)", async () => {
+  describe("no module-level let", () => {
+    test("should use const with once()/lazyRef() instead of let", async () => {
       const files = await getAllTsFiles(SRC_DIR);
       const violations: string[] = [];
 
       for (const file of files) {
         const relativePath = getRelativePath(file);
-
-        if (ALLOWED_FILES_LET.includes(relativePath)) {
-          continue;
-        }
-
         const content = await Bun.file(file).text();
         const lines = content.split("\n");
 
         let lineNum = 0;
-        for (const rawLine of lines) {
+        for (const line of lines) {
           lineNum++;
-          const line = rawLine.trim();
 
-          if (line.startsWith("let ") || line.startsWith("export let ")) {
-            const normalizedLine = line.replace(/^export\s+/, "");
-
-            if (isAllowedLetPattern(normalizedLine)) {
-              continue;
-            }
-
-            const allowKey = `${relativePath}:${normalizedLine}`;
-            if (ALLOWED_LET_LINES.includes(allowKey)) {
-              continue;
-            }
-
+          // Only check module-level let (not indented)
+          if (line.match(/^(export\s+)?let\s+/)) {
             violations.push(
-              `${relativePath}:${lineNum}: ${line.slice(0, 50)}... (use const with immutable patterns)`,
+              `${relativePath}:${lineNum}: ${line.slice(0, 50)}... (use const with once()/lazyRef())`,
             );
           }
         }
