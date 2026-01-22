@@ -5,3 +5,4 @@ tickets.db
 dist/
 .bin/
 coverage/
+.jscpd-report/

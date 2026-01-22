@@ -1,0 +1,18 @@
+{
+	"threshold": 0,
+	"reporters": ["console", "json"],
+	"output": ".jscpd-report",
+	"ignore": [
+		"**/node_modules/**",
+		"**/package-lock.json",
+		"**/bun.lock",
+		"bunny-script.ts"
+	],
+	"format": ["typescript", "json"],
+	"absolute": false,
+	"gitignore": true,
+	"exitCode": 1,
+	"minLines": 1,
+	"minTokens": 40,
+	"path": ["src", "test", "scripts"]
+}
