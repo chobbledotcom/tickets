@@ -12,7 +12,12 @@ import {
   parseFormData,
   redirect,
   validateCsrfToken,
+  withCookie,
 } from "./utils.ts";
+
+/** Cookie for CSRF token with standard security options */
+const setupCsrfCookie = (token: string): string =>
+  `setup_csrf=${token}; HttpOnly; Secure; SameSite=Strict; Path=/setup; Max-Age=3600`;
 
 /**
  * Validate setup form data (uses form framework + custom validation)
@@ -91,17 +96,10 @@ export const handleSetupGet = async (
     return redirect("/");
   }
   const csrfToken = generateSecureToken();
-  const response = htmlResponse(setupPage(undefined, csrfToken));
-  const headers = new Headers(response.headers);
-  // Path=/setup (without trailing slash) matches both /setup and /setup/
-  headers.set(
-    "set-cookie",
-    `setup_csrf=${csrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup; Max-Age=3600`,
+  return withCookie(
+    htmlResponse(setupPage(undefined, csrfToken)),
+    setupCsrfCookie(csrfToken),
   );
-  return new Response(response.body, {
-    status: response.status,
-    headers,
-  });
 };
 
 /**
@@ -153,22 +151,14 @@ export const handleSetupPost = async (
   if (!cookieCsrf || !formCsrf || !validateCsrfToken(cookieCsrf, formCsrf)) {
     // biome-ignore lint/suspicious/noConsole: Debug logging for edge script
     console.log("[Setup] CSRF validation FAILED");
-    // Generate new token for retry
     const newCsrfToken = generateSecureToken();
-    const response = htmlResponse(
-      setupPage("Invalid or expired form. Please try again.", newCsrfToken),
-      403,
+    return withCookie(
+      htmlResponse(
+        setupPage("Invalid or expired form. Please try again.", newCsrfToken),
+        403,
+      ),
+      setupCsrfCookie(newCsrfToken),
     );
-    const headers = new Headers(response.headers);
-    // Path=/setup (without trailing slash) matches both /setup and /setup/
-    headers.set(
-      "set-cookie",
-      `setup_csrf=${newCsrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup; Max-Age=3600`,
-    );
-    return new Response(response.body, {
-      status: response.status,
-      headers,
-    });
   }
 
   // biome-ignore lint/suspicious/noConsole: Debug logging for edge script

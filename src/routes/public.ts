@@ -3,17 +3,20 @@
  */
 
 import { isPaymentsEnabled } from "#lib/config.ts";
-import {
-  createAttendee,
-  deleteAttendee,
-  getEventWithCount,
-  hasAvailableSpots,
-} from "#lib/db.ts";
+import { createAttendee, deleteAttendee, hasAvailableSpots } from "#lib/db.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { createCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { homePage, notFoundPage, ticketFields, ticketPage } from "#templates";
-import { getBaseUrl, htmlResponse, parseFormData, redirect } from "./utils.ts";
+import { homePage, ticketFields, ticketPage } from "#templates";
+import {
+  createIdRoute,
+  getBaseUrl,
+  htmlResponse,
+  parseFormData,
+  type RouteHandler,
+  redirect,
+  withEvent,
+} from "./utils.ts";
 
 /**
  * Handle GET / (home page)
@@ -25,13 +28,8 @@ export const handleHome = (): Response => {
 /**
  * Handle GET /ticket/:id
  */
-export const handleTicketGet = async (eventId: number): Promise<Response> => {
-  const event = await getEventWithCount(eventId);
-  if (!event) {
-    return htmlResponse(notFoundPage(), 404);
-  }
-  return htmlResponse(ticketPage(event));
-};
+export const handleTicketGet = (eventId: number): Promise<Response> =>
+  withEvent(eventId, (event) => htmlResponse(ticketPage(event)));
 
 /**
  * Check if payment is required for an event
@@ -70,17 +68,12 @@ const handlePaymentFlow = async (
 };
 
 /**
- * Handle POST /ticket/:id (reserve ticket)
+ * Process ticket reservation for an event
  */
-export const handleTicketPost = async (
+const processTicketReservation = async (
   request: Request,
-  eventId: number,
+  event: EventWithCount,
 ): Promise<Response> => {
-  const event = await getEventWithCount(eventId);
-  if (!event) {
-    return htmlResponse(notFoundPage(), 404);
-  }
-
   const form = await parseFormData(request);
   const validation = validateForm(form, ticketFields);
 
@@ -88,7 +81,7 @@ export const handleTicketPost = async (
     return htmlResponse(ticketPage(event, validation.error), 400);
   }
 
-  const available = await hasAvailableSpots(eventId);
+  const available = await hasAvailableSpots(event.id);
   if (!available) {
     return htmlResponse(
       ticketPage(event, "Sorry, this event is now full"),
@@ -98,7 +91,7 @@ export const handleTicketPost = async (
 
   const { values } = validation;
   const attendee = await createAttendee(
-    eventId,
+    event.id,
     values.name as string,
     values.email as string,
   );
@@ -111,22 +104,19 @@ export const handleTicketPost = async (
 };
 
 /**
- * Route ticket requests
+ * Handle POST /ticket/:id (reserve ticket)
  */
-export const routeTicket = async (
+export const handleTicketPost = (
   request: Request,
-  path: string,
-  method: string,
-): Promise<Response | null> => {
-  const match = path.match(/^\/ticket\/(\d+)$/);
-  if (!match?.[1]) return null;
+  eventId: number,
+): Promise<Response> =>
+  withEvent(eventId, (event) => processTicketReservation(request, event));
 
-  const eventId = Number.parseInt(match[1], 10);
-  if (method === "GET") {
-    return handleTicketGet(eventId);
-  }
-  if (method === "POST") {
-    return handleTicketPost(request, eventId);
-  }
-  return null;
-};
+/** Route ticket requests */
+export const routeTicket: RouteHandler = createIdRoute(
+  /^\/ticket\/(\d+)$/,
+  (request) => ({
+    GET: handleTicketGet,
+    POST: (id) => handleTicketPost(request, id),
+  }),
+);

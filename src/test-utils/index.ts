@@ -4,7 +4,14 @@
 
 import { createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "../lib/crypto.ts";
-import { completeSetup, getSession, initDb, setDb } from "../lib/db.ts";
+import {
+  completeSetup,
+  createEvent,
+  type EventInput,
+  getSession,
+  initDb,
+  setDb,
+} from "../lib/db.ts";
 
 /**
  * Default test admin password
@@ -175,3 +182,7 @@ export const mockSetupFormRequest = (
     `setup_csrf=${csrfToken}`,
   );
 };
+
+/** Re-export createEvent and EventInput for test use */
+export { createEvent };
+export type { EventInput };

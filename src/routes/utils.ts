@@ -2,8 +2,11 @@
  * Shared utilities for route handlers
  */
 
+import { err, ok, type Result, unwrapOr } from "#fp";
 import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
-import { deleteSession, getSession } from "#lib/db.ts";
+import { deleteSession, getEventWithCount, getSession } from "#lib/db.ts";
+import type { EventWithCount } from "#lib/types.ts";
+import { notFoundPage } from "#templates";
 import type { ServerContext } from "./types.ts";
 
 // Re-export for use by other route modules
@@ -122,4 +125,196 @@ export const parseFormData = async (
 export const getBaseUrl = (request: Request): string => {
   const url = new URL(request.url);
   return `${url.protocol}//${url.host}`;
+};
+
+/**
+ * Parse request URL and extract path/method
+ */
+export const parseRequest = (
+  request: Request,
+): { url: URL; path: string; method: string } => {
+  const url = new URL(request.url);
+  return { url, path: url.pathname, method: request.method };
+};
+
+/**
+ * Get search param from request URL
+ */
+export const getSearchParam = (
+  request: Request,
+  key: string,
+): string | null => {
+  const url = new URL(request.url);
+  return url.searchParams.get(key);
+};
+
+/**
+ * Add cookie header to response
+ */
+export const withCookie = (response: Response, cookie: string): Response => {
+  const headers = new Headers(response.headers);
+  headers.set("set-cookie", cookie);
+  return new Response(response.body, { status: response.status, headers });
+};
+
+/**
+ * Fetch event or return 404 response
+ */
+export const fetchEventOr404 = async (
+  eventId: number,
+): Promise<Result<EventWithCount>> => {
+  const event = await getEventWithCount(eventId);
+  return event ? ok(event) : err(htmlResponse(notFoundPage(), 404));
+};
+
+/**
+ * Handle event with Result - unwrap to Response
+ */
+export const withEvent = (
+  eventId: number,
+  handler: (event: EventWithCount) => Response | Promise<Response>,
+): Promise<Response> => fetchEventOr404(eventId).then(unwrapOr(handler));
+
+/** Session with CSRF token */
+export type AuthSession = { token: string; csrfToken: string };
+
+/**
+ * Handle request with authenticated session
+ */
+export const withSession = async (
+  request: Request,
+  handler: (session: AuthSession) => Response | Promise<Response>,
+  onNoSession: () => Response | Promise<Response>,
+): Promise<Response> => {
+  const session = await getAuthenticatedSession(request);
+  return session ? handler(session) : onNoSession();
+};
+
+/**
+ * Handle request requiring session - redirect to /admin/ if not authenticated
+ */
+export const requireSessionOr = async (
+  request: Request,
+  handler: (session: AuthSession) => Response | Promise<Response>,
+): Promise<Response> =>
+  withSession(request, handler, () => redirect("/admin/"));
+
+/** Auth form result type */
+export type AuthFormResult =
+  | { ok: true; session: AuthSession; form: URLSearchParams }
+  | { ok: false; response: Response };
+
+/**
+ * Require authenticated session with parsed form and validated CSRF
+ */
+export const requireAuthForm = async (
+  request: Request,
+): Promise<AuthFormResult> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return { ok: false, response: redirect("/admin/") };
+  }
+
+  const form = await parseFormData(request);
+  const csrfToken = form.get("csrf_token") || "";
+  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
+    return { ok: false, response: htmlResponse("Invalid CSRF token", 403) };
+  }
+
+  return { ok: true, session, form };
+};
+
+/**
+ * Handle request with auth form - unwrap AuthFormResult
+ */
+export const withAuthForm = async (
+  request: Request,
+  handler: (
+    session: AuthSession,
+    form: URLSearchParams,
+  ) => Response | Promise<Response>,
+): Promise<Response> => {
+  const auth = await requireAuthForm(request);
+  return auth.ok ? handler(auth.session, auth.form) : auth.response;
+};
+
+/** Route handler type */
+export type RouteHandler = (
+  request: Request,
+  path: string,
+  method: string,
+) => Promise<Response | null>;
+
+/** Route handler with server context */
+export type RouteHandlerWithServer = (
+  request: Request,
+  path: string,
+  method: string,
+  server?: ServerContext,
+) => Promise<Response | null>;
+
+/** ID-based route handlers */
+type IdHandlers = {
+  GET?: (id: number) => Promise<Response>;
+  POST?: (id: number) => Promise<Response>;
+};
+
+/**
+ * Create a route handler that extracts ID from path pattern
+ */
+export const createIdRoute =
+  (
+    pattern: RegExp,
+    getHandlers: (request: Request) => IdHandlers,
+  ): RouteHandler =>
+  (request, path, method) =>
+    routeWithId(path, pattern, method, getHandlers(request));
+
+/** Route definition for declarative routing */
+type RouteMatch = {
+  path: string;
+  method: string;
+  handler: () => Response | Promise<Response>;
+};
+
+/**
+ * Match first route and execute handler
+ */
+export const matchRoute = async (
+  path: string,
+  method: string,
+  routes: RouteMatch[],
+): Promise<Response | null> => {
+  const match = routes.find((r) => r.path === path && r.method === method);
+  return match ? match.handler() : null;
+};
+
+/**
+ * Chain route handlers - try each until one returns a response
+ */
+export const chainRoutes = async (
+  ...handlers: Array<() => Promise<Response | null>>
+): Promise<Response | null> => {
+  for (const handler of handlers) {
+    const result = await handler();
+    if (result) return result;
+  }
+  return null;
+};
+
+/**
+ * Extract ID from route pattern and dispatch to handlers by method
+ */
+export const routeWithId = async (
+  path: string,
+  pattern: RegExp,
+  method: string,
+  handlers: IdHandlers,
+): Promise<Response | null> => {
+  const match = path.match(pattern);
+  if (!match?.[1]) return null;
+
+  const id = Number.parseInt(match[1], 10);
+  const handler = handlers[method as keyof typeof handlers];
+  return handler ? handler(id) : null;
 };

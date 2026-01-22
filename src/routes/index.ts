@@ -17,7 +17,7 @@ import {
 import { handleHome, routeTicket } from "./public.ts";
 import { routeSetup } from "./setup.ts";
 import type { ServerContext } from "./types.ts";
-import { htmlResponse, redirect } from "./utils.ts";
+import { htmlResponse, parseRequest, redirect } from "./utils.ts";
 import { routePayment } from "./webhooks.ts";
 
 // Re-export middleware functions for testing
@@ -63,9 +63,7 @@ const handleRequestInternal = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
-  const url = new URL(request.url);
-  const path = url.pathname;
-  const method = request.method;
+  const { path, method } = parseRequest(request);
 
   // Health check always available
   if (path === "/health") {
@@ -97,8 +95,7 @@ export const handleRequest = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
-  const url = new URL(request.url);
-  const path = url.pathname;
+  const { path } = parseRequest(request);
   const embeddable = isEmbeddablePath(path);
 
   // CORS protection: reject cross-origin POST requests
