@@ -196,6 +196,183 @@ describe("server", () => {
       const html = await response.text();
       expect(html).toContain("Test Event");
     });
+
+    test("shows Edit link on event page", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      await createEvent("Test Event", "Desc", 100, "https://example.com");
+
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/1", {
+          headers: { cookie: cookie || "" },
+        }),
+      );
+      const html = await response.text();
+      expect(html).toContain("/admin/event/1/edit");
+      expect(html).toContain("Edit Event");
+    });
+  });
+
+  describe("GET /admin/event/:id/edit", () => {
+    test("redirects to login when not authenticated", async () => {
+      await createEvent("Test Event", "Desc", 100, "https://example.com");
+      const response = await handleRequest(mockRequest("/admin/event/1/edit"));
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/999/edit", {
+          headers: { cookie: cookie || "" },
+        }),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("shows edit form when authenticated", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      await createEvent(
+        "Test Event",
+        "Test Description",
+        100,
+        "https://example.com/thanks",
+        1500,
+      );
+
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/1/edit", {
+          headers: { cookie: cookie || "" },
+        }),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Edit Event");
+      expect(html).toContain('value="Test Event"');
+      expect(html).toContain("Test Description");
+      expect(html).toContain('value="100"');
+      expect(html).toContain('value="1500"');
+      expect(html).toContain('value="https://example.com/thanks"');
+    });
+  });
+
+  describe("POST /admin/event/:id/edit", () => {
+    test("redirects to login when not authenticated", async () => {
+      await createEvent("Test", "Desc", 100, "https://example.com");
+      const response = await handleRequest(
+        mockFormRequest("/admin/event/1/edit", {
+          name: "Updated",
+          description: "Updated Desc",
+          max_attendees: "50",
+          thank_you_url: "https://example.com/updated",
+        }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/999/edit",
+          {
+            name: "Updated",
+            description: "Updated Desc",
+            max_attendees: "50",
+            thank_you_url: "https://example.com/updated",
+          },
+          cookie || "",
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("validates required fields", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      await createEvent("Test", "Desc", 100, "https://example.com");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/edit",
+          {
+            name: "",
+            description: "Desc",
+            max_attendees: "50",
+            thank_you_url: "https://example.com",
+          },
+          cookie || "",
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Event Name is required");
+    });
+
+    test("updates event when authenticated", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      await createEvent(
+        "Original",
+        "Original Desc",
+        100,
+        "https://example.com",
+      );
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/edit",
+          {
+            name: "Updated Event",
+            description: "Updated Description",
+            max_attendees: "200",
+            thank_you_url: "https://example.com/updated",
+            unit_price: "2000",
+          },
+          cookie || "",
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/event/1");
+
+      // Verify the event was updated
+      const { getEventWithCount } = await import("#lib/db.ts");
+      const updated = await getEventWithCount(1);
+      expect(updated?.name).toBe("Updated Event");
+      expect(updated?.description).toBe("Updated Description");
+      expect(updated?.max_attendees).toBe(200);
+      expect(updated?.thank_you_url).toBe("https://example.com/updated");
+      expect(updated?.unit_price).toBe(2000);
+    });
   });
 
   describe("GET /ticket/:id", () => {

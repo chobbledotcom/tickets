@@ -3,6 +3,12 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import {
+  type Field,
+  type FieldValues,
+  renderError,
+  renderFields,
+} from "./forms.ts";
 import type { Attendee, Event, EventWithCount } from "./types.ts";
 
 const escapeHtml = (str: string): string =>
@@ -159,7 +165,7 @@ export const adminEventPage = (
     `Event: ${event.name}`,
     `
     <h1>${escapeHtml(event.name)}</h1>
-    <p><a href="/admin/">&larr; Back to Dashboard</a></p>
+    <p><a href="/admin/">&larr; Back to Dashboard</a> | <a href="/admin/event/${event.id}/edit">Edit Event</a></p>
 
     <h2>Event Details</h2>
     <p><strong>Description:</strong> ${escapeHtml(event.description)}</p>
@@ -185,6 +191,71 @@ export const adminEventPage = (
   `,
   );
 };
+
+/**
+ * Event form field definitions (shared between create and edit)
+ */
+export const eventFields: Field[] = [
+  { name: "name", label: "Event Name", type: "text", required: true },
+  {
+    name: "description",
+    label: "Description",
+    type: "textarea",
+    required: true,
+  },
+  {
+    name: "max_attendees",
+    label: "Max Attendees",
+    type: "number",
+    required: true,
+    min: 1,
+  },
+  {
+    name: "unit_price",
+    label: "Ticket Price (in pence/cents, leave empty for free)",
+    type: "number",
+    min: 0,
+    placeholder: "e.g. 1000 for 10.00",
+  },
+  {
+    name: "thank_you_url",
+    label: "Thank You URL",
+    type: "url",
+    required: true,
+    placeholder: "https://example.com/thank-you",
+  },
+];
+
+/**
+ * Convert event to form field values
+ */
+const eventToFieldValues = (event: EventWithCount): FieldValues => ({
+  name: event.name,
+  description: event.description,
+  max_attendees: event.max_attendees,
+  unit_price: event.unit_price,
+  thank_you_url: event.thank_you_url,
+});
+
+/**
+ * Admin event edit page
+ */
+export const adminEventEditPage = (
+  event: EventWithCount,
+  error?: string,
+): string =>
+  layout(
+    `Edit: ${event.name}`,
+    `
+    <h1>Edit Event</h1>
+    <p><a href="/admin/event/${event.id}">&larr; Back to Event</a></p>
+    ${renderError(error)}
+    <form method="POST" action="/admin/event/${event.id}/edit">
+      ${renderFields(eventFields, eventToFieldValues(event))}
+      <button type="submit">Save Changes</button>
+    </form>
+  `,
+  );
 
 /**
  * Public ticket page

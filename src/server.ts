@@ -18,12 +18,16 @@ import {
   getSession,
   hasAvailableSpots,
   updateAttendeePayment,
+  updateEvent,
   verifyAdminPassword,
 } from "./lib/db.ts";
+import { validateForm } from "./lib/forms.ts";
 import {
   adminDashboardPage,
+  adminEventEditPage,
   adminEventPage,
   adminLoginPage,
+  eventFields,
   homePage,
   notFoundPage,
   paymentCancelPage,
@@ -205,6 +209,61 @@ const handleAdminEventGet = async (
 };
 
 /**
+ * Handle GET /admin/event/:id/edit
+ */
+const handleAdminEventEditGet = async (
+  request: Request,
+  eventId: number,
+): Promise<Response> => {
+  if (!(await isAuthenticated(request))) {
+    return redirect("/admin/");
+  }
+
+  const event = await getEventWithCount(eventId);
+  if (!event) {
+    return htmlResponse(notFoundPage(), 404);
+  }
+
+  return htmlResponse(adminEventEditPage(event));
+};
+
+/**
+ * Handle POST /admin/event/:id/edit
+ */
+const handleAdminEventEditPost = async (
+  request: Request,
+  eventId: number,
+): Promise<Response> => {
+  if (!(await isAuthenticated(request))) {
+    return redirect("/admin/");
+  }
+
+  const event = await getEventWithCount(eventId);
+  if (!event) {
+    return htmlResponse(notFoundPage(), 404);
+  }
+
+  const form = await parseFormData(request);
+  const validation = validateForm(form, eventFields);
+
+  if (!validation.valid) {
+    return htmlResponse(adminEventEditPage(event, validation.error), 400);
+  }
+
+  const { values } = validation;
+  await updateEvent(
+    eventId,
+    values.name as string,
+    values.description as string,
+    values.max_attendees as number,
+    values.thank_you_url as string,
+    values.unit_price as number | null,
+  );
+
+  return redirect(`/admin/event/${eventId}`);
+};
+
+/**
  * Handle GET /ticket/:id
  */
 const handleTicketGet = async (eventId: number): Promise<Response> => {
@@ -304,6 +363,13 @@ const routeAdminEvent = async (
   path: string,
   method: string,
 ): Promise<Response | null> => {
+  const editMatch = path.match(/^\/admin\/event\/(\d+)\/edit$/);
+  if (editMatch?.[1]) {
+    const eventId = Number.parseInt(editMatch[1], 10);
+    if (method === "GET") return handleAdminEventEditGet(request, eventId);
+    if (method === "POST") return handleAdminEventEditPost(request, eventId);
+  }
+
   const eventMatch = path.match(/^\/admin\/event\/(\d+)$/);
   if (eventMatch?.[1] && method === "GET") {
     return handleAdminEventGet(request, Number.parseInt(eventMatch[1], 10));
