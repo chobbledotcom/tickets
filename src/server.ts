@@ -133,6 +133,7 @@ import {
   adminEventPage,
   adminLoginPage,
   eventFields,
+  generateAttendeesCsv,
   homePage,
   loginFields,
   notFoundPage,
@@ -380,6 +381,34 @@ const handleAdminEventEditPost = async (
 };
 
 /**
+ * Handle GET /admin/event/:id/export (CSV export)
+ */
+const handleAdminEventExport = async (
+  request: Request,
+  eventId: number,
+): Promise<Response> => {
+  if (!(await isAuthenticated(request))) {
+    return redirect("/admin/");
+  }
+
+  const event = await getEventWithCount(eventId);
+  if (!event) {
+    return htmlResponse(notFoundPage(), 404);
+  }
+
+  const attendees = await getAttendees(eventId);
+  const csv = generateAttendeesCsv(attendees);
+  const filename = `${event.name.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
+
+  return new Response(csv, {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="${filename}"`,
+    },
+  });
+};
+
+/**
  * Handle GET /ticket/:id
  */
 const handleTicketGet = async (eventId: number): Promise<Response> => {
@@ -476,6 +505,38 @@ const handleTicketPost = async (
 };
 
 /**
+ * Route admin event edit requests
+ */
+const routeAdminEventEdit = async (
+  request: Request,
+  path: string,
+  method: string,
+): Promise<Response | null> => {
+  const editMatch = path.match(/^\/admin\/event\/(\d+)\/edit$/);
+  if (!editMatch?.[1]) return null;
+
+  const eventId = Number.parseInt(editMatch[1], 10);
+  if (method === "GET") return handleAdminEventEditGet(request, eventId);
+  if (method === "POST") return handleAdminEventEditPost(request, eventId);
+  return null;
+};
+
+/**
+ * Route admin event export requests
+ */
+const routeAdminEventExport = async (
+  request: Request,
+  path: string,
+  method: string,
+): Promise<Response | null> => {
+  const exportMatch = path.match(/^\/admin\/event\/(\d+)\/export$/);
+  if (exportMatch?.[1] && method === "GET") {
+    return handleAdminEventExport(request, Number.parseInt(exportMatch[1], 10));
+  }
+  return null;
+};
+
+/**
  * Route admin event detail requests
  */
 const routeAdminEvent = async (
@@ -483,12 +544,11 @@ const routeAdminEvent = async (
   path: string,
   method: string,
 ): Promise<Response | null> => {
-  const editMatch = path.match(/^\/admin\/event\/(\d+)\/edit$/);
-  if (editMatch?.[1]) {
-    const eventId = Number.parseInt(editMatch[1], 10);
-    if (method === "GET") return handleAdminEventEditGet(request, eventId);
-    if (method === "POST") return handleAdminEventEditPost(request, eventId);
-  }
+  const editResponse = await routeAdminEventEdit(request, path, method);
+  if (editResponse) return editResponse;
+
+  const exportResponse = await routeAdminEventExport(request, path, method);
+  if (exportResponse) return exportResponse;
 
   const eventMatch = path.match(/^\/admin\/event\/(\d+)$/);
   if (eventMatch?.[1] && method === "GET") {
