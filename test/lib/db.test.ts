@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import {
   CONFIG_KEYS,
+  clearLoginAttempts,
   completeSetup,
   createAttendee,
   createEvent,
@@ -24,10 +25,13 @@ import {
   getStripeSecretKeyFromDb,
   hasAvailableSpots,
   initDb,
+  isLoginRateLimited,
   isSetupComplete,
+  recordFailedLogin,
   setDb,
   setSetting,
   updateAttendeePayment,
+  updateEvent,
   verifyAdminPassword,
 } from "#lib/db.ts";
 
@@ -107,7 +111,8 @@ describe("db", () => {
       await completeSetup("mypassword", "sk_test_123", "USD");
 
       expect(await isSetupComplete()).toBe(true);
-      expect(await getAdminPasswordFromDb()).toBe("mypassword");
+      // Password is now hashed, so verify it works instead of checking raw value
+      expect(await verifyAdminPassword("mypassword")).toBe(true);
       expect(await getStripeSecretKeyFromDb()).toBe("sk_test_123");
       expect(await getCurrencyCodeFromDb()).toBe("USD");
     });
@@ -116,7 +121,8 @@ describe("db", () => {
       await completeSetup("mypassword", null, "EUR");
 
       expect(await isSetupComplete()).toBe(true);
-      expect(await getAdminPasswordFromDb()).toBe("mypassword");
+      // Password is now hashed, so verify it works instead of checking raw value
+      expect(await verifyAdminPassword("mypassword")).toBe(true);
       expect(await getStripeSecretKeyFromDb()).toBeNull();
       expect(await getCurrencyCodeFromDb()).toBe("EUR");
     });
@@ -147,10 +153,15 @@ describe("db", () => {
       expect(password.length).toBe(16);
     });
 
-    test("getOrCreateAdminPassword returns same password on subsequent calls", async () => {
-      const p1 = await getOrCreateAdminPassword();
-      const p2 = await getOrCreateAdminPassword();
-      expect(p1).toBe(p2);
+    test("getOrCreateAdminPassword returns hash on subsequent calls", async () => {
+      const plaintext = await getOrCreateAdminPassword();
+      // First call returns plaintext for display purposes
+      expect(plaintext.length).toBe(16);
+      // Subsequent calls return the stored hash
+      const stored = await getOrCreateAdminPassword();
+      expect(stored.startsWith("$argon2id$")).toBe(true);
+      // But the plaintext password should still verify correctly
+      expect(await verifyAdminPassword(plaintext)).toBe(true);
     });
 
     test("verifyAdminPassword returns true for correct password", async () => {
@@ -251,6 +262,63 @@ describe("db", () => {
 
       expect(fetched).not.toBeNull();
       expect(fetched?.attendee_count).toBe(0);
+    });
+
+    test("updateEvent updates event properties", async () => {
+      const created = await createEvent(
+        "Original",
+        "Original Desc",
+        50,
+        "https://example.com/original",
+      );
+
+      const updated = await updateEvent(
+        created.id,
+        "Updated",
+        "Updated Desc",
+        100,
+        "https://example.com/updated",
+        1500,
+      );
+
+      expect(updated).not.toBeNull();
+      expect(updated?.name).toBe("Updated");
+      expect(updated?.description).toBe("Updated Desc");
+      expect(updated?.max_attendees).toBe(100);
+      expect(updated?.thank_you_url).toBe("https://example.com/updated");
+      expect(updated?.unit_price).toBe(1500);
+    });
+
+    test("updateEvent returns null for non-existent event", async () => {
+      const result = await updateEvent(
+        999,
+        "Name",
+        "Desc",
+        50,
+        "https://example.com",
+      );
+      expect(result).toBeNull();
+    });
+
+    test("updateEvent can set unit_price to null", async () => {
+      const created = await createEvent(
+        "Paid",
+        "Desc",
+        50,
+        "https://example.com",
+        1000,
+      );
+
+      const updated = await updateEvent(
+        created.id,
+        "Free Now",
+        "Desc",
+        50,
+        "https://example.com",
+        null,
+      );
+
+      expect(updated?.unit_price).toBeNull();
     });
   });
 
@@ -474,7 +542,7 @@ describe("db", () => {
   describe("sessions", () => {
     test("createSession and getSession work together", async () => {
       const expires = Date.now() + 1000;
-      await createSession("test-token", expires);
+      await createSession("test-token", "test-csrf-token", expires);
 
       const session = await getSession("test-token");
       expect(session).not.toBeNull();
@@ -488,7 +556,7 @@ describe("db", () => {
     });
 
     test("deleteSession removes session", async () => {
-      await createSession("delete-me", Date.now() + 1000);
+      await createSession("delete-me", "csrf-delete", Date.now() + 1000);
       await deleteSession("delete-me");
 
       const session = await getSession("delete-me");
@@ -496,8 +564,8 @@ describe("db", () => {
     });
 
     test("deleteExpiredSessions removes expired sessions", async () => {
-      await createSession("expired", Date.now() - 1000);
-      await createSession("valid", Date.now() + 10000);
+      await createSession("expired", "csrf-expired", Date.now() - 1000);
+      await createSession("valid", "csrf-valid", Date.now() + 10000);
 
       await deleteExpiredSessions();
 
@@ -506,6 +574,76 @@ describe("db", () => {
 
       expect(expiredSession).toBeNull();
       expect(validSession).not.toBeNull();
+    });
+  });
+
+  describe("rate limiting", () => {
+    test("isLoginRateLimited returns false for new IP", async () => {
+      const limited = await isLoginRateLimited("192.168.1.1");
+      expect(limited).toBe(false);
+    });
+
+    test("recordFailedLogin increments attempts", async () => {
+      const locked1 = await recordFailedLogin("192.168.1.2");
+      expect(locked1).toBe(false);
+
+      const locked2 = await recordFailedLogin("192.168.1.2");
+      expect(locked2).toBe(false);
+    });
+
+    test("recordFailedLogin locks after 5 attempts", async () => {
+      for (let i = 0; i < 4; i++) {
+        const locked = await recordFailedLogin("192.168.1.3");
+        expect(locked).toBe(false);
+      }
+
+      // 5th attempt should lock
+      const locked = await recordFailedLogin("192.168.1.3");
+      expect(locked).toBe(true);
+    });
+
+    test("isLoginRateLimited returns true when locked", async () => {
+      // Lock the IP
+      for (let i = 0; i < 5; i++) {
+        await recordFailedLogin("192.168.1.4");
+      }
+
+      const limited = await isLoginRateLimited("192.168.1.4");
+      expect(limited).toBe(true);
+    });
+
+    test("clearLoginAttempts clears attempts", async () => {
+      await recordFailedLogin("192.168.1.5");
+      await recordFailedLogin("192.168.1.5");
+
+      await clearLoginAttempts("192.168.1.5");
+
+      // After clearing, should not be limited
+      const limited = await isLoginRateLimited("192.168.1.5");
+      expect(limited).toBe(false);
+    });
+
+    test("isLoginRateLimited clears expired lockout", async () => {
+      // Insert a record with expired lockout
+      await getDb().execute({
+        sql: "INSERT INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
+        args: ["192.168.1.6", 5, Date.now() - 1000],
+      });
+
+      // Should clear the expired lockout and return false
+      const limited = await isLoginRateLimited("192.168.1.6");
+      expect(limited).toBe(false);
+    });
+
+    test("isLoginRateLimited returns false for attempts below max without lockout", async () => {
+      // Insert a record with some attempts but no lockout
+      await getDb().execute({
+        sql: "INSERT INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
+        args: ["192.168.1.7", 3],
+      });
+
+      const limited = await isLoginRateLimited("192.168.1.7");
+      expect(limited).toBe(false);
     });
   });
 });

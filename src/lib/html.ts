@@ -3,6 +3,12 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import {
+  type Field,
+  type FieldValues,
+  renderError,
+  renderFields,
+} from "./forms.ts";
 import type { Attendee, Event, EventWithCount } from "./types.ts";
 
 const escapeHtml = (str: string): string =>
@@ -48,6 +54,13 @@ export const layout = (
 </html>`;
 
 /**
+ * Login form field definitions
+ */
+export const loginFields: Field[] = [
+  { name: "password", label: "Password", type: "password", required: true },
+];
+
+/**
  * Admin login page
  */
 export const adminLoginPage = (error?: string): string =>
@@ -55,12 +68,9 @@ export const adminLoginPage = (error?: string): string =>
     "Admin Login",
     `
     <h1>Admin Login</h1>
-    ${error ? `<div class="error">${escapeHtml(error)}</div>` : ""}
+    ${renderError(error)}
     <form method="POST" action="/admin/login">
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required>
-      </div>
+      ${renderFields(loginFields)}
       <button type="submit">Login</button>
     </form>
   `,
@@ -113,26 +123,7 @@ export const adminDashboardPage = (
     <h2>Create New Event</h2>
     <form method="POST" action="/admin/event">
       <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}">
-      <div class="form-group">
-        <label for="name">Event Name</label>
-        <input type="text" id="name" name="name" required>
-      </div>
-      <div class="form-group">
-        <label for="description">Description</label>
-        <textarea id="description" name="description" rows="3" required></textarea>
-      </div>
-      <div class="form-group">
-        <label for="max_attendees">Max Attendees</label>
-        <input type="number" id="max_attendees" name="max_attendees" min="1" required>
-      </div>
-      <div class="form-group">
-        <label for="unit_price">Ticket Price (in pence/cents, leave empty for free)</label>
-        <input type="number" id="unit_price" name="unit_price" min="0" placeholder="e.g. 1000 for 10.00">
-      </div>
-      <div class="form-group">
-        <label for="thank_you_url">Thank You URL</label>
-        <input type="url" id="thank_you_url" name="thank_you_url" required placeholder="https://example.com/thank-you">
-      </div>
+      ${renderFields(eventFields)}
       <button type="submit">Create Event</button>
     </form>
   `,
@@ -163,7 +154,7 @@ export const adminEventPage = (
     `Event: ${event.name}`,
     `
     <h1>${escapeHtml(event.name)}</h1>
-    <p><a href="/admin/">&larr; Back to Dashboard</a></p>
+    <p><a href="/admin/">&larr; Back to Dashboard</a> | <a href="/admin/event/${event.id}/edit">Edit Event</a></p>
 
     <h2>Event Details</h2>
     <p><strong>Description:</strong> ${escapeHtml(event.description)}</p>
@@ -191,6 +182,130 @@ export const adminEventPage = (
 };
 
 /**
+ * Validate URL is safe (https or relative path, no javascript: etc.)
+ */
+const validateSafeUrl = (value: string): string | null => {
+  // Allow relative URLs starting with /
+  if (value.startsWith("/")) return null;
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      return "URL must use https:// or http://";
+    }
+    return null;
+  } catch {
+    return "Invalid URL format";
+  }
+};
+
+/**
+ * Validate price is non-negative
+ */
+const validateNonNegativePrice = (value: string): string | null => {
+  const num = Number.parseInt(value, 10);
+  if (Number.isNaN(num) || num < 0) {
+    return "Price must be 0 or greater";
+  }
+  return null;
+};
+
+/**
+ * Event form field definitions (shared between create and edit)
+ */
+export const eventFields: Field[] = [
+  { name: "name", label: "Event Name", type: "text", required: true },
+  {
+    name: "description",
+    label: "Description",
+    type: "textarea",
+    required: true,
+  },
+  {
+    name: "max_attendees",
+    label: "Max Attendees",
+    type: "number",
+    required: true,
+    min: 1,
+  },
+  {
+    name: "unit_price",
+    label: "Ticket Price (in pence/cents, leave empty for free)",
+    type: "number",
+    min: 0,
+    placeholder: "e.g. 1000 for 10.00",
+    validate: validateNonNegativePrice,
+  },
+  {
+    name: "thank_you_url",
+    label: "Thank You URL",
+    type: "url",
+    required: true,
+    placeholder: "https://example.com/thank-you",
+    validate: validateSafeUrl,
+  },
+];
+
+/**
+ * Convert event to form field values
+ */
+const eventToFieldValues = (event: EventWithCount): FieldValues => ({
+  name: event.name,
+  description: event.description,
+  max_attendees: event.max_attendees,
+  unit_price: event.unit_price,
+  thank_you_url: event.thank_you_url,
+});
+
+/**
+ * Admin event edit page
+ */
+export const adminEventEditPage = (
+  event: EventWithCount,
+  csrfToken: string,
+  error?: string,
+): string =>
+  layout(
+    `Edit: ${event.name}`,
+    `
+    <h1>Edit Event</h1>
+    <p><a href="/admin/event/${event.id}">&larr; Back to Event</a></p>
+    ${renderError(error)}
+    <form method="POST" action="/admin/event/${event.id}/edit">
+      <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}">
+      ${renderFields(eventFields, eventToFieldValues(event))}
+      <button type="submit">Save Changes</button>
+    </form>
+  `,
+  );
+
+/**
+ * Validate email format
+ */
+const validateEmail = (value: string): string | null => {
+  // Basic email format check - more permissive than strict RFC but catches common issues
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(value)) {
+    return "Please enter a valid email address";
+  }
+  return null;
+};
+
+/**
+ * Ticket reservation form field definitions
+ */
+export const ticketFields: Field[] = [
+  { name: "name", label: "Your Name", type: "text", required: true },
+  {
+    name: "email",
+    label: "Your Email",
+    type: "email",
+    required: true,
+    validate: validateEmail,
+  },
+];
+
+/**
  * Public ticket page
  */
 export const ticketPage = (event: EventWithCount, error?: string): string => {
@@ -204,21 +319,14 @@ export const ticketPage = (event: EventWithCount, error?: string): string => {
     <p>${escapeHtml(event.description)}</p>
     <p><strong>Spots remaining:</strong> ${spotsRemaining}</p>
 
-    ${error ? `<div class="error">${escapeHtml(error)}</div>` : ""}
+    ${renderError(error)}
 
     ${
       isFull
         ? '<div class="error">Sorry, this event is full.</div>'
         : `
       <form method="POST" action="/ticket/${event.id}">
-        <div class="form-group">
-          <label for="name">Your Name</label>
-          <input type="text" id="name" name="name" required>
-        </div>
-        <div class="form-group">
-          <label for="email">Your Email</label>
-          <input type="email" id="email" name="email" required>
-        </div>
+        ${renderFields(ticketFields)}
         <button type="submit">Reserve Ticket</button>
       </form>
     `
@@ -330,6 +438,39 @@ export const paymentErrorPage = (message: string): string =>
   );
 
 /**
+ * Setup form field definitions
+ */
+export const setupFields: Field[] = [
+  {
+    name: "admin_password",
+    label: "Admin Password *",
+    type: "password",
+    required: true,
+    hint: "Minimum 8 characters",
+  },
+  {
+    name: "admin_password_confirm",
+    label: "Confirm Admin Password *",
+    type: "password",
+    required: true,
+  },
+  {
+    name: "stripe_secret_key",
+    label: "Stripe Secret Key (optional)",
+    type: "password",
+    placeholder: "sk_live_... or sk_test_...",
+    hint: "Leave empty to disable payments",
+  },
+  {
+    name: "currency_code",
+    label: "Currency Code",
+    type: "text",
+    pattern: "[A-Z]{3}",
+    hint: "3-letter ISO code (e.g., GBP, USD, EUR)",
+  },
+];
+
+/**
  * Initial setup page
  */
 export const setupPage = (error?: string): string =>
@@ -338,27 +479,9 @@ export const setupPage = (error?: string): string =>
     `
     <h1>Initial Setup</h1>
     <p>Welcome! Please configure your ticket reservation system.</p>
-    ${error ? `<div class="error">${escapeHtml(error)}</div>` : ""}
+    ${renderError(error)}
     <form method="POST" action="/setup/">
-      <div class="form-group">
-        <label for="admin_password">Admin Password *</label>
-        <input type="password" id="admin_password" name="admin_password" required minlength="8">
-        <small style="color: #666; display: block; margin-top: 0.25rem;">Minimum 8 characters</small>
-      </div>
-      <div class="form-group">
-        <label for="admin_password_confirm">Confirm Admin Password *</label>
-        <input type="password" id="admin_password_confirm" name="admin_password_confirm" required>
-      </div>
-      <div class="form-group">
-        <label for="stripe_secret_key">Stripe Secret Key (optional)</label>
-        <input type="password" id="stripe_secret_key" name="stripe_secret_key" placeholder="sk_live_... or sk_test_...">
-        <small style="color: #666; display: block; margin-top: 0.25rem;">Leave empty to disable payments</small>
-      </div>
-      <div class="form-group">
-        <label for="currency_code">Currency Code</label>
-        <input type="text" id="currency_code" name="currency_code" value="GBP" maxlength="3" pattern="[A-Z]{3}" style="width: 100px;">
-        <small style="color: #666; display: block; margin-top: 0.25rem;">3-letter ISO code (e.g., GBP, USD, EUR)</small>
-      </div>
+      ${renderFields(setupFields, { currency_code: "GBP" })}
       <button type="submit">Complete Setup</button>
     </form>
   `,

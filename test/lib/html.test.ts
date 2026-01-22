@@ -14,6 +14,8 @@ import {
 } from "#lib/html.ts";
 import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 
+const TEST_CSRF_TOKEN = "test-csrf-token-abc123";
+
 describe("html", () => {
   describe("layout", () => {
     test("wraps content in HTML structure", () => {
@@ -66,7 +68,7 @@ describe("html", () => {
 
   describe("adminDashboardPage", () => {
     test("renders empty state when no events", () => {
-      const html = adminDashboardPage([]);
+      const html = adminDashboardPage([], TEST_CSRF_TOKEN);
       expect(html).toContain("Admin Dashboard");
       expect(html).toContain("No events yet");
     });
@@ -84,7 +86,7 @@ describe("html", () => {
           unit_price: null,
         },
       ];
-      const html = adminDashboardPage(events);
+      const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
       expect(html).toContain("Event 1");
       expect(html).toContain("25 / 100");
       expect(html).toContain("/admin/event/1");
@@ -103,12 +105,12 @@ describe("html", () => {
           unit_price: null,
         },
       ];
-      const html = adminDashboardPage(events);
+      const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
       expect(html).toContain("&lt;script&gt;");
     });
 
     test("renders create event form", () => {
-      const html = adminDashboardPage([]);
+      const html = adminDashboardPage([], TEST_CSRF_TOKEN);
       expect(html).toContain("Create New Event");
       expect(html).toContain('name="name"');
       expect(html).toContain('name="description"');
@@ -117,7 +119,7 @@ describe("html", () => {
     });
 
     test("includes logout link", () => {
-      const html = adminDashboardPage([]);
+      const html = adminDashboardPage([], TEST_CSRF_TOKEN);
       expect(html).toContain("/admin/logout");
     });
   });
@@ -385,7 +387,7 @@ describe("html", () => {
 
   describe("adminDashboardPage unit_price field", () => {
     test("renders unit_price input field", () => {
-      const html = adminDashboardPage([]);
+      const html = adminDashboardPage([], TEST_CSRF_TOKEN);
       expect(html).toContain('name="unit_price"');
       expect(html).toContain("Ticket Price");
     });

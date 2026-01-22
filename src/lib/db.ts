@@ -267,6 +267,26 @@ export const createEvent = async (
 };
 
 /**
+ * Update an existing event
+ */
+export const updateEvent = async (
+  id: number,
+  name: string,
+  description: string,
+  maxAttendees: number,
+  thankYouUrl: string,
+  unitPrice: number | null = null,
+): Promise<Event | null> => {
+  const result = await getDb().execute({
+    sql: `UPDATE events SET name = ?, description = ?, max_attendees = ?, thank_you_url = ?, unit_price = ?
+          WHERE id = ?`,
+    args: [name, description, maxAttendees, thankYouUrl, unitPrice, id],
+  });
+  if (result.rowsAffected === 0) return null;
+  return getEvent(id);
+};
+
+/**
  * Get all events with attendee counts
  */
 export const getAllEvents = async (): Promise<EventWithCount[]> => {
@@ -452,7 +472,10 @@ export const isLoginRateLimited = async (ip: string): Promise<boolean> => {
 
   if (result.rows.length === 0) return false;
 
-  const row = result.rows[0] as { attempts: number; locked_until: number | null };
+  const row = result.rows[0] as unknown as {
+    attempts: number;
+    locked_until: number | null;
+  };
 
   // Check if currently locked out
   if (row.locked_until && row.locked_until > Date.now()) {
@@ -483,7 +506,7 @@ export const recordFailedLogin = async (ip: string): Promise<boolean> => {
 
   const currentAttempts =
     result.rows.length > 0
-      ? (result.rows[0] as { attempts: number }).attempts
+      ? (result.rows[0] as unknown as { attempts: number }).attempts
       : 0;
   const newAttempts = currentAttempts + 1;
 

@@ -3,7 +3,7 @@
  */
 
 import { createClient } from "@libsql/client";
-import { completeSetup, initDb, setDb } from "../lib/db.ts";
+import { completeSetup, getSession, initDb, setDb } from "../lib/db.ts";
 
 /**
  * Default test admin password
@@ -107,4 +107,18 @@ export const randomString = (length: number): string => {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+};
+
+/**
+ * Get CSRF token from a session cookie string
+ */
+export const getCsrfTokenFromCookie = async (
+  cookie: string,
+): Promise<string | null> => {
+  const sessionMatch = cookie.match(/session=([^;]+)/);
+  if (!sessionMatch?.[1]) return null;
+
+  const sessionToken = sessionMatch[1];
+  const session = await getSession(sessionToken);
+  return session?.csrf_token ?? null;
 };
