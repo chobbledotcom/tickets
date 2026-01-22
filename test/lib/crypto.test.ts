@@ -5,9 +5,11 @@ import {
   decrypt,
   encrypt,
   generateSecureToken,
+  hashPassword,
   isEncrypted,
   isEncryptionConfigured,
   validateEncryptionKey,
+  verifyPassword,
 } from "#lib/crypto.ts";
 import {
   clearTestEncryptionKey,
@@ -239,6 +241,59 @@ describe("encryption", () => {
       // Now decryption should work again
       const decrypted = await decrypt(encrypted);
       expect(decrypted).toBe(plaintext);
+    });
+  });
+});
+
+describe("password hashing", () => {
+  describe("hashPassword", () => {
+    it("returns scrypt format with all parameters", async () => {
+      const hash = await hashPassword("mypassword");
+      expect(hash.startsWith("scrypt:")).toBe(true);
+      const parts = hash.split(":");
+      expect(parts.length).toBe(6);
+      expect(parts[0]).toBe("scrypt");
+    });
+
+    it("generates different hashes for same password (random salt)", async () => {
+      const hash1 = await hashPassword("samepassword");
+      const hash2 = await hashPassword("samepassword");
+      expect(hash1).not.toBe(hash2);
+    });
+  });
+
+  describe("verifyPassword", () => {
+    it("returns true for correct password", async () => {
+      const hash = await hashPassword("correctpassword");
+      const result = await verifyPassword("correctpassword", hash);
+      expect(result).toBe(true);
+    });
+
+    it("returns false for wrong password", async () => {
+      const hash = await hashPassword("correctpassword");
+      const result = await verifyPassword("wrongpassword", hash);
+      expect(result).toBe(false);
+    });
+
+    it("returns false for invalid hash format (wrong prefix)", async () => {
+      const result = await verifyPassword("password", "argon2:invalid:format");
+      expect(result).toBe(false);
+    });
+
+    it("returns false for malformed hash (wrong number of parts)", async () => {
+      const result = await verifyPassword("password", "scrypt:16384:8:1:salt");
+      expect(result).toBe(false);
+    });
+
+    it("returns false for hash with mismatched length", async () => {
+      // Create a valid-looking hash but with truncated hash data
+      const shortHash = btoa("short");
+      const salt = btoa("0123456789012345");
+      const result = await verifyPassword(
+        "password",
+        `scrypt:16384:8:1:${salt}:${shortHash}`,
+      );
+      expect(result).toBe(false);
     });
   });
 });
