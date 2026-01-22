@@ -1,11 +1,18 @@
 # tickets
 
-A minimal ticket reservation system using Bun and libsql.
+A minimal ticket reservation system using Bunny Edge Scripting and libsql.
+
+## Runtime Environment
+
+- **Production**: Bunny Edge Scripting (browser-like JS runtime on Bunny CDN)
+- **Development/Testing**: Bun (for `bun test`, `bun start`, package management)
+- **Build**: `Bun.build` with `target: "browser"` bundles to a single edge-compatible file
+
+Code must work in both environments. Avoid Node.js-specific APIs (no `node:*` imports, no `process` at runtime).
 
 ## Preferences
 
 - **Use FP methods**: Prefer curried functional utilities from `#fp` over imperative loops
-- **Use Bun**: This project uses Bun exclusively for running, testing, and package management
 - **100% test coverage**: All code must have complete test coverage
 
 ## FP Imports

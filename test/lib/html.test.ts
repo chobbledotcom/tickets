@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 import {
   adminDashboardPage,
   adminEventPage,
@@ -12,8 +13,7 @@ import {
   paymentPage,
   paymentSuccessPage,
   ticketPage,
-} from "#lib/html.ts";
-import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
+} from "#templates";
 
 const TEST_CSRF_TOKEN = "test-csrf-token-abc123";
 

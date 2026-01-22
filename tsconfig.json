@@ -14,6 +14,8 @@
     "declarationMap": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "#jsx",
     "paths": {
       "#fp": ["./src/fp/index.ts"],
       "#fp/*": ["./src/fp/*"],
@@ -21,10 +23,13 @@
       "#test-utils/*": ["./src/test-utils/*"],
       "#src/*": ["./src/*"],
       "#test/*": ["./test/*"],
-      "#lib/*": ["./src/lib/*"]
+      "#lib/*": ["./src/lib/*"],
+      "#jsx/*": ["./src/lib/jsx/*"],
+      "#templates": ["./src/templates/index.ts"],
+      "#templates/*": ["./src/templates/*"]
     },
     "types": ["bun-types"]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
   "exclude": ["node_modules"]
 }
