@@ -23,6 +23,7 @@ import {
   getSetting,
   getStripeSecretKeyFromDb,
   hasAvailableSpots,
+  hasStripeKey,
   initDb,
   isLoginRateLimited,
   isSetupComplete,
@@ -32,6 +33,7 @@ import {
   updateAdminPassword,
   updateAttendeePayment,
   updateEvent,
+  updateStripeKey,
   verifyAdminPassword,
 } from "#lib/db.ts";
 import { setupTestEncryptionKey } from "#test-utils";
@@ -128,6 +130,32 @@ describe("db", () => {
 
     test("getStripeSecretKeyFromDb returns null when not set", async () => {
       expect(await getStripeSecretKeyFromDb()).toBeNull();
+    });
+
+    test("hasStripeKey returns false when not set", async () => {
+      expect(await hasStripeKey()).toBe(false);
+    });
+
+    test("hasStripeKey returns true when stripe key is configured", async () => {
+      await completeSetup("password123", "sk_test_123", "GBP");
+      expect(await hasStripeKey()).toBe(true);
+    });
+
+    test("updateStripeKey updates the stripe key", async () => {
+      await completeSetup("password123", "sk_test_old", "GBP");
+      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_old");
+
+      await updateStripeKey("sk_test_new");
+      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_new");
+    });
+
+    test("updateStripeKey sets stripe key when none exists", async () => {
+      await completeSetup("password123", null, "GBP");
+      expect(await hasStripeKey()).toBe(false);
+
+      await updateStripeKey("sk_test_123");
+      expect(await hasStripeKey()).toBe(true);
+      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_123");
     });
   });
 
