@@ -1,5 +1,19 @@
-import { describe, expect, it } from "bun:test";
-import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+  clearEncryptionKeyCache,
+  constantTimeEqual,
+  decrypt,
+  encrypt,
+  generateSecureToken,
+  isEncrypted,
+  isEncryptionConfigured,
+  validateEncryptionKey,
+} from "#lib/crypto.ts";
+import {
+  clearTestEncryptionKey,
+  setupTestEncryptionKey,
+  TEST_ENCRYPTION_KEY,
+} from "#test-utils";
 
 describe("constantTimeEqual", () => {
   it("returns true for equal strings", () => {
@@ -62,5 +76,169 @@ describe("generateSecureToken", () => {
     // 256/6 = ~43 chars (without padding)
     const token = generateSecureToken();
     expect(token.length).toBe(43);
+  });
+});
+
+describe("encryption", () => {
+  beforeEach(() => {
+    setupTestEncryptionKey();
+  });
+
+  afterEach(() => {
+    clearTestEncryptionKey();
+  });
+
+  describe("isEncryptionConfigured", () => {
+    it("returns true when encryption key is set", () => {
+      expect(isEncryptionConfigured()).toBe(true);
+    });
+
+    it("returns false when encryption key is not set", () => {
+      clearTestEncryptionKey();
+      expect(isEncryptionConfigured()).toBe(false);
+    });
+  });
+
+  describe("validateEncryptionKey", () => {
+    it("succeeds with valid 32-byte key", () => {
+      expect(() => validateEncryptionKey()).not.toThrow();
+    });
+
+    it("throws when no key is set", () => {
+      clearTestEncryptionKey();
+      expect(() => validateEncryptionKey()).toThrow(
+        "DB_ENCRYPTION_KEY environment variable is required",
+      );
+    });
+
+    it("throws when key is wrong length", () => {
+      process.env.DB_ENCRYPTION_KEY = btoa("tooshort");
+      clearEncryptionKeyCache();
+      expect(() => validateEncryptionKey()).toThrow(
+        "DB_ENCRYPTION_KEY must be 32 bytes",
+      );
+    });
+  });
+
+  describe("encrypt and decrypt", () => {
+    it("round-trips a simple string", async () => {
+      const plaintext = "hello world";
+      const encrypted = await encrypt(plaintext);
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("round-trips an empty string", async () => {
+      const plaintext = "";
+      const encrypted = await encrypt(plaintext);
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("round-trips unicode characters", async () => {
+      const plaintext = "こんにちは世界 🌍 émojis";
+      const encrypted = await encrypt(plaintext);
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("round-trips a long string", async () => {
+      const plaintext = "a".repeat(10000);
+      const encrypted = await encrypt(plaintext);
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("produces different ciphertext for same plaintext (random IV)", async () => {
+      const plaintext = "same text";
+      const encrypted1 = await encrypt(plaintext);
+      const encrypted2 = await encrypt(plaintext);
+      expect(encrypted1).not.toBe(encrypted2);
+      // But both decrypt to same value
+      expect(await decrypt(encrypted1)).toBe(plaintext);
+      expect(await decrypt(encrypted2)).toBe(plaintext);
+    });
+
+    it("encrypted output has correct prefix", async () => {
+      const encrypted = await encrypt("test");
+      expect(encrypted.startsWith("enc:1:")).toBe(true);
+    });
+
+    it("throws on invalid encrypted format", async () => {
+      await expect(decrypt("not encrypted")).rejects.toThrow(
+        "Invalid encrypted data format",
+      );
+    });
+
+    it("throws on malformed encrypted data (missing IV separator)", async () => {
+      await expect(decrypt("enc:1:nocol")).rejects.toThrow(
+        "Invalid encrypted data format: missing IV separator",
+      );
+    });
+
+    it("throws on tampered ciphertext", async () => {
+      const encrypted = await encrypt("test");
+      // Tamper with the ciphertext portion (format is enc:1:iv:ciphertext)
+      const parts = encrypted.split(":");
+      const ciphertext = parts[3];
+      if (ciphertext) {
+        parts[3] = `AAAA${ciphertext.slice(4)}`;
+      }
+      const tampered = parts.join(":");
+      await expect(decrypt(tampered)).rejects.toThrow();
+    });
+  });
+
+  describe("isEncrypted", () => {
+    it("returns true for encrypted values", async () => {
+      const encrypted = await encrypt("test");
+      expect(isEncrypted(encrypted)).toBe(true);
+    });
+
+    it("returns false for plain text", () => {
+      expect(isEncrypted("plain text")).toBe(false);
+    });
+
+    it("returns false for empty string", () => {
+      expect(isEncrypted("")).toBe(false);
+    });
+
+    it("returns false for similar-looking but invalid prefix", () => {
+      expect(isEncrypted("enc:2:something")).toBe(false);
+      expect(isEncrypted("encrypted:1:something")).toBe(false);
+    });
+  });
+
+  describe("key caching", () => {
+    it("caches the key between operations", async () => {
+      const plaintext = "test";
+      // First encryption imports the key
+      await encrypt(plaintext);
+      // Second encryption should use cached key
+      const encrypted = await encrypt(plaintext);
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("invalidates cache when key changes", async () => {
+      const plaintext = "test";
+      const encrypted = await encrypt(plaintext);
+
+      // Generate a different valid 32-byte key
+      const newKey = btoa("abcdefghijklmnopqrstuvwxyz012345");
+      process.env.DB_ENCRYPTION_KEY = newKey;
+      clearEncryptionKeyCache();
+
+      // Decryption with new key should fail
+      await expect(decrypt(encrypted)).rejects.toThrow();
+
+      // Restore original key
+      process.env.DB_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+      clearEncryptionKeyCache();
+
+      // Now decryption should work again
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
   });
 });
