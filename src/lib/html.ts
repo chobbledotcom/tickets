@@ -324,3 +324,53 @@ export const paymentErrorPage = (message: string): string =>
     <p><a href="/">Return to home</a></p>
   `,
   );
+
+/**
+ * Initial setup page
+ */
+export const setupPage = (error?: string): string =>
+  layout(
+    "Setup",
+    `
+    <h1>Initial Setup</h1>
+    <p>Welcome! Please configure your ticket reservation system.</p>
+    ${error ? `<div class="error">${escapeHtml(error)}</div>` : ""}
+    <form method="POST" action="/setup/">
+      <div class="form-group">
+        <label for="admin_password">Admin Password *</label>
+        <input type="password" id="admin_password" name="admin_password" required minlength="8">
+        <small style="color: #666; display: block; margin-top: 0.25rem;">Minimum 8 characters</small>
+      </div>
+      <div class="form-group">
+        <label for="admin_password_confirm">Confirm Admin Password *</label>
+        <input type="password" id="admin_password_confirm" name="admin_password_confirm" required>
+      </div>
+      <div class="form-group">
+        <label for="stripe_secret_key">Stripe Secret Key (optional)</label>
+        <input type="password" id="stripe_secret_key" name="stripe_secret_key" placeholder="sk_live_... or sk_test_...">
+        <small style="color: #666; display: block; margin-top: 0.25rem;">Leave empty to disable payments</small>
+      </div>
+      <div class="form-group">
+        <label for="currency_code">Currency Code</label>
+        <input type="text" id="currency_code" name="currency_code" value="GBP" maxlength="3" pattern="[A-Z]{3}" style="width: 100px;">
+        <small style="color: #666; display: block; margin-top: 0.25rem;">3-letter ISO code (e.g., GBP, USD, EUR)</small>
+      </div>
+      <button type="submit">Complete Setup</button>
+    </form>
+  `,
+  );
+
+/**
+ * Setup complete page
+ */
+export const setupCompletePage = (): string =>
+  layout(
+    "Setup Complete",
+    `
+    <h1>Setup Complete!</h1>
+    <div class="success">
+      <p>Your ticket reservation system has been configured successfully.</p>
+    </div>
+    <p><a href="/admin/">Go to Admin Dashboard</a></p>
+  `,
+  );

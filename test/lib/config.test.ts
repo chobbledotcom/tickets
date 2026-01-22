@@ -1,72 +1,85 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
-  getAdminPassword,
   getCurrencyCode,
   getDbToken,
   getDbUrl,
   getPort,
   getStripeSecretKey,
   isPaymentsEnabled,
+  isSetupComplete,
 } from "#lib/config.ts";
+import { completeSetup, setSetting } from "#lib/db.ts";
+import { createTestDb, resetDb } from "#test-utils";
 
 describe("config", () => {
   const originalEnv = { ...process.env };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Clear relevant env vars before each test
-    delete process.env.STRIPE_SECRET_KEY;
-    delete process.env.CURRENCY_CODE;
     delete process.env.DB_URL;
     delete process.env.DB_TOKEN;
     delete process.env.PORT;
-    delete process.env.ADMIN_PASSWORD;
+    // Create in-memory db for testing
+    await createTestDb();
   });
 
   afterEach(() => {
+    resetDb();
     // Restore original environment
     process.env = { ...originalEnv };
   });
 
   describe("getStripeSecretKey", () => {
-    test("returns null when not set", () => {
-      expect(getStripeSecretKey()).toBeNull();
+    test("returns null when not set in database", async () => {
+      expect(await getStripeSecretKey()).toBeNull();
     });
 
-    test("returns null when empty string", () => {
-      process.env.STRIPE_SECRET_KEY = "";
-      expect(getStripeSecretKey()).toBeNull();
+    test("returns null when empty string in database", async () => {
+      await setSetting("stripe_key", "");
+      expect(await getStripeSecretKey()).toBeNull();
     });
 
-    test("returns null when whitespace only", () => {
-      process.env.STRIPE_SECRET_KEY = "   ";
-      expect(getStripeSecretKey()).toBeNull();
+    test("returns null when whitespace only in database", async () => {
+      await setSetting("stripe_key", "   ");
+      expect(await getStripeSecretKey()).toBeNull();
     });
 
-    test("returns key when set", () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
-      expect(getStripeSecretKey()).toBe("sk_test_123");
+    test("returns key when set in database", async () => {
+      await setSetting("stripe_key", "sk_test_123");
+      expect(await getStripeSecretKey()).toBe("sk_test_123");
     });
   });
 
   describe("isPaymentsEnabled", () => {
-    test("returns false when STRIPE_SECRET_KEY not set", () => {
-      expect(isPaymentsEnabled()).toBe(false);
+    test("returns false when stripe key not set", async () => {
+      expect(await isPaymentsEnabled()).toBe(false);
     });
 
-    test("returns true when STRIPE_SECRET_KEY is set", () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
-      expect(isPaymentsEnabled()).toBe(true);
+    test("returns true when stripe key is set", async () => {
+      await setSetting("stripe_key", "sk_test_123");
+      expect(await isPaymentsEnabled()).toBe(true);
     });
   });
 
   describe("getCurrencyCode", () => {
-    test("returns GBP by default", () => {
-      expect(getCurrencyCode()).toBe("GBP");
+    test("returns GBP by default", async () => {
+      expect(await getCurrencyCode()).toBe("GBP");
     });
 
-    test("returns set value", () => {
-      process.env.CURRENCY_CODE = "USD";
-      expect(getCurrencyCode()).toBe("USD");
+    test("returns set value from database", async () => {
+      await setSetting("currency_code", "USD");
+      expect(await getCurrencyCode()).toBe("USD");
+    });
+  });
+
+  describe("isSetupComplete", () => {
+    test("returns false when setup not complete", async () => {
+      expect(await isSetupComplete()).toBe(false);
+    });
+
+    test("returns true when setup is complete", async () => {
+      await completeSetup("password123", null, "GBP");
+      expect(await isSetupComplete()).toBe(true);
     });
   });
 
@@ -78,27 +91,6 @@ describe("config", () => {
     test("returns set value", () => {
       process.env.DB_URL = "libsql://test.turso.io";
       expect(getDbUrl()).toBe("libsql://test.turso.io");
-    });
-  });
-
-  describe("getAdminPassword", () => {
-    test("returns undefined when not set", () => {
-      expect(getAdminPassword()).toBeUndefined();
-    });
-
-    test("returns undefined when empty string", () => {
-      process.env.ADMIN_PASSWORD = "";
-      expect(getAdminPassword()).toBeUndefined();
-    });
-
-    test("returns undefined when whitespace only", () => {
-      process.env.ADMIN_PASSWORD = "   ";
-      expect(getAdminPassword()).toBeUndefined();
-    });
-
-    test("returns password when set", () => {
-      process.env.ADMIN_PASSWORD = "mysecretpassword";
-      expect(getAdminPassword()).toBe("mysecretpassword");
     });
   });
 

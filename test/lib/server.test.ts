@@ -1,27 +1,29 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { createClient } from "@libsql/client";
 import {
   createAttendee,
   createEvent,
   createSession,
-  getOrCreateAdminPassword,
   getSession,
-  initDb,
-  setDb,
+  setSetting,
 } from "#lib/db.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
-import { mockFormRequest, mockRequest } from "#test-utils";
+import {
+  createTestDb,
+  createTestDbWithSetup,
+  mockFormRequest,
+  mockRequest,
+  resetDb,
+  TEST_ADMIN_PASSWORD,
+} from "#test-utils";
 
 describe("server", () => {
   beforeEach(async () => {
-    const client = createClient({ url: ":memory:" });
-    setDb(client);
-    await initDb();
+    await createTestDbWithSetup();
   });
 
   afterEach(() => {
-    setDb(null);
+    resetDb();
   });
 
   describe("GET /", () => {
@@ -40,6 +42,13 @@ describe("server", () => {
       const json = await response.json();
       expect(json).toEqual({ status: "ok" });
     });
+
+    test("returns 404 for non-GET requests to /health", async () => {
+      const response = await handleRequest(
+        new Request("http://localhost/health", { method: "POST" }),
+      );
+      expect(response.status).toBe(404);
+    });
   });
 
   describe("GET /admin/", () => {
@@ -51,10 +60,10 @@ describe("server", () => {
     });
 
     test("shows dashboard when authenticated", async () => {
-      await getOrCreateAdminPassword();
+      TEST_ADMIN_PASSWORD;
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", {
-          password: await getOrCreateAdminPassword(),
+          password: TEST_ADMIN_PASSWORD,
         }),
       );
       const cookie = loginResponse.headers.get("set-cookie");
@@ -81,7 +90,7 @@ describe("server", () => {
 
   describe("POST /admin/login", () => {
     test("rejects wrong password", async () => {
-      await getOrCreateAdminPassword();
+      TEST_ADMIN_PASSWORD;
       const response = await handleRequest(
         mockFormRequest("/admin/login", { password: "wrong" }),
       );
@@ -91,7 +100,7 @@ describe("server", () => {
     });
 
     test("accepts correct password and sets cookie", async () => {
-      const password = await getOrCreateAdminPassword();
+      const password = TEST_ADMIN_PASSWORD;
       const response = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
@@ -125,7 +134,7 @@ describe("server", () => {
     });
 
     test("creates event when authenticated", async () => {
-      const password = await getOrCreateAdminPassword();
+      const password = TEST_ADMIN_PASSWORD;
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
@@ -155,7 +164,7 @@ describe("server", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const password = await getOrCreateAdminPassword();
+      const password = TEST_ADMIN_PASSWORD;
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
@@ -170,7 +179,7 @@ describe("server", () => {
     });
 
     test("shows event details when authenticated", async () => {
-      const password = await getOrCreateAdminPassword();
+      const password = TEST_ADMIN_PASSWORD;
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
@@ -329,7 +338,7 @@ describe("server", () => {
   describe("logout with valid session", () => {
     test("deletes session from database", async () => {
       // Log in first
-      const password = await getOrCreateAdminPassword();
+      const password = TEST_ADMIN_PASSWORD;
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
@@ -356,7 +365,7 @@ describe("server", () => {
 
   describe("POST /admin/event with unit_price", () => {
     test("creates event with unit_price when authenticated", async () => {
-      const password = await getOrCreateAdminPassword();
+      const password = TEST_ADMIN_PASSWORD;
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
@@ -482,20 +491,15 @@ describe("server", () => {
   describe("ticket purchase with payments enabled", () => {
     // These tests require stripe-mock running on localhost:12111
     // STRIPE_MOCK_HOST/PORT are set in test/setup.ts
-    const originalStripeKey = process.env.STRIPE_SECRET_KEY;
+    // We use CONFIG_KEYS.STRIPE_SECRET_KEY in database instead of env var
 
     afterEach(() => {
       resetStripeClient();
-      if (originalStripeKey) {
-        process.env.STRIPE_SECRET_KEY = originalStripeKey;
-      } else {
-        delete process.env.STRIPE_SECRET_KEY;
-      }
     });
 
     test("handles payment flow error when Stripe fails", async () => {
-      // Set a fake Stripe key to enable payments
-      process.env.STRIPE_SECRET_KEY = "sk_test_fake_key";
+      // Set a fake Stripe key to enable payments (in database)
+      await setSetting("stripe_key", "sk_test_fake_key");
 
       // Create a paid event
       const event = await createEvent(
@@ -521,7 +525,7 @@ describe("server", () => {
     });
 
     test("free ticket still works when payments enabled", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_fake_key";
+      await setSetting("stripe_key", "sk_test_fake_key");
 
       // Create a free event (no price)
       const event = await createEvent(
@@ -547,7 +551,7 @@ describe("server", () => {
     });
 
     test("zero price ticket is treated as free", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_fake_key";
+      await setSetting("stripe_key", "sk_test_fake_key");
 
       // Create event with 0 price
       const event = await createEvent(
@@ -573,7 +577,7 @@ describe("server", () => {
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await setSetting("stripe_key", "sk_test_mock");
 
       const event = await createEvent(
         "Paid Event",
@@ -637,7 +641,7 @@ describe("server", () => {
     });
 
     test("handles successful payment verification with stripe-mock", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await setSetting("stripe_key", "sk_test_mock");
 
       const event = await createEvent(
         "Paid Event",
@@ -677,7 +681,7 @@ describe("server", () => {
       } as Awaited<ReturnType<typeof stripeModule.retrieveCheckoutSession>>);
 
       try {
-        process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+        await setSetting("stripe_key", "sk_test_mock");
 
         const event = await createEvent(
           "Paid Event",
@@ -710,6 +714,160 @@ describe("server", () => {
       } finally {
         mockRetrieve.mockRestore();
       }
+    });
+  });
+
+  describe("setup routes", () => {
+    describe("when setup not complete", () => {
+      beforeEach(async () => {
+        // Use a fresh db without setup
+        resetDb();
+        await createTestDb();
+      });
+
+      test("redirects home to /setup/", async () => {
+        const response = await handleRequest(mockRequest("/"));
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe("/setup/");
+      });
+
+      test("redirects admin to /setup/", async () => {
+        const response = await handleRequest(mockRequest("/admin/"));
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe("/setup/");
+      });
+
+      test("health check still works", async () => {
+        const response = await handleRequest(mockRequest("/health"));
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json).toEqual({ status: "ok" });
+      });
+
+      test("GET /setup/ shows setup page", async () => {
+        const response = await handleRequest(mockRequest("/setup/"));
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Initial Setup");
+        expect(html).toContain("Admin Password");
+        expect(html).toContain("Stripe Secret Key");
+      });
+
+      test("GET /setup (without trailing slash) shows setup page", async () => {
+        const response = await handleRequest(mockRequest("/setup"));
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Initial Setup");
+      });
+
+      test("POST /setup/ with valid data completes setup", async () => {
+        const response = await handleRequest(
+          mockFormRequest("/setup/", {
+            admin_password: "mypassword123",
+            admin_password_confirm: "mypassword123",
+            stripe_secret_key: "sk_test_123",
+            currency_code: "USD",
+          }),
+        );
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Setup Complete");
+      });
+
+      test("POST /setup/ with mismatched passwords shows error", async () => {
+        const response = await handleRequest(
+          mockFormRequest("/setup/", {
+            admin_password: "mypassword123",
+            admin_password_confirm: "different",
+            currency_code: "GBP",
+          }),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("Passwords do not match");
+      });
+
+      test("POST /setup/ with short password shows error", async () => {
+        const response = await handleRequest(
+          mockFormRequest("/setup/", {
+            admin_password: "short",
+            admin_password_confirm: "short",
+            currency_code: "GBP",
+          }),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("at least 8 characters");
+      });
+
+      test("POST /setup/ with invalid currency shows error", async () => {
+        const response = await handleRequest(
+          mockFormRequest("/setup/", {
+            admin_password: "mypassword123",
+            admin_password_confirm: "mypassword123",
+            currency_code: "INVALID",
+          }),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("Currency code must be 3 uppercase letters");
+      });
+
+      test("POST /setup/ without stripe key still works", async () => {
+        const response = await handleRequest(
+          mockFormRequest("/setup/", {
+            admin_password: "mypassword123",
+            admin_password_confirm: "mypassword123",
+            stripe_secret_key: "",
+            currency_code: "GBP",
+          }),
+        );
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Setup Complete");
+      });
+
+      test("POST /setup/ normalizes lowercase currency to uppercase", async () => {
+        const response = await handleRequest(
+          mockFormRequest("/setup/", {
+            admin_password: "mypassword123",
+            admin_password_confirm: "mypassword123",
+            currency_code: "usd",
+          }),
+        );
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Setup Complete");
+      });
+
+      test("PUT /setup/ redirects to /setup/ (unsupported method)", async () => {
+        const response = await handleRequest(
+          new Request("http://localhost/setup/", { method: "PUT" }),
+        );
+        // PUT method falls through routeSetup (returns null), then redirects to /setup/
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe("/setup/");
+      });
+    });
+
+    describe("when setup already complete", () => {
+      test("GET /setup/ redirects to home", async () => {
+        const response = await handleRequest(mockRequest("/setup/"));
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe("/");
+      });
+
+      test("POST /setup/ redirects to home", async () => {
+        const response = await handleRequest(
+          mockFormRequest("/setup/", {
+            admin_password: "newpassword123",
+            admin_password_confirm: "newpassword123",
+            currency_code: "EUR",
+          }),
+        );
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe("/");
+      });
     });
   });
 });

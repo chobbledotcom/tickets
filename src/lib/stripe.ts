@@ -7,6 +7,7 @@ import { getCurrencyCode, getStripeSecretKey } from "./config.ts";
 import type { Attendee, Event } from "./types.ts";
 
 let stripeClient: Stripe | null = null;
+let cachedSecretKey: string | null = null;
 
 /**
  * Get Stripe client configuration for mock server (if configured)
@@ -25,18 +26,20 @@ const getMockConfig = (): Stripe.StripeConfig | undefined => {
 
 /**
  * Get or create Stripe client
- * Returns null if STRIPE_SECRET_KEY is not set
+ * Returns null if Stripe secret key is not set
  * Supports stripe-mock via STRIPE_MOCK_HOST env var
  */
-export const getStripeClient = (): Stripe | null => {
-  const secretKey = getStripeSecretKey();
+export const getStripeClient = async (): Promise<Stripe | null> => {
+  const secretKey = await getStripeSecretKey();
   if (!secretKey) return null;
 
-  if (!stripeClient) {
+  // Re-create client if secret key changed
+  if (!stripeClient || cachedSecretKey !== secretKey) {
     const mockConfig = getMockConfig();
     stripeClient = mockConfig
       ? new Stripe(secretKey, mockConfig)
       : new Stripe(secretKey);
+    cachedSecretKey = secretKey;
   }
   return stripeClient;
 };
@@ -46,6 +49,7 @@ export const getStripeClient = (): Stripe | null => {
  */
 export const resetStripeClient = (): void => {
   stripeClient = null;
+  cachedSecretKey = null;
 };
 
 /**
@@ -56,11 +60,11 @@ export const createCheckoutSession = async (
   attendee: Attendee,
   baseUrl: string,
 ): Promise<Stripe.Checkout.Session | null> => {
-  const stripe = getStripeClient();
+  const stripe = await getStripeClient();
   if (!stripe || event.unit_price === null) return null;
 
   try {
-    const currency = getCurrencyCode().toLowerCase();
+    const currency = (await getCurrencyCode()).toLowerCase();
     const successUrl = `${baseUrl}/payment/success?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${baseUrl}/payment/cancel?attendee_id=${attendee.id}`;
 
@@ -101,7 +105,7 @@ export const createCheckoutSession = async (
 export const retrieveCheckoutSession = async (
   sessionId: string,
 ): Promise<Stripe.Checkout.Session | null> => {
-  const stripe = getStripeClient();
+  const stripe = await getStripeClient();
   if (!stripe) return null;
 
   try {
@@ -115,12 +119,12 @@ export const retrieveCheckoutSession = async (
 /**
  * Verify a Stripe webhook signature
  */
-export const verifyWebhookSignature = (
+export const verifyWebhookSignature = async (
   payload: string,
   signature: string,
   webhookSecret: string,
-): Stripe.Event | null => {
-  const stripe = getStripeClient();
+): Promise<Stripe.Event | null> => {
+  const stripe = await getStripeClient();
   if (!stripe) return null;
 
   try {
@@ -133,8 +137,8 @@ export const verifyWebhookSignature = (
 /**
  * Format price for display (converts from smallest currency unit)
  */
-export const formatPrice = (amount: number): string => {
-  const currency = getCurrencyCode();
+export const formatPrice = async (amount: number): Promise<string> => {
+  const currency = await getCurrencyCode();
   const formatter = new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency,

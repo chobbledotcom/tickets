@@ -9,6 +9,7 @@ A minimal ticket reservation system built with Bun and libsql, deployable to Bun
 - Optional Stripe payment integration
 - Admin dashboard with password protection
 - Edge-ready deployment to Bunny CDN
+- Web-based initial setup (no environment variables for config)
 
 ## Quick Start
 
@@ -24,16 +25,27 @@ stripe-mock &
 bun test
 ```
 
+## Initial Setup
+
+On first launch, the application will redirect to `/setup/` where you can configure:
+
+- **Admin Password** - Required for accessing the admin dashboard
+- **Stripe Secret Key** - Optional, enables paid tickets when set
+- **Currency Code** - Currency for payments (default: GBP)
+
+These settings are stored securely in the database, not in environment variables.
+
 ## Environment Variables
+
+Only database connection settings use environment variables:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DB_URL` | Yes | LibSQL database URL (e.g., `libsql://your-db.turso.io`) |
 | `DB_TOKEN` | Yes* | Database auth token (*required for remote databases) |
-| `ADMIN_PASSWORD` | No | Admin login password. If not set, a random password is generated and stored in the database |
-| `STRIPE_SECRET_KEY` | No | Stripe secret key. When set, enables paid tickets |
-| `CURRENCY_CODE` | No | Currency for payments (default: `GBP`) |
 | `PORT` | No | Server port for local development (default: `3000`) |
+
+All other configuration (admin password, Stripe keys, currency) is set through the web-based setup page and stored in the database.
 
 ## Deployment
 
@@ -45,9 +57,6 @@ Add these secrets to your GitHub repository for Bunny Edge deployment:
 |--------|-------------|
 | `DB_URL` | LibSQL database URL |
 | `DB_TOKEN` | Database auth token |
-| `ADMIN_PASSWORD` | Admin password (recommended for production) |
-| `STRIPE_SECRET_KEY` | Stripe secret key (optional) |
-| `CURRENCY_CODE` | Currency code (optional, defaults to GBP) |
 | `BUNNY_SCRIPT_ID` | Bunny Edge script ID |
 | `BUNNY_ACCESS_KEY` | Bunny API access key |
 
@@ -59,6 +68,10 @@ Environment variables are inlined at build time since Bunny Edge doesn't support
 # Build for edge deployment
 bun run build:edge
 ```
+
+### First Deployment
+
+After deploying to Bunny Edge, visit your site URL. You'll be automatically redirected to the setup page to configure your admin password and payment settings.
 
 ## Development
 
