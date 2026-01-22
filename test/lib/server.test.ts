@@ -11,6 +11,7 @@ import { handleRequest } from "#src/server.ts";
 import {
   createTestDb,
   createTestDbWithSetup,
+  mockCrossOriginFormRequest,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -868,6 +869,176 @@ describe("server", () => {
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe("/");
       });
+    });
+  });
+
+  describe("security headers", () => {
+    describe("X-Frame-Options", () => {
+      test("home page has X-Frame-Options: DENY", async () => {
+        const response = await handleRequest(mockRequest("/"));
+        expect(response.headers.get("x-frame-options")).toBe("DENY");
+      });
+
+      test("admin pages have X-Frame-Options: DENY", async () => {
+        const response = await handleRequest(mockRequest("/admin/"));
+        expect(response.headers.get("x-frame-options")).toBe("DENY");
+      });
+
+      test("ticket page does NOT have X-Frame-Options (embeddable)", async () => {
+        await createEvent("Event", "Desc", 50, "https://example.com");
+        const response = await handleRequest(mockRequest("/ticket/1"));
+        expect(response.headers.get("x-frame-options")).toBeNull();
+      });
+
+      test("payment pages have X-Frame-Options: DENY", async () => {
+        const response = await handleRequest(mockRequest("/payment/success"));
+        expect(response.headers.get("x-frame-options")).toBe("DENY");
+      });
+
+      test("setup page has X-Frame-Options: DENY", async () => {
+        resetDb();
+        await createTestDb();
+        const response = await handleRequest(mockRequest("/setup/"));
+        expect(response.headers.get("x-frame-options")).toBe("DENY");
+      });
+    });
+
+    describe("Content-Security-Policy frame-ancestors", () => {
+      test("non-embeddable pages have frame-ancestors 'none'", async () => {
+        const response = await handleRequest(mockRequest("/"));
+        expect(response.headers.get("content-security-policy")).toBe(
+          "frame-ancestors 'none'",
+        );
+      });
+
+      test("ticket page does NOT have frame-ancestors restriction", async () => {
+        await createEvent("Event", "Desc", 50, "https://example.com");
+        const response = await handleRequest(mockRequest("/ticket/1"));
+        expect(response.headers.get("content-security-policy")).toBeNull();
+      });
+    });
+
+    describe("other security headers", () => {
+      test("responses have X-Content-Type-Options: nosniff", async () => {
+        const response = await handleRequest(mockRequest("/"));
+        expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+      });
+
+      test("responses have Referrer-Policy header", async () => {
+        const response = await handleRequest(mockRequest("/"));
+        expect(response.headers.get("referrer-policy")).toBe(
+          "strict-origin-when-cross-origin",
+        );
+      });
+
+      test("ticket pages also have base security headers", async () => {
+        await createEvent("Event", "Desc", 50, "https://example.com");
+        const response = await handleRequest(mockRequest("/ticket/1"));
+        expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+        expect(response.headers.get("referrer-policy")).toBe(
+          "strict-origin-when-cross-origin",
+        );
+      });
+    });
+  });
+
+  describe("CORS protection", () => {
+    test("rejects cross-origin POST requests", async () => {
+      await createEvent("Event", "Desc", 50, "https://example.com");
+      const response = await handleRequest(
+        mockCrossOriginFormRequest("/ticket/1", {
+          name: "Attacker",
+          email: "attacker@evil.com",
+        }),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Cross-origin requests not allowed");
+    });
+
+    test("allows same-origin POST requests", async () => {
+      await createEvent("Event", "Desc", 50, "https://example.com/thanks");
+      const response = await handleRequest(
+        mockFormRequest("/ticket/1", {
+          name: "John Doe",
+          email: "john@example.com",
+        }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        "https://example.com/thanks",
+      );
+    });
+
+    test("allows GET requests from any origin", async () => {
+      await createEvent("Event", "Desc", 50, "https://example.com");
+      const response = await handleRequest(
+        new Request("http://localhost/ticket/1", {
+          headers: { origin: "http://evil.com" },
+        }),
+      );
+      expect(response.status).toBe(200);
+    });
+
+    test("rejects cross-origin admin login attempts", async () => {
+      const response = await handleRequest(
+        mockCrossOriginFormRequest("/admin/login", {
+          password: TEST_ADMIN_PASSWORD,
+        }),
+      );
+      expect(response.status).toBe(403);
+    });
+
+    test("CORS rejection response has security headers", async () => {
+      const response = await handleRequest(
+        mockCrossOriginFormRequest("/ticket/1", {
+          name: "Test",
+          email: "test@test.com",
+        }),
+      );
+      expect(response.headers.get("x-frame-options")).toBe("DENY");
+      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    });
+
+    test("allows same-origin POST with referer header only (no origin)", async () => {
+      await createEvent("Event", "Desc", 50, "https://example.com/thanks");
+      const body = new URLSearchParams({
+        name: "John Doe",
+        email: "john@example.com",
+      }).toString();
+      const response = await handleRequest(
+        new Request("http://localhost/ticket/1", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            referer: "http://localhost/ticket/1",
+          },
+          body,
+        }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        "https://example.com/thanks",
+      );
+    });
+
+    test("rejects cross-origin POST with referer header only", async () => {
+      await createEvent("Event", "Desc", 50, "https://example.com");
+      const body = new URLSearchParams({
+        name: "Attacker",
+        email: "attacker@evil.com",
+      }).toString();
+      const response = await handleRequest(
+        new Request("http://localhost/ticket/1", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            referer: "http://evil.com/phishing-page",
+          },
+          body,
+        }),
+      );
+      expect(response.status).toBe(403);
     });
   });
 });
