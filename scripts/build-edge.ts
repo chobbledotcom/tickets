@@ -4,11 +4,22 @@
  * Inlines environment variables since they're not available at edge runtime
  */
 
+// Required environment variables - build fails if not set
+const REQUIRED_ENV_VARS = ["DB_URL", "DB_TOKEN", "DB_ENCRYPTION_KEY"] as const;
+const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+if (missing.length > 0) {
+  // biome-ignore lint/suspicious/noConsole: Build script output
+  console.error(
+    `Missing required environment variables: ${missing.join(", ")}`,
+  );
+  process.exit(1);
+}
+
 // Environment variables to inline (read at build time)
 const ENV_VARS = {
-  DB_URL: process.env.DB_URL || "",
-  DB_TOKEN: process.env.DB_TOKEN || "",
-  DB_ENCRYPTION_KEY: process.env.DB_ENCRYPTION_KEY || "",
+  DB_URL: process.env.DB_URL as string,
+  DB_TOKEN: process.env.DB_TOKEN as string,
+  DB_ENCRYPTION_KEY: process.env.DB_ENCRYPTION_KEY as string,
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "",
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || "",
   CURRENCY_CODE: process.env.CURRENCY_CODE || "GBP",
