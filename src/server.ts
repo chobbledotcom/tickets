@@ -3,6 +3,111 @@
  */
 
 import { isPaymentsEnabled, isSetupComplete } from "./lib/config.ts";
+
+/**
+ * Security headers for all responses
+ */
+const BASE_SECURITY_HEADERS: Record<string, string> = {
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "strict-origin-when-cross-origin",
+};
+
+/**
+ * Get security headers for a response
+ * @param embeddable - Whether the page should be embeddable in iframes
+ */
+export const getSecurityHeaders = (
+  embeddable: boolean,
+): Record<string, string> => {
+  if (embeddable) {
+    return {
+      ...BASE_SECURITY_HEADERS,
+    };
+  }
+  return {
+    ...BASE_SECURITY_HEADERS,
+    "x-frame-options": "DENY",
+    "content-security-policy": "frame-ancestors 'none'",
+  };
+};
+
+/**
+ * Check if a path is embeddable (public ticket pages only)
+ */
+export const isEmbeddablePath = (path: string): boolean =>
+  /^\/ticket\/\d+$/.test(path);
+
+/**
+ * Validate origin for CORS protection on POST requests
+ * Returns true if the request should be allowed
+ */
+export const isValidOrigin = (request: Request): boolean => {
+  const method = request.method;
+
+  // Only check POST requests
+  if (method !== "POST") {
+    return true;
+  }
+
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
+
+  // If no origin header, check referer (some browsers may not send origin)
+  const requestUrl = new URL(request.url);
+  const requestHost = requestUrl.host;
+
+  // If origin is present, it must match
+  if (origin) {
+    const originUrl = new URL(origin);
+    return originUrl.host === requestHost;
+  }
+
+  // Fallback to referer check
+  if (referer) {
+    const refererUrl = new URL(referer);
+    return refererUrl.host === requestHost;
+  }
+
+  // If neither origin nor referer, reject (could be a direct form submission from another site)
+  // However, some legitimate scenarios may not have these headers (curl, etc.)
+  // For now, allow requests without origin/referer for backwards compatibility
+  // A stricter policy would return false here
+  return true;
+};
+
+/**
+ * Create CORS rejection response
+ */
+const corsRejectionResponse = (): Response =>
+  new Response("Forbidden: Cross-origin requests not allowed", {
+    status: 403,
+    headers: {
+      "content-type": "text/plain",
+      ...getSecurityHeaders(false),
+    },
+  });
+
+/**
+ * Apply security headers to a response
+ */
+const applySecurityHeaders = (
+  response: Response,
+  embeddable: boolean,
+): Response => {
+  const headers = new Headers(response.headers);
+  const securityHeaders = getSecurityHeaders(embeddable);
+
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    headers.set(key, value);
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+};
+
 import {
   completeSetup,
   createAttendee,
@@ -634,9 +739,9 @@ const routeMainApp = async (
 };
 
 /**
- * Handle incoming requests
+ * Handle incoming requests (internal, without security headers)
  */
-export const handleRequest = async (request: Request): Promise<Response> => {
+const handleRequestInternal = async (request: Request): Promise<Response> => {
   const url = new URL(request.url);
   const path = url.pathname;
   const method = request.method;
@@ -657,4 +762,21 @@ export const handleRequest = async (request: Request): Promise<Response> => {
   }
 
   return routeMainApp(request, path, method);
+};
+
+/**
+ * Handle incoming requests with security headers and CORS protection
+ */
+export const handleRequest = async (request: Request): Promise<Response> => {
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const embeddable = isEmbeddablePath(path);
+
+  // CORS protection: reject cross-origin POST requests
+  if (!isValidOrigin(request)) {
+    return corsRejectionResponse();
+  }
+
+  const response = await handleRequestInternal(request);
+  return applySecurityHeaders(response, embeddable);
 };
