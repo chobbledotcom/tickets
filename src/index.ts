@@ -2,8 +2,8 @@
  * Entry point for ticket reservation system
  */
 
+import { handleRequest } from "#routes";
 import { initDb } from "./lib/db.ts";
-import { handleRequest } from "./server.ts";
 
 const startServer = async (port = 3000): Promise<void> => {
   await initDb();
