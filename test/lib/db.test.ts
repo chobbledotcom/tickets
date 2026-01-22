@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
+import { setupTestEncryptionKey } from "#test-utils";
 import {
   CONFIG_KEYS,
   clearLoginAttempts,
@@ -37,6 +38,7 @@ import {
 
 describe("db", () => {
   beforeEach(async () => {
+    setupTestEncryptionKey();
     const client = createClient({ url: ":memory:" });
     setDb(client);
     await initDb();
