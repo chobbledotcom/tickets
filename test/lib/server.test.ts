@@ -1726,6 +1726,121 @@ describe("server", () => {
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe("/setup/");
       });
+
+      test("setup form works with full browser flow simulation", async () => {
+        // This test simulates what a real browser does:
+        // 1. GET /setup/ - browser receives the page and Set-Cookie header
+        // 2. User fills form and submits
+        // 3. Browser sends POST with cookie
+
+        // Step 1: GET the setup page
+        const getResponse = await handleRequest(
+          new Request("http://localhost/setup/", { method: "GET" }),
+        );
+        expect(getResponse.status).toBe(200);
+
+        // Extract the Set-Cookie header
+        const setCookie = getResponse.headers.get("set-cookie");
+        expect(setCookie).not.toBeNull();
+
+        // Extract CSRF token from the cookie
+        const csrfToken = getSetupCsrfToken(setCookie);
+        expect(csrfToken).not.toBeNull();
+
+        // Step 2: Simulate browser POST - browser sends cookie back
+        const postResponse = await handleRequest(
+          new Request("http://localhost/setup/", {
+            method: "POST",
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              origin: "http://localhost",
+              cookie: `setup_csrf=${csrfToken}`,
+            },
+            body: new URLSearchParams({
+              admin_password: "mypassword123",
+              admin_password_confirm: "mypassword123",
+              currency_code: "GBP",
+              csrf_token: csrfToken as string,
+            }).toString(),
+          }),
+        );
+
+        // This should succeed - the full flow should work
+        expect(postResponse.status).toBe(200);
+        const html = await postResponse.text();
+        expect(html).toContain("Setup Complete");
+      });
+
+      test("setup cookie path allows both /setup and /setup/", async () => {
+        // Cookie path should be /setup (without trailing slash) to match both variants
+        const response = await handleRequest(
+          new Request("http://localhost/setup/", { method: "GET" }),
+        );
+
+        const setCookie = response.headers.get("set-cookie");
+        expect(setCookie).not.toBeNull();
+        // Path should be /setup (not /setup/) so it matches both
+        expect(setCookie).toContain("Path=/setup;");
+        expect(setCookie).not.toContain("Path=/setup/;");
+      });
+
+      test("setup form works when accessed via /setup (no trailing slash)", async () => {
+        // GET /setup (no trailing slash)
+        const getResponse = await handleRequest(
+          new Request("http://localhost/setup", { method: "GET" }),
+        );
+        expect(getResponse.status).toBe(200);
+
+        const setCookie = getResponse.headers.get("set-cookie");
+        const csrfToken = getSetupCsrfToken(setCookie);
+        expect(csrfToken).not.toBeNull();
+
+        // POST to /setup (no trailing slash) - cookie should still be sent
+        const postResponse = await handleRequest(
+          new Request("http://localhost/setup", {
+            method: "POST",
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              origin: "http://localhost",
+              cookie: `setup_csrf=${csrfToken}`,
+            },
+            body: new URLSearchParams({
+              admin_password: "mypassword123",
+              admin_password_confirm: "mypassword123",
+              currency_code: "GBP",
+              csrf_token: csrfToken as string,
+            }).toString(),
+          }),
+        );
+
+        expect(postResponse.status).toBe(200);
+        const html = await postResponse.text();
+        expect(html).toContain("Setup Complete");
+      });
+
+      test("CSRF token in cookie matches token in HTML form field", async () => {
+        // This test verifies that the same token appears in both places
+        const response = await handleRequest(
+          new Request("http://localhost/setup/", { method: "GET" }),
+        );
+
+        // Extract token from Set-Cookie header
+        const setCookie = response.headers.get("set-cookie");
+        expect(setCookie).not.toBeNull();
+        const cookieToken = getSetupCsrfToken(setCookie);
+        expect(cookieToken).not.toBeNull();
+
+        // Extract token from HTML body
+        const html = await response.text();
+        const formTokenMatch = html.match(
+          /name="csrf_token"\s+value="([^"]+)"/,
+        );
+        expect(formTokenMatch).not.toBeNull();
+        const formToken = formTokenMatch?.[1];
+
+        // They must be identical
+        expect(formToken).toBe(cookieToken as string);
+      });
     });
 
     describe("when setup already complete", () => {

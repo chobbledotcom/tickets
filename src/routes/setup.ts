@@ -68,9 +68,10 @@ export const handleSetupGet = async (
   const csrfToken = generateSecureToken();
   const response = htmlResponse(setupPage(undefined, csrfToken));
   const headers = new Headers(response.headers);
+  // Path=/setup (without trailing slash) matches both /setup and /setup/
   headers.set(
     "set-cookie",
-    `setup_csrf=${csrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup/; Max-Age=3600`,
+    `setup_csrf=${csrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup; Max-Age=3600`,
   );
   return new Response(response.body, {
     status: response.status,
@@ -104,9 +105,10 @@ export const handleSetupPost = async (
       403,
     );
     const headers = new Headers(response.headers);
+    // Path=/setup (without trailing slash) matches both /setup and /setup/
     headers.set(
       "set-cookie",
-      `setup_csrf=${newCsrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup/; Max-Age=3600`,
+      `setup_csrf=${newCsrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup; Max-Age=3600`,
     );
     return new Response(response.body, {
       status: response.status,
