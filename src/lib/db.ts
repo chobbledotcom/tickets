@@ -26,6 +26,7 @@ export const getDb = (): Client => {
     db = createClient({
       url,
       authToken: process.env.DB_TOKEN,
+      encryptionKey: process.env.DB_ENCRYPTION_KEY,
     });
   }
   return db;
