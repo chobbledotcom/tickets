@@ -3,7 +3,7 @@
  */
 
 import { completeSetup } from "#lib/db.ts";
-import { validateForm } from "#lib/forms.ts";
+import { validateForm } from "#lib/forms.tsx";
 import { setupCompletePage, setupFields, setupPage } from "#templates";
 import {
   generateSecureToken,

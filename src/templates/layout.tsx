@@ -2,6 +2,8 @@
  * Base layout and common template utilities
  */
 
+import { Raw } from "#jsx/jsx-runtime.ts";
+
 export const escapeHtml = (str: string): string =>
   str
     .replace(/&/g, "&amp;")
@@ -25,21 +27,32 @@ export const baseStyles = `
   a { color: #0066cc; }
 `;
 
+interface LayoutProps {
+  title: string;
+  children: string;
+}
+
 /**
  * Wrap content in basic HTML layout
  */
-export const layout = (
-  title: string,
-  content: string,
-): string => `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(title)}</title>
-  <style>${baseStyles}</style>
-</head>
-<body>
-  ${content}
-</body>
-</html>`;
+export const Layout = ({ title, children }: LayoutProps): string =>
+  "<!DOCTYPE html>" +
+  (
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{title}</title>
+        <style><Raw html={baseStyles} /></style>
+      </head>
+      <body>
+        <Raw html={children} />
+      </body>
+    </html>
+  );
+
+/**
+ * Legacy function wrapper for backward compatibility
+ */
+export const layout = (title: string, content: string): string =>
+  String(<Layout title={title}>{content}</Layout>);

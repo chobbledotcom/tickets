@@ -16,7 +16,7 @@ import {
   updateEvent,
   verifyAdminPassword,
 } from "#lib/db.ts";
-import { validateForm } from "#lib/forms.ts";
+import { validateForm } from "#lib/forms.tsx";
 import {
   adminDashboardPage,
   adminEventEditPage,

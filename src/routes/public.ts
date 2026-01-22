@@ -9,7 +9,7 @@ import {
   getEventWithCount,
   hasAvailableSpots,
 } from "#lib/db.ts";
-import { validateForm } from "#lib/forms.ts";
+import { validateForm } from "#lib/forms.tsx";
 import { createCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { homePage, notFoundPage, ticketFields, ticketPage } from "#templates";

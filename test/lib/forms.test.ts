@@ -5,8 +5,8 @@ import {
   renderField,
   renderFields,
   validateForm,
-} from "#lib/forms.ts";
-import { eventFields, ticketFields } from "#lib/html.ts";
+} from "#lib/forms.tsx";
+import { eventFields, ticketFields } from "#templates";
 
 describe("forms", () => {
   describe("renderField", () => {

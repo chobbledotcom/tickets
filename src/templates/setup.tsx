@@ -1,0 +1,39 @@
+/**
+ * Setup page templates - initial configuration
+ */
+
+import { renderError, renderFields } from "#lib/forms.tsx";
+import { Raw } from "#jsx/jsx-runtime.ts";
+import { setupFields } from "./fields.ts";
+import { Layout } from "./layout.tsx";
+
+/**
+ * Initial setup page
+ */
+export const setupPage = (error?: string, csrfToken?: string): string =>
+  String(
+    <Layout title="Setup">
+      <h1>Initial Setup</h1>
+      <p>Welcome! Please configure your ticket reservation system.</p>
+      <Raw html={renderError(error)} />
+      <form method="POST" action="/setup/">
+        {csrfToken && <input type="hidden" name="csrf_token" value={csrfToken} />}
+        <Raw html={renderFields(setupFields, { currency_code: "GBP" })} />
+        <button type="submit">Complete Setup</button>
+      </form>
+    </Layout>
+  );
+
+/**
+ * Setup complete page
+ */
+export const setupCompletePage = (): string =>
+  String(
+    <Layout title="Setup Complete">
+      <h1>Setup Complete!</h1>
+      <div class="success">
+        <p>Your ticket reservation system has been configured successfully.</p>
+      </div>
+      <p><a href="/admin/">Go to Admin Dashboard</a></p>
+    </Layout>
+  );
