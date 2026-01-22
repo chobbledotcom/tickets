@@ -76,7 +76,8 @@ describe("jsx-runtime", () => {
     });
 
     test("passes props to component", () => {
-      const Component = ({ name }: { name?: string }) => `Hello ${name}`;
+      const Component = (props: Record<string, unknown>) =>
+        `Hello ${props.name}`;
       const result = jsx(Component, { name: "World" });
       expect(result.toString()).toBe("Hello World");
     });

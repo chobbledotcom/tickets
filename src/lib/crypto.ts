@@ -5,6 +5,7 @@
 
 import { gcm } from "@noble/ciphers/aes.js";
 import { randomBytes } from "@noble/ciphers/utils.js";
+import { scrypt } from "@noble/hashes/scrypt.js";
 
 /**
  * Constant-time string comparison to prevent timing attacks
@@ -174,4 +175,91 @@ export const isEncrypted = (value: string): boolean => {
 export const clearEncryptionKeyCache = (): void => {
   cachedKeyBytes = null;
   cachedKeySource = null;
+};
+
+/**
+ * Password hashing using scrypt (browser-compatible)
+ * Format: scrypt:N:r:p:$base64salt:$base64hash
+ */
+const SCRYPT_N = 2 ** 14; // CPU/memory cost parameter
+const SCRYPT_R = 8; // Block size
+const SCRYPT_P = 1; // Parallelization
+const SCRYPT_DKLEN = 32; // Output key length
+const PASSWORD_PREFIX = "scrypt";
+
+/**
+ * Hash a password using scrypt
+ * Returns format: scrypt:N:r:p:$base64salt:$base64hash
+ */
+export const hashPassword = async (password: string): Promise<string> => {
+  const salt = randomBytes(16);
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+
+  const hash = scrypt(passwordBytes, salt, {
+    N: SCRYPT_N,
+    r: SCRYPT_R,
+    p: SCRYPT_P,
+    dkLen: SCRYPT_DKLEN,
+  });
+
+  const saltBase64 = btoa(String.fromCharCode(...salt));
+  const hashBase64 = btoa(String.fromCharCode(...hash));
+
+  return `${PASSWORD_PREFIX}:${SCRYPT_N}:${SCRYPT_R}:${SCRYPT_P}:${saltBase64}:${hashBase64}`;
+};
+
+/**
+ * Verify a password against a hash
+ * Uses constant-time comparison to prevent timing attacks
+ */
+export const verifyPassword = async (
+  password: string,
+  storedHash: string,
+): Promise<boolean> => {
+  if (!storedHash.startsWith(`${PASSWORD_PREFIX}:`)) {
+    return false;
+  }
+
+  const parts = storedHash.split(":") as [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  if (parts.length !== 6) {
+    return false;
+  }
+
+  const N = Number.parseInt(parts[1], 10);
+  const r = Number.parseInt(parts[2], 10);
+  const p = Number.parseInt(parts[3], 10);
+
+  const salt = Uint8Array.from(atob(parts[4]), (c) => c.charCodeAt(0));
+  const expectedHash = Uint8Array.from(atob(parts[5]), (c) => c.charCodeAt(0));
+
+  // Reject if stored hash has unexpected length
+  if (expectedHash.length !== SCRYPT_DKLEN) {
+    return false;
+  }
+
+  const encoder = new TextEncoder();
+  const passwordBytes = encoder.encode(password);
+
+  const computedHash = scrypt(passwordBytes, salt, {
+    N,
+    r,
+    p,
+    dkLen: SCRYPT_DKLEN,
+  });
+
+  // Constant-time comparison
+  let result = 0;
+  for (let i = 0; i < computedHash.length; i++) {
+    result |= (computedHash[i] as number) ^ (expectedHash[i] as number);
+  }
+
+  return result === 0;
 };
