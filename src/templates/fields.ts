@@ -159,3 +159,17 @@ export const changePasswordFields: Field[] = [
     required: true,
   },
 ];
+
+/**
+ * Stripe key settings form field definitions
+ */
+export const stripeKeyFields: Field[] = [
+  {
+    name: "stripe_secret_key",
+    label: "New Stripe Secret Key",
+    type: "password",
+    required: true,
+    placeholder: "sk_live_... or sk_test_...",
+    hint: "Enter a new key to replace the existing one",
+  },
+];
