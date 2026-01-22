@@ -3,6 +3,35 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+
+/**
+ * Escape a value for CSV (handles commas, quotes, newlines)
+ */
+const escapeCsvValue = (value: string): string => {
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+};
+
+/**
+ * Generate CSV content from attendees
+ */
+export const generateAttendeesCsv = (attendees: Attendee[]): string => {
+  const header = "Name,Email,Registered";
+  const rows = pipe(
+    map((a: Attendee) =>
+      [
+        escapeCsvValue(a.name),
+        escapeCsvValue(a.email),
+        escapeCsvValue(new Date(a.created).toISOString()),
+      ].join(","),
+    ),
+    reduce((acc: string, row: string) => `${acc}\n${row}`, header),
+  )(attendees);
+  return rows;
+};
+
 import {
   type Field,
   type FieldValues,
@@ -161,6 +190,7 @@ export const adminEventPage = (
     <p><strong>Ticket URL:</strong> <a href="/ticket/${event.id}">/ticket/${event.id}</a></p>
 
     <h2>Attendees</h2>
+    <p><a href="/admin/event/${event.id}/export" style="display: inline-block; background: #0066cc; color: white; padding: 0.5rem 1rem; font-size: 0.9rem; border-radius: 4px; text-decoration: none;">Export CSV</a></p>
     <table>
       <thead>
         <tr>

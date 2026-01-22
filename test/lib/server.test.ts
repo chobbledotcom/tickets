@@ -250,6 +250,105 @@ describe("server", () => {
     });
   });
 
+  describe("GET /admin/event/:id/export", () => {
+    test("redirects to login when not authenticated", async () => {
+      await createEvent("Test Event", "Desc", 100, "https://example.com");
+      const response = await handleRequest(
+        mockRequest("/admin/event/1/export"),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/999/export", {
+          headers: { cookie: cookie || "" },
+        }),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("returns CSV with correct headers when authenticated", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      await createEvent("Test Event", "Desc", 100, "https://example.com");
+
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/1/export", {
+          headers: { cookie: cookie || "" },
+        }),
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe(
+        "text/csv; charset=utf-8",
+      );
+      expect(response.headers.get("content-disposition")).toContain(
+        "attachment",
+      );
+      expect(response.headers.get("content-disposition")).toContain(".csv");
+    });
+
+    test("returns CSV with attendee data", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      await createEvent("Test Event", "Desc", 100, "https://example.com");
+      await createAttendee(1, "John Doe", "john@example.com");
+      await createAttendee(1, "Jane Smith", "jane@example.com");
+
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/1/export", {
+          headers: { cookie: cookie || "" },
+        }),
+      );
+      const csv = await response.text();
+      expect(csv).toContain("Name,Email,Registered");
+      expect(csv).toContain("John Doe");
+      expect(csv).toContain("john@example.com");
+      expect(csv).toContain("Jane Smith");
+      expect(csv).toContain("jane@example.com");
+    });
+
+    test("sanitizes event name for filename", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      await createEvent(
+        "Test Event / Special!",
+        "Desc",
+        100,
+        "https://example.com",
+      );
+
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/1/export", {
+          headers: { cookie: cookie || "" },
+        }),
+      );
+      const disposition = response.headers.get("content-disposition");
+      expect(disposition).toContain("Test_Event___Special_");
+      expect(disposition).not.toContain("/");
+      expect(disposition).not.toContain("!");
+    });
+  });
+
   describe("GET /admin/event/:id/edit", () => {
     test("redirects to login when not authenticated", async () => {
       await createEvent("Test Event", "Desc", 100, "https://example.com");

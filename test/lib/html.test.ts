@@ -3,6 +3,7 @@ import {
   adminDashboardPage,
   adminEventPage,
   adminLoginPage,
+  generateAttendeesCsv,
   homePage,
   layout,
   notFoundPage,
@@ -388,6 +389,122 @@ describe("html", () => {
       const html = adminDashboardPage([]);
       expect(html).toContain('name="unit_price"');
       expect(html).toContain("Ticket Price");
+    });
+  });
+
+  describe("adminEventPage export button", () => {
+    const event: EventWithCount = {
+      id: 1,
+      name: "Test Event",
+      description: "Test Description",
+      max_attendees: 100,
+      thank_you_url: "https://example.com/thanks",
+      created: "2024-01-01T00:00:00Z",
+      attendee_count: 2,
+      unit_price: null,
+    };
+
+    test("renders export CSV button", () => {
+      const html = adminEventPage(event, []);
+      expect(html).toContain("/admin/event/1/export");
+      expect(html).toContain("Export CSV");
+    });
+  });
+
+  describe("generateAttendeesCsv", () => {
+    test("generates CSV header for empty attendees", () => {
+      const csv = generateAttendeesCsv([]);
+      expect(csv).toBe("Name,Email,Registered");
+    });
+
+    test("generates CSV with attendee data", () => {
+      const attendees: Attendee[] = [
+        {
+          id: 1,
+          event_id: 1,
+          name: "John Doe",
+          email: "john@example.com",
+          created: "2024-01-15T10:30:00Z",
+          stripe_payment_id: null,
+        },
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[0]).toBe("Name,Email,Registered");
+      expect(lines[1]).toContain("John Doe");
+      expect(lines[1]).toContain("john@example.com");
+      expect(lines[1]).toContain("2024-01-15T10:30:00.000Z");
+    });
+
+    test("escapes values with commas", () => {
+      const attendees: Attendee[] = [
+        {
+          id: 1,
+          event_id: 1,
+          name: "Doe, John",
+          email: "john@example.com",
+          created: "2024-01-15T10:30:00Z",
+          stripe_payment_id: null,
+        },
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      expect(csv).toContain('"Doe, John"');
+    });
+
+    test("escapes values with quotes", () => {
+      const attendees: Attendee[] = [
+        {
+          id: 1,
+          event_id: 1,
+          name: 'John "JD" Doe',
+          email: "john@example.com",
+          created: "2024-01-15T10:30:00Z",
+          stripe_payment_id: null,
+        },
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      expect(csv).toContain('"John ""JD"" Doe"');
+    });
+
+    test("escapes values with newlines", () => {
+      const attendees: Attendee[] = [
+        {
+          id: 1,
+          event_id: 1,
+          name: "John\nDoe",
+          email: "john@example.com",
+          created: "2024-01-15T10:30:00Z",
+          stripe_payment_id: null,
+        },
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      expect(csv).toContain('"John\nDoe"');
+    });
+
+    test("generates multiple rows", () => {
+      const attendees: Attendee[] = [
+        {
+          id: 1,
+          event_id: 1,
+          name: "John Doe",
+          email: "john@example.com",
+          created: "2024-01-15T10:30:00Z",
+          stripe_payment_id: null,
+        },
+        {
+          id: 2,
+          event_id: 1,
+          name: "Jane Smith",
+          email: "jane@example.com",
+          created: "2024-01-16T11:00:00Z",
+          stripe_payment_id: null,
+        },
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines).toHaveLength(3);
+      expect(lines[1]).toContain("John Doe");
+      expect(lines[2]).toContain("Jane Smith");
     });
   });
 });
