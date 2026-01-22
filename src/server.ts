@@ -130,7 +130,7 @@ const applySecurityHeaders = (
   });
 };
 
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { constantTimeEqual, generateSecureToken } from "./lib/crypto.ts";
 import {
   clearLoginAttempts,
   completeSetup,
@@ -186,13 +186,6 @@ import type { Attendee, Event, EventWithCount } from "./lib/types.ts";
  */
 type ServerContext = {
   requestIP?: (req: Request) => { address: string } | null;
-};
-
-/**
- * Generate a cryptographically secure token
- */
-const generateSecureToken = (): string => {
-  return randomBytes(32).toString("base64url");
 };
 
 /**
@@ -266,8 +259,7 @@ const isAuthenticated = async (request: Request): Promise<boolean> => {
  * Validate CSRF token using constant-time comparison
  */
 const validateCsrfToken = (expected: string, actual: string): boolean => {
-  if (expected.length !== actual.length) return false;
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(actual));
+  return constantTimeEqual(expected, actual);
 };
 
 /**
