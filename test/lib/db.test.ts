@@ -11,7 +11,6 @@ import {
   deleteAttendee,
   deleteExpiredSessions,
   deleteSession,
-  generatePassword,
   getAdminPasswordFromDb,
   getAllEvents,
   getAttendee,
@@ -20,7 +19,6 @@ import {
   getDb,
   getEvent,
   getEventWithCount,
-  getOrCreateAdminPassword,
   getSession,
   getSetting,
   getStripeSecretKeyFromDb,
@@ -36,9 +34,11 @@ import {
   updateEvent,
   verifyAdminPassword,
 } from "#lib/db.ts";
+import { setupTestEncryptionKey } from "#test-utils";
 
 describe("db", () => {
   beforeEach(async () => {
+    setupTestEncryptionKey();
     const client = createClient({ url: ":memory:" });
     setDb(client);
     await initDb();
@@ -63,24 +63,6 @@ describe("db", () => {
           process.env.DB_URL = originalDbUrl;
         }
       }
-    });
-  });
-
-  describe("generatePassword", () => {
-    test("generates 16 character password", () => {
-      const password = generatePassword();
-      expect(password.length).toBe(16);
-    });
-
-    test("generates alphanumeric password", () => {
-      const password = generatePassword();
-      expect(password).toMatch(/^[a-zA-Z0-9]+$/);
-    });
-
-    test("generates different passwords each time", () => {
-      const p1 = generatePassword();
-      const p2 = generatePassword();
-      expect(p1).not.toBe(p2);
     });
   });
 
@@ -150,30 +132,14 @@ describe("db", () => {
   });
 
   describe("admin password", () => {
-    test("getOrCreateAdminPassword creates password on first call", async () => {
-      const password = await getOrCreateAdminPassword();
-      expect(password.length).toBe(16);
-    });
-
-    test("getOrCreateAdminPassword returns hash on subsequent calls", async () => {
-      const plaintext = await getOrCreateAdminPassword();
-      // First call returns plaintext for display purposes
-      expect(plaintext.length).toBe(16);
-      // Subsequent calls return the stored hash
-      const stored = await getOrCreateAdminPassword();
-      expect(stored.startsWith("$argon2id$")).toBe(true);
-      // But the plaintext password should still verify correctly
-      expect(await verifyAdminPassword(plaintext)).toBe(true);
-    });
-
     test("verifyAdminPassword returns true for correct password", async () => {
-      const password = await getOrCreateAdminPassword();
-      const result = await verifyAdminPassword(password);
+      await completeSetup("testpassword123", null, "GBP");
+      const result = await verifyAdminPassword("testpassword123");
       expect(result).toBe(true);
     });
 
     test("verifyAdminPassword returns false for wrong password", async () => {
-      await getOrCreateAdminPassword();
+      await completeSetup("testpassword123", null, "GBP");
       const result = await verifyAdminPassword("wrong");
       expect(result).toBe(false);
     });

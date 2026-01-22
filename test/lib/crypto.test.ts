@@ -1,192 +1,299 @@
-/**
- * Tests for the crypto module
- */
-
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { randomBytes } from "node:crypto";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
+  clearEncryptionKeyCache,
+  constantTimeEqual,
   decrypt,
-  decryptNullable,
   encrypt,
-  encryptNullable,
-  resetEncryptionKey,
+  generateSecureToken,
+  hashPassword,
+  isEncrypted,
+  isEncryptionConfigured,
+  validateEncryptionKey,
+  verifyPassword,
 } from "#lib/crypto.ts";
+import {
+  clearTestEncryptionKey,
+  setupTestEncryptionKey,
+  TEST_ENCRYPTION_KEY,
+} from "#test-utils";
 
-describe("crypto", () => {
-  const originalKey = process.env.DB_ENCRYPTION_KEY;
+describe("constantTimeEqual", () => {
+  it("returns true for equal strings", () => {
+    expect(constantTimeEqual("hello", "hello")).toBe(true);
+    expect(constantTimeEqual("test123", "test123")).toBe(true);
+    expect(constantTimeEqual("", "")).toBe(true);
+  });
 
+  it("returns false for different strings of same length", () => {
+    expect(constantTimeEqual("hello", "hallo")).toBe(false);
+    expect(constantTimeEqual("abc", "abd")).toBe(false);
+    expect(constantTimeEqual("aaa", "aab")).toBe(false);
+  });
+
+  it("returns false for strings of different length", () => {
+    expect(constantTimeEqual("hello", "hell")).toBe(false);
+    expect(constantTimeEqual("a", "ab")).toBe(false);
+    expect(constantTimeEqual("test", "testing")).toBe(false);
+  });
+
+  it("handles special characters", () => {
+    expect(constantTimeEqual("!@#$%", "!@#$%")).toBe(true);
+    expect(constantTimeEqual("!@#$%", "!@#$&")).toBe(false);
+  });
+
+  it("handles unicode characters", () => {
+    expect(constantTimeEqual("héllo", "héllo")).toBe(true);
+    expect(constantTimeEqual("héllo", "hèllo")).toBe(false);
+  });
+});
+
+describe("generateSecureToken", () => {
+  it("returns a non-empty string", () => {
+    const token = generateSecureToken();
+    expect(typeof token).toBe("string");
+    expect(token.length).toBeGreaterThan(0);
+  });
+
+  it("returns base64url encoded string without padding", () => {
+    const token = generateSecureToken();
+    // base64url uses only alphanumeric, -, and _
+    expect(token).toMatch(/^[A-Za-z0-9_-]+$/);
+    // Should not contain +, /, or =
+    expect(token).not.toContain("+");
+    expect(token).not.toContain("/");
+    expect(token).not.toContain("=");
+  });
+
+  it("generates unique tokens", () => {
+    const tokens = new Set<string>();
+    for (let i = 0; i < 100; i++) {
+      tokens.add(generateSecureToken());
+    }
+    // All 100 tokens should be unique
+    expect(tokens.size).toBe(100);
+  });
+
+  it("generates tokens of consistent length", () => {
+    // 32 bytes = 256 bits, base64 encodes 6 bits per char
+    // 256/6 = ~43 chars (without padding)
+    const token = generateSecureToken();
+    expect(token.length).toBe(43);
+  });
+});
+
+describe("encryption", () => {
   beforeEach(() => {
-    resetEncryptionKey();
-    // Set a valid 32-byte key for tests
-    process.env.DB_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+    setupTestEncryptionKey();
   });
 
   afterEach(() => {
-    resetEncryptionKey();
-    process.env.DB_ENCRYPTION_KEY = originalKey;
+    clearTestEncryptionKey();
   });
 
-  describe("encrypt/decrypt", () => {
-    test("encrypts and decrypts a string", () => {
-      const plaintext = "Hello, World!";
-      const encrypted = encrypt(plaintext);
-      const decrypted = decrypt(encrypted);
-      expect(decrypted).toBe(plaintext);
+  describe("isEncryptionConfigured", () => {
+    it("returns true when encryption key is set", () => {
+      expect(isEncryptionConfigured()).toBe(true);
     });
 
-    test("encrypted value is different from plaintext", () => {
-      const plaintext = "sensitive data";
-      const encrypted = encrypt(plaintext);
-      expect(encrypted).not.toBe(plaintext);
-      expect(encrypted).not.toContain(plaintext);
-    });
-
-    test("encrypted value has correct format (iv:ciphertext:authTag)", () => {
-      const encrypted = encrypt("test");
-      const parts = encrypted.split(":");
-      expect(parts.length).toBe(3);
-      // Each part should be valid base64
-      for (const part of parts) {
-        expect(() => Buffer.from(part, "base64")).not.toThrow();
-      }
-    });
-
-    test("encrypts same plaintext to different ciphertexts (unique IVs)", () => {
-      const plaintext = "same text";
-      const encrypted1 = encrypt(plaintext);
-      const encrypted2 = encrypt(plaintext);
-      expect(encrypted1).not.toBe(encrypted2);
-      // But both should decrypt to the same value
-      expect(decrypt(encrypted1)).toBe(plaintext);
-      expect(decrypt(encrypted2)).toBe(plaintext);
-    });
-
-    test("handles single character", () => {
-      const plaintext = "a";
-      const encrypted = encrypt(plaintext);
-      const decrypted = decrypt(encrypted);
-      expect(decrypted).toBe(plaintext);
-    });
-
-    test("handles unicode characters", () => {
-      const plaintext = "Hello \u{1F600} World \u{1F389}";
-      const encrypted = encrypt(plaintext);
-      const decrypted = decrypt(encrypted);
-      expect(decrypted).toBe(plaintext);
-    });
-
-    test("handles long strings", () => {
-      const plaintext = "a".repeat(10000);
-      const encrypted = encrypt(plaintext);
-      const decrypted = decrypt(encrypted);
-      expect(decrypted).toBe(plaintext);
-    });
-
-    test("throws on invalid encrypted data format", () => {
-      expect(() => decrypt("invalid")).toThrow("Invalid encrypted data format");
-      expect(() => decrypt("a:b")).toThrow("Invalid encrypted data format");
-      expect(() => decrypt("a:b:c:d")).toThrow("Invalid encrypted data format");
-      // Empty parts
-      expect(() => decrypt("::")).toThrow("Invalid encrypted data format");
-      expect(() => decrypt("a::c")).toThrow("Invalid encrypted data format");
-    });
-
-    test("throws on invalid IV length", () => {
-      // Valid base64 but wrong IV length (should be 12 bytes)
-      const wrongIv = Buffer.from("short").toString("base64");
-      const ciphertext = Buffer.from("test").toString("base64");
-      const authTag = Buffer.from("0".repeat(16)).toString("base64");
-      expect(() => decrypt(`${wrongIv}:${ciphertext}:${authTag}`)).toThrow(
-        "Invalid IV length",
-      );
-    });
-
-    test("throws on invalid auth tag length", () => {
-      // Valid IV (12 bytes) but wrong auth tag length (should be 16 bytes)
-      const iv = Buffer.from("0".repeat(12)).toString("base64");
-      const ciphertext = Buffer.from("test").toString("base64");
-      const wrongAuthTag = Buffer.from("short").toString("base64");
-      expect(() => decrypt(`${iv}:${ciphertext}:${wrongAuthTag}`)).toThrow(
-        "Invalid auth tag length",
-      );
-    });
-
-    test("throws on tampered ciphertext", () => {
-      const encrypted = encrypt("test");
-      const parts = encrypted.split(":");
-      // Tamper with the ciphertext
-      parts[1] = Buffer.from("tampered").toString("base64");
-      const tampered = parts.join(":");
-      expect(() => decrypt(tampered)).toThrow();
-    });
-
-    test("throws on tampered auth tag", () => {
-      const encrypted = encrypt("test");
-      const parts = encrypted.split(":");
-      // Tamper with the auth tag
-      parts[2] = Buffer.from("0".repeat(16)).toString("base64");
-      const tampered = parts.join(":");
-      expect(() => decrypt(tampered)).toThrow();
+    it("returns false when encryption key is not set", () => {
+      clearTestEncryptionKey();
+      expect(isEncryptionConfigured()).toBe(false);
     });
   });
 
-  describe("encryptNullable/decryptNullable", () => {
-    test("returns null for null input", () => {
-      expect(encryptNullable(null)).toBeNull();
-      expect(decryptNullable(null)).toBeNull();
+  describe("validateEncryptionKey", () => {
+    it("succeeds with valid 32-byte key", () => {
+      expect(() => validateEncryptionKey()).not.toThrow();
     });
 
-    test("encrypts and decrypts non-null values", () => {
-      const plaintext = "test value";
-      const encrypted = encryptNullable(plaintext);
-      expect(encrypted).not.toBeNull();
-      const decrypted = decryptNullable(encrypted);
-      expect(decrypted).toBe(plaintext);
-    });
-  });
-
-  describe("encryption key validation", () => {
-    test("throws when encryption key is not set", () => {
-      delete process.env.DB_ENCRYPTION_KEY;
-      resetEncryptionKey();
-      expect(() => encrypt("test")).toThrow(
+    it("throws when no key is set", () => {
+      clearTestEncryptionKey();
+      expect(() => validateEncryptionKey()).toThrow(
         "DB_ENCRYPTION_KEY environment variable is required",
       );
     });
 
-    test("throws when encryption key is wrong length", () => {
-      process.env.DB_ENCRYPTION_KEY = Buffer.from("short").toString("base64");
-      resetEncryptionKey();
-      expect(() => encrypt("test")).toThrow(
+    it("throws when key is wrong length", () => {
+      process.env.DB_ENCRYPTION_KEY = btoa("tooshort");
+      clearEncryptionKeyCache();
+      expect(() => validateEncryptionKey()).toThrow(
         "DB_ENCRYPTION_KEY must be 32 bytes",
       );
     });
+  });
 
-    test("caches encryption key after first use", () => {
-      const key1 = randomBytes(32).toString("base64");
-      process.env.DB_ENCRYPTION_KEY = key1;
-      resetEncryptionKey();
+  describe("encrypt and decrypt", () => {
+    it("round-trips a simple string", async () => {
+      const plaintext = "hello world";
+      const encrypted = await encrypt(plaintext);
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
 
-      const encrypted = encrypt("test");
+    it("round-trips an empty string", async () => {
+      const plaintext = "";
+      const encrypted = await encrypt(plaintext);
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
 
-      // Change the env var (shouldn't affect cached key)
-      process.env.DB_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+    it("round-trips unicode characters", async () => {
+      const plaintext = "こんにちは世界 🌍 émojis";
+      const encrypted = await encrypt(plaintext);
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
 
-      // Should still decrypt correctly with cached key
-      const decrypted = decrypt(encrypted);
-      expect(decrypted).toBe("test");
+    it("round-trips a long string", async () => {
+      const plaintext = "a".repeat(10000);
+      const encrypted = await encrypt(plaintext);
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("produces different ciphertext for same plaintext (random IV)", async () => {
+      const plaintext = "same text";
+      const encrypted1 = await encrypt(plaintext);
+      const encrypted2 = await encrypt(plaintext);
+      expect(encrypted1).not.toBe(encrypted2);
+      // But both decrypt to same value
+      expect(await decrypt(encrypted1)).toBe(plaintext);
+      expect(await decrypt(encrypted2)).toBe(plaintext);
+    });
+
+    it("encrypted output has correct prefix", async () => {
+      const encrypted = await encrypt("test");
+      expect(encrypted.startsWith("enc:1:")).toBe(true);
+    });
+
+    it("throws on invalid encrypted format", async () => {
+      await expect(decrypt("not encrypted")).rejects.toThrow(
+        "Invalid encrypted data format",
+      );
+    });
+
+    it("throws on malformed encrypted data (missing IV separator)", async () => {
+      await expect(decrypt("enc:1:nocol")).rejects.toThrow(
+        "Invalid encrypted data format: missing IV separator",
+      );
+    });
+
+    it("throws on tampered ciphertext", async () => {
+      const encrypted = await encrypt("test");
+      // Tamper with the ciphertext portion (format is enc:1:iv:ciphertext)
+      const parts = encrypted.split(":");
+      const ciphertext = parts[3];
+      if (ciphertext) {
+        parts[3] = `AAAA${ciphertext.slice(4)}`;
+      }
+      const tampered = parts.join(":");
+      await expect(decrypt(tampered)).rejects.toThrow();
     });
   });
 
-  describe("cross-key decryption", () => {
-    test("throws when decrypting with wrong key", () => {
-      const encrypted = encrypt("secret");
+  describe("isEncrypted", () => {
+    it("returns true for encrypted values", async () => {
+      const encrypted = await encrypt("test");
+      expect(isEncrypted(encrypted)).toBe(true);
+    });
 
-      // Change to a different key
-      process.env.DB_ENCRYPTION_KEY = randomBytes(32).toString("base64");
-      resetEncryptionKey();
+    it("returns false for plain text", () => {
+      expect(isEncrypted("plain text")).toBe(false);
+    });
 
-      expect(() => decrypt(encrypted)).toThrow();
+    it("returns false for empty string", () => {
+      expect(isEncrypted("")).toBe(false);
+    });
+
+    it("returns false for similar-looking but invalid prefix", () => {
+      expect(isEncrypted("enc:2:something")).toBe(false);
+      expect(isEncrypted("encrypted:1:something")).toBe(false);
+    });
+  });
+
+  describe("key caching", () => {
+    it("caches the key between operations", async () => {
+      const plaintext = "test";
+      // First encryption imports the key
+      await encrypt(plaintext);
+      // Second encryption should use cached key
+      const encrypted = await encrypt(plaintext);
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("invalidates cache when key changes", async () => {
+      const plaintext = "test";
+      const encrypted = await encrypt(plaintext);
+
+      // Generate a different valid 32-byte key
+      const newKey = btoa("abcdefghijklmnopqrstuvwxyz012345");
+      process.env.DB_ENCRYPTION_KEY = newKey;
+      clearEncryptionKeyCache();
+
+      // Decryption with new key should fail
+      await expect(decrypt(encrypted)).rejects.toThrow();
+
+      // Restore original key
+      process.env.DB_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+      clearEncryptionKeyCache();
+
+      // Now decryption should work again
+      const decrypted = await decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+  });
+});
+
+describe("password hashing", () => {
+  describe("hashPassword", () => {
+    it("returns scrypt format with all parameters", async () => {
+      const hash = await hashPassword("mypassword");
+      expect(hash.startsWith("scrypt:")).toBe(true);
+      const parts = hash.split(":");
+      expect(parts.length).toBe(6);
+      expect(parts[0]).toBe("scrypt");
+    });
+
+    it("generates different hashes for same password (random salt)", async () => {
+      const hash1 = await hashPassword("samepassword");
+      const hash2 = await hashPassword("samepassword");
+      expect(hash1).not.toBe(hash2);
+    });
+  });
+
+  describe("verifyPassword", () => {
+    it("returns true for correct password", async () => {
+      const hash = await hashPassword("correctpassword");
+      const result = await verifyPassword("correctpassword", hash);
+      expect(result).toBe(true);
+    });
+
+    it("returns false for wrong password", async () => {
+      const hash = await hashPassword("correctpassword");
+      const result = await verifyPassword("wrongpassword", hash);
+      expect(result).toBe(false);
+    });
+
+    it("returns false for invalid hash format (wrong prefix)", async () => {
+      const result = await verifyPassword("password", "argon2:invalid:format");
+      expect(result).toBe(false);
+    });
+
+    it("returns false for malformed hash (wrong number of parts)", async () => {
+      const result = await verifyPassword("password", "scrypt:16384:8:1:salt");
+      expect(result).toBe(false);
+    });
+
+    it("returns false for hash with mismatched length", async () => {
+      // Create a valid-looking hash but with truncated hash data
+      const shortHash = btoa("short");
+      const salt = btoa("0123456789012345");
+      const result = await verifyPassword(
+        "password",
+        `scrypt:16384:8:1:${salt}:${shortHash}`,
+      );
+      expect(result).toBe(false);
     });
   });
 });

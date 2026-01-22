@@ -3,6 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { Raw } from "#jsx/jsx-runtime.ts";
 
 const escapeHtml = (str: string): string =>
   str
@@ -45,52 +46,42 @@ type FieldValidationResult =
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
-const renderInput = (field: Field, value: string): string => {
-  const attrs = [
-    `type="${field.type}"`,
-    `id="${field.name}"`,
-    `name="${field.name}"`,
-    value ? `value="${escapeHtml(value)}"` : "",
-    field.required ? "required" : "",
-    field.placeholder ? `placeholder="${escapeHtml(field.placeholder)}"` : "",
-    field.min !== undefined ? `min="${field.min}"` : "",
-    field.pattern ? `pattern="${field.pattern}"` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return `<input ${attrs}>`;
-};
-
-const renderTextarea = (field: Field, value: string): string => {
-  const attrs = [
-    `id="${field.name}"`,
-    `name="${field.name}"`,
-    'rows="3"',
-    field.required ? "required" : "",
-    field.placeholder ? `placeholder="${escapeHtml(field.placeholder)}"` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return `<textarea ${attrs}>${escapeHtml(value)}</textarea>`;
-};
-
-const renderFieldControl = (field: Field, value: string): string =>
-  field.type === "textarea"
-    ? renderTextarea(field, value)
-    : renderInput(field, value);
-
 /**
  * Render a single form field
  */
-export const renderField = (field: Field, value: string = ""): string => `
-  <div class="form-group">
-    <label for="${field.name}">${escapeHtml(field.label)}</label>
-    ${renderFieldControl(field, value)}
-    ${field.hint ? `<small style="color: #666; display: block; margin-top: 0.25rem;">${escapeHtml(field.hint)}</small>` : ""}
-  </div>
-`;
+export const renderField = (field: Field, value: string = ""): string =>
+  String(
+    <div class="form-group">
+      <label for={field.name}>{field.label}</label>
+      {field.type === "textarea" ? (
+        <textarea
+          id={field.name}
+          name={field.name}
+          rows="3"
+          required={field.required}
+          placeholder={field.placeholder}
+        >
+          <Raw html={escapeHtml(value)} />
+        </textarea>
+      ) : (
+        <input
+          type={field.type}
+          id={field.name}
+          name={field.name}
+          value={value || undefined}
+          required={field.required}
+          placeholder={field.placeholder}
+          min={field.min}
+          pattern={field.pattern}
+        />
+      )}
+      {field.hint && (
+        <small style="color: #666; display: block; margin-top: 0.25rem;">
+          {field.hint}
+        </small>
+      )}
+    </div>
+  );
 
 /**
  * Render multiple fields with values
@@ -161,4 +152,4 @@ export const validateForm = (
  * Render error message if present
  */
 export const renderError = (error?: string): string =>
-  error ? `<div class="error">${escapeHtml(error)}</div>` : "";
+  error ? String(<div class="error">{error}</div>) : "";

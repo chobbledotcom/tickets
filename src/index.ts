@@ -2,15 +2,14 @@
  * Entry point for ticket reservation system
  */
 
-import { getOrCreateAdminPassword, initDb } from "./lib/db.ts";
-import { handleRequest } from "./server.ts";
+import { handleRequest } from "#routes";
+import { validateEncryptionKey } from "./lib/crypto.ts";
+import { initDb } from "./lib/db.ts";
 
 const startServer = async (port = 3000): Promise<void> => {
+  validateEncryptionKey();
   await initDb();
-
-  const password = await getOrCreateAdminPassword();
-  console.log(`Admin password: ${password}`);
-  console.log(`Server starting on http://localhost:${port}`);
+  Bun.write(Bun.stdout, `Server starting on http://localhost:${port}\n`);
 
   Bun.serve({
     port,

@@ -3,15 +3,8 @@
  */
 
 import { createClient } from "@libsql/client";
-import { encrypt, resetEncryptionKey } from "../lib/crypto.ts";
-import {
-  CONFIG_KEYS,
-  completeSetup,
-  getSession,
-  initDb,
-  setDb,
-  setSetting,
-} from "../lib/db.ts";
+import { clearEncryptionKeyCache } from "../lib/crypto.ts";
+import { completeSetup, getSession, initDb, setDb } from "../lib/db.ts";
 
 /**
  * Default test admin password
@@ -19,9 +12,37 @@ import {
 export const TEST_ADMIN_PASSWORD = "testpassword123";
 
 /**
+ * Test encryption key (32 bytes base64-encoded)
+ * This is a valid AES-256 key for testing purposes only
+ */
+export const TEST_ENCRYPTION_KEY =
+  "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+
+/**
+ * Set up test encryption key in environment
+ * Also enables fast scrypt hashing for tests
+ */
+export const setupTestEncryptionKey = (): void => {
+  process.env.DB_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+  process.env.TEST_SCRYPT_N = "1"; // Enable fast password hashing for tests
+  clearEncryptionKeyCache();
+};
+
+/**
+ * Clear test encryption key from environment
+ */
+export const clearTestEncryptionKey = (): void => {
+  delete process.env.DB_ENCRYPTION_KEY;
+  delete process.env.TEST_SCRYPT_N;
+  clearEncryptionKeyCache();
+};
+
+/**
  * Create an in-memory database for testing
+ * Also sets up the test encryption key
  */
 export const createTestDb = async (): Promise<void> => {
+  setupTestEncryptionKey();
   const client = createClient({ url: ":memory:" });
   setDb(client);
   await initDb();
@@ -30,6 +51,7 @@ export const createTestDb = async (): Promise<void> => {
 /**
  * Create an in-memory database with setup already completed
  * This is the common case for most tests
+ * Also sets up the test encryption key
  */
 export const createTestDbWithSetup = async (
   stripeKey: string | null = null,
@@ -40,11 +62,10 @@ export const createTestDbWithSetup = async (
 };
 
 /**
- * Reset the database connection and encryption key cache
+ * Reset the database connection
  */
 export const resetDb = (): void => {
   setDb(null);
-  resetEncryptionKey();
 };
 
 /**
@@ -133,9 +154,24 @@ export const getCsrfTokenFromCookie = async (
 };
 
 /**
- * Set encrypted Stripe key in database (for testing)
+ * Extract setup CSRF token from set-cookie header
  */
-export const setEncryptedStripeKey = async (key: string): Promise<void> => {
-  const encrypted = encrypt(key);
-  await setSetting(CONFIG_KEYS.STRIPE_KEY, encrypted);
+export const getSetupCsrfToken = (setCookie: string | null): string | null => {
+  if (!setCookie) return null;
+  const match = setCookie.match(/setup_csrf=([^;]+)/);
+  return match?.[1] ?? null;
+};
+
+/**
+ * Create a mock setup POST request with CSRF token
+ */
+export const mockSetupFormRequest = (
+  data: Record<string, string>,
+  csrfToken: string,
+): Request => {
+  return mockFormRequest(
+    "/setup/",
+    { ...data, csrf_token: csrfToken },
+    `setup_csrf=${csrfToken}`,
+  );
 };

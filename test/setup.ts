@@ -4,7 +4,7 @@
  * All testable logic is in stripe-mock.ts
  */
 
-import { randomBytes } from "node:crypto";
+import { setupTestEncryptionKey } from "#test-utils";
 import {
   STRIPE_MOCK_PORT,
   StripeMockManager,
@@ -12,12 +12,12 @@ import {
 
 const manager = new StripeMockManager();
 
+// Configure encryption key for tests
+setupTestEncryptionKey();
+
 // Configure stripe-mock env vars
 process.env.STRIPE_MOCK_HOST = "localhost";
 process.env.STRIPE_MOCK_PORT = String(STRIPE_MOCK_PORT);
-
-// Set encryption key for tests (32 bytes = 256 bits)
-process.env.DB_ENCRYPTION_KEY = randomBytes(32).toString("base64");
 
 // Start stripe-mock before tests
 await manager.start();

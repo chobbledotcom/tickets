@@ -4,12 +4,7 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
-import {
-  decrypt,
-  decryptNullable,
-  encrypt,
-  encryptNullable,
-} from "./crypto.ts";
+import { decrypt, encrypt, hashPassword, verifyPassword } from "./crypto.ts";
 import type {
   Attendee,
   Event,
@@ -29,11 +24,9 @@ export const getDb = (): Client => {
     if (!url) {
       throw new Error("DB_URL environment variable is required");
     }
-    const authToken = process.env.DB_TOKEN;
     db = createClient({
       url,
-      // Pass undefined instead of empty string to avoid base64 decode errors
-      authToken: authToken || undefined,
+      authToken: process.env.DB_TOKEN,
     });
   }
   return db;
@@ -44,19 +37,6 @@ export const getDb = (): Client => {
  */
 export const setDb = (client: Client | null): void => {
   db = client;
-};
-
-/**
- * Generate a random password
- */
-export const generatePassword = (): string => {
-  const chars =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let password = "";
-  for (let i = 0; i < 16; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
 };
 
 /**
@@ -180,19 +160,20 @@ export const isSetupComplete = async (): Promise<boolean> => {
 
 /**
  * Complete initial setup by storing all configuration
- * Passwords are hashed using Argon2id before storage
- * Stripe key is encrypted before storage
+ * Passwords are hashed using scrypt before storage
+ * Sensitive values are encrypted at rest
  */
 export const completeSetup = async (
   adminPassword: string,
   stripeSecretKey: string | null,
   currencyCode: string,
 ): Promise<void> => {
-  const hashedPassword = await Bun.password.hash(adminPassword);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
+  const hashedPassword = await hashPassword(adminPassword);
+  const encryptedHash = await encrypt(hashedPassword);
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, encryptedHash);
   if (stripeSecretKey) {
-    const encryptedStripeKey = encrypt(stripeSecretKey);
-    await setSetting(CONFIG_KEYS.STRIPE_KEY, encryptedStripeKey);
+    const encryptedKey = await encrypt(stripeSecretKey);
+    await setSetting(CONFIG_KEYS.STRIPE_KEY, encryptedKey);
   }
   await setSetting(CONFIG_KEYS.CURRENCY_CODE, currencyCode);
   await setSetting(CONFIG_KEYS.SETUP_COMPLETE, "true");
@@ -202,10 +183,9 @@ export const completeSetup = async (
  * Get Stripe secret key from database (decrypted)
  */
 export const getStripeSecretKeyFromDb = async (): Promise<string | null> => {
-  const encrypted = await getSetting(CONFIG_KEYS.STRIPE_KEY);
-  // Return null for empty/whitespace values without attempting decryption
-  if (!encrypted || encrypted.trim() === "") return null;
-  return decrypt(encrypted);
+  const value = await getSetting(CONFIG_KEYS.STRIPE_KEY);
+  if (!value) return null;
+  return decrypt(value);
 };
 
 /**
@@ -217,27 +197,13 @@ export const getCurrencyCodeFromDb = async (): Promise<string> => {
 };
 
 /**
- * Get admin password from database
+ * Get admin password hash from database (decrypted)
  * Returns null if setup hasn't been completed
  */
 export const getAdminPasswordFromDb = async (): Promise<string | null> => {
-  return getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-};
-
-/**
- * Get admin password from database (for backwards compatibility)
- * Falls back to generating a random password if not set (pre-setup mode)
- * Returns the plaintext password only when newly generated (for display)
- */
-export const getOrCreateAdminPassword = async (): Promise<string> => {
-  const existing = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-  if (existing) return existing;
-
-  // Generate and store new password (fallback for tests/dev)
-  const password = generatePassword();
-  const hashedPassword = await Bun.password.hash(password);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
-  return password;
+  const value = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
+  if (!value) return null;
+  return decrypt(value);
 };
 
 /**
@@ -247,20 +213,21 @@ export const getOrCreateAdminPassword = async (): Promise<string> => {
 export const verifyAdminPassword = async (
   password: string,
 ): Promise<boolean> => {
-  const stored = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-  if (stored === null) return false;
-  return Bun.password.verify(password, stored);
+  const storedHash = await getAdminPasswordFromDb();
+  if (storedHash === null) return false;
+  return verifyPassword(password, storedHash);
 };
 
 /**
  * Update admin password and invalidate all existing sessions
- * Passwords are hashed using Argon2id before storage
+ * Passwords are hashed using scrypt before storage and encrypted at rest
  */
 export const updateAdminPassword = async (
   newPassword: string,
 ): Promise<void> => {
-  const hashedPassword = await Bun.password.hash(newPassword);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
+  const hashedPassword = await hashPassword(newPassword);
+  const encryptedHash = await encrypt(hashedPassword);
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, encryptedHash);
   await deleteAllSessions();
 };
 
@@ -356,17 +323,19 @@ export const getEventWithCount = async (
 };
 
 /**
- * Decrypt attendee sensitive fields
+ * Decrypt attendee fields
  */
-const decryptAttendee = (row: Attendee): Attendee => ({
-  ...row,
-  name: decrypt(row.name),
-  email: decrypt(row.email),
-  stripe_payment_id: decryptNullable(row.stripe_payment_id),
-});
+const decryptAttendee = async (row: Attendee): Promise<Attendee> => {
+  const name = await decrypt(row.name);
+  const email = await decrypt(row.email);
+  const stripe_payment_id = row.stripe_payment_id
+    ? await decrypt(row.stripe_payment_id)
+    : null;
+  return { ...row, name, email, stripe_payment_id };
+};
 
 /**
- * Get attendees for an event
+ * Get attendees for an event (decrypted)
  */
 export const getAttendees = async (eventId: number): Promise<Attendee[]> => {
   const result = await getDb().execute({
@@ -374,11 +343,16 @@ export const getAttendees = async (eventId: number): Promise<Attendee[]> => {
     args: [eventId],
   });
   const rows = result.rows as unknown as Attendee[];
-  return rows.map(decryptAttendee);
+  const decrypted: Attendee[] = [];
+  for (const row of rows) {
+    decrypted.push(await decryptAttendee(row));
+  }
+  return decrypted;
 };
 
 /**
  * Create a new attendee (reserve a ticket)
+ * Sensitive fields (name, email, stripe_payment_id) are encrypted at rest
  */
 export const createAttendee = async (
   eventId: number,
@@ -387,10 +361,11 @@ export const createAttendee = async (
   stripePaymentId: string | null = null,
 ): Promise<Attendee> => {
   const created = new Date().toISOString();
-  const encryptedName = encrypt(name);
-  const encryptedEmail = encrypt(email);
-  const encryptedPaymentId = encryptNullable(stripePaymentId);
-
+  const encryptedName = await encrypt(name);
+  const encryptedEmail = await encrypt(email);
+  const encryptedPaymentId = stripePaymentId
+    ? await encrypt(stripePaymentId)
+    : null;
   const result = await getDb().execute({
     sql: "INSERT INTO attendees (event_id, name, email, created, stripe_payment_id) VALUES (?, ?, ?, ?, ?)",
     args: [eventId, encryptedName, encryptedEmail, created, encryptedPaymentId],
@@ -406,7 +381,7 @@ export const createAttendee = async (
 };
 
 /**
- * Get an attendee by ID
+ * Get an attendee by ID (decrypted)
  */
 export const getAttendee = async (id: number): Promise<Attendee | null> => {
   const result = await getDb().execute({
@@ -418,13 +393,13 @@ export const getAttendee = async (id: number): Promise<Attendee | null> => {
 };
 
 /**
- * Update attendee's Stripe payment ID
+ * Update attendee's Stripe payment ID (encrypted at rest)
  */
 export const updateAttendeePayment = async (
   attendeeId: number,
   stripePaymentId: string,
 ): Promise<void> => {
-  const encryptedPaymentId = encrypt(stripePaymentId);
+  const encryptedPaymentId = await encrypt(stripePaymentId);
   await getDb().execute({
     sql: "UPDATE attendees SET stripe_payment_id = ? WHERE id = ?",
     args: [encryptedPaymentId, attendeeId],

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { encrypt } from "#lib/crypto.ts";
 import {
   createAttendee,
   createEvent,
   createSession,
   getSession,
+  setSetting,
 } from "#lib/db.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
@@ -11,11 +13,12 @@ import {
   createTestDb,
   createTestDbWithSetup,
   getCsrfTokenFromCookie,
+  getSetupCsrfToken,
   mockCrossOriginFormRequest,
   mockFormRequest,
   mockRequest,
+  mockSetupFormRequest,
   resetDb,
-  setEncryptedStripeKey,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
 
@@ -47,7 +50,13 @@ describe("server", () => {
 
     test("returns 404 for non-GET requests to /health", async () => {
       const response = await handleRequest(
-        new Request("http://localhost/health", { method: "POST" }),
+        new Request("http://localhost/health", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            origin: "http://localhost",
+          },
+        }),
       );
       expect(response.status).toBe(404);
     });
@@ -121,14 +130,13 @@ describe("server", () => {
     });
 
     test("returns 429 when rate limited", async () => {
-      // Use X-Forwarded-For to set a consistent IP for rate limiting
+      // Rate limiting uses direct connection IP (falls back to "direct" in tests)
       const makeRequest = () =>
         new Request("http://localhost/admin/login", {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
             origin: "http://localhost",
-            "x-forwarded-for": "10.0.0.99",
           },
           body: new URLSearchParams({ password: "wrong" }).toString(),
         });
@@ -145,23 +153,33 @@ describe("server", () => {
       expect(html).toContain("Too many login attempts");
     });
 
-    test("uses X-Real-IP header when X-Forwarded-For is missing", async () => {
+    test("uses server.requestIP when available", async () => {
+      // Mock server object with requestIP function
+      const mockServer = {
+        requestIP: () => ({ address: "192.168.1.100" }),
+      };
+
       const request = new Request("http://localhost/admin/login", {
         method: "POST",
         headers: {
           "content-type": "application/x-www-form-urlencoded",
           origin: "http://localhost",
-          "x-real-ip": "10.0.0.98",
         },
         body: new URLSearchParams({ password: "wrong" }).toString(),
       });
 
-      const response = await handleRequest(request);
-      // Should work (just testing the IP extraction path)
+      // Make request with server context
+      const response = await handleRequest(request, mockServer);
+      // Should work (IP is extracted from server.requestIP)
       expect(response.status).toBe(401);
     });
 
-    test("falls back to unknown when no IP headers present", async () => {
+    test("falls back to direct when server.requestIP returns null", async () => {
+      // Mock server object where requestIP returns null
+      const mockServer = {
+        requestIP: () => null,
+      };
+
       const request = new Request("http://localhost/admin/login", {
         method: "POST",
         headers: {
@@ -171,24 +189,9 @@ describe("server", () => {
         body: new URLSearchParams({ password: "wrong" }).toString(),
       });
 
-      const response = await handleRequest(request);
-      // Should still work (IP becomes "unknown")
-      expect(response.status).toBe(401);
-    });
-
-    test("falls back to unknown when X-Forwarded-For has empty first entry", async () => {
-      const request = new Request("http://localhost/admin/login", {
-        method: "POST",
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          origin: "http://localhost",
-          "x-forwarded-for": ",10.0.0.1",
-        },
-        body: new URLSearchParams({ password: "wrong" }).toString(),
-      });
-
-      const response = await handleRequest(request);
-      // Should still work (IP becomes "unknown" due to empty first entry)
+      // Make request with server context
+      const response = await handleRequest(request, mockServer);
+      // Should still work (falls back to "direct")
       expect(response.status).toBe(401);
     });
   });
@@ -1128,7 +1131,13 @@ describe("server", () => {
   describe("payment routes", () => {
     test("returns 404 for unsupported method on payment routes", async () => {
       const response = await handleRequest(
-        new Request("http://localhost/payment/success", { method: "POST" }),
+        new Request("http://localhost/payment/success", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            origin: "http://localhost",
+          },
+        }),
       );
       expect(response.status).toBe(404);
     });
@@ -1145,7 +1154,7 @@ describe("server", () => {
 
     test("handles payment flow error when Stripe fails", async () => {
       // Set a fake Stripe key to enable payments (in database)
-      await setEncryptedStripeKey("sk_test_fake_key");
+      await setSetting("stripe_key", await encrypt("sk_test_fake_key"));
 
       // Create a paid event
       const event = await createEvent(
@@ -1171,7 +1180,7 @@ describe("server", () => {
     });
 
     test("free ticket still works when payments enabled", async () => {
-      await setEncryptedStripeKey("sk_test_fake_key");
+      await setSetting("stripe_key", await encrypt("sk_test_fake_key"));
 
       // Create a free event (no price)
       const event = await createEvent(
@@ -1197,7 +1206,7 @@ describe("server", () => {
     });
 
     test("zero price ticket is treated as free", async () => {
-      await setEncryptedStripeKey("sk_test_fake_key");
+      await setSetting("stripe_key", await encrypt("sk_test_fake_key"));
 
       // Create event with 0 price
       const event = await createEvent(
@@ -1223,7 +1232,7 @@ describe("server", () => {
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
-      await setEncryptedStripeKey("sk_test_mock");
+      await setSetting("stripe_key", await encrypt("sk_test_mock"));
 
       const event = await createEvent(
         "Paid Event",
@@ -1287,7 +1296,7 @@ describe("server", () => {
     });
 
     test("handles successful payment verification with stripe-mock", async () => {
-      await setEncryptedStripeKey("sk_test_mock");
+      await setSetting("stripe_key", await encrypt("sk_test_mock"));
 
       const event = await createEvent(
         "Paid Event",
@@ -1316,32 +1325,38 @@ describe("server", () => {
 
     test("updates attendee and shows success when payment verified", async () => {
       const { spyOn } = await import("bun:test");
-
-      // Mock retrieveCheckoutSession to return a paid session
       const stripeModule = await import("#lib/stripe.ts");
+
+      await setSetting("stripe_key", await encrypt("sk_test_mock"));
+
+      const event = await createEvent(
+        "Paid Event",
+        "Description",
+        50,
+        "https://example.com/thanks",
+        1000,
+      );
+      const attendee = await createAttendee(
+        event.id,
+        "John",
+        "john@example.com",
+      );
+
+      // Mock retrieveCheckoutSession to return a paid session with correct metadata
       const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_paid",
         payment_status: "paid",
         payment_intent: "pi_test_123",
-      } as Awaited<ReturnType<typeof stripeModule.retrieveCheckoutSession>>);
+        metadata: {
+          attendee_id: String(attendee.id),
+          event_id: String(event.id),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+      >);
 
       try {
-        await setEncryptedStripeKey("sk_test_mock");
-
-        const event = await createEvent(
-          "Paid Event",
-          "Description",
-          50,
-          "https://example.com/thanks",
-          1000,
-        );
-        const attendee = await createAttendee(
-          event.id,
-          "John",
-          "john@example.com",
-        );
-
         const response = await handleRequest(
           mockRequest(
             `/payment/success?attendee_id=${attendee.id}&session_id=cs_test_paid`,
@@ -1357,6 +1372,109 @@ describe("server", () => {
         const { getAttendee } = await import("#lib/db.ts");
         const updatedAttendee = await getAttendee(attendee.id);
         expect(updatedAttendee?.stripe_payment_id).toBe("pi_test_123");
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("rejects payment with mismatched attendee_id (IDOR protection)", async () => {
+      const { spyOn } = await import("bun:test");
+      const stripeModule = await import("#lib/stripe.ts");
+
+      await setSetting("stripe_key", await encrypt("sk_test_mock"));
+
+      const event = await createEvent(
+        "Paid Event",
+        "Description",
+        50,
+        "https://example.com/thanks",
+        1000,
+      );
+      const attendee = await createAttendee(
+        event.id,
+        "John",
+        "john@example.com",
+      );
+
+      // Mock returns a different attendee_id than the one in the URL
+      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_test_paid",
+        payment_status: "paid",
+        payment_intent: "pi_test_123",
+        metadata: {
+          attendee_id: "999", // Different from actual attendee.id
+          event_id: String(event.id),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest(
+            `/payment/success?attendee_id=${attendee.id}&session_id=cs_test_paid`,
+          ),
+        );
+
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("Payment session mismatch");
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("handles already paid attendee (replay protection)", async () => {
+      const { spyOn } = await import("bun:test");
+      const stripeModule = await import("#lib/stripe.ts");
+
+      await setSetting("stripe_key", await encrypt("sk_test_mock"));
+
+      const event = await createEvent(
+        "Paid Event",
+        "Description",
+        50,
+        "https://example.com/thanks",
+        1000,
+      );
+      // Create attendee that's already paid
+      const attendee = await createAttendee(
+        event.id,
+        "John",
+        "john@example.com",
+        "pi_already_paid",
+      );
+
+      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_test_paid",
+        payment_status: "paid",
+        payment_intent: "pi_test_123",
+        metadata: {
+          attendee_id: String(attendee.id),
+          event_id: String(event.id),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest(
+            `/payment/success?attendee_id=${attendee.id}&session_id=cs_test_paid`,
+          ),
+        );
+
+        // Should show success without updating (idempotent)
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Payment Successful");
+
+        // Verify original payment ID wasn't overwritten
+        const { getAttendee } = await import("#lib/db.ts");
+        const checkedAttendee = await getAttendee(attendee.id);
+        expect(checkedAttendee?.stripe_payment_id).toBe("pi_already_paid");
       } finally {
         mockRetrieve.mockRestore();
       }
@@ -1407,26 +1525,87 @@ describe("server", () => {
       });
 
       test("POST /setup/ with valid data completes setup", async () => {
+        // First get CSRF token from GET request
+        const getResponse = await handleRequest(mockRequest("/setup/"));
+        const csrfToken = getSetupCsrfToken(
+          getResponse.headers.get("set-cookie"),
+        );
+        expect(csrfToken).not.toBeNull();
+
         const response = await handleRequest(
-          mockFormRequest("/setup/", {
-            admin_password: "mypassword123",
-            admin_password_confirm: "mypassword123",
-            stripe_secret_key: "sk_test_123",
-            currency_code: "USD",
-          }),
+          mockSetupFormRequest(
+            {
+              admin_password: "mypassword123",
+              admin_password_confirm: "mypassword123",
+              stripe_secret_key: "sk_test_123",
+              currency_code: "USD",
+            },
+            csrfToken as string,
+          ),
         );
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("Setup Complete");
       });
 
-      test("POST /setup/ with empty password shows validation error", async () => {
+      test("POST /setup/ without CSRF token rejects request", async () => {
+        // POST without getting CSRF token first
         const response = await handleRequest(
           mockFormRequest("/setup/", {
-            admin_password: "",
-            admin_password_confirm: "",
-            currency_code: "GBP",
+            admin_password: "mypassword123",
+            admin_password_confirm: "mypassword123",
+            currency_code: "USD",
           }),
+        );
+        expect(response.status).toBe(403);
+        const html = await response.text();
+        expect(html).toContain("Invalid or expired form");
+      });
+
+      test("POST /setup/ with mismatched CSRF tokens rejects request", async () => {
+        // Get a valid CSRF token from cookie
+        const getResponse = await handleRequest(mockRequest("/setup/"));
+        const cookieCsrf = getSetupCsrfToken(
+          getResponse.headers.get("set-cookie"),
+        );
+
+        // Send a different token in the form body than the cookie
+        const response = await handleRequest(
+          new Request("http://localhost/setup/", {
+            method: "POST",
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              origin: "http://localhost",
+              cookie: `setup_csrf=${cookieCsrf}`,
+            },
+            body: new URLSearchParams({
+              admin_password: "mypassword123",
+              admin_password_confirm: "mypassword123",
+              currency_code: "USD",
+              csrf_token: "wrong-token-in-form",
+            }).toString(),
+          }),
+        );
+        expect(response.status).toBe(403);
+        const html = await response.text();
+        expect(html).toContain("Invalid or expired form");
+      });
+
+      test("POST /setup/ with empty password shows validation error", async () => {
+        const getResponse = await handleRequest(mockRequest("/setup/"));
+        const csrfToken = getSetupCsrfToken(
+          getResponse.headers.get("set-cookie"),
+        );
+
+        const response = await handleRequest(
+          mockSetupFormRequest(
+            {
+              admin_password: "",
+              admin_password_confirm: "",
+              currency_code: "GBP",
+            },
+            csrfToken as string,
+          ),
         );
         expect(response.status).toBe(400);
         const html = await response.text();
@@ -1434,12 +1613,20 @@ describe("server", () => {
       });
 
       test("POST /setup/ with mismatched passwords shows error", async () => {
+        const getResponse = await handleRequest(mockRequest("/setup/"));
+        const csrfToken = getSetupCsrfToken(
+          getResponse.headers.get("set-cookie"),
+        );
+
         const response = await handleRequest(
-          mockFormRequest("/setup/", {
-            admin_password: "mypassword123",
-            admin_password_confirm: "different",
-            currency_code: "GBP",
-          }),
+          mockSetupFormRequest(
+            {
+              admin_password: "mypassword123",
+              admin_password_confirm: "different",
+              currency_code: "GBP",
+            },
+            csrfToken as string,
+          ),
         );
         expect(response.status).toBe(400);
         const html = await response.text();
@@ -1447,12 +1634,20 @@ describe("server", () => {
       });
 
       test("POST /setup/ with short password shows error", async () => {
+        const getResponse = await handleRequest(mockRequest("/setup/"));
+        const csrfToken = getSetupCsrfToken(
+          getResponse.headers.get("set-cookie"),
+        );
+
         const response = await handleRequest(
-          mockFormRequest("/setup/", {
-            admin_password: "short",
-            admin_password_confirm: "short",
-            currency_code: "GBP",
-          }),
+          mockSetupFormRequest(
+            {
+              admin_password: "short",
+              admin_password_confirm: "short",
+              currency_code: "GBP",
+            },
+            csrfToken as string,
+          ),
         );
         expect(response.status).toBe(400);
         const html = await response.text();
@@ -1460,12 +1655,20 @@ describe("server", () => {
       });
 
       test("POST /setup/ with invalid currency shows error", async () => {
+        const getResponse = await handleRequest(mockRequest("/setup/"));
+        const csrfToken = getSetupCsrfToken(
+          getResponse.headers.get("set-cookie"),
+        );
+
         const response = await handleRequest(
-          mockFormRequest("/setup/", {
-            admin_password: "mypassword123",
-            admin_password_confirm: "mypassword123",
-            currency_code: "INVALID",
-          }),
+          mockSetupFormRequest(
+            {
+              admin_password: "mypassword123",
+              admin_password_confirm: "mypassword123",
+              currency_code: "INVALID",
+            },
+            csrfToken as string,
+          ),
         );
         expect(response.status).toBe(400);
         const html = await response.text();
@@ -1473,13 +1676,21 @@ describe("server", () => {
       });
 
       test("POST /setup/ without stripe key still works", async () => {
+        const getResponse = await handleRequest(mockRequest("/setup/"));
+        const csrfToken = getSetupCsrfToken(
+          getResponse.headers.get("set-cookie"),
+        );
+
         const response = await handleRequest(
-          mockFormRequest("/setup/", {
-            admin_password: "mypassword123",
-            admin_password_confirm: "mypassword123",
-            stripe_secret_key: "",
-            currency_code: "GBP",
-          }),
+          mockSetupFormRequest(
+            {
+              admin_password: "mypassword123",
+              admin_password_confirm: "mypassword123",
+              stripe_secret_key: "",
+              currency_code: "GBP",
+            },
+            csrfToken as string,
+          ),
         );
         expect(response.status).toBe(200);
         const html = await response.text();
@@ -1487,16 +1698,55 @@ describe("server", () => {
       });
 
       test("POST /setup/ normalizes lowercase currency to uppercase", async () => {
+        const getResponse = await handleRequest(mockRequest("/setup/"));
+        const csrfToken = getSetupCsrfToken(
+          getResponse.headers.get("set-cookie"),
+        );
+
         const response = await handleRequest(
-          mockFormRequest("/setup/", {
-            admin_password: "mypassword123",
-            admin_password_confirm: "mypassword123",
-            currency_code: "usd",
-          }),
+          mockSetupFormRequest(
+            {
+              admin_password: "mypassword123",
+              admin_password_confirm: "mypassword123",
+              currency_code: "usd",
+            },
+            csrfToken as string,
+          ),
         );
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("Setup Complete");
+      });
+
+      test("POST /setup/ throws error when completeSetup fails", async () => {
+        const { spyOn } = await import("bun:test");
+        const dbModule = await import("#lib/db.ts");
+
+        const getResponse = await handleRequest(mockRequest("/setup/"));
+        const csrfToken = getSetupCsrfToken(
+          getResponse.headers.get("set-cookie"),
+        );
+
+        // Mock completeSetup to throw an error
+        const mockCompleteSetup = spyOn(dbModule, "completeSetup");
+        mockCompleteSetup.mockRejectedValue(new Error("Database error"));
+
+        try {
+          await expect(
+            handleRequest(
+              mockSetupFormRequest(
+                {
+                  admin_password: "mypassword123",
+                  admin_password_confirm: "mypassword123",
+                  currency_code: "GBP",
+                },
+                csrfToken as string,
+              ),
+            ),
+          ).rejects.toThrow("Database error");
+        } finally {
+          mockCompleteSetup.mockRestore();
+        }
       });
 
       test("PUT /setup/ redirects to /setup/ (unsupported method)", async () => {
@@ -1506,6 +1756,121 @@ describe("server", () => {
         // PUT method falls through routeSetup (returns null), then redirects to /setup/
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe("/setup/");
+      });
+
+      test("setup form works with full browser flow simulation", async () => {
+        // This test simulates what a real browser does:
+        // 1. GET /setup/ - browser receives the page and Set-Cookie header
+        // 2. User fills form and submits
+        // 3. Browser sends POST with cookie
+
+        // Step 1: GET the setup page
+        const getResponse = await handleRequest(
+          new Request("http://localhost/setup/", { method: "GET" }),
+        );
+        expect(getResponse.status).toBe(200);
+
+        // Extract the Set-Cookie header
+        const setCookie = getResponse.headers.get("set-cookie");
+        expect(setCookie).not.toBeNull();
+
+        // Extract CSRF token from the cookie
+        const csrfToken = getSetupCsrfToken(setCookie);
+        expect(csrfToken).not.toBeNull();
+
+        // Step 2: Simulate browser POST - browser sends cookie back
+        const postResponse = await handleRequest(
+          new Request("http://localhost/setup/", {
+            method: "POST",
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              origin: "http://localhost",
+              cookie: `setup_csrf=${csrfToken}`,
+            },
+            body: new URLSearchParams({
+              admin_password: "mypassword123",
+              admin_password_confirm: "mypassword123",
+              currency_code: "GBP",
+              csrf_token: csrfToken as string,
+            }).toString(),
+          }),
+        );
+
+        // This should succeed - the full flow should work
+        expect(postResponse.status).toBe(200);
+        const html = await postResponse.text();
+        expect(html).toContain("Setup Complete");
+      });
+
+      test("setup cookie path allows both /setup and /setup/", async () => {
+        // Cookie path should be /setup (without trailing slash) to match both variants
+        const response = await handleRequest(
+          new Request("http://localhost/setup/", { method: "GET" }),
+        );
+
+        const setCookie = response.headers.get("set-cookie");
+        expect(setCookie).not.toBeNull();
+        // Path should be /setup (not /setup/) so it matches both
+        expect(setCookie).toContain("Path=/setup;");
+        expect(setCookie).not.toContain("Path=/setup/;");
+      });
+
+      test("setup form works when accessed via /setup (no trailing slash)", async () => {
+        // GET /setup (no trailing slash)
+        const getResponse = await handleRequest(
+          new Request("http://localhost/setup", { method: "GET" }),
+        );
+        expect(getResponse.status).toBe(200);
+
+        const setCookie = getResponse.headers.get("set-cookie");
+        const csrfToken = getSetupCsrfToken(setCookie);
+        expect(csrfToken).not.toBeNull();
+
+        // POST to /setup (no trailing slash) - cookie should still be sent
+        const postResponse = await handleRequest(
+          new Request("http://localhost/setup", {
+            method: "POST",
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              origin: "http://localhost",
+              cookie: `setup_csrf=${csrfToken}`,
+            },
+            body: new URLSearchParams({
+              admin_password: "mypassword123",
+              admin_password_confirm: "mypassword123",
+              currency_code: "GBP",
+              csrf_token: csrfToken as string,
+            }).toString(),
+          }),
+        );
+
+        expect(postResponse.status).toBe(200);
+        const html = await postResponse.text();
+        expect(html).toContain("Setup Complete");
+      });
+
+      test("CSRF token in cookie matches token in HTML form field", async () => {
+        // This test verifies that the same token appears in both places
+        const response = await handleRequest(
+          new Request("http://localhost/setup/", { method: "GET" }),
+        );
+
+        // Extract token from Set-Cookie header
+        const setCookie = response.headers.get("set-cookie");
+        expect(setCookie).not.toBeNull();
+        const cookieToken = getSetupCsrfToken(setCookie);
+        expect(cookieToken).not.toBeNull();
+
+        // Extract token from HTML body
+        const html = await response.text();
+        const formTokenMatch = html.match(
+          /name="csrf_token"\s+value="([^"]+)"/,
+        );
+        expect(formTokenMatch).not.toBeNull();
+        const formToken = formTokenMatch?.[1];
+
+        // They must be identical
+        expect(formToken).toBe(cookieToken as string);
       });
     });
 
@@ -1697,6 +2062,54 @@ describe("server", () => {
         }),
       );
       expect(response.status).toBe(403);
+    });
+
+    test("rejects POST without origin or referer", async () => {
+      const response = await handleRequest(
+        new Request("http://localhost/admin/login", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({ password: "test" }).toString(),
+        }),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Cross-origin requests not allowed");
+    });
+  });
+
+  describe("Content-Type validation", () => {
+    test("rejects POST requests without Content-Type header", async () => {
+      const response = await handleRequest(
+        new Request("http://localhost/admin/login", {
+          method: "POST",
+          headers: {
+            origin: "http://localhost",
+          },
+          body: "password=test",
+        }),
+      );
+      expect(response.status).toBe(400);
+      const text = await response.text();
+      expect(text).toContain("Invalid Content-Type");
+    });
+
+    test("rejects POST requests with wrong Content-Type", async () => {
+      const response = await handleRequest(
+        new Request("http://localhost/admin/login", {
+          method: "POST",
+          headers: {
+            origin: "http://localhost",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ password: "test" }),
+        }),
+      );
+      expect(response.status).toBe(400);
+      const text = await response.text();
+      expect(text).toContain("Invalid Content-Type");
     });
   });
 });
