@@ -244,6 +244,26 @@ export const createEvent = async (
 };
 
 /**
+ * Update an existing event
+ */
+export const updateEvent = async (
+  id: number,
+  name: string,
+  description: string,
+  maxAttendees: number,
+  thankYouUrl: string,
+  unitPrice: number | null = null,
+): Promise<Event | null> => {
+  const result = await getDb().execute({
+    sql: `UPDATE events SET name = ?, description = ?, max_attendees = ?, thank_you_url = ?, unit_price = ?
+          WHERE id = ?`,
+    args: [name, description, maxAttendees, thankYouUrl, unitPrice, id],
+  });
+  if (result.rowsAffected === 0) return null;
+  return getEvent(id);
+};
+
+/**
  * Get all events with attendee counts
  */
 export const getAllEvents = async (): Promise<EventWithCount[]> => {

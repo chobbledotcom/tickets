@@ -28,6 +28,7 @@ import {
   setDb,
   setSetting,
   updateAttendeePayment,
+  updateEvent,
   verifyAdminPassword,
 } from "#lib/db.ts";
 
@@ -251,6 +252,63 @@ describe("db", () => {
 
       expect(fetched).not.toBeNull();
       expect(fetched?.attendee_count).toBe(0);
+    });
+
+    test("updateEvent updates event properties", async () => {
+      const created = await createEvent(
+        "Original",
+        "Original Desc",
+        50,
+        "https://example.com/original",
+      );
+
+      const updated = await updateEvent(
+        created.id,
+        "Updated",
+        "Updated Desc",
+        100,
+        "https://example.com/updated",
+        1500,
+      );
+
+      expect(updated).not.toBeNull();
+      expect(updated?.name).toBe("Updated");
+      expect(updated?.description).toBe("Updated Desc");
+      expect(updated?.max_attendees).toBe(100);
+      expect(updated?.thank_you_url).toBe("https://example.com/updated");
+      expect(updated?.unit_price).toBe(1500);
+    });
+
+    test("updateEvent returns null for non-existent event", async () => {
+      const result = await updateEvent(
+        999,
+        "Name",
+        "Desc",
+        50,
+        "https://example.com",
+      );
+      expect(result).toBeNull();
+    });
+
+    test("updateEvent can set unit_price to null", async () => {
+      const created = await createEvent(
+        "Paid",
+        "Desc",
+        50,
+        "https://example.com",
+        1000,
+      );
+
+      const updated = await updateEvent(
+        created.id,
+        "Free Now",
+        "Desc",
+        50,
+        "https://example.com",
+        null,
+      );
+
+      expect(updated?.unit_price).toBeNull();
     });
   });
 
