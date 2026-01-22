@@ -29,12 +29,15 @@ import {
   adminLoginPage,
   eventFields,
   homePage,
+  loginFields,
   notFoundPage,
   paymentCancelPage,
   paymentErrorPage,
   paymentSuccessPage,
   setupCompletePage,
+  setupFields,
   setupPage,
+  ticketFields,
   ticketPage,
 } from "./lib/html.ts";
 import {
@@ -136,9 +139,13 @@ const handleAdminGet = async (request: Request): Promise<Response> => {
  */
 const handleAdminLogin = async (request: Request): Promise<Response> => {
   const form = await parseFormData(request);
-  const password = form.get("password") || "";
+  const validation = validateForm(form, loginFields);
 
-  const valid = await verifyAdminPassword(password);
+  if (!validation.valid) {
+    return htmlResponse(adminLoginPage(validation.error), 400);
+  }
+
+  const valid = await verifyAdminPassword(validation.values.password as string);
   if (!valid) {
     return htmlResponse(adminLoginPage("Invalid password"), 401);
   }
@@ -174,17 +181,21 @@ const handleCreateEvent = async (request: Request): Promise<Response> => {
   }
 
   const form = await parseFormData(request);
-  const name = form.get("name") || "";
-  const description = form.get("description") || "";
-  const maxAttendees = Number.parseInt(form.get("max_attendees") || "0", 10);
-  const thankYouUrl = form.get("thank_you_url") || "";
-  const unitPriceStr = form.get("unit_price");
-  const unitPrice =
-    unitPriceStr && unitPriceStr.trim() !== ""
-      ? Number.parseInt(unitPriceStr, 10)
-      : null;
+  const validation = validateForm(form, eventFields);
 
-  await createEvent(name, description, maxAttendees, thankYouUrl, unitPrice);
+  if (!validation.valid) {
+    // For create, redirect back to dashboard (form is on that page)
+    return redirect("/admin/");
+  }
+
+  const { values } = validation;
+  await createEvent(
+    values.name as string,
+    values.description as string,
+    values.max_attendees as number,
+    values.thank_you_url as string,
+    values.unit_price as number | null,
+  );
   return redirect("/admin/");
 };
 
@@ -331,11 +342,10 @@ const handleTicketPost = async (
   }
 
   const form = await parseFormData(request);
-  const name = form.get("name") || "";
-  const email = form.get("email") || "";
+  const validation = validateForm(form, ticketFields);
 
-  if (!name.trim() || !email.trim()) {
-    return htmlResponse(ticketPage(event, "Name and email are required"), 400);
+  if (!validation.valid) {
+    return htmlResponse(ticketPage(event, validation.error), 400);
   }
 
   const available = await hasAvailableSpots(eventId);
@@ -346,7 +356,12 @@ const handleTicketPost = async (
     );
   }
 
-  const attendee = await createAttendee(eventId, name.trim(), email.trim());
+  const { values } = validation;
+  const attendee = await createAttendee(
+    eventId,
+    values.name as string,
+    values.email as string,
+  );
 
   if (await requiresPayment(event)) {
     return handlePaymentFlow(request, event, attendee);
@@ -564,7 +579,7 @@ const routePayment = async (
 };
 
 /**
- * Validate setup form data
+ * Validate setup form data (uses form framework + custom validation)
  */
 type SetupValidation =
   | {
@@ -575,34 +590,31 @@ type SetupValidation =
     }
   | { valid: false; error: string };
 
-const validatePassword = (password: string, confirm: string): string | null => {
-  if (password.length < 8) return "Password must be at least 8 characters";
-  if (password !== confirm) return "Passwords do not match";
-  return null;
-};
-
-const validateCurrency = (currency: string): string | null => {
-  if (!/^[A-Z]{3}$/.test(currency))
-    return "Currency code must be 3 uppercase letters";
-  return null;
-};
-
 const validateSetupForm = (form: URLSearchParams): SetupValidation => {
-  const password = form.get("admin_password") || "";
-  const passwordConfirm = form.get("admin_password_confirm") || "";
-  const stripeKey = form.get("stripe_secret_key") || "";
-  const currency = (form.get("currency_code") || "GBP").toUpperCase();
+  const validation = validateForm(form, setupFields);
+  if (!validation.valid) {
+    return validation;
+  }
 
-  const passwordError = validatePassword(password, passwordConfirm);
-  if (passwordError) return { valid: false, error: passwordError };
+  const { values } = validation;
+  const password = values.admin_password as string;
+  const passwordConfirm = values.admin_password_confirm as string;
+  const currency = ((values.currency_code as string) || "GBP").toUpperCase();
 
-  const currencyError = validateCurrency(currency);
-  if (currencyError) return { valid: false, error: currencyError };
+  if (password.length < 8) {
+    return { valid: false, error: "Password must be at least 8 characters" };
+  }
+  if (password !== passwordConfirm) {
+    return { valid: false, error: "Passwords do not match" };
+  }
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    return { valid: false, error: "Currency code must be 3 uppercase letters" };
+  }
 
   return {
     valid: true,
     password,
-    stripeKey: stripeKey.trim() || null,
+    stripeKey: (values.stripe_secret_key as string | null) || null,
     currency,
   };
 };

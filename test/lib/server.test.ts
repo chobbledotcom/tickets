@@ -89,6 +89,15 @@ describe("server", () => {
   });
 
   describe("POST /admin/login", () => {
+    test("validates required password field", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/login", { password: "" }),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Password is required");
+    });
+
     test("rejects wrong password", async () => {
       TEST_ADMIN_PASSWORD;
       const response = await handleRequest(
@@ -148,6 +157,29 @@ describe("server", () => {
             description: "Description",
             max_attendees: "50",
             thank_you_url: "https://example.com/thanks",
+          },
+          cookie || "",
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("redirects to dashboard on validation failure", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event",
+          {
+            name: "",
+            description: "",
+            max_attendees: "",
+            thank_you_url: "",
           },
           cookie || "",
         ),
@@ -409,7 +441,7 @@ describe("server", () => {
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("Name and email are required");
+      expect(html).toContain("Your Name is required");
     });
 
     test("validates name is required", async () => {
@@ -949,6 +981,19 @@ describe("server", () => {
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("Setup Complete");
+      });
+
+      test("POST /setup/ with empty password shows validation error", async () => {
+        const response = await handleRequest(
+          mockFormRequest("/setup/", {
+            admin_password: "",
+            admin_password_confirm: "",
+            currency_code: "GBP",
+          }),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("Admin Password * is required");
       });
 
       test("POST /setup/ with mismatched passwords shows error", async () => {
