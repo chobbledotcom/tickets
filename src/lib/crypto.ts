@@ -181,7 +181,12 @@ export const clearEncryptionKeyCache = (): void => {
  * Password hashing using scrypt (browser-compatible)
  * Format: scrypt:N:r:p:$base64salt:$base64hash
  */
-const SCRYPT_N = 2 ** 14; // CPU/memory cost parameter
+const SCRYPT_N_DEFAULT = 2 ** 14; // CPU/memory cost parameter (production)
+const SCRYPT_N_TEST = 2 ** 1; // Minimal cost for fast tests
+
+// Use test cost when TEST_SCRYPT_N env var is set (much faster for tests)
+const getScryptN = (): number =>
+  process.env.TEST_SCRYPT_N ? SCRYPT_N_TEST : SCRYPT_N_DEFAULT;
 const SCRYPT_R = 8; // Block size
 const SCRYPT_P = 1; // Parallelization
 const SCRYPT_DKLEN = 32; // Output key length
@@ -195,9 +200,10 @@ export const hashPassword = async (password: string): Promise<string> => {
   const salt = randomBytes(16);
   const encoder = new TextEncoder();
   const passwordBytes = encoder.encode(password);
+  const N = getScryptN();
 
   const hash = scrypt(passwordBytes, salt, {
-    N: SCRYPT_N,
+    N,
     r: SCRYPT_R,
     p: SCRYPT_P,
     dkLen: SCRYPT_DKLEN,
@@ -206,7 +212,7 @@ export const hashPassword = async (password: string): Promise<string> => {
   const saltBase64 = btoa(String.fromCharCode(...salt));
   const hashBase64 = btoa(String.fromCharCode(...hash));
 
-  return `${PASSWORD_PREFIX}:${SCRYPT_N}:${SCRYPT_R}:${SCRYPT_P}:${saltBase64}:${hashBase64}`;
+  return `${PASSWORD_PREFIX}:${N}:${SCRYPT_R}:${SCRYPT_P}:${saltBase64}:${hashBase64}`;
 };
 
 /**
