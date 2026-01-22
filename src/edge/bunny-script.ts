@@ -34,10 +34,7 @@ BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
     // biome-ignore lint/suspicious/noConsole: Edge script error logging
     console.error("[Tickets] Request error:", error);
     return new Response(
-      JSON.stringify({
-        error: "Internal server error",
-        message: String(error),
-      }),
+      JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { "content-type": "application/json" } },
     );
   }
