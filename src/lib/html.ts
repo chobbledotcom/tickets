@@ -132,7 +132,7 @@ export const adminDashboardPage = (
     "Admin Dashboard",
     `
     <h1>Admin Dashboard</h1>
-    <p><a href="/admin/logout">Logout</a></p>
+    <p><a href="/admin/settings">Settings</a> | <a href="/admin/logout">Logout</a></p>
 
     <h2>Events</h2>
     <table>
@@ -529,5 +529,57 @@ export const setupCompletePage = (): string =>
       <p>Your ticket reservation system has been configured successfully.</p>
     </div>
     <p><a href="/admin/">Go to Admin Dashboard</a></p>
+  `,
+  );
+
+/**
+ * Change password form field definitions
+ */
+export const changePasswordFields: Field[] = [
+  {
+    name: "current_password",
+    label: "Current Password",
+    type: "password",
+    required: true,
+  },
+  {
+    name: "new_password",
+    label: "New Password",
+    type: "password",
+    required: true,
+    hint: "Minimum 8 characters",
+  },
+  {
+    name: "new_password_confirm",
+    label: "Confirm New Password",
+    type: "password",
+    required: true,
+  },
+];
+
+/**
+ * Admin settings page
+ */
+export const adminSettingsPage = (
+  csrfToken: string,
+  error?: string,
+  success?: string,
+): string =>
+  layout(
+    "Admin Settings",
+    `
+    <h1>Admin Settings</h1>
+    <p><a href="/admin/">&larr; Back to Dashboard</a></p>
+
+    ${error ? `<div class="error">${escapeHtml(error)}</div>` : ""}
+    ${success ? `<div class="success">${escapeHtml(success)}</div>` : ""}
+
+    <h2>Change Password</h2>
+    <p>Changing your password will log you out of all sessions.</p>
+    <form method="POST" action="/admin/settings">
+      <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}">
+      ${renderFields(changePasswordFields)}
+      <button type="submit">Change Password</button>
+    </form>
   `,
   );

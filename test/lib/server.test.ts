@@ -202,6 +202,206 @@ describe("server", () => {
     });
   });
 
+  describe("GET /admin/settings", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(mockRequest("/admin/settings"));
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("shows settings page when authenticated", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await handleRequest(
+        new Request("http://localhost/admin/settings", {
+          headers: { cookie },
+        }),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Admin Settings");
+      expect(html).toContain("Change Password");
+    });
+  });
+
+  describe("POST /admin/settings", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings", {
+          current_password: "test",
+          new_password: "newpassword123",
+          new_password_confirm: "newpassword123",
+        }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings",
+          {
+            current_password: TEST_ADMIN_PASSWORD,
+            new_password: "newpassword123",
+            new_password_confirm: "newpassword123",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
+    test("rejects missing required fields", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings",
+          {
+            current_password: "",
+            new_password: "",
+            new_password_confirm: "",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("required");
+    });
+
+    test("rejects password shorter than 8 characters", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings",
+          {
+            current_password: TEST_ADMIN_PASSWORD,
+            new_password: "short",
+            new_password_confirm: "short",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("at least 8 characters");
+    });
+
+    test("rejects mismatched passwords", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings",
+          {
+            current_password: TEST_ADMIN_PASSWORD,
+            new_password: "newpassword123",
+            new_password_confirm: "differentpassword",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("do not match");
+    });
+
+    test("rejects incorrect current password", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings",
+          {
+            current_password: "wrongpassword",
+            new_password: "newpassword123",
+            new_password_confirm: "newpassword123",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(401);
+      const html = await response.text();
+      expect(html).toContain("Current password is incorrect");
+    });
+
+    test("changes password and invalidates session", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings",
+          {
+            current_password: TEST_ADMIN_PASSWORD,
+            new_password: "newpassword123",
+            new_password_confirm: "newpassword123",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+
+      // Should redirect to admin login with session cleared
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+
+      // Verify old session is invalidated
+      const dashboardResponse = await handleRequest(
+        new Request("http://localhost/admin/", {
+          headers: { cookie },
+        }),
+      );
+      const html = await dashboardResponse.text();
+      expect(html).toContain("Admin Login"); // Should show login, not dashboard
+
+      // Verify new password works
+      const newLoginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: "newpassword123" }),
+      );
+      expect(newLoginResponse.status).toBe(302);
+      expect(newLoginResponse.headers.get("location")).toBe("/admin/");
+    });
+  });
+
   describe("POST /admin/event", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(

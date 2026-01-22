@@ -7,6 +7,7 @@ import {
   createAttendee,
   createEvent,
   createSession,
+  deleteAllSessions,
   deleteAttendee,
   deleteExpiredSessions,
   deleteSession,
@@ -30,6 +31,7 @@ import {
   recordFailedLogin,
   setDb,
   setSetting,
+  updateAdminPassword,
   updateAttendeePayment,
   updateEvent,
   verifyAdminPassword,
@@ -574,6 +576,54 @@ describe("db", () => {
 
       expect(expiredSession).toBeNull();
       expect(validSession).not.toBeNull();
+    });
+
+    test("deleteAllSessions removes all sessions", async () => {
+      await createSession("session1", "csrf1", Date.now() + 10000);
+      await createSession("session2", "csrf2", Date.now() + 10000);
+      await createSession("session3", "csrf3", Date.now() + 10000);
+
+      await deleteAllSessions();
+
+      const session1 = await getSession("session1");
+      const session2 = await getSession("session2");
+      const session3 = await getSession("session3");
+
+      expect(session1).toBeNull();
+      expect(session2).toBeNull();
+      expect(session3).toBeNull();
+    });
+  });
+
+  describe("updateAdminPassword", () => {
+    test("updates password and invalidates all sessions", async () => {
+      // Set up initial password
+      await completeSetup("initial-password", null, "GBP");
+
+      // Create some sessions
+      await createSession("session1", "csrf1", Date.now() + 10000);
+      await createSession("session2", "csrf2", Date.now() + 10000);
+
+      // Verify initial password works
+      const initialValid = await verifyAdminPassword("initial-password");
+      expect(initialValid).toBe(true);
+
+      // Update password
+      await updateAdminPassword("new-password-123");
+
+      // Verify new password works
+      const newValid = await verifyAdminPassword("new-password-123");
+      expect(newValid).toBe(true);
+
+      // Verify old password no longer works
+      const oldValid = await verifyAdminPassword("initial-password");
+      expect(oldValid).toBe(false);
+
+      // Verify all sessions were invalidated
+      const session1 = await getSession("session1");
+      const session2 = await getSession("session2");
+      expect(session1).toBeNull();
+      expect(session2).toBeNull();
     });
   });
 

@@ -126,6 +126,7 @@ import {
   hasAvailableSpots,
   isLoginRateLimited,
   recordFailedLogin,
+  updateAdminPassword,
   updateAttendeePayment,
   updateEvent,
   verifyAdminPassword,
@@ -136,6 +137,8 @@ import {
   adminEventEditPage,
   adminEventPage,
   adminLoginPage,
+  adminSettingsPage,
+  changePasswordFields,
   eventFields,
   generateAttendeesCsv,
   homePage,
@@ -325,6 +328,94 @@ const handleAdminLogout = async (request: Request): Promise<Response> => {
   if (token) {
     await deleteSession(token);
   }
+  return redirect(
+    "/admin/",
+    "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0",
+  );
+};
+
+/**
+ * Handle GET /admin/settings
+ */
+const handleAdminSettingsGet = async (request: Request): Promise<Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return redirect("/admin/");
+  }
+  return htmlResponse(adminSettingsPage(session.csrfToken));
+};
+
+/**
+ * Validate change password form data
+ */
+type ChangePasswordValidation =
+  | { valid: true; currentPassword: string; newPassword: string }
+  | { valid: false; error: string };
+
+const validateChangePasswordForm = (
+  form: URLSearchParams,
+): ChangePasswordValidation => {
+  const validation = validateForm(form, changePasswordFields);
+  if (!validation.valid) {
+    return validation;
+  }
+
+  const { values } = validation;
+  const currentPassword = values.current_password as string;
+  const newPassword = values.new_password as string;
+  const newPasswordConfirm = values.new_password_confirm as string;
+
+  if (newPassword.length < 8) {
+    return {
+      valid: false,
+      error: "New password must be at least 8 characters",
+    };
+  }
+  if (newPassword !== newPasswordConfirm) {
+    return { valid: false, error: "New passwords do not match" };
+  }
+
+  return { valid: true, currentPassword, newPassword };
+};
+
+/**
+ * Handle POST /admin/settings
+ */
+const handleAdminSettingsPost = async (request: Request): Promise<Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return redirect("/admin/");
+  }
+
+  const form = await parseFormData(request);
+
+  // Validate CSRF token
+  const csrfToken = form.get("csrf_token") || "";
+  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
+    return htmlResponse("Invalid CSRF token", 403);
+  }
+
+  const validation = validateChangePasswordForm(form);
+  if (!validation.valid) {
+    return htmlResponse(
+      adminSettingsPage(session.csrfToken, validation.error),
+      400,
+    );
+  }
+
+  // Verify current password
+  const isCurrentValid = await verifyAdminPassword(validation.currentPassword);
+  if (!isCurrentValid) {
+    return htmlResponse(
+      adminSettingsPage(session.csrfToken, "Current password is incorrect"),
+      401,
+    );
+  }
+
+  // Update password and invalidate all sessions
+  await updateAdminPassword(validation.newPassword);
+
+  // Redirect to login with session cleared
   return redirect(
     "/admin/",
     "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0",
@@ -637,7 +728,21 @@ const isAdminRoot = (path: string): boolean =>
   path === "/admin/" || path === "/admin";
 
 /**
- * Route admin auth requests (login/logout)
+ * Route admin settings requests
+ */
+const routeAdminSettings = async (
+  request: Request,
+  path: string,
+  method: string,
+): Promise<Response | null> => {
+  if (path !== "/admin/settings") return null;
+  if (method === "GET") return handleAdminSettingsGet(request);
+  if (method === "POST") return handleAdminSettingsPost(request);
+  return null;
+};
+
+/**
+ * Route admin auth requests (login/logout/settings)
  */
 const routeAdminAuth = async (
   request: Request,
@@ -650,7 +755,7 @@ const routeAdminAuth = async (
   if (path === "/admin/logout" && method === "GET") {
     return handleAdminLogout(request);
   }
-  return null;
+  return routeAdminSettings(request, path, method);
 };
 
 /**

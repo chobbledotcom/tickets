@@ -240,6 +240,18 @@ export const verifyAdminPassword = async (
 };
 
 /**
+ * Update admin password and invalidate all existing sessions
+ * Passwords are hashed using Argon2id before storage
+ */
+export const updateAdminPassword = async (
+  newPassword: string,
+): Promise<void> => {
+  const hashedPassword = await Bun.password.hash(newPassword);
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
+  await deleteAllSessions();
+};
+
+/**
  * Create a new event
  */
 export const createEvent = async (
@@ -453,6 +465,13 @@ export const deleteExpiredSessions = async (): Promise<void> => {
     sql: "DELETE FROM sessions WHERE expires < ?",
     args: [Date.now()],
   });
+};
+
+/**
+ * Delete all sessions (used when password is changed)
+ */
+export const deleteAllSessions = async (): Promise<void> => {
+  await getDb().execute("DELETE FROM sessions");
 };
 
 /**
