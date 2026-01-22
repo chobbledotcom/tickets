@@ -1718,6 +1718,37 @@ describe("server", () => {
         expect(html).toContain("Setup Complete");
       });
 
+      test("POST /setup/ throws error when completeSetup fails", async () => {
+        const { spyOn } = await import("bun:test");
+        const dbModule = await import("#lib/db.ts");
+
+        const getResponse = await handleRequest(mockRequest("/setup/"));
+        const csrfToken = getSetupCsrfToken(
+          getResponse.headers.get("set-cookie"),
+        );
+
+        // Mock completeSetup to throw an error
+        const mockCompleteSetup = spyOn(dbModule, "completeSetup");
+        mockCompleteSetup.mockRejectedValue(new Error("Database error"));
+
+        try {
+          await expect(
+            handleRequest(
+              mockSetupFormRequest(
+                {
+                  admin_password: "mypassword123",
+                  admin_password_confirm: "mypassword123",
+                  currency_code: "GBP",
+                },
+                csrfToken as string,
+              ),
+            ),
+          ).rejects.toThrow("Database error");
+        } finally {
+          mockCompleteSetup.mockRestore();
+        }
+      });
+
       test("PUT /setup/ redirects to /setup/ (unsupported method)", async () => {
         const response = await handleRequest(
           new Request("http://localhost/setup/", { method: "PUT" }),
