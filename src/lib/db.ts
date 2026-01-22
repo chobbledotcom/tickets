@@ -23,10 +23,11 @@ export const getDb = (): Client => {
     if (!url) {
       throw new Error("DB_URL environment variable is required");
     }
+    const authToken = process.env.DB_TOKEN;
     db = createClient({
       url,
-      authToken: process.env.DB_TOKEN,
-      encryptionKey: process.env.DB_ENCRYPTION_KEY,
+      // Pass undefined instead of empty string to avoid base64 decode errors
+      authToken: authToken || undefined,
     });
   }
   return db;
