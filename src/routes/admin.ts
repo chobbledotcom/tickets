@@ -10,10 +10,12 @@ import {
   getAllEvents,
   getAttendees,
   getEventWithCount,
+  hasStripeKey,
   isLoginRateLimited,
   recordFailedLogin,
   updateAdminPassword,
   updateEvent,
+  updateStripeKey,
   verifyAdminPassword,
 } from "#lib/db.ts";
 import { validateForm } from "#lib/forms.tsx";
@@ -28,6 +30,7 @@ import {
   generateAttendeesCsv,
   loginFields,
   notFoundPage,
+  stripeKeyFields,
 } from "#templates";
 import type { ServerContext } from "./types.ts";
 import {
@@ -119,7 +122,10 @@ const handleAdminSettingsGet = async (request: Request): Promise<Response> => {
   if (!session) {
     return redirect("/admin/");
   }
-  return htmlResponse(adminSettingsPage(session.csrfToken));
+  const stripeKeyConfigured = await hasStripeKey();
+  return htmlResponse(
+    adminSettingsPage(session.csrfToken, stripeKeyConfigured),
+  );
 };
 
 /**
@@ -172,10 +178,16 @@ const handleAdminSettingsPost = async (request: Request): Promise<Response> => {
     return htmlResponse("Invalid CSRF token", 403);
   }
 
+  const stripeKeyConfigured = await hasStripeKey();
+
   const validation = validateChangePasswordForm(form);
   if (!validation.valid) {
     return htmlResponse(
-      adminSettingsPage(session.csrfToken, validation.error),
+      adminSettingsPage(
+        session.csrfToken,
+        stripeKeyConfigured,
+        validation.error,
+      ),
       400,
     );
   }
@@ -184,7 +196,11 @@ const handleAdminSettingsPost = async (request: Request): Promise<Response> => {
   const isCurrentValid = await verifyAdminPassword(validation.currentPassword);
   if (!isCurrentValid) {
     return htmlResponse(
-      adminSettingsPage(session.csrfToken, "Current password is incorrect"),
+      adminSettingsPage(
+        session.csrfToken,
+        stripeKeyConfigured,
+        "Current password is incorrect",
+      ),
       401,
     );
   }
@@ -196,6 +212,50 @@ const handleAdminSettingsPost = async (request: Request): Promise<Response> => {
   return redirect(
     "/admin/",
     "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0",
+  );
+};
+
+/**
+ * Handle POST /admin/settings/stripe
+ */
+const handleAdminStripePost = async (request: Request): Promise<Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return redirect("/admin/");
+  }
+
+  const form = await parseFormData(request);
+
+  // Validate CSRF token
+  const csrfToken = form.get("csrf_token") || "";
+  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
+    return htmlResponse("Invalid CSRF token", 403);
+  }
+
+  const validation = validateForm(form, stripeKeyFields);
+  if (!validation.valid) {
+    const stripeKeyConfigured = await hasStripeKey();
+    return htmlResponse(
+      adminSettingsPage(
+        session.csrfToken,
+        stripeKeyConfigured,
+        validation.error,
+      ),
+      400,
+    );
+  }
+
+  const stripeSecretKey = validation.values.stripe_secret_key as string;
+  await updateStripeKey(stripeSecretKey);
+
+  const stripeKeyConfigured = await hasStripeKey();
+  return htmlResponse(
+    adminSettingsPage(
+      session.csrfToken,
+      stripeKeyConfigured,
+      undefined,
+      "Stripe key updated successfully",
+    ),
   );
 };
 
@@ -416,9 +476,13 @@ const routeAdminSettings = async (
   path: string,
   method: string,
 ): Promise<Response | null> => {
-  if (path !== "/admin/settings") return null;
-  if (method === "GET") return handleAdminSettingsGet(request);
-  if (method === "POST") return handleAdminSettingsPost(request);
+  if (path === "/admin/settings") {
+    if (method === "GET") return handleAdminSettingsGet(request);
+    if (method === "POST") return handleAdminSettingsPost(request);
+  }
+  if (path === "/admin/settings/stripe" && method === "POST") {
+    return handleAdminStripePost(request);
+  }
   return null;
 };
 

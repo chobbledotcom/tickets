@@ -189,6 +189,24 @@ export const getStripeSecretKeyFromDb = async (): Promise<string | null> => {
 };
 
 /**
+ * Check if a Stripe key has been configured
+ */
+export const hasStripeKey = async (): Promise<boolean> => {
+  const value = await getSetting(CONFIG_KEYS.STRIPE_KEY);
+  return value !== null;
+};
+
+/**
+ * Update Stripe secret key (encrypted at rest)
+ */
+export const updateStripeKey = async (
+  stripeSecretKey: string,
+): Promise<void> => {
+  const encryptedKey = await encrypt(stripeSecretKey);
+  await setSetting(CONFIG_KEYS.STRIPE_KEY, encryptedKey);
+};
+
+/**
  * Get currency code from database
  */
 export const getCurrencyCodeFromDb = async (): Promise<string> => {

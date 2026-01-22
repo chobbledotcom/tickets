@@ -405,6 +405,84 @@ describe("server", () => {
     });
   });
 
+  describe("POST /admin/settings/stripe", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/stripe", {
+          stripe_secret_key: "sk_test_new123",
+        }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "sk_test_new123",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
+    test("rejects missing stripe key", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("required");
+    });
+
+    test("updates stripe key successfully", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "sk_test_newkey123",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Stripe key updated successfully");
+      expect(html).toContain("Admin Settings");
+    });
+  });
+
   describe("POST /admin/event", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
