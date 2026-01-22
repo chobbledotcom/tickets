@@ -3,7 +3,15 @@
  */
 
 import { createClient } from "@libsql/client";
-import { completeSetup, getSession, initDb, setDb } from "../lib/db.ts";
+import { encrypt, resetEncryptionKey } from "../lib/crypto.ts";
+import {
+  CONFIG_KEYS,
+  completeSetup,
+  getSession,
+  initDb,
+  setDb,
+  setSetting,
+} from "../lib/db.ts";
 
 /**
  * Default test admin password
@@ -32,10 +40,11 @@ export const createTestDbWithSetup = async (
 };
 
 /**
- * Reset the database connection
+ * Reset the database connection and encryption key cache
  */
 export const resetDb = (): void => {
   setDb(null);
+  resetEncryptionKey();
 };
 
 /**
@@ -121,4 +130,12 @@ export const getCsrfTokenFromCookie = async (
   const sessionToken = sessionMatch[1];
   const session = await getSession(sessionToken);
   return session?.csrf_token ?? null;
+};
+
+/**
+ * Set encrypted Stripe key in database (for testing)
+ */
+export const setEncryptedStripeKey = async (key: string): Promise<void> => {
+  const encrypted = encrypt(key);
+  await setSetting(CONFIG_KEYS.STRIPE_KEY, encrypted);
 };

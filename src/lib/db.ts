@@ -4,6 +4,12 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
+import {
+  decrypt,
+  decryptNullable,
+  encrypt,
+  encryptNullable,
+} from "./crypto.ts";
 import type {
   Attendee,
   Event,
@@ -175,6 +181,7 @@ export const isSetupComplete = async (): Promise<boolean> => {
 /**
  * Complete initial setup by storing all configuration
  * Passwords are hashed using Argon2id before storage
+ * Stripe key is encrypted before storage
  */
 export const completeSetup = async (
   adminPassword: string,
@@ -184,17 +191,21 @@ export const completeSetup = async (
   const hashedPassword = await Bun.password.hash(adminPassword);
   await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
   if (stripeSecretKey) {
-    await setSetting(CONFIG_KEYS.STRIPE_KEY, stripeSecretKey);
+    const encryptedStripeKey = encrypt(stripeSecretKey);
+    await setSetting(CONFIG_KEYS.STRIPE_KEY, encryptedStripeKey);
   }
   await setSetting(CONFIG_KEYS.CURRENCY_CODE, currencyCode);
   await setSetting(CONFIG_KEYS.SETUP_COMPLETE, "true");
 };
 
 /**
- * Get Stripe secret key from database
+ * Get Stripe secret key from database (decrypted)
  */
 export const getStripeSecretKeyFromDb = async (): Promise<string | null> => {
-  return getSetting(CONFIG_KEYS.STRIPE_KEY);
+  const encrypted = await getSetting(CONFIG_KEYS.STRIPE_KEY);
+  // Return null for empty/whitespace values without attempting decryption
+  if (!encrypted || encrypted.trim() === "") return null;
+  return decrypt(encrypted);
 };
 
 /**
@@ -345,6 +356,16 @@ export const getEventWithCount = async (
 };
 
 /**
+ * Decrypt attendee sensitive fields
+ */
+const decryptAttendee = (row: Attendee): Attendee => ({
+  ...row,
+  name: decrypt(row.name),
+  email: decrypt(row.email),
+  stripe_payment_id: decryptNullable(row.stripe_payment_id),
+});
+
+/**
  * Get attendees for an event
  */
 export const getAttendees = async (eventId: number): Promise<Attendee[]> => {
@@ -352,7 +373,8 @@ export const getAttendees = async (eventId: number): Promise<Attendee[]> => {
     sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
     args: [eventId],
   });
-  return result.rows as unknown as Attendee[];
+  const rows = result.rows as unknown as Attendee[];
+  return rows.map(decryptAttendee);
 };
 
 /**
@@ -365,9 +387,13 @@ export const createAttendee = async (
   stripePaymentId: string | null = null,
 ): Promise<Attendee> => {
   const created = new Date().toISOString();
+  const encryptedName = encrypt(name);
+  const encryptedEmail = encrypt(email);
+  const encryptedPaymentId = encryptNullable(stripePaymentId);
+
   const result = await getDb().execute({
     sql: "INSERT INTO attendees (event_id, name, email, created, stripe_payment_id) VALUES (?, ?, ?, ?, ?)",
-    args: [eventId, name, email, created, stripePaymentId],
+    args: [eventId, encryptedName, encryptedEmail, created, encryptedPaymentId],
   });
   return {
     id: Number(result.lastInsertRowid),
@@ -388,7 +414,7 @@ export const getAttendee = async (id: number): Promise<Attendee | null> => {
     args: [id],
   });
   if (result.rows.length === 0) return null;
-  return result.rows[0] as unknown as Attendee;
+  return decryptAttendee(result.rows[0] as unknown as Attendee);
 };
 
 /**
@@ -398,9 +424,10 @@ export const updateAttendeePayment = async (
   attendeeId: number,
   stripePaymentId: string,
 ): Promise<void> => {
+  const encryptedPaymentId = encrypt(stripePaymentId);
   await getDb().execute({
     sql: "UPDATE attendees SET stripe_payment_id = ? WHERE id = ?",
-    args: [stripePaymentId, attendeeId],
+    args: [encryptedPaymentId, attendeeId],
   });
 };
 

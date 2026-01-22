@@ -4,7 +4,6 @@ import {
   createEvent,
   createSession,
   getSession,
-  setSetting,
 } from "#lib/db.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
@@ -16,6 +15,7 @@ import {
   mockFormRequest,
   mockRequest,
   resetDb,
+  setEncryptedStripeKey,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
 
@@ -1145,7 +1145,7 @@ describe("server", () => {
 
     test("handles payment flow error when Stripe fails", async () => {
       // Set a fake Stripe key to enable payments (in database)
-      await setSetting("stripe_key", "sk_test_fake_key");
+      await setEncryptedStripeKey("sk_test_fake_key");
 
       // Create a paid event
       const event = await createEvent(
@@ -1171,7 +1171,7 @@ describe("server", () => {
     });
 
     test("free ticket still works when payments enabled", async () => {
-      await setSetting("stripe_key", "sk_test_fake_key");
+      await setEncryptedStripeKey("sk_test_fake_key");
 
       // Create a free event (no price)
       const event = await createEvent(
@@ -1197,7 +1197,7 @@ describe("server", () => {
     });
 
     test("zero price ticket is treated as free", async () => {
-      await setSetting("stripe_key", "sk_test_fake_key");
+      await setEncryptedStripeKey("sk_test_fake_key");
 
       // Create event with 0 price
       const event = await createEvent(
@@ -1223,7 +1223,7 @@ describe("server", () => {
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
-      await setSetting("stripe_key", "sk_test_mock");
+      await setEncryptedStripeKey("sk_test_mock");
 
       const event = await createEvent(
         "Paid Event",
@@ -1287,7 +1287,7 @@ describe("server", () => {
     });
 
     test("handles successful payment verification with stripe-mock", async () => {
-      await setSetting("stripe_key", "sk_test_mock");
+      await setEncryptedStripeKey("sk_test_mock");
 
       const event = await createEvent(
         "Paid Event",
@@ -1327,7 +1327,7 @@ describe("server", () => {
       } as Awaited<ReturnType<typeof stripeModule.retrieveCheckoutSession>>);
 
       try {
-        await setSetting("stripe_key", "sk_test_mock");
+        await setEncryptedStripeKey("sk_test_mock");
 
         const event = await createEvent(
           "Paid Event",

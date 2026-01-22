@@ -9,7 +9,7 @@ import {
   isSetupComplete,
 } from "#lib/config.ts";
 import { completeSetup, setSetting } from "#lib/db.ts";
-import { createTestDb, resetDb } from "#test-utils";
+import { createTestDb, resetDb, setEncryptedStripeKey } from "#test-utils";
 
 describe("config", () => {
   const originalEnv = { ...process.env };
@@ -45,7 +45,7 @@ describe("config", () => {
     });
 
     test("returns key when set in database", async () => {
-      await setSetting("stripe_key", "sk_test_123");
+      await setEncryptedStripeKey("sk_test_123");
       expect(await getStripeSecretKey()).toBe("sk_test_123");
     });
   });
@@ -56,7 +56,7 @@ describe("config", () => {
     });
 
     test("returns true when stripe key is set", async () => {
-      await setSetting("stripe_key", "sk_test_123");
+      await setEncryptedStripeKey("sk_test_123");
       expect(await isPaymentsEnabled()).toBe(true);
     });
   });
