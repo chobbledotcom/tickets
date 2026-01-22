@@ -6,7 +6,8 @@
 		"**/node_modules/**",
 		"**/package-lock.json",
 		"**/bun.lock",
-		"bunny-script.ts"
+		"bunny-script.ts",
+		"src/fp/index.ts"
 	],
 	"format": ["typescript", "json"],
 	"absolute": false,
