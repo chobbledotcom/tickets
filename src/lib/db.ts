@@ -107,7 +107,25 @@ export const initDb = async (): Promise<void> => {
   await client.execute(`
     CREATE TABLE IF NOT EXISTS sessions (
       token TEXT PRIMARY KEY,
+      csrf_token TEXT NOT NULL,
       expires INTEGER NOT NULL
+    )
+  `);
+
+  // Migration: add csrf_token column if it doesn't exist (for existing databases)
+  try {
+    await client.execute(
+      "ALTER TABLE sessions ADD COLUMN csrf_token TEXT NOT NULL DEFAULT ''",
+    );
+  } catch {
+    // Column already exists, ignore error
+  }
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS login_attempts (
+      ip TEXT PRIMARY KEY,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      locked_until INTEGER
     )
   `);
 };
@@ -154,13 +172,15 @@ export const isSetupComplete = async (): Promise<boolean> => {
 
 /**
  * Complete initial setup by storing all configuration
+ * Passwords are hashed using Argon2id before storage
  */
 export const completeSetup = async (
   adminPassword: string,
   stripeSecretKey: string | null,
   currencyCode: string,
 ): Promise<void> => {
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, adminPassword);
+  const hashedPassword = await Bun.password.hash(adminPassword);
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
   if (stripeSecretKey) {
     await setSetting(CONFIG_KEYS.STRIPE_KEY, stripeSecretKey);
   }
@@ -194,6 +214,7 @@ export const getAdminPasswordFromDb = async (): Promise<string | null> => {
 /**
  * Get admin password from database (for backwards compatibility)
  * Falls back to generating a random password if not set (pre-setup mode)
+ * Returns the plaintext password only when newly generated (for display)
  */
 export const getOrCreateAdminPassword = async (): Promise<string> => {
   const existing = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
@@ -201,19 +222,21 @@ export const getOrCreateAdminPassword = async (): Promise<string> => {
 
   // Generate and store new password (fallback for tests/dev)
   const password = generatePassword();
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, password);
+  const hashedPassword = await Bun.password.hash(password);
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
   return password;
 };
 
 /**
- * Verify admin password
- * Checks the database-stored password only
+ * Verify admin password using constant-time comparison
+ * Checks the database-stored password hash only
  */
 export const verifyAdminPassword = async (
   password: string,
 ): Promise<boolean> => {
   const stored = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-  return stored !== null && stored === password;
+  if (stored === null) return false;
+  return Bun.password.verify(password, stored);
 };
 
 /**
@@ -367,15 +390,16 @@ export const hasAvailableSpots = async (eventId: number): Promise<boolean> => {
 };
 
 /**
- * Create a new session
+ * Create a new session with CSRF token
  */
 export const createSession = async (
   token: string,
+  csrfToken: string,
   expires: number,
 ): Promise<void> => {
   await getDb().execute({
-    sql: "INSERT INTO sessions (token, expires) VALUES (?, ?)",
-    args: [token, expires],
+    sql: "INSERT INTO sessions (token, csrf_token, expires) VALUES (?, ?, ?)",
+    args: [token, csrfToken, expires],
   });
 };
 
@@ -384,7 +408,7 @@ export const createSession = async (
  */
 export const getSession = async (token: string): Promise<Session | null> => {
   const result = await getDb().execute({
-    sql: "SELECT token, expires FROM sessions WHERE token = ?",
+    sql: "SELECT token, csrf_token, expires FROM sessions WHERE token = ?",
     args: [token],
   });
   if (result.rows.length === 0) return null;
@@ -408,5 +432,83 @@ export const deleteExpiredSessions = async (): Promise<void> => {
   await getDb().execute({
     sql: "DELETE FROM sessions WHERE expires < ?",
     args: [Date.now()],
+  });
+};
+
+/**
+ * Rate limiting constants
+ */
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Check if IP is rate limited for login
+ */
+export const isLoginRateLimited = async (ip: string): Promise<boolean> => {
+  const result = await getDb().execute({
+    sql: "SELECT attempts, locked_until FROM login_attempts WHERE ip = ?",
+    args: [ip],
+  });
+
+  if (result.rows.length === 0) return false;
+
+  const row = result.rows[0] as { attempts: number; locked_until: number | null };
+
+  // Check if currently locked out
+  if (row.locked_until && row.locked_until > Date.now()) {
+    return true;
+  }
+
+  // If lockout expired, reset
+  if (row.locked_until && row.locked_until <= Date.now()) {
+    await getDb().execute({
+      sql: "DELETE FROM login_attempts WHERE ip = ?",
+      args: [ip],
+    });
+    return false;
+  }
+
+  return false;
+};
+
+/**
+ * Record a failed login attempt
+ * Returns true if the account is now locked
+ */
+export const recordFailedLogin = async (ip: string): Promise<boolean> => {
+  const result = await getDb().execute({
+    sql: "SELECT attempts FROM login_attempts WHERE ip = ?",
+    args: [ip],
+  });
+
+  const currentAttempts =
+    result.rows.length > 0
+      ? (result.rows[0] as { attempts: number }).attempts
+      : 0;
+  const newAttempts = currentAttempts + 1;
+
+  if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+    const lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+    await getDb().execute({
+      sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
+      args: [ip, newAttempts, lockedUntil],
+    });
+    return true;
+  }
+
+  await getDb().execute({
+    sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
+    args: [ip, newAttempts],
+  });
+  return false;
+};
+
+/**
+ * Clear login attempts for an IP (on successful login)
+ */
+export const clearLoginAttempts = async (ip: string): Promise<void> => {
+  await getDb().execute({
+    sql: "DELETE FROM login_attempts WHERE ip = ?",
+    args: [ip],
   });
 };

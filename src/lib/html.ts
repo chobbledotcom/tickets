@@ -80,7 +80,10 @@ const renderEventRow = (e: EventWithCount): string => `
 /**
  * Admin dashboard page
  */
-export const adminDashboardPage = (events: EventWithCount[]): string => {
+export const adminDashboardPage = (
+  events: EventWithCount[],
+  csrfToken: string,
+): string => {
   const eventRows =
     events.length > 0
       ? pipe(map(renderEventRow), joinStrings)(events)
@@ -109,6 +112,7 @@ export const adminDashboardPage = (events: EventWithCount[]): string => {
 
     <h2>Create New Event</h2>
     <form method="POST" action="/admin/event">
+      <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}">
       <div class="form-group">
         <label for="name">Event Name</label>
         <input type="text" id="name" name="name" required>

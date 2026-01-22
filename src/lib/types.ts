@@ -28,6 +28,7 @@ export interface Settings {
 
 export interface Session {
   token: string;
+  csrf_token: string;
   expires: number;
 }
 

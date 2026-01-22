@@ -109,6 +109,7 @@ const applySecurityHeaders = (
 };
 
 import {
+  clearLoginAttempts,
   completeSetup,
   createAttendee,
   createEvent,
@@ -122,6 +123,8 @@ import {
   getEventWithCount,
   getSession,
   hasAvailableSpots,
+  isLoginRateLimited,
+  recordFailedLogin,
   updateAttendeePayment,
   verifyAdminPassword,
 } from "./lib/db.ts";
@@ -143,18 +146,30 @@ import {
   retrieveCheckoutSession,
 } from "./lib/stripe.ts";
 import type { Attendee, Event, EventWithCount } from "./lib/types.ts";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 
 /**
- * Generate a session token
+ * Generate a cryptographically secure token
  */
-const generateSessionToken = (): string => {
-  const chars =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let token = "";
-  for (let i = 0; i < 32; i++) {
-    token += chars.charAt(Math.floor(Math.random() * chars.length));
+const generateSecureToken = (): string => {
+  return randomBytes(32).toString("base64url");
+};
+
+/**
+ * Get client IP from request
+ */
+const getClientIp = (request: Request): string => {
+  // Check common proxy headers
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
   }
-  return token;
+  const realIp = request.headers.get("x-real-ip");
+  if (realIp) {
+    return realIp;
+  }
+  // Fallback to a default (in real deployment, this would come from the connection)
+  return "unknown";
 };
 
 /**
@@ -175,22 +190,44 @@ const parseCookies = (request: Request): Map<string, string> => {
 };
 
 /**
- * Check if request has valid session
+ * Get authenticated session if valid
+ * Returns null if not authenticated
  */
-const isAuthenticated = async (request: Request): Promise<boolean> => {
+const getAuthenticatedSession = async (
+  request: Request,
+): Promise<{ token: string; csrfToken: string } | null> => {
   const cookies = parseCookies(request);
   const token = cookies.get("session");
-  if (!token) return false;
+  if (!token) return null;
 
   const session = await getSession(token);
-  if (!session) return false;
+  if (!session) return null;
 
   if (session.expires < Date.now()) {
     await deleteSession(token);
-    return false;
+    return null;
   }
 
-  return true;
+  return { token, csrfToken: session.csrf_token };
+};
+
+/**
+ * Check if request has valid session
+ */
+const isAuthenticated = async (request: Request): Promise<boolean> => {
+  return (await getAuthenticatedSession(request)) !== null;
+};
+
+/**
+ * Validate CSRF token using constant-time comparison
+ */
+const validateCsrfToken = (expected: string, actual: string): boolean => {
+  if (expected.length !== actual.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(expected), Buffer.from(actual));
+  } catch {
+    return false;
+  }
 };
 
 /**
@@ -225,32 +262,48 @@ const parseFormData = async (request: Request): Promise<URLSearchParams> => {
  * Handle GET /admin/
  */
 const handleAdminGet = async (request: Request): Promise<Response> => {
-  if (!(await isAuthenticated(request))) {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
     return htmlResponse(adminLoginPage());
   }
   const events = await getAllEvents();
-  return htmlResponse(adminDashboardPage(events));
+  return htmlResponse(adminDashboardPage(events, session.csrfToken));
 };
 
 /**
  * Handle POST /admin/login
  */
 const handleAdminLogin = async (request: Request): Promise<Response> => {
+  const clientIp = getClientIp(request);
+
+  // Check rate limiting
+  if (await isLoginRateLimited(clientIp)) {
+    return htmlResponse(
+      adminLoginPage("Too many login attempts. Please try again later."),
+      429,
+    );
+  }
+
   const form = await parseFormData(request);
   const password = form.get("password") || "";
 
   const valid = await verifyAdminPassword(password);
   if (!valid) {
-    return htmlResponse(adminLoginPage("Invalid password"), 401);
+    await recordFailedLogin(clientIp);
+    return htmlResponse(adminLoginPage("Invalid credentials"), 401);
   }
 
-  const token = generateSessionToken();
+  // Clear failed attempts on successful login
+  await clearLoginAttempts(clientIp);
+
+  const token = generateSecureToken();
+  const csrfToken = generateSecureToken();
   const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-  await createSession(token, expires);
+  await createSession(token, csrfToken, expires);
 
   return redirect(
     "/admin/",
-    `session=${token}; HttpOnly; Path=/; Max-Age=86400`,
+    `session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=86400`,
   );
 };
 
@@ -263,18 +316,29 @@ const handleAdminLogout = async (request: Request): Promise<Response> => {
   if (token) {
     await deleteSession(token);
   }
-  return redirect("/admin/", "session=; HttpOnly; Path=/; Max-Age=0");
+  return redirect(
+    "/admin/",
+    "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0",
+  );
 };
 
 /**
  * Handle POST /admin/event (create event)
  */
 const handleCreateEvent = async (request: Request): Promise<Response> => {
-  if (!(await isAuthenticated(request))) {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
     return redirect("/admin/");
   }
 
   const form = await parseFormData(request);
+
+  // Validate CSRF token
+  const csrfToken = form.get("csrf_token") || "";
+  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
+    return htmlResponse("Invalid CSRF token", 403);
+  }
+
   const name = form.get("name") || "";
   const description = form.get("description") || "";
   const maxAttendees = Number.parseInt(form.get("max_attendees") || "0", 10);
