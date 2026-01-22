@@ -122,3 +122,26 @@ export const getCsrfTokenFromCookie = async (
   const session = await getSession(sessionToken);
   return session?.csrf_token ?? null;
 };
+
+/**
+ * Extract setup CSRF token from set-cookie header
+ */
+export const getSetupCsrfToken = (setCookie: string | null): string | null => {
+  if (!setCookie) return null;
+  const match = setCookie.match(/setup_csrf=([^;]+)/);
+  return match?.[1] ?? null;
+};
+
+/**
+ * Create a mock setup POST request with CSRF token
+ */
+export const mockSetupFormRequest = (
+  data: Record<string, string>,
+  csrfToken: string,
+): Request => {
+  return mockFormRequest(
+    "/setup/",
+    { ...data, csrf_token: csrfToken },
+    `setup_csrf=${csrfToken}`,
+  );
+};

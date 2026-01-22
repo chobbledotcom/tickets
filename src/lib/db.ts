@@ -39,19 +39,6 @@ export const setDb = (client: Client | null): void => {
 };
 
 /**
- * Generate a random password
- */
-export const generatePassword = (): string => {
-  const chars =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let password = "";
-  for (let i = 0; i < 16; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
-};
-
-/**
  * Initialize database tables
  */
 export const initDb = async (): Promise<void> => {
@@ -209,22 +196,6 @@ export const getCurrencyCodeFromDb = async (): Promise<string> => {
  */
 export const getAdminPasswordFromDb = async (): Promise<string | null> => {
   return getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-};
-
-/**
- * Get admin password from database (for backwards compatibility)
- * Falls back to generating a random password if not set (pre-setup mode)
- * Returns the plaintext password only when newly generated (for display)
- */
-export const getOrCreateAdminPassword = async (): Promise<string> => {
-  const existing = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-  if (existing) return existing;
-
-  // Generate and store new password (fallback for tests/dev)
-  const password = generatePassword();
-  const hashedPassword = await Bun.password.hash(password);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
-  return password;
 };
 
 /**

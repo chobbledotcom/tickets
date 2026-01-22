@@ -69,11 +69,33 @@ export const isValidOrigin = (request: Request): boolean => {
   }
 
   // If neither origin nor referer, reject (could be a direct form submission from another site)
-  // However, some legitimate scenarios may not have these headers (curl, etc.)
-  // For now, allow requests without origin/referer for backwards compatibility
-  // A stricter policy would return false here
-  return true;
+  return false;
 };
+
+/**
+ * Validate Content-Type for POST requests
+ * Returns true if the request is valid (not a POST, or has correct Content-Type)
+ */
+export const isValidContentType = (request: Request): boolean => {
+  if (request.method !== "POST") {
+    return true;
+  }
+  const contentType = request.headers.get("content-type") || "";
+  // Accept application/x-www-form-urlencoded (with optional charset)
+  return contentType.startsWith("application/x-www-form-urlencoded");
+};
+
+/**
+ * Create Content-Type rejection response
+ */
+const contentTypeRejectionResponse = (): Response =>
+  new Response("Bad Request: Invalid Content-Type", {
+    status: 400,
+    headers: {
+      "content-type": "text/plain",
+      ...getSecurityHeaders(false),
+    },
+  });
 
 /**
  * Create CORS rejection response
@@ -160,6 +182,13 @@ import {
 import type { Attendee, Event, EventWithCount } from "./lib/types.ts";
 
 /**
+ * Server context for accessing connection info
+ */
+type ServerContext = {
+  requestIP?: (req: Request) => { address: string } | null;
+};
+
+/**
  * Generate a cryptographically secure token
  */
 const generateSecureToken = (): string => {
@@ -168,20 +197,23 @@ const generateSecureToken = (): string => {
 
 /**
  * Get client IP from request
+ * Note: This server runs directly on edge, not behind a proxy,
+ * so we use the direct connection IP from the server context.
+ * The IP is passed via the server's requestIP() in Bun.serve.
  */
-const getClientIp = (request: Request): string => {
-  // Check common proxy headers
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const firstIp = forwarded.split(",")[0];
-    return firstIp ? firstIp.trim() : "unknown";
+const getClientIp = (
+  request: Request,
+  server?: { requestIP?: (req: Request) => { address: string } | null },
+): string => {
+  // Use Bun's server.requestIP() if available
+  if (server?.requestIP) {
+    const info = server.requestIP(request);
+    if (info?.address) {
+      return info.address;
+    }
   }
-  const realIp = request.headers.get("x-real-ip");
-  if (realIp) {
-    return realIp;
-  }
-  // Fallback to a default (in real deployment, this would come from the connection)
-  return "unknown";
+  // Fallback for testing or when server context not available
+  return "direct";
 };
 
 /**
@@ -281,8 +313,11 @@ const handleAdminGet = async (request: Request): Promise<Response> => {
 /**
  * Handle POST /admin/login
  */
-const handleAdminLogin = async (request: Request): Promise<Response> => {
-  const clientIp = getClientIp(request);
+const handleAdminLogin = async (
+  request: Request,
+  server?: ServerContext,
+): Promise<Response> => {
+  const clientIp = getClientIp(request, server);
 
   // Check rate limiting
   if (await isLoginRateLimited(clientIp)) {
@@ -748,9 +783,10 @@ const routeAdminAuth = async (
   request: Request,
   path: string,
   method: string,
+  server?: ServerContext,
 ): Promise<Response | null> => {
   if (path === "/admin/login" && method === "POST") {
-    return handleAdminLogin(request);
+    return handleAdminLogin(request, server);
   }
   if (path === "/admin/logout" && method === "GET") {
     return handleAdminLogout(request);
@@ -765,6 +801,7 @@ const routeAdminCore = async (
   request: Request,
   path: string,
   method: string,
+  server?: ServerContext,
 ): Promise<Response | null> => {
   if (isAdminRoot(path) && method === "GET") {
     return handleAdminGet(request);
@@ -772,7 +809,7 @@ const routeAdminCore = async (
   if (path === "/admin/event" && method === "POST") {
     return handleCreateEvent(request);
   }
-  return routeAdminAuth(request, path, method);
+  return routeAdminAuth(request, path, method, server);
 };
 
 /**
@@ -782,8 +819,9 @@ const routeAdmin = async (
   request: Request,
   path: string,
   method: string,
+  server?: ServerContext,
 ): Promise<Response | null> => {
-  const coreResponse = await routeAdminCore(request, path, method);
+  const coreResponse = await routeAdminCore(request, path, method, server);
   if (coreResponse) return coreResponse;
 
   return routeAdminEvent(request, path, method);
@@ -875,6 +913,20 @@ const handlePaymentSuccess = async (request: Request): Promise<Response> => {
     );
   }
 
+  // Verify the session belongs to this attendee (prevents IDOR attacks)
+  if (session.metadata?.attendee_id !== attendeeId) {
+    return htmlResponse(
+      paymentErrorPage("Payment session mismatch. Please contact support."),
+      400,
+    );
+  }
+
+  // Check if payment was already recorded (prevents replay attacks)
+  if (attendee.stripe_payment_id) {
+    // Already paid - just show success page
+    return htmlResponse(paymentSuccessPage(event, event.thank_you_url));
+  }
+
   // Update attendee with payment ID
   const paymentId = session.payment_intent as string;
   await updateAttendeePayment(attendee.id, paymentId);
@@ -964,27 +1016,63 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
 
 /**
  * Handle GET /setup/
+ * Uses double-submit cookie pattern for CSRF protection
  */
 const handleSetupGet = async (): Promise<Response> => {
   if (await isSetupComplete()) {
     return redirect("/");
   }
-  return htmlResponse(setupPage());
+  const csrfToken = generateSecureToken();
+  const response = htmlResponse(setupPage(undefined, csrfToken));
+  const headers = new Headers(response.headers);
+  headers.set(
+    "set-cookie",
+    `setup_csrf=${csrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup/; Max-Age=3600`,
+  );
+  return new Response(response.body, {
+    status: response.status,
+    headers,
+  });
 };
 
 /**
  * Handle POST /setup/
+ * Validates CSRF token using double-submit cookie pattern
  */
 const handleSetupPost = async (request: Request): Promise<Response> => {
   if (await isSetupComplete()) {
     return redirect("/");
   }
 
+  // Validate CSRF token (double-submit cookie pattern)
+  const cookies = parseCookies(request);
+  const cookieCsrf = cookies.get("setup_csrf") || "";
   const form = await parseFormData(request);
+  const formCsrf = form.get("csrf_token") || "";
+
+  if (!cookieCsrf || !formCsrf || !validateCsrfToken(cookieCsrf, formCsrf)) {
+    // Generate new token for retry
+    const newCsrfToken = generateSecureToken();
+    const response = htmlResponse(
+      setupPage("Invalid or expired form. Please try again.", newCsrfToken),
+      403,
+    );
+    const headers = new Headers(response.headers);
+    headers.set(
+      "set-cookie",
+      `setup_csrf=${newCsrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/setup/; Max-Age=3600`,
+    );
+    return new Response(response.body, {
+      status: response.status,
+      headers,
+    });
+  }
+
   const validation = validateSetupForm(form);
 
   if (!validation.valid) {
-    return htmlResponse(setupPage(validation.error), 400);
+    // Keep the same CSRF token for validation errors
+    return htmlResponse(setupPage(validation.error, formCsrf), 400);
   }
 
   await completeSetup(
@@ -1037,12 +1125,13 @@ const routeMainApp = async (
   request: Request,
   path: string,
   method: string,
+  server?: ServerContext,
 ): Promise<Response> => {
   if (path === "/" && method === "GET") {
     return htmlResponse(homePage());
   }
 
-  const adminResponse = await routeAdmin(request, path, method);
+  const adminResponse = await routeAdmin(request, path, method, server);
   if (adminResponse) return adminResponse;
 
   const ticketResponse = await routeTicket(request, path, method);
@@ -1057,7 +1146,10 @@ const routeMainApp = async (
 /**
  * Handle incoming requests (internal, without security headers)
  */
-const handleRequestInternal = async (request: Request): Promise<Response> => {
+const handleRequestInternal = async (
+  request: Request,
+  server?: ServerContext,
+): Promise<Response> => {
   const url = new URL(request.url);
   const path = url.pathname;
   const method = request.method;
@@ -1077,13 +1169,16 @@ const handleRequestInternal = async (request: Request): Promise<Response> => {
     return redirect("/setup/");
   }
 
-  return routeMainApp(request, path, method);
+  return routeMainApp(request, path, method, server);
 };
 
 /**
  * Handle incoming requests with security headers and CORS protection
  */
-export const handleRequest = async (request: Request): Promise<Response> => {
+export const handleRequest = async (
+  request: Request,
+  server?: ServerContext,
+): Promise<Response> => {
   const url = new URL(request.url);
   const path = url.pathname;
   const embeddable = isEmbeddablePath(path);
@@ -1093,6 +1188,11 @@ export const handleRequest = async (request: Request): Promise<Response> => {
     return corsRejectionResponse();
   }
 
-  const response = await handleRequestInternal(request);
+  // Content-Type validation: reject POST requests without proper Content-Type
+  if (!isValidContentType(request)) {
+    return contentTypeRejectionResponse();
+  }
+
+  const response = await handleRequestInternal(request, server);
   return applySecurityHeaders(response, embeddable);
 };

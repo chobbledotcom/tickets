@@ -503,7 +503,7 @@ export const setupFields: Field[] = [
 /**
  * Initial setup page
  */
-export const setupPage = (error?: string): string =>
+export const setupPage = (error?: string, csrfToken?: string): string =>
   layout(
     "Setup",
     `
@@ -511,6 +511,7 @@ export const setupPage = (error?: string): string =>
     <p>Welcome! Please configure your ticket reservation system.</p>
     ${renderError(error)}
     <form method="POST" action="/setup/">
+      ${csrfToken ? `<input type="hidden" name="csrf_token" value="${csrfToken}">` : ""}
       ${renderFields(setupFields, { currency_code: "GBP" })}
       <button type="submit">Complete Setup</button>
     </form>
