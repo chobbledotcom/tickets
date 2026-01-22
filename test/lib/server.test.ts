@@ -11,6 +11,7 @@ import { handleRequest } from "#src/server.ts";
 import {
   createTestDb,
   createTestDbWithSetup,
+  getCsrfTokenFromCookie,
   mockCrossOriginFormRequest,
   mockFormRequest,
   mockRequest,
@@ -106,7 +107,7 @@ describe("server", () => {
       );
       expect(response.status).toBe(401);
       const html = await response.text();
-      expect(html).toContain("Invalid password");
+      expect(html).toContain("Invalid credentials");
     });
 
     test("accepts correct password and sets cookie", async () => {
@@ -117,6 +118,78 @@ describe("server", () => {
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/");
       expect(response.headers.get("set-cookie")).toContain("session=");
+    });
+
+    test("returns 429 when rate limited", async () => {
+      // Use X-Forwarded-For to set a consistent IP for rate limiting
+      const makeRequest = () =>
+        new Request("http://localhost/admin/login", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            origin: "http://localhost",
+            "x-forwarded-for": "10.0.0.99",
+          },
+          body: new URLSearchParams({ password: "wrong" }).toString(),
+        });
+
+      // Make 5 failed attempts to trigger lockout
+      for (let i = 0; i < 5; i++) {
+        await handleRequest(makeRequest());
+      }
+
+      // 6th attempt should be rate limited
+      const response = await handleRequest(makeRequest());
+      expect(response.status).toBe(429);
+      const html = await response.text();
+      expect(html).toContain("Too many login attempts");
+    });
+
+    test("uses X-Real-IP header when X-Forwarded-For is missing", async () => {
+      const request = new Request("http://localhost/admin/login", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "http://localhost",
+          "x-real-ip": "10.0.0.98",
+        },
+        body: new URLSearchParams({ password: "wrong" }).toString(),
+      });
+
+      const response = await handleRequest(request);
+      // Should work (just testing the IP extraction path)
+      expect(response.status).toBe(401);
+    });
+
+    test("falls back to unknown when no IP headers present", async () => {
+      const request = new Request("http://localhost/admin/login", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "http://localhost",
+        },
+        body: new URLSearchParams({ password: "wrong" }).toString(),
+      });
+
+      const response = await handleRequest(request);
+      // Should still work (IP becomes "unknown")
+      expect(response.status).toBe(401);
+    });
+
+    test("falls back to unknown when X-Forwarded-For has empty first entry", async () => {
+      const request = new Request("http://localhost/admin/login", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "http://localhost",
+          "x-forwarded-for": ",10.0.0.1",
+        },
+        body: new URLSearchParams({ password: "wrong" }).toString(),
+      });
+
+      const response = await handleRequest(request);
+      // Should still work (IP becomes "unknown" due to empty first entry)
+      expect(response.status).toBe(401);
     });
   });
 
@@ -148,7 +221,8 @@ describe("server", () => {
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       const response = await handleRequest(
         mockFormRequest(
@@ -158,12 +232,38 @@ describe("server", () => {
             description: "Description",
             max_attendees: "50",
             thank_you_url: "https://example.com/thanks",
+            csrf_token: csrfToken || "",
           },
-          cookie || "",
+          cookie,
         ),
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event",
+          {
+            name: "New Event",
+            description: "Description",
+            max_attendees: "50",
+            thank_you_url: "https://example.com/thanks",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
     });
 
     test("redirects to dashboard on validation failure", async () => {
@@ -171,7 +271,8 @@ describe("server", () => {
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       const response = await handleRequest(
         mockFormRequest(
@@ -181,8 +282,9 @@ describe("server", () => {
             description: "",
             max_attendees: "",
             thank_you_url: "",
+            csrf_token: csrfToken || "",
           },
-          cookie || "",
+          cookie,
         ),
       );
       expect(response.status).toBe(302);
@@ -423,7 +525,8 @@ describe("server", () => {
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       const response = await handleRequest(
         mockFormRequest(
@@ -433,11 +536,39 @@ describe("server", () => {
             description: "Updated Desc",
             max_attendees: "50",
             thank_you_url: "https://example.com/updated",
+            csrf_token: csrfToken || "",
           },
-          cookie || "",
+          cookie,
         ),
       );
       expect(response.status).toBe(404);
+    });
+
+    test("rejects request with invalid CSRF token", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      await createEvent("Test", "Desc", 100, "https://example.com");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/edit",
+          {
+            name: "Updated",
+            description: "Updated Desc",
+            max_attendees: "50",
+            thank_you_url: "https://example.com/updated",
+            csrf_token: "invalid-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid CSRF token");
     });
 
     test("validates required fields", async () => {
@@ -445,7 +576,8 @@ describe("server", () => {
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       await createEvent("Test", "Desc", 100, "https://example.com");
 
@@ -457,8 +589,9 @@ describe("server", () => {
             description: "Desc",
             max_attendees: "50",
             thank_you_url: "https://example.com",
+            csrf_token: csrfToken || "",
           },
-          cookie || "",
+          cookie,
         ),
       );
       expect(response.status).toBe(400);
@@ -471,7 +604,8 @@ describe("server", () => {
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       await createEvent(
         "Original",
@@ -489,8 +623,9 @@ describe("server", () => {
             max_attendees: "200",
             thank_you_url: "https://example.com/updated",
             unit_price: "2000",
+            csrf_token: csrfToken || "",
           },
-          cookie || "",
+          cookie,
         ),
       );
       expect(response.status).toBe(302);
@@ -627,7 +762,7 @@ describe("server", () => {
 
     test("expired session is deleted and shows login page", async () => {
       // Add an expired session directly to the database
-      await createSession("expired-token", Date.now() - 1000);
+      await createSession("expired-token", "csrf-expired", Date.now() - 1000);
 
       const response = await handleRequest(
         new Request("http://localhost/admin/", {
@@ -678,7 +813,8 @@ describe("server", () => {
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       const response = await handleRequest(
         mockFormRequest(
@@ -689,8 +825,9 @@ describe("server", () => {
             max_attendees: "50",
             thank_you_url: "https://example.com/thanks",
             unit_price: "1000",
+            csrf_token: csrfToken || "",
           },
-          cookie || "",
+          cookie,
         ),
       );
       expect(response.status).toBe(302);

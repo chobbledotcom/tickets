@@ -119,7 +119,10 @@ const renderEventRow = (e: EventWithCount): string => `
 /**
  * Admin dashboard page
  */
-export const adminDashboardPage = (events: EventWithCount[]): string => {
+export const adminDashboardPage = (
+  events: EventWithCount[],
+  csrfToken: string,
+): string => {
   const eventRows =
     events.length > 0
       ? pipe(map(renderEventRow), joinStrings)(events)
@@ -148,6 +151,7 @@ export const adminDashboardPage = (events: EventWithCount[]): string => {
 
     <h2>Create New Event</h2>
     <form method="POST" action="/admin/event">
+      <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}">
       ${renderFields(eventFields)}
       <button type="submit">Create Event</button>
     </form>
@@ -208,6 +212,35 @@ export const adminEventPage = (
 };
 
 /**
+ * Validate URL is safe (https or relative path, no javascript: etc.)
+ */
+const validateSafeUrl = (value: string): string | null => {
+  // Allow relative URLs starting with /
+  if (value.startsWith("/")) return null;
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      return "URL must use https:// or http://";
+    }
+    return null;
+  } catch {
+    return "Invalid URL format";
+  }
+};
+
+/**
+ * Validate price is non-negative
+ */
+const validateNonNegativePrice = (value: string): string | null => {
+  const num = Number.parseInt(value, 10);
+  if (Number.isNaN(num) || num < 0) {
+    return "Price must be 0 or greater";
+  }
+  return null;
+};
+
+/**
  * Event form field definitions (shared between create and edit)
  */
 export const eventFields: Field[] = [
@@ -231,6 +264,7 @@ export const eventFields: Field[] = [
     type: "number",
     min: 0,
     placeholder: "e.g. 1000 for 10.00",
+    validate: validateNonNegativePrice,
   },
   {
     name: "thank_you_url",
@@ -238,6 +272,7 @@ export const eventFields: Field[] = [
     type: "url",
     required: true,
     placeholder: "https://example.com/thank-you",
+    validate: validateSafeUrl,
   },
 ];
 
@@ -257,6 +292,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
  */
 export const adminEventEditPage = (
   event: EventWithCount,
+  csrfToken: string,
   error?: string,
 ): string =>
   layout(
@@ -266,6 +302,7 @@ export const adminEventEditPage = (
     <p><a href="/admin/event/${event.id}">&larr; Back to Event</a></p>
     ${renderError(error)}
     <form method="POST" action="/admin/event/${event.id}/edit">
+      <input type="hidden" name="csrf_token" value="${escapeHtml(csrfToken)}">
       ${renderFields(eventFields, eventToFieldValues(event))}
       <button type="submit">Save Changes</button>
     </form>
@@ -273,11 +310,29 @@ export const adminEventEditPage = (
   );
 
 /**
+ * Validate email format
+ */
+const validateEmail = (value: string): string | null => {
+  // Basic email format check - more permissive than strict RFC but catches common issues
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(value)) {
+    return "Please enter a valid email address";
+  }
+  return null;
+};
+
+/**
  * Ticket reservation form field definitions
  */
 export const ticketFields: Field[] = [
   { name: "name", label: "Your Name", type: "text", required: true },
-  { name: "email", label: "Your Email", type: "email", required: true },
+  {
+    name: "email",
+    label: "Your Email",
+    type: "email",
+    required: true,
+    validate: validateEmail,
+  },
 ];
 
 /**
