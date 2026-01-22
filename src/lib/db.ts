@@ -135,36 +135,85 @@ export const setSetting = async (key: string, value: string): Promise<void> => {
 };
 
 /**
- * Get admin password from database (always randomly generated)
- * The ADMIN_PASSWORD env var is an additional valid password, not a replacement
+ * Setting keys for configuration
+ */
+export const CONFIG_KEYS = {
+  ADMIN_PASSWORD: "admin_password",
+  STRIPE_SECRET_KEY: "stripe_secret_key",
+  CURRENCY_CODE: "currency_code",
+  SETUP_COMPLETE: "setup_complete",
+} as const;
+
+/**
+ * Check if initial setup has been completed
+ */
+export const isSetupComplete = async (): Promise<boolean> => {
+  const value = await getSetting(CONFIG_KEYS.SETUP_COMPLETE);
+  return value === "true";
+};
+
+/**
+ * Complete initial setup by storing all configuration
+ */
+export const completeSetup = async (
+  adminPassword: string,
+  stripeSecretKey: string | null,
+  currencyCode: string,
+): Promise<void> => {
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, adminPassword);
+  if (stripeSecretKey) {
+    await setSetting(CONFIG_KEYS.STRIPE_SECRET_KEY, stripeSecretKey);
+  }
+  await setSetting(CONFIG_KEYS.CURRENCY_CODE, currencyCode);
+  await setSetting(CONFIG_KEYS.SETUP_COMPLETE, "true");
+};
+
+/**
+ * Get Stripe secret key from database
+ */
+export const getStripeSecretKeyFromDb = async (): Promise<string | null> => {
+  return getSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
+};
+
+/**
+ * Get currency code from database
+ */
+export const getCurrencyCodeFromDb = async (): Promise<string> => {
+  const value = await getSetting(CONFIG_KEYS.CURRENCY_CODE);
+  return value || "GBP";
+};
+
+/**
+ * Get admin password from database
+ * Returns null if setup hasn't been completed
+ */
+export const getAdminPasswordFromDb = async (): Promise<string | null> => {
+  return getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
+};
+
+/**
+ * Get admin password from database (for backwards compatibility)
+ * Falls back to generating a random password if not set (pre-setup mode)
  */
 export const getOrCreateAdminPassword = async (): Promise<string> => {
-  // Check database
-  const existing = await getSetting("admin_password");
+  const existing = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
   if (existing) return existing;
 
-  // Generate and store new password
+  // Generate and store new password (fallback for tests/dev)
   const password = generatePassword();
-  await setSetting("admin_password", password);
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, password);
   return password;
 };
 
 /**
  * Verify admin password
- * Accepts either the ADMIN_PASSWORD env var or the database password
+ * Checks the database-stored password only
  */
 export const verifyAdminPassword = async (
   password: string,
 ): Promise<boolean> => {
-  // Check env var password first
-  const envPassword = process.env.ADMIN_PASSWORD;
-  if (envPassword && envPassword.trim() !== "" && password === envPassword) {
-    return true;
-  }
-
-  // Check database password
-  const stored = await getSetting("admin_password");
-  return stored === password;
+  const stored = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
+  return stored !== null && stored === password;
 };
 
 /**

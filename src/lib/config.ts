@@ -1,30 +1,33 @@
 /**
  * Configuration module for ticket reservation system
- * Reads environment variables with defaults
+ * Reads configuration from database (set during setup phase)
+ * Only DB_URL and DB_TOKEN come from environment variables
  */
 
+import { getCurrencyCodeFromDb, getStripeSecretKeyFromDb } from "./db.ts";
+
 /**
- * Get Stripe secret key from environment
+ * Get Stripe secret key from database
  * Returns null if not set (payments disabled)
  */
-export const getStripeSecretKey = (): string | null => {
-  const key = process.env.STRIPE_SECRET_KEY;
+export const getStripeSecretKey = async (): Promise<string | null> => {
+  const key = await getStripeSecretKeyFromDb();
   return key && key.trim() !== "" ? key : null;
 };
 
 /**
  * Check if Stripe payments are enabled
  */
-export const isPaymentsEnabled = (): boolean => {
-  return getStripeSecretKey() !== null;
+export const isPaymentsEnabled = async (): Promise<boolean> => {
+  return (await getStripeSecretKey()) !== null;
 };
 
 /**
- * Get currency code from environment
+ * Get currency code from database
  * Defaults to GBP if not set
  */
-export const getCurrencyCode = (): string => {
-  return process.env.CURRENCY_CODE || "GBP";
+export const getCurrencyCode = async (): Promise<string> => {
+  return getCurrencyCodeFromDb();
 };
 
 /**
@@ -32,15 +35,6 @@ export const getCurrencyCode = (): string => {
  */
 export const getDbUrl = (): string | undefined => {
   return process.env.DB_URL;
-};
-
-/**
- * Get admin password from environment
- * If not set, a random password will be generated and stored in the database
- */
-export const getAdminPassword = (): string | undefined => {
-  const password = process.env.ADMIN_PASSWORD;
-  return password && password.trim() !== "" ? password : undefined;
 };
 
 /**
@@ -56,3 +50,8 @@ export const getDbToken = (): string | undefined => {
 export const getPort = (): number => {
   return Number.parseInt(process.env.PORT || "3000", 10);
 };
+
+/**
+ * Check if initial setup has been completed
+ */
+export { isSetupComplete } from "./db.ts";

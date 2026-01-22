@@ -2,8 +2,9 @@
  * Ticket Reservation System - Bun Server
  */
 
-import { isPaymentsEnabled } from "./lib/config.ts";
+import { isPaymentsEnabled, isSetupComplete } from "./lib/config.ts";
 import {
+  completeSetup,
   createAttendee,
   createEvent,
   createSession,
@@ -28,6 +29,8 @@ import {
   paymentCancelPage,
   paymentErrorPage,
   paymentSuccessPage,
+  setupCompletePage,
+  setupPage,
   ticketPage,
 } from "./lib/html.ts";
 import {
@@ -215,9 +218,13 @@ const handleTicketGet = async (eventId: number): Promise<Response> => {
 /**
  * Check if payment is required for an event
  */
-const requiresPayment = (event: { unit_price: number | null }): boolean => {
+const requiresPayment = async (event: {
+  unit_price: number | null;
+}): Promise<boolean> => {
   return (
-    isPaymentsEnabled() && event.unit_price !== null && event.unit_price > 0
+    (await isPaymentsEnabled()) &&
+    event.unit_price !== null &&
+    event.unit_price > 0
   );
 };
 
@@ -282,7 +289,7 @@ const handleTicketPost = async (
 
   const attendee = await createAttendee(eventId, name.trim(), email.trim());
 
-  if (requiresPayment(event)) {
+  if (await requiresPayment(event)) {
     return handlePaymentFlow(request, event, attendee);
   }
 
@@ -491,21 +498,127 @@ const routePayment = async (
 };
 
 /**
- * Handle incoming requests
+ * Validate setup form data
  */
-export const handleRequest = async (request: Request): Promise<Response> => {
-  const url = new URL(request.url);
-  const path = url.pathname;
-  const method = request.method;
+type SetupValidation =
+  | {
+      valid: true;
+      password: string;
+      stripeKey: string | null;
+      currency: string;
+    }
+  | { valid: false; error: string };
 
-  if (path === "/" && method === "GET") {
-    return htmlResponse(homePage());
+const validatePassword = (password: string, confirm: string): string | null => {
+  if (password.length < 8) return "Password must be at least 8 characters";
+  if (password !== confirm) return "Passwords do not match";
+  return null;
+};
+
+const validateCurrency = (currency: string): string | null => {
+  if (!/^[A-Z]{3}$/.test(currency))
+    return "Currency code must be 3 uppercase letters";
+  return null;
+};
+
+const validateSetupForm = (form: URLSearchParams): SetupValidation => {
+  const password = form.get("admin_password") || "";
+  const passwordConfirm = form.get("admin_password_confirm") || "";
+  const stripeKey = form.get("stripe_secret_key") || "";
+  const currency = (form.get("currency_code") || "GBP").toUpperCase();
+
+  const passwordError = validatePassword(password, passwordConfirm);
+  if (passwordError) return { valid: false, error: passwordError };
+
+  const currencyError = validateCurrency(currency);
+  if (currencyError) return { valid: false, error: currencyError };
+
+  return {
+    valid: true,
+    password,
+    stripeKey: stripeKey.trim() || null,
+    currency,
+  };
+};
+
+/**
+ * Handle GET /setup/
+ */
+const handleSetupGet = async (): Promise<Response> => {
+  if (await isSetupComplete()) {
+    return redirect("/");
+  }
+  return htmlResponse(setupPage());
+};
+
+/**
+ * Handle POST /setup/
+ */
+const handleSetupPost = async (request: Request): Promise<Response> => {
+  if (await isSetupComplete()) {
+    return redirect("/");
   }
 
-  if (path === "/health" && method === "GET") {
-    return new Response(JSON.stringify({ status: "ok" }), {
-      headers: { "content-type": "application/json" },
-    });
+  const form = await parseFormData(request);
+  const validation = validateSetupForm(form);
+
+  if (!validation.valid) {
+    return htmlResponse(setupPage(validation.error), 400);
+  }
+
+  await completeSetup(
+    validation.password,
+    validation.stripeKey,
+    validation.currency,
+  );
+  return htmlResponse(setupCompletePage());
+};
+
+/**
+ * Check if path is setup route
+ */
+const isSetupPath = (path: string): boolean =>
+  path === "/setup/" || path === "/setup";
+
+/**
+ * Route setup requests
+ */
+const routeSetup = async (
+  request: Request,
+  path: string,
+  method: string,
+): Promise<Response | null> => {
+  if (!isSetupPath(path)) return null;
+
+  if (method === "GET") {
+    return handleSetupGet();
+  }
+  if (method === "POST") {
+    return handleSetupPost(request);
+  }
+  return null;
+};
+
+/**
+ * Handle health check request
+ */
+const handleHealthCheck = (method: string): Response | null => {
+  if (method !== "GET") return null;
+  return new Response(JSON.stringify({ status: "ok" }), {
+    headers: { "content-type": "application/json" },
+  });
+};
+
+/**
+ * Route main application requests (after setup is complete)
+ */
+const routeMainApp = async (
+  request: Request,
+  path: string,
+  method: string,
+): Promise<Response> => {
+  if (path === "/" && method === "GET") {
+    return htmlResponse(homePage());
   }
 
   const adminResponse = await routeAdmin(request, path, method);
@@ -518,4 +631,30 @@ export const handleRequest = async (request: Request): Promise<Response> => {
   if (paymentResponse) return paymentResponse;
 
   return htmlResponse(notFoundPage(), 404);
+};
+
+/**
+ * Handle incoming requests
+ */
+export const handleRequest = async (request: Request): Promise<Response> => {
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const method = request.method;
+
+  // Health check always available
+  if (path === "/health") {
+    const healthResponse = handleHealthCheck(method);
+    if (healthResponse) return healthResponse;
+  }
+
+  // Setup routes
+  const setupResponse = await routeSetup(request, path, method);
+  if (setupResponse) return setupResponse;
+
+  // Require setup before accessing other routes
+  if (!(await isSetupComplete())) {
+    return redirect("/setup/");
+  }
+
+  return routeMainApp(request, path, method);
 };

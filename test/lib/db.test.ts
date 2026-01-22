@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import {
+  CONFIG_KEYS,
+  completeSetup,
   createAttendee,
   createEvent,
   createSession,
@@ -8,17 +10,21 @@ import {
   deleteExpiredSessions,
   deleteSession,
   generatePassword,
+  getAdminPasswordFromDb,
   getAllEvents,
   getAttendee,
   getAttendees,
+  getCurrencyCodeFromDb,
   getDb,
   getEvent,
   getEventWithCount,
   getOrCreateAdminPassword,
   getSession,
   getSetting,
+  getStripeSecretKeyFromDb,
   hasAvailableSpots,
   initDb,
+  isSetupComplete,
   setDb,
   setSetting,
   updateAttendeePayment,
@@ -92,6 +98,49 @@ describe("db", () => {
     });
   });
 
+  describe("setup", () => {
+    test("isSetupComplete returns false initially", async () => {
+      expect(await isSetupComplete()).toBe(false);
+    });
+
+    test("completeSetup sets all config values", async () => {
+      await completeSetup("mypassword", "sk_test_123", "USD");
+
+      expect(await isSetupComplete()).toBe(true);
+      expect(await getAdminPasswordFromDb()).toBe("mypassword");
+      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_123");
+      expect(await getCurrencyCodeFromDb()).toBe("USD");
+    });
+
+    test("completeSetup works without stripe key", async () => {
+      await completeSetup("mypassword", null, "EUR");
+
+      expect(await isSetupComplete()).toBe(true);
+      expect(await getAdminPasswordFromDb()).toBe("mypassword");
+      expect(await getStripeSecretKeyFromDb()).toBeNull();
+      expect(await getCurrencyCodeFromDb()).toBe("EUR");
+    });
+
+    test("CONFIG_KEYS contains expected keys", () => {
+      expect(CONFIG_KEYS.ADMIN_PASSWORD).toBe("admin_password");
+      expect(CONFIG_KEYS.STRIPE_SECRET_KEY).toBe("stripe_secret_key");
+      expect(CONFIG_KEYS.CURRENCY_CODE).toBe("currency_code");
+      expect(CONFIG_KEYS.SETUP_COMPLETE).toBe("setup_complete");
+    });
+
+    test("getCurrencyCodeFromDb returns GBP by default", async () => {
+      expect(await getCurrencyCodeFromDb()).toBe("GBP");
+    });
+
+    test("getAdminPasswordFromDb returns null when not set", async () => {
+      expect(await getAdminPasswordFromDb()).toBeNull();
+    });
+
+    test("getStripeSecretKeyFromDb returns null when not set", async () => {
+      expect(await getStripeSecretKeyFromDb()).toBeNull();
+    });
+  });
+
   describe("admin password", () => {
     test("getOrCreateAdminPassword creates password on first call", async () => {
       const password = await getOrCreateAdminPassword();
@@ -116,45 +165,10 @@ describe("db", () => {
       expect(result).toBe(false);
     });
 
-    test("verifyAdminPassword returns true for ADMIN_PASSWORD env var", async () => {
-      const originalEnv = process.env.ADMIN_PASSWORD;
-      process.env.ADMIN_PASSWORD = "env-password-123";
-
-      try {
-        await getOrCreateAdminPassword();
-        const result = await verifyAdminPassword("env-password-123");
-        expect(result).toBe(true);
-      } finally {
-        if (originalEnv !== undefined) {
-          process.env.ADMIN_PASSWORD = originalEnv;
-        } else {
-          delete process.env.ADMIN_PASSWORD;
-        }
-      }
-    });
-
-    test("verifyAdminPassword accepts both env var and database password", async () => {
-      const originalEnv = process.env.ADMIN_PASSWORD;
-      process.env.ADMIN_PASSWORD = "env-password-123";
-
-      try {
-        const dbPassword = await getOrCreateAdminPassword();
-
-        const envResult = await verifyAdminPassword("env-password-123");
-        expect(envResult).toBe(true);
-
-        const dbResult = await verifyAdminPassword(dbPassword);
-        expect(dbResult).toBe(true);
-
-        const wrongResult = await verifyAdminPassword("wrong");
-        expect(wrongResult).toBe(false);
-      } finally {
-        if (originalEnv !== undefined) {
-          process.env.ADMIN_PASSWORD = originalEnv;
-        } else {
-          delete process.env.ADMIN_PASSWORD;
-        }
-      }
+    test("verifyAdminPassword returns false when no password set", async () => {
+      // Don't set any password
+      const result = await verifyAdminPassword("anypassword");
+      expect(result).toBe(false);
     });
   });
 

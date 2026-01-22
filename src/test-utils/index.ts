@@ -3,7 +3,12 @@
  */
 
 import { createClient } from "@libsql/client";
-import { initDb, setDb } from "../lib/db.ts";
+import { completeSetup, initDb, setDb } from "../lib/db.ts";
+
+/**
+ * Default test admin password
+ */
+export const TEST_ADMIN_PASSWORD = "testpassword123";
 
 /**
  * Create an in-memory database for testing
@@ -12,6 +17,18 @@ export const createTestDb = async (): Promise<void> => {
   const client = createClient({ url: ":memory:" });
   setDb(client);
   await initDb();
+};
+
+/**
+ * Create an in-memory database with setup already completed
+ * This is the common case for most tests
+ */
+export const createTestDbWithSetup = async (
+  stripeKey: string | null = null,
+  currency = "GBP",
+): Promise<void> => {
+  await createTestDb();
+  await completeSetup(TEST_ADMIN_PASSWORD, stripeKey, currency);
 };
 
 /**
