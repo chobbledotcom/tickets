@@ -4,7 +4,7 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
-import { decrypt, encrypt } from "./crypto.ts";
+import { decrypt, encrypt, hashPassword, verifyPassword } from "./crypto.ts";
 import type {
   Attendee,
   Event,
@@ -160,7 +160,7 @@ export const isSetupComplete = async (): Promise<boolean> => {
 
 /**
  * Complete initial setup by storing all configuration
- * Passwords are hashed using Argon2id before storage
+ * Passwords are hashed using scrypt before storage
  * Sensitive values are encrypted at rest
  */
 export const completeSetup = async (
@@ -168,7 +168,7 @@ export const completeSetup = async (
   stripeSecretKey: string | null,
   currencyCode: string,
 ): Promise<void> => {
-  const hashedPassword = await Bun.password.hash(adminPassword);
+  const hashedPassword = await hashPassword(adminPassword);
   const encryptedHash = await encrypt(hashedPassword);
   await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, encryptedHash);
   if (stripeSecretKey) {
@@ -215,17 +215,17 @@ export const verifyAdminPassword = async (
 ): Promise<boolean> => {
   const storedHash = await getAdminPasswordFromDb();
   if (storedHash === null) return false;
-  return Bun.password.verify(password, storedHash);
+  return verifyPassword(password, storedHash);
 };
 
 /**
  * Update admin password and invalidate all existing sessions
- * Passwords are hashed using Argon2id before storage and encrypted at rest
+ * Passwords are hashed using scrypt before storage and encrypted at rest
  */
 export const updateAdminPassword = async (
   newPassword: string,
 ): Promise<void> => {
-  const hashedPassword = await Bun.password.hash(newPassword);
+  const hashedPassword = await hashPassword(newPassword);
   const encryptedHash = await encrypt(hashedPassword);
   await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, encryptedHash);
   await deleteAllSessions();
