@@ -123,7 +123,7 @@ describe("db", () => {
 
     test("CONFIG_KEYS contains expected keys", () => {
       expect(CONFIG_KEYS.ADMIN_PASSWORD).toBe("admin_password");
-      expect(CONFIG_KEYS.STRIPE_SECRET_KEY).toBe("stripe_secret_key");
+      expect(CONFIG_KEYS.STRIPE_KEY).toBe("stripe_key");
       expect(CONFIG_KEYS.CURRENCY_CODE).toBe("currency_code");
       expect(CONFIG_KEYS.SETUP_COMPLETE).toBe("setup_complete");
     });

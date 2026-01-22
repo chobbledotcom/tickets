@@ -499,7 +499,7 @@ describe("server", () => {
 
     test("handles payment flow error when Stripe fails", async () => {
       // Set a fake Stripe key to enable payments (in database)
-      await setSetting("stripe_secret_key", "sk_test_fake_key");
+      await setSetting("stripe_key", "sk_test_fake_key");
 
       // Create a paid event
       const event = await createEvent(
@@ -525,7 +525,7 @@ describe("server", () => {
     });
 
     test("free ticket still works when payments enabled", async () => {
-      await setSetting("stripe_secret_key", "sk_test_fake_key");
+      await setSetting("stripe_key", "sk_test_fake_key");
 
       // Create a free event (no price)
       const event = await createEvent(
@@ -551,7 +551,7 @@ describe("server", () => {
     });
 
     test("zero price ticket is treated as free", async () => {
-      await setSetting("stripe_secret_key", "sk_test_fake_key");
+      await setSetting("stripe_key", "sk_test_fake_key");
 
       // Create event with 0 price
       const event = await createEvent(
@@ -577,7 +577,7 @@ describe("server", () => {
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
-      await setSetting("stripe_secret_key", "sk_test_mock");
+      await setSetting("stripe_key", "sk_test_mock");
 
       const event = await createEvent(
         "Paid Event",
@@ -641,7 +641,7 @@ describe("server", () => {
     });
 
     test("handles successful payment verification with stripe-mock", async () => {
-      await setSetting("stripe_secret_key", "sk_test_mock");
+      await setSetting("stripe_key", "sk_test_mock");
 
       const event = await createEvent(
         "Paid Event",
@@ -681,7 +681,7 @@ describe("server", () => {
       } as Awaited<ReturnType<typeof stripeModule.retrieveCheckoutSession>>);
 
       try {
-        await setSetting("stripe_secret_key", "sk_test_mock");
+        await setSetting("stripe_key", "sk_test_mock");
 
         const event = await createEvent(
           "Paid Event",

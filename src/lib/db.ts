@@ -139,7 +139,7 @@ export const setSetting = async (key: string, value: string): Promise<void> => {
  */
 export const CONFIG_KEYS = {
   ADMIN_PASSWORD: "admin_password",
-  STRIPE_SECRET_KEY: "stripe_secret_key",
+  STRIPE_KEY: "stripe_key",
   CURRENCY_CODE: "currency_code",
   SETUP_COMPLETE: "setup_complete",
 } as const;
@@ -162,7 +162,7 @@ export const completeSetup = async (
 ): Promise<void> => {
   await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, adminPassword);
   if (stripeSecretKey) {
-    await setSetting(CONFIG_KEYS.STRIPE_SECRET_KEY, stripeSecretKey);
+    await setSetting(CONFIG_KEYS.STRIPE_KEY, stripeSecretKey);
   }
   await setSetting(CONFIG_KEYS.CURRENCY_CODE, currencyCode);
   await setSetting(CONFIG_KEYS.SETUP_COMPLETE, "true");
@@ -172,7 +172,7 @@ export const completeSetup = async (
  * Get Stripe secret key from database
  */
 export const getStripeSecretKeyFromDb = async (): Promise<string | null> => {
-  return getSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
+  return getSetting(CONFIG_KEYS.STRIPE_KEY);
 };
 
 /**

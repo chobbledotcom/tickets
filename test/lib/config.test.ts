@@ -35,17 +35,17 @@ describe("config", () => {
     });
 
     test("returns null when empty string in database", async () => {
-      await setSetting("stripe_secret_key", "");
+      await setSetting("stripe_key", "");
       expect(await getStripeSecretKey()).toBeNull();
     });
 
     test("returns null when whitespace only in database", async () => {
-      await setSetting("stripe_secret_key", "   ");
+      await setSetting("stripe_key", "   ");
       expect(await getStripeSecretKey()).toBeNull();
     });
 
     test("returns key when set in database", async () => {
-      await setSetting("stripe_secret_key", "sk_test_123");
+      await setSetting("stripe_key", "sk_test_123");
       expect(await getStripeSecretKey()).toBe("sk_test_123");
     });
   });
@@ -56,7 +56,7 @@ describe("config", () => {
     });
 
     test("returns true when stripe key is set", async () => {
-      await setSetting("stripe_secret_key", "sk_test_123");
+      await setSetting("stripe_key", "sk_test_123");
       expect(await isPaymentsEnabled()).toBe(true);
     });
   });
