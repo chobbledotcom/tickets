@@ -160,6 +160,37 @@ describe("server", () => {
       // Should work (just testing the IP extraction path)
       expect(response.status).toBe(401);
     });
+
+    test("falls back to unknown when no IP headers present", async () => {
+      const request = new Request("http://localhost/admin/login", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "http://localhost",
+        },
+        body: new URLSearchParams({ password: "wrong" }).toString(),
+      });
+
+      const response = await handleRequest(request);
+      // Should still work (IP becomes "unknown")
+      expect(response.status).toBe(401);
+    });
+
+    test("falls back to unknown when X-Forwarded-For has empty first entry", async () => {
+      const request = new Request("http://localhost/admin/login", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "http://localhost",
+          "x-forwarded-for": ",10.0.0.1",
+        },
+        body: new URLSearchParams({ password: "wrong" }).toString(),
+      });
+
+      const response = await handleRequest(request);
+      // Should still work (IP becomes "unknown" due to empty first entry)
+      expect(response.status).toBe(401);
+    });
   });
 
   describe("GET /admin/logout", () => {
@@ -412,6 +443,33 @@ describe("server", () => {
         ),
       );
       expect(response.status).toBe(404);
+    });
+
+    test("rejects request with invalid CSRF token", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      await createEvent("Test", "Desc", 100, "https://example.com");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/edit",
+          {
+            name: "Updated",
+            description: "Updated Desc",
+            max_attendees: "50",
+            thank_you_url: "https://example.com/updated",
+            csrf_token: "invalid-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid CSRF token");
     });
 
     test("validates required fields", async () => {

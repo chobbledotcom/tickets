@@ -4,5 +4,5 @@ timeout = 30000
 coverage = true
 preload = ["./test/setup.ts"]
 # Full coverage requires stripe-mock running on localhost:12111
-coverageThreshold = { lines = 0.99, functions = 1.0 }
+coverageThreshold = { lines = 1.0, functions = 1.0 }
 coverageSkipTestFiles = true
