@@ -6,6 +6,7 @@
 import { gcm } from "@noble/ciphers/aes.js";
 import { randomBytes } from "@noble/ciphers/utils.js";
 import { scrypt } from "@noble/hashes/scrypt.js";
+import { lazyRef } from "#fp";
 
 /**
  * Constant-time string comparison to prevent timing attacks
@@ -47,11 +48,23 @@ export const generateSecureToken = (): string => {
  */
 const ENCRYPTION_PREFIX = "enc:1:";
 
-/**
- * Cache for the decoded key bytes
- */
-let cachedKeyBytes: Uint8Array | null = null;
-let cachedKeySource: string | null = null;
+type KeyCache = { bytes: Uint8Array; source: string };
+
+const decodeKeyBytes = (keyString: string): Uint8Array => {
+  const keyBytes = Uint8Array.from(atob(keyString), (c) => c.charCodeAt(0));
+
+  if (keyBytes.length !== 32) {
+    throw new Error(
+      `DB_ENCRYPTION_KEY must be 32 bytes (256 bits), got ${keyBytes.length} bytes`,
+    );
+  }
+
+  return keyBytes;
+};
+
+const [getKeyCache, setKeyCache] = lazyRef<KeyCache>(() => {
+  throw new Error("Key cache not initialized");
+});
 
 /**
  * Get the encryption key bytes from environment variable
@@ -67,23 +80,18 @@ const getEncryptionKeyBytes = (): Uint8Array => {
   }
 
   // Return cached key if source hasn't changed
-  if (cachedKeyBytes && cachedKeySource === keyString) {
-    return cachedKeyBytes;
+  try {
+    const cached = getKeyCache();
+    if (cached.source === keyString) {
+      return cached.bytes;
+    }
+  } catch {
+    // Cache not initialized yet
   }
 
-  // Decode base64 key
-  const keyBytes = Uint8Array.from(atob(keyString), (c) => c.charCodeAt(0));
-
-  if (keyBytes.length !== 32) {
-    throw new Error(
-      `DB_ENCRYPTION_KEY must be 32 bytes (256 bits), got ${keyBytes.length} bytes`,
-    );
-  }
-
-  cachedKeyBytes = keyBytes;
-  cachedKeySource = keyString;
-
-  return keyBytes;
+  const bytes = decodeKeyBytes(keyString);
+  setKeyCache({ bytes, source: keyString });
+  return bytes;
 };
 
 /**
@@ -173,8 +181,7 @@ export const isEncrypted = (value: string): boolean => {
  * Clear the cached encryption key (useful for testing)
  */
 export const clearEncryptionKeyCache = (): void => {
-  cachedKeyBytes = null;
-  cachedKeySource = null;
+  setKeyCache(null);
 };
 
 /**

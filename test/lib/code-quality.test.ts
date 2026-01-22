@@ -30,7 +30,24 @@ const FORBIDDEN_PATTERNS = [
 /**
  * Files that are allowed to have in-memory state (e.g., test utilities)
  */
-const ALLOWED_FILES = ["test-utils/index.ts", "test-utils/stripe-mock.ts"];
+const ALLOWED_FILES_STATE = [
+  "test-utils/index.ts",
+  "test-utils/stripe-mock.ts",
+];
+
+/**
+ * Pattern to detect function/variable aliasing at module level.
+ * Forces use of `import { x as y }` instead of post-import aliasing.
+ * Example violation: const myFunc = someImportedFunc;
+ * Only matches identifiers (starts with letter/underscore), not literals.
+ */
+const ALIASING_PATTERN =
+  /^(?:export\s+)?const\s+(\w+)\s*=\s*([a-zA-Z_]\w*)\s*;?\s*(?:\/\/.*)?$/;
+
+/**
+ * Pattern to detect .then() usage - prefer async/await
+ */
+const THEN_PATTERN = /\.then\s*\(/g;
 
 const getAllTsFiles = async (dir: string): Promise<string[]> => {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -60,7 +77,7 @@ describe("code quality", () => {
       for (const file of files) {
         const relativePath = getRelativePath(file);
 
-        if (ALLOWED_FILES.includes(relativePath)) {
+        if (ALLOWED_FILES_STATE.includes(relativePath)) {
           continue;
         }
 
@@ -69,6 +86,88 @@ describe("code quality", () => {
         for (const { pattern, description } of FORBIDDEN_PATTERNS) {
           if (pattern.test(content)) {
             violations.push(`${relativePath}: ${description}`);
+          }
+        }
+      }
+
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("no aliasing", () => {
+    test("should not alias functions or variables at module level", async () => {
+      const files = await getAllTsFiles(SRC_DIR);
+      const violations: string[] = [];
+
+      for (const file of files) {
+        const relativePath = getRelativePath(file);
+        const content = await Bun.file(file).text();
+        const lines = content.split("\n");
+
+        let lineNum = 0;
+        for (const line of lines) {
+          lineNum++;
+          const match = line.match(ALIASING_PATTERN);
+
+          if (match) {
+            const [, varName, value] = match;
+            violations.push(
+              `${relativePath}:${lineNum}: const ${varName} = ${value} (use import { ${value} as ${varName} } instead)`,
+            );
+          }
+        }
+      }
+
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("no module-level let", () => {
+    test("should use const with once()/lazyRef() instead of let", async () => {
+      const files = await getAllTsFiles(SRC_DIR);
+      const violations: string[] = [];
+
+      for (const file of files) {
+        const relativePath = getRelativePath(file);
+        const content = await Bun.file(file).text();
+        const lines = content.split("\n");
+
+        let lineNum = 0;
+        for (const line of lines) {
+          lineNum++;
+
+          // Only check module-level let (not indented)
+          if (line.match(/^(export\s+)?let\s+/)) {
+            violations.push(
+              `${relativePath}:${lineNum}: ${line.slice(0, 50)}... (use const with once()/lazyRef())`,
+            );
+          }
+        }
+      }
+
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("no .then() usage", () => {
+    test("should use async/await instead of .then()", async () => {
+      const files = await getAllTsFiles(SRC_DIR);
+      const violations: string[] = [];
+
+      for (const file of files) {
+        const relativePath = getRelativePath(file);
+        const content = await Bun.file(file).text();
+        const lines = content.split("\n");
+
+        let lineNum = 0;
+        for (const line of lines) {
+          lineNum++;
+
+          if (THEN_PATTERN.test(line)) {
+            THEN_PATTERN.lastIndex = 0;
+            violations.push(
+              `${relativePath}:${lineNum}: ${line.trim().slice(0, 50)}... (use async/await instead)`,
+            );
           }
         }
       }
