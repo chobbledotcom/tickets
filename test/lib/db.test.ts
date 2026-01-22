@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
-import { setupTestEncryptionKey } from "#test-utils";
 import {
   CONFIG_KEYS,
   clearLoginAttempts,
@@ -35,6 +34,7 @@ import {
   updateEvent,
   verifyAdminPassword,
 } from "#lib/db.ts";
+import { setupTestEncryptionKey } from "#test-utils";
 
 describe("db", () => {
   beforeEach(async () => {
