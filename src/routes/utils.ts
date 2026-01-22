@@ -2,16 +2,12 @@
  * Shared utilities for route handlers
  */
 
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
 import { deleteSession, getSession } from "#lib/db.ts";
 import type { ServerContext } from "./types.ts";
 
-/**
- * Generate a cryptographically secure token
- */
-export const generateSecureToken = (): string => {
-  return randomBytes(32).toString("base64url");
-};
+// Re-export for use by other route modules
+export { generateSecureToken };
 
 /**
  * Get client IP from request
@@ -87,8 +83,7 @@ export const validateCsrfToken = (
   expected: string,
   actual: string,
 ): boolean => {
-  if (expected.length !== actual.length) return false;
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(actual));
+  return constantTimeEqual(expected, actual);
 };
 
 /**
