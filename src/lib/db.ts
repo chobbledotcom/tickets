@@ -4,7 +4,7 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
-import { decrypt, encrypt, isEncrypted } from "./crypto.ts";
+import { decrypt, encrypt } from "./crypto.ts";
 import type {
   Attendee,
   Event,
@@ -185,11 +185,7 @@ export const completeSetup = async (
 export const getStripeSecretKeyFromDb = async (): Promise<string | null> => {
   const value = await getSetting(CONFIG_KEYS.STRIPE_KEY);
   if (!value) return null;
-  // Handle both encrypted and legacy unencrypted values
-  if (isEncrypted(value)) {
-    return decrypt(value);
-  }
-  return value;
+  return decrypt(value);
 };
 
 /**
@@ -207,11 +203,7 @@ export const getCurrencyCodeFromDb = async (): Promise<string> => {
 export const getAdminPasswordFromDb = async (): Promise<string | null> => {
   const value = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
   if (!value) return null;
-  // Handle both encrypted and legacy unencrypted values
-  if (isEncrypted(value)) {
-    return decrypt(value);
-  }
-  return value;
+  return decrypt(value);
 };
 
 /**
@@ -331,15 +323,14 @@ export const getEventWithCount = async (
 };
 
 /**
- * Decrypt attendee fields if encrypted
+ * Decrypt attendee fields
  */
 const decryptAttendee = async (row: Attendee): Promise<Attendee> => {
-  const name = isEncrypted(row.name) ? await decrypt(row.name) : row.name;
-  const email = isEncrypted(row.email) ? await decrypt(row.email) : row.email;
-  const stripe_payment_id =
-    row.stripe_payment_id && isEncrypted(row.stripe_payment_id)
-      ? await decrypt(row.stripe_payment_id)
-      : row.stripe_payment_id;
+  const name = await decrypt(row.name);
+  const email = await decrypt(row.email);
+  const stripe_payment_id = row.stripe_payment_id
+    ? await decrypt(row.stripe_payment_id)
+    : null;
   return { ...row, name, email, stripe_payment_id };
 };
 
