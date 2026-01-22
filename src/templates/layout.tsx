@@ -2,7 +2,7 @@
  * Base layout and common template utilities
  */
 
-import { Raw } from "#jsx/jsx-runtime.ts";
+import { type Child, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
 
 export const escapeHtml = (str: string): string =>
   str
@@ -29,30 +29,33 @@ export const baseStyles = `
 
 interface LayoutProps {
   title: string;
-  children: string;
+  children?: Child;
 }
 
 /**
  * Wrap content in basic HTML layout
  */
-export const Layout = ({ title, children }: LayoutProps): string =>
-  "<!DOCTYPE html>" +
-  (
-    <html lang="en">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>{title}</title>
-        <style><Raw html={baseStyles} /></style>
-      </head>
-      <body>
-        <Raw html={children} />
-      </body>
-    </html>
+export const Layout = ({ title, children }: LayoutProps): SafeHtml =>
+  new SafeHtml(
+    "<!DOCTYPE html>" +
+    (
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>{title}</title>
+          <style><Raw html={baseStyles} /></style>
+        </head>
+        <body>
+          {children}
+        </body>
+      </html>
+    )
   );
 
 /**
  * Legacy function wrapper for backward compatibility
+ * Note: content is expected to be pre-rendered HTML
  */
 export const layout = (title: string, content: string): string =>
-  String(<Layout title={title}>{content}</Layout>);
+  String(<Layout title={title}><Raw html={content} /></Layout>);

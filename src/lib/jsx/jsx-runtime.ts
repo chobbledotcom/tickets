@@ -3,6 +3,78 @@
  * No React required - just compiles JSX to string concatenation
  */
 
+/**
+ * Wrapper for HTML that should not be escaped.
+ * Has toString() so it works seamlessly in string contexts.
+ */
+export class SafeHtml {
+  constructor(public html: string) {}
+  toString(): string {
+    return this.html;
+  }
+}
+
+/** Child types that can be rendered */
+export type Child =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | SafeHtml
+  | Child[];
+
+/** HTML attribute types */
+interface HtmlAttributes {
+  children?: Child;
+  class?: string;
+  style?: string;
+  // Common HTML attributes
+  id?: string;
+  name?: string;
+  type?: string;
+  value?: string | number;
+  href?: string;
+  src?: string;
+  alt?: string;
+  title?: string;
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+  checked?: boolean;
+  readonly?: boolean;
+  min?: number | string;
+  max?: number | string;
+  pattern?: string;
+  rows?: string | number;
+  cols?: string | number;
+  for?: string;
+  method?: string;
+  action?: string;
+  target?: string;
+  rel?: string;
+  colspan?: string | number;
+  rowspan?: string | number;
+  lang?: string;
+  charset?: string;
+  content?: string;
+  // Allow any other attributes
+  [key: string]: Child | string | number | boolean | null | undefined;
+}
+
+/** JSX type declarations */
+declare global {
+  namespace JSX {
+    type Element = SafeHtml;
+    interface IntrinsicElements {
+      [elemName: string]: HtmlAttributes;
+    }
+    interface ElementChildrenAttribute {
+      children: Child;
+    }
+  }
+}
+
 const escapeHtml = (str: string): string =>
   str
     .replace(/&/g, "&amp;")
@@ -28,21 +100,9 @@ const VOID_ELEMENTS: Record<string, true> = {
   wbr: true,
 };
 
-/**
- * Wrapper for HTML that should not be escaped.
- * Has toString() so it works seamlessly in string contexts.
- */
-class SafeHtml {
-  constructor(public html: string) {}
-  toString(): string {
-    return this.html;
-  }
-}
-
 const isSafeHtml = (value: unknown): value is SafeHtml =>
   value instanceof SafeHtml;
 
-type Child = string | number | boolean | null | undefined | SafeHtml | Child[];
 type Props = Record<string, unknown> & { children?: Child };
 type Component = (props: Props) => SafeHtml | string;
 
