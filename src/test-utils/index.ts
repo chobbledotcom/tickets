@@ -20,9 +20,11 @@ export const TEST_ENCRYPTION_KEY =
 
 /**
  * Set up test encryption key in environment
+ * Also enables fast scrypt hashing for tests
  */
 export const setupTestEncryptionKey = (): void => {
   process.env.DB_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+  process.env.TEST_SCRYPT_N = "1"; // Enable fast password hashing for tests
   clearEncryptionKeyCache();
 };
 
@@ -31,6 +33,7 @@ export const setupTestEncryptionKey = (): void => {
  */
 export const clearTestEncryptionKey = (): void => {
   delete process.env.DB_ENCRYPTION_KEY;
+  delete process.env.TEST_SCRYPT_N;
   clearEncryptionKeyCache();
 };
 
