@@ -4,11 +4,11 @@
 
 import {
   clearLoginAttempts,
-  createEvent,
   createSession,
   deleteEvent,
   deleteSession,
   type EventInput,
+  eventsTable,
   getAllEvents,
   getAttendees,
   hasStripeKey,
@@ -20,6 +20,7 @@ import {
   verifyAdminPassword,
 } from "#lib/db";
 import { validateForm } from "#lib/forms.tsx";
+import { createHandler, defineResource } from "#lib/rest";
 import type { EventWithCount } from "#lib/types.ts";
 import {
   adminDashboardPage,
@@ -99,6 +100,14 @@ const extractEventInput = (values: Record<string, unknown>): EventInput => ({
   unitPrice: values.unit_price as number | null,
   maxQuantity: values.max_quantity as number,
   webhookUrl: (values.webhook_url as string) || null,
+});
+
+/** Events resource for REST operations */
+const eventsResource = defineResource({
+  table: eventsTable,
+  fields: eventFields,
+  toInput: extractEventInput,
+  nameField: "name",
 });
 
 /** Attendee type */
@@ -297,13 +306,10 @@ const handleAdminStripePost = async (request: Request): Promise<Response> => {
 /**
  * Handle POST /admin/event (create event)
  */
-const handleCreateEvent = async (request: Request): Promise<Response> => {
-  const result = await requireAuthValidation(request, eventFields);
-  if (!result.ok) return result.response;
-
-  await createEvent(extractEventInput(result.validation.values));
-  return redirect("/admin/");
-};
+const handleCreateEvent = createHandler(eventsResource, {
+  onSuccess: () => redirect("/admin/"),
+  onError: () => redirect("/admin/"),
+});
 
 /**
  * Handle GET /admin/event/:id
@@ -328,14 +334,15 @@ type EventFormHandler = (
   event: EventWithCount,
   session: AuthSession,
   form: URLSearchParams,
+  request: Request,
 ) => Response | Promise<Response>;
 
-/** Curried event form POST handler: handler -> (request, eventId) -> Response */
+/** Curried event form handler: handler -> (request, eventId) -> Response */
 const withEventFormHandler =
   (handler: EventFormHandler) =>
   (request: Request, eventId: number): Promise<Response> =>
     withAuthForm(request, (session, form) =>
-      withEvent(eventId, (event) => handler(event, session, form)),
+      withEvent(eventId, (event) => handler(event, session, form, request)),
     );
 
 /** Handle GET /admin/event/:id/edit */
@@ -343,7 +350,7 @@ const handleAdminEventEditGet = withEventPage(adminEventEditPage);
 
 /** Handle POST /admin/event/:id/edit */
 const handleAdminEventEditPost = withEventFormHandler(
-  async (event, session, form) => {
+  async (event, session, form, _request) => {
     const validation = validateForm(form, eventFields);
     if (!validation.valid) {
       return htmlResponse(
@@ -374,19 +381,25 @@ const handleAdminEventExport = (request: Request, eventId: number) =>
 /** Handle GET /admin/event/:id/delete (show confirmation page) */
 const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
 
-/** Handle POST /admin/event/:id/delete (delete event after confirmation) */
-const handleAdminEventDeletePost = withEventFormHandler(
-  async (event, session, form) => {
-    const confirmName = (form.get("confirm_name") ?? "").trim();
-    if (confirmName.toLowerCase() !== event.name.trim().toLowerCase()) {
-      return htmlResponse(
-        adminDeleteEventPage(
-          event,
-          session.csrfToken,
-          "Event name does not match. Please type the exact name to confirm deletion.",
-        ),
-        400,
-      );
+/** Check if name verification is required (default: true, skip with ?verify_name=false) */
+const needsNameVerification = (request: Request): boolean =>
+  new URL(request.url).searchParams.get("verify_name") !== "false";
+
+/** Handle DELETE /admin/event/:id (delete event, optionally verify name) */
+const handleAdminEventDelete = withEventFormHandler(
+  async (event, session, form, request) => {
+    if (needsNameVerification(request)) {
+      const confirmName = (form.get("confirm_name") ?? "").trim();
+      if (confirmName.toLowerCase() !== event.name.trim().toLowerCase()) {
+        return htmlResponse(
+          adminDeleteEventPage(
+            event,
+            session.csrfToken,
+            "Event name does not match. Please type the exact name to confirm deletion.",
+          ),
+          400,
+        );
+      }
     }
     await deleteEvent(event.id);
     return redirect("/admin/");
@@ -408,12 +421,13 @@ const routeAdminEventExport: RouteHandler = createIdRoute(
   (request) => ({ GET: (id) => handleAdminEventExport(request, id) }),
 );
 
-/** Route admin event delete requests */
+/** Route admin event delete requests (DELETE for API, POST for web forms) */
 const routeAdminEventDelete: RouteHandler = createIdRoute(
   /^\/admin\/event\/(\d+)\/delete$/,
   (request) => ({
     GET: (id) => handleAdminEventDeleteGet(request, id),
-    POST: (id) => handleAdminEventDeletePost(request, id),
+    POST: (id) => handleAdminEventDelete(request, id),
+    DELETE: (id) => handleAdminEventDelete(request, id),
   }),
 );
 

@@ -6,26 +6,22 @@
  * - Handler factories: Create typed route handlers with auth/CSRF
  *
  * Example:
- *   import { defineResource, createHandler, deleteHandler } from '#lib/rest';
+ *   import { defineResource, createHandler } from '#lib/rest';
  *
  *   const eventsResource = defineResource({
  *     table: eventsTable,
  *     fields: eventFields,
  *     toInput: extractEventInput,
- *     nameField: 'name',
  *   });
  *
  *   // Use with routes
  *   const handleCreate = createHandler(eventsResource, {...});
- *   const handleDelete = deleteHandler(eventsResource, {...});
  */
 
 // Handler factories
 export {
   type CreateHandlerOptions,
   createHandler,
-  type DeleteHandlerOptions,
-  deleteHandler,
   type UpdateHandlerOptions,
 } from "./handlers.ts";
 

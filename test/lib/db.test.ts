@@ -5,7 +5,6 @@ import {
   clearLoginAttempts,
   completeSetup,
   createAttendee,
-  createEvent,
   createSession,
   deleteAllSessions,
   deleteAttendee,
@@ -36,7 +35,7 @@ import {
   updateStripeKey,
   verifyAdminPassword,
 } from "#lib/db";
-import { setupTestEncryptionKey } from "#test-utils";
+import { createEvent, setupTestEncryptionKey } from "#test-utils";
 
 describe("db", () => {
   beforeEach(async () => {
