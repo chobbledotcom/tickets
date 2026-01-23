@@ -193,12 +193,12 @@ export const getTicketCsrfToken = (setCookie: string | null): string | null =>
  * Create a mock ticket form POST request with CSRF token
  */
 export const mockTicketFormRequest = (
-  eventId: number,
+  slug: string,
   data: Record<string, string>,
   csrfToken: string,
 ): Request => {
   return mockFormRequest(
-    `/ticket/${eventId}`,
+    `/ticket/${slug}`,
     { ...data, csrf_token: csrfToken },
     `csrf_token=${csrfToken}`,
   );
@@ -289,6 +289,37 @@ export const awaitTestRequest = async (
   }
   return handleRequest(testRequest(path, tokenOrOptions));
 };
+
+/** Counter for generating unique test slugs */
+let testSlugCounter = 0;
+
+/** Reset test slug counter (call in beforeEach) */
+export const resetTestSlugCounter = (): void => {
+  testSlugCounter = 0;
+};
+
+/** Generate a unique test slug */
+export const generateTestSlug = (): string => {
+  testSlugCounter++;
+  return `test-event-${testSlugCounter}`;
+};
+
+/** Default test event input with slug */
+export const testEventInput = (
+  overrides: Partial<EventInput> = {},
+): EventInput => ({
+  slug: generateTestSlug(),
+  name: "Test Event",
+  description: "Test Description",
+  maxAttendees: 100,
+  thankYouUrl: "https://example.com/thanks",
+  ...overrides,
+});
+
+/** Create a test event with sensible defaults */
+export const createTestEvent = (
+  overrides: Partial<EventInput> = {},
+) => createEvent(testEventInput(overrides));
 
 /** Re-export createEvent and EventInput for test use */
 export { createEvent };

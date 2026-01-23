@@ -7,9 +7,9 @@ import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
 import {
   awaitTestRequest,
-  createEvent,
   createTestDb,
   createTestDbWithSetup,
+  createTestEvent,
   getCsrfTokenFromCookie,
   getSetupCsrfToken,
   getTicketCsrfToken,
@@ -19,6 +19,7 @@ import {
   mockSetupFormRequest,
   mockTicketFormRequest,
   resetDb,
+  resetTestSlugCounter,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
 
@@ -27,17 +28,18 @@ import {
  * First GETs the page to obtain the CSRF token, then POSTs with it
  */
 const submitTicketForm = async (
-  eventId: number,
+  slug: string,
   data: Record<string, string>,
 ): Promise<Response> => {
-  const getResponse = await handleRequest(mockRequest(`/ticket/${eventId}`));
+  const getResponse = await handleRequest(mockRequest(`/ticket/${slug}`));
   const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
   if (!csrfToken) throw new Error("Failed to get CSRF token from ticket page");
-  return handleRequest(mockTicketFormRequest(eventId, data, csrfToken));
+  return handleRequest(mockTicketFormRequest(slug, data, csrfToken));
 };
 
 describe("server", () => {
   beforeEach(async () => {
+    resetTestSlugCounter();
     await createTestDbWithSetup();
   });
 
