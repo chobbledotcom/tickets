@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, spyOn } from "#test-compat";
 import { encrypt } from "#lib/crypto.ts";
-import { setSetting } from "#lib/db/settings";
+import { setSetting } from "#lib/db/settings.ts";
 import {
   createCheckoutSession,
   getStripeClient,

@@ -7,7 +7,7 @@ import {
   isSetupComplete,
 } from "#lib/config.ts";
 import { encrypt } from "#lib/crypto.ts";
-import { completeSetup, setSetting } from "#lib/db/settings";
+import { completeSetup, setSetting } from "#lib/db/settings.ts";
 import { createTestDb, resetDb } from "#test-utils";
 
 describe("config", () => {

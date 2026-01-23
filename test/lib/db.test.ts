@@ -7,21 +7,21 @@ import {
   getAttendees,
   hasAvailableSpots,
   updateAttendeePayment,
-} from "#lib/db/attendees";
-import { getDb, setDb } from "#lib/db/client";
+} from "#lib/db/attendees.ts";
+import { getDb, setDb } from "#lib/db/client.ts";
 import {
   deleteEvent,
   getAllEvents,
   getEvent,
   getEventWithCount,
   updateEvent,
-} from "#lib/db/events";
+} from "#lib/db/events.ts";
 import {
   clearLoginAttempts,
   isLoginRateLimited,
   recordFailedLogin,
-} from "#lib/db/login-attempts";
-import { initDb, LATEST_UPDATE } from "#lib/db/migrations";
+} from "#lib/db/login-attempts.ts";
+import { initDb, LATEST_UPDATE } from "#lib/db/migrations.ts";
 import {
   createSession,
   deleteAllSessions,
@@ -30,7 +30,7 @@ import {
   getAllSessions,
   getSession,
   resetSessionCache,
-} from "#lib/db/sessions";
+} from "#lib/db/sessions.ts";
 import {
   CONFIG_KEYS,
   completeSetup,
@@ -44,7 +44,7 @@ import {
   updateAdminPassword,
   updateStripeKey,
   verifyAdminPassword,
-} from "#lib/db/settings";
+} from "#lib/db/settings.ts";
 import { createEvent, setupTestEncryptionKey } from "#test-utils";
 
 describe("db", () => {

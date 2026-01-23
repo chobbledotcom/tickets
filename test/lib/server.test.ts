@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { encrypt } from "#lib/crypto.ts";
-import { createAttendee } from "#lib/db/attendees";
-import { updateEvent } from "#lib/db/events";
-import { createSession, getSession } from "#lib/db/sessions";
-import { setSetting } from "#lib/db/settings";
+import { createAttendee } from "#lib/db/attendees.ts";
+import { updateEvent } from "#lib/db/events.ts";
+import { createSession, getSession } from "#lib/db/sessions.ts";
+import { setSetting } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
 import {
