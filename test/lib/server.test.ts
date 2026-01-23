@@ -4,6 +4,7 @@ import { createAttendee, createSession, getSession, setSetting } from "#lib/db";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
 import {
+  awaitTestRequest,
   createEvent,
   createTestDb,
   createTestDbWithSetup,
@@ -17,7 +18,6 @@ import {
   mockTicketFormRequest,
   resetDb,
   TEST_ADMIN_PASSWORD,
-  testRequest,
 } from "#test-utils";
 
 /**
@@ -61,9 +61,10 @@ describe("server", () => {
     });
 
     test("returns 404 for non-GET requests to /health", async () => {
-      const response = await handleRequest(
-        testRequest("/health", null, { method: "POST", data: {} }),
-      );
+      const response = await awaitTestRequest("/health", {
+        method: "POST",
+        data: {},
+      });
       expect(response.status).toBe(404);
     });
   });
@@ -79,9 +80,10 @@ describe("server", () => {
     });
 
     test("returns 404 for non-GET requests to /favicon.ico", async () => {
-      const response = await handleRequest(
-        testRequest("/favicon.ico", null, { method: "POST", data: {} }),
-      );
+      const response = await awaitTestRequest("/favicon.ico", {
+        method: "POST",
+        data: {},
+      });
       expect(response.status).toBe(404);
     });
   });
@@ -102,9 +104,9 @@ describe("server", () => {
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
-      const response = await handleRequest(
-        testRequest("/admin/", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/", {
+        cookie: cookie || "",
+      });
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Admin Dashboard");
@@ -239,9 +241,7 @@ describe("server", () => {
       );
       const cookie = loginResponse.headers.get("set-cookie") || "";
 
-      const response = await handleRequest(
-        testRequest("/admin/settings", null, { cookie }),
-      );
+      const response = await awaitTestRequest("/admin/settings", { cookie });
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Admin Settings");
@@ -407,9 +407,7 @@ describe("server", () => {
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
 
       // Verify old session is invalidated
-      const dashboardResponse = await handleRequest(
-        testRequest("/admin/", null, { cookie }),
-      );
+      const dashboardResponse = await awaitTestRequest("/admin/", { cookie });
       const html = await dashboardResponse.text();
       expect(html).toContain("Admin Login"); // Should show login, not dashboard
 
@@ -606,9 +604,9 @@ describe("server", () => {
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
-      const response = await handleRequest(
-        testRequest("/admin/event/999", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/event/999", {
+        cookie: cookie || "",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -626,9 +624,9 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        testRequest("/admin/event/1", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/event/1", {
+        cookie: cookie || "",
+      });
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Test Event");
@@ -648,9 +646,9 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        testRequest("/admin/event/1", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/event/1", {
+        cookie: cookie || "",
+      });
       const html = await response.text();
       expect(html).toContain("/admin/event/1/edit");
       expect(html).toContain("Edit Event");
@@ -679,9 +677,9 @@ describe("server", () => {
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
-      const response = await handleRequest(
-        testRequest("/admin/event/999/export", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/event/999/export", {
+        cookie: cookie || "",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -699,9 +697,9 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        testRequest("/admin/event/1/export", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/event/1/export", {
+        cookie: cookie || "",
+      });
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
         "text/csv; charset=utf-8",
@@ -728,9 +726,9 @@ describe("server", () => {
       await createAttendee(1, "John Doe", "john@example.com");
       await createAttendee(1, "Jane Smith", "jane@example.com");
 
-      const response = await handleRequest(
-        testRequest("/admin/event/1/export", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/event/1/export", {
+        cookie: cookie || "",
+      });
       const csv = await response.text();
       expect(csv).toContain("Name,Email,Quantity,Registered");
       expect(csv).toContain("John Doe");
@@ -753,9 +751,9 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        testRequest("/admin/event/1/export", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/event/1/export", {
+        cookie: cookie || "",
+      });
       const disposition = response.headers.get("content-disposition");
       expect(disposition).toContain("Test_Event___Special_");
       expect(disposition).not.toContain("/");
@@ -783,9 +781,9 @@ describe("server", () => {
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
-      const response = await handleRequest(
-        testRequest("/admin/event/999/edit", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/event/999/edit", {
+        cookie: cookie || "",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -804,9 +802,9 @@ describe("server", () => {
         unitPrice: 1500,
       });
 
-      const response = await handleRequest(
-        testRequest("/admin/event/1/edit", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/event/1/edit", {
+        cookie: cookie || "",
+      });
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Edit Event");
@@ -996,9 +994,9 @@ describe("server", () => {
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
-      const response = await handleRequest(
-        testRequest("/admin/event/999/delete", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/event/999/delete", {
+        cookie: cookie || "",
+      });
       expect(response.status).toBe(404);
     });
 
@@ -1015,9 +1013,9 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const response = await handleRequest(
-        testRequest("/admin/event/1/delete", null, { cookie: cookie || "" }),
-      );
+      const response = await awaitTestRequest("/admin/event/1/delete", {
+        cookie: cookie || "",
+      });
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Delete Event");
@@ -1428,9 +1426,7 @@ describe("server", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const response = await handleRequest(
-        testRequest("/ticket/1", null, { method: "PUT" }),
-      );
+      const response = await awaitTestRequest("/ticket/1", { method: "PUT" });
       expect(response.status).toBe(404);
     });
   });
@@ -1444,9 +1440,7 @@ describe("server", () => {
 
   describe("session expiration", () => {
     test("nonexistent session shows login page", async () => {
-      const response = await handleRequest(
-        testRequest("/admin/", "nonexistent"),
-      );
+      const response = await awaitTestRequest("/admin/", "nonexistent");
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Admin Login");
@@ -1456,9 +1450,7 @@ describe("server", () => {
       // Add an expired session directly to the database
       await createSession("expired-token", "csrf-expired", Date.now() - 1000);
 
-      const response = await handleRequest(
-        testRequest("/admin/", "expired-token"),
-      );
+      const response = await awaitTestRequest("/admin/", "expired-token");
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Admin Login");
@@ -1484,9 +1476,7 @@ describe("server", () => {
       expect(sessionBefore).not.toBeNull();
 
       // Now logout
-      const logoutResponse = await handleRequest(
-        testRequest("/admin/logout", token),
-      );
+      const logoutResponse = await awaitTestRequest("/admin/logout", token);
       expect(logoutResponse.status).toBe(302);
 
       // Verify session was deleted
@@ -1616,9 +1606,10 @@ describe("server", () => {
 
   describe("payment routes", () => {
     test("returns 404 for unsupported method on payment routes", async () => {
-      const response = await handleRequest(
-        testRequest("/payment/success", null, { method: "POST", data: {} }),
-      );
+      const response = await awaitTestRequest("/payment/success", {
+        method: "POST",
+        data: {},
+      });
       expect(response.status).toBe(404);
     });
   });
@@ -2222,9 +2213,7 @@ describe("server", () => {
       });
 
       test("PUT /setup/ redirects to /setup/ (unsupported method)", async () => {
-        const response = await handleRequest(
-          testRequest("/setup/", null, { method: "PUT" }),
-        );
+        const response = await awaitTestRequest("/setup/", { method: "PUT" });
         // PUT method falls through routeSetup (returns null), then redirects to /setup/
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe("/setup/");
