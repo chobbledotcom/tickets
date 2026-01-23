@@ -71,9 +71,9 @@ describe("test-utils", () => {
       const request = mockFormRequest(
         "/test",
         { name: "John" },
-        "session=abc123",
+        "__Host-session=abc123",
       );
-      expect(request.headers.get("cookie")).toBe("session=abc123");
+      expect(request.headers.get("cookie")).toBe("__Host-session=abc123");
     });
   });
 
@@ -87,22 +87,24 @@ describe("test-utils", () => {
 
     test("formats session token as cookie", () => {
       const request = testRequest("/admin/logout", { session: "abc123" });
-      expect(request.headers.get("cookie")).toBe("session=abc123");
+      expect(request.headers.get("cookie")).toBe("__Host-session=abc123");
     });
 
     test("uses raw cookie string when provided", () => {
       const request = testRequest("/admin/", {
-        cookie: "session=xyz; other=value",
+        cookie: "__Host-session=xyz; other=value",
       });
-      expect(request.headers.get("cookie")).toBe("session=xyz; other=value");
+      expect(request.headers.get("cookie")).toBe(
+        "__Host-session=xyz; other=value",
+      );
     });
 
     test("session takes precedence over cookie", () => {
       const request = testRequest("/admin/", {
         session: "token123",
-        cookie: "session=other",
+        cookie: "__Host-session=other",
       });
-      expect(request.headers.get("cookie")).toBe("session=token123");
+      expect(request.headers.get("cookie")).toBe("__Host-session=token123");
     });
 
     test("creates POST request with form data", async () => {
@@ -124,7 +126,7 @@ describe("test-utils", () => {
         data: { name: "Test Event" },
       });
       expect(request.method).toBe("POST");
-      expect(request.headers.get("cookie")).toBe("session=mytoken");
+      expect(request.headers.get("cookie")).toBe("__Host-session=mytoken");
       const body = await request.text();
       expect(body).toContain("name=Test+Event");
     });

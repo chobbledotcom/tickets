@@ -166,7 +166,7 @@ describe("server", () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/");
-      expect(response.headers.get("set-cookie")).toContain("session=");
+      expect(response.headers.get("set-cookie")).toContain("__Host-session=");
     });
 
     test("returns 429 when rate limited", async () => {
@@ -1422,7 +1422,7 @@ describe("server", () => {
     test("nonexistent session shows login page", async () => {
       const response = await handleRequest(
         new Request("http://localhost/admin/", {
-          headers: { host: "localhost", cookie: "session=nonexistent" },
+          headers: { host: "localhost", cookie: "__Host-session=nonexistent" },
         }),
       );
       expect(response.status).toBe(200);
@@ -1436,7 +1436,10 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/", {
-          headers: { host: "localhost", cookie: "session=expired-token" },
+          headers: {
+            host: "localhost",
+            cookie: "__Host-session=expired-token",
+          },
         }),
       );
       expect(response.status).toBe(200);
@@ -1466,7 +1469,7 @@ describe("server", () => {
       // Now logout
       const logoutResponse = await handleRequest(
         new Request("http://localhost/admin/logout", {
-          headers: { host: "localhost", cookie: `session=${token}` },
+          headers: { host: "localhost", cookie: `__Host-session=${token}` },
         }),
       );
       expect(logoutResponse.status).toBe(302);

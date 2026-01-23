@@ -142,7 +142,7 @@ export const randomString = (length: number): string => {
 export const getCsrfTokenFromCookie = async (
   cookie: string,
 ): Promise<string | null> => {
-  const sessionMatch = cookie.match(/session=([^;]+)/);
+  const sessionMatch = cookie.match(/__Host-session=([^;]+)/);
   if (!sessionMatch?.[1]) return null;
 
   const sessionToken = sessionMatch[1];
@@ -207,7 +207,7 @@ export const mockTicketFormRequest = (
  * Options for testRequest helper
  */
 interface TestRequestOptions {
-  /** Session token - will be formatted as "session={token}" */
+  /** Session token - will be formatted as "__Host-session={token}" */
   session?: string;
   /** Full cookie string (use when you have raw set-cookie value) */
   cookie?: string;
@@ -242,7 +242,7 @@ export const testRequest = (
   const headers: Record<string, string> = { host: "localhost" };
 
   if (session) {
-    headers.cookie = `session=${session}`;
+    headers.cookie = `__Host-session=${session}`;
   } else if (cookie) {
     headers.cookie = cookie;
   }
