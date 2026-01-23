@@ -10,7 +10,8 @@
     "lint:fix": "deno lint --fix src test scripts",
     "fmt": "deno fmt src test scripts",
     "typecheck": "deno check src/**/*.ts src/**/*.tsx test/**/*.ts",
-    "precommit": "deno task typecheck && deno task lint && deno task test:coverage"
+    "cpd": "deno run -A npm:jscpd src --config .jscpd.json",
+    "precommit": "deno task typecheck && deno task lint && deno task cpd && deno task test:coverage"
   },
   "imports": {
     "#fp": "./src/fp/index.ts",

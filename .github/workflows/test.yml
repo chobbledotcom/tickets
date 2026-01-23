@@ -24,5 +24,8 @@ jobs:
       - name: Lint
         run: deno task lint
 
+      - name: Copy-paste detection
+        run: deno task cpd
+
       - name: Run tests with coverage
         run: deno task test:coverage
