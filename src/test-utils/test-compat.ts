@@ -206,40 +206,49 @@ class ExpectChain<T> {
     }
   }
 
-  toBeGreaterThan(expected: number): void {
-    const result = (this.actual as number) > expected;
+  private assertNumericComparison(
+    compareFn: (actual: number, expected: number) => boolean,
+    expected: number,
+    message: string,
+  ): void {
+    const result = compareFn(this.actual as number, expected);
     if (this.isNot) {
       assertFalse(result);
     } else {
-      assert(result, `Expected ${this.actual} to be greater than ${expected}`);
+      assert(result, message);
     }
+  }
+
+  toBeGreaterThan(expected: number): void {
+    this.assertNumericComparison(
+      (a, e) => a > e,
+      expected,
+      `Expected ${this.actual} to be greater than ${expected}`,
+    );
   }
 
   toBeGreaterThanOrEqual(expected: number): void {
-    const result = (this.actual as number) >= expected;
-    if (this.isNot) {
-      assertFalse(result);
-    } else {
-      assert(result, `Expected ${this.actual} to be >= ${expected}`);
-    }
+    this.assertNumericComparison(
+      (a, e) => a >= e,
+      expected,
+      `Expected ${this.actual} to be >= ${expected}`,
+    );
   }
 
   toBeLessThan(expected: number): void {
-    const result = (this.actual as number) < expected;
-    if (this.isNot) {
-      assertFalse(result);
-    } else {
-      assert(result, `Expected ${this.actual} to be less than ${expected}`);
-    }
+    this.assertNumericComparison(
+      (a, e) => a < e,
+      expected,
+      `Expected ${this.actual} to be less than ${expected}`,
+    );
   }
 
   toBeLessThanOrEqual(expected: number): void {
-    const result = (this.actual as number) <= expected;
-    if (this.isNot) {
-      assertFalse(result);
-    } else {
-      assert(result, `Expected ${this.actual} to be <= ${expected}`);
-    }
+    this.assertNumericComparison(
+      (a, e) => a <= e,
+      expected,
+      `Expected ${this.actual} to be <= ${expected}`,
+    );
   }
 
   toContain(expected: unknown): void {
