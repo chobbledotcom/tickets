@@ -5,7 +5,12 @@
  */
 
 // Required environment variables - build fails if not set
-const REQUIRED_ENV_VARS = ["DB_URL", "DB_TOKEN", "DB_ENCRYPTION_KEY"] as const;
+const REQUIRED_ENV_VARS = [
+  "DB_URL",
+  "DB_TOKEN",
+  "DB_ENCRYPTION_KEY",
+  "ALLOWED_DOMAIN",
+] as const;
 const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
 if (missing.length > 0) {
   // biome-ignore lint/suspicious/noConsole: Build script output
@@ -20,6 +25,7 @@ const ENV_VARS = {
   DB_URL: process.env.DB_URL as string,
   DB_TOKEN: process.env.DB_TOKEN as string,
   DB_ENCRYPTION_KEY: process.env.DB_ENCRYPTION_KEY as string,
+  ALLOWED_DOMAIN: process.env.ALLOWED_DOMAIN as string,
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || "",
   CURRENCY_CODE: process.env.CURRENCY_CODE || "GBP",
 };
@@ -41,6 +47,7 @@ const result = await Bun.build({
     "process.env.DB_ENCRYPTION_KEY": JSON.stringify(ENV_VARS.DB_ENCRYPTION_KEY),
     "process.env.STRIPE_SECRET_KEY": JSON.stringify(ENV_VARS.STRIPE_SECRET_KEY),
     "process.env.CURRENCY_CODE": JSON.stringify(ENV_VARS.CURRENCY_CODE),
+    "process.env.ALLOWED_DOMAIN": JSON.stringify(ENV_VARS.ALLOWED_DOMAIN),
   },
 });
 

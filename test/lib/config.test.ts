@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
+  getAllowedDomain,
   getCurrencyCode,
   getDbToken,
   getDbUrl,
@@ -117,6 +118,18 @@ describe("config", () => {
     test("returns set value as number", () => {
       process.env.PORT = "8080";
       expect(getPort()).toBe(8080);
+    });
+  });
+
+  describe("getAllowedDomain", () => {
+    test("returns set value from environment", () => {
+      process.env.ALLOWED_DOMAIN = "example.com";
+      expect(getAllowedDomain()).toBe("example.com");
+    });
+
+    test("returns localhost when set for testing", () => {
+      process.env.ALLOWED_DOMAIN = "localhost";
+      expect(getAllowedDomain()).toBe("localhost");
     });
   });
 });

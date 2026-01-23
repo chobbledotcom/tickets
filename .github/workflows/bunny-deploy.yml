@@ -31,6 +31,7 @@ jobs:
           DB_ENCRYPTION_KEY: ${{ secrets.DB_ENCRYPTION_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           CURRENCY_CODE: ${{ secrets.CURRENCY_CODE || 'GBP' }}
+          ALLOWED_DOMAIN: ${{ secrets.ALLOWED_DOMAIN }}
 
       - name: Deploy Script to Bunny Edge Scripting
         uses: BunnyWay/actions/deploy-script@main
