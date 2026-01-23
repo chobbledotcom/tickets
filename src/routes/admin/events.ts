@@ -20,7 +20,7 @@ import {
   adminDeleteEventPage,
   adminEventEditPage,
   adminEventPage,
-} from "#templates/admin.tsx";
+} from "#templates/admin/events.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields } from "#templates/fields.ts";
 import { defineRoutes, type RouteParams } from "../router.ts";

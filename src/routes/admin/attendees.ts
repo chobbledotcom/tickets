@@ -5,7 +5,7 @@
 import { deleteAttendee, getAttendee } from "#lib/db/attendees";
 import { getEventWithCount } from "#lib/db/events";
 import type { EventWithCount } from "#lib/types.ts";
-import { adminDeleteAttendeePage } from "#templates/admin.tsx";
+import { adminDeleteAttendeePage } from "#templates/admin/attendees.tsx";
 import {
   defineRoutes,
   type RouteHandlerFn,

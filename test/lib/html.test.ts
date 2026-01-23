@@ -1,10 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
-import {
-  adminDashboardPage,
-  adminEventPage,
-  adminLoginPage,
-} from "#templates/admin.tsx";
+import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
+import { adminEventPage } from "#templates/admin/events.tsx";
+import { adminLoginPage } from "#templates/admin/login.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { layout } from "#templates/layout.tsx";
 import {

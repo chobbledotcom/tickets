@@ -3,7 +3,7 @@
  */
 
 import { deleteOtherSessions, getAllSessions } from "#lib/db/sessions";
-import { adminSessionsPage } from "#templates/admin.tsx";
+import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import { defineRoutes } from "../router.ts";
 import { htmlResponse, requireSessionOr, withAuthForm } from "../utils.ts";
 
