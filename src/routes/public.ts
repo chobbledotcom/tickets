@@ -33,15 +33,29 @@ export const handleHome = (): Response => {
 /** Path for ticket CSRF cookies */
 const ticketCsrfPath = (eventId: number): string => `/ticket/${eventId}`;
 
+/** Ticket response with CSRF cookie - curried to thread event and token through */
+const ticketResponseWithCookie =
+  (event: EventWithCount) =>
+  (token: string) =>
+  (error?: string, status = 200) =>
+    htmlResponseWithCookie(csrfCookie(token, ticketCsrfPath(event.id)))(
+      ticketPage(event, token, error),
+      status,
+    );
+
+/** Ticket response without cookie - for validation errors after CSRF passed */
+const ticketResponse =
+  (event: EventWithCount, token: string) =>
+  (error: string, status = 400) =>
+    htmlResponse(ticketPage(event, token, error), status);
+
 /**
  * Handle GET /ticket/:id
  */
 export const handleTicketGet = (eventId: number): Promise<Response> =>
   withEvent(eventId, (event) => {
     const token = generateSecureToken();
-    return htmlResponseWithCookie(csrfCookie(token, ticketCsrfPath(eventId)))(
-      ticketPage(event, token),
-    );
+    return ticketResponseWithCookie(event)(token)();
   });
 
 /**
@@ -81,12 +95,8 @@ const handlePaymentFlow = async (
 
   // If Stripe session creation failed, clean up and show error
   await deleteAttendee(attendee.id);
-  return htmlResponse(
-    ticketPage(
-      event,
-      csrfToken,
-      "Failed to create payment session. Please try again.",
-    ),
+  return ticketResponse(event, csrfToken)(
+    "Failed to create payment session. Please try again.",
     500,
   );
 };
@@ -105,12 +115,10 @@ const parseQuantity = (
   return Math.min(quantity, event.max_quantity);
 };
 
-/**
- * Create CSRF error response for ticket page
- */
-const ticketCsrfError = (event: EventWithCount) => (newToken: string) =>
-  htmlResponseWithCookie(csrfCookie(newToken, ticketCsrfPath(event.id)))(
-    ticketPage(event, newToken, "Invalid or expired form. Please try again."),
+/** CSRF error response for ticket page */
+const ticketCsrfError = (event: EventWithCount) => (token: string) =>
+  ticketResponseWithCookie(event)(token)(
+    "Invalid or expired form. Please try again.",
     403,
   );
 
@@ -132,16 +140,16 @@ const processTicketReservation = async (
   const validation = validateForm(form, ticketFields);
 
   if (!validation.valid) {
-    return htmlResponse(ticketPage(event, currentToken, validation.error), 400);
+    return ticketResponse(event, currentToken)(validation.error);
   }
 
   const quantity = parseQuantity(form, event);
   const available = await hasAvailableSpots(event.id, quantity);
   if (!available) {
-    return htmlResponse(
-      ticketPage(event, currentToken, "Sorry, not enough spots available"),
-      400,
-    );
+    return ticketResponse(
+      event,
+      currentToken,
+    )("Sorry, not enough spots available");
   }
 
   const { values } = validation;
