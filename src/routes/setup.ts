@@ -203,6 +203,9 @@ const isSetupPath = (path: string): boolean =>
 
 /**
  * Route setup requests
+ * Note: Setup routes need special handling because they depend on isSetupComplete
+ * which is passed from the main router. We can't use the declarative router directly
+ * because we need to inject this dependency.
  */
 export const routeSetup = async (
   request: Request,

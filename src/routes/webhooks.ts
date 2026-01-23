@@ -12,6 +12,7 @@ import { retrieveCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, Event } from "#lib/types.ts";
 import { notifyWebhook } from "#lib/webhook.ts";
 import { paymentCancelPage, paymentSuccessPage } from "#templates";
+import { createRouter, defineRoutes } from "./router.ts";
 import { getSearchParam, htmlResponse, paymentErrorResponse } from "./utils.ts";
 
 type PaymentParams = { attendeeId: string | null; sessionId: string | null };
@@ -225,21 +226,13 @@ const handlePaymentCancel = createPaymentHandler(null)(
   },
 );
 
+/** Payment routes definition */
+const paymentRoutes = defineRoutes({
+  "GET /payment/success": (request) => handlePaymentSuccess(request),
+  "GET /payment/cancel": (request) => handlePaymentCancel(request),
+});
+
 /**
  * Route payment requests
  */
-export const routePayment = async (
-  request: Request,
-  path: string,
-  method: string,
-): Promise<Response | null> => {
-  if (method !== "GET") return null;
-
-  if (path === "/payment/success") {
-    return handlePaymentSuccess(request);
-  }
-  if (path === "/payment/cancel") {
-    return handlePaymentCancel(request);
-  }
-  return null;
-};
+export const routePayment = createRouter(paymentRoutes);

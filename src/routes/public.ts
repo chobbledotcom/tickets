@@ -9,15 +9,14 @@ import { createCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { notifyWebhook } from "#lib/webhook.ts";
 import { homePage, ticketFields, ticketPage } from "#templates";
+import { createRouter, defineRoutes, type RouteParams } from "./router.ts";
 import {
-  createIdRoute,
   csrfCookie,
   generateSecureToken,
   getBaseUrl,
   htmlResponse,
   htmlResponseWithCookie,
   parseCookies,
-  type RouteHandler,
   redirect,
   requireCsrfForm,
   withEvent,
@@ -180,11 +179,16 @@ export const handleTicketPost = (
 ): Promise<Response> =>
   withEvent(eventId, (event) => processTicketReservation(request, event));
 
+/** Parse ticket ID from params */
+const parseTicketId = (params: RouteParams): number =>
+  Number.parseInt(params.id ?? "0", 10);
+
+/** Ticket routes definition */
+const ticketRoutes = defineRoutes({
+  "GET /ticket/:id": (_, params) => handleTicketGet(parseTicketId(params)),
+  "POST /ticket/:id": (request, params) =>
+    handleTicketPost(request, parseTicketId(params)),
+});
+
 /** Route ticket requests */
-export const routeTicket: RouteHandler = createIdRoute(
-  /^\/ticket\/(\d+)$/,
-  (request) => ({
-    GET: handleTicketGet,
-    POST: (id) => handleTicketPost(request, id),
-  }),
-);
+export const routeTicket = createRouter(ticketRoutes);
