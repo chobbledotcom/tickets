@@ -322,7 +322,7 @@ describe("fp", () => {
   describe("lazyRef", () => {
     test("computes value lazily", () => {
       let callCount = 0;
-      const [get, set] = lazyRef(() => {
+      const [get, _set] = lazyRef(() => {
         callCount++;
         return "computed";
       });
@@ -420,18 +420,19 @@ describe("fp", () => {
     test("works with async acquire and release", async () => {
       const log: string[] = [];
       const withResource = bracket(
-        async () => {
+        () => {
           log.push("acquire");
-          return "resource";
+          return Promise.resolve("resource");
         },
-        async () => {
+        () => {
           log.push("release");
+          return Promise.resolve();
         },
       );
 
-      const result = await withResource(async (r) => {
+      const result = await withResource((r) => {
         log.push(`use: ${r}`);
-        return "done";
+        return Promise.resolve("done");
       });
 
       expect(result).toBe("done");
@@ -441,14 +442,14 @@ describe("fp", () => {
 
   describe("pipeAsync", () => {
     test("composes async functions left-to-right", async () => {
-      const addOne = async (x: number) => x + 1;
-      const double = async (x: number) => x * 2;
+      const addOne = (x: number) => Promise.resolve(x + 1);
+      const double = (x: number) => Promise.resolve(x * 2);
       const result = await pipeAsync(addOne, double)(5);
       expect(result).toBe(12); // (5 + 1) * 2
     });
 
     test("works with single async function", async () => {
-      const addOne = async (x: number) => x + 1;
+      const addOne = (x: number) => Promise.resolve(x + 1);
       const result = await pipeAsync(addOne)(5);
       expect(result).toBe(6);
     });
@@ -456,22 +457,22 @@ describe("fp", () => {
 
   describe("mapAsync", () => {
     test("maps array with async function", async () => {
-      const double = async (x: number) => x * 2;
+      const double = (x: number) => Promise.resolve(x * 2);
       const result = await mapAsync(double)([1, 2, 3]);
       expect(result).toEqual([2, 4, 6]);
     });
 
     test("preserves order with async operations", async () => {
       const delays = [30, 10, 20];
-      const wait = async (ms: number) => {
-        return ms;
+      const wait = (ms: number) => {
+        return Promise.resolve(ms);
       };
       const result = await mapAsync(wait)(delays);
       expect(result).toEqual([30, 10, 20]);
     });
 
     test("handles empty array", async () => {
-      const double = async (x: number) => x * 2;
+      const double = (x: number) => Promise.resolve(x * 2);
       const result = await mapAsync(double)([]);
       expect(result).toEqual([]);
     });

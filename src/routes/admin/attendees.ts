@@ -50,7 +50,7 @@ const withAttendeeForEvent =
   };
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
-const handleAdminAttendeeDeleteGet = async (
+const handleAdminAttendeeDeleteGet = (
   request: Request,
   eventId: number,
   attendeeId: number,
@@ -71,7 +71,7 @@ const verifyName = (expected: string, provided: string): boolean =>
   expected.trim().toLowerCase() === provided.trim().toLowerCase();
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete with name verification */
-const handleAdminAttendeeDeletePost = async (
+const handleAdminAttendeeDeletePost = (
   request: Request,
   eventId: number,
   attendeeId: number,

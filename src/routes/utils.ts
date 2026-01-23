@@ -245,7 +245,7 @@ export const withSession = async (
 /**
  * Handle request requiring session - redirect to /admin/ if not authenticated
  */
-export const requireSessionOr = async (
+export const requireSessionOr = (
   request: Request,
   handler: (session: AuthSession) => Response | Promise<Response>,
 ): Promise<Response> => withSession(request, handler, () => redirect("/admin"));

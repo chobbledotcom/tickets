@@ -30,7 +30,7 @@ export const isPaymentsEnabled = async (): Promise<boolean> => {
  * Get currency code from database
  * Defaults to GBP if not set
  */
-export const getCurrencyCode = async (): Promise<string> => {
+export const getCurrencyCode = (): Promise<string> => {
   return getCurrencyCodeFromDb();
 };
 

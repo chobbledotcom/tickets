@@ -64,7 +64,7 @@ const main = async () => {
   log("Profiling cold boot performance...\n");
 
   // Set up test environment
-  process.env.ALLOWED_DOMAIN = "localhost";
+  Deno.env.set("ALLOWED_DOMAIN", "localhost");
 
   // Use in-memory DB to isolate JS overhead from network latency
   const client = createClient({ url: ":memory:" });

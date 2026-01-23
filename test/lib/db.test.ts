@@ -912,8 +912,8 @@ describe("db", () => {
 
     test("col.encrypted creates column with encrypt/decrypt transforms", async () => {
       const { col } = await import("#lib/db/table.ts");
-      const encrypt = async (v: string) => `enc:${v}`;
-      const decrypt = async (v: string) => v.replace("enc:", "");
+      const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
+      const decrypt = (v: string) => Promise.resolve(v.replace("enc:", ""));
       const def = col.encrypted(encrypt, decrypt);
       expect(await def.write?.("hello")).toBe("enc:hello");
       expect(await def.read?.("enc:hello")).toBe("hello");
@@ -921,8 +921,8 @@ describe("db", () => {
 
     test("col.encryptedNullable handles null values", async () => {
       const { col } = await import("#lib/db/table.ts");
-      const encrypt = async (v: string) => `enc:${v}`;
-      const decrypt = async (v: string) => v.replace("enc:", "");
+      const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
+      const decrypt = (v: string) => Promise.resolve(v.replace("enc:", ""));
       const def = col.encryptedNullable(encrypt, decrypt);
       expect(await def.write?.(null)).toBe(null);
       expect(await def.read?.(null)).toBe(null);

@@ -141,7 +141,7 @@ export const createCheckoutSession = async (
 /**
  * Retrieve a Stripe Checkout session
  */
-export const retrieveCheckoutSession = async (
+export const retrieveCheckoutSession = (
   sessionId: string,
 ): Promise<Stripe.Checkout.Session | null> =>
   withStripe((stripe) => stripe.checkout.sessions.retrieve(sessionId));

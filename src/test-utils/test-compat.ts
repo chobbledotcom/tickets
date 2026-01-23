@@ -40,7 +40,7 @@ const getCurrentContext = (): DescribeContext => {
 /**
  * Jest-like describe block
  */
-export const describe = (name: string, fn: () => void): void => {
+export const describe = (_name: string, fn: () => void): void => {
   const context: DescribeContext = {};
   contextStack.push(context);
 
@@ -108,7 +108,6 @@ export const afterAll = (fn: TestFn): void => {
 /**
  * Jest-like expect API
  */
-// deno-lint-ignore no-explicit-any
 export const expect = <T>(actual: T): ExpectChain<T> => {
   return new ExpectChain(actual);
 };

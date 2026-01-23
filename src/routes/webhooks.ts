@@ -183,10 +183,11 @@ type PaymentHandlerOptions = {
 };
 
 /** Execute handler with context or return error response */
-const executeWithContext = async (
+const executeWithContext = (
   ctx: PaymentContext,
   handler: PaymentHandler,
-): Promise<Response> => (ctx.ok ? handler(ctx.params, ctx.data) : ctx.response);
+): Promise<Response> =>
+  ctx.ok ? handler(ctx.params, ctx.data) : Promise.resolve(ctx.response);
 
 /** Create payment callback handler with optional precheck and inactive rejection */
 const createPaymentHandler =

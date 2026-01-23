@@ -163,7 +163,7 @@ describe("stripe-mock utilities", () => {
       }
     });
 
-    test("start throws when stripe-mock fails to start", async () => {
+    test("start throws when stripe-mock fails to start", () => {
       // Use a port that will conflict or an invalid path scenario
       // We'll test this by using a mock - but since we can't easily mock,
       // we'll test the error path differently
