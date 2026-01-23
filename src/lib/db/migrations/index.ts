@@ -5,6 +5,11 @@
 import { getDb } from "#lib/db/client.ts";
 
 /**
+ * The latest database update identifier - update this when adding new migrations
+ */
+export const LATEST_UPDATE = "added csrf_token to sessions";
+
+/**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
  */
 const runMigration = async (sql: string): Promise<void> => {
@@ -16,9 +21,29 @@ const runMigration = async (sql: string): Promise<void> => {
 };
 
 /**
+ * Check if database is already up to date by reading from settings table
+ */
+const isDbUpToDate = async (): Promise<boolean> => {
+  try {
+    const result = await getDb().execute(
+      "SELECT value FROM settings WHERE key = 'latest_db_update'",
+    );
+    return result.rows[0]?.value === LATEST_UPDATE;
+  } catch {
+    // Table doesn't exist or other error, need to run migrations
+    return false;
+  }
+};
+
+/**
  * Initialize database tables
  */
 export const initDb = async (): Promise<void> => {
+  // Check if database is already up to date - bail early if so
+  if (await isDbUpToDate()) {
+    return;
+  }
+
   const client = getDb();
 
   // Create settings table
@@ -96,4 +121,10 @@ export const initDb = async (): Promise<void> => {
       locked_until INTEGER
     )
   `);
+
+  // Update the version marker
+  await client.execute({
+    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
+    args: [LATEST_UPDATE],
+  });
 };

@@ -21,7 +21,7 @@ import {
   isLoginRateLimited,
   recordFailedLogin,
 } from "#lib/db/login-attempts";
-import { initDb } from "#lib/db/migrations";
+import { initDb, LATEST_UPDATE } from "#lib/db/migrations";
 import {
   createSession,
   deleteAllSessions,
@@ -73,6 +73,41 @@ describe("db", () => {
           process.env.DB_URL = originalDbUrl;
         }
       }
+    });
+  });
+
+  describe("initDb version check", () => {
+    test("LATEST_UPDATE constant is exported", () => {
+      expect(typeof LATEST_UPDATE).toBe("string");
+      expect(LATEST_UPDATE.length).toBeGreaterThan(0);
+    });
+
+    test("initDb stores latest_db_update in settings", async () => {
+      const result = await getDb().execute(
+        "SELECT value FROM settings WHERE key = 'latest_db_update'",
+      );
+      expect(result.rows[0]?.value).toBe(LATEST_UPDATE);
+    });
+
+    test("initDb can be called multiple times safely", async () => {
+      // initDb was already called in beforeEach, call it again
+      await initDb();
+
+      // Verify tables still exist and work
+      const events = await getAllEvents();
+      expect(events).toEqual([]);
+    });
+
+    test("initDb bails early when database is up to date", async () => {
+      // initDb was already called and stored LATEST_UPDATE
+      // Calling it again should bail early without error
+      const startTime = performance.now();
+      await initDb();
+      const duration = performance.now() - startTime;
+
+      // Should be very fast since it bails early (typically < 5ms)
+      // We just check it completes without error
+      expect(duration).toBeLessThan(100);
     });
   });
 
