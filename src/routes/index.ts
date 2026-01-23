@@ -3,7 +3,7 @@
  */
 
 import { isSetupComplete } from "#lib/config.ts";
-import { routeAdmin } from "./admin.ts";
+import { routeAdmin } from "./admin/index.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
