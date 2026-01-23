@@ -63,7 +63,7 @@ const withEventAttendees = async (
   handler: (event: EventWithCount, attendees: Attendee[]) => Response,
 ): Promise<Response> => {
   if (!(await isAuthenticated(request))) {
-    return redirect("/admin/");
+    return redirect("/admin");
   }
   return withEvent(eventId, async (event) =>
     handler(event, await getAttendees(eventId)),
@@ -74,8 +74,8 @@ const withEventAttendees = async (
  * Handle POST /admin/event (create event)
  */
 const handleCreateEvent = createHandler(eventsResource, {
-  onSuccess: () => redirect("/admin/"),
-  onError: () => redirect("/admin/"),
+  onSuccess: () => redirect("/admin"),
+  onError: () => redirect("/admin"),
 });
 
 /**
@@ -144,7 +144,7 @@ const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
 
 /** Handle DELETE /admin/event/:id (delete event, optionally verify name) */
 const handleAdminEventDelete = deleteHandler(eventsResource, {
-  onSuccess: () => redirect("/admin/"),
+  onSuccess: () => redirect("/admin"),
   onVerifyFailed: (id, _row, session) =>
     eventErrorPage(
       id as number,

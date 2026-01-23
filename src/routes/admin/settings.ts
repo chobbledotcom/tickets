@@ -44,7 +44,7 @@ const requireAuthValidation = async (
   if (!validation.valid) {
     const errorResponse = onError
       ? await onError(auth.session, auth.form, validation.error)
-      : redirect("/admin/");
+      : redirect("/admin");
     return { ok: false, response: errorResponse };
   }
 
@@ -121,7 +121,7 @@ const handleAdminSettingsPost = (request: Request): Promise<Response> =>
     }
 
     await updateAdminPassword(validation.newPassword);
-    return redirect("/admin/", clearSessionCookie);
+    return redirect("/admin", clearSessionCookie);
   });
 
 /**

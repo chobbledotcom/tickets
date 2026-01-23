@@ -205,8 +205,8 @@ export const createSetupRouter = (
   isSetupComplete: () => Promise<boolean>,
 ): ReturnType<typeof createRouter> => {
   const setupRoutes = defineRoutes({
-    "GET /setup/": () => handleSetupGet(isSetupComplete),
-    "POST /setup/": (request) => handleSetupPost(request, isSetupComplete),
+    "GET /setup": () => handleSetupGet(isSetupComplete),
+    "POST /setup": (request) => handleSetupPost(request, isSetupComplete),
   });
 
   return createRouter(setupRoutes);

@@ -185,7 +185,7 @@ describe("server", () => {
         mockFormRequest("/admin/login", { password }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
       expect(response.headers.get("set-cookie")).toContain("__Host-session=");
     });
 
@@ -260,7 +260,7 @@ describe("server", () => {
     test("clears session and redirects", async () => {
       const response = await handleRequest(mockRequest("/admin/logout"));
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
     });
   });
@@ -269,7 +269,7 @@ describe("server", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/settings"));
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("shows settings page when authenticated", async () => {
@@ -296,7 +296,7 @@ describe("server", () => {
         }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -440,7 +440,7 @@ describe("server", () => {
 
       // Should redirect to admin login with session cleared
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
 
       // Verify old session is invalidated
@@ -453,7 +453,7 @@ describe("server", () => {
         mockFormRequest("/admin/login", { password: "newpassword123" }),
       );
       expect(newLoginResponse.status).toBe(302);
-      expect(newLoginResponse.headers.get("location")).toBe("/admin/");
+      expect(newLoginResponse.headers.get("location")).toBe("/admin");
     });
   });
 
@@ -465,7 +465,7 @@ describe("server", () => {
         }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -539,7 +539,7 @@ describe("server", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/sessions"));
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("shows sessions page when authenticated", async () => {
@@ -600,7 +600,7 @@ describe("server", () => {
         mockFormRequest("/admin/sessions", { csrf_token: "test" }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -687,7 +687,7 @@ describe("server", () => {
         }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("creates event when authenticated", async () => {
@@ -713,7 +713,7 @@ describe("server", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -764,7 +764,7 @@ describe("server", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
   });
 
@@ -844,7 +844,7 @@ describe("server", () => {
         mockRequest("/admin/event/1/export"),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -948,7 +948,7 @@ describe("server", () => {
       });
       const response = await handleRequest(mockRequest("/admin/event/1/edit"));
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1011,7 +1011,7 @@ describe("server", () => {
         }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1162,7 +1162,7 @@ describe("server", () => {
         mockRequest("/admin/event/1/delete"),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1215,7 +1215,7 @@ describe("server", () => {
         }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1320,7 +1320,7 @@ describe("server", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
 
       // Verify event was deleted
       const { getEvent } = await import("#lib/db/events");
@@ -1353,7 +1353,7 @@ describe("server", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("deletes event and all attendees", async () => {
@@ -1481,7 +1481,7 @@ describe("server", () => {
         mockRequest("/admin/event/1/attendee/1/delete"),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1587,7 +1587,7 @@ describe("server", () => {
         }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -2663,13 +2663,13 @@ describe("server", () => {
       test("redirects home to /setup/", async () => {
         const response = await handleRequest(mockRequest("/"));
         expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe("/setup/");
+        expect(response.headers.get("location")).toBe("/setup");
       });
 
       test("redirects admin to /setup/", async () => {
         const response = await handleRequest(mockRequest("/admin/"));
         expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe("/setup/");
+        expect(response.headers.get("location")).toBe("/setup");
       });
 
       test("health check still works", async () => {
@@ -2924,7 +2924,7 @@ describe("server", () => {
         const response = await awaitTestRequest("/setup/", { method: "PUT" });
         // PUT method falls through routeSetup (returns null), then redirects to /setup/
         expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe("/setup/");
+        expect(response.headers.get("location")).toBe("/setup");
       });
 
       test("setup form works with full browser flow simulation", async () => {

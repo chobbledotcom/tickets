@@ -24,10 +24,10 @@ type CompiledRoute = {
 /**
  * Compile a route pattern into a regex
  * Supports :param syntax for path parameters
+ * All paths are normalized to strip trailing slashes before matching
  * Examples:
- *   "GET /admin/" -> matches exact path
- *   "GET /admin/event/:id" -> extracts id param
- *   "POST /admin/event/:eventId/attendee/:attendeeId/delete" -> extracts both params
+ *   "GET /admin" -> matches /admin
+ *   "GET /admin/event/:id" -> extracts id param from /admin/event/123
  */
 const compilePattern = (
   pattern: string,
@@ -35,17 +35,12 @@ const compilePattern = (
   const paramNames: string[] = [];
 
   // Escape special regex chars except : which we use for params
-  let regexStr = pattern
+  const regexStr = pattern
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     .replace(/:(\w+)/g, (_, name) => {
       paramNames.push(name);
       return "(\\d+)"; // Capture digits for ID params
     });
-
-  // Handle trailing slash optionality for paths ending in /
-  if (regexStr.endsWith("/")) {
-    regexStr = `${regexStr.slice(0, -1)}/?`;
-  }
 
   const regex = new RegExp(`^${regexStr}$`) as RegExp & {
     paramNames: string[];
