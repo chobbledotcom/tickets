@@ -6,7 +6,7 @@ import {
   createSession,
   getSession,
   setSetting,
-} from "#lib/db.ts";
+} from "#lib/db";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
 import {
@@ -958,7 +958,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify the event was updated
-      const { getEventWithCount } = await import("#lib/db.ts");
+      const { getEventWithCount } = await import("#lib/db");
       const updated = await getEventWithCount(1);
       expect(updated?.name).toBe("Updated Event");
       expect(updated?.description).toBe("Updated Description");
@@ -1432,7 +1432,7 @@ describe("server", () => {
 
       // Delete the event - need to delete attendee first due to FK constraint
       // then recreate attendee pointing to deleted event
-      const { getDb } = await import("#lib/db.ts");
+      const { getDb } = await import("#lib/db");
 
       // Disable foreign key checks, delete event, re-enable
       await getDb().execute("PRAGMA foreign_keys = OFF");
@@ -1527,7 +1527,7 @@ describe("server", () => {
         expect(html).toContain("https://example.com/thanks");
 
         // Verify attendee was updated with payment ID
-        const { getAttendee } = await import("#lib/db.ts");
+        const { getAttendee } = await import("#lib/db");
         const updatedAttendee = await getAttendee(attendee.id);
         expect(updatedAttendee?.stripe_payment_id).toBe("pi_test_123");
       } finally {
@@ -1630,7 +1630,7 @@ describe("server", () => {
         expect(html).toContain("Payment Successful");
 
         // Verify original payment ID wasn't overwritten
-        const { getAttendee } = await import("#lib/db.ts");
+        const { getAttendee } = await import("#lib/db");
         const checkedAttendee = await getAttendee(attendee.id);
         expect(checkedAttendee?.stripe_payment_id).toBe("pi_already_paid");
       } finally {
@@ -1878,7 +1878,7 @@ describe("server", () => {
 
       test("POST /setup/ throws error when completeSetup fails", async () => {
         const { spyOn } = await import("bun:test");
-        const dbModule = await import("#lib/db.ts");
+        const dbModule = await import("#lib/db");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
         const csrfToken = getSetupCsrfToken(

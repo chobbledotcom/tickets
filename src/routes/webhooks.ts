@@ -7,7 +7,7 @@ import {
   getAttendee,
   getEvent,
   updateAttendeePayment,
-} from "#lib/db.ts";
+} from "#lib/db";
 import { retrieveCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, Event } from "#lib/types.ts";
 import {

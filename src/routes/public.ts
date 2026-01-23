@@ -3,7 +3,7 @@
  */
 
 import { isPaymentsEnabled } from "#lib/config.ts";
-import { createAttendee, deleteAttendee, hasAvailableSpots } from "#lib/db.ts";
+import { createAttendee, deleteAttendee, hasAvailableSpots } from "#lib/db";
 import { validateForm } from "#lib/forms.tsx";
 import { createCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";

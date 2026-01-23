@@ -4,7 +4,7 @@
 
 import { err, ok, type Result } from "#fp";
 import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
-import { deleteSession, getEventWithCount, getSession } from "#lib/db.ts";
+import { deleteSession, getEventWithCount, getSession } from "#lib/db";
 import type { EventWithCount } from "#lib/types.ts";
 import { notFoundPage } from "#templates";
 import type { ServerContext } from "./types.ts";
