@@ -4,9 +4,20 @@
  * Inlines environment variables since they're not available at edge runtime
  */
 
-// Required environment variables - build fails if not set
-const REQUIRED_ENV_VARS = ["DB_URL", "DB_TOKEN", "DB_ENCRYPTION_KEY"] as const;
-const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+// Environment variable configuration: undefined = required, string = default value
+const ENV_CONFIG: Record<string, string | undefined> = {
+  DB_URL: undefined,
+  DB_TOKEN: undefined,
+  DB_ENCRYPTION_KEY: undefined,
+  ALLOWED_DOMAIN: undefined,
+  STRIPE_SECRET_KEY: "",
+  CURRENCY_CODE: "GBP",
+};
+
+const missing = Object.entries(ENV_CONFIG)
+  .filter(([key, defaultVal]) => defaultVal === undefined && !process.env[key])
+  .map(([key]) => key);
+
 if (missing.length > 0) {
   // biome-ignore lint/suspicious/noConsole: Build script output
   console.error(
@@ -15,15 +26,13 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-// Environment variables to inline (read at build time)
-const ENV_VARS = {
-  DB_URL: process.env.DB_URL as string,
-  DB_TOKEN: process.env.DB_TOKEN as string,
-  DB_ENCRYPTION_KEY: process.env.DB_ENCRYPTION_KEY as string,
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || "",
-  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || "",
-  CURRENCY_CODE: process.env.CURRENCY_CODE || "GBP",
-};
+// Read env vars with defaults
+const ENV_VARS = Object.fromEntries(
+  Object.entries(ENV_CONFIG).map(([key, defaultVal]) => [
+    key,
+    process.env[key] ?? defaultVal ?? "",
+  ]),
+);
 
 const result = await Bun.build({
   entrypoints: ["./src/edge/bunny-script.ts"],
@@ -36,14 +45,12 @@ const result = await Bun.build({
     "@libsql/client",
     "@libsql/client/web",
   ],
-  define: {
-    "process.env.DB_URL": JSON.stringify(ENV_VARS.DB_URL),
-    "process.env.DB_TOKEN": JSON.stringify(ENV_VARS.DB_TOKEN),
-    "process.env.DB_ENCRYPTION_KEY": JSON.stringify(ENV_VARS.DB_ENCRYPTION_KEY),
-    "process.env.ADMIN_PASSWORD": JSON.stringify(ENV_VARS.ADMIN_PASSWORD),
-    "process.env.STRIPE_SECRET_KEY": JSON.stringify(ENV_VARS.STRIPE_SECRET_KEY),
-    "process.env.CURRENCY_CODE": JSON.stringify(ENV_VARS.CURRENCY_CODE),
-  },
+  define: Object.fromEntries(
+    Object.entries(ENV_VARS).map(([key, value]) => [
+      `process.env.${key}`,
+      JSON.stringify(value),
+    ]),
+  ),
 });
 
 if (!result.success) {
