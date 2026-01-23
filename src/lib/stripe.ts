@@ -3,11 +3,11 @@
  */
 
 import Stripe from "stripe";
+import { lazyRef, once } from "#fp";
 import { getCurrencyCode, getStripeSecretKey } from "./config.ts";
 import type { Attendee, Event } from "./types.ts";
 
-let stripeClient: Stripe | null = null;
-let cachedSecretKey: string | null = null;
+type StripeCache = { client: Stripe; secretKey: string };
 
 /** Safely execute async operation, returning null on error */
 const safeAsync = async <T>(fn: () => Promise<T>): Promise<T | null> => {
@@ -30,7 +30,7 @@ const withStripe = async <T>(
 /**
  * Get Stripe client configuration for mock server (if configured)
  */
-const getMockConfig = (): Stripe.StripeConfig | undefined => {
+const getMockConfig = once((): Stripe.StripeConfig | undefined => {
   const mockHost = process.env.STRIPE_MOCK_HOST;
   if (!mockHost) return undefined;
 
@@ -40,7 +40,16 @@ const getMockConfig = (): Stripe.StripeConfig | undefined => {
     port: mockPort,
     protocol: "http",
   };
+});
+
+const createStripeClient = (secretKey: string): Stripe => {
+  const mockConfig = getMockConfig();
+  return mockConfig ? new Stripe(secretKey, mockConfig) : new Stripe(secretKey);
 };
+
+const [getCache, setCache] = lazyRef<StripeCache>(() => {
+  throw new Error("Stripe cache not initialized");
+});
 
 /**
  * Get or create Stripe client
@@ -52,22 +61,25 @@ export const getStripeClient = async (): Promise<Stripe | null> => {
   if (!secretKey) return null;
 
   // Re-create client if secret key changed
-  if (!stripeClient || cachedSecretKey !== secretKey) {
-    const mockConfig = getMockConfig();
-    stripeClient = mockConfig
-      ? new Stripe(secretKey, mockConfig)
-      : new Stripe(secretKey);
-    cachedSecretKey = secretKey;
+  try {
+    const cached = getCache();
+    if (cached.secretKey === secretKey) {
+      return cached.client;
+    }
+  } catch {
+    // Cache not initialized yet
   }
-  return stripeClient;
+
+  const client = createStripeClient(secretKey);
+  setCache({ client, secretKey });
+  return client;
 };
 
 /**
  * Reset Stripe client (for testing)
  */
 export const resetStripeClient = (): void => {
-  stripeClient = null;
-  cachedSecretKey = null;
+  setCache(null);
 };
 
 /**

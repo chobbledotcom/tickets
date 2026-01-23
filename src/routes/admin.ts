@@ -2,7 +2,6 @@
  * Admin routes - dashboard, events, settings, authentication
  */
 
-import { unwrapOr } from "#fp";
 import {
   clearLoginAttempts,
   createEvent,
@@ -110,9 +109,9 @@ const withEventAttendees = async (
   if (!(await isAuthenticated(request))) {
     return redirect("/admin/");
   }
-  return fetchEventOr404(eventId).then(
-    unwrapOr(async (event) => handler(event, await getAttendees(eventId))),
-  );
+  const result = await fetchEventOr404(eventId);
+  if (!result.ok) return result.response;
+  return handler(result.value, await getAttendees(eventId));
 };
 
 /**
@@ -317,13 +316,11 @@ const handleAdminEventEditGet = (
   request: Request,
   eventId: number,
 ): Promise<Response> =>
-  requireSessionOr(request, (session) =>
-    fetchEventOr404(eventId).then(
-      unwrapOr((event) =>
-        htmlResponse(adminEventEditPage(event, session.csrfToken)),
-      ),
-    ),
-  );
+  requireSessionOr(request, async (session) => {
+    const result = await fetchEventOr404(eventId);
+    if (!result.ok) return result.response;
+    return htmlResponse(adminEventEditPage(result.value, session.csrfToken));
+  });
 
 /**
  * Handle POST /admin/event/:id/edit
@@ -332,22 +329,21 @@ const handleAdminEventEditPost = (
   request: Request,
   eventId: number,
 ): Promise<Response> =>
-  withAuthForm(request, (session, form) =>
-    fetchEventOr404(eventId).then(
-      unwrapOr(async (event) => {
-        const validation = validateForm(form, eventFields);
-        if (!validation.valid) {
-          return htmlResponse(
-            adminEventEditPage(event, session.csrfToken, validation.error),
-            400,
-          );
-        }
+  withAuthForm(request, async (session, form) => {
+    const result = await fetchEventOr404(eventId);
+    if (!result.ok) return result.response;
 
-        await updateEvent(eventId, extractEventInput(validation.values));
-        return redirect(`/admin/event/${eventId}`);
-      }),
-    ),
-  );
+    const validation = validateForm(form, eventFields);
+    if (!validation.valid) {
+      return htmlResponse(
+        adminEventEditPage(result.value, session.csrfToken, validation.error),
+        400,
+      );
+    }
+
+    await updateEvent(eventId, extractEventInput(validation.values));
+    return redirect(`/admin/event/${eventId}`);
+  });
 
 /**
  * Handle GET /admin/event/:id/export (CSV export)

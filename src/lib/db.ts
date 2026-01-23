@@ -4,6 +4,7 @@
  */
 
 import { type Client, createClient, type InValue } from "@libsql/client";
+import { lazyRef } from "#fp";
 import { decrypt, encrypt, hashPassword, verifyPassword } from "./crypto.ts";
 import type {
   Attendee,
@@ -13,7 +14,18 @@ import type {
   Settings,
 } from "./types.ts";
 
-let db: Client | null = null;
+const createDbClient = (): Client => {
+  const url = process.env.DB_URL;
+  if (!url) {
+    throw new Error("DB_URL environment variable is required");
+  }
+  return createClient({
+    url,
+    authToken: process.env.DB_TOKEN,
+  });
+};
+
+const [dbGetter, dbSetter] = lazyRef(createDbClient);
 
 /** Query single row, returning null if not found */
 const queryOne = async <T>(sql: string, args: InValue[]): Promise<T | null> => {
@@ -36,26 +48,12 @@ const executeByField = async (
 /**
  * Get or create database client
  */
-export const getDb = (): Client => {
-  if (!db) {
-    const url = process.env.DB_URL;
-    if (!url) {
-      throw new Error("DB_URL environment variable is required");
-    }
-    db = createClient({
-      url,
-      authToken: process.env.DB_TOKEN,
-    });
-  }
-  return db;
-};
+export const getDb = (): Client => dbGetter();
 
 /**
  * Set database client (for testing)
  */
-export const setDb = (client: Client | null): void => {
-  db = client;
-};
+export const setDb = (client: Client | null): void => dbSetter(client);
 
 /**
  * Initialize database tables

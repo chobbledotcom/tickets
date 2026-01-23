@@ -2,7 +2,7 @@
  * Shared utilities for route handlers
  */
 
-import { err, ok, type Result, unwrapOr } from "#fp";
+import { err, ok, type Result } from "#fp";
 import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
 import { deleteSession, getEventWithCount, getSession } from "#lib/db.ts";
 import type { EventWithCount } from "#lib/types.ts";
@@ -170,10 +170,13 @@ export const fetchEventOr404 = async (
 /**
  * Handle event with Result - unwrap to Response
  */
-export const withEvent = (
+export const withEvent = async (
   eventId: number,
   handler: (event: EventWithCount) => Response | Promise<Response>,
-): Promise<Response> => fetchEventOr404(eventId).then(unwrapOr(handler));
+): Promise<Response> => {
+  const result = await fetchEventOr404(eventId);
+  return result.ok ? handler(result.value) : result.response;
+};
 
 /** Session with CSRF token */
 export type AuthSession = { token: string; csrfToken: string };

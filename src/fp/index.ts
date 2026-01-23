@@ -160,6 +160,49 @@ export const memoize = <T extends (...args: Parameters<T>) => ReturnType<T>>(
 };
 
 /**
+ * Lazy evaluation - compute once on first call, cache forever.
+ * Use instead of `let x = null; const getX = () => x ??= compute();`
+ */
+export const once = <T>(fn: () => T): (() => T) => {
+  let computed = false;
+  let value: T;
+  return (): T => {
+    if (!computed) {
+      value = fn();
+      computed = true;
+    }
+    return value;
+  };
+};
+
+/**
+ * Resettable lazy reference - like once() but can be reset for testing.
+ * Returns [get, set] tuple where set(null) resets to uncomputed state.
+ */
+export const lazyRef = <T>(
+  fn: () => T,
+): [get: () => T, set: (value: T | null) => void] => {
+  let computed = false;
+  let value: T;
+  const get = (): T => {
+    if (!computed) {
+      value = fn();
+      computed = true;
+    }
+    return value;
+  };
+  const set = (newValue: T | null): void => {
+    if (newValue === null) {
+      computed = false;
+    } else {
+      value = newValue;
+      computed = true;
+    }
+  };
+  return [get, set];
+};
+
+/**
  * Pick specific keys from an object
  */
 export const pick =
@@ -204,11 +247,3 @@ export const err = (response: Response): Result<never> => ({
   ok: false,
   response,
 });
-
-/**
- * Unwrap result to Response - if ok, apply handler; if err, return response
- */
-export const unwrapOr =
-  <T>(handler: (value: T) => Response | Promise<Response>) =>
-  async (result: Result<T>): Promise<Response> =>
-    result.ok ? handler(result.value) : result.response;

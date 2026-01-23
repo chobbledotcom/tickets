@@ -4,6 +4,7 @@
  */
 
 import * as BunnySDK from "@bunny.net/edgescript-sdk";
+import { once } from "#fp";
 import { validateEncryptionKey } from "../lib/crypto.ts";
 import { initDb } from "../lib/db.ts";
 import { handleRequest } from "../server.ts";
@@ -11,35 +12,31 @@ import { handleRequest } from "../server.ts";
 // biome-ignore lint/suspicious/noConsole: Edge script logging
 console.log("[Tickets] Edge script module loaded");
 
-let initialized = false;
+const initialize = once(async (): Promise<void> => {
+  // biome-ignore lint/suspicious/noConsole: Edge script logging
+  console.log("[Tickets] Validating encryption key...");
+  validateEncryptionKey();
+  // biome-ignore lint/suspicious/noConsole: Edge script logging
+  console.log("[Tickets] Initializing database...");
+  await initDb();
+  // biome-ignore lint/suspicious/noConsole: Edge script logging
+  console.log("[Tickets] Database initialized successfully");
+});
 
 // biome-ignore lint/suspicious/noConsole: Edge script logging
 console.log("[Tickets] Registering HTTP handler...");
 
 BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
   try {
-    if (!initialized) {
-      // biome-ignore lint/suspicious/noConsole: Edge script logging
-      console.log("[Tickets] Validating encryption key...");
-      validateEncryptionKey();
-      // biome-ignore lint/suspicious/noConsole: Edge script logging
-      console.log("[Tickets] Initializing database...");
-      await initDb();
-      initialized = true;
-      // biome-ignore lint/suspicious/noConsole: Edge script logging
-      console.log("[Tickets] Database initialized successfully");
-    }
+    await initialize();
     return handleRequest(request);
   } catch (error) {
     // biome-ignore lint/suspicious/noConsole: Edge script error logging
     console.error("[Tickets] Request error:", error);
-    return new Response(
-      JSON.stringify({
-        error: "Internal server error",
-        message: String(error),
-      }),
-      { status: 500, headers: { "content-type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "content-type": "application/json" },
+    });
   }
 });
 
