@@ -22,6 +22,8 @@
 export {
   type CreateHandlerOptions,
   createHandler,
+  type DeleteHandlerOptions,
+  deleteHandler,
   type UpdateHandlerOptions,
 } from "./handlers.ts";
 

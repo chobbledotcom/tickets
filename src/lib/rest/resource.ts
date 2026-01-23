@@ -67,6 +67,8 @@ export interface ResourceConfig<Row, Input> {
   fields: Field[];
   toInput: (values: FieldValues) => Input;
   nameField?: keyof Row & string;
+  /** Custom delete function (e.g., to delete related records first) */
+  onDelete?: (id: InValue) => Promise<void>;
 }
 
 /** Validate form and convert to result type */
@@ -134,7 +136,11 @@ export const defineResource = <Row, Input>(
     const notFound = await requireExists(table, id);
     if (notFound) return notFound;
 
-    await table.deleteById(id);
+    if (config.onDelete) {
+      await config.onDelete(id);
+    } else {
+      await table.deleteById(id);
+    }
     return { ok: true };
   };
 

@@ -3,7 +3,7 @@ import { createClient } from "@libsql/client";
 import { createSession, initDb, setDb } from "#lib/db";
 import { col, defineTable, type Table } from "#lib/db/table.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
-import { createHandler, defineResource } from "#lib/rest";
+import { createHandler, defineResource, deleteHandler } from "#lib/rest";
 import {
   createTestDbWithSetup,
   resetDb,
@@ -453,6 +453,152 @@ describe("rest/handlers", () => {
 
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/");
+    });
+  });
+
+  describe("deleteHandler", () => {
+    test("deletes row and calls onSuccess", async () => {
+      const table = createTestTable();
+      const resource = defineResource({ table, fields: testFields, toInput });
+
+      // Create initial row
+      await table.insert({ name: "To Delete", value: 10 });
+
+      const handler = deleteHandler(resource, {
+        onSuccess: () => new Response(null, { status: 204 }),
+        onNotFound: () => new Response("Not Found", { status: 404 }),
+      });
+
+      const request = await createAuthRequest(
+        "/items/1?verify_name=false",
+        "DELETE",
+        {},
+      );
+      const response = await handler(request, 1);
+
+      expect(response.status).toBe(204);
+
+      // Verify deletion
+      const row = await table.findById(1);
+      expect(row).toBeNull();
+    });
+
+    test("calls onNotFound for non-existent row", async () => {
+      const table = createTestTable();
+      const resource = defineResource({ table, fields: testFields, toInput });
+
+      const handler = deleteHandler(resource, {
+        onSuccess: () => new Response(null, { status: 204 }),
+        onNotFound: () => new Response("Not Found", { status: 404 }),
+      });
+
+      const request = await createAuthRequest(
+        "/items/999?verify_name=false",
+        "DELETE",
+        {},
+      );
+      const response = await handler(request, 999);
+
+      expect(response.status).toBe(404);
+    });
+
+    test("verifies name when verify_name param is not false", async () => {
+      const table = createTestTable();
+      const resource = defineResource({
+        table,
+        fields: testFields,
+        toInput,
+        nameField: "name",
+      });
+
+      // Create initial row
+      await table.insert({ name: "Important Item", value: 10 });
+
+      let verifyFailedId: unknown = null;
+      const handler = deleteHandler(resource, {
+        onSuccess: () => new Response(null, { status: 204 }),
+        onVerifyFailed: (id, _row) => {
+          verifyFailedId = id;
+          return new Response("Name mismatch", { status: 400 });
+        },
+        onNotFound: () => new Response("Not Found", { status: 404 }),
+      });
+
+      // Request without verify_name=false should verify name
+      const request = await createAuthRequest("/items/1", "DELETE", {
+        confirm_name: "Wrong Name",
+      });
+      const response = await handler(request, 1);
+
+      expect(response.status).toBe(400);
+      expect(verifyFailedId).toBe(1);
+
+      // Row should still exist
+      const row = await table.findById(1);
+      expect(row).not.toBeNull();
+    });
+
+    test("deletes when name verification passes", async () => {
+      const table = createTestTable();
+      const resource = defineResource({
+        table,
+        fields: testFields,
+        toInput,
+        nameField: "name",
+      });
+
+      // Create initial row
+      await table.insert({ name: "Important Item", value: 10 });
+
+      const handler = deleteHandler(resource, {
+        onSuccess: () => new Response(null, { status: 204 }),
+        onVerifyFailed: () => new Response("Name mismatch", { status: 400 }),
+        onNotFound: () => new Response("Not Found", { status: 404 }),
+      });
+
+      const request = await createAuthRequest("/items/1", "DELETE", {
+        confirm_name: "Important Item",
+      });
+      const response = await handler(request, 1);
+
+      expect(response.status).toBe(204);
+
+      // Row should be deleted
+      const row = await table.findById(1);
+      expect(row).toBeNull();
+    });
+
+    test("skips name verification when verify_name=false", async () => {
+      const table = createTestTable();
+      const resource = defineResource({
+        table,
+        fields: testFields,
+        toInput,
+        nameField: "name",
+      });
+
+      // Create initial row
+      await table.insert({ name: "Important Item", value: 10 });
+
+      const handler = deleteHandler(resource, {
+        onSuccess: () => new Response(null, { status: 204 }),
+        onVerifyFailed: () => new Response("Name mismatch", { status: 400 }),
+        onNotFound: () => new Response("Not Found", { status: 404 }),
+      });
+
+      // With verify_name=false, should skip verification
+      const request = await createAuthRequest(
+        "/items/1?verify_name=false",
+        "DELETE",
+        {},
+      );
+      const response = await handler(request, 1);
+
+      expect(response.status).toBe(204);
+
+      // Row should be deleted
+      const row = await table.findById(1);
+      expect(row).toBeNull();
     });
   });
 });
