@@ -1,45 +1,39 @@
 /**
- * Crypto utilities that work in browser/edge environments
- * Uses @noble/ciphers for encryption (audited, well-tested library)
+ * Crypto utilities using node:crypto (supported by Bunny Edge)
+ * Uses native Node.js crypto module for better performance and smaller bundle
  */
 
-import { gcm } from "@noble/ciphers/aes.js";
-import { randomBytes } from "@noble/ciphers/utils.js";
-import { scrypt } from "@noble/hashes/scrypt.js";
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  scryptSync,
+  timingSafeEqual,
+} from "node:crypto";
 import { lazyRef } from "#fp";
 
 /**
  * Constant-time string comparison to prevent timing attacks
- * Compares all characters regardless of where first mismatch occurs
- *
- * Algorithm: XOR each char pair (equal=0, different=non-zero),
- * OR results together, check final result is 0.
- * Always iterates all characters - no early exit.
+ * Uses node:crypto timingSafeEqual for buffers, with length check
  */
 export const constantTimeEqual = (a: string, b: string): boolean => {
   if (a.length !== b.length) {
     return false;
   }
 
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-
-  return result === 0;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  return timingSafeEqual(bufA, bufB);
 };
 
 /**
  * Generate a cryptographically secure random token
- * Uses Web Crypto API which is available in edge environments
+ * Uses node:crypto randomBytes
  */
 export const generateSecureToken = (): string => {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-
+  const bytes = randomBytes(32);
   // Convert to base64url encoding
-  const base64 = btoa(String.fromCharCode(...bytes));
-  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  return bytes.toString("base64url");
 };
 
 /**
@@ -48,10 +42,10 @@ export const generateSecureToken = (): string => {
  */
 const ENCRYPTION_PREFIX = "enc:1:";
 
-type KeyCache = { bytes: Uint8Array; source: string };
+type KeyCache = { bytes: Buffer; source: string };
 
-const decodeKeyBytes = (keyString: string): Uint8Array => {
-  const keyBytes = Uint8Array.from(atob(keyString), (c) => c.charCodeAt(0));
+const decodeKeyBytes = (keyString: string): Buffer => {
+  const keyBytes = Buffer.from(keyString, "base64");
 
   if (keyBytes.length !== 32) {
     throw new Error(
@@ -70,7 +64,7 @@ const [getKeyCache, setKeyCache] = lazyRef<KeyCache>(() => {
  * Get the encryption key bytes from environment variable
  * Expects DB_ENCRYPTION_KEY to be a base64-encoded 256-bit (32 byte) key
  */
-const getEncryptionKeyBytes = (): Uint8Array => {
+const getEncryptionKeyBytes = (): Buffer => {
   const keyString = process.env.DB_ENCRYPTION_KEY;
 
   if (!keyString) {
@@ -103,8 +97,9 @@ export const validateEncryptionKey = (): void => {
 };
 
 /**
- * Encrypt a string value using AES-256-GCM via @noble/ciphers
+ * Encrypt a string value using AES-256-GCM via node:crypto
  * Returns format: enc:1:$base64iv:$base64ciphertext
+ * Note: ciphertext includes auth tag appended (for compatibility with previous format)
  */
 export const encrypt = async (plaintext: string): Promise<string> => {
   const key = getEncryptionKeyBytes();
@@ -112,17 +107,20 @@ export const encrypt = async (plaintext: string): Promise<string> => {
   // Generate random 12-byte nonce (recommended for GCM)
   const nonce = randomBytes(12);
 
-  // Encode plaintext to bytes
-  const encoder = new TextEncoder();
-  const plaintextBytes = encoder.encode(plaintext);
+  // Encrypt using AES-256-GCM
+  const cipher = createCipheriv("aes-256-gcm", key, nonce);
+  const ciphertext = Buffer.concat([
+    cipher.update(plaintext, "utf8"),
+    cipher.final(),
+  ]);
+  const authTag = cipher.getAuthTag();
 
-  // Encrypt using @noble/ciphers AES-GCM
-  const cipher = gcm(key, nonce);
-  const ciphertextBytes = cipher.encrypt(plaintextBytes);
+  // Combine ciphertext + authTag (same format as @noble/ciphers)
+  const combined = Buffer.concat([ciphertext, authTag]);
 
-  // Encode nonce and ciphertext as base64
-  const nonceBase64 = btoa(String.fromCharCode(...nonce));
-  const ciphertextBase64 = btoa(String.fromCharCode(...ciphertextBytes));
+  // Encode nonce and combined ciphertext as base64
+  const nonceBase64 = nonce.toString("base64");
+  const ciphertextBase64 = combined.toString("base64");
 
   return `${ENCRYPTION_PREFIX}${nonceBase64}:${ciphertextBase64}`;
 };
@@ -149,18 +147,23 @@ export const decrypt = async (encrypted: string): Promise<string> => {
   const ciphertextBase64 = withoutPrefix.slice(colonIndex + 1);
 
   // Decode from base64
-  const nonce = Uint8Array.from(atob(nonceBase64), (c) => c.charCodeAt(0));
-  const ciphertext = Uint8Array.from(atob(ciphertextBase64), (c) =>
-    c.charCodeAt(0),
-  );
+  const nonce = Buffer.from(nonceBase64, "base64");
+  const combined = Buffer.from(ciphertextBase64, "base64");
 
-  // Decrypt using @noble/ciphers AES-GCM
-  const cipher = gcm(key, nonce);
-  const plaintextBytes = cipher.decrypt(ciphertext);
+  // Split ciphertext and authTag (last 16 bytes is auth tag)
+  const authTagLength = 16;
+  const ciphertext = combined.subarray(0, combined.length - authTagLength);
+  const authTag = combined.subarray(combined.length - authTagLength);
 
-  // Decode to string
-  const decoder = new TextDecoder();
-  return decoder.decode(plaintextBytes);
+  // Decrypt using AES-256-GCM
+  const decipher = createDecipheriv("aes-256-gcm", key, nonce);
+  decipher.setAuthTag(authTag);
+  const plaintext = Buffer.concat([
+    decipher.update(ciphertext),
+    decipher.final(),
+  ]);
+
+  return plaintext.toString("utf8");
 };
 
 /**
@@ -171,7 +174,7 @@ export const clearEncryptionKeyCache = (): void => {
 };
 
 /**
- * Password hashing using scrypt (browser-compatible)
+ * Password hashing using scrypt via node:crypto
  * Format: scrypt:N:r:p:$base64salt:$base64hash
  */
 const SCRYPT_N_DEFAULT = 2 ** 14; // CPU/memory cost parameter (production)
@@ -191,19 +194,16 @@ const PASSWORD_PREFIX = "scrypt";
  */
 export const hashPassword = async (password: string): Promise<string> => {
   const salt = randomBytes(16);
-  const encoder = new TextEncoder();
-  const passwordBytes = encoder.encode(password);
   const N = getScryptN();
 
-  const hash = scrypt(passwordBytes, salt, {
+  const hash = scryptSync(password, salt, SCRYPT_DKLEN, {
     N,
     r: SCRYPT_R,
     p: SCRYPT_P,
-    dkLen: SCRYPT_DKLEN,
   });
 
-  const saltBase64 = btoa(String.fromCharCode(...salt));
-  const hashBase64 = btoa(String.fromCharCode(...hash));
+  const saltBase64 = salt.toString("base64");
+  const hashBase64 = hash.toString("base64");
 
   return `${PASSWORD_PREFIX}:${N}:${SCRYPT_R}:${SCRYPT_P}:${saltBase64}:${hashBase64}`;
 };
@@ -236,29 +236,16 @@ export const verifyPassword = async (
   const r = Number.parseInt(parts[2], 10);
   const p = Number.parseInt(parts[3], 10);
 
-  const salt = Uint8Array.from(atob(parts[4]), (c) => c.charCodeAt(0));
-  const expectedHash = Uint8Array.from(atob(parts[5]), (c) => c.charCodeAt(0));
+  const salt = Buffer.from(parts[4], "base64");
+  const expectedHash = Buffer.from(parts[5], "base64");
 
   // Reject if stored hash has unexpected length
   if (expectedHash.length !== SCRYPT_DKLEN) {
     return false;
   }
 
-  const encoder = new TextEncoder();
-  const passwordBytes = encoder.encode(password);
+  const computedHash = scryptSync(password, salt, SCRYPT_DKLEN, { N, r, p });
 
-  const computedHash = scrypt(passwordBytes, salt, {
-    N,
-    r,
-    p,
-    dkLen: SCRYPT_DKLEN,
-  });
-
-  // Constant-time comparison
-  let result = 0;
-  for (let i = 0; i < computedHash.length; i++) {
-    result |= (computedHash[i] as number) ^ (expectedHash[i] as number);
-  }
-
-  return result === 0;
+  // Constant-time comparison using node:crypto
+  return timingSafeEqual(computedHash, expectedHash);
 };
