@@ -12,5 +12,4 @@ export {
   isEmbeddablePath,
   isValidContentType,
   isValidDomain,
-  isValidOrigin,
 } from "#routes";

@@ -105,7 +105,6 @@ export const mockFormRequest = (
   const body = new URLSearchParams(data).toString();
   const headers: HeadersInit = {
     "content-type": "application/x-www-form-urlencoded",
-    origin: "http://localhost",
     host: "localhost",
   };
   if (cookie) {
@@ -114,26 +113,6 @@ export const mockFormRequest = (
   return new Request(`http://localhost${path}`, {
     method: "POST",
     headers,
-    body,
-  });
-};
-
-/**
- * Create a mock cross-origin POST request with form data
- */
-export const mockCrossOriginFormRequest = (
-  path: string,
-  data: Record<string, string>,
-  origin = "http://evil.com",
-): Request => {
-  const body = new URLSearchParams(data).toString();
-  return new Request(`http://localhost${path}`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      origin,
-      host: "localhost",
-    },
     body,
   });
 };

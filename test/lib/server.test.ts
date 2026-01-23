@@ -15,7 +15,6 @@ import {
   getCsrfTokenFromCookie,
   getSetupCsrfToken,
   getTicketCsrfToken,
-  mockCrossOriginFormRequest,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
@@ -71,7 +70,6 @@ describe("server", () => {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            origin: "http://localhost",
             host: "localhost",
           },
         }),
@@ -96,7 +94,6 @@ describe("server", () => {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            origin: "http://localhost",
             host: "localhost",
           },
         }),
@@ -179,7 +176,6 @@ describe("server", () => {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            origin: "http://localhost",
             host: "localhost",
           },
           body: new URLSearchParams({ password: "wrong" }).toString(),
@@ -207,7 +203,6 @@ describe("server", () => {
         method: "POST",
         headers: {
           "content-type": "application/x-www-form-urlencoded",
-          origin: "http://localhost",
           host: "localhost",
         },
         body: new URLSearchParams({ password: "wrong" }).toString(),
@@ -229,7 +224,6 @@ describe("server", () => {
         method: "POST",
         headers: {
           "content-type": "application/x-www-form-urlencoded",
-          origin: "http://localhost",
           host: "localhost",
         },
         body: new URLSearchParams({ password: "wrong" }).toString(),
@@ -1609,7 +1603,6 @@ describe("server", () => {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            origin: "http://localhost",
             host: "localhost",
           },
         }),
@@ -2042,7 +2035,6 @@ describe("server", () => {
             method: "POST",
             headers: {
               "content-type": "application/x-www-form-urlencoded",
-              origin: "http://localhost",
               host: "localhost",
               cookie: `setup_csrf=${cookieCsrf}`,
             },
@@ -2258,7 +2250,6 @@ describe("server", () => {
             method: "POST",
             headers: {
               "content-type": "application/x-www-form-urlencoded",
-              origin: "http://localhost",
               host: "localhost",
               cookie: `setup_csrf=${csrfToken}`,
             },
@@ -2313,7 +2304,6 @@ describe("server", () => {
             method: "POST",
             headers: {
               "content-type": "application/x-www-form-urlencoded",
-              origin: "http://localhost",
               host: "localhost",
               cookie: `setup_csrf=${csrfToken}`,
             },
@@ -2468,161 +2458,12 @@ describe("server", () => {
     });
   });
 
-  describe("CORS protection", () => {
-    test("rejects cross-origin POST requests", async () => {
-      await createEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockCrossOriginFormRequest("/ticket/1", {
-          name: "Attacker",
-          email: "attacker@evil.com",
-        }),
-      );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Cross-origin requests not allowed");
-    });
-
-    test("allows same-origin POST requests", async () => {
-      await createEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com/thanks",
-      });
-      const response = await submitTicketForm(1, {
-        name: "John Doe",
-        email: "john@example.com",
-      });
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "https://example.com/thanks",
-      );
-    });
-
-    test("allows GET requests from any origin", async () => {
-      await createEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        new Request("http://localhost/ticket/1", {
-          headers: { host: "localhost", origin: "http://evil.com" },
-        }),
-      );
-      expect(response.status).toBe(200);
-    });
-
-    test("rejects cross-origin admin login attempts", async () => {
-      const response = await handleRequest(
-        mockCrossOriginFormRequest("/admin/login", {
-          password: TEST_ADMIN_PASSWORD,
-        }),
-      );
-      expect(response.status).toBe(403);
-    });
-
-    test("CORS rejection response has security headers", async () => {
-      const response = await handleRequest(
-        mockCrossOriginFormRequest("/ticket/1", {
-          name: "Test",
-          email: "test@test.com",
-        }),
-      );
-      expect(response.headers.get("x-frame-options")).toBe("DENY");
-      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-    });
-
-    test("allows same-origin POST with referer header only (no origin)", async () => {
-      await createEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com/thanks",
-      });
-      // Get CSRF token from GET request
-      const getResponse = await handleRequest(mockRequest("/ticket/1"));
-      const csrfToken = getTicketCsrfToken(
-        getResponse.headers.get("set-cookie"),
-      );
-      const body = new URLSearchParams({
-        name: "John Doe",
-        email: "john@example.com",
-        csrf_token: csrfToken || "",
-      }).toString();
-      const response = await handleRequest(
-        new Request("http://localhost/ticket/1", {
-          method: "POST",
-          headers: {
-            host: "localhost",
-            "content-type": "application/x-www-form-urlencoded",
-            referer: "http://localhost/ticket/1",
-            cookie: `csrf_token=${csrfToken}`,
-          },
-          body,
-        }),
-      );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "https://example.com/thanks",
-      );
-    });
-
-    test("rejects cross-origin POST with referer header only", async () => {
-      await createEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const body = new URLSearchParams({
-        name: "Attacker",
-        email: "attacker@evil.com",
-      }).toString();
-      const response = await handleRequest(
-        new Request("http://localhost/ticket/1", {
-          method: "POST",
-          headers: {
-            host: "localhost",
-            "content-type": "application/x-www-form-urlencoded",
-            referer: "http://evil.com/phishing-page",
-          },
-          body,
-        }),
-      );
-      expect(response.status).toBe(403);
-    });
-
-    test("rejects POST without origin or referer", async () => {
-      const response = await handleRequest(
-        new Request("http://localhost/admin/login", {
-          method: "POST",
-          headers: {
-            host: "localhost",
-            "content-type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({ password: "test" }).toString(),
-        }),
-      );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Cross-origin requests not allowed");
-    });
-  });
-
   describe("Content-Type validation", () => {
     test("rejects POST requests without Content-Type header", async () => {
       const response = await handleRequest(
         new Request("http://localhost/admin/login", {
           method: "POST",
           headers: {
-            origin: "http://localhost",
             host: "localhost",
           },
           body: "password=test",
@@ -2638,7 +2479,6 @@ describe("server", () => {
         new Request("http://localhost/admin/login", {
           method: "POST",
           headers: {
-            origin: "http://localhost",
             host: "localhost",
             "content-type": "application/json",
           },
@@ -2672,7 +2512,6 @@ describe("server", () => {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            origin: "http://evil.com",
           },
           body: "password=test",
         }),

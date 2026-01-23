@@ -10,12 +10,10 @@ import { handleHealthCheck } from "./health.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
-  corsRejectionResponse,
   domainRejectionResponse,
   isEmbeddablePath,
   isValidContentType,
   isValidDomain,
-  isValidOrigin,
 } from "./middleware.ts";
 import { handleHome, routeTicket } from "./public.ts";
 import { routeSetup } from "./setup.ts";
@@ -29,7 +27,6 @@ export {
   isEmbeddablePath,
   isValidContentType,
   isValidDomain,
-  isValidOrigin,
 } from "./middleware.ts";
 
 // Re-export types
@@ -100,7 +97,7 @@ const handleRequestInternal = async (
 };
 
 /**
- * Handle incoming requests with security headers and CORS protection
+ * Handle incoming requests with security headers and domain validation
  */
 export const handleRequest = async (
   request: Request,
@@ -113,11 +110,6 @@ export const handleRequest = async (
 
   const { path } = parseRequest(request);
   const embeddable = isEmbeddablePath(path);
-
-  // CORS protection: reject cross-origin POST requests
-  if (!isValidOrigin(request)) {
-    return corsRejectionResponse();
-  }
 
   // Content-Type validation: reject POST requests without proper Content-Type
   if (!isValidContentType(request)) {

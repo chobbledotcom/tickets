@@ -76,38 +76,6 @@ export const isValidDomain = (request: Request): boolean => {
 };
 
 /**
- * Validate origin for CORS protection on POST requests
- * Returns true if the request should be allowed
- *
- * Validates against ALLOWED_DOMAIN (build-time config).
- * This provides additional CSRF protection for POST requests.
- */
-export const isValidOrigin = (request: Request): boolean => {
-  // Only check POST requests
-  if (request.method !== "POST") {
-    return true;
-  }
-
-  const origin = request.headers.get("origin");
-  const referer = request.headers.get("referer");
-
-  // If origin is present, it must match allowed domain
-  if (origin) {
-    const originUrl = new URL(origin);
-    return originUrl.host === ALLOWED_DOMAIN;
-  }
-
-  // Fallback to referer check
-  if (referer) {
-    const refererUrl = new URL(referer);
-    return refererUrl.host === ALLOWED_DOMAIN;
-  }
-
-  // If neither origin nor referer, reject (could be a direct form submission from another site)
-  return false;
-};
-
-/**
  * Validate Content-Type for POST requests
  * Returns true if the request is valid (not a POST, or has correct Content-Type)
  */
@@ -126,18 +94,6 @@ export const isValidContentType = (request: Request): boolean => {
 export const contentTypeRejectionResponse = (): Response =>
   new Response("Bad Request: Invalid Content-Type", {
     status: 400,
-    headers: {
-      "content-type": "text/plain",
-      ...getSecurityHeaders(false),
-    },
-  });
-
-/**
- * Create CORS rejection response
- */
-export const corsRejectionResponse = (): Response =>
-  new Response("Forbidden: Cross-origin requests not allowed", {
-    status: 403,
     headers: {
       "content-type": "text/plain",
       ...getSecurityHeaders(false),
