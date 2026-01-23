@@ -1151,6 +1151,188 @@ describe("server", () => {
     });
   });
 
+  describe("GET /admin/event/:id/deactivate", () => {
+    test("redirects to login when not authenticated", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await handleRequest(
+        mockRequest("/admin/event/1/deactivate"),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      const response = await awaitTestRequest("/admin/event/999/deactivate", {
+        cookie: cookie || "",
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("shows deactivate confirmation page when authenticated", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await awaitTestRequest("/admin/event/1/deactivate", {
+        cookie: cookie || "",
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Deactivate Event");
+      expect(html).toContain("Return a 404");
+    });
+  });
+
+  describe("POST /admin/event/:id/deactivate", () => {
+    test("redirects to login when not authenticated", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await handleRequest(
+        mockFormRequest("/admin/event/1/deactivate", {}),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+    });
+
+    test("deactivates event and redirects", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/deactivate",
+          { csrf_token: csrfToken || "" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/event/1");
+
+      // Verify event is now inactive
+      const { getEventWithCount } = await import("#lib/db/events");
+      const event = await getEventWithCount(1);
+      expect(event?.active).toBe(0);
+    });
+  });
+
+  describe("GET /admin/event/:id/reactivate", () => {
+    test("redirects to login when not authenticated", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await handleRequest(
+        mockRequest("/admin/event/1/reactivate"),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+    });
+
+    test("shows reactivate confirmation page when authenticated", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      const event = await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      // Deactivate the event first
+      await updateEvent(event.id, {
+        name: event.name,
+        description: event.description,
+        maxAttendees: event.max_attendees,
+        thankYouUrl: event.thank_you_url,
+        active: 0,
+      });
+
+      const response = await awaitTestRequest("/admin/event/1/reactivate", {
+        cookie: cookie || "",
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Reactivate Event");
+      expect(html).toContain("available for registrations");
+    });
+  });
+
+  describe("POST /admin/event/:id/reactivate", () => {
+    test("reactivates event and redirects", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const event = await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      // Deactivate the event first
+      await updateEvent(event.id, {
+        name: event.name,
+        description: event.description,
+        maxAttendees: event.max_attendees,
+        thankYouUrl: event.thank_you_url,
+        active: 0,
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/reactivate",
+          { csrf_token: csrfToken || "" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/event/1");
+
+      // Verify event is now active
+      const { getEventWithCount } = await import("#lib/db/events");
+      const activeEvent = await getEventWithCount(1);
+      expect(activeEvent?.active).toBe(1);
+    });
+  });
+
   describe("GET /admin/event/:id/delete", () => {
     test("redirects to login when not authenticated", async () => {
       await createEvent({

@@ -6,7 +6,7 @@ import { map, pipe, reduce } from "#fp";
 import { type FieldValues, renderError, renderFields } from "#lib/forms.tsx";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { eventEditFields } from "#templates/fields.ts";
+import { eventFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
@@ -49,6 +49,11 @@ export const adminEventPage = (
           <ul>
             <li><a href="/admin/">&larr; Back to Dashboard</a></li>
             <li><a href={`/admin/event/${event.id}/edit`}>Edit Event</a></li>
+            {event.active === 1 ? (
+              <li><a href={`/admin/event/${event.id}/deactivate`} class="danger">Deactivate</a></li>
+            ) : (
+              <li><a href={`/admin/event/${event.id}/reactivate`}>Reactivate</a></li>
+            )}
             <li><a href={`/admin/event/${event.id}/delete`} class="danger">Delete Event</a></li>
           </ul>
         </nav>
@@ -124,24 +129,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   unit_price: event.unit_price,
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
-  active: event.active,
 });
-
-/** JavaScript for deactivation confirmation */
-const deactivationConfirmScript = (isActive: boolean): string =>
-  isActive
-    ? `
-<script>
-document.querySelector('form').addEventListener('submit', function(e) {
-  const activeCheckbox = document.getElementById('active');
-  if (!activeCheckbox.checked) {
-    if (!confirm('Are you sure you want to deactivate this event? The public ticket page will return a 404 and no new registrations will be accepted.')) {
-      e.preventDefault();
-    }
-  }
-});
-</script>`
-    : "";
 
 /**
  * Admin event edit page
@@ -163,11 +151,10 @@ export const adminEventEditPage = (
         <Raw html={renderError(error)} />
         <form method="POST" action={`/admin/event/${event.id}/edit`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
-          <Raw html={renderFields(eventEditFields, eventToFieldValues(event))} />
+          <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
           <button type="submit">Save Changes</button>
         </form>
       </section>
-      <Raw html={deactivationConfirmScript(event.active === 1)} />
     </Layout>
   );
 
@@ -212,6 +199,79 @@ export const adminDeleteEventPage = (
           />
           <button type="submit" class="danger">
             Delete Event
+          </button>
+        </form>
+      </section>
+    </Layout>
+  );
+
+/**
+ * Admin deactivate event confirmation page
+ */
+export const adminDeactivateEventPage = (
+  event: EventWithCount,
+  csrfToken: string,
+): string =>
+  String(
+    <Layout title={`Deactivate: ${event.name}`}>
+      <header>
+        <h1>Deactivate Event</h1>
+        <nav>
+          <a href={`/admin/event/${event.id}`}>&larr; Back to Event</a>
+        </nav>
+      </header>
+
+      <section>
+        <article>
+          <aside>
+            <p><strong>Warning:</strong> Deactivating this event will:</p>
+            <ul>
+              <li>Return a 404 error on the public ticket page</li>
+              <li>Prevent new registrations</li>
+              <li>Reject any pending payments</li>
+            </ul>
+            <p>Existing attendees will not be affected.</p>
+          </aside>
+        </article>
+
+        <form method="POST" action={`/admin/event/${event.id}/deactivate`}>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <button type="submit" class="danger">
+            Deactivate Event
+          </button>
+        </form>
+      </section>
+    </Layout>
+  );
+
+/**
+ * Admin reactivate event confirmation page
+ */
+export const adminReactivateEventPage = (
+  event: EventWithCount,
+  csrfToken: string,
+): string =>
+  String(
+    <Layout title={`Reactivate: ${event.name}`}>
+      <header>
+        <h1>Reactivate Event</h1>
+        <nav>
+          <a href={`/admin/event/${event.id}`}>&larr; Back to Event</a>
+        </nav>
+      </header>
+
+      <section>
+        <article>
+          <aside>
+            <p>Reactivating this event will make it available for registrations again.</p>
+            <p>The public ticket page will be accessible and new attendees can register.</p>
+          </aside>
+        </article>
+
+        <form method="POST" action={`/admin/event/${event.id}/reactivate`}>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <button type="submit">
+            Reactivate Event
           </button>
         </form>
       </section>
