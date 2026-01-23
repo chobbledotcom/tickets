@@ -4,7 +4,7 @@
 
 import { decrypt, encrypt } from "../crypto.ts";
 import type { Attendee } from "../types.ts";
-import { executeByField, getDb, queryOne } from "./client.ts";
+import { getDb, queryOne } from "./client.ts";
 import { getEventWithCount } from "./events.ts";
 
 /**
@@ -101,8 +101,12 @@ export const updateAttendeePayment = async (
 /**
  * Delete an attendee (for cleanup on payment failure)
  */
-export const deleteAttendee = async (attendeeId: number): Promise<void> =>
-  executeByField("attendees", "id", attendeeId);
+export const deleteAttendee = async (attendeeId: number): Promise<void> => {
+  await getDb().execute({
+    sql: "DELETE FROM attendees WHERE id = ?",
+    args: [attendeeId],
+  });
+};
 
 /**
  * Check if event has available spots for given quantity

@@ -1,15 +1,22 @@
 import { describe, expect, test } from "bun:test";
 import {
+  bracket,
   compact,
+  err,
   filter,
   flatMap,
   groupBy,
   identity,
   isDefined,
+  lazyRef,
   map,
+  mapAsync,
   memoize,
+  ok,
+  once,
   pick,
   pipe,
+  pipeAsync,
   reduce,
   sort,
   sortBy,
@@ -295,6 +302,178 @@ describe("fp", () => {
         map((x: number) => x * 2),
       )(numbers);
       expect(result).toEqual([4, 8, 12]);
+    });
+  });
+
+  describe("once", () => {
+    test("computes value once and caches", () => {
+      let callCount = 0;
+      const getValue = once(() => {
+        callCount++;
+        return "computed";
+      });
+
+      expect(getValue()).toBe("computed");
+      expect(getValue()).toBe("computed");
+      expect(callCount).toBe(1);
+    });
+  });
+
+  describe("lazyRef", () => {
+    test("computes value lazily", () => {
+      let callCount = 0;
+      const [get, set] = lazyRef(() => {
+        callCount++;
+        return "computed";
+      });
+
+      expect(callCount).toBe(0);
+      expect(get()).toBe("computed");
+      expect(callCount).toBe(1);
+      expect(get()).toBe("computed");
+      expect(callCount).toBe(1);
+    });
+
+    test("can be reset with set(null)", () => {
+      let callCount = 0;
+      const [get, set] = lazyRef(() => {
+        callCount++;
+        return `computed-${callCount}`;
+      });
+
+      expect(get()).toBe("computed-1");
+      set(null);
+      expect(get()).toBe("computed-2");
+    });
+
+    test("can be set to a specific value", () => {
+      const [get, set] = lazyRef(() => "default");
+
+      set("overridden");
+      expect(get()).toBe("overridden");
+    });
+  });
+
+  describe("ok and err", () => {
+    test("ok creates successful result", () => {
+      const result = ok(42);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toBe(42);
+      }
+    });
+
+    test("err creates failed result", () => {
+      const response = new Response("error", { status: 400 });
+      const result = err(response);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.response).toBe(response);
+      }
+    });
+  });
+
+  describe("bracket", () => {
+    test("acquires and releases resource", async () => {
+      const log: string[] = [];
+      const withResource = bracket(
+        () => {
+          log.push("acquire");
+          return "resource";
+        },
+        () => {
+          log.push("release");
+        },
+      );
+
+      const result = await withResource((r) => {
+        log.push(`use: ${r}`);
+        return "done";
+      });
+
+      expect(result).toBe("done");
+      expect(log).toEqual(["acquire", "use: resource", "release"]);
+    });
+
+    test("releases resource even on error", async () => {
+      const log: string[] = [];
+      const withResource = bracket(
+        () => {
+          log.push("acquire");
+          return "resource";
+        },
+        () => {
+          log.push("release");
+        },
+      );
+
+      await expect(
+        withResource(() => {
+          log.push("use");
+          throw new Error("boom");
+        }),
+      ).rejects.toThrow("boom");
+
+      expect(log).toEqual(["acquire", "use", "release"]);
+    });
+
+    test("works with async acquire and release", async () => {
+      const log: string[] = [];
+      const withResource = bracket(
+        async () => {
+          log.push("acquire");
+          return "resource";
+        },
+        async () => {
+          log.push("release");
+        },
+      );
+
+      const result = await withResource(async (r) => {
+        log.push(`use: ${r}`);
+        return "done";
+      });
+
+      expect(result).toBe("done");
+      expect(log).toEqual(["acquire", "use: resource", "release"]);
+    });
+  });
+
+  describe("pipeAsync", () => {
+    test("composes async functions left-to-right", async () => {
+      const addOne = async (x: number) => x + 1;
+      const double = async (x: number) => x * 2;
+      const result = await pipeAsync(addOne, double)(5);
+      expect(result).toBe(12); // (5 + 1) * 2
+    });
+
+    test("works with single async function", async () => {
+      const addOne = async (x: number) => x + 1;
+      const result = await pipeAsync(addOne)(5);
+      expect(result).toBe(6);
+    });
+  });
+
+  describe("mapAsync", () => {
+    test("maps array with async function", async () => {
+      const double = async (x: number) => x * 2;
+      const result = await mapAsync(double)([1, 2, 3]);
+      expect(result).toEqual([2, 4, 6]);
+    });
+
+    test("preserves order with async operations", async () => {
+      const delays = [30, 10, 20];
+      const wait = async (ms: number) => {
+        return ms;
+      };
+      const result = await mapAsync(wait)(delays);
+      expect(result).toEqual([30, 10, 20]);
+    });
+
+    test("handles empty array", async () => {
+      const double = async (x: number) => x * 2;
+      const result = await mapAsync(double)([]);
+      expect(result).toEqual([]);
     });
   });
 });
