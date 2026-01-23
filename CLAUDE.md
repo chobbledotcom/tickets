@@ -122,6 +122,16 @@ All tests must meet these mandatory criteria:
 - Each test has a single reason to fail
 - If you need "and" in the description, split the test
 
+### Coverage Requirements
+
+100% test coverage is required to merge into main. To find which specific lines are uncovered, run:
+
+```bash
+bun test --coverage --coverage-reporter=lcov
+```
+
+Then check `coverage/lcov.info` for detailed line-by-line coverage information.
+
 ### Test Utilities
 
 Use helpers from `#test-utils` instead of defining locally:
