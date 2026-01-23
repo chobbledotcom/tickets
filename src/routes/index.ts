@@ -3,7 +3,7 @@
  */
 
 import { isSetupComplete } from "#lib/config.ts";
-import { routeAdmin } from "./admin/index.ts";
+import { routeAdmin } from "#routes/admin/index.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
@@ -11,13 +11,13 @@ import {
   isEmbeddablePath,
   isValidContentType,
   isValidDomain,
-} from "./middleware.ts";
-import { handleHome, routeTicket } from "./public.ts";
-import { createSetupRouter } from "./setup.ts";
-import { routeStatic } from "./static.ts";
-import type { ServerContext } from "./types.ts";
-import { notFoundResponse, parseRequest, redirect } from "./utils.ts";
-import { routePayment } from "./webhooks.ts";
+} from "#routes/middleware.ts";
+import { handleHome, routeTicket } from "#routes/public.ts";
+import { createSetupRouter } from "#routes/setup.ts";
+import { routeStatic } from "#routes/static.ts";
+import type { ServerContext } from "#routes/types.ts";
+import { notFoundResponse, parseRequest, redirect } from "#routes/utils.ts";
+import { routePayment } from "#routes/webhooks.ts";
 
 // Re-export middleware functions for testing
 export {
@@ -25,10 +25,10 @@ export {
   isEmbeddablePath,
   isValidContentType,
   isValidDomain,
-} from "./middleware.ts";
+} from "#routes/middleware.ts";
 
 // Re-export types
-export type { ServerContext } from "./types.ts";
+export type { ServerContext } from "#routes/types.ts";
 
 // Create setup router with isSetupComplete dependency injected
 const routeSetup = createSetupRouter(isSetupComplete);

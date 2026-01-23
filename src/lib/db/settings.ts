@@ -2,10 +2,10 @@
  * Settings table operations
  */
 
-import { decrypt, encrypt, hashPassword, verifyPassword } from "../crypto.ts";
-import type { Settings } from "../types.ts";
-import { getDb } from "./client.ts";
-import { deleteAllSessions } from "./sessions.ts";
+import { decrypt, encrypt, hashPassword, verifyPassword } from "#lib/crypto.ts";
+import { getDb } from "#lib/db/client.ts";
+import { deleteAllSessions } from "#lib/db/sessions.ts";
+import type { Settings } from "#lib/types.ts";
 
 /**
  * Setting keys for configuration

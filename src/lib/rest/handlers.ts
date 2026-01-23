@@ -8,17 +8,17 @@
  */
 
 import type { InValue } from "@libsql/client";
-import {
-  type AuthFormResult,
-  type AuthSession,
-  requireAuthForm,
-} from "#routes/utils.ts";
 import type {
   CreateResult,
   DeleteResult,
   Resource,
   UpdateResult,
-} from "./resource.ts";
+} from "#lib/rest/resource.ts";
+import {
+  type AuthFormResult,
+  type AuthSession,
+  requireAuthForm,
+} from "#routes/utils.ts";
 
 /** Async or sync response */
 type MaybeAsync<T> = T | Promise<T>;

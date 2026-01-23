@@ -5,14 +5,14 @@
 import { map, pipe, reduce } from "#fp";
 import { type FieldValues, renderError, renderFields } from "#lib/forms.tsx";
 import type { Attendee, EventWithCount, Session } from "#lib/types.ts";
-import { Raw } from "#jsx/jsx-runtime.ts";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import {
   changePasswordFields,
   eventFields,
   loginFields,
   stripeKeyFields,
-} from "./fields.ts";
-import { Layout } from "./layout.tsx";
+} from "#templates/fields.ts";
+import { Layout } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 

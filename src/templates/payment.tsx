@@ -3,8 +3,8 @@
  */
 
 import type { Attendee, Event } from "#lib/types.ts";
-import { Raw } from "#jsx/jsx-runtime.ts";
-import { escapeHtml, Layout } from "./layout.tsx";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /**
  * Payment page - redirects to Stripe Checkout

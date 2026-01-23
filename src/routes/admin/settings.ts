@@ -7,25 +7,25 @@ import {
   updateAdminPassword,
   updateStripeKey,
   verifyAdminPassword,
-} from "#lib/db/settings";
+} from "#lib/db/settings.ts";
 import { validateForm } from "#lib/forms.tsx";
-import { adminSettingsPage } from "#templates/admin.tsx";
-import { changePasswordFields, stripeKeyFields } from "#templates/fields.ts";
-import { defineRoutes } from "../router.ts";
-import type { AuthSession } from "../utils.ts";
+import {
+  type AuthValidationResult,
+  clearSessionCookie,
+  type FormFields,
+  type ValidatedForm,
+} from "#routes/admin/utils.ts";
+import { defineRoutes } from "#routes/router.ts";
+import type { AuthSession } from "#routes/utils.ts";
 import {
   htmlResponse,
   redirect,
   requireAuthForm,
   requireSessionOr,
   withAuthForm,
-} from "../utils.ts";
-import {
-  type AuthValidationResult,
-  clearSessionCookie,
-  type FormFields,
-  type ValidatedForm,
-} from "./utils.ts";
+} from "#routes/utils.ts";
+import { adminSettingsPage } from "#templates/admin.tsx";
+import { changePasswordFields, stripeKeyFields } from "#templates/fields.ts";
 
 /** Require auth + form + validation, with custom error handler */
 const requireAuthValidation = async (

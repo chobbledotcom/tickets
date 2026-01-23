@@ -7,14 +7,16 @@ import {
   createAttendee,
   deleteAttendee,
   hasAvailableSpots,
-} from "#lib/db/attendees";
+} from "#lib/db/attendees.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { createCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { notifyWebhook } from "#lib/webhook.ts";
-import { ticketFields } from "#templates/fields.ts";
-import { homePage, ticketPage } from "#templates/public.tsx";
-import { createRouter, defineRoutes, type RouteParams } from "./router.ts";
+import {
+  createRouter,
+  defineRoutes,
+  type RouteParams,
+} from "#routes/router.ts";
 import {
   csrfCookie,
   generateSecureToken,
@@ -25,7 +27,9 @@ import {
   redirect,
   requireCsrfForm,
   withEvent,
-} from "./utils.ts";
+} from "#routes/utils.ts";
+import { ticketFields } from "#templates/fields.ts";
+import { homePage, ticketPage } from "#templates/public.tsx";
 
 /**
  * Handle GET / (home page)

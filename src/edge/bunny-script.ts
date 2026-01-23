@@ -5,9 +5,9 @@
 
 import * as BunnySDK from "@bunny.net/edgescript-sdk";
 import { once } from "#fp";
-import { validateEncryptionKey } from "../lib/crypto.ts";
-import { initDb } from "../lib/db/migrations/index.ts";
-import { handleRequest } from "../server.ts";
+import { validateEncryptionKey } from "#lib/crypto.ts";
+import { initDb } from "#lib/db/migrations/index.ts";
+import { handleRequest } from "#src/server.ts";
 
 // biome-ignore lint/suspicious/noConsole: Edge script logging
 console.log("[Tickets] Edge script module loaded");

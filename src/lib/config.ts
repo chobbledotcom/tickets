@@ -8,7 +8,7 @@ import {
   getCurrencyCodeFromDb,
   getStripeSecretKeyFromDb,
   isSetupComplete,
-} from "./db/settings.ts";
+} from "#lib/db/settings.ts";
 
 /**
  * Get Stripe secret key from database

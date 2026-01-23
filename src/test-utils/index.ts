@@ -3,12 +3,12 @@
  */
 
 import { createClient } from "@libsql/client";
-import { clearEncryptionKeyCache } from "../lib/crypto.ts";
-import { setDb } from "../lib/db/client.ts";
-import { createEvent, type EventInput } from "../lib/db/events.ts";
-import { initDb } from "../lib/db/migrations/index.ts";
-import { getSession } from "../lib/db/sessions.ts";
-import { completeSetup } from "../lib/db/settings.ts";
+import { clearEncryptionKeyCache } from "#lib/crypto.ts";
+import { setDb } from "#lib/db/client.ts";
+import { createEvent, type EventInput } from "#lib/db/events.ts";
+import { initDb } from "#lib/db/migrations/index.ts";
+import { getSession } from "#lib/db/sessions.ts";
+import { completeSetup } from "#lib/db/settings.ts";
 
 /**
  * Default test admin password
@@ -279,7 +279,7 @@ export const awaitTestRequest = async (
   path: string,
   tokenOrOptions?: string | TestRequestOptions | null,
 ): Promise<Response> => {
-  const { handleRequest } = await import("../server.ts");
+  const { handleRequest } = await import("#src/server.ts");
   if (typeof tokenOrOptions === "object" && tokenOrOptions !== null) {
     return handleRequest(testRequest(path, null, tokenOrOptions));
   }

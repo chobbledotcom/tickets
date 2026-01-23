@@ -2,7 +2,7 @@
  * Database migrations
  */
 
-import { getDb } from "../client.ts";
+import { getDb } from "#lib/db/client.ts";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)

@@ -2,10 +2,10 @@
  * Admin dashboard route
  */
 
-import { getAllEvents } from "#lib/db/events";
+import { getAllEvents } from "#lib/db/events.ts";
+import { defineRoutes } from "#routes/router.ts";
+import { htmlResponse, withSession } from "#routes/utils.ts";
 import { adminDashboardPage, adminLoginPage } from "#templates/admin.tsx";
-import { defineRoutes } from "../router.ts";
-import { htmlResponse, withSession } from "../utils.ts";
 
 /** Login page response helper */
 export const loginResponse = (error?: string, status = 200) =>

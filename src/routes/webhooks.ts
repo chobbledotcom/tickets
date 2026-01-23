@@ -6,14 +6,18 @@ import {
   deleteAttendee,
   getAttendee,
   updateAttendeePayment,
-} from "#lib/db/attendees";
-import { getEvent } from "#lib/db/events";
+} from "#lib/db/attendees.ts";
+import { getEvent } from "#lib/db/events.ts";
 import { retrieveCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, Event } from "#lib/types.ts";
 import { notifyWebhook } from "#lib/webhook.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
+import {
+  getSearchParam,
+  htmlResponse,
+  paymentErrorResponse,
+} from "#routes/utils.ts";
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
-import { createRouter, defineRoutes } from "./router.ts";
-import { getSearchParam, htmlResponse, paymentErrorResponse } from "./utils.ts";
 
 type PaymentParams = { attendeeId: string | null; sessionId: string | null };
 

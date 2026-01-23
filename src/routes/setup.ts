@@ -2,11 +2,9 @@
  * Setup routes - initial system configuration
  */
 
-import { completeSetup } from "#lib/db/settings";
+import { completeSetup } from "#lib/db/settings.ts";
 import { validateForm } from "#lib/forms.tsx";
-import { setupFields } from "#templates/fields.ts";
-import { setupCompletePage, setupPage } from "#templates/setup.tsx";
-import { createRouter, defineRoutes } from "./router.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   generateSecureToken,
   htmlResponse,
@@ -15,7 +13,9 @@ import {
   parseFormData,
   redirect,
   validateCsrfToken,
-} from "./utils.ts";
+} from "#routes/utils.ts";
+import { setupFields } from "#templates/fields.ts";
+import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
 /** Cookie for CSRF token with standard security options */
 const setupCsrfCookie = (token: string): string =>
