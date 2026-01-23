@@ -12,6 +12,7 @@ export interface Event {
   unit_price: number | null;
   max_quantity: number;
   webhook_url: string | null;
+  active: number;
 }
 
 export interface Attendee {
