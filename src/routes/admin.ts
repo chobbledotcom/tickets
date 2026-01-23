@@ -7,10 +7,12 @@ import {
   createSession,
   deleteAttendee,
   deleteEvent,
+  deleteOtherSessions,
   deleteSession,
   type EventInput,
   eventsTable,
   getAllEvents,
+  getAllSessions,
   getAttendee,
   getAttendees,
   getEventWithCount,
@@ -36,6 +38,7 @@ import {
   adminEventEditPage,
   adminEventPage,
   adminLoginPage,
+  adminSessionsPage,
   adminSettingsPage,
   changePasswordFields,
   eventFields,
@@ -318,6 +321,34 @@ const handleAdminStripePost = async (request: Request): Promise<Response> => {
 };
 
 /**
+ * Handle GET /admin/sessions
+ */
+const handleAdminSessionsGet = (request: Request): Promise<Response> =>
+  requireSessionOr(request, async (session) => {
+    const sessions = await getAllSessions();
+    return htmlResponse(
+      adminSessionsPage(sessions, session.token, session.csrfToken),
+    );
+  });
+
+/**
+ * Handle POST /admin/sessions (log out of all other sessions)
+ */
+const handleAdminSessionsPost = (request: Request): Promise<Response> =>
+  withAuthForm(request, async (session) => {
+    await deleteOtherSessions(session.token);
+    const sessions = await getAllSessions();
+    return htmlResponse(
+      adminSessionsPage(
+        sessions,
+        session.token,
+        session.csrfToken,
+        "Logged out of all other sessions",
+      ),
+    );
+  });
+
+/**
  * Handle POST /admin/event (create event)
  */
 const handleCreateEvent = createHandler(eventsResource, {
@@ -552,15 +583,24 @@ const routeAdminEvent: RouteHandler = async (request, path, method) =>
 const isAdminRoot = (path: string): boolean =>
   path === "/admin/" || path === "/admin";
 
-/**
- * Route admin settings requests
- */
-const routeAdminSettings = (
-  request: Request,
-  path: string,
-  method: string,
-): Promise<Response | null> =>
+/** Route admin auth requests (login/logout/settings/sessions) */
+const routeAdminAuth: RouteHandlerWithServer = (
+  request,
+  path,
+  method,
+  server,
+) =>
   matchRoute(path, method, [
+    {
+      path: "/admin/login",
+      method: "POST",
+      handler: () => handleAdminLogin(request, server),
+    },
+    {
+      path: "/admin/logout",
+      method: "GET",
+      handler: () => handleAdminLogout(request),
+    },
     {
       path: "/admin/settings",
       method: "GET",
@@ -576,31 +616,17 @@ const routeAdminSettings = (
       method: "POST",
       handler: () => handleAdminStripePost(request),
     },
+    {
+      path: "/admin/sessions",
+      method: "GET",
+      handler: () => handleAdminSessionsGet(request),
+    },
+    {
+      path: "/admin/sessions",
+      method: "POST",
+      handler: () => handleAdminSessionsPost(request),
+    },
   ]);
-
-/** Route admin auth requests (login/logout/settings) */
-const routeAdminAuth: RouteHandlerWithServer = (
-  request,
-  path,
-  method,
-  server,
-) =>
-  chainRoutes(
-    () =>
-      matchRoute(path, method, [
-        {
-          path: "/admin/login",
-          method: "POST",
-          handler: () => handleAdminLogin(request, server),
-        },
-        {
-          path: "/admin/logout",
-          method: "GET",
-          handler: () => handleAdminLogout(request),
-        },
-      ]),
-    () => routeAdminSettings(request, path, method),
-  );
 
 /** Route core admin requests */
 const routeAdminCore: RouteHandlerWithServer = (
