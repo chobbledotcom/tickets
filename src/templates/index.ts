@@ -5,6 +5,7 @@
 // Admin pages
 export {
   adminDashboardPage,
+  adminDeleteAttendeePage,
   adminDeleteEventPage,
   adminEventEditPage,
   adminEventPage,

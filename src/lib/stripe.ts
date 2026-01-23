@@ -96,7 +96,7 @@ export const createCheckoutSession = async (
 
   const currency = (await getCurrencyCode()).toLowerCase();
   const successUrl = `${baseUrl}/payment/success?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
-  const cancelUrl = `${baseUrl}/payment/cancel?attendee_id=${attendee.id}`;
+  const cancelUrl = `${baseUrl}/payment/cancel?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
   const ticketLabel = quantity > 1 ? `${quantity} Tickets` : "Ticket";
 
   return safeAsync(() =>
