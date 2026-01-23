@@ -4,14 +4,11 @@
 
 import { createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "../lib/crypto.ts";
-import { createEvent } from "../lib/db/events.ts";
-import {
-  completeSetup,
-  type EventInput,
-  getSession,
-  initDb,
-  setDb,
-} from "../lib/db/index.ts";
+import { setDb } from "../lib/db/client.ts";
+import { createEvent, type EventInput } from "../lib/db/events.ts";
+import { initDb } from "../lib/db/migrations/index.ts";
+import { getSession } from "../lib/db/sessions.ts";
+import { completeSetup } from "../lib/db/settings.ts";
 
 /**
  * Default test admin password

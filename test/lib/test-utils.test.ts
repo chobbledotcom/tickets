@@ -19,7 +19,7 @@ describe("test-utils", () => {
   describe("createTestDb", () => {
     test("creates an in-memory database that can execute queries", async () => {
       await createTestDb();
-      const { getDb } = await import("#lib/db");
+      const { getDb } = await import("#lib/db/client");
       const result = await getDb().execute("SELECT 1 as test");
       expect(result.rows.length).toBe(1);
       expect(result.columns).toContain("test");
@@ -29,7 +29,7 @@ describe("test-utils", () => {
   describe("resetDb", () => {
     test("resets database so next getDb creates fresh connection", async () => {
       await createTestDb();
-      const { getDb, setDb } = await import("#lib/db");
+      const { getDb, setDb } = await import("#lib/db/client");
       const firstDb = getDb();
       resetDb();
       setDb(null);

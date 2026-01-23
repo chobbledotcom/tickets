@@ -1,42 +1,49 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import {
-  CONFIG_KEYS,
-  clearLoginAttempts,
-  completeSetup,
   createAttendee,
-  createSession,
-  deleteAllSessions,
   deleteAttendee,
-  deleteEvent,
-  deleteOtherSessions,
-  deleteSession,
-  getAdminPasswordFromDb,
-  getAllEvents,
-  getAllSessions,
   getAttendee,
   getAttendees,
-  getCurrencyCodeFromDb,
-  getDb,
+  hasAvailableSpots,
+  updateAttendeePayment,
+} from "#lib/db/attendees";
+import { getDb, setDb } from "#lib/db/client";
+import {
+  deleteEvent,
+  getAllEvents,
   getEvent,
   getEventWithCount,
+  updateEvent,
+} from "#lib/db/events";
+import {
+  clearLoginAttempts,
+  isLoginRateLimited,
+  recordFailedLogin,
+} from "#lib/db/login-attempts";
+import { initDb } from "#lib/db/migrations";
+import {
+  createSession,
+  deleteAllSessions,
+  deleteOtherSessions,
+  deleteSession,
+  getAllSessions,
   getSession,
+} from "#lib/db/sessions";
+import {
+  CONFIG_KEYS,
+  completeSetup,
+  getAdminPasswordFromDb,
+  getCurrencyCodeFromDb,
   getSetting,
   getStripeSecretKeyFromDb,
-  hasAvailableSpots,
   hasStripeKey,
-  initDb,
-  isLoginRateLimited,
   isSetupComplete,
-  recordFailedLogin,
-  setDb,
   setSetting,
   updateAdminPassword,
-  updateAttendeePayment,
-  updateEvent,
   updateStripeKey,
   verifyAdminPassword,
-} from "#lib/db";
+} from "#lib/db/settings";
 import { createEvent, setupTestEncryptionKey } from "#test-utils";
 
 describe("db", () => {

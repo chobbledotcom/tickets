@@ -3,12 +3,17 @@
  */
 
 import { isPaymentsEnabled } from "#lib/config.ts";
-import { createAttendee, deleteAttendee, hasAvailableSpots } from "#lib/db";
+import {
+  createAttendee,
+  deleteAttendee,
+  hasAvailableSpots,
+} from "#lib/db/attendees";
 import { validateForm } from "#lib/forms.tsx";
 import { createCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { notifyWebhook } from "#lib/webhook.ts";
-import { homePage, ticketFields, ticketPage } from "#templates";
+import { ticketFields } from "#templates/fields.ts";
+import { homePage, ticketPage } from "#templates/public.tsx";
 import { createRouter, defineRoutes, type RouteParams } from "./router.ts";
 import {
   csrfCookie,

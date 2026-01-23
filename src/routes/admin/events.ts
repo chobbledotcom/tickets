@@ -2,27 +2,27 @@
  * Admin event management routes
  */
 
+import { getAttendees } from "#lib/db/attendees";
 import {
   deleteEvent,
   type EventInput,
   eventsTable,
-  getAttendees,
   getEventWithCount,
-} from "#lib/db";
+} from "#lib/db/events";
 import {
   createHandler,
-  defineResource,
   deleteHandler,
   updateHandler,
-} from "#lib/rest";
+} from "#lib/rest/handlers";
+import { defineResource } from "#lib/rest/resource";
 import type { EventWithCount } from "#lib/types.ts";
 import {
   adminDeleteEventPage,
   adminEventEditPage,
   adminEventPage,
-  eventFields,
-  generateAttendeesCsv,
-} from "#templates";
+} from "#templates/admin.tsx";
+import { generateAttendeesCsv } from "#templates/csv.ts";
+import { eventFields } from "#templates/fields.ts";
 import { defineRoutes, type RouteParams } from "../router.ts";
 import {
   htmlResponse,

@@ -7,13 +7,10 @@ import {
   updateAdminPassword,
   updateStripeKey,
   verifyAdminPassword,
-} from "#lib/db";
+} from "#lib/db/settings";
 import { validateForm } from "#lib/forms.tsx";
-import {
-  adminSettingsPage,
-  changePasswordFields,
-  stripeKeyFields,
-} from "#templates";
+import { adminSettingsPage } from "#templates/admin.tsx";
+import { changePasswordFields, stripeKeyFields } from "#templates/fields.ts";
 import { defineRoutes } from "../router.ts";
 import type { AuthSession } from "../utils.ts";
 import {
