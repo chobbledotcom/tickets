@@ -214,12 +214,12 @@ describe("encryption", () => {
 
 describe("password hashing", () => {
   describe("hashPassword", () => {
-    it("returns scrypt format with all parameters", async () => {
+    it("returns pbkdf2 format with all parameters", async () => {
       const hash = await hashPassword("mypassword");
-      expect(hash.startsWith("scrypt:")).toBe(true);
+      expect(hash.startsWith("pbkdf2:")).toBe(true);
       const parts = hash.split(":");
-      expect(parts.length).toBe(6);
-      expect(parts[0]).toBe("scrypt");
+      expect(parts.length).toBe(4);
+      expect(parts[0]).toBe("pbkdf2");
     });
 
     it("generates different hashes for same password (random salt)", async () => {
@@ -248,7 +248,7 @@ describe("password hashing", () => {
     });
 
     it("returns false for malformed hash (wrong number of parts)", async () => {
-      const result = await verifyPassword("password", "scrypt:16384:8:1:salt");
+      const result = await verifyPassword("password", "pbkdf2:100000:salt");
       expect(result).toBe(false);
     });
 
@@ -258,7 +258,7 @@ describe("password hashing", () => {
       const salt = btoa("0123456789012345");
       const result = await verifyPassword(
         "password",
-        `scrypt:16384:8:1:${salt}:${shortHash}`,
+        `pbkdf2:100000:${salt}:${shortHash}`,
       );
       expect(result).toBe(false);
     });
