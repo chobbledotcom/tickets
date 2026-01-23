@@ -16,6 +16,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          repository: chobbledotcom/tickets
+          ref: main
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
