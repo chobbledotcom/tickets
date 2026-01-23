@@ -11,11 +11,15 @@ import { notifyWebhook } from "#lib/webhook.ts";
 import { homePage, ticketFields, ticketPage } from "#templates";
 import {
   createIdRoute,
+  csrfCookie,
+  generateSecureToken,
   getBaseUrl,
   htmlResponse,
-  parseFormData,
+  parseCookies,
   type RouteHandler,
   redirect,
+  requireCsrfForm,
+  withCookie,
   withEvent,
 } from "./utils.ts";
 
@@ -26,11 +30,20 @@ export const handleHome = (): Response => {
   return htmlResponse(homePage());
 };
 
+/** Path for ticket CSRF cookies */
+const ticketCsrfPath = (eventId: number): string => `/ticket/${eventId}`;
+
 /**
  * Handle GET /ticket/:id
  */
 export const handleTicketGet = (eventId: number): Promise<Response> =>
-  withEvent(eventId, (event) => htmlResponse(ticketPage(event)));
+  withEvent(eventId, (event) => {
+    const token = generateSecureToken();
+    return withCookie(
+      htmlResponse(ticketPage(event, token)),
+      csrfCookie(token, ticketCsrfPath(eventId)),
+    );
+  });
 
 /**
  * Check if payment is required for an event
@@ -53,6 +66,7 @@ const handlePaymentFlow = async (
   event: EventWithCount,
   attendee: Attendee,
   quantity: number,
+  csrfToken: string,
 ): Promise<Response> => {
   const baseUrl = getBaseUrl(request);
   const session = await createCheckoutSession(
@@ -69,7 +83,11 @@ const handlePaymentFlow = async (
   // If Stripe session creation failed, clean up and show error
   await deleteAttendee(attendee.id);
   return htmlResponse(
-    ticketPage(event, "Failed to create payment session. Please try again."),
+    ticketPage(
+      event,
+      csrfToken,
+      "Failed to create payment session. Please try again.",
+    ),
     500,
   );
 };
@@ -89,24 +107,43 @@ const parseQuantity = (
 };
 
 /**
+ * Create CSRF error response for ticket page
+ */
+const ticketCsrfError = (event: EventWithCount) => (newToken: string) =>
+  withCookie(
+    htmlResponse(
+      ticketPage(event, newToken, "Invalid or expired form. Please try again."),
+      403,
+    ),
+    csrfCookie(newToken, ticketCsrfPath(event.id)),
+  );
+
+/**
  * Process ticket reservation for an event
  */
 const processTicketReservation = async (
   request: Request,
   event: EventWithCount,
 ): Promise<Response> => {
-  const form = await parseFormData(request);
+  // Get current CSRF token from cookie for re-rendering on validation errors
+  const cookies = parseCookies(request);
+  const currentToken = cookies.get("csrf_token") || generateSecureToken();
+
+  const csrfResult = await requireCsrfForm(request, ticketCsrfError(event));
+  if (!csrfResult.ok) return csrfResult.response;
+
+  const { form } = csrfResult;
   const validation = validateForm(form, ticketFields);
 
   if (!validation.valid) {
-    return htmlResponse(ticketPage(event, validation.error), 400);
+    return htmlResponse(ticketPage(event, currentToken, validation.error), 400);
   }
 
   const quantity = parseQuantity(form, event);
   const available = await hasAvailableSpots(event.id, quantity);
   if (!available) {
     return htmlResponse(
-      ticketPage(event, "Sorry, not enough spots available"),
+      ticketPage(event, currentToken, "Sorry, not enough spots available"),
       400,
     );
   }
@@ -121,7 +158,7 @@ const processTicketReservation = async (
   );
 
   if (await requiresPayment(event)) {
-    return handlePaymentFlow(request, event, attendee, quantity);
+    return handlePaymentFlow(request, event, attendee, quantity, currentToken);
   }
 
   // Notify webhook for free registrations (paid events notify after payment)

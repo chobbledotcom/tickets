@@ -9,6 +9,7 @@ import {
   createSession,
   deleteAllSessions,
   deleteAttendee,
+  deleteEvent,
   deleteExpiredSessions,
   deleteSession,
   getAdminPasswordFromDb,
@@ -322,6 +323,50 @@ describe("db", () => {
       });
 
       expect(updated?.unit_price).toBeNull();
+    });
+
+    test("deleteEvent removes event", async () => {
+      const event = await createEvent({
+        name: "Event to Delete",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      await deleteEvent(event.id);
+
+      const fetched = await getEvent(event.id);
+      expect(fetched).toBeNull();
+    });
+
+    test("deleteEvent removes all attendees for the event", async () => {
+      const event = await createEvent({
+        name: "Event with Attendees",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(event.id, "John", "john@example.com");
+      await createAttendee(event.id, "Jane", "jane@example.com");
+
+      await deleteEvent(event.id);
+
+      const attendees = await getAttendees(event.id);
+      expect(attendees).toEqual([]);
+    });
+
+    test("deleteEvent works with no attendees", async () => {
+      const event = await createEvent({
+        name: "Empty Event",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      await deleteEvent(event.id);
+
+      const fetched = await getEvent(event.id);
+      expect(fetched).toBeNull();
     });
   });
 

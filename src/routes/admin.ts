@@ -6,6 +6,7 @@ import {
   clearLoginAttempts,
   createEvent,
   createSession,
+  deleteEvent,
   deleteSession,
   type EventInput,
   getAllEvents,
@@ -22,6 +23,7 @@ import { validateForm } from "#lib/forms.tsx";
 import type { EventWithCount } from "#lib/types.ts";
 import {
   adminDashboardPage,
+  adminDeleteEventPage,
   adminEventEditPage,
   adminEventPage,
   adminLoginPage,
@@ -37,7 +39,6 @@ import {
   type AuthSession,
   chainRoutes,
   createIdRoute,
-  fetchEventOr404,
   generateSecureToken,
   getClientIp,
   htmlResponse,
@@ -50,6 +51,7 @@ import {
   requireAuthForm,
   requireSessionOr,
   withAuthForm,
+  withEvent,
   withSession,
 } from "./utils.ts";
 
@@ -111,9 +113,9 @@ const withEventAttendees = async (
   if (!(await isAuthenticated(request))) {
     return redirect("/admin/");
   }
-  const result = await fetchEventOr404(eventId);
-  if (!result.ok) return result.response;
-  return handler(result.value, await getAttendees(eventId));
+  return withEvent(eventId, async (event) =>
+    handler(event, await getAttendees(eventId)),
+  );
 };
 
 /**
@@ -311,41 +313,48 @@ const handleAdminEventGet = (request: Request, eventId: number) =>
     htmlResponse(adminEventPage(event, attendees)),
   );
 
-/**
- * Handle GET /admin/event/:id/edit
- */
-const handleAdminEventEditGet = (
-  request: Request,
-  eventId: number,
-): Promise<Response> =>
-  requireSessionOr(request, async (session) => {
-    const result = await fetchEventOr404(eventId);
-    if (!result.ok) return result.response;
-    return htmlResponse(adminEventEditPage(result.value, session.csrfToken));
-  });
+/** Curried event page GET handler: renderPage -> (request, eventId) -> Response */
+const withEventPage =
+  (renderPage: (event: EventWithCount, csrfToken: string) => string) =>
+  (request: Request, eventId: number): Promise<Response> =>
+    requireSessionOr(request, (session) =>
+      withEvent(eventId, (event) =>
+        htmlResponse(renderPage(event, session.csrfToken)),
+      ),
+    );
 
-/**
- * Handle POST /admin/event/:id/edit
- */
-const handleAdminEventEditPost = (
-  request: Request,
-  eventId: number,
-): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
-    const result = await fetchEventOr404(eventId);
-    if (!result.ok) return result.response;
+/** Event form handler callback type */
+type EventFormHandler = (
+  event: EventWithCount,
+  session: AuthSession,
+  form: URLSearchParams,
+) => Response | Promise<Response>;
 
+/** Curried event form POST handler: handler -> (request, eventId) -> Response */
+const withEventFormHandler =
+  (handler: EventFormHandler) =>
+  (request: Request, eventId: number): Promise<Response> =>
+    withAuthForm(request, (session, form) =>
+      withEvent(eventId, (event) => handler(event, session, form)),
+    );
+
+/** Handle GET /admin/event/:id/edit */
+const handleAdminEventEditGet = withEventPage(adminEventEditPage);
+
+/** Handle POST /admin/event/:id/edit */
+const handleAdminEventEditPost = withEventFormHandler(
+  async (event, session, form) => {
     const validation = validateForm(form, eventFields);
     if (!validation.valid) {
       return htmlResponse(
-        adminEventEditPage(result.value, session.csrfToken, validation.error),
+        adminEventEditPage(event, session.csrfToken, validation.error),
         400,
       );
     }
-
-    await updateEvent(eventId, extractEventInput(validation.values));
-    return redirect(`/admin/event/${eventId}`);
-  });
+    await updateEvent(event.id, extractEventInput(validation.values));
+    return redirect(`/admin/event/${event.id}`);
+  },
+);
 
 /**
  * Handle GET /admin/event/:id/export (CSV export)
@@ -362,6 +371,28 @@ const handleAdminEventExport = (request: Request, eventId: number) =>
     });
   });
 
+/** Handle GET /admin/event/:id/delete (show confirmation page) */
+const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
+
+/** Handle POST /admin/event/:id/delete (delete event after confirmation) */
+const handleAdminEventDeletePost = withEventFormHandler(
+  async (event, session, form) => {
+    const confirmName = (form.get("confirm_name") ?? "").trim();
+    if (confirmName.toLowerCase() !== event.name.trim().toLowerCase()) {
+      return htmlResponse(
+        adminDeleteEventPage(
+          event,
+          session.csrfToken,
+          "Event name does not match. Please type the exact name to confirm deletion.",
+        ),
+        400,
+      );
+    }
+    await deleteEvent(event.id);
+    return redirect("/admin/");
+  },
+);
+
 /** Route admin event edit requests */
 const routeAdminEventEdit: RouteHandler = createIdRoute(
   /^\/admin\/event\/(\d+)\/edit$/,
@@ -377,6 +408,15 @@ const routeAdminEventExport: RouteHandler = createIdRoute(
   (request) => ({ GET: (id) => handleAdminEventExport(request, id) }),
 );
 
+/** Route admin event delete requests */
+const routeAdminEventDelete: RouteHandler = createIdRoute(
+  /^\/admin\/event\/(\d+)\/delete$/,
+  (request) => ({
+    GET: (id) => handleAdminEventDeleteGet(request, id),
+    POST: (id) => handleAdminEventDeletePost(request, id),
+  }),
+);
+
 /** Route admin event detail requests */
 const routeAdminEventDetail: RouteHandler = createIdRoute(
   /^\/admin\/event\/(\d+)$/,
@@ -387,6 +427,7 @@ const routeAdminEventDetail: RouteHandler = createIdRoute(
 const routeAdminEvent: RouteHandler = async (request, path, method) =>
   (await routeAdminEventEdit(request, path, method)) ??
   (await routeAdminEventExport(request, path, method)) ??
+  (await routeAdminEventDelete(request, path, method)) ??
   routeAdminEventDetail(request, path, method);
 
 /**

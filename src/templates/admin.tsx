@@ -110,7 +110,8 @@ export const adminEventPage = (
       <h1>{event.name}</h1>
       <p>
         <a href="/admin/">&larr; Back to Dashboard</a> |{" "}
-        <a href={`/admin/event/${event.id}/edit`}>Edit Event</a>
+        <a href={`/admin/event/${event.id}/edit`}>Edit Event</a> |{" "}
+        <a href={`/admin/event/${event.id}/delete`} style="color: #c00;">Delete Event</a>
       </p>
 
       <h2>Event Details</h2>
@@ -190,6 +191,48 @@ export const adminEventEditPage = (
         <input type="hidden" name="csrf_token" value={csrfToken} />
         <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
         <button type="submit">Save Changes</button>
+      </form>
+    </Layout>
+  );
+
+/**
+ * Admin delete event confirmation page
+ */
+export const adminDeleteEventPage = (
+  event: EventWithCount,
+  csrfToken: string,
+  error?: string,
+): string =>
+  String(
+    <Layout title={`Delete: ${event.name}`}>
+      <h1>Delete Event</h1>
+      <p><a href={`/admin/event/${event.id}`}>&larr; Back to Event</a></p>
+
+      {error && <div class="error">{error}</div>}
+
+      <p style="color: #c00; font-weight: bold;">
+        Warning: This will permanently delete the event and all {event.attendee_count} attendee(s).
+      </p>
+
+      <p>To delete this event, you must type its name "{event.name}" into the box below:</p>
+
+      <form method="POST" action={`/admin/event/${event.id}/delete`}>
+        <input type="hidden" name="csrf_token" value={csrfToken} />
+        <div class="field">
+          <input
+            type="text"
+            name="confirm_name"
+            placeholder={event.name}
+            autocomplete="off"
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          style="background: #c00; border-color: #900;"
+        >
+          Delete Event
+        </button>
       </form>
     </Layout>
   );

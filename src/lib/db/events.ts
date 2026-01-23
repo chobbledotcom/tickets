@@ -4,7 +4,7 @@
 
 import type { InValue } from "@libsql/client";
 import type { Event, EventWithCount } from "../types.ts";
-import { getDb, queryOne } from "./client.ts";
+import { executeByField, getDb, queryOne } from "./client.ts";
 
 /** Event input fields for create/update */
 export type EventInput = {
@@ -112,3 +112,13 @@ export const getEventWithCount = async (
      GROUP BY e.id`,
     [id],
   );
+
+/**
+ * Delete an event and all its attendees
+ */
+export const deleteEvent = async (eventId: number): Promise<void> => {
+  // Delete all attendees for this event first (cascade)
+  await executeByField("attendees", "event_id", eventId);
+  // Delete the event
+  await executeByField("events", "id", eventId);
+};
