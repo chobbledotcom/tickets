@@ -3,7 +3,6 @@
  */
 
 import { isSetupComplete } from "#lib/config.ts";
-import { notFoundPage } from "#templates";
 import { routeAdmin } from "./admin.ts";
 import { handleFavicon } from "./favicon.ts";
 import { handleHealthCheck } from "./health.ts";
@@ -18,7 +17,7 @@ import {
 import { handleHome, routeTicket } from "./public.ts";
 import { routeSetup } from "./setup.ts";
 import type { ServerContext } from "./types.ts";
-import { htmlResponse, parseRequest, redirect } from "./utils.ts";
+import { notFoundResponse, parseRequest, redirect } from "./utils.ts";
 import { routePayment } from "./webhooks.ts";
 
 // Re-export middleware functions for testing
@@ -54,7 +53,7 @@ const routeMainApp = async (
   const paymentResponse = await routePayment(request, path, method);
   if (paymentResponse) return paymentResponse;
 
-  return htmlResponse(notFoundPage(), 404);
+  return notFoundResponse();
 };
 
 /**

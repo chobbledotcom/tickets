@@ -6,7 +6,7 @@ import { compact, err, map, ok, pipe, type Result, reduce } from "#fp";
 import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
 import { deleteSession, getEventWithCount, getSession } from "#lib/db";
 import type { EventWithCount } from "#lib/types.ts";
-import { notFoundPage } from "#templates";
+import { notFoundPage, paymentErrorPage } from "#templates";
 import type { ServerContext } from "./types.ts";
 
 // Re-export for use by other route modules
@@ -105,6 +105,18 @@ export const htmlResponse = (html: string, status = 200): Response =>
   });
 
 /**
+ * Create 404 not found response
+ */
+export const notFoundResponse = (): Response =>
+  htmlResponse(notFoundPage(), 404);
+
+/**
+ * Create payment error response
+ */
+export const paymentErrorResponse = (message: string, status = 400): Response =>
+  htmlResponse(paymentErrorPage(message), status);
+
+/**
  * Create a GET-only route handler for static content
  */
 export const staticGetRoute =
@@ -174,13 +186,22 @@ export const withCookie = (response: Response, cookie: string): Response => {
 };
 
 /**
+ * Create HTML response with cookie - curried composition of withCookie and htmlResponse
+ * Usage: htmlResponseWithCookie(cookie)(html, status)
+ */
+export const htmlResponseWithCookie =
+  (cookie: string) =>
+  (html: string, status = 200): Response =>
+    withCookie(htmlResponse(html, status), cookie);
+
+/**
  * Fetch event or return 404 response
  */
 export const fetchEventOr404 = async (
   eventId: number,
 ): Promise<Result<EventWithCount>> => {
   const event = await getEventWithCount(eventId);
-  return event ? ok(event) : err(htmlResponse(notFoundPage(), 404));
+  return event ? ok(event) : err(notFoundResponse());
 };
 
 /**
