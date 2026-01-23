@@ -30,10 +30,9 @@ describe("html", () => {
       expect(html).not.toContain("<script>alert()");
     });
 
-    test("includes base styles", () => {
+    test("links to MVP.css stylesheet", () => {
       const html = layout("Title", "content");
-      expect(html).toContain("<style>");
-      expect(html).toContain("font-family");
+      expect(html).toContain('<link rel="stylesheet" href="/mvp.css">');
     });
   });
 

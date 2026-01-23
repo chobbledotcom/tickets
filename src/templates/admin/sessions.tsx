@@ -17,10 +17,10 @@ const SessionRow = ({
   isCurrent: boolean;
 }): string =>
   String(
-    <tr style={isCurrent ? "font-weight: bold;" : ""}>
+    <tr>
       <td>{session.token.slice(0, 8)}...</td>
       <td>{new Date(session.expires).toLocaleString()}</td>
-      <td>{isCurrent ? "Current" : ""}</td>
+      <td>{isCurrent ? <mark>Current</mark> : ""}</td>
     </tr>
   );
 
@@ -49,31 +49,39 @@ export const adminSessionsPage = (
 
   return String(
     <Layout title="Admin Sessions">
-      <h1>Sessions</h1>
-      <p><a href="/admin/">&larr; Back to Dashboard</a></p>
+      <header>
+        <h1>Sessions</h1>
+        <nav>
+          <a href="/admin/">&larr; Back to Dashboard</a>
+        </nav>
+      </header>
 
       {success && <div class="success">{success}</div>}
 
-      <table>
-        <thead>
-          <tr>
-            <th>Token</th>
-            <th>Expires</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <Raw html={sessionRows} />
-        </tbody>
-      </table>
+      <section>
+        <table>
+          <thead>
+            <tr>
+              <th>Token</th>
+              <th>Expires</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={sessionRows} />
+          </tbody>
+        </table>
+      </section>
 
       {otherSessionCount > 0 && (
-        <form method="POST" action="/admin/sessions" style="margin-top: 1rem;">
-          <input type="hidden" name="csrf_token" value={csrfToken} />
-          <button type="submit" style="background: #c00; border-color: #900;">
-            Log out of all other sessions ({otherSessionCount})
-          </button>
-        </form>
+        <section>
+          <form method="POST" action="/admin/sessions">
+            <input type="hidden" name="csrf_token" value={csrfToken} />
+            <button type="submit" class="danger">
+              Log out of all other sessions ({otherSessionCount})
+            </button>
+          </form>
+        </section>
       )}
     </Layout>
   );

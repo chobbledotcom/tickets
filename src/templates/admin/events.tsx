@@ -19,7 +19,7 @@ const AttendeeRow = ({ a, eventId }: { a: Attendee; eventId: number }): string =
       <td>{a.quantity}</td>
       <td>{new Date(a.created).toLocaleString()}</td>
       <td>
-        <a href={`/admin/event/${eventId}/attendee/${a.id}/delete`} style="color: #c00;">
+        <a href={`/admin/event/${eventId}/attendee/${a.id}/delete`} class="danger">
           Delete
         </a>
       </td>
@@ -43,57 +43,64 @@ export const adminEventPage = (
 
   return String(
     <Layout title={`Event: ${event.name}`}>
-      <h1>{event.name}</h1>
-      <p>
-        <a href="/admin/">&larr; Back to Dashboard</a> |{" "}
-        <a href={`/admin/event/${event.id}/edit`}>Edit Event</a> |{" "}
-        <a href={`/admin/event/${event.id}/delete`} style="color: #c00;">Delete Event</a>
-      </p>
+      <header>
+        <h1>{event.name}</h1>
+        <nav>
+          <ul>
+            <li><a href="/admin/">&larr; Back to Dashboard</a></li>
+            <li><a href={`/admin/event/${event.id}/edit`}>Edit Event</a></li>
+            <li><a href={`/admin/event/${event.id}/delete`} class="danger">Delete Event</a></li>
+          </ul>
+        </nav>
+      </header>
 
-      <h2>Event Details</h2>
-      <p><strong>Description:</strong> {event.description}</p>
-      <p><strong>Max Attendees:</strong> {event.max_attendees}</p>
-      <p><strong>Max Tickets Per Purchase:</strong> {event.max_quantity}</p>
-      <p><strong>Tickets Sold:</strong> {event.attendee_count}</p>
-      <p><strong>Spots Remaining:</strong> {event.max_attendees - event.attendee_count}</p>
-      <p>
-        <strong>Thank You URL:</strong>{" "}
-        <a href={event.thank_you_url}>{event.thank_you_url}</a>
-      </p>
-      <p>
-        <strong>Ticket URL:</strong>{" "}
-        <a href={`/ticket/${event.id}`}>/ticket/{event.id}</a>
-      </p>
-      {event.webhook_url && (
-        <p>
-          <strong>Webhook URL:</strong>{" "}
-          <a href={event.webhook_url}>{event.webhook_url}</a>
-        </p>
-      )}
+      <section>
+        <article>
+          <h2>Event Details</h2>
+          <p><strong>Description:</strong> {event.description}</p>
+          <p><strong>Max Attendees:</strong> {event.max_attendees}</p>
+          <p><strong>Max Tickets Per Purchase:</strong> {event.max_quantity}</p>
+          <p><strong>Tickets Sold:</strong> {event.attendee_count}</p>
+          <p><strong>Spots Remaining:</strong> {event.max_attendees - event.attendee_count}</p>
+          <p>
+            <strong>Thank You URL:</strong>{" "}
+            <a href={event.thank_you_url}>{event.thank_you_url}</a>
+          </p>
+          <p>
+            <strong>Ticket URL:</strong>{" "}
+            <a href={`/ticket/${event.id}`}>/ticket/{event.id}</a>
+          </p>
+          {event.webhook_url && (
+            <p>
+              <strong>Webhook URL:</strong>{" "}
+              <a href={event.webhook_url}>{event.webhook_url}</a>
+            </p>
+          )}
+        </article>
+      </section>
 
-      <h2>Attendees</h2>
-      <p>
-        <a
-          href={`/admin/event/${event.id}/export`}
-          style="display: inline-block; background: #0066cc; color: white; padding: 0.5rem 1rem; font-size: 0.9rem; border-radius: 4px; text-decoration: none;"
-        >
-          Export CSV
-        </a>
-      </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Qty</th>
-            <th>Registered</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <Raw html={attendeeRows} />
-        </tbody>
-      </table>
+      <section>
+        <header>
+          <h2>Attendees</h2>
+          <nav>
+            <a href={`/admin/event/${event.id}/export`}><i>Export CSV</i></a>
+          </nav>
+        </header>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Qty</th>
+              <th>Registered</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={attendeeRows} />
+          </tbody>
+        </table>
+      </section>
     </Layout>
   );
 };
@@ -121,14 +128,20 @@ export const adminEventEditPage = (
 ): string =>
   String(
     <Layout title={`Edit: ${event.name}`}>
-      <h1>Edit Event</h1>
-      <p><a href={`/admin/event/${event.id}`}>&larr; Back to Event</a></p>
-      <Raw html={renderError(error)} />
-      <form method="POST" action={`/admin/event/${event.id}/edit`}>
-        <input type="hidden" name="csrf_token" value={csrfToken} />
-        <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
-        <button type="submit">Save Changes</button>
-      </form>
+      <header>
+        <h1>Edit Event</h1>
+        <nav>
+          <a href={`/admin/event/${event.id}`}>&larr; Back to Event</a>
+        </nav>
+      </header>
+      <section>
+        <Raw html={renderError(error)} />
+        <form method="POST" action={`/admin/event/${event.id}/edit`}>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
+          <button type="submit">Save Changes</button>
+        </form>
+      </section>
     </Layout>
   );
 
@@ -142,34 +155,39 @@ export const adminDeleteEventPage = (
 ): string =>
   String(
     <Layout title={`Delete: ${event.name}`}>
-      <h1>Delete Event</h1>
-      <p><a href={`/admin/event/${event.id}`}>&larr; Back to Event</a></p>
+      <header>
+        <h1>Delete Event</h1>
+        <nav>
+          <a href={`/admin/event/${event.id}`}>&larr; Back to Event</a>
+        </nav>
+      </header>
 
-      {error && <div class="error">{error}</div>}
+      <section>
+        {error && <div class="error">{error}</div>}
 
-      <p style="color: #c00; font-weight: bold;">
-        Warning: This will permanently delete the event and all {event.attendee_count} attendee(s).
-      </p>
+        <article>
+          <aside>
+            <p><strong>Warning:</strong> This will permanently delete the event and all {event.attendee_count} attendee(s).</p>
+          </aside>
+        </article>
 
-      <p>To delete this event, you must type its name "{event.name}" into the box below:</p>
+        <p>To delete this event, you must type its name "{event.name}" into the box below:</p>
 
-      <form method="POST" action={`/admin/event/${event.id}/delete`}>
-        <input type="hidden" name="csrf_token" value={csrfToken} />
-        <div class="field">
+        <form method="POST" action={`/admin/event/${event.id}/delete`}>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <label for="confirm_name">Event name</label>
           <input
             type="text"
+            id="confirm_name"
             name="confirm_name"
             placeholder={event.name}
             autocomplete="off"
             required
           />
-        </div>
-        <button
-          type="submit"
-          style="background: #c00; border-color: #900;"
-        >
-          Delete Event
-        </button>
-      </form>
+          <button type="submit" class="danger">
+            Delete Event
+          </button>
+        </form>
+      </section>
     </Layout>
   );
