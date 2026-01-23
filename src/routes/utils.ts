@@ -117,16 +117,6 @@ export const paymentErrorResponse = (message: string, status = 400): Response =>
   htmlResponse(paymentErrorPage(message), status);
 
 /**
- * Create a GET-only route handler for static content
- */
-export const staticGetRoute =
-  (body: string, contentType: string) =>
-  (method: string): Response | null =>
-    method === "GET"
-      ? new Response(body, { headers: { "content-type": contentType } })
-      : null;
-
-/**
  * Create redirect response
  */
 export const redirect = (url: string, cookie?: string): Response => {
@@ -309,87 +299,4 @@ export const withAuthForm = async (
 ): Promise<Response> => {
   const auth = await requireAuthForm(request);
   return auth.ok ? handler(auth.session, auth.form) : auth.response;
-};
-
-/** Route handler type */
-export type RouteHandler = (
-  request: Request,
-  path: string,
-  method: string,
-) => Promise<Response | null>;
-
-/** Route handler with server context */
-export type RouteHandlerWithServer = (
-  request: Request,
-  path: string,
-  method: string,
-  server?: ServerContext,
-) => Promise<Response | null>;
-
-/** ID-based route handlers */
-type IdHandlers = {
-  GET?: (id: number) => Promise<Response>;
-  POST?: (id: number) => Promise<Response>;
-  PATCH?: (id: number) => Promise<Response>;
-  DELETE?: (id: number) => Promise<Response>;
-};
-
-/**
- * Create a route handler that extracts ID from path pattern
- */
-export const createIdRoute =
-  (
-    pattern: RegExp,
-    getHandlers: (request: Request) => IdHandlers,
-  ): RouteHandler =>
-  (request, path, method) =>
-    routeWithId(path, pattern, method, getHandlers(request));
-
-/** Route definition for declarative routing */
-type RouteMatch = {
-  path: string;
-  method: string;
-  handler: () => Response | Promise<Response>;
-};
-
-/**
- * Match first route and execute handler
- */
-export const matchRoute = async (
-  path: string,
-  method: string,
-  routes: RouteMatch[],
-): Promise<Response | null> => {
-  const match = routes.find((r) => r.path === path && r.method === method);
-  return match ? match.handler() : null;
-};
-
-/**
- * Chain route handlers - try each until one returns a response
- */
-export const chainRoutes = async (
-  ...handlers: Array<() => Promise<Response | null>>
-): Promise<Response | null> => {
-  for (const handler of handlers) {
-    const result = await handler();
-    if (result) return result;
-  }
-  return null;
-};
-
-/**
- * Extract ID from route pattern and dispatch to handlers by method
- */
-export const routeWithId = async (
-  path: string,
-  pattern: RegExp,
-  method: string,
-  handlers: IdHandlers,
-): Promise<Response | null> => {
-  const match = path.match(pattern);
-  if (!match?.[1]) return null;
-
-  const id = Number.parseInt(match[1], 10);
-  const handler = handlers[method as keyof typeof handlers];
-  return handler ? handler(id) : null;
 };

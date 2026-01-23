@@ -1743,6 +1743,48 @@ describe("server", () => {
     });
   });
 
+  describe("DELETE /admin/event/:eventId/attendee/:attendeeId/delete", () => {
+    test("deletes attendee with DELETE method", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const formBody = new URLSearchParams({
+        confirm_name: "John Doe",
+        csrf_token: csrfToken || "",
+      }).toString();
+
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/1/attendee/1/delete", {
+          method: "DELETE",
+          headers: {
+            host: "localhost",
+            cookie,
+            "content-type": "application/x-www-form-urlencoded",
+          },
+          body: formBody,
+        }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/event/1");
+
+      // Verify attendee was deleted
+      const { getAttendee } = await import("#lib/db");
+      const attendee = await getAttendee(1);
+      expect(attendee).toBeNull();
+    });
+  });
+
   describe("GET /ticket/:id", () => {
     test("returns 404 for non-existent event", async () => {
       const response = await handleRequest(mockRequest("/ticket/999"));

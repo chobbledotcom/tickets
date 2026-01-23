@@ -2,12 +2,12 @@
  * Health check route
  */
 
-import { staticGetRoute } from "./utils.ts";
+const HEALTH_RESPONSE = JSON.stringify({ status: "ok" });
 
 /**
- * Handle health check request
+ * Handle health check request - returns JSON status
  */
-export const handleHealthCheck = staticGetRoute(
-  JSON.stringify({ status: "ok" }),
-  "application/json",
-);
+export const handleHealthCheck = (): Response =>
+  new Response(HEALTH_RESPONSE, {
+    headers: { "content-type": "application/json" },
+  });

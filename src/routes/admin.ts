@@ -46,20 +46,21 @@ import {
   loginFields,
   stripeKeyFields,
 } from "#templates";
+import {
+  createRouter,
+  defineRoutes,
+  type RouteHandlerFn,
+  type RouteParams,
+} from "./router.ts";
 import type { ServerContext } from "./types.ts";
 import {
   type AuthSession,
-  chainRoutes,
-  createIdRoute,
   generateSecureToken,
   getClientIp,
   htmlResponse,
   isAuthenticated,
-  matchRoute,
   notFoundResponse,
   parseFormData,
-  type RouteHandler,
-  type RouteHandlerWithServer,
   redirect,
   requireAuthForm,
   requireSessionOr,
@@ -433,10 +434,6 @@ const handleAdminEventDelete = deleteHandler(eventsResource, {
   onNotFound: notFoundResponse,
 });
 
-/** Verify name matches for deletion confirmation (case-insensitive, trimmed) */
-const verifyName = (expected: string, provided: string): boolean =>
-  expected.trim().toLowerCase() === provided.trim().toLowerCase();
-
 /** Attendee with event data */
 type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
 
@@ -481,8 +478,12 @@ const handleAdminAttendeeDeleteGet = async (
     ),
   );
 
-/** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
-const handleAdminAttendeeDelete = async (
+/** Verify name matches for deletion confirmation (case-insensitive, trimmed) */
+const verifyName = (expected: string, provided: string): boolean =>
+  expected.trim().toLowerCase() === provided.trim().toLowerCase();
+
+/** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete with name verification */
+const handleAdminAttendeeDeletePost = async (
   request: Request,
   eventId: number,
   attendeeId: number,
@@ -510,155 +511,77 @@ const handleAdminAttendeeDelete = async (
     }),
   );
 
-/** Route admin event edit requests */
-const routeAdminEventEdit: RouteHandler = createIdRoute(
-  /^\/admin\/event\/(\d+)\/edit$/,
-  (request) => ({
-    GET: (id) => handleAdminEventEditGet(request, id),
-    POST: (id) => handleAdminEventEditPost(request, id),
-  }),
-);
+// ============================================================================
+// Declarative Route Definitions
+// ============================================================================
 
-/** Route admin event export requests */
-const routeAdminEventExport: RouteHandler = createIdRoute(
-  /^\/admin\/event\/(\d+)\/export$/,
-  (request) => ({ GET: (id) => handleAdminEventExport(request, id) }),
-);
+/** Parse event ID from params */
+const parseEventId = (params: RouteParams): number =>
+  Number.parseInt(params.id ?? "0", 10);
 
-/** Route admin event delete requests (DELETE for API, POST for web forms) */
-const routeAdminEventDelete: RouteHandler = createIdRoute(
-  /^\/admin\/event\/(\d+)\/delete$/,
-  (request) => ({
-    GET: (id) => handleAdminEventDeleteGet(request, id),
-    POST: (id) => handleAdminEventDelete(request, id),
-    DELETE: (id) => handleAdminEventDelete(request, id),
-  }),
-);
+/** Parse event and attendee IDs from params */
+const parseAttendeeIds = (
+  params: RouteParams,
+): { eventId: number; attendeeId: number } => ({
+  eventId: Number.parseInt(params.eventId ?? "0", 10),
+  attendeeId: Number.parseInt(params.attendeeId ?? "0", 10),
+});
 
-/** Method handlers for attendee delete route */
-type AttendeeDeleteHandlers = Record<
-  string,
-  (req: Request, eventId: number, attendeeId: number) => Promise<Response>
->;
-
-const attendeeDeleteHandlers: AttendeeDeleteHandlers = {
-  GET: handleAdminAttendeeDeleteGet,
-  POST: handleAdminAttendeeDelete,
-  DELETE: handleAdminAttendeeDelete,
+/** Route handler for POST/DELETE attendee delete */
+const attendeeDeleteHandler: RouteHandlerFn = (request, params) => {
+  const ids = parseAttendeeIds(params);
+  return handleAdminAttendeeDeletePost(request, ids.eventId, ids.attendeeId);
 };
 
-/** Route admin attendee delete requests */
-const routeAdminAttendeeDelete: RouteHandler = async (
-  request,
-  path,
-  method,
-) => {
-  const match = path.match(/^\/admin\/event\/(\d+)\/attendee\/(\d+)\/delete$/);
-  if (!match?.[1] || !match[2]) return null;
+/** Admin routes definition */
+const adminRoutes = defineRoutes({
+  // Dashboard (pattern handles both /admin/ and /admin)
+  "GET /admin/": (request) => handleAdminGet(request),
 
-  const eventId = Number.parseInt(match[1], 10);
-  const attendeeId = Number.parseInt(match[2], 10);
-  const handler = attendeeDeleteHandlers[method];
+  // Authentication
+  "POST /admin/login": (request, _, server) =>
+    handleAdminLogin(request, server),
+  "GET /admin/logout": (request) => handleAdminLogout(request),
 
-  return handler ? handler(request, eventId, attendeeId) : null;
-};
+  // Settings
+  "GET /admin/settings": (request) => handleAdminSettingsGet(request),
+  "POST /admin/settings": (request) => handleAdminSettingsPost(request),
+  "POST /admin/settings/stripe": (request) => handleAdminStripePost(request),
 
-/** Route admin event detail requests */
-const routeAdminEventDetail: RouteHandler = createIdRoute(
-  /^\/admin\/event\/(\d+)$/,
-  (request) => ({ GET: (id) => handleAdminEventGet(request, id) }),
-);
+  // Sessions
+  "GET /admin/sessions": (request) => handleAdminSessionsGet(request),
+  "POST /admin/sessions": (request) => handleAdminSessionsPost(request),
 
-/** Route admin event requests */
-const routeAdminEvent: RouteHandler = async (request, path, method) =>
-  (await routeAdminEventEdit(request, path, method)) ??
-  (await routeAdminEventExport(request, path, method)) ??
-  (await routeAdminEventDelete(request, path, method)) ??
-  (await routeAdminAttendeeDelete(request, path, method)) ??
-  routeAdminEventDetail(request, path, method);
+  // Event CRUD
+  "POST /admin/event": (request) => handleCreateEvent(request),
+  "GET /admin/event/:id": (request, params) =>
+    handleAdminEventGet(request, parseEventId(params)),
+  "GET /admin/event/:id/edit": (request, params) =>
+    handleAdminEventEditGet(request, parseEventId(params)),
+  "POST /admin/event/:id/edit": (request, params) =>
+    handleAdminEventEditPost(request, parseEventId(params)),
+  "GET /admin/event/:id/export": (request, params) =>
+    handleAdminEventExport(request, parseEventId(params)),
+  "GET /admin/event/:id/delete": (request, params) =>
+    handleAdminEventDeleteGet(request, parseEventId(params)),
+  "POST /admin/event/:id/delete": (request, params) =>
+    handleAdminEventDelete(request, parseEventId(params)),
+  "DELETE /admin/event/:id/delete": (request, params) =>
+    handleAdminEventDelete(request, parseEventId(params)),
 
-/**
- * Check if path is admin root
- */
-const isAdminRoot = (path: string): boolean =>
-  path === "/admin/" || path === "/admin";
+  // Attendee delete
+  "GET /admin/event/:eventId/attendee/:attendeeId/delete": (
+    request,
+    params,
+  ) => {
+    const ids = parseAttendeeIds(params);
+    return handleAdminAttendeeDeleteGet(request, ids.eventId, ids.attendeeId);
+  },
+  "POST /admin/event/:eventId/attendee/:attendeeId/delete":
+    attendeeDeleteHandler,
+  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete":
+    attendeeDeleteHandler,
+});
 
-/** Route admin auth requests (login/logout/settings/sessions) */
-const routeAdminAuth: RouteHandlerWithServer = (
-  request,
-  path,
-  method,
-  server,
-) =>
-  matchRoute(path, method, [
-    {
-      path: "/admin/login",
-      method: "POST",
-      handler: () => handleAdminLogin(request, server),
-    },
-    {
-      path: "/admin/logout",
-      method: "GET",
-      handler: () => handleAdminLogout(request),
-    },
-    {
-      path: "/admin/settings",
-      method: "GET",
-      handler: () => handleAdminSettingsGet(request),
-    },
-    {
-      path: "/admin/settings",
-      method: "POST",
-      handler: () => handleAdminSettingsPost(request),
-    },
-    {
-      path: "/admin/settings/stripe",
-      method: "POST",
-      handler: () => handleAdminStripePost(request),
-    },
-    {
-      path: "/admin/sessions",
-      method: "GET",
-      handler: () => handleAdminSessionsGet(request),
-    },
-    {
-      path: "/admin/sessions",
-      method: "POST",
-      handler: () => handleAdminSessionsPost(request),
-    },
-  ]);
-
-/** Route core admin requests */
-const routeAdminCore: RouteHandlerWithServer = (
-  request,
-  path,
-  method,
-  server,
-) =>
-  chainRoutes(
-    () =>
-      isAdminRoot(path) && method === "GET"
-        ? handleAdminGet(request)
-        : Promise.resolve(null),
-    () =>
-      matchRoute(path, method, [
-        {
-          path: "/admin/event",
-          method: "POST",
-          handler: () => handleCreateEvent(request),
-        },
-      ]),
-    () => routeAdminAuth(request, path, method, server),
-  );
-
-/** Route admin requests */
-export const routeAdmin: RouteHandlerWithServer = (
-  request,
-  path,
-  method,
-  server,
-) =>
-  chainRoutes(
-    () => routeAdminCore(request, path, method, server),
-    () => routeAdminEvent(request, path, method),
-  );
+/** Route admin requests using declarative router */
+export const routeAdmin = createRouter(adminRoutes);
