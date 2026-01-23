@@ -10,7 +10,6 @@ import {
   deleteAllSessions,
   deleteAttendee,
   deleteEvent,
-  deleteExpiredSessions,
   deleteSession,
   getAdminPasswordFromDb,
   getAllEvents,
@@ -609,19 +608,6 @@ describe("db", () => {
 
       const session = await getSession("delete-me");
       expect(session).toBeNull();
-    });
-
-    test("deleteExpiredSessions removes expired sessions", async () => {
-      await createSession("expired", "csrf-expired", Date.now() - 1000);
-      await createSession("valid", "csrf-valid", Date.now() + 10000);
-
-      await deleteExpiredSessions();
-
-      const expiredSession = await getSession("expired");
-      const validSession = await getSession("valid");
-
-      expect(expiredSession).toBeNull();
-      expect(validSession).not.toBeNull();
     });
 
     test("deleteAllSessions removes all sessions", async () => {

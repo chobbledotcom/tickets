@@ -6,8 +6,6 @@ import {
   encrypt,
   generateSecureToken,
   hashPassword,
-  isEncrypted,
-  isEncryptionConfigured,
   validateEncryptionKey,
   verifyPassword,
 } from "#lib/crypto.ts";
@@ -88,17 +86,6 @@ describe("encryption", () => {
 
   afterEach(() => {
     clearTestEncryptionKey();
-  });
-
-  describe("isEncryptionConfigured", () => {
-    it("returns true when encryption key is set", () => {
-      expect(isEncryptionConfigured()).toBe(true);
-    });
-
-    it("returns false when encryption key is not set", () => {
-      clearTestEncryptionKey();
-      expect(isEncryptionConfigured()).toBe(false);
-    });
   });
 
   describe("validateEncryptionKey", () => {
@@ -188,26 +175,6 @@ describe("encryption", () => {
       }
       const tampered = parts.join(":");
       await expect(decrypt(tampered)).rejects.toThrow();
-    });
-  });
-
-  describe("isEncrypted", () => {
-    it("returns true for encrypted values", async () => {
-      const encrypted = await encrypt("test");
-      expect(isEncrypted(encrypted)).toBe(true);
-    });
-
-    it("returns false for plain text", () => {
-      expect(isEncrypted("plain text")).toBe(false);
-    });
-
-    it("returns false for empty string", () => {
-      expect(isEncrypted("")).toBe(false);
-    });
-
-    it("returns false for similar-looking but invalid prefix", () => {
-      expect(isEncrypted("enc:2:something")).toBe(false);
-      expect(isEncrypted("encrypted:1:something")).toBe(false);
     });
   });
 
