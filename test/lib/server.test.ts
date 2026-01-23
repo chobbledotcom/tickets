@@ -2388,15 +2388,18 @@ describe("server", () => {
       });
     });
 
-    describe("Content-Security-Policy frame-ancestors", () => {
-      test("non-embeddable pages have frame-ancestors 'none'", async () => {
+    describe("Content-Security-Policy", () => {
+      const baseCsp =
+        "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; form-action 'self'";
+
+      test("non-embeddable pages have frame-ancestors 'none' and security restrictions", async () => {
         const response = await handleRequest(mockRequest("/"));
         expect(response.headers.get("content-security-policy")).toBe(
-          "frame-ancestors 'none'",
+          `frame-ancestors 'none'; ${baseCsp}`,
         );
       });
 
-      test("ticket page does NOT have frame-ancestors restriction", async () => {
+      test("ticket page has CSP but allows embedding (no frame-ancestors)", async () => {
         await createEvent({
           name: "Event",
           description: "Desc",
@@ -2404,7 +2407,7 @@ describe("server", () => {
           thankYouUrl: "https://example.com",
         });
         const response = await handleRequest(mockRequest("/ticket/1"));
-        expect(response.headers.get("content-security-policy")).toBeNull();
+        expect(response.headers.get("content-security-policy")).toBe(baseCsp);
       });
     });
 
