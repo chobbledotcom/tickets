@@ -1,8 +1,8 @@
 /**
- * Static routes - health check and favicon (always available)
+ * Static routes - health check and assets (always available)
  */
 
-import { handleFavicon } from "#routes/favicon.ts";
+import { handleFavicon, handleMvpCss } from "#routes/assets.ts";
 import { handleHealthCheck } from "#routes/health.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 
@@ -10,6 +10,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 const staticRoutes = defineRoutes({
   "GET /health": () => handleHealthCheck(),
   "GET /favicon.ico": () => handleFavicon(),
+  "GET /mvp.css": () => handleMvpCss(),
 });
 
 /** Route static asset requests */

@@ -17,7 +17,7 @@ import {
   requireSessionOr,
   withAuthForm,
 } from "#routes/utils.ts";
-import { adminDeleteAttendeePage } from "#templates/admin.tsx";
+import { adminDeleteAttendeePage } from "#templates/admin/attendees.tsx";
 
 /** Attendee type */
 type Attendee = NonNullable<Awaited<ReturnType<typeof getAttendee>>>;

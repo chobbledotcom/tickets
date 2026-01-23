@@ -5,7 +5,8 @@
 import { getAllEvents } from "#lib/db/events.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { htmlResponse, withSession } from "#routes/utils.ts";
-import { adminDashboardPage, adminLoginPage } from "#templates/admin.tsx";
+import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
+import { adminLoginPage } from "#templates/admin/login.tsx";
 
 /** Login page response helper */
 export const loginResponse = (error?: string, status = 200) =>

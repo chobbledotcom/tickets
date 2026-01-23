@@ -5,7 +5,7 @@
 import { deleteOtherSessions, getAllSessions } from "#lib/db/sessions.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { htmlResponse, requireSessionOr, withAuthForm } from "#routes/utils.ts";
-import { adminSessionsPage } from "#templates/admin.tsx";
+import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 
 /**
  * Handle GET /admin/sessions

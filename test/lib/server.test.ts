@@ -88,6 +88,41 @@ describe("server", () => {
       });
       expect(response.status).toBe(404);
     });
+
+    test("has long cache headers", async () => {
+      const response = await handleRequest(mockRequest("/favicon.ico"));
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=31536000, immutable",
+      );
+    });
+  });
+
+  describe("GET /mvp.css", () => {
+    test("returns CSS stylesheet", async () => {
+      const response = await handleRequest(mockRequest("/mvp.css"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe(
+        "text/css; charset=utf-8",
+      );
+      const css = await response.text();
+      expect(css).toContain(":root");
+      expect(css).toContain("--color-link");
+    });
+
+    test("returns 404 for non-GET requests to /mvp.css", async () => {
+      const response = await awaitTestRequest("/mvp.css", {
+        method: "POST",
+        data: {},
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("has long cache headers", async () => {
+      const response = await handleRequest(mockRequest("/mvp.css"));
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=31536000, immutable",
+      );
+    });
   });
 
   describe("GET /admin/", () => {
@@ -522,7 +557,7 @@ describe("server", () => {
       expect(html).toContain("Current");
     });
 
-    test("shows current session in bold", async () => {
+    test("highlights current session with mark", async () => {
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
       );
@@ -530,7 +565,7 @@ describe("server", () => {
 
       const response = await awaitTestRequest("/admin/sessions", { cookie });
       const html = await response.text();
-      expect(html).toContain("font-weight: bold");
+      expect(html).toContain("<mark>Current</mark>");
     });
 
     test("shows logout button when other sessions exist", async () => {

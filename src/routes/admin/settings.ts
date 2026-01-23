@@ -24,7 +24,7 @@ import {
   requireSessionOr,
   withAuthForm,
 } from "#routes/utils.ts";
-import { adminSettingsPage } from "#templates/admin.tsx";
+import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { changePasswordFields, stripeKeyFields } from "#templates/fields.ts";
 
 /** Require auth + form + validation, with custom error handler */

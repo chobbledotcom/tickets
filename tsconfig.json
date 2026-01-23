@@ -5,7 +5,7 @@
     "strictNullChecks": true,
     "noUncheckedIndexedAccess": true,
     "target": "ES2022",
-    "module": "ES2022",
+    "module": "ESNext",
     "moduleResolution": "bundler",
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -30,7 +30,8 @@
       "#lib/*": ["./src/lib/*"],
       "#routes": ["./src/routes/index.ts"],
       "#routes/*": ["./src/routes/*"],
-      "#templates/*": ["./src/templates/*"]
+      "#templates/*": ["./src/templates/*"],
+      "#static/*": ["./src/static/*"]
     },
     "types": ["bun-types"]
   },

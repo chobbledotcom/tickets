@@ -14,9 +14,13 @@ import { Layout } from "#templates/layout.tsx";
 export const homePage = (): string =>
   String(
     <Layout title="Ticket Reservation System">
-      <h1>Ticket Reservation System</h1>
-      <p>Welcome to the ticket reservation system.</p>
-      <p><a href="/admin/">Admin Login</a></p>
+      <header>
+        <h1>Ticket Reservation System</h1>
+        <p>Welcome to the ticket reservation system.</p>
+        <nav>
+          <a href="/admin/"><b>Admin Login</b></a>
+        </nav>
+      </header>
     </Layout>
   );
 
@@ -43,30 +47,44 @@ export const ticketPage = (
 
   return String(
     <Layout title={`Reserve Ticket: ${event.name}`}>
-      <h1>{event.name}</h1>
-      <p>{event.description}</p>
-      <p><strong>Spots remaining:</strong> {spotsRemaining}</p>
+      <header>
+        <h1>{event.name}</h1>
+        <p>{event.description}</p>
+      </header>
+
+      <section>
+        <aside>
+          <p><strong>Spots remaining:</strong> {spotsRemaining}</p>
+        </aside>
+      </section>
 
       <Raw html={renderError(error)} />
 
       {isFull ? (
-        <div class="error">Sorry, this event is full.</div>
+        <section>
+          <div class="error">Sorry, this event is full.</div>
+        </section>
       ) : (
-        <form method="POST" action={`/ticket/${event.id}`}>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
-          <Raw html={renderFields(ticketFields)} />
-          {showQuantity ? (
-            <div class="field">
-              <label for="quantity">Number of Tickets</label>
-              <select name="quantity" id="quantity">
-                <Raw html={quantityOptions(maxPurchasable)} />
-              </select>
-            </div>
-          ) : (
-            <input type="hidden" name="quantity" value="1" />
-          )}
-          <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
-        </form>
+        <section>
+          <form method="POST" action={`/ticket/${event.id}`}>
+            <header>
+              <h2>Reserve Your Ticket</h2>
+            </header>
+            <input type="hidden" name="csrf_token" value={csrfToken} />
+            <Raw html={renderFields(ticketFields)} />
+            {showQuantity ? (
+              <>
+                <label for="quantity">Number of Tickets</label>
+                <select name="quantity" id="quantity">
+                  <Raw html={quantityOptions(maxPurchasable)} />
+                </select>
+              </>
+            ) : (
+              <input type="hidden" name="quantity" value="1" />
+            )}
+            <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
+          </form>
+        </section>
       )}
     </Layout>
   );
@@ -78,7 +96,9 @@ export const ticketPage = (
 export const notFoundPage = (): string =>
   String(
     <Layout title="Not Found">
-      <h1>Event Not Found</h1>
-      <p>The event you're looking for doesn't exist.</p>
+      <header>
+        <h1>Event Not Found</h1>
+        <p>The event you're looking for doesn't exist.</p>
+      </header>
     </Layout>
   );

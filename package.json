@@ -16,6 +16,7 @@
     "#routes": "./src/routes/index.ts",
     "#routes/*": "./src/routes/*",
     "#templates/*": "./src/templates/*",
+    "#static/*": "./src/static/*",
     "#src/*": "./src/*",
     "#test/*": "./test/*"
   },
