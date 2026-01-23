@@ -14,13 +14,29 @@ import {
   createTestDbWithSetup,
   getCsrfTokenFromCookie,
   getSetupCsrfToken,
+  getTicketCsrfToken,
   mockCrossOriginFormRequest,
   mockFormRequest,
   mockRequest,
   mockSetupFormRequest,
+  mockTicketFormRequest,
   resetDb,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
+
+/**
+ * Helper to make a ticket form POST request with CSRF token
+ * First GETs the page to obtain the CSRF token, then POSTs with it
+ */
+const submitTicketForm = async (
+  eventId: number,
+  data: Record<string, string>,
+): Promise<Response> => {
+  const getResponse = await handleRequest(mockRequest(`/ticket/${eventId}`));
+  const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+  if (!csrfToken) throw new Error("Failed to get CSRF token from ticket page");
+  return handleRequest(mockTicketFormRequest(eventId, data, csrfToken));
+};
 
 describe("server", () => {
   beforeEach(async () => {
@@ -1023,6 +1039,7 @@ describe("server", () => {
 
   describe("POST /ticket/:id", () => {
     test("returns 404 for non-existent event", async () => {
+      // Event lookup happens before CSRF validation, so we can test without CSRF
       const response = await handleRequest(
         mockFormRequest("/ticket/999", {
           name: "John",
@@ -1032,7 +1049,7 @@ describe("server", () => {
       expect(response.status).toBe(404);
     });
 
-    test("validates required fields", async () => {
+    test("rejects request without CSRF token", async () => {
       await createEvent({
         name: "Event",
         description: "Desc",
@@ -1040,8 +1057,24 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(
-        mockFormRequest("/ticket/1", { name: "", email: "" }),
+        mockFormRequest("/ticket/1", {
+          name: "John",
+          email: "john@example.com",
+        }),
       );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid or expired form");
+    });
+
+    test("validates required fields", async () => {
+      await createEvent({
+        name: "Event",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await submitTicketForm(1, { name: "", email: "" });
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("Your Name is required");
@@ -1054,12 +1087,10 @@ describe("server", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const response = await handleRequest(
-        mockFormRequest("/ticket/1", {
-          name: "   ",
-          email: "john@example.com",
-        }),
-      );
+      const response = await submitTicketForm(1, {
+        name: "   ",
+        email: "john@example.com",
+      });
       expect(response.status).toBe(400);
     });
 
@@ -1070,9 +1101,10 @@ describe("server", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const response = await handleRequest(
-        mockFormRequest("/ticket/1", { name: "John", email: "   " }),
-      );
+      const response = await submitTicketForm(1, {
+        name: "John",
+        email: "   ",
+      });
       expect(response.status).toBe(400);
     });
 
@@ -1083,12 +1115,10 @@ describe("server", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
       });
-      const response = await handleRequest(
-        mockFormRequest("/ticket/1", {
-          name: "John Doe",
-          email: "john@example.com",
-        }),
-      );
+      const response = await submitTicketForm(1, {
+        name: "John Doe",
+        email: "john@example.com",
+      });
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
         "https://example.com/thanks",
@@ -1102,19 +1132,15 @@ describe("server", () => {
         maxAttendees: 1,
         thankYouUrl: "https://example.com",
       });
-      await handleRequest(
-        mockFormRequest("/ticket/1", {
-          name: "John",
-          email: "john@example.com",
-        }),
-      );
+      await submitTicketForm(1, {
+        name: "John",
+        email: "john@example.com",
+      });
 
-      const response = await handleRequest(
-        mockFormRequest("/ticket/1", {
-          name: "Jane",
-          email: "jane@example.com",
-        }),
-      );
+      const response = await submitTicketForm(1, {
+        name: "Jane",
+        email: "jane@example.com",
+      });
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("not enough spots available");
@@ -1357,12 +1383,10 @@ describe("server", () => {
       });
 
       // Try to reserve a ticket - should fail because Stripe key is invalid
-      const response = await handleRequest(
-        mockFormRequest(`/ticket/${event.id}`, {
-          name: "John Doe",
-          email: "john@example.com",
-        }),
-      );
+      const response = await submitTicketForm(event.id, {
+        name: "John Doe",
+        email: "john@example.com",
+      });
 
       // Should return error page because Stripe session creation fails
       expect(response.status).toBe(500);
@@ -1382,12 +1406,10 @@ describe("server", () => {
         unitPrice: null, // free
       });
 
-      const response = await handleRequest(
-        mockFormRequest(`/ticket/${event.id}`, {
-          name: "John Doe",
-          email: "john@example.com",
-        }),
-      );
+      const response = await submitTicketForm(event.id, {
+        name: "John Doe",
+        email: "john@example.com",
+      });
 
       // Should redirect to thank you page
       expect(response.status).toBe(302);
@@ -1408,12 +1430,10 @@ describe("server", () => {
         unitPrice: 0, // zero price
       });
 
-      const response = await handleRequest(
-        mockFormRequest(`/ticket/${event.id}`, {
-          name: "John Doe",
-          email: "john@example.com",
-        }),
-      );
+      const response = await submitTicketForm(event.id, {
+        name: "John Doe",
+        email: "john@example.com",
+      });
 
       // Should redirect to thank you page (no payment required)
       expect(response.status).toBe(302);
@@ -1433,12 +1453,10 @@ describe("server", () => {
         unitPrice: 1000, // 10.00 price
       });
 
-      const response = await handleRequest(
-        mockFormRequest(`/ticket/${event.id}`, {
-          name: "John Doe",
-          email: "john@example.com",
-        }),
-      );
+      const response = await submitTicketForm(event.id, {
+        name: "John Doe",
+        email: "john@example.com",
+      });
 
       // Should redirect to Stripe checkout URL
       expect(response.status).toBe(302);
@@ -2197,12 +2215,10 @@ describe("server", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
       });
-      const response = await handleRequest(
-        mockFormRequest("/ticket/1", {
-          name: "John Doe",
-          email: "john@example.com",
-        }),
-      );
+      const response = await submitTicketForm(1, {
+        name: "John Doe",
+        email: "john@example.com",
+      });
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
         "https://example.com/thanks",
@@ -2251,9 +2267,15 @@ describe("server", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
       });
+      // Get CSRF token from GET request
+      const getResponse = await handleRequest(mockRequest("/ticket/1"));
+      const csrfToken = getTicketCsrfToken(
+        getResponse.headers.get("set-cookie"),
+      );
       const body = new URLSearchParams({
         name: "John Doe",
         email: "john@example.com",
+        csrf_token: csrfToken || "",
       }).toString();
       const response = await handleRequest(
         new Request("http://localhost/ticket/1", {
@@ -2261,6 +2283,7 @@ describe("server", () => {
           headers: {
             "content-type": "application/x-www-form-urlencoded",
             referer: "http://localhost/ticket/1",
+            cookie: `csrf_token=${csrfToken}`,
           },
           body,
         }),
