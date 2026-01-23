@@ -5,6 +5,7 @@
 import { completeSetup } from "#lib/db";
 import { validateForm } from "#lib/forms.tsx";
 import { setupCompletePage, setupFields, setupPage } from "#templates";
+import { createRouter, defineRoutes } from "./router.ts";
 import {
   generateSecureToken,
   htmlResponse,
@@ -98,7 +99,7 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
  * Handle GET /setup/
  * Uses double-submit cookie pattern for CSRF protection
  */
-export const handleSetupGet = async (
+const handleSetupGet = async (
   isSetupComplete: () => Promise<boolean>,
 ): Promise<Response> => {
   if (await isSetupComplete()) {
@@ -112,7 +113,7 @@ export const handleSetupGet = async (
  * Handle POST /setup/
  * Validates CSRF token using double-submit cookie pattern
  */
-export const handleSetupPost = async (
+const handleSetupPost = async (
   request: Request,
   isSetupComplete: () => Promise<boolean>,
 ): Promise<Response> => {
@@ -196,30 +197,16 @@ export const handleSetupPost = async (
 };
 
 /**
- * Check if path is setup route
+ * Create setup router with injected isSetupComplete dependency
+ * Uses factory pattern since setup routes need to check completion status
  */
-const isSetupPath = (path: string): boolean =>
-  path === "/setup/" || path === "/setup";
-
-/**
- * Route setup requests
- * Note: Setup routes need special handling because they depend on isSetupComplete
- * which is passed from the main router. We can't use the declarative router directly
- * because we need to inject this dependency.
- */
-export const routeSetup = async (
-  request: Request,
-  path: string,
-  method: string,
+export const createSetupRouter = (
   isSetupComplete: () => Promise<boolean>,
-): Promise<Response | null> => {
-  if (!isSetupPath(path)) return null;
+): ReturnType<typeof createRouter> => {
+  const setupRoutes = defineRoutes({
+    "GET /setup/": () => handleSetupGet(isSetupComplete),
+    "POST /setup/": (request) => handleSetupPost(request, isSetupComplete),
+  });
 
-  if (method === "GET") {
-    return handleSetupGet(isSetupComplete);
-  }
-  if (method === "POST") {
-    return handleSetupPost(request, isSetupComplete);
-  }
-  return null;
+  return createRouter(setupRoutes);
 };

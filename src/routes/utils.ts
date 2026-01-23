@@ -117,16 +117,6 @@ export const paymentErrorResponse = (message: string, status = 400): Response =>
   htmlResponse(paymentErrorPage(message), status);
 
 /**
- * Create a GET-only route handler for static content
- */
-export const staticGetRoute =
-  (body: string, contentType: string) =>
-  (method: string): Response | null =>
-    method === "GET"
-      ? new Response(body, { headers: { "content-type": contentType } })
-      : null;
-
-/**
  * Create redirect response
  */
 export const redirect = (url: string, cookie?: string): Response => {
