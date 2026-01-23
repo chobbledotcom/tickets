@@ -7,10 +7,12 @@ import {
   createSession,
   deleteAttendee,
   deleteEvent,
+  deleteOtherSessions,
   deleteSession,
   type EventInput,
   eventsTable,
   getAllEvents,
+  getAllSessions,
   getAttendee,
   getAttendees,
   getEventWithCount,
@@ -36,12 +38,12 @@ import {
   adminEventEditPage,
   adminEventPage,
   adminLoginPage,
+  adminSessionsPage,
   adminSettingsPage,
   changePasswordFields,
   eventFields,
   generateAttendeesCsv,
   loginFields,
-  notFoundPage,
   stripeKeyFields,
 } from "#templates";
 import type { ServerContext } from "./types.ts";
@@ -54,6 +56,7 @@ import {
   htmlResponse,
   isAuthenticated,
   matchRoute,
+  notFoundResponse,
   parseFormData,
   type RouteHandler,
   type RouteHandlerWithServer,
@@ -137,6 +140,10 @@ const withEventAttendees = async (
   );
 };
 
+/** Login page response helper */
+const loginResponse = (error?: string, status = 200) =>
+  htmlResponse(adminLoginPage(error), status);
+
 /**
  * Handle GET /admin/
  */
@@ -145,7 +152,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     request,
     async (session) =>
       htmlResponse(adminDashboardPage(await getAllEvents(), session.csrfToken)),
-    () => htmlResponse(adminLoginPage()),
+    () => loginResponse(),
   );
 
 /**
@@ -159,8 +166,8 @@ const handleAdminLogin = async (
 
   // Check rate limiting
   if (await isLoginRateLimited(clientIp)) {
-    return htmlResponse(
-      adminLoginPage("Too many login attempts. Please try again later."),
+    return loginResponse(
+      "Too many login attempts. Please try again later.",
       429,
     );
   }
@@ -169,13 +176,13 @@ const handleAdminLogin = async (
   const validation = validateForm(form, loginFields);
 
   if (!validation.valid) {
-    return htmlResponse(adminLoginPage(validation.error), 400);
+    return loginResponse(validation.error, 400);
   }
 
   const valid = await verifyAdminPassword(validation.values.password as string);
   if (!valid) {
     await recordFailedLogin(clientIp);
-    return htmlResponse(adminLoginPage("Invalid credentials"), 401);
+    return loginResponse("Invalid credentials", 401);
   }
 
   // Clear failed attempts on successful login
@@ -314,6 +321,34 @@ const handleAdminStripePost = async (request: Request): Promise<Response> => {
 };
 
 /**
+ * Handle GET /admin/sessions
+ */
+const handleAdminSessionsGet = (request: Request): Promise<Response> =>
+  requireSessionOr(request, async (session) => {
+    const sessions = await getAllSessions();
+    return htmlResponse(
+      adminSessionsPage(sessions, session.token, session.csrfToken),
+    );
+  });
+
+/**
+ * Handle POST /admin/sessions (log out of all other sessions)
+ */
+const handleAdminSessionsPost = (request: Request): Promise<Response> =>
+  withAuthForm(request, async (session) => {
+    await deleteOtherSessions(session.token);
+    const sessions = await getAllSessions();
+    return htmlResponse(
+      adminSessionsPage(
+        sessions,
+        session.token,
+        session.csrfToken,
+        "Logged out of all other sessions",
+      ),
+    );
+  });
+
+/**
  * Handle POST /admin/event (create event)
  */
 const handleCreateEvent = createHandler(eventsResource, {
@@ -353,7 +388,7 @@ const eventErrorPage = async (
   const event = await getEventWithCount(id);
   return event
     ? htmlResponse(renderPage(event, csrfToken, error), 400)
-    : htmlResponse(notFoundPage(), 404);
+    : notFoundResponse();
 };
 
 /** Handle GET /admin/event/:id/edit */
@@ -364,7 +399,7 @@ const handleAdminEventEditPost = updateHandler(eventsResource, {
   onSuccess: (row) => redirect(`/admin/event/${row.id}`),
   onError: (id, error, session) =>
     eventErrorPage(id as number, adminEventEditPage, session.csrfToken, error),
-  onNotFound: () => htmlResponse(notFoundPage(), 404),
+  onNotFound: notFoundResponse,
 });
 
 /**
@@ -395,7 +430,7 @@ const handleAdminEventDelete = deleteHandler(eventsResource, {
       session.csrfToken,
       "Event name does not match. Please type the exact name to confirm deletion.",
     ),
-  onNotFound: () => htmlResponse(notFoundPage(), 404),
+  onNotFound: notFoundResponse,
 });
 
 /** Verify name matches for deletion confirmation (case-insensitive, trimmed) */
@@ -419,20 +454,32 @@ const loadAttendeeForEvent = async (
   return { attendee, event };
 };
 
+/** Curried helper: load attendee for event, return 404 or apply handler */
+const withAttendeeForEvent =
+  (eventId: number, attendeeId: number) =>
+  async (
+    handler: (data: AttendeeWithEvent) => Response | Promise<Response>,
+  ): Promise<Response> => {
+    const data = await loadAttendeeForEvent(eventId, attendeeId);
+    return data ? handler(data) : notFoundResponse();
+  };
+
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = async (
   request: Request,
   eventId: number,
   attendeeId: number,
 ): Promise<Response> =>
-  requireSessionOr(request, async (session) => {
-    const data = await loadAttendeeForEvent(eventId, attendeeId);
-    if (!data) return htmlResponse(notFoundPage(), 404);
-
-    return htmlResponse(
-      adminDeleteAttendeePage(data.event, data.attendee, session.csrfToken),
-    );
-  });
+  requireSessionOr(request, (session) =>
+    withAttendeeForEvent(
+      eventId,
+      attendeeId,
+    )((data) =>
+      htmlResponse(
+        adminDeleteAttendeePage(data.event, data.attendee, session.csrfToken),
+      ),
+    ),
+  );
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDelete = async (
@@ -440,26 +487,28 @@ const handleAdminAttendeeDelete = async (
   eventId: number,
   attendeeId: number,
 ): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
-    const data = await loadAttendeeForEvent(eventId, attendeeId);
-    if (!data) return htmlResponse(notFoundPage(), 404);
+  withAuthForm(request, (session, form) =>
+    withAttendeeForEvent(
+      eventId,
+      attendeeId,
+    )(async (data) => {
+      const confirmName = form.get("confirm_name") ?? "";
+      if (!verifyName(data.attendee.name, confirmName)) {
+        return htmlResponse(
+          adminDeleteAttendeePage(
+            data.event,
+            data.attendee,
+            session.csrfToken,
+            "Attendee name does not match. Please type the exact name to confirm deletion.",
+          ),
+          400,
+        );
+      }
 
-    const confirmName = form.get("confirm_name") ?? "";
-    if (!verifyName(data.attendee.name, confirmName)) {
-      return htmlResponse(
-        adminDeleteAttendeePage(
-          data.event,
-          data.attendee,
-          session.csrfToken,
-          "Attendee name does not match. Please type the exact name to confirm deletion.",
-        ),
-        400,
-      );
-    }
-
-    await deleteAttendee(attendeeId);
-    return redirect(`/admin/event/${eventId}`);
-  });
+      await deleteAttendee(attendeeId);
+      return redirect(`/admin/event/${eventId}`);
+    }),
+  );
 
 /** Route admin event edit requests */
 const routeAdminEventEdit: RouteHandler = createIdRoute(
@@ -486,6 +535,18 @@ const routeAdminEventDelete: RouteHandler = createIdRoute(
   }),
 );
 
+/** Method handlers for attendee delete route */
+type AttendeeDeleteHandlers = Record<
+  string,
+  (req: Request, eventId: number, attendeeId: number) => Promise<Response>
+>;
+
+const attendeeDeleteHandlers: AttendeeDeleteHandlers = {
+  GET: handleAdminAttendeeDeleteGet,
+  POST: handleAdminAttendeeDelete,
+  DELETE: handleAdminAttendeeDelete,
+};
+
 /** Route admin attendee delete requests */
 const routeAdminAttendeeDelete: RouteHandler = async (
   request,
@@ -497,14 +558,9 @@ const routeAdminAttendeeDelete: RouteHandler = async (
 
   const eventId = Number.parseInt(match[1], 10);
   const attendeeId = Number.parseInt(match[2], 10);
+  const handler = attendeeDeleteHandlers[method];
 
-  if (method === "GET") {
-    return handleAdminAttendeeDeleteGet(request, eventId, attendeeId);
-  }
-  if (method === "POST" || method === "DELETE") {
-    return handleAdminAttendeeDelete(request, eventId, attendeeId);
-  }
-  return null;
+  return handler ? handler(request, eventId, attendeeId) : null;
 };
 
 /** Route admin event detail requests */
@@ -527,15 +583,24 @@ const routeAdminEvent: RouteHandler = async (request, path, method) =>
 const isAdminRoot = (path: string): boolean =>
   path === "/admin/" || path === "/admin";
 
-/**
- * Route admin settings requests
- */
-const routeAdminSettings = (
-  request: Request,
-  path: string,
-  method: string,
-): Promise<Response | null> =>
+/** Route admin auth requests (login/logout/settings/sessions) */
+const routeAdminAuth: RouteHandlerWithServer = (
+  request,
+  path,
+  method,
+  server,
+) =>
   matchRoute(path, method, [
+    {
+      path: "/admin/login",
+      method: "POST",
+      handler: () => handleAdminLogin(request, server),
+    },
+    {
+      path: "/admin/logout",
+      method: "GET",
+      handler: () => handleAdminLogout(request),
+    },
     {
       path: "/admin/settings",
       method: "GET",
@@ -551,31 +616,17 @@ const routeAdminSettings = (
       method: "POST",
       handler: () => handleAdminStripePost(request),
     },
+    {
+      path: "/admin/sessions",
+      method: "GET",
+      handler: () => handleAdminSessionsGet(request),
+    },
+    {
+      path: "/admin/sessions",
+      method: "POST",
+      handler: () => handleAdminSessionsPost(request),
+    },
   ]);
-
-/** Route admin auth requests (login/logout/settings) */
-const routeAdminAuth: RouteHandlerWithServer = (
-  request,
-  path,
-  method,
-  server,
-) =>
-  chainRoutes(
-    () =>
-      matchRoute(path, method, [
-        {
-          path: "/admin/login",
-          method: "POST",
-          handler: () => handleAdminLogin(request, server),
-        },
-        {
-          path: "/admin/logout",
-          method: "GET",
-          handler: () => handleAdminLogout(request),
-        },
-      ]),
-    () => routeAdminSettings(request, path, method),
-  );
 
 /** Route core admin requests */
 const routeAdminCore: RouteHandlerWithServer = (

@@ -2,11 +2,11 @@
  * Shared utilities for route handlers
  */
 
-import { err, ok, type Result } from "#fp";
+import { compact, err, map, ok, pipe, type Result, reduce } from "#fp";
 import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
 import { deleteSession, getEventWithCount, getSession } from "#lib/db";
 import type { EventWithCount } from "#lib/types.ts";
-import { notFoundPage } from "#templates";
+import { notFoundPage, paymentErrorPage } from "#templates";
 import type { ServerContext } from "./types.ts";
 
 // Re-export for use by other route modules
@@ -37,17 +37,23 @@ export const getClientIp = (
  * Parse cookies from request
  */
 export const parseCookies = (request: Request): Map<string, string> => {
-  const cookies = new Map<string, string>();
   const header = request.headers.get("cookie");
-  if (!header) return cookies;
+  if (!header) return new Map<string, string>();
 
-  for (const part of header.split(";")) {
+  type CookiePair = [string, string];
+  const toPair = (part: string): CookiePair | null => {
     const [key, value] = part.trim().split("=");
-    if (key && value) {
-      cookies.set(key, value);
-    }
-  }
-  return cookies;
+    return key && value ? [key, value] : null;
+  };
+
+  return pipe(
+    map(toPair),
+    compact,
+    reduce((acc, [key, value]) => {
+      acc.set(key, value);
+      return acc;
+    }, new Map<string, string>()),
+  )(header.split(";"));
 };
 
 /**
@@ -97,6 +103,18 @@ export const htmlResponse = (html: string, status = 200): Response =>
     status,
     headers: { "content-type": "text/html; charset=utf-8" },
   });
+
+/**
+ * Create 404 not found response
+ */
+export const notFoundResponse = (): Response =>
+  htmlResponse(notFoundPage(), 404);
+
+/**
+ * Create payment error response
+ */
+export const paymentErrorResponse = (message: string, status = 400): Response =>
+  htmlResponse(paymentErrorPage(message), status);
 
 /**
  * Create a GET-only route handler for static content
@@ -168,13 +186,22 @@ export const withCookie = (response: Response, cookie: string): Response => {
 };
 
 /**
+ * Create HTML response with cookie - curried composition of withCookie and htmlResponse
+ * Usage: htmlResponseWithCookie(cookie)(html, status)
+ */
+export const htmlResponseWithCookie =
+  (cookie: string) =>
+  (html: string, status = 200): Response =>
+    withCookie(htmlResponse(html, status), cookie);
+
+/**
  * Fetch event or return 404 response
  */
 export const fetchEventOr404 = async (
   eventId: number,
 ): Promise<Result<EventWithCount>> => {
   const event = await getEventWithCount(eventId);
-  return event ? ok(event) : err(htmlResponse(notFoundPage(), 404));
+  return event ? ok(event) : err(notFoundResponse());
 };
 
 /**

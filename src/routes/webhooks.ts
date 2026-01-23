@@ -11,12 +11,48 @@ import {
 import { retrieveCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, Event } from "#lib/types.ts";
 import { notifyWebhook } from "#lib/webhook.ts";
-import {
-  paymentCancelPage,
-  paymentErrorPage,
-  paymentSuccessPage,
-} from "#templates";
-import { getSearchParam, htmlResponse } from "./utils.ts";
+import { paymentCancelPage, paymentSuccessPage } from "#templates";
+import { getSearchParam, htmlResponse, paymentErrorResponse } from "./utils.ts";
+
+type PaymentParams = { attendeeId: string | null; sessionId: string | null };
+
+/** Extract attendee_id and session_id from request search params */
+const getPaymentParams = (request: Request): PaymentParams => ({
+  attendeeId: getSearchParam(request, "attendee_id"),
+  sessionId: getSearchParam(request, "session_id"),
+});
+
+/** Stripe checkout session type */
+type CheckoutSession = Awaited<ReturnType<typeof retrieveCheckoutSession>>;
+
+/** Verify session metadata matches attendee_id, return error response if mismatch */
+const verifySessionAttendee =
+  (attendeeId: string | null) =>
+  (session: NonNullable<CheckoutSession>): Response | null =>
+    session.metadata?.attendee_id !== attendeeId
+      ? paymentErrorResponse(
+          "Payment session mismatch. Please contact support.",
+        )
+      : null;
+
+/** Retrieve session and verify it matches attendee, return error or session */
+type SessionResult =
+  | { session: NonNullable<CheckoutSession> }
+  | { error: Response };
+
+const retrieveAndVerifySession = async (
+  sessionId: string,
+  attendeeId: string | null,
+  errorMessage: string,
+): Promise<SessionResult> => {
+  const session = await retrieveCheckoutSession(sessionId);
+  if (!session) {
+    return { error: paymentErrorResponse(errorMessage) };
+  }
+  const mismatchError = verifySessionAttendee(attendeeId)(session);
+  if (mismatchError) return { error: mismatchError };
+  return { session };
+};
 
 type PaymentCallbackData = { attendee: Attendee; event: Event };
 type PaymentCallbackResult =
@@ -32,7 +68,7 @@ const loadPaymentCallbackData = async (
   if (!attendeeIdStr) {
     return {
       success: false,
-      response: htmlResponse(paymentErrorPage("Invalid payment callback"), 400),
+      response: paymentErrorResponse("Invalid payment callback"),
     };
   }
 
@@ -40,7 +76,7 @@ const loadPaymentCallbackData = async (
   if (!attendee) {
     return {
       success: false,
-      response: htmlResponse(paymentErrorPage("Attendee not found"), 404),
+      response: paymentErrorResponse("Attendee not found", 404),
     };
   }
 
@@ -48,7 +84,7 @@ const loadPaymentCallbackData = async (
   if (!event) {
     return {
       success: false,
-      response: htmlResponse(paymentErrorPage("Event not found"), 404),
+      response: paymentErrorResponse("Event not found", 404),
     };
   }
 
@@ -66,18 +102,13 @@ const verifyAndUpdatePayment = async (
 ): Promise<Response | null> => {
   const session = await retrieveCheckoutSession(sessionId);
   if (!session || session.payment_status !== "paid") {
-    return htmlResponse(
-      paymentErrorPage("Payment verification failed. Please contact support."),
-      400,
+    return paymentErrorResponse(
+      "Payment verification failed. Please contact support.",
     );
   }
 
-  if (session.metadata?.attendee_id !== attendeeId) {
-    return htmlResponse(
-      paymentErrorPage("Payment session mismatch. Please contact support."),
-      400,
-    );
-  }
+  const mismatchError = verifySessionAttendee(attendeeId)(session);
+  if (mismatchError) return mismatchError;
 
   if (!attendee.stripe_payment_id) {
     await updateAttendeePayment(attendee.id, session.payment_intent as string);
@@ -88,27 +119,66 @@ const verifyAndUpdatePayment = async (
   return htmlResponse(paymentSuccessPage(event, event.thank_you_url));
 };
 
+/** Context result type */
+type PaymentContext =
+  | { ok: true; params: PaymentParams; data: PaymentCallbackData }
+  | { ok: false; response: Response };
+
+/** Load payment callback data from request */
+const loadPaymentContext = async (
+  request: Request,
+): Promise<PaymentContext> => {
+  const params = getPaymentParams(request);
+  const result = await loadPaymentCallbackData(params.attendeeId);
+  return result.success
+    ? { ok: true, params, data: result.data }
+    : { ok: false, response: result.response };
+};
+
+/** Error response for missing session_id */
+const missingSessionError = (): Response =>
+  paymentErrorResponse("Invalid payment callback");
+
+/** Precheck: require session_id */
+const requireSessionId = (params: PaymentParams): Response | null =>
+  params.sessionId ? null : missingSessionError();
+
+/** Type for handler function */
+type PaymentHandler = (
+  params: PaymentParams,
+  data: PaymentCallbackData,
+) => Promise<Response>;
+
+/** Run optional precheck, return error or null */
+const runPrecheck = (
+  precheck: ((params: PaymentParams) => Response | null) | null,
+  params: PaymentParams,
+): Response | null => (precheck ? precheck(params) : null);
+
+/** Create payment callback handler with optional precheck */
+const createPaymentHandler =
+  (precheck: ((params: PaymentParams) => Response | null) | null) =>
+  (handler: PaymentHandler) =>
+  async (request: Request): Promise<Response> => {
+    const params = getPaymentParams(request);
+    const precheckError = runPrecheck(precheck, params);
+    if (precheckError) return precheckError;
+    const ctx = await loadPaymentContext(request);
+    return ctx.ok ? handler(ctx.params, ctx.data) : ctx.response;
+  };
+
 /**
  * Handle GET /payment/success (Stripe redirect after successful payment)
  */
-const handlePaymentSuccess = async (request: Request): Promise<Response> => {
-  const attendeeId = getSearchParam(request, "attendee_id");
-  const sessionId = getSearchParam(request, "session_id");
-
-  if (!sessionId) {
-    return htmlResponse(paymentErrorPage("Invalid payment callback"), 400);
-  }
-
-  const result = await loadPaymentCallbackData(attendeeId);
-  if (!result.success) return result.response;
-
-  return (await verifyAndUpdatePayment(
-    sessionId,
-    attendeeId as string,
-    result.data.attendee,
-    result.data.event,
-  )) as Response;
-};
+const handlePaymentSuccess = createPaymentHandler(requireSessionId)(
+  async (params, { attendee, event }) =>
+    (await verifyAndUpdatePayment(
+      params.sessionId as string,
+      params.attendeeId as string,
+      attendee,
+      event,
+    )) as Response,
+);
 
 /**
  * Verify Stripe session matches attendee for cancellation
@@ -120,30 +190,19 @@ const verifyCancelSession = async (
   attendee: Attendee,
 ): Promise<Response | null> => {
   if (!sessionId) {
-    return htmlResponse(paymentErrorPage("Invalid payment callback"), 400);
+    return paymentErrorResponse("Invalid payment callback");
   }
 
-  const session = await retrieveCheckoutSession(sessionId);
-  if (!session) {
-    return htmlResponse(
-      paymentErrorPage("Payment session not found. Please contact support."),
-      400,
-    );
-  }
-
-  if (session.metadata?.attendee_id !== attendeeId) {
-    return htmlResponse(
-      paymentErrorPage("Payment session mismatch. Please contact support."),
-      400,
-    );
-  }
+  const result = await retrieveAndVerifySession(
+    sessionId,
+    attendeeId,
+    "Payment session not found. Please contact support.",
+  );
+  if ("error" in result) return result.error;
 
   // Only allow cancellation of unpaid attendees
   if (attendee.stripe_payment_id) {
-    return htmlResponse(
-      paymentErrorPage("Cannot cancel a completed payment."),
-      400,
-    );
+    return paymentErrorResponse("Cannot cancel a completed payment.");
   }
 
   return null;
@@ -152,21 +211,19 @@ const verifyCancelSession = async (
 /**
  * Handle GET /payment/cancel (Stripe redirect after cancelled payment)
  */
-const handlePaymentCancel = async (request: Request): Promise<Response> => {
-  const attendeeId = getSearchParam(request, "attendee_id");
-  const sessionId = getSearchParam(request, "session_id");
+const handlePaymentCancel = createPaymentHandler(null)(
+  async (params, { attendee, event }) => {
+    const cancelError = await verifyCancelSession(
+      params.sessionId,
+      params.attendeeId,
+      attendee,
+    );
+    if (cancelError) return cancelError;
 
-  const result = await loadPaymentCallbackData(attendeeId);
-  if (!result.success) return result.response;
-
-  const { attendee, event } = result.data;
-
-  const error = await verifyCancelSession(sessionId, attendeeId, attendee);
-  if (error) return error;
-
-  await deleteAttendee(attendee.id);
-  return htmlResponse(paymentCancelPage(event, `/ticket/${event.id}`));
-};
+    await deleteAttendee(attendee.id);
+    return htmlResponse(paymentCancelPage(event, `/ticket/${event.id}`));
+  },
+);
 
 /**
  * Route payment requests

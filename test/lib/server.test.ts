@@ -498,6 +498,146 @@ describe("server", () => {
     });
   });
 
+  describe("GET /admin/sessions", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(mockRequest("/admin/sessions"));
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("shows sessions page when authenticated", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await awaitTestRequest("/admin/sessions", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Sessions");
+      expect(html).toContain("Token");
+      expect(html).toContain("Expires");
+      expect(html).toContain("Current");
+    });
+
+    test("shows current session in bold", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await awaitTestRequest("/admin/sessions", { cookie });
+      const html = await response.text();
+      expect(html).toContain("font-weight: bold");
+    });
+
+    test("shows logout button when other sessions exist", async () => {
+      // Create an extra session
+      await createSession("other-session", "other-csrf", Date.now() + 10000);
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await awaitTestRequest("/admin/sessions", { cookie });
+      const html = await response.text();
+      expect(html).toContain("Log out of all other sessions");
+    });
+
+    test("does not show logout button when no other sessions", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await awaitTestRequest("/admin/sessions", { cookie });
+      const html = await response.text();
+      expect(html).not.toContain("Log out of all other sessions");
+    });
+  });
+
+  describe("POST /admin/sessions", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/sessions", { csrf_token: "test" }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/sessions",
+          { csrf_token: "invalid-csrf" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+    });
+
+    test("logs out other sessions and shows success message", async () => {
+      // Create other sessions before login
+      await createSession("other1", "csrf1", Date.now() + 10000);
+      await createSession("other2", "csrf2", Date.now() + 10000);
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/sessions",
+          { csrf_token: csrfToken || "" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Logged out of all other sessions");
+
+      // Verify other sessions are deleted
+      const other1 = await getSession("other1");
+      const other2 = await getSession("other2");
+      expect(other1).toBeNull();
+      expect(other2).toBeNull();
+    });
+
+    test("keeps current session active after logging out others", async () => {
+      await createSession("other", "csrf-other", Date.now() + 10000);
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      // Extract the session token from cookie
+      const sessionMatch = cookie.match(/__Host-session=([^;]+)/);
+      const sessionToken = sessionMatch?.[1];
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/sessions",
+          { csrf_token: csrfToken || "" },
+          cookie,
+        ),
+      );
+
+      // Verify current session still exists
+      const currentSession = await getSession(sessionToken || "");
+      expect(currentSession).not.toBeNull();
+    });
+  });
+
   describe("POST /admin/event", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
@@ -1432,6 +1572,33 @@ describe("server", () => {
       expect(response.status).toBe(404);
     });
 
+    test("returns 404 for non-existent attendee", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/attendee/999/delete",
+          {
+            confirm_name: "John Doe",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+
     test("rejects invalid CSRF token", async () => {
       await createEvent({
         name: "Test Event",
@@ -1552,6 +1719,27 @@ describe("server", () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/event/1");
+    });
+  });
+
+  describe("PATCH /admin/event/:eventId/attendee/:attendeeId/delete", () => {
+    test("route handler returns null for unsupported method", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      // PATCH is not supported by this specific route handler, which returns null.
+      // The request then continues through middleware that returns 403.
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/1/attendee/1/delete", {
+          method: "PATCH",
+        }),
+      );
+      expect(response.status).toBe(403);
     });
   });
 

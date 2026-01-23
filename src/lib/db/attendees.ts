@@ -2,6 +2,7 @@
  * Attendees table operations
  */
 
+import { map } from "#fp";
 import { decrypt, encrypt } from "../crypto.ts";
 import type { Attendee } from "../types.ts";
 import { getDb, queryOne } from "./client.ts";
@@ -40,11 +41,7 @@ export const getAttendees = async (eventId: number): Promise<Attendee[]> => {
     args: [eventId],
   });
   const rows = result.rows as unknown as Attendee[];
-  const decrypted: Attendee[] = [];
-  for (const row of rows) {
-    decrypted.push(await decryptAttendee(row));
-  }
-  return decrypted;
+  return Promise.all(map(decryptAttendee)(rows));
 };
 
 /**

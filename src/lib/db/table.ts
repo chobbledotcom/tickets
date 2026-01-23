@@ -9,7 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { mapAsync } from "#fp";
+import { filter, mapAsync, reduce } from "#fp";
 import { getDb, queryOne } from "./client.ts";
 
 /**
@@ -112,13 +112,14 @@ export const toSnakeCase = (s: string): string =>
  */
 export const buildInputKeyMap = <Row>(
   columns: (keyof Row)[],
-): Record<string, string> => {
-  const result: Record<string, string> = {};
-  for (const col of columns) {
-    result[col as string] = toCamelCase(col as string);
-  }
-  return result;
-};
+): Record<string, string> =>
+  reduce(
+    (acc, col) => {
+      acc[col as string] = toCamelCase(col as string);
+      return acc;
+    },
+    {} as Record<string, string>,
+  )(columns);
 
 /**
  * Table definition with CRUD operations
@@ -292,16 +293,11 @@ export const defineTable = <Row, Input = Row>(config: {
   };
 
   // Get columns that were provided in input
-  const getProvidedColumns = (input: Partial<Input>): string[] => {
-    const result: string[] = [];
-    for (const col of inputColumns) {
+  const getProvidedColumns = (input: Partial<Input>): string[] =>
+    filter((col: string) => {
       const inputKey = inputKeyMap[col] ?? col;
-      if (inputKey in (input as object)) {
-        result.push(col);
-      }
-    }
-    return result;
-  };
+      return inputKey in (input as object);
+    })(inputColumns);
 
   // Update implementation
   const update = async (

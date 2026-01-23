@@ -8,16 +8,25 @@ import { setupCompletePage, setupFields, setupPage } from "#templates";
 import {
   generateSecureToken,
   htmlResponse,
+  htmlResponseWithCookie,
   parseCookies,
   parseFormData,
   redirect,
   validateCsrfToken,
-  withCookie,
 } from "./utils.ts";
 
 /** Cookie for CSRF token with standard security options */
 const setupCsrfCookie = (token: string): string =>
   `setup_csrf=${token}; HttpOnly; Secure; SameSite=Strict; Path=/setup; Max-Age=3600`;
+
+/** Response helper with setup CSRF cookie - curried to thread token through */
+const setupResponse =
+  (token: string) =>
+  (error?: string, status = 200) =>
+    htmlResponseWithCookie(setupCsrfCookie(token))(
+      setupPage(error, token),
+      status,
+    );
 
 /**
  * Validate setup form data (uses form framework + custom validation)
@@ -96,10 +105,7 @@ export const handleSetupGet = async (
     return redirect("/");
   }
   const csrfToken = generateSecureToken();
-  return withCookie(
-    htmlResponse(setupPage(undefined, csrfToken)),
-    setupCsrfCookie(csrfToken),
-  );
+  return setupResponse(csrfToken)();
 };
 
 /**
@@ -152,12 +158,9 @@ export const handleSetupPost = async (
     // biome-ignore lint/suspicious/noConsole: Debug logging for edge script
     console.log("[Setup] CSRF validation FAILED");
     const newCsrfToken = generateSecureToken();
-    return withCookie(
-      htmlResponse(
-        setupPage("Invalid or expired form. Please try again.", newCsrfToken),
-        403,
-      ),
-      setupCsrfCookie(newCsrfToken),
+    return setupResponse(newCsrfToken)(
+      "Invalid or expired form. Please try again.",
+      403,
     );
   }
 
