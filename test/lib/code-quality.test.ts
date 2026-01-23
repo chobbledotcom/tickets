@@ -206,7 +206,11 @@ describe("code quality", () => {
     ];
 
     /** Index modules that only re-export from sub-modules */
-    const AGGREGATION_MODULES = ["lib/db/index.ts", "templates/index.ts"];
+    const AGGREGATION_MODULES = [
+      "lib/db/index.ts",
+      "lib/rest/index.ts",
+      "templates/index.ts",
+    ];
 
     /**
      * Test hooks - functions that are intentionally exported for test setup/cleanup.
@@ -220,6 +224,9 @@ describe("code quality", () => {
       "lib/crypto.ts:clearEncryptionKeyCache",
       // Reset cached Stripe client between tests
       "lib/stripe.ts:resetStripeClient",
+      // Event CRUD for test data setup (production uses REST library)
+      "lib/db/events.ts:createEvent",
+      "lib/db/events.ts:updateEvent",
     ];
 
     /**

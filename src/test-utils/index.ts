@@ -4,9 +4,9 @@
 
 import { createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "../lib/crypto.ts";
+import { createEvent } from "../lib/db/events.ts";
 import {
   completeSetup,
-  createEvent,
   type EventInput,
   getSession,
   initDb,
