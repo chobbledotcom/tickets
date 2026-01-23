@@ -226,7 +226,7 @@ const handlePaymentCancel = createPaymentHandler(null)(
     if (cancelError) return cancelError;
 
     await deleteAttendee(attendee.id);
-    return htmlResponse(paymentCancelPage(event, `/ticket/${event.id}`));
+    return htmlResponse(paymentCancelPage(event, `/ticket/${event.slug}`));
   },
 );
 

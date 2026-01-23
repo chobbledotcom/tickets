@@ -4,7 +4,7 @@
 
 import { compact, err, map, ok, pipe, type Result, reduce } from "#fp";
 import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
+import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
@@ -212,6 +212,27 @@ export const withEvent = async (
   handler: (event: EventWithCount) => Response | Promise<Response>,
 ): Promise<Response> => {
   const result = await fetchEventOr404(eventId);
+  return result.ok ? handler(result.value) : result.response;
+};
+
+/**
+ * Fetch event by slug or return 404 response
+ */
+export const fetchEventBySlugOr404 = async (
+  slug: string,
+): Promise<Result<EventWithCount>> => {
+  const event = await getEventWithCountBySlug(slug);
+  return event ? ok(event) : err(notFoundResponse());
+};
+
+/**
+ * Handle event by slug with Result - unwrap to Response
+ */
+export const withEventBySlug = async (
+  slug: string,
+  handler: (event: EventWithCount) => Response | Promise<Response>,
+): Promise<Response> => {
+  const result = await fetchEventBySlugOr404(slug);
   return result.ok ? handler(result.value) : result.response;
 };
 

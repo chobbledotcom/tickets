@@ -69,6 +69,8 @@ export interface ResourceConfig<Row, Input> {
   nameField?: keyof Row & string;
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
+  /** Custom validation (e.g., check uniqueness). Return error message or null. */
+  validate?: (input: Input, id?: InValue) => Promise<string | null>;
 }
 
 /** Validate form and convert to result type */
@@ -115,6 +117,12 @@ export const defineResource = <Row, Input>(
   const create = async (form: URLSearchParams): Promise<CreateResult<Row>> => {
     const parsed = parseInput(form);
     if (!parsed.ok) return parsed;
+
+    if (config.validate) {
+      const error = await config.validate(parsed.input);
+      if (error) return { ok: false, error };
+    }
+
     return { ok: true, row: await table.insert(parsed.input) };
   };
 
@@ -127,6 +135,11 @@ export const defineResource = <Row, Input>(
 
     const parsed = parseInput(form);
     if (!parsed.ok) return parsed;
+
+    if (config.validate) {
+      const error = await config.validate(parsed.input, id);
+      if (error) return { ok: false, error };
+    }
 
     const row = await table.update(id, parsed.input);
     return row ? { ok: true, row } : { ok: false, notFound: true };

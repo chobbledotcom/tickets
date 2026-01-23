@@ -66,7 +66,7 @@ export const ticketPage = (
         </section>
       ) : (
         <section>
-          <form method="POST" action={`/ticket/${event.id}`}>
+          <form method="POST" action={`/ticket/${event.slug}`}>
             <header>
               <h2>Reserve Your Ticket</h2>
             </header>

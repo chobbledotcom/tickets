@@ -4,6 +4,7 @@
 
 export interface Event {
   id: number;
+  slug: string;
   created: string;
   name: string;
   description: string;

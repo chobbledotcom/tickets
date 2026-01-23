@@ -2,12 +2,14 @@
  * Admin event management routes
  */
 
+import type { InValue } from "@libsql/client";
 import { getAttendees } from "#lib/db/attendees.ts";
 import {
   deleteEvent,
   type EventInput,
   eventsTable,
   getEventWithCount,
+  isSlugTaken,
 } from "#lib/db/events.ts";
 import {
   createHandler,
@@ -38,6 +40,7 @@ type Attendee = Awaited<ReturnType<typeof getAttendees>>[number];
 
 /** Extract event input from validated form */
 const extractEventInput = (values: Record<string, unknown>): EventInput => ({
+  slug: values.slug as string,
   name: values.name as string,
   description: values.description as string,
   maxAttendees: values.max_attendees as number,
@@ -47,6 +50,15 @@ const extractEventInput = (values: Record<string, unknown>): EventInput => ({
   webhookUrl: (values.webhook_url as string) || null,
 });
 
+/** Validate slug uniqueness */
+const validateEventInput = async (
+  input: EventInput,
+  id?: InValue,
+): Promise<string | null> => {
+  const taken = await isSlugTaken(input.slug, id as number | undefined);
+  return taken ? "This slug is already in use. Please choose a different one." : null;
+};
+
 /** Events resource for REST operations */
 const eventsResource = defineResource({
   table: eventsTable,
@@ -54,6 +66,7 @@ const eventsResource = defineResource({
   toInput: extractEventInput,
   nameField: "name",
   onDelete: (id) => deleteEvent(id as number),
+  validate: validateEventInput,
 });
 
 /** Handle event with attendees - auth, fetch, then apply handler fn */
