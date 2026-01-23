@@ -13,6 +13,7 @@ export type EventInput = {
   maxAttendees: number;
   thankYouUrl: string;
   unitPrice?: number | null;
+  maxQuantity?: number;
 };
 
 /**
@@ -20,6 +21,7 @@ export type EventInput = {
  */
 export const createEvent = async (e: EventInput): Promise<Event> => {
   const created = new Date().toISOString();
+  const maxQuantity = e.maxQuantity ?? 1;
   const args: InValue[] = [
     created,
     e.name,
@@ -27,10 +29,11 @@ export const createEvent = async (e: EventInput): Promise<Event> => {
     e.maxAttendees,
     e.thankYouUrl,
     e.unitPrice ?? null,
+    maxQuantity,
   ];
   const result = await getDb().execute({
-    sql: `INSERT INTO events (created, name, description, max_attendees, thank_you_url, unit_price)
-          VALUES (?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO events (created, name, description, max_attendees, thank_you_url, unit_price, max_quantity)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
     args,
   });
   return {
@@ -41,6 +44,7 @@ export const createEvent = async (e: EventInput): Promise<Event> => {
     max_attendees: e.maxAttendees,
     thank_you_url: e.thankYouUrl,
     unit_price: e.unitPrice ?? null,
+    max_quantity: maxQuantity,
   };
 };
 
@@ -57,10 +61,11 @@ export const updateEvent = async (
     e.maxAttendees,
     e.thankYouUrl,
     e.unitPrice ?? null,
+    e.maxQuantity ?? 1,
     id,
   ];
   const result = await getDb().execute({
-    sql: `UPDATE events SET name = ?, description = ?, max_attendees = ?, thank_you_url = ?, unit_price = ?
+    sql: `UPDATE events SET name = ?, description = ?, max_attendees = ?, thank_you_url = ?, unit_price = ?, max_quantity = ?
           WHERE id = ?`,
     args,
   });
@@ -69,11 +74,11 @@ export const updateEvent = async (
 };
 
 /**
- * Get all events with attendee counts
+ * Get all events with attendee counts (sum of quantities)
  */
 export const getAllEvents = async (): Promise<EventWithCount[]> => {
   const result = await getDb().execute(`
-    SELECT e.*, COUNT(a.id) as attendee_count
+    SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
     FROM events e
     LEFT JOIN attendees a ON e.id = a.event_id
     GROUP BY e.id
@@ -89,13 +94,13 @@ export const getEvent = async (id: number): Promise<Event | null> =>
   queryOne<Event>("SELECT * FROM events WHERE id = ?", [id]);
 
 /**
- * Get event with attendee count
+ * Get event with attendee count (sum of quantities)
  */
 export const getEventWithCount = async (
   id: number,
 ): Promise<EventWithCount | null> =>
   queryOne<EventWithCount>(
-    `SELECT e.*, COUNT(a.id) as attendee_count
+    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
      FROM events e
      LEFT JOIN attendees a ON e.id = a.event_id
      WHERE e.id = ?

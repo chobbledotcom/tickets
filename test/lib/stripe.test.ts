@@ -142,6 +142,7 @@ describe("stripe", () => {
         max_attendees: 50,
         thank_you_url: "https://example.com",
         unit_price: 1000,
+        max_quantity: 1,
       };
       const attendee = {
         id: 1,
@@ -150,6 +151,7 @@ describe("stripe", () => {
         email: "john@example.com",
         created: new Date().toISOString(),
         stripe_payment_id: null,
+        quantity: 1,
       };
       const result = await createCheckoutSession(
         event,
@@ -169,6 +171,7 @@ describe("stripe", () => {
         max_attendees: 50,
         thank_you_url: "https://example.com",
         unit_price: null,
+        max_quantity: 1,
       };
       const attendee = {
         id: 1,
@@ -177,6 +180,7 @@ describe("stripe", () => {
         email: "john@example.com",
         created: new Date().toISOString(),
         stripe_payment_id: null,
+        quantity: 1,
       };
       const result = await createCheckoutSession(
         event,
@@ -224,6 +228,7 @@ describe("stripe", () => {
         max_attendees: 50,
         thank_you_url: "https://example.com/thanks",
         unit_price: 1000,
+        max_quantity: 1,
       };
       const attendee = {
         id: 1,
@@ -232,6 +237,7 @@ describe("stripe", () => {
         email: "john@example.com",
         created: new Date().toISOString(),
         stripe_payment_id: null,
+        quantity: 1,
       };
 
       const session = await createCheckoutSession(
@@ -257,6 +263,7 @@ describe("stripe", () => {
         max_attendees: 50,
         thank_you_url: "https://example.com/thanks",
         unit_price: 1000,
+        max_quantity: 1,
       };
       const attendee = {
         id: 1,
@@ -265,6 +272,7 @@ describe("stripe", () => {
         email: "john@example.com",
         created: new Date().toISOString(),
         stripe_payment_id: null,
+        quantity: 1,
       };
 
       const createdSession = await createCheckoutSession(

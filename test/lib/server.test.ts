@@ -514,6 +514,7 @@ describe("server", () => {
           name: "Test",
           description: "Desc",
           max_attendees: "100",
+          max_quantity: "1",
           thank_you_url: "https://example.com",
         }),
       );
@@ -536,6 +537,7 @@ describe("server", () => {
             name: "New Event",
             description: "Description",
             max_attendees: "50",
+            max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
             csrf_token: csrfToken || "",
           },
@@ -560,6 +562,7 @@ describe("server", () => {
             name: "New Event",
             description: "Description",
             max_attendees: "50",
+            max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
             csrf_token: "invalid-csrf-token",
           },
@@ -748,7 +751,7 @@ describe("server", () => {
         }),
       );
       const csv = await response.text();
-      expect(csv).toContain("Name,Email,Registered");
+      expect(csv).toContain("Name,Email,Quantity,Registered");
       expect(csv).toContain("John Doe");
       expect(csv).toContain("john@example.com");
       expect(csv).toContain("Jane Smith");
@@ -853,6 +856,7 @@ describe("server", () => {
           name: "Updated",
           description: "Updated Desc",
           max_attendees: "50",
+          max_quantity: "1",
           thank_you_url: "https://example.com/updated",
         }),
       );
@@ -875,6 +879,7 @@ describe("server", () => {
             name: "Updated",
             description: "Updated Desc",
             max_attendees: "50",
+            max_quantity: "1",
             thank_you_url: "https://example.com/updated",
             csrf_token: csrfToken || "",
           },
@@ -905,6 +910,7 @@ describe("server", () => {
             name: "Updated",
             description: "Updated Desc",
             max_attendees: "50",
+            max_quantity: "1",
             thank_you_url: "https://example.com/updated",
             csrf_token: "invalid-token",
           },
@@ -938,6 +944,7 @@ describe("server", () => {
             name: "",
             description: "Desc",
             max_attendees: "50",
+            max_quantity: "1",
             thank_you_url: "https://example.com",
             csrf_token: csrfToken || "",
           },
@@ -971,6 +978,7 @@ describe("server", () => {
             name: "Updated Event",
             description: "Updated Description",
             max_attendees: "200",
+            max_quantity: "5",
             thank_you_url: "https://example.com/updated",
             unit_price: "2000",
             csrf_token: csrfToken || "",
@@ -1109,7 +1117,7 @@ describe("server", () => {
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("event is now full");
+      expect(html).toContain("not enough spots available");
     });
 
     test("returns 404 for unsupported method on ticket route", async () => {
@@ -1208,6 +1216,7 @@ describe("server", () => {
             name: "Paid Event",
             description: "Description",
             max_attendees: "50",
+            max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
             unit_price: "1000",
             csrf_token: csrfToken || "",

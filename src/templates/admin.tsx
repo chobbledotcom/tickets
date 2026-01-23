@@ -88,6 +88,7 @@ const AttendeeRow = ({ a }: { a: Attendee }): string =>
     <tr>
       <td>{a.name}</td>
       <td>{a.email}</td>
+      <td>{a.quantity}</td>
       <td>{new Date(a.created).toLocaleString()}</td>
     </tr>
   );
@@ -102,7 +103,7 @@ export const adminEventPage = (
   const attendeeRows =
     attendees.length > 0
       ? pipe(map((a: Attendee) => AttendeeRow({ a })), joinStrings)(attendees)
-      : '<tr><td colspan="3">No attendees yet</td></tr>';
+      : '<tr><td colspan="4">No attendees yet</td></tr>';
 
   return String(
     <Layout title={`Event: ${event.name}`}>
@@ -115,7 +116,8 @@ export const adminEventPage = (
       <h2>Event Details</h2>
       <p><strong>Description:</strong> {event.description}</p>
       <p><strong>Max Attendees:</strong> {event.max_attendees}</p>
-      <p><strong>Current Attendees:</strong> {event.attendee_count}</p>
+      <p><strong>Max Tickets Per Purchase:</strong> {event.max_quantity}</p>
+      <p><strong>Tickets Sold:</strong> {event.attendee_count}</p>
       <p><strong>Spots Remaining:</strong> {event.max_attendees - event.attendee_count}</p>
       <p>
         <strong>Thank You URL:</strong>{" "}
@@ -140,6 +142,7 @@ export const adminEventPage = (
           <tr>
             <th>Name</th>
             <th>Email</th>
+            <th>Qty</th>
             <th>Registered</th>
           </tr>
         </thead>
@@ -158,6 +161,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,
   description: event.description,
   max_attendees: event.max_attendees,
+  max_quantity: event.max_quantity,
   unit_price: event.unit_price,
   thank_you_url: event.thank_you_url,
 });

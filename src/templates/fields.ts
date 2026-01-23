@@ -71,6 +71,14 @@ export const eventFields: Field[] = [
     min: 1,
   },
   {
+    name: "max_quantity",
+    label: "Max Tickets Per Purchase",
+    type: "number",
+    required: true,
+    min: 1,
+    hint: "Maximum tickets a customer can buy in one transaction",
+  },
+  {
     name: "unit_price",
     label: "Ticket Price (in pence/cents, leave empty for free)",
     type: "number",

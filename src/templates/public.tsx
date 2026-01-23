@@ -21,11 +21,21 @@ export const homePage = (): string =>
   );
 
 /**
+ * Build quantity select options
+ */
+const quantityOptions = (max: number): string =>
+  Array.from({ length: max }, (_, i) => i + 1)
+    .map((n) => `<option value="${n}">${n}</option>`)
+    .join("");
+
+/**
  * Public ticket page
  */
 export const ticketPage = (event: EventWithCount, error?: string): string => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isFull = spotsRemaining <= 0;
+  const maxPurchasable = Math.min(event.max_quantity, spotsRemaining);
+  const showQuantity = maxPurchasable > 1;
 
   return String(
     <Layout title={`Reserve Ticket: ${event.name}`}>
@@ -40,7 +50,17 @@ export const ticketPage = (event: EventWithCount, error?: string): string => {
       ) : (
         <form method="POST" action={`/ticket/${event.id}`}>
           <Raw html={renderFields(ticketFields)} />
-          <button type="submit">Reserve Ticket</button>
+          {showQuantity ? (
+            <div class="field">
+              <label for="quantity">Number of Tickets</label>
+              <select name="quantity" id="quantity">
+                <Raw html={quantityOptions(maxPurchasable)} />
+              </select>
+            </div>
+          ) : (
+            <input type="hidden" name="quantity" value="1" />
+          )}
+          <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
         </form>
       )}
     </Layout>
