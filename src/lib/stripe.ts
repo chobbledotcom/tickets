@@ -1,11 +1,18 @@
 /**
  * Stripe integration module for ticket payments
+ * Uses lazy loading to avoid importing the Stripe SDK at startup
  */
 
-import Stripe from "stripe";
+import type Stripe from "stripe";
 import { lazyRef, once } from "#fp";
 import { getCurrencyCode, getStripeSecretKey } from "#lib/config.ts";
 import type { Attendee, Event } from "#lib/types.ts";
+
+/** Lazy-load Stripe SDK only when needed */
+const loadStripe = once(async () => {
+  const { default: Stripe } = await import("stripe");
+  return Stripe;
+});
 
 type StripeCache = { client: Stripe; secretKey: string };
 
@@ -42,9 +49,12 @@ const getMockConfig = once((): Stripe.StripeConfig | undefined => {
   };
 });
 
-const createStripeClient = (secretKey: string): Stripe => {
+const createStripeClient = async (secretKey: string): Promise<Stripe> => {
   const mockConfig = getMockConfig();
-  return mockConfig ? new Stripe(secretKey, mockConfig) : new Stripe(secretKey);
+  const StripeClass = await loadStripe();
+  return mockConfig
+    ? new StripeClass(secretKey, mockConfig)
+    : new StripeClass(secretKey);
 };
 
 const [getCache, setCache] = lazyRef<StripeCache>(() => {
@@ -70,7 +80,7 @@ export const getStripeClient = async (): Promise<Stripe | null> => {
     // Cache not initialized yet
   }
 
-  const client = createStripeClient(secretKey);
+  const client = await createStripeClient(secretKey);
   setCache({ client, secretKey });
   return client;
 };

@@ -1,9 +1,10 @@
 /**
  * Routes module - main exports and router
+ * Uses lazy loading to minimize startup time for edge scripts
  */
 
+import { once } from "#fp";
 import { isSetupComplete } from "#lib/config.ts";
-import { routeAdmin } from "#routes/admin/index.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
@@ -12,12 +13,37 @@ import {
   isValidContentType,
   isValidDomain,
 } from "#routes/middleware.ts";
-import { handleHome, routeTicket } from "#routes/public.ts";
-import { createSetupRouter } from "#routes/setup.ts";
+import type { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { notFoundResponse, parseRequest, redirect } from "#routes/utils.ts";
-import { routePayment } from "#routes/webhooks.ts";
+
+/** Router function type - reuse from router.ts */
+type RouterFn = ReturnType<typeof createRouter>;
+
+/** Lazy-load admin routes (only needed for authenticated admin requests) */
+const loadAdminRoutes = once(async () => {
+  const { routeAdmin } = await import("#routes/admin/index.ts");
+  return routeAdmin;
+});
+
+/** Lazy-load public routes (ticket reservation) */
+const loadPublicRoutes = once(async () => {
+  const { handleHome, routeTicket } = await import("#routes/public.ts");
+  return { handleHome, routeTicket };
+});
+
+/** Lazy-load setup routes */
+const loadSetupRoutes = once(async () => {
+  const { createSetupRouter } = await import("#routes/setup.ts");
+  return createSetupRouter(isSetupComplete);
+});
+
+/** Lazy-load payment/webhook routes */
+const loadPaymentRoutes = once(async () => {
+  const { routePayment } = await import("#routes/webhooks.ts");
+  return routePayment;
+});
 
 // Re-export middleware functions for testing
 export {
@@ -30,36 +56,48 @@ export {
 // Re-export types
 export type { ServerContext } from "#routes/types.ts";
 
-// Create setup router with isSetupComplete dependency injected
-const routeSetup = createSetupRouter(isSetupComplete);
+/** Check if path matches a route prefix (with or without trailing slash) */
+const matchesPrefix = (path: string, prefix: string): boolean =>
+  path === prefix || path.startsWith(`${prefix}/`);
+
+/** Create a lazy-loaded route handler for a path prefix */
+const createLazyRoute =
+  (prefix: string, loadRoute: () => Promise<RouterFn>): RouterFn =>
+  async (request, path, method, server) => {
+    if (!matchesPrefix(path, prefix)) return null;
+    const route = await loadRoute();
+    return route(request, path, method, server);
+  };
+
+/** Route home page requests */
+const routeHome: RouterFn = async (_, path, method) => {
+  if (path !== "/" || method !== "GET") return null;
+  const { handleHome } = await loadPublicRoutes();
+  return handleHome();
+};
+
+/** Lazy-loaded route handlers */
+const routeAdminPath = createLazyRoute("/admin", loadAdminRoutes);
+const routeTicketPath = createLazyRoute(
+  "/ticket",
+  async () => (await loadPublicRoutes()).routeTicket,
+);
+const routePaymentPath = createLazyRoute("/payment", loadPaymentRoutes);
 
 /**
  * Route main application requests (after setup is complete)
+ * Routes are loaded lazily based on path prefix
  */
-const routeMainApp = async (
-  request: Request,
-  path: string,
-  method: string,
-  server?: ServerContext,
-): Promise<Response> => {
-  if (path === "/" && method === "GET") {
-    return handleHome();
-  }
-
-  const adminResponse = await routeAdmin(request, path, method, server);
-  if (adminResponse) return adminResponse;
-
-  const ticketResponse = await routeTicket(request, path, method);
-  if (ticketResponse) return ticketResponse;
-
-  const paymentResponse = await routePayment(request, path, method);
-  if (paymentResponse) return paymentResponse;
-
-  return notFoundResponse();
-};
+const routeMainApp: RouterFn = async (request, path, method, server) =>
+  (await routeHome(request, path, method, server)) ??
+  (await routeAdminPath(request, path, method, server)) ??
+  (await routeTicketPath(request, path, method, server)) ??
+  (await routePaymentPath(request, path, method, server)) ??
+  notFoundResponse();
 
 /**
  * Handle incoming requests (internal, without security headers)
+ * Uses path-based lazy loading to minimize cold start time
  */
 const handleRequestInternal = async (
   request: Request,
@@ -67,20 +105,25 @@ const handleRequestInternal = async (
 ): Promise<Response> => {
   const { path, method } = parseRequest(request);
 
-  // Static routes always available
+  // Static routes always available (minimal overhead)
   const staticResponse = await routeStatic(request, path, method);
   if (staticResponse) return staticResponse;
 
-  // Setup routes
-  const setupResponse = await routeSetup(request, path, method);
-  if (setupResponse) return setupResponse;
+  // Setup routes - only load for /setup paths
+  if (path === "/setup" || path.startsWith("/setup/")) {
+    const routeSetup = await loadSetupRoutes();
+    const setupResponse = await routeSetup(request, path, method);
+    if (setupResponse) return setupResponse;
+  }
 
   // Require setup before accessing other routes
   if (!(await isSetupComplete())) {
     return redirect("/setup/");
   }
 
-  return routeMainApp(request, path, method, server);
+  return (
+    (await routeMainApp(request, path, method, server)) ?? notFoundResponse()
+  );
 };
 
 /**
