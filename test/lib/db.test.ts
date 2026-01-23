@@ -9,9 +9,11 @@ import {
   deleteAllSessions,
   deleteAttendee,
   deleteEvent,
+  deleteOtherSessions,
   deleteSession,
   getAdminPasswordFromDb,
   getAllEvents,
+  getAllSessions,
   getAttendee,
   getAttendees,
   getCurrencyCodeFromDb,
@@ -623,6 +625,50 @@ describe("db", () => {
       expect(session1).toBeNull();
       expect(session2).toBeNull();
       expect(session3).toBeNull();
+    });
+
+    test("getAllSessions returns all sessions ordered by expiration descending", async () => {
+      const now = Date.now();
+      await createSession("session1", "csrf1", now + 1000);
+      await createSession("session2", "csrf2", now + 3000);
+      await createSession("session3", "csrf3", now + 2000);
+
+      const sessions = await getAllSessions();
+
+      expect(sessions.length).toBe(3);
+      expect(sessions[0]?.token).toBe("session2"); // Newest first (highest expiry)
+      expect(sessions[1]?.token).toBe("session3");
+      expect(sessions[2]?.token).toBe("session1"); // Oldest last (lowest expiry)
+    });
+
+    test("getAllSessions returns empty array when no sessions", async () => {
+      const sessions = await getAllSessions();
+      expect(sessions).toEqual([]);
+    });
+
+    test("deleteOtherSessions removes all sessions except current", async () => {
+      await createSession("current", "csrf-current", Date.now() + 10000);
+      await createSession("other1", "csrf-other1", Date.now() + 10000);
+      await createSession("other2", "csrf-other2", Date.now() + 10000);
+
+      await deleteOtherSessions("current");
+
+      const currentSession = await getSession("current");
+      const other1 = await getSession("other1");
+      const other2 = await getSession("other2");
+
+      expect(currentSession).not.toBeNull();
+      expect(other1).toBeNull();
+      expect(other2).toBeNull();
+    });
+
+    test("deleteOtherSessions with no other sessions keeps current", async () => {
+      await createSession("only-session", "csrf", Date.now() + 10000);
+
+      await deleteOtherSessions("only-session");
+
+      const session = await getSession("only-session");
+      expect(session).not.toBeNull();
     });
   });
 
