@@ -86,27 +86,26 @@ describe("test-utils", () => {
     });
 
     test("formats session token as cookie", () => {
-      const request = testRequest("/admin/logout", { session: "abc123" });
+      const request = testRequest("/admin/logout", "abc123");
       expect(request.headers.get("cookie")).toBe("session=abc123");
     });
 
     test("uses raw cookie string when provided", () => {
-      const request = testRequest("/admin/", {
+      const request = testRequest("/admin/", null, {
         cookie: "session=xyz; other=value",
       });
       expect(request.headers.get("cookie")).toBe("session=xyz; other=value");
     });
 
-    test("session takes precedence over cookie", () => {
-      const request = testRequest("/admin/", {
-        session: "token123",
+    test("token takes precedence over cookie", () => {
+      const request = testRequest("/admin/", "token123", {
         cookie: "session=other",
       });
       expect(request.headers.get("cookie")).toBe("session=token123");
     });
 
     test("creates POST request with form data", async () => {
-      const request = testRequest("/admin/login", {
+      const request = testRequest("/admin/login", null, {
         data: { username: "admin", password: "secret" },
       });
       expect(request.method).toBe("POST");
@@ -118,9 +117,8 @@ describe("test-utils", () => {
       expect(body).toContain("password=secret");
     });
 
-    test("combines session with form data", async () => {
-      const request = testRequest("/admin/event/new", {
-        session: "mytoken",
+    test("combines token with form data", async () => {
+      const request = testRequest("/admin/event/new", "mytoken", {
         data: { name: "Test Event" },
       });
       expect(request.method).toBe("POST");
@@ -130,15 +128,14 @@ describe("test-utils", () => {
     });
 
     test("allows custom method override", () => {
-      const request = testRequest("/admin/event/1", {
-        session: "token",
+      const request = testRequest("/admin/event/1", "token", {
         method: "DELETE",
       });
       expect(request.method).toBe("DELETE");
     });
 
     test("allows custom method with form data", async () => {
-      const request = testRequest("/admin/event/1", {
+      const request = testRequest("/admin/event/1", null, {
         method: "PUT",
         data: { name: "Updated" },
       });

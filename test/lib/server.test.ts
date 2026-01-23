@@ -22,6 +22,7 @@ import {
   mockTicketFormRequest,
   resetDb,
   TEST_ADMIN_PASSWORD,
+  testRequest,
 } from "#test-utils";
 
 /**
@@ -66,13 +67,7 @@ describe("server", () => {
 
     test("returns 404 for non-GET requests to /health", async () => {
       const response = await handleRequest(
-        new Request("http://localhost/health", {
-          method: "POST",
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            host: "localhost",
-          },
-        }),
+        testRequest("/health", null, { method: "POST", data: {} }),
       );
       expect(response.status).toBe(404);
     });
@@ -90,13 +85,7 @@ describe("server", () => {
 
     test("returns 404 for non-GET requests to /favicon.ico", async () => {
       const response = await handleRequest(
-        new Request("http://localhost/favicon.ico", {
-          method: "POST",
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            host: "localhost",
-          },
-        }),
+        testRequest("/favicon.ico", null, { method: "POST", data: {} }),
       );
       expect(response.status).toBe(404);
     });
@@ -111,7 +100,6 @@ describe("server", () => {
     });
 
     test("shows dashboard when authenticated", async () => {
-      TEST_ADMIN_PASSWORD;
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", {
           password: TEST_ADMIN_PASSWORD,
@@ -120,9 +108,7 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/", null, { cookie: cookie || "" }),
       );
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -259,9 +245,7 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie") || "";
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/settings", {
-          headers: { host: "localhost", cookie },
-        }),
+        testRequest("/admin/settings", null, { cookie }),
       );
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -429,9 +413,7 @@ describe("server", () => {
 
       // Verify old session is invalidated
       const dashboardResponse = await handleRequest(
-        new Request("http://localhost/admin/", {
-          headers: { host: "localhost", cookie },
-        }),
+        testRequest("/admin/", null, { cookie }),
       );
       const html = await dashboardResponse.text();
       expect(html).toContain("Admin Login"); // Should show login, not dashboard
@@ -630,9 +612,7 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/999", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/event/999", null, { cookie: cookie || "" }),
       );
       expect(response.status).toBe(404);
     });
@@ -652,9 +632,7 @@ describe("server", () => {
       });
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/1", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/event/1", null, { cookie: cookie || "" }),
       );
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -676,9 +654,7 @@ describe("server", () => {
       });
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/1", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/event/1", null, { cookie: cookie || "" }),
       );
       const html = await response.text();
       expect(html).toContain("/admin/event/1/edit");
@@ -709,9 +685,7 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/999/export", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/event/999/export", null, { cookie: cookie || "" }),
       );
       expect(response.status).toBe(404);
     });
@@ -731,9 +705,7 @@ describe("server", () => {
       });
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/1/export", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/event/1/export", null, { cookie: cookie || "" }),
       );
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
@@ -762,9 +734,7 @@ describe("server", () => {
       await createAttendee(1, "Jane Smith", "jane@example.com");
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/1/export", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/event/1/export", null, { cookie: cookie || "" }),
       );
       const csv = await response.text();
       expect(csv).toContain("Name,Email,Quantity,Registered");
@@ -789,9 +759,7 @@ describe("server", () => {
       });
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/1/export", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/event/1/export", null, { cookie: cookie || "" }),
       );
       const disposition = response.headers.get("content-disposition");
       expect(disposition).toContain("Test_Event___Special_");
@@ -821,9 +789,7 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/999/edit", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/event/999/edit", null, { cookie: cookie || "" }),
       );
       expect(response.status).toBe(404);
     });
@@ -844,9 +810,7 @@ describe("server", () => {
       });
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/1/edit", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/event/1/edit", null, { cookie: cookie || "" }),
       );
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1038,9 +1002,7 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/999/delete", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/event/999/delete", null, { cookie: cookie || "" }),
       );
       expect(response.status).toBe(404);
     });
@@ -1059,9 +1021,7 @@ describe("server", () => {
       });
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/1/delete", {
-          headers: { host: "localhost", cookie: cookie || "" },
-        }),
+        testRequest("/admin/event/1/delete", null, { cookie: cookie || "" }),
       );
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1402,10 +1362,7 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(
-        new Request("http://localhost/ticket/1", {
-          method: "PUT",
-          headers: { host: "localhost" },
-        }),
+        testRequest("/ticket/1", null, { method: "PUT" }),
       );
       expect(response.status).toBe(404);
     });
@@ -1421,9 +1378,7 @@ describe("server", () => {
   describe("session expiration", () => {
     test("nonexistent session shows login page", async () => {
       const response = await handleRequest(
-        new Request("http://localhost/admin/", {
-          headers: { host: "localhost", cookie: "session=nonexistent" },
-        }),
+        testRequest("/admin/", "nonexistent"),
       );
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1435,9 +1390,7 @@ describe("server", () => {
       await createSession("expired-token", "csrf-expired", Date.now() - 1000);
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/", {
-          headers: { host: "localhost", cookie: "session=expired-token" },
-        }),
+        testRequest("/admin/", "expired-token"),
       );
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1465,9 +1418,7 @@ describe("server", () => {
 
       // Now logout
       const logoutResponse = await handleRequest(
-        new Request("http://localhost/admin/logout", {
-          headers: { host: "localhost", cookie: `session=${token}` },
-        }),
+        testRequest("/admin/logout", token),
       );
       expect(logoutResponse.status).toBe(302);
 
@@ -1599,13 +1550,7 @@ describe("server", () => {
   describe("payment routes", () => {
     test("returns 404 for unsupported method on payment routes", async () => {
       const response = await handleRequest(
-        new Request("http://localhost/payment/success", {
-          method: "POST",
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            host: "localhost",
-          },
-        }),
+        testRequest("/payment/success", null, { method: "POST", data: {} }),
       );
       expect(response.status).toBe(404);
     });
@@ -2211,10 +2156,7 @@ describe("server", () => {
 
       test("PUT /setup/ redirects to /setup/ (unsupported method)", async () => {
         const response = await handleRequest(
-          new Request("http://localhost/setup/", {
-            method: "PUT",
-            headers: { host: "localhost" },
-          }),
+          testRequest("/setup/", null, { method: "PUT" }),
         );
         // PUT method falls through routeSetup (returns null), then redirects to /setup/
         expect(response.status).toBe(302);
