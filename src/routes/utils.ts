@@ -4,7 +4,7 @@
 
 import { compact, err, map, ok, pipe, type Result, reduce } from "#fp";
 import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
+import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
@@ -194,6 +194,17 @@ export const htmlResponseWithCookie =
   (html: string, status = 200): Response =>
     withCookie(htmlResponse(html, status), cookie);
 
+/** Handler function that takes a value and returns a Response */
+type EventHandler = (event: EventWithCount) => Response | Promise<Response>;
+
+/**
+ * Unwrap Result with handler - returns error response or applies handler to value
+ */
+const unwrapResult = async (
+  result: Result<EventWithCount>,
+  handler: EventHandler,
+): Promise<Response> => (result.ok ? handler(result.value) : result.response);
+
 /**
  * Fetch event or return 404 response
  */
@@ -209,11 +220,27 @@ export const fetchEventOr404 = async (
  */
 export const withEvent = async (
   eventId: number,
-  handler: (event: EventWithCount) => Response | Promise<Response>,
-): Promise<Response> => {
-  const result = await fetchEventOr404(eventId);
-  return result.ok ? handler(result.value) : result.response;
+  handler: EventHandler,
+): Promise<Response> => unwrapResult(await fetchEventOr404(eventId), handler);
+
+/**
+ * Fetch event by slug or return 404 response
+ */
+export const fetchEventBySlugOr404 = async (
+  slug: string,
+): Promise<Result<EventWithCount>> => {
+  const event = await getEventWithCountBySlug(slug);
+  return event ? ok(event) : err(notFoundResponse());
 };
+
+/**
+ * Handle event by slug with Result - unwrap to Response
+ */
+export const withEventBySlug = async (
+  slug: string,
+  handler: EventHandler,
+): Promise<Response> =>
+  unwrapResult(await fetchEventBySlugOr404(slug), handler);
 
 /** Check if event is active, return 404 if not */
 const requireActiveEvent =
@@ -221,11 +248,11 @@ const requireActiveEvent =
   (event: EventWithCount): Response | Promise<Response> =>
     event.active === 1 ? handler(event) : notFoundResponse();
 
-/** Handle event with active check - return 404 if not found or inactive */
-export const withActiveEvent = (
-  id: number,
+/** Handle event by slug with active check - return 404 if not found or inactive */
+export const withActiveEventBySlug = (
+  slug: string,
   fn: (event: EventWithCount) => Response | Promise<Response>,
-): Promise<Response> => withEvent(id, requireActiveEvent(fn));
+): Promise<Response> => withEventBySlug(slug, requireActiveEvent(fn));
 
 /** Session with CSRF token */
 export type AuthSession = { token: string; csrfToken: string };

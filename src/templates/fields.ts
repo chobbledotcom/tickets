@@ -3,6 +3,7 @@
  */
 
 import type { Field } from "#lib/forms.ts";
+import { isValidSlug } from "#lib/slug.ts";
 
 /**
  * Validate URL is safe (https or relative path, no javascript: etc.)
@@ -46,6 +47,16 @@ const validateEmail = (value: string): string | null => {
 };
 
 /**
+ * Validate slug format
+ */
+const validateSlug = (value: string): string | null => {
+  if (!isValidSlug(value)) {
+    return "Slug must be lowercase letters, numbers, and hyphens only (e.g. my-event-2024)";
+  }
+  return null;
+};
+
+/**
  * Login form field definitions
  */
 export const loginFields: Field[] = [
@@ -57,6 +68,16 @@ export const loginFields: Field[] = [
  */
 export const eventFields: Field[] = [
   { name: "name", label: "Event Name", type: "text", required: true },
+  {
+    name: "slug",
+    label: "URL Slug",
+    type: "text",
+    required: true,
+    pattern: "[a-z0-9]+(-[a-z0-9]+)*",
+    placeholder: "my-event-2024",
+    hint: "Used in public ticket URL: /ticket/your-slug",
+    validate: validateSlug,
+  },
   {
     name: "description",
     label: "Description",

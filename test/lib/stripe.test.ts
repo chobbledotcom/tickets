@@ -94,6 +94,7 @@ describe("stripe", () => {
     test("returns null when stripe key not set", async () => {
       const event = {
         id: 1,
+        slug: "test-event",
         name: "Test",
         description: "Desc",
         created: new Date().toISOString(),
@@ -125,6 +126,7 @@ describe("stripe", () => {
       await setSetting("stripe_key", await encrypt("sk_test_123"));
       const event = {
         id: 1,
+        slug: "test-event",
         name: "Test",
         description: "Desc",
         created: new Date().toISOString(),
@@ -184,6 +186,7 @@ describe("stripe", () => {
 
       const event = {
         id: 1,
+        slug: "test-event",
         name: "Test Event",
         description: "Test Description",
         created: new Date().toISOString(),
@@ -221,6 +224,7 @@ describe("stripe", () => {
       // First create a session
       const event = {
         id: 1,
+        slug: "test-event",
         name: "Test Event",
         description: "Test Description",
         created: new Date().toISOString(),

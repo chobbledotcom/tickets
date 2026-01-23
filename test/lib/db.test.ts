@@ -45,10 +45,15 @@ import {
   updateStripeKey,
   verifyAdminPassword,
 } from "#lib/db/settings";
-import { createEvent, setupTestEncryptionKey } from "#test-utils";
+import {
+  createTestEvent,
+  resetTestSlugCounter,
+  setupTestEncryptionKey,
+} from "#test-utils";
 
 describe("db", () => {
   beforeEach(async () => {
+    resetTestSlugCounter();
     setupTestEncryptionKey();
     const client = createClient({ url: ":memory:" });
     setDb(client);
@@ -225,7 +230,7 @@ describe("db", () => {
 
   describe("events", () => {
     test("createEvent creates event with correct properties", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Test Description",
         maxAttendees: 100,
@@ -242,7 +247,7 @@ describe("db", () => {
     });
 
     test("createEvent creates event with unit_price", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Paid Event",
         description: "Description",
         maxAttendees: 50,
@@ -259,13 +264,13 @@ describe("db", () => {
     });
 
     test("getAllEvents returns events with attendee count", async () => {
-      await createEvent({
+      await createTestEvent({
         name: "Event 1",
         description: "Desc 1",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createEvent({
+      await createTestEvent({
         name: "Event 2",
         description: "Desc 2",
         maxAttendees: 100,
@@ -284,7 +289,7 @@ describe("db", () => {
     });
 
     test("getEvent returns event by id", async () => {
-      const created = await createEvent({
+      const created = await createTestEvent({
         name: "Test",
         description: "Desc",
         maxAttendees: 50,
@@ -302,7 +307,7 @@ describe("db", () => {
     });
 
     test("getEventWithCount returns event with count", async () => {
-      const created = await createEvent({
+      const created = await createTestEvent({
         name: "Test",
         description: "Desc",
         maxAttendees: 50,
@@ -315,7 +320,7 @@ describe("db", () => {
     });
 
     test("updateEvent updates event properties", async () => {
-      const created = await createEvent({
+      const created = await createTestEvent({
         name: "Original",
         description: "Original Desc",
         maxAttendees: 50,
@@ -323,6 +328,7 @@ describe("db", () => {
       });
 
       const updated = await updateEvent(created.id, {
+        slug: created.slug,
         name: "Updated",
         description: "Updated Desc",
         maxAttendees: 100,
@@ -340,6 +346,7 @@ describe("db", () => {
 
     test("updateEvent returns null for non-existent event", async () => {
       const result = await updateEvent(999, {
+        slug: "non-existent",
         name: "Name",
         description: "Desc",
         maxAttendees: 50,
@@ -349,7 +356,7 @@ describe("db", () => {
     });
 
     test("updateEvent can set unit_price to null", async () => {
-      const created = await createEvent({
+      const created = await createTestEvent({
         name: "Paid",
         description: "Desc",
         maxAttendees: 50,
@@ -358,6 +365,7 @@ describe("db", () => {
       });
 
       const updated = await updateEvent(created.id, {
+        slug: created.slug,
         name: "Free Now",
         description: "Desc",
         maxAttendees: 50,
@@ -369,7 +377,7 @@ describe("db", () => {
     });
 
     test("deleteEvent removes event", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event to Delete",
         description: "Desc",
         maxAttendees: 50,
@@ -383,7 +391,7 @@ describe("db", () => {
     });
 
     test("deleteEvent removes all attendees for the event", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event with Attendees",
         description: "Desc",
         maxAttendees: 50,
@@ -399,7 +407,7 @@ describe("db", () => {
     });
 
     test("deleteEvent works with no attendees", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Empty Event",
         description: "Desc",
         maxAttendees: 50,
@@ -415,7 +423,7 @@ describe("db", () => {
 
   describe("attendees", () => {
     test("createAttendee creates attendee", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 50,
@@ -436,7 +444,7 @@ describe("db", () => {
     });
 
     test("createAttendee creates attendee with stripe_payment_id", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 50,
@@ -458,7 +466,7 @@ describe("db", () => {
     });
 
     test("getAttendee returns attendee by id", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 50,
@@ -476,7 +484,7 @@ describe("db", () => {
     });
 
     test("updateAttendeePayment updates stripe_payment_id", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 50,
@@ -495,7 +503,7 @@ describe("db", () => {
     });
 
     test("deleteAttendee removes attendee", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 50,
@@ -514,7 +522,7 @@ describe("db", () => {
     });
 
     test("getAttendees returns empty array when no attendees", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 50,
@@ -525,7 +533,7 @@ describe("db", () => {
     });
 
     test("getAttendees returns attendees for event", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 50,
@@ -539,7 +547,7 @@ describe("db", () => {
     });
 
     test("attendee count reflects in getEventWithCount", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 50,
@@ -552,7 +560,7 @@ describe("db", () => {
     });
 
     test("attendee count reflects in getAllEvents", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 50,
@@ -573,7 +581,7 @@ describe("db", () => {
     });
 
     test("returns true when spots available", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 2,
@@ -584,7 +592,7 @@ describe("db", () => {
     });
 
     test("returns true when some spots taken", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 2,
@@ -597,7 +605,7 @@ describe("db", () => {
     });
 
     test("returns false when event is full", async () => {
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Event",
         description: "Desc",
         maxAttendees: 2,
@@ -942,13 +950,13 @@ describe("db", () => {
       });
 
       // Create some test events directly
-      await createEvent({
+      await createTestEvent({
         name: "Event 1",
         description: "Desc",
         maxAttendees: 10,
         thankYouUrl: "https://example.com",
       });
-      await createEvent({
+      await createTestEvent({
         name: "Event 2",
         description: "Desc",
         maxAttendees: 20,
@@ -964,7 +972,7 @@ describe("db", () => {
       const { col, defineTable } = await import("#lib/db/table.ts");
 
       // Create an event first
-      const event = await createEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 10,

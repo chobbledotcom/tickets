@@ -75,6 +75,7 @@ describe("html", () => {
       const events: EventWithCount[] = [
         {
           id: 1,
+          slug: "event-1",
           name: "Event 1",
           description: "Desc 1",
           max_attendees: 100,
@@ -97,6 +98,7 @@ describe("html", () => {
       const events: EventWithCount[] = [
         {
           id: 1,
+          slug: "test-event",
           name: "<script>evil()</script>",
           description: "Desc",
           max_attendees: 100,
@@ -131,6 +133,7 @@ describe("html", () => {
   describe("adminEventPage", () => {
     const event: EventWithCount = {
       id: 1,
+      slug: "test-event",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
@@ -158,7 +161,7 @@ describe("html", () => {
 
     test("shows ticket URL", () => {
       const html = adminEventPage(event, []);
-      expect(html).toContain("/ticket/1");
+      expect(html).toContain("/ticket/test-event");
     });
 
     test("renders empty attendees state", () => {
@@ -208,6 +211,7 @@ describe("html", () => {
   describe("ticketPage", () => {
     const event: EventWithCount = {
       id: 1,
+      slug: "test-event",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
@@ -234,7 +238,7 @@ describe("html", () => {
 
     test("renders registration form when spots available", () => {
       const html = ticketPage(event, csrfToken);
-      expect(html).toContain('action="/ticket/1"');
+      expect(html).toContain('action="/ticket/test-event"');
       expect(html).toContain('name="name"');
       expect(html).toContain('name="email"');
       expect(html).toContain("Reserve Ticket");
@@ -319,6 +323,7 @@ describe("html", () => {
   describe("paymentPage", () => {
     const event: Event = {
       id: 1,
+      slug: "test-event",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
@@ -383,6 +388,7 @@ describe("html", () => {
   describe("paymentSuccessPage", () => {
     const event: Event = {
       id: 1,
+      slug: "test-event",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
@@ -411,6 +417,7 @@ describe("html", () => {
   describe("paymentCancelPage", () => {
     const event: Event = {
       id: 1,
+      slug: "test-event",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
@@ -423,10 +430,10 @@ describe("html", () => {
     };
 
     test("renders cancel message", () => {
-      const html = paymentCancelPage(event, "/ticket/1");
+      const html = paymentCancelPage(event, "/ticket/test-event");
       expect(html).toContain("Payment Cancelled");
       expect(html).toContain("Test Event");
-      expect(html).toContain("/ticket/1");
+      expect(html).toContain("/ticket/test-event");
       expect(html).toContain("Try again");
     });
   });
@@ -461,6 +468,7 @@ describe("html", () => {
   describe("adminEventPage export button", () => {
     const event: EventWithCount = {
       id: 1,
+      slug: "test-event",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
