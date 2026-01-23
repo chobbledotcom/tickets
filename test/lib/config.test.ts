@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   getCurrencyCode,
-  getDbToken,
-  getDbUrl,
-  getPort,
   getStripeSecretKey,
   isPaymentsEnabled,
   isSetupComplete,
@@ -13,21 +10,12 @@ import { completeSetup, setSetting } from "#lib/db";
 import { createTestDb, resetDb } from "#test-utils";
 
 describe("config", () => {
-  const originalEnv = { ...process.env };
-
   beforeEach(async () => {
-    // Clear relevant env vars before each test
-    delete process.env.DB_URL;
-    delete process.env.DB_TOKEN;
-    delete process.env.PORT;
-    // Create in-memory db for testing
     await createTestDb();
   });
 
   afterEach(() => {
     resetDb();
-    // Restore original environment
-    process.env = { ...originalEnv };
   });
 
   describe("getStripeSecretKey", () => {
@@ -84,39 +72,6 @@ describe("config", () => {
     test("returns true when setup is complete", async () => {
       await completeSetup("password123", null, "GBP");
       expect(await isSetupComplete()).toBe(true);
-    });
-  });
-
-  describe("getDbUrl", () => {
-    test("returns undefined when not set", () => {
-      expect(getDbUrl()).toBeUndefined();
-    });
-
-    test("returns set value", () => {
-      process.env.DB_URL = "libsql://test.turso.io";
-      expect(getDbUrl()).toBe("libsql://test.turso.io");
-    });
-  });
-
-  describe("getDbToken", () => {
-    test("returns undefined when not set", () => {
-      expect(getDbToken()).toBeUndefined();
-    });
-
-    test("returns set value", () => {
-      process.env.DB_TOKEN = "token123";
-      expect(getDbToken()).toBe("token123");
-    });
-  });
-
-  describe("getPort", () => {
-    test("returns 3000 by default", () => {
-      expect(getPort()).toBe(3000);
-    });
-
-    test("returns set value as number", () => {
-      process.env.PORT = "8080";
-      expect(getPort()).toBe(8080);
     });
   });
 });

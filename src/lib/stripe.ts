@@ -135,30 +135,3 @@ export const retrieveCheckoutSession = async (
   sessionId: string,
 ): Promise<Stripe.Checkout.Session | null> =>
   withStripe((stripe) => stripe.checkout.sessions.retrieve(sessionId));
-
-/**
- * Verify a Stripe webhook signature
- */
-export const verifyWebhookSignature = async (
-  payload: string,
-  signature: string,
-  webhookSecret: string,
-): Promise<Stripe.Event | null> => {
-  const stripe = await getStripeClient();
-  if (!stripe) return null;
-  return safeAsync(async () =>
-    stripe.webhooks.constructEvent(payload, signature, webhookSecret),
-  );
-};
-
-/**
- * Format price for display (converts from smallest currency unit)
- */
-export const formatPrice = async (amount: number): Promise<string> => {
-  const currency = await getCurrencyCode();
-  const formatter = new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency,
-  });
-  return formatter.format(amount / 100);
-};

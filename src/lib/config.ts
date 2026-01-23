@@ -31,27 +31,6 @@ export const getCurrencyCode = async (): Promise<string> => {
 };
 
 /**
- * Get database URL from environment
- */
-export const getDbUrl = (): string | undefined => {
-  return process.env.DB_URL;
-};
-
-/**
- * Get database auth token from environment
- */
-export const getDbToken = (): string | undefined => {
-  return process.env.DB_TOKEN;
-};
-
-/**
- * Get server port from environment
- */
-export const getPort = (): number => {
-  return Number.parseInt(process.env.PORT || "3000", 10);
-};
-
-/**
  * Check if initial setup has been completed
  */
 export { isSetupComplete } from "./db/index.ts";
