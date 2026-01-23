@@ -214,28 +214,35 @@ describe("html", () => {
       unit_price: null,
       max_quantity: 1,
     };
+    const csrfToken = "test-csrf-token";
 
     test("renders event info", () => {
-      const html = ticketPage(event);
+      const html = ticketPage(event, csrfToken);
       expect(html).toContain("Test Event");
       expect(html).toContain("Test Description");
     });
 
     test("shows spots remaining", () => {
-      const html = ticketPage(event);
+      const html = ticketPage(event, csrfToken);
       expect(html).toContain("50"); // 100 - 50
     });
 
     test("renders registration form when spots available", () => {
-      const html = ticketPage(event);
+      const html = ticketPage(event, csrfToken);
       expect(html).toContain('action="/ticket/1"');
       expect(html).toContain('name="name"');
       expect(html).toContain('name="email"');
       expect(html).toContain("Reserve Ticket");
     });
 
+    test("includes CSRF token in form", () => {
+      const html = ticketPage(event, csrfToken);
+      expect(html).toContain('name="csrf_token"');
+      expect(html).toContain(`value="${csrfToken}"`);
+    });
+
     test("shows error when provided", () => {
-      const html = ticketPage(event, "Name and email are required");
+      const html = ticketPage(event, csrfToken, "Name and email are required");
       expect(html).toContain("Name and email are required");
       expect(html).toContain('class="error"');
     });
@@ -245,7 +252,7 @@ describe("html", () => {
         ...event,
         attendee_count: 100,
       };
-      const html = ticketPage(fullEvent);
+      const html = ticketPage(fullEvent, csrfToken);
       expect(html).toContain("this event is full");
       expect(html).not.toContain(">Reserve Ticket</button>");
     });
@@ -255,7 +262,7 @@ describe("html", () => {
         ...event,
         name: "<script>evil()</script>",
       };
-      const html = ticketPage(evilEvent);
+      const html = ticketPage(evilEvent, csrfToken);
       expect(html).toContain("&lt;script&gt;");
     });
 
@@ -266,7 +273,7 @@ describe("html", () => {
         max_attendees: 100,
         attendee_count: 0,
       };
-      const html = ticketPage(multiTicketEvent);
+      const html = ticketPage(multiTicketEvent, csrfToken);
       expect(html).toContain("Number of Tickets");
       expect(html).toContain('name="quantity"');
       expect(html).toContain('<option value="1">1</option>');
@@ -281,14 +288,14 @@ describe("html", () => {
         max_attendees: 100,
         attendee_count: 97, // Only 3 spots remaining
       };
-      const html = ticketPage(limitedEvent);
+      const html = ticketPage(limitedEvent, csrfToken);
       expect(html).toContain("Number of Tickets");
       expect(html).toContain('<option value="3">3</option>');
       expect(html).not.toContain('<option value="4">4</option>');
     });
 
     test("hides quantity selector when max_quantity is 1", () => {
-      const html = ticketPage(event); // max_quantity is 1
+      const html = ticketPage(event, csrfToken); // max_quantity is 1
       expect(html).not.toContain("Number of Tickets");
       expect(html).toContain('type="hidden" name="quantity" value="1"');
       expect(html).toContain("Reserve Ticket"); // Singular
