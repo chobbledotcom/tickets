@@ -6,6 +6,18 @@ import { decrypt, encrypt } from "../crypto.ts";
 import type { Attendee } from "../types.ts";
 import { getDb, queryOne } from "./client.ts";
 import { getEventWithCount } from "./events.ts";
+import { col, defineTable } from "./table.ts";
+
+/**
+ * Minimal attendees table for deleteById operation
+ */
+const attendeesTable = defineTable<Pick<Attendee, "id">, object>({
+  name: "attendees",
+  primaryKey: "id",
+  schema: {
+    id: col.generated<number>(),
+  },
+});
 
 /**
  * Decrypt attendee fields
@@ -101,12 +113,8 @@ export const updateAttendeePayment = async (
 /**
  * Delete an attendee (for cleanup on payment failure)
  */
-export const deleteAttendee = async (attendeeId: number): Promise<void> => {
-  await getDb().execute({
-    sql: "DELETE FROM attendees WHERE id = ?",
-    args: [attendeeId],
-  });
-};
+export const deleteAttendee = (attendeeId: number): Promise<void> =>
+  attendeesTable.deleteById(attendeeId);
 
 /**
  * Check if event has available spots for given quantity
