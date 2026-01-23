@@ -8,9 +8,9 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 
 /** Static routes definition */
 const staticRoutes = defineRoutes({
-  "GET /health": () => handleHealthCheck(),
-  "GET /favicon.ico": () => handleFavicon(),
-  "GET /mvp.css": () => handleMvpCss(),
+  "GET /health/": () => handleHealthCheck(),
+  "GET /favicon.ico/": () => handleFavicon(),
+  "GET /mvp.css/": () => handleMvpCss(),
 });
 
 /** Route static asset requests */

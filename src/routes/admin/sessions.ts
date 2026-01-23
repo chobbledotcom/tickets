@@ -37,6 +37,6 @@ const handleAdminSessionsPost = (request: Request): Promise<Response> =>
 
 /** Session management routes */
 export const sessionsRoutes = defineRoutes({
-  "GET /admin/sessions": (request) => handleAdminSessionsGet(request),
-  "POST /admin/sessions": (request) => handleAdminSessionsPost(request),
+  "GET /admin/sessions/": (request) => handleAdminSessionsGet(request),
+  "POST /admin/sessions/": (request) => handleAdminSessionsPost(request),
 });

@@ -82,7 +82,7 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
 
 /** Authentication routes */
 export const authRoutes = defineRoutes({
-  "POST /admin/login": (request, _, server) =>
+  "POST /admin/login/": (request, _, server) =>
     handleAdminLogin(request, server),
-  "GET /admin/logout": (request) => handleAdminLogout(request),
+  "GET /admin/logout/": (request) => handleAdminLogout(request),
 });

@@ -161,7 +161,7 @@ const handleAdminStripePost = async (request: Request): Promise<Response> => {
 
 /** Settings routes */
 export const settingsRoutes = defineRoutes({
-  "GET /admin/settings": (request) => handleAdminSettingsGet(request),
-  "POST /admin/settings": (request) => handleAdminSettingsPost(request),
-  "POST /admin/settings/stripe": (request) => handleAdminStripePost(request),
+  "GET /admin/settings/": (request) => handleAdminSettingsGet(request),
+  "POST /admin/settings/": (request) => handleAdminSettingsPost(request),
+  "POST /admin/settings/stripe/": (request) => handleAdminStripePost(request),
 });

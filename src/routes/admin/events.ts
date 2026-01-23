@@ -161,19 +161,19 @@ const parseEventId = (params: RouteParams): number =>
 
 /** Event routes */
 export const eventsRoutes = defineRoutes({
-  "POST /admin/event": (request) => handleCreateEvent(request),
-  "GET /admin/event/:id": (request, params) =>
+  "POST /admin/event/": (request) => handleCreateEvent(request),
+  "GET /admin/event/:id/": (request, params) =>
     handleAdminEventGet(request, parseEventId(params)),
-  "GET /admin/event/:id/edit": (request, params) =>
+  "GET /admin/event/:id/edit/": (request, params) =>
     handleAdminEventEditGet(request, parseEventId(params)),
-  "POST /admin/event/:id/edit": (request, params) =>
+  "POST /admin/event/:id/edit/": (request, params) =>
     handleAdminEventEditPost(request, parseEventId(params)),
-  "GET /admin/event/:id/export": (request, params) =>
+  "GET /admin/event/:id/export/": (request, params) =>
     handleAdminEventExport(request, parseEventId(params)),
-  "GET /admin/event/:id/delete": (request, params) =>
+  "GET /admin/event/:id/delete/": (request, params) =>
     handleAdminEventDeleteGet(request, parseEventId(params)),
-  "POST /admin/event/:id/delete": (request, params) =>
+  "POST /admin/event/:id/delete/": (request, params) =>
     handleAdminEventDelete(request, parseEventId(params)),
-  "DELETE /admin/event/:id/delete": (request, params) =>
+  "DELETE /admin/event/:id/delete/": (request, params) =>
     handleAdminEventDelete(request, parseEventId(params)),
 });

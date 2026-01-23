@@ -194,8 +194,8 @@ const parseTicketId = (params: RouteParams): number =>
 
 /** Ticket routes definition */
 const ticketRoutes = defineRoutes({
-  "GET /ticket/:id": (_, params) => handleTicketGet(parseTicketId(params)),
-  "POST /ticket/:id": (request, params) =>
+  "GET /ticket/:id/": (_, params) => handleTicketGet(parseTicketId(params)),
+  "POST /ticket/:id/": (request, params) =>
     handleTicketPost(request, parseTicketId(params)),
 });
 

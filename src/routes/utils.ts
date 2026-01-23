@@ -148,13 +148,21 @@ export const getBaseUrl = (request: Request): string => {
 };
 
 /**
+ * Normalize path to always have a trailing slash
+ * This allows consistent path comparisons like "/admin/" instead of checking both "/admin" and "/admin/"
+ */
+export const normalizePath = (path: string): string =>
+  path.endsWith("/") ? path : `${path}/`;
+
+/**
  * Parse request URL and extract path/method
+ * Paths are normalized to always have a trailing slash
  */
 export const parseRequest = (
   request: Request,
 ): { url: URL; path: string; method: string } => {
   const url = new URL(request.url);
-  return { url, path: url.pathname, method: request.method };
+  return { url, path: normalizePath(url.pathname), method: request.method };
 };
 
 /**
