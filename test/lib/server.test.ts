@@ -705,6 +705,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event",
           {
+            slug: "new-event",
             name: "New Event",
             description: "Description",
             max_attendees: "50",
@@ -717,6 +718,12 @@ describe("server", () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin");
+
+      // Verify event was actually created
+      const { getEvent } = await import("#lib/db/events");
+      const event = await getEvent(1);
+      expect(event).not.toBeNull();
+      expect(event?.slug).toBe("new-event");
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -1145,6 +1152,51 @@ describe("server", () => {
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("Event Name is required");
+    });
+
+    test("rejects duplicate slug on update", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      // Create two events
+      await createEvent({
+        slug: "first-event",
+        name: "First",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createEvent({
+        slug: "second-event",
+        name: "Second",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Try to update first event to use second event's slug
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/edit",
+          {
+            slug: "second-event",
+            name: "Updated First",
+            description: "Desc",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "https://example.com",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("already in use");
     });
 
     test("updates event when authenticated", async () => {

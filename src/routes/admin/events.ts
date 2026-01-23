@@ -103,8 +103,10 @@ const handleAdminEventGet = (request: Request, eventId: number) =>
 
 /** Curried event page GET handler: renderPage -> (request, eventId) -> Response */
 const withEventPage =
-  (renderPage: (event: EventWithCount, csrfToken: string) => string) =>
-  (request: Request, eventId: number): Promise<Response> =>
+  (
+    renderPage: (event: EventWithCount, csrfToken: string) => string,
+  ): ((request: Request, eventId: number) => Promise<Response>) =>
+  (request, eventId) =>
     requireSessionOr(request, (session) =>
       withEvent(eventId, (event) =>
         htmlResponse(renderPage(event, session.csrfToken)),
