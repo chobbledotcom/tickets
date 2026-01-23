@@ -41,7 +41,6 @@ import {
   eventFields,
   generateAttendeesCsv,
   loginFields,
-  notFoundPage,
   stripeKeyFields,
 } from "#templates";
 import type { ServerContext } from "./types.ts";
@@ -54,6 +53,7 @@ import {
   htmlResponse,
   isAuthenticated,
   matchRoute,
+  notFoundResponse,
   parseFormData,
   type RouteHandler,
   type RouteHandlerWithServer,
@@ -353,7 +353,7 @@ const eventErrorPage = async (
   const event = await getEventWithCount(id);
   return event
     ? htmlResponse(renderPage(event, csrfToken, error), 400)
-    : htmlResponse(notFoundPage(), 404);
+    : notFoundResponse();
 };
 
 /** Handle GET /admin/event/:id/edit */
@@ -364,7 +364,7 @@ const handleAdminEventEditPost = updateHandler(eventsResource, {
   onSuccess: (row) => redirect(`/admin/event/${row.id}`),
   onError: (id, error, session) =>
     eventErrorPage(id as number, adminEventEditPage, session.csrfToken, error),
-  onNotFound: () => htmlResponse(notFoundPage(), 404),
+  onNotFound: notFoundResponse,
 });
 
 /**
@@ -395,7 +395,7 @@ const handleAdminEventDelete = deleteHandler(eventsResource, {
       session.csrfToken,
       "Event name does not match. Please type the exact name to confirm deletion.",
     ),
-  onNotFound: () => htmlResponse(notFoundPage(), 404),
+  onNotFound: notFoundResponse,
 });
 
 /** Verify name matches for deletion confirmation (case-insensitive, trimmed) */
@@ -426,7 +426,7 @@ const withAttendeeForEvent =
     handler: (data: AttendeeWithEvent) => Response | Promise<Response>,
   ): Promise<Response> => {
     const data = await loadAttendeeForEvent(eventId, attendeeId);
-    return data ? handler(data) : htmlResponse(notFoundPage(), 404);
+    return data ? handler(data) : notFoundResponse();
   };
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */

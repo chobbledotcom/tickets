@@ -15,11 +15,11 @@ import {
   generateSecureToken,
   getBaseUrl,
   htmlResponse,
+  htmlResponseWithCookie,
   parseCookies,
   type RouteHandler,
   redirect,
   requireCsrfForm,
-  withCookie,
   withEvent,
 } from "./utils.ts";
 
@@ -39,9 +39,8 @@ const ticketCsrfPath = (eventId: number): string => `/ticket/${eventId}`;
 export const handleTicketGet = (eventId: number): Promise<Response> =>
   withEvent(eventId, (event) => {
     const token = generateSecureToken();
-    return withCookie(
-      htmlResponse(ticketPage(event, token)),
-      csrfCookie(token, ticketCsrfPath(eventId)),
+    return htmlResponseWithCookie(csrfCookie(token, ticketCsrfPath(eventId)))(
+      ticketPage(event, token),
     );
   });
 
@@ -110,12 +109,9 @@ const parseQuantity = (
  * Create CSRF error response for ticket page
  */
 const ticketCsrfError = (event: EventWithCount) => (newToken: string) =>
-  withCookie(
-    htmlResponse(
-      ticketPage(event, newToken, "Invalid or expired form. Please try again."),
-      403,
-    ),
-    csrfCookie(newToken, ticketCsrfPath(event.id)),
+  htmlResponseWithCookie(csrfCookie(newToken, ticketCsrfPath(event.id)))(
+    ticketPage(event, newToken, "Invalid or expired form. Please try again."),
+    403,
   );
 
 /**
