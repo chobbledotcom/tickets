@@ -2,11 +2,11 @@
  * Events table operations
  */
 
-import type { InValue } from "@libsql/client";
 import type { Event, EventWithCount } from "../types.ts";
 import { executeByField, getDb, queryOne } from "./client.ts";
+import { col, defineTable } from "./table.ts";
 
-/** Event input fields for create/update */
+/** Event input fields for create/update (camelCase) */
 export type EventInput = {
   name: string;
   description: string;
@@ -18,68 +18,55 @@ export type EventInput = {
 };
 
 /**
+ * Events table definition
+ */
+const eventsTable = defineTable<Event, EventInput>({
+  name: "events",
+  primaryKey: "id",
+  schema: {
+    id: col.generated<number>(),
+    created: col.withDefault(() => new Date().toISOString()),
+    name: col.simple<string>(),
+    description: col.simple<string>(),
+    max_attendees: col.simple<number>(),
+    thank_you_url: col.simple<string>(),
+    unit_price: col.simple<number | null>(),
+    max_quantity: col.withDefault(() => 1),
+    webhook_url: col.simple<string | null>(),
+  },
+});
+
+/**
  * Create a new event
  */
-export const createEvent = async (e: EventInput): Promise<Event> => {
-  const created = new Date().toISOString();
-  const maxQuantity = e.maxQuantity ?? 1;
-  const webhookUrl = e.webhookUrl ?? null;
-  const args: InValue[] = [
-    created,
-    e.name,
-    e.description,
-    e.maxAttendees,
-    e.thankYouUrl,
-    e.unitPrice ?? null,
-    maxQuantity,
-    webhookUrl,
-  ];
-  const result = await getDb().execute({
-    sql: `INSERT INTO events (created, name, description, max_attendees, thank_you_url, unit_price, max_quantity, webhook_url)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    args,
-  });
-  return {
-    id: Number(result.lastInsertRowid),
-    created,
-    name: e.name,
-    description: e.description,
-    max_attendees: e.maxAttendees,
-    thank_you_url: e.thankYouUrl,
-    unit_price: e.unitPrice ?? null,
-    max_quantity: maxQuantity,
-    webhook_url: webhookUrl,
-  };
-};
+export const createEvent = (e: EventInput): Promise<Event> =>
+  eventsTable.insert(e);
 
 /**
  * Update an existing event
  */
-export const updateEvent = async (
-  id: number,
-  e: EventInput,
-): Promise<Event | null> => {
-  const args: InValue[] = [
-    e.name,
-    e.description,
-    e.maxAttendees,
-    e.thankYouUrl,
-    e.unitPrice ?? null,
-    e.maxQuantity ?? 1,
-    e.webhookUrl ?? null,
-    id,
-  ];
-  const result = await getDb().execute({
-    sql: `UPDATE events SET name = ?, description = ?, max_attendees = ?, thank_you_url = ?, unit_price = ?, max_quantity = ?, webhook_url = ?
-          WHERE id = ?`,
-    args,
-  });
-  if (result.rowsAffected === 0) return null;
-  return getEvent(id);
+export const updateEvent = (id: number, e: EventInput): Promise<Event | null> =>
+  eventsTable.update(id, e);
+
+/**
+ * Get a single event by ID
+ */
+export const getEvent = (id: number): Promise<Event | null> =>
+  eventsTable.findById(id);
+
+/**
+ * Delete an event and all its attendees
+ */
+export const deleteEvent = async (eventId: number): Promise<void> => {
+  // Delete all attendees for this event first (cascade)
+  await executeByField("attendees", "event_id", eventId);
+  // Delete the event
+  await eventsTable.deleteById(eventId);
 };
 
 /**
  * Get all events with attendee counts (sum of quantities)
+ * Uses custom JOIN query - not covered by table abstraction
  */
 export const getAllEvents = async (): Promise<EventWithCount[]> => {
   const result = await getDb().execute(`
@@ -93,13 +80,8 @@ export const getAllEvents = async (): Promise<EventWithCount[]> => {
 };
 
 /**
- * Get a single event by ID
- */
-export const getEvent = async (id: number): Promise<Event | null> =>
-  queryOne<Event>("SELECT * FROM events WHERE id = ?", [id]);
-
-/**
  * Get event with attendee count (sum of quantities)
+ * Uses custom JOIN query - not covered by table abstraction
  */
 export const getEventWithCount = async (
   id: number,
@@ -112,13 +94,3 @@ export const getEventWithCount = async (
      GROUP BY e.id`,
     [id],
   );
-
-/**
- * Delete an event and all its attendees
- */
-export const deleteEvent = async (eventId: number): Promise<void> => {
-  // Delete all attendees for this event first (cascade)
-  await executeByField("attendees", "event_id", eventId);
-  // Delete the event
-  await executeByField("events", "id", eventId);
-};

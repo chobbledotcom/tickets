@@ -247,3 +247,72 @@ export const err = (response: Response): Result<never> => ({
   ok: false,
   response,
 });
+
+/**
+ * Resource management pattern (like Haskell's bracket or try-with-resources).
+ * Ensures cleanup happens even if the operation throws.
+ *
+ * @example
+ * const withConnection = bracket(
+ *   () => openConnection(),
+ *   (conn) => conn.close()
+ * );
+ * const result = await withConnection(async (conn) => conn.query('SELECT 1'));
+ */
+export const bracket =
+  <R>(acquire: () => R | Promise<R>, release: (r: R) => void | Promise<void>) =>
+  async <T>(use: (r: R) => T | Promise<T>): Promise<T> => {
+    const resource = await acquire();
+    try {
+      return await use(resource);
+    } finally {
+      await release(resource);
+    }
+  };
+
+/**
+ * Async pipe - compose async functions left-to-right
+ * Each function receives the result of the previous one
+ */
+export function pipeAsync<A, B>(
+  fn1: (a: A) => Promise<B>,
+): (a: A) => Promise<B>;
+export function pipeAsync<A, B, C>(
+  fn1: (a: A) => Promise<B>,
+  fn2: (b: B) => Promise<C>,
+): (a: A) => Promise<C>;
+export function pipeAsync<A, B, C, D>(
+  fn1: (a: A) => Promise<B>,
+  fn2: (b: B) => Promise<C>,
+  fn3: (c: C) => Promise<D>,
+): (a: A) => Promise<D>;
+export function pipeAsync<A, B, C, D, E>(
+  fn1: (a: A) => Promise<B>,
+  fn2: (b: B) => Promise<C>,
+  fn3: (c: C) => Promise<D>,
+  fn4: (d: D) => Promise<E>,
+): (a: A) => Promise<E>;
+export function pipeAsync(
+  ...fns: Array<(arg: unknown) => Promise<unknown>>
+): (value: unknown) => Promise<unknown> {
+  return async (value: unknown): Promise<unknown> => {
+    let result = value;
+    for (const fn of fns) {
+      result = await fn(result);
+    }
+    return result;
+  };
+}
+
+/**
+ * Map over a promise-returning function (async map)
+ */
+export const mapAsync =
+  <T, U>(fn: (item: T) => Promise<U>) =>
+  async (array: T[]): Promise<U[]> => {
+    const results: U[] = [];
+    for (const item of array) {
+      results.push(await fn(item));
+    }
+    return results;
+  };
