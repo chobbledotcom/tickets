@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { encrypt } from "#lib/crypto.ts";
 import { createAttendee } from "#lib/db/attendees";
+import { updateEvent } from "#lib/db/events";
 import { createSession, getSession } from "#lib/db/sessions";
 import { setSetting } from "#lib/db/settings";
 import { resetStripeClient } from "#lib/stripe.ts";
@@ -1842,6 +1843,27 @@ describe("server", () => {
       expect(html).toContain("Test Event");
       expect(html).toContain("Reserve Ticket");
     });
+
+    test("returns 404 for inactive event", async () => {
+      const event = await createEvent({
+        name: "Inactive Event",
+        description: "Description",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      // Deactivate the event
+      await updateEvent(event.id, {
+        name: event.name,
+        description: event.description,
+        maxAttendees: event.max_attendees,
+        thankYouUrl: event.thank_you_url,
+        active: 0,
+      });
+      const response = await handleRequest(mockRequest(`/ticket/${event.id}`));
+      expect(response.status).toBe(404);
+      const html = await response.text();
+      expect(html).toContain("Event Not Found");
+    });
   });
 
   describe("POST /ticket/:id", () => {
@@ -1849,6 +1871,30 @@ describe("server", () => {
       // Event lookup happens before CSRF validation, so we can test without CSRF
       const response = await handleRequest(
         mockFormRequest("/ticket/999", {
+          name: "John",
+          email: "john@example.com",
+        }),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 for inactive event", async () => {
+      const event = await createEvent({
+        name: "Inactive Event",
+        description: "Description",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      // Deactivate the event
+      await updateEvent(event.id, {
+        name: event.name,
+        description: event.description,
+        maxAttendees: event.max_attendees,
+        thankYouUrl: event.thank_you_url,
+        active: 0,
+      });
+      const response = await handleRequest(
+        mockFormRequest(`/ticket/${event.id}`, {
           name: "John",
           email: "john@example.com",
         }),
@@ -2095,6 +2141,43 @@ describe("server", () => {
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("Payment verification failed");
+    });
+
+    test("rejects payment for inactive event and deletes attendee", async () => {
+      const event = await createEvent({
+        name: "Test",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createAttendee(
+        event.id,
+        "John",
+        "john@example.com",
+      );
+
+      // Deactivate the event
+      await updateEvent(event.id, {
+        name: event.name,
+        description: event.description,
+        maxAttendees: event.max_attendees,
+        thankYouUrl: event.thank_you_url,
+        active: 0,
+      });
+
+      const response = await handleRequest(
+        mockRequest(
+          `/payment/success?attendee_id=${attendee.id}&session_id=cs_test`,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("no longer accepting registrations");
+
+      // Verify attendee was deleted
+      const { getAttendee } = await import("#lib/db/attendees");
+      const deleted = await getAttendee(attendee.id);
+      expect(deleted).toBeNull();
     });
   });
 

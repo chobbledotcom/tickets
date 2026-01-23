@@ -31,7 +31,7 @@ import {
   adminEventPage,
 } from "#templates/admin/events.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
-import { eventFields } from "#templates/fields.ts";
+import { eventEditFields, eventFields } from "#templates/fields.ts";
 
 /** Attendee type */
 type Attendee = Awaited<ReturnType<typeof getAttendees>>[number];
@@ -45,15 +45,27 @@ const extractEventInput = (values: Record<string, unknown>): EventInput => ({
   unitPrice: values.unit_price as number | null,
   maxQuantity: values.max_quantity as number,
   webhookUrl: (values.webhook_url as string) || null,
+  active: values.active as number | undefined,
 });
 
-/** Events resource for REST operations */
-const eventsResource = defineResource({
+/** Common resource config */
+const eventsResourceConfig = {
   table: eventsTable,
-  fields: eventFields,
   toInput: extractEventInput,
-  nameField: "name",
-  onDelete: (id) => deleteEvent(id as number),
+  nameField: "name" as const,
+  onDelete: (id: unknown) => deleteEvent(id as number),
+};
+
+/** Events resource for REST operations (create) */
+const eventsResource = defineResource({
+  ...eventsResourceConfig,
+  fields: eventFields,
+});
+
+/** Events resource for edit operations (includes active field) */
+const eventsEditResource = defineResource({
+  ...eventsResourceConfig,
+  fields: eventEditFields,
 });
 
 /** Handle event with attendees - auth, fetch, then apply handler fn */
@@ -117,7 +129,7 @@ const eventErrorPage = async (
 const handleAdminEventEditGet = withEventPage(adminEventEditPage);
 
 /** Handle POST /admin/event/:id/edit */
-const handleAdminEventEditPost = updateHandler(eventsResource, {
+const handleAdminEventEditPost = updateHandler(eventsEditResource, {
   onSuccess: (row) => redirect(`/admin/event/${row.id}`),
   onError: (id, error, session) =>
     eventErrorPage(id as number, adminEventEditPage, session.csrfToken, error),

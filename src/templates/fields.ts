@@ -105,6 +105,19 @@ export const eventFields: Field[] = [
 ];
 
 /**
+ * Event edit form fields (includes active toggle)
+ */
+export const eventEditFields: Field[] = [
+  ...eventFields,
+  {
+    name: "active",
+    label: "Event is active (accepting registrations)",
+    type: "checkbox",
+    hint: "Uncheck to deactivate - public ticket page will show 404",
+  },
+];
+
+/**
  * Ticket reservation form field definitions
  */
 export const ticketFields: Field[] = [

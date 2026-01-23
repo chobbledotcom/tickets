@@ -215,6 +215,18 @@ export const withEvent = async (
   return result.ok ? handler(result.value) : result.response;
 };
 
+/** Check if event is active, return 404 if not */
+const requireActiveEvent =
+  (handler: (event: EventWithCount) => Response | Promise<Response>) =>
+  (event: EventWithCount): Response | Promise<Response> =>
+    event.active === 1 ? handler(event) : notFoundResponse();
+
+/** Handle event with active check - return 404 if not found or inactive */
+export const withActiveEvent = (
+  id: number,
+  fn: (event: EventWithCount) => Response | Promise<Response>,
+): Promise<Response> => withEvent(id, requireActiveEvent(fn));
+
 /** Session with CSRF token */
 export type AuthSession = { token: string; csrfToken: string };
 

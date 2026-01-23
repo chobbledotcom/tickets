@@ -6,7 +6,7 @@ import { map, pipe, reduce } from "#fp";
 import { type FieldValues, renderError, renderFields } from "#lib/forms.tsx";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { eventFields } from "#templates/fields.ts";
+import { eventEditFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
@@ -57,6 +57,14 @@ export const adminEventPage = (
       <section>
         <article>
           <h2>Event Details</h2>
+          <p>
+            <strong>Status:</strong>{" "}
+            {event.active === 1 ? (
+              <span style="color: green;">Active</span>
+            ) : (
+              <span style="color: red;">Inactive (returns 404 on public page)</span>
+            )}
+          </p>
           <p><strong>Description:</strong> {event.description}</p>
           <p><strong>Max Attendees:</strong> {event.max_attendees}</p>
           <p><strong>Max Tickets Per Purchase:</strong> {event.max_quantity}</p>
@@ -116,7 +124,24 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   unit_price: event.unit_price,
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
+  active: event.active,
 });
+
+/** JavaScript for deactivation confirmation */
+const deactivationConfirmScript = (isActive: boolean): string =>
+  isActive
+    ? `
+<script>
+document.querySelector('form').addEventListener('submit', function(e) {
+  const activeCheckbox = document.getElementById('active');
+  if (!activeCheckbox.checked) {
+    if (!confirm('Are you sure you want to deactivate this event? The public ticket page will return a 404 and no new registrations will be accepted.')) {
+      e.preventDefault();
+    }
+  }
+});
+</script>`
+    : "";
 
 /**
  * Admin event edit page
@@ -138,10 +163,11 @@ export const adminEventEditPage = (
         <Raw html={renderError(error)} />
         <form method="POST" action={`/admin/event/${event.id}/edit`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
-          <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
+          <Raw html={renderFields(eventEditFields, eventToFieldValues(event))} />
           <button type="submit">Save Changes</button>
         </form>
       </section>
+      <Raw html={deactivationConfirmScript(event.active === 1)} />
     </Layout>
   );
 

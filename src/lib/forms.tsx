@@ -18,7 +18,8 @@ export type FieldType =
   | "email"
   | "url"
   | "password"
-  | "textarea";
+  | "textarea"
+  | "checkbox";
 
 export interface Field {
   name: string;
@@ -49,8 +50,31 @@ const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 /**
  * Render a single form field
  */
-export const renderField = (field: Field, value: string = ""): string =>
-  String(
+export const renderField = (field: Field, value: string = ""): string => {
+  if (field.type === "checkbox") {
+    const isChecked = value === "1" || value === "true";
+    return String(
+      <div class="form-group">
+        <label>
+          <input
+            type="checkbox"
+            id={field.name}
+            name={field.name}
+            value="1"
+            checked={isChecked || undefined}
+          />{" "}
+          {field.label}
+        </label>
+        {field.hint && (
+          <small style="color: #666; display: block; margin-top: 0.25rem;">
+            {field.hint}
+          </small>
+        )}
+      </div>
+    );
+  }
+
+  return String(
     <div class="form-group">
       <label for={field.name}>{field.label}</label>
       {field.type === "textarea" ? (
@@ -82,6 +106,7 @@ export const renderField = (field: Field, value: string = ""): string =>
       )}
     </div>
   );
+};
 
 /**
  * Render multiple fields with values
@@ -101,12 +126,15 @@ export const renderFields = (
 const parseFieldValue = (
   field: Field,
   trimmed: string,
-): string | number | null =>
-  field.type === "number"
-    ? trimmed
-      ? Number.parseInt(trimmed, 10)
-      : null
-    : trimmed || null;
+): string | number | null => {
+  if (field.type === "checkbox") {
+    return trimmed === "1" ? 1 : 0;
+  }
+  if (field.type === "number") {
+    return trimmed ? Number.parseInt(trimmed, 10) : null;
+  }
+  return trimmed || null;
+};
 
 /**
  * Validate a single field and return its parsed value
