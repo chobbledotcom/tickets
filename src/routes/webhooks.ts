@@ -5,9 +5,9 @@
 import {
   deleteAttendee,
   getAttendee,
-  getEvent,
   updateAttendeePayment,
-} from "#lib/db";
+} from "#lib/db/attendees";
+import { getEvent } from "#lib/db/events";
 import { retrieveCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, Event } from "#lib/types.ts";
 import { notifyWebhook } from "#lib/webhook.ts";

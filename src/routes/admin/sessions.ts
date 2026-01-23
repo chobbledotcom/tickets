@@ -2,7 +2,7 @@
  * Admin session management routes
  */
 
-import { deleteOtherSessions, getAllSessions } from "#lib/db";
+import { deleteOtherSessions, getAllSessions } from "#lib/db/sessions";
 import { adminSessionsPage } from "#templates";
 import { defineRoutes } from "../router.ts";
 import { htmlResponse, requireSessionOr, withAuthForm } from "../utils.ts";

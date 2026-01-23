@@ -4,12 +4,11 @@
 
 import {
   clearLoginAttempts,
-  createSession,
-  deleteSession,
   isLoginRateLimited,
   recordFailedLogin,
-  verifyAdminPassword,
-} from "#lib/db";
+} from "#lib/db/login-attempts";
+import { createSession, deleteSession } from "#lib/db/sessions";
+import { verifyAdminPassword } from "#lib/db/settings";
 import { validateForm } from "#lib/forms.tsx";
 import { loginFields } from "#templates";
 import { defineRoutes } from "../router.ts";

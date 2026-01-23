@@ -7,7 +7,7 @@ import {
   updateAdminPassword,
   updateStripeKey,
   verifyAdminPassword,
-} from "#lib/db";
+} from "#lib/db/settings";
 import { validateForm } from "#lib/forms.tsx";
 import {
   adminSettingsPage,

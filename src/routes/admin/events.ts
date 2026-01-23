@@ -2,13 +2,13 @@
  * Admin event management routes
  */
 
+import { getAttendees } from "#lib/db/attendees";
 import {
   deleteEvent,
   type EventInput,
   eventsTable,
-  getAttendees,
   getEventWithCount,
-} from "#lib/db";
+} from "#lib/db/events";
 import {
   createHandler,
   defineResource,

@@ -2,7 +2,8 @@
  * Admin attendee management routes
  */
 
-import { deleteAttendee, getAttendee, getEventWithCount } from "#lib/db";
+import { deleteAttendee, getAttendee } from "#lib/db/attendees";
+import { getEventWithCount } from "#lib/db/events";
 import type { EventWithCount } from "#lib/types.ts";
 import { adminDeleteAttendeePage } from "#templates";
 import {

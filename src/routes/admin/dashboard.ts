@@ -2,7 +2,7 @@
  * Admin dashboard route
  */
 
-import { getAllEvents } from "#lib/db";
+import { getAllEvents } from "#lib/db/events";
 import { adminDashboardPage, adminLoginPage } from "#templates";
 import { defineRoutes } from "../router.ts";
 import { htmlResponse, withSession } from "../utils.ts";
