@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { encrypt } from "#lib/crypto.ts";
-import { setSetting } from "#lib/db";
+import { setSetting } from "#lib/db/settings";
 import {
   createCheckoutSession,
   getStripeClient,

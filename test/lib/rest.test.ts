@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createClient } from "@libsql/client";
-import { createSession, initDb, setDb } from "#lib/db";
+import { setDb } from "#lib/db/client";
+import { initDb } from "#lib/db/migrations";
+import { createSession } from "#lib/db/sessions";
 import { col, defineTable, type Table } from "#lib/db/table.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
 import {
