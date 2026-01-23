@@ -19,12 +19,13 @@ const escapeCsvValue = (value: string): string => {
  * Generate CSV content from attendees
  */
 export const generateAttendeesCsv = (attendees: Attendee[]): string => {
-  const header = "Name,Email,Registered";
+  const header = "Name,Email,Quantity,Registered";
   const rows = pipe(
     map((a: Attendee) =>
       [
         escapeCsvValue(a.name),
         escapeCsvValue(a.email),
+        String(a.quantity),
         escapeCsvValue(new Date(a.created).toISOString()),
       ].join(","),
     ),

@@ -85,6 +85,7 @@ describe("html", () => {
           created: "2024-01-01T00:00:00Z",
           attendee_count: 25,
           unit_price: null,
+          max_quantity: 1,
         },
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
@@ -104,6 +105,7 @@ describe("html", () => {
           created: "2024-01-01T00:00:00Z",
           attendee_count: 0,
           unit_price: null,
+          max_quantity: 1,
         },
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
@@ -135,6 +137,7 @@ describe("html", () => {
       created: "2024-01-01T00:00:00Z",
       attendee_count: 2,
       unit_price: null,
+      max_quantity: 1,
     };
 
     test("renders event details", () => {
@@ -169,6 +172,7 @@ describe("html", () => {
           email: "john@example.com",
           created: "2024-01-01T12:00:00Z",
           stripe_payment_id: null,
+          quantity: 1,
         },
       ];
       const html = adminEventPage(event, attendees);
@@ -185,6 +189,7 @@ describe("html", () => {
           email: "test@example.com",
           created: "2024-01-01T12:00:00Z",
           stripe_payment_id: null,
+          quantity: 1,
         },
       ];
       const html = adminEventPage(event, attendees);
@@ -207,6 +212,7 @@ describe("html", () => {
       created: "2024-01-01T00:00:00Z",
       attendee_count: 50,
       unit_price: null,
+      max_quantity: 1,
     };
 
     test("renders event info", () => {
@@ -252,6 +258,42 @@ describe("html", () => {
       const html = ticketPage(evilEvent);
       expect(html).toContain("&lt;script&gt;");
     });
+
+    test("shows quantity selector when max_quantity > 1 and spots available", () => {
+      const multiTicketEvent: EventWithCount = {
+        ...event,
+        max_quantity: 5,
+        max_attendees: 100,
+        attendee_count: 0,
+      };
+      const html = ticketPage(multiTicketEvent);
+      expect(html).toContain("Number of Tickets");
+      expect(html).toContain('name="quantity"');
+      expect(html).toContain('<option value="1">1</option>');
+      expect(html).toContain('<option value="5">5</option>');
+      expect(html).toContain("Reserve Tickets"); // Plural
+    });
+
+    test("limits quantity selector to remaining spots", () => {
+      const limitedEvent: EventWithCount = {
+        ...event,
+        max_quantity: 10,
+        max_attendees: 100,
+        attendee_count: 97, // Only 3 spots remaining
+      };
+      const html = ticketPage(limitedEvent);
+      expect(html).toContain("Number of Tickets");
+      expect(html).toContain('<option value="3">3</option>');
+      expect(html).not.toContain('<option value="4">4</option>');
+    });
+
+    test("hides quantity selector when max_quantity is 1", () => {
+      const html = ticketPage(event); // max_quantity is 1
+      expect(html).not.toContain("Number of Tickets");
+      expect(html).toContain('type="hidden" name="quantity" value="1"');
+      expect(html).toContain("Reserve Ticket"); // Singular
+      expect(html).not.toContain("Reserve Tickets"); // Not plural
+    });
   });
 
   describe("notFoundPage", () => {
@@ -271,6 +313,7 @@ describe("html", () => {
       thank_you_url: "https://example.com/thanks",
       created: "2024-01-01T00:00:00Z",
       unit_price: 1000,
+      max_quantity: 1,
     };
 
     const attendee: Attendee = {
@@ -280,6 +323,7 @@ describe("html", () => {
       email: "john@example.com",
       created: "2024-01-01T12:00:00Z",
       stripe_payment_id: null,
+      quantity: 1,
     };
 
     test("renders payment details", () => {
@@ -331,6 +375,7 @@ describe("html", () => {
       thank_you_url: "https://example.com/thanks",
       created: "2024-01-01T00:00:00Z",
       unit_price: 1000,
+      max_quantity: 1,
     };
 
     test("renders success message", () => {
@@ -356,6 +401,7 @@ describe("html", () => {
       thank_you_url: "https://example.com/thanks",
       created: "2024-01-01T00:00:00Z",
       unit_price: 1000,
+      max_quantity: 1,
     };
 
     test("renders cancel message", () => {
@@ -404,6 +450,7 @@ describe("html", () => {
       created: "2024-01-01T00:00:00Z",
       attendee_count: 2,
       unit_price: null,
+      max_quantity: 1,
     };
 
     test("renders export CSV button", () => {
@@ -416,7 +463,7 @@ describe("html", () => {
   describe("generateAttendeesCsv", () => {
     test("generates CSV header for empty attendees", () => {
       const csv = generateAttendeesCsv([]);
-      expect(csv).toBe("Name,Email,Registered");
+      expect(csv).toBe("Name,Email,Quantity,Registered");
     });
 
     test("generates CSV with attendee data", () => {
@@ -428,13 +475,15 @@ describe("html", () => {
           email: "john@example.com",
           created: "2024-01-15T10:30:00Z",
           stripe_payment_id: null,
+          quantity: 2,
         },
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Registered");
+      expect(lines[0]).toBe("Name,Email,Quantity,Registered");
       expect(lines[1]).toContain("John Doe");
       expect(lines[1]).toContain("john@example.com");
+      expect(lines[1]).toContain(",2,");
       expect(lines[1]).toContain("2024-01-15T10:30:00.000Z");
     });
 
@@ -447,6 +496,7 @@ describe("html", () => {
           email: "john@example.com",
           created: "2024-01-15T10:30:00Z",
           stripe_payment_id: null,
+          quantity: 1,
         },
       ];
       const csv = generateAttendeesCsv(attendees);
@@ -462,6 +512,7 @@ describe("html", () => {
           email: "john@example.com",
           created: "2024-01-15T10:30:00Z",
           stripe_payment_id: null,
+          quantity: 1,
         },
       ];
       const csv = generateAttendeesCsv(attendees);
@@ -477,6 +528,7 @@ describe("html", () => {
           email: "john@example.com",
           created: "2024-01-15T10:30:00Z",
           stripe_payment_id: null,
+          quantity: 1,
         },
       ];
       const csv = generateAttendeesCsv(attendees);
@@ -492,6 +544,7 @@ describe("html", () => {
           email: "john@example.com",
           created: "2024-01-15T10:30:00Z",
           stripe_payment_id: null,
+          quantity: 1,
         },
         {
           id: 2,
@@ -500,6 +553,7 @@ describe("html", () => {
           email: "jane@example.com",
           created: "2024-01-16T11:00:00Z",
           stripe_payment_id: null,
+          quantity: 3,
         },
       ];
       const csv = generateAttendeesCsv(attendees);

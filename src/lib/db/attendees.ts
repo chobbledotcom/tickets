@@ -36,7 +36,7 @@ export const getAttendees = async (eventId: number): Promise<Attendee[]> => {
 };
 
 /**
- * Create a new attendee (reserve a ticket)
+ * Create a new attendee (reserve tickets)
  * Sensitive fields (name, email, stripe_payment_id) are encrypted at rest
  */
 export const createAttendee = async (
@@ -44,6 +44,7 @@ export const createAttendee = async (
   name: string,
   email: string,
   stripePaymentId: string | null = null,
+  quantity = 1,
 ): Promise<Attendee> => {
   const created = new Date().toISOString();
   const encryptedName = await encrypt(name);
@@ -52,8 +53,15 @@ export const createAttendee = async (
     ? await encrypt(stripePaymentId)
     : null;
   const result = await getDb().execute({
-    sql: "INSERT INTO attendees (event_id, name, email, created, stripe_payment_id) VALUES (?, ?, ?, ?, ?)",
-    args: [eventId, encryptedName, encryptedEmail, created, encryptedPaymentId],
+    sql: "INSERT INTO attendees (event_id, name, email, created, stripe_payment_id, quantity) VALUES (?, ?, ?, ?, ?, ?)",
+    args: [
+      eventId,
+      encryptedName,
+      encryptedEmail,
+      created,
+      encryptedPaymentId,
+      quantity,
+    ],
   });
   return {
     id: Number(result.lastInsertRowid),
@@ -62,6 +70,7 @@ export const createAttendee = async (
     email,
     created,
     stripe_payment_id: stripePaymentId,
+    quantity,
   };
 };
 
@@ -96,10 +105,13 @@ export const deleteAttendee = async (attendeeId: number): Promise<void> =>
   executeByField("attendees", "id", attendeeId);
 
 /**
- * Check if event has available spots
+ * Check if event has available spots for given quantity
  */
-export const hasAvailableSpots = async (eventId: number): Promise<boolean> => {
+export const hasAvailableSpots = async (
+  eventId: number,
+  quantity = 1,
+): Promise<boolean> => {
   const event = await getEventWithCount(eventId);
   if (!event) return false;
-  return event.attendee_count < event.max_attendees;
+  return event.attendee_count + quantity <= event.max_attendees;
 };

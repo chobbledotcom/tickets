@@ -61,6 +61,16 @@ export const initDb = async (): Promise<void> => {
   // Migration: add stripe_payment_id column if it doesn't exist (for existing databases)
   await runMigration("ALTER TABLE attendees ADD COLUMN stripe_payment_id TEXT");
 
+  // Migration: add quantity column to attendees (default 1 for existing records)
+  await runMigration(
+    "ALTER TABLE attendees ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1",
+  );
+
+  // Migration: add max_quantity column to events (default 1 for existing records)
+  await runMigration(
+    "ALTER TABLE events ADD COLUMN max_quantity INTEGER NOT NULL DEFAULT 1",
+  );
+
   // Create sessions table
   await client.execute(`
     CREATE TABLE IF NOT EXISTS sessions (

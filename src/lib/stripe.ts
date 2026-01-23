@@ -89,6 +89,7 @@ export const createCheckoutSession = async (
   event: Event,
   attendee: Attendee,
   baseUrl: string,
+  quantity = 1,
 ): Promise<Stripe.Checkout.Session | null> => {
   const stripe = await getStripeClient();
   if (!stripe || event.unit_price === null) return null;
@@ -96,6 +97,7 @@ export const createCheckoutSession = async (
   const currency = (await getCurrencyCode()).toLowerCase();
   const successUrl = `${baseUrl}/payment/success?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = `${baseUrl}/payment/cancel?attendee_id=${attendee.id}`;
+  const ticketLabel = quantity > 1 ? `${quantity} Tickets` : "Ticket";
 
   return safeAsync(() =>
     stripe.checkout.sessions.create({
@@ -106,11 +108,11 @@ export const createCheckoutSession = async (
             currency,
             product_data: {
               name: event.name,
-              description: `Ticket for ${event.name}`,
+              description: `${ticketLabel} for ${event.name}`,
             },
             unit_amount: event.unit_price as number,
           },
-          quantity: 1,
+          quantity,
         },
       ],
       mode: "payment",
@@ -120,6 +122,7 @@ export const createCheckoutSession = async (
       metadata: {
         attendee_id: String(attendee.id),
         event_id: String(event.id),
+        quantity: String(quantity),
       },
     }),
   );

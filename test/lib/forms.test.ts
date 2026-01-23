@@ -297,6 +297,7 @@ describe("forms", () => {
         name: "Event",
         description: "Desc",
         max_attendees: "100",
+        max_quantity: "1",
         thank_you_url: "javascript:alert(1)",
       });
       const result = validateForm(form, eventFields);
@@ -311,6 +312,7 @@ describe("forms", () => {
         name: "Event",
         description: "Desc",
         max_attendees: "100",
+        max_quantity: "1",
         thank_you_url: "not-a-valid-url",
       });
       const result = validateForm(form, eventFields);
@@ -325,6 +327,7 @@ describe("forms", () => {
         name: "Event",
         description: "Desc",
         max_attendees: "100",
+        max_quantity: "1",
         thank_you_url: "/thank-you",
       });
       const result = validateForm(form, eventFields);
@@ -336,6 +339,7 @@ describe("forms", () => {
         name: "Event",
         description: "Desc",
         max_attendees: "100",
+        max_quantity: "1",
         thank_you_url: "https://example.com",
         unit_price: "-100",
       });

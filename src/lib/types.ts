@@ -10,6 +10,7 @@ export interface Event {
   max_attendees: number;
   thank_you_url: string;
   unit_price: number | null;
+  max_quantity: number;
 }
 
 export interface Attendee {
@@ -19,6 +20,7 @@ export interface Attendee {
   email: string;
   created: string;
   stripe_payment_id: string | null;
+  quantity: number;
 }
 
 export interface Settings {

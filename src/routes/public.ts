@@ -51,9 +51,15 @@ const handlePaymentFlow = async (
   request: Request,
   event: EventWithCount,
   attendee: Attendee,
+  quantity: number,
 ): Promise<Response> => {
   const baseUrl = getBaseUrl(request);
-  const session = await createCheckoutSession(event, attendee, baseUrl);
+  const session = await createCheckoutSession(
+    event,
+    attendee,
+    baseUrl,
+    quantity,
+  );
 
   if (session?.url) {
     return redirect(session.url);
@@ -65,6 +71,20 @@ const handlePaymentFlow = async (
     ticketPage(event, "Failed to create payment session. Please try again."),
     500,
   );
+};
+
+/**
+ * Parse and validate quantity from form
+ * Returns at least 1, capped at max_quantity (availability checked separately)
+ */
+const parseQuantity = (
+  form: URLSearchParams,
+  event: EventWithCount,
+): number => {
+  const raw = form.get("quantity") || "1";
+  const quantity = Number.parseInt(raw, 10);
+  if (Number.isNaN(quantity) || quantity < 1) return 1;
+  return Math.min(quantity, event.max_quantity);
 };
 
 /**
@@ -81,10 +101,11 @@ const processTicketReservation = async (
     return htmlResponse(ticketPage(event, validation.error), 400);
   }
 
-  const available = await hasAvailableSpots(event.id);
+  const quantity = parseQuantity(form, event);
+  const available = await hasAvailableSpots(event.id, quantity);
   if (!available) {
     return htmlResponse(
-      ticketPage(event, "Sorry, this event is now full"),
+      ticketPage(event, "Sorry, not enough spots available"),
       400,
     );
   }
@@ -94,10 +115,12 @@ const processTicketReservation = async (
     event.id,
     values.name as string,
     values.email as string,
+    null,
+    quantity,
   );
 
   if (await requiresPayment(event)) {
-    return handlePaymentFlow(request, event, attendee);
+    return handlePaymentFlow(request, event, attendee, quantity);
   }
 
   return redirect(event.thank_you_url);
