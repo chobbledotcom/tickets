@@ -9,7 +9,7 @@ import {
   verifyAdminPassword,
 } from "#lib/db/settings";
 import { validateForm } from "#lib/forms.tsx";
-import { adminSettingsPage } from "#templates/admin.tsx";
+import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { changePasswordFields, stripeKeyFields } from "#templates/fields.ts";
 import { defineRoutes } from "../router.ts";
 import type { AuthSession } from "../utils.ts";
