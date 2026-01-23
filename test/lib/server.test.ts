@@ -62,6 +62,30 @@ describe("server", () => {
     });
   });
 
+  describe("GET /favicon.ico", () => {
+    test("returns SVG favicon", async () => {
+      const response = await handleRequest(mockRequest("/favicon.ico"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("image/svg+xml");
+      const svg = await response.text();
+      expect(svg).toContain("<svg");
+      expect(svg).toContain("viewBox");
+    });
+
+    test("returns 404 for non-GET requests to /favicon.ico", async () => {
+      const response = await handleRequest(
+        new Request("http://localhost/favicon.ico", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            origin: "http://localhost",
+          },
+        }),
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+
   describe("GET /admin/", () => {
     test("shows login page when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/"));
