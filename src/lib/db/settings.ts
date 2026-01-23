@@ -59,8 +59,10 @@ const [getSetupConfirmed, setSetupConfirmed] = lazyRef<boolean>(() => false);
  * Result is cached in memory - once true, we never query again.
  */
 export const isSetupComplete = async (): Promise<boolean> => {
-  // If we've confirmed setup is complete, return cached value
-  if (getSetupConfirmed() && getSetupCompleteCache()) return true;
+  // Check both caches (avoid short-circuit to ensure consistent initialization)
+  const confirmed = getSetupConfirmed();
+  const cached = getSetupCompleteCache();
+  if (confirmed && cached) return true;
 
   const value = await getSetting(CONFIG_KEYS.SETUP_COMPLETE);
   const isComplete = value === "true";
