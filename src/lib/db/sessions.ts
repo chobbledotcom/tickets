@@ -40,3 +40,25 @@ export const deleteSession = async (token: string): Promise<void> =>
 export const deleteAllSessions = async (): Promise<void> => {
   await getDb().execute("DELETE FROM sessions");
 };
+
+/**
+ * Get all sessions ordered by expiration (newest first)
+ */
+export const getAllSessions = async (): Promise<Session[]> => {
+  const result = await getDb().execute(
+    "SELECT token, csrf_token, expires FROM sessions ORDER BY expires DESC",
+  );
+  return result.rows as unknown as Session[];
+};
+
+/**
+ * Delete all sessions except the current one
+ */
+export const deleteOtherSessions = async (
+  currentToken: string,
+): Promise<void> => {
+  await getDb().execute({
+    sql: "DELETE FROM sessions WHERE token != ?",
+    args: [currentToken],
+  });
+};

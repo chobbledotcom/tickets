@@ -10,6 +10,7 @@ export {
   adminEventEditPage,
   adminEventPage,
   adminLoginPage,
+  adminSessionsPage,
   adminSettingsPage,
 } from "./admin.tsx";
 // CSV generation
