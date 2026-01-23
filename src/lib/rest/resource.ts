@@ -45,6 +45,11 @@ export type DeleteResult = SuccessResult<object> | ErrorResult | NotFoundResult;
 /** Result type for input parsing */
 export type ParseResult<Input> = SuccessResult<{ input: Input }> | ErrorResult;
 
+/** Validation function type */
+type ValidateFn<Input> =
+  | ((input: Input, id?: InValue) => Promise<string | null>)
+  | undefined;
+
 /**
  * Resource interface - provides typed REST operations
  */
@@ -94,6 +99,34 @@ const requireExists = async <Row, Input>(
   return existing ? null : { ok: false, notFound: true };
 };
 
+/** Run async validation, return error result or null */
+const runValidation = async <Input>(
+  validate: ValidateFn<Input>,
+  input: Input,
+  id?: InValue,
+): Promise<ErrorResult | null> => {
+  if (!validate) return null;
+  const error = await validate(input, id);
+  return error ? { ok: false, error } : null;
+};
+
+/** Convert row or null to update result */
+const toUpdateResult = <Row>(row: Row | null): UpdateResult<Row> =>
+  row ? { ok: true, row } : { ok: false, notFound: true };
+
+/** Parse and validate input, returning parsed input or error */
+const parseAndValidate = async <Input>(
+  form: URLSearchParams,
+  parseInput: (form: URLSearchParams) => ParseResult<Input>,
+  validate: ValidateFn<Input>,
+  id?: InValue,
+): Promise<ParseResult<Input>> => {
+  const parsed = parseInput(form);
+  if (!parsed.ok) return parsed;
+  const validationError = await runValidation(validate, parsed.input, id);
+  return validationError ?? parsed;
+};
+
 /**
  * Define a REST resource with typed CRUD operations.
  */
@@ -115,15 +148,10 @@ export const defineResource = <Row, Input>(
     );
 
   const create = async (form: URLSearchParams): Promise<CreateResult<Row>> => {
-    const parsed = parseInput(form);
-    if (!parsed.ok) return parsed;
-
-    if (config.validate) {
-      const error = await config.validate(parsed.input);
-      if (error) return { ok: false, error };
-    }
-
-    return { ok: true, row: await table.insert(parsed.input) };
+    const result = await parseAndValidate(form, parseInput, config.validate);
+    return result.ok
+      ? { ok: true, row: await table.insert(result.input) }
+      : result;
   };
 
   const update = async (
@@ -132,17 +160,15 @@ export const defineResource = <Row, Input>(
   ): Promise<UpdateResult<Row>> => {
     const notFound = await requireExists(table, id);
     if (notFound) return notFound;
-
-    const parsed = parseInput(form);
-    if (!parsed.ok) return parsed;
-
-    if (config.validate) {
-      const error = await config.validate(parsed.input, id);
-      if (error) return { ok: false, error };
-    }
-
-    const row = await table.update(id, parsed.input);
-    return row ? { ok: true, row } : { ok: false, notFound: true };
+    const result = await parseAndValidate(
+      form,
+      parseInput,
+      config.validate,
+      id,
+    );
+    return result.ok
+      ? toUpdateResult(await table.update(id, result.input))
+      : result;
   };
 
   const deleteRow = async (id: InValue): Promise<DeleteResult> => {

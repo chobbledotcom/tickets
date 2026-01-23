@@ -75,6 +75,7 @@ describe("html", () => {
       const events: EventWithCount[] = [
         {
           id: 1,
+          slug: "event-1",
           name: "Event 1",
           description: "Desc 1",
           max_attendees: 100,
@@ -96,6 +97,7 @@ describe("html", () => {
       const events: EventWithCount[] = [
         {
           id: 1,
+          slug: "test-event",
           name: "<script>evil()</script>",
           description: "Desc",
           max_attendees: 100,

@@ -194,6 +194,17 @@ export const htmlResponseWithCookie =
   (html: string, status = 200): Response =>
     withCookie(htmlResponse(html, status), cookie);
 
+/** Handler function that takes a value and returns a Response */
+type EventHandler = (event: EventWithCount) => Response | Promise<Response>;
+
+/**
+ * Unwrap Result with handler - returns error response or applies handler to value
+ */
+const unwrapResult = async (
+  result: Result<EventWithCount>,
+  handler: EventHandler,
+): Promise<Response> => (result.ok ? handler(result.value) : result.response);
+
 /**
  * Fetch event or return 404 response
  */
@@ -209,11 +220,8 @@ export const fetchEventOr404 = async (
  */
 export const withEvent = async (
   eventId: number,
-  handler: (event: EventWithCount) => Response | Promise<Response>,
-): Promise<Response> => {
-  const result = await fetchEventOr404(eventId);
-  return result.ok ? handler(result.value) : result.response;
-};
+  handler: EventHandler,
+): Promise<Response> => unwrapResult(await fetchEventOr404(eventId), handler);
 
 /**
  * Fetch event by slug or return 404 response
@@ -230,11 +238,9 @@ export const fetchEventBySlugOr404 = async (
  */
 export const withEventBySlug = async (
   slug: string,
-  handler: (event: EventWithCount) => Response | Promise<Response>,
-): Promise<Response> => {
-  const result = await fetchEventBySlugOr404(slug);
-  return result.ok ? handler(result.value) : result.response;
-};
+  handler: EventHandler,
+): Promise<Response> =>
+  unwrapResult(await fetchEventBySlugOr404(slug), handler);
 
 /** Session with CSRF token */
 export type AuthSession = { token: string; csrfToken: string };

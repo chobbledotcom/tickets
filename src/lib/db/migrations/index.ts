@@ -117,7 +117,9 @@ export const initDb = async (): Promise<void> => {
   await runMigration("ALTER TABLE events ADD COLUMN slug TEXT");
 
   // Migration: create index on slug for fast lookups
-  await runMigration("CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug ON events(slug)");
+  await runMigration(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug ON events(slug)",
+  );
 
   // Create login_attempts table
   await client.execute(`

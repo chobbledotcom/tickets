@@ -56,7 +56,9 @@ const validateEventInput = async (
   id?: InValue,
 ): Promise<string | null> => {
   const taken = await isSlugTaken(input.slug, id as number | undefined);
-  return taken ? "This slug is already in use. Please choose a different one." : null;
+  return taken
+    ? "This slug is already in use. Please choose a different one."
+    : null;
 };
 
 /** Events resource for REST operations */

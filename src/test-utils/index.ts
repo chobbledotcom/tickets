@@ -290,18 +290,21 @@ export const awaitTestRequest = async (
   return handleRequest(testRequest(path, tokenOrOptions));
 };
 
-/** Counter for generating unique test slugs */
-let testSlugCounter = 0;
+/** Counter for generating unique test slugs - using lazyRef pattern */
+import { lazyRef } from "#fp";
+
+const [getSlugCounter, setSlugCounter] = lazyRef(() => ({ value: 0 }));
 
 /** Reset test slug counter (call in beforeEach) */
 export const resetTestSlugCounter = (): void => {
-  testSlugCounter = 0;
+  setSlugCounter({ value: 0 });
 };
 
 /** Generate a unique test slug */
 export const generateTestSlug = (): string => {
-  testSlugCounter++;
-  return `test-event-${testSlugCounter}`;
+  const counter = getSlugCounter();
+  counter.value++;
+  return `test-event-${counter.value}`;
 };
 
 /** Default test event input with slug */
@@ -317,9 +320,8 @@ export const testEventInput = (
 });
 
 /** Create a test event with sensible defaults */
-export const createTestEvent = (
-  overrides: Partial<EventInput> = {},
-) => createEvent(testEventInput(overrides));
+export const createTestEvent = (overrides: Partial<EventInput> = {}) =>
+  createEvent(testEventInput(overrides));
 
 /** Re-export createEvent and EventInput for test use */
 export { createEvent };

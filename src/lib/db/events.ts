@@ -57,12 +57,6 @@ export const getEvent = (id: number): Promise<Event | null> =>
   eventsTable.findById(id);
 
 /**
- * Get a single event by slug
- */
-export const getEventBySlug = async (slug: string): Promise<Event | null> =>
-  queryOne<Event>("SELECT * FROM events WHERE slug = ?", [slug]);
-
-/**
  * Check if a slug is already in use (optionally excluding a specific event ID)
  */
 export const isSlugTaken = async (
