@@ -31,34 +31,37 @@ const measureSync = <T>(name: string, fn: () => T): T => {
   return result;
 };
 
+// biome-ignore lint/suspicious/noConsole: CLI profiling tool output
+const log = console.log.bind(console);
+
 const printReport = () => {
-  console.log("\n" + "=".repeat(60));
-  console.log("COLD BOOT PERFORMANCE PROFILE");
-  console.log("=".repeat(60));
+  log(`\n${"=".repeat(60)}`);
+  log("COLD BOOT PERFORMANCE PROFILE");
+  log("=".repeat(60));
 
   let total = 0;
   for (const { name, duration } of timings) {
     const ms = duration.toFixed(2);
     const bar = "█".repeat(Math.min(50, Math.ceil(duration / 2)));
-    console.log(`\n${name}`);
-    console.log(`  ${ms}ms ${bar}`);
+    log(`\n${name}`);
+    log(`  ${ms}ms ${bar}`);
     total += duration;
   }
 
-  console.log("\n" + "-".repeat(60));
-  console.log(`TOTAL: ${total.toFixed(2)}ms`);
+  log(`\n${"-".repeat(60)}`);
+  log(`TOTAL: ${total.toFixed(2)}ms`);
 
   if (total > 500) {
-    console.log("\n⚠️  WARNING: Total exceeds Bunny's 500ms startup limit!");
+    log("\n⚠️  WARNING: Total exceeds Bunny's 500ms startup limit!");
   } else {
-    console.log(`\n✅ Within 500ms limit (${((total / 500) * 100).toFixed(1)}% used)`);
+    log(`\n✅ Within 500ms limit (${((total / 500) * 100).toFixed(1)}% used)`);
   }
 
-  console.log("=".repeat(60) + "\n");
+  log(`${"=".repeat(60)}\n`);
 };
 
 const main = async () => {
-  console.log("Profiling cold boot performance...\n");
+  log("Profiling cold boot performance...\n");
 
   // Set up test environment
   process.env.ALLOWED_DOMAIN = "localhost";
@@ -120,20 +123,20 @@ const main = async () => {
   printReport();
 
   // Complete setup to test caching
-  console.log("Completing setup to test caching...\n");
+  log("Completing setup to test caching...\n");
   const { completeSetup, isSetupComplete } = await import(
     "#lib/db/settings.ts"
   );
   await completeSetup("testpassword", null, "GBP");
 
   // Test isSetupComplete caching (before it's cached)
-  console.log("Testing isSetupComplete() caching:\n");
+  log("Testing isSetupComplete() caching:\n");
 
   // First call after setup - should query DB and cache
   const firstStart = performance.now();
   await isSetupComplete();
   const firstDuration = performance.now() - firstStart;
-  console.log(`  First call (queries DB + caches): ${firstDuration.toFixed(2)}ms`);
+  log(`  First call (queries DB + caches): ${firstDuration.toFixed(2)}ms`);
 
   // Subsequent calls - should return cached value instantly
   const cachedTimings: number[] = [];
@@ -143,12 +146,13 @@ const main = async () => {
     const duration = performance.now() - start;
     cachedTimings.push(duration);
   }
-  const avgCached = cachedTimings.reduce((a, b) => a + b, 0) / cachedTimings.length;
-  console.log(`  Cached calls (avg of 5): ${avgCached.toFixed(4)}ms`);
-  console.log(`  ✅ ${(firstDuration / avgCached).toFixed(0)}x faster with caching!\n`);
+  const avgCached =
+    cachedTimings.reduce((a, b) => a + b, 0) / cachedTimings.length;
+  log(`  Cached calls (avg of 5): ${avgCached.toFixed(4)}ms`);
+  log(`  ✅ ${(firstDuration / avgCached).toFixed(0)}x faster with caching!\n`);
 
   // Test session caching
-  console.log("Testing session caching (10s TTL):\n");
+  log("Testing session caching (10s TTL):\n");
   const { createSession, getSession } = await import("#lib/db/sessions.ts");
 
   // Create a session
@@ -158,7 +162,7 @@ const main = async () => {
   const sessionStart1 = performance.now();
   await getSession("test-token");
   const sessionDuration1 = performance.now() - sessionStart1;
-  console.log(`  First call (queries DB + caches): ${sessionDuration1.toFixed(2)}ms`);
+  log(`  First call (queries DB + caches): ${sessionDuration1.toFixed(2)}ms`);
 
   // Cached calls
   const sessionTimings: number[] = [];
@@ -168,15 +172,18 @@ const main = async () => {
     const duration = performance.now() - start;
     sessionTimings.push(duration);
   }
-  const avgSession = sessionTimings.reduce((a, b) => a + b, 0) / sessionTimings.length;
-  console.log(`  Cached calls (avg of 5): ${avgSession.toFixed(4)}ms`);
-  console.log(`  ✅ ${(sessionDuration1 / avgSession).toFixed(0)}x faster with caching!\n`);
+  const avgSession =
+    sessionTimings.reduce((a, b) => a + b, 0) / sessionTimings.length;
+  log(`  Cached calls (avg of 5): ${avgSession.toFixed(4)}ms`);
+  log(
+    `  ✅ ${(sessionDuration1 / avgSession).toFixed(0)}x faster with caching!\n`,
+  );
 
   // Network latency reality check
-  console.log("=".repeat(60));
-  console.log("NETWORK LATENCY IMPACT (ESTIMATED)");
-  console.log("=".repeat(60));
-  console.log(`
+  log("=".repeat(60));
+  log("NETWORK LATENCY IMPACT (ESTIMATED)");
+  log("=".repeat(60));
+  log(`
 The above measurements use an in-memory database.
 In production with Turso, each DB query adds network latency.
 
@@ -206,4 +213,5 @@ Per warm request (after first):
 `);
 };
 
+// biome-ignore lint/suspicious/noConsole: CLI error output
 main().catch(console.error);
