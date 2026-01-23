@@ -2,6 +2,11 @@
  * Middleware functions for request processing
  */
 
+import { getAllowedDomain } from "#lib/config.ts";
+
+/** Cached allowed domain (read once at startup) */
+const ALLOWED_DOMAIN = getAllowedDomain();
+
 /**
  * Security headers for all responses
  */
@@ -11,23 +16,37 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
 };
 
 /**
+ * Build CSP header value
+ * Restricts resources to self and prevents clickjacking for non-embeddable pages
+ */
+const buildCspHeader = (embeddable: boolean): string => {
+  const directives: string[] = [];
+
+  // Frame ancestors - prevent clickjacking (except for embeddable pages)
+  if (!embeddable) {
+    directives.push("frame-ancestors 'none'");
+  }
+
+  // Restrict resource loading to self (prevents loading from unexpected domains)
+  directives.push("default-src 'self'");
+  directives.push("style-src 'self' 'unsafe-inline'"); // Allow inline styles
+  directives.push("script-src 'self' 'unsafe-inline'"); // Allow inline scripts
+  directives.push("form-action 'self'"); // Restrict form submissions to self
+
+  return directives.join("; ");
+};
+
+/**
  * Get security headers for a response
  * @param embeddable - Whether the page should be embeddable in iframes
  */
 export const getSecurityHeaders = (
   embeddable: boolean,
-): Record<string, string> => {
-  if (embeddable) {
-    return {
-      ...BASE_SECURITY_HEADERS,
-    };
-  }
-  return {
-    ...BASE_SECURITY_HEADERS,
-    "x-frame-options": "DENY",
-    "content-security-policy": "frame-ancestors 'none'",
-  };
-};
+): Record<string, string> => ({
+  ...BASE_SECURITY_HEADERS,
+  ...(!embeddable && { "x-frame-options": "DENY" }),
+  "content-security-policy": buildCspHeader(embeddable),
+});
 
 /**
  * Check if a path is embeddable (public ticket pages only)
@@ -38,32 +57,29 @@ export const isEmbeddablePath = (path: string): boolean =>
 /**
  * Validate origin for CORS protection on POST requests
  * Returns true if the request should be allowed
+ *
+ * Validates against ALLOWED_DOMAIN (build-time config).
+ * This prevents attacks where an attacker proxies the app through their own domain.
  */
 export const isValidOrigin = (request: Request): boolean => {
-  const method = request.method;
-
   // Only check POST requests
-  if (method !== "POST") {
+  if (request.method !== "POST") {
     return true;
   }
 
   const origin = request.headers.get("origin");
   const referer = request.headers.get("referer");
 
-  // If no origin header, check referer (some browsers may not send origin)
-  const requestUrl = new URL(request.url);
-  const requestHost = requestUrl.host;
-
-  // If origin is present, it must match
+  // If origin is present, it must match allowed domain
   if (origin) {
     const originUrl = new URL(origin);
-    return originUrl.host === requestHost;
+    return originUrl.host === ALLOWED_DOMAIN;
   }
 
   // Fallback to referer check
   if (referer) {
     const refererUrl = new URL(referer);
-    return refererUrl.host === requestHost;
+    return refererUrl.host === ALLOWED_DOMAIN;
   }
 
   // If neither origin nor referer, reject (could be a direct form submission from another site)

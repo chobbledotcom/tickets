@@ -15,6 +15,9 @@ const manager = new StripeMockManager();
 // Configure encryption key for tests
 setupTestEncryptionKey();
 
+// Configure allowed domain for tests (security middleware)
+process.env.ALLOWED_DOMAIN = "localhost";
+
 // Configure stripe-mock env vars
 process.env.STRIPE_MOCK_HOST = "localhost";
 process.env.STRIPE_MOCK_PORT = String(STRIPE_MOCK_PORT);
