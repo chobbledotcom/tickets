@@ -11,15 +11,19 @@ import { Layout } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
-const EventRow = ({ e }: { e: EventWithCount }): string =>
-  String(
-    <tr>
+const EventRow = ({ e }: { e: EventWithCount }): string => {
+  const isInactive = e.active !== 1;
+  const rowStyle = isInactive ? 'opacity: 0.5;' : '';
+  return String(
+    <tr style={rowStyle || undefined}>
       <td>{e.name}</td>
+      <td>{isInactive ? "Inactive" : "Active"}</td>
       <td>{e.attendee_count} / {e.max_attendees}</td>
       <td>{new Date(e.created).toLocaleDateString()}</td>
       <td><a href={`/admin/event/${e.id}`}>View</a></td>
     </tr>
   );
+};
 
 /**
  * Admin dashboard page
@@ -31,7 +35,7 @@ export const adminDashboardPage = (
   const eventRows =
     events.length > 0
       ? pipe(map((e: EventWithCount) => EventRow({ e })), joinStrings)(events)
-      : '<tr><td colspan="4">No events yet</td></tr>';
+      : '<tr><td colspan="5">No events yet</td></tr>';
 
   return String(
     <Layout title="Admin Dashboard">
@@ -54,6 +58,7 @@ export const adminDashboardPage = (
           <thead>
             <tr>
               <th>Name</th>
+              <th>Status</th>
               <th>Attendees</th>
               <th>Created</th>
               <th>Actions</th>

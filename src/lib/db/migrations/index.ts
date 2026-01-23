@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when adding new migrations
  */
-export const LATEST_UPDATE = "added slug to events";
+export const LATEST_UPDATE = "added slug and active columns to events";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -119,6 +119,11 @@ export const initDb = async (): Promise<void> => {
   // Migration: create index on slug for fast lookups
   await runMigration(
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug ON events(slug)",
+  );
+
+  // Migration: add active column to events (default true for existing events)
+  await runMigration(
+    "ALTER TABLE events ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
   );
 
   // Create login_attempts table

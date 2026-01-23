@@ -25,12 +25,15 @@ import {
   notFoundResponse,
   redirect,
   requireSessionOr,
+  withAuthForm,
   withEvent,
 } from "#routes/utils.ts";
 import {
+  adminDeactivateEventPage,
   adminDeleteEventPage,
   adminEventEditPage,
   adminEventPage,
+  adminReactivateEventPage,
 } from "#templates/admin/events.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields } from "#templates/fields.ts";
@@ -156,6 +159,29 @@ const handleAdminEventExport = (request: Request, eventId: number) =>
     });
   });
 
+/** Handle GET /admin/event/:id/deactivate (show confirmation page) */
+const handleAdminEventDeactivateGet = withEventPage(adminDeactivateEventPage);
+
+/** Handle GET /admin/event/:id/reactivate (show confirmation page) */
+const handleAdminEventReactivateGet = withEventPage(adminReactivateEventPage);
+
+/** Create handler to set event active status */
+const setActiveHandler =
+  (active: number) =>
+  (request: Request, eventId: number): Promise<Response> =>
+    withAuthForm(request, () =>
+      withEvent(eventId, async () => {
+        await eventsTable.update(eventId, { active });
+        return redirect(`/admin/event/${eventId}`);
+      }),
+    );
+
+/** Handle POST /admin/event/:id/deactivate */
+const handleAdminEventDeactivatePost = setActiveHandler(0);
+
+/** Handle POST /admin/event/:id/reactivate */
+const handleAdminEventReactivatePost = setActiveHandler(1);
+
 /** Handle GET /admin/event/:id/delete (show confirmation page) */
 const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
 
@@ -187,6 +213,14 @@ export const eventsRoutes = defineRoutes({
     handleAdminEventEditPost(request, parseEventId(params)),
   "GET /admin/event/:id/export": (request, params) =>
     handleAdminEventExport(request, parseEventId(params)),
+  "GET /admin/event/:id/deactivate": (request, params) =>
+    handleAdminEventDeactivateGet(request, parseEventId(params)),
+  "POST /admin/event/:id/deactivate": (request, params) =>
+    handleAdminEventDeactivatePost(request, parseEventId(params)),
+  "GET /admin/event/:id/reactivate": (request, params) =>
+    handleAdminEventReactivateGet(request, parseEventId(params)),
+  "POST /admin/event/:id/reactivate": (request, params) =>
+    handleAdminEventReactivatePost(request, parseEventId(params)),
   "GET /admin/event/:id/delete": (request, params) =>
     handleAdminEventDeleteGet(request, parseEventId(params)),
   "POST /admin/event/:id/delete": (request, params) =>

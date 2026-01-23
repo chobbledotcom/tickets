@@ -69,6 +69,7 @@ type PaymentCallbackResult =
  */
 const loadPaymentCallbackData = async (
   attendeeIdStr: string | null,
+  rejectInactive = false,
 ): Promise<PaymentCallbackResult> => {
   if (!attendeeIdStr) {
     return {
@@ -90,6 +91,17 @@ const loadPaymentCallbackData = async (
     return {
       success: false,
       response: paymentErrorResponse("Event not found", 404),
+    };
+  }
+
+  // Reject payment if event is inactive
+  if (rejectInactive && event.active !== 1) {
+    await deleteAttendee(attendee.id);
+    return {
+      success: false,
+      response: paymentErrorResponse(
+        "This event is no longer accepting registrations.",
+      ),
     };
   }
 
@@ -132,9 +144,13 @@ type PaymentContext =
 /** Load payment callback data from request */
 const loadPaymentContext = async (
   request: Request,
+  rejectInactive = false,
 ): Promise<PaymentContext> => {
   const params = getPaymentParams(request);
-  const result = await loadPaymentCallbackData(params.attendeeId);
+  const result = await loadPaymentCallbackData(
+    params.attendeeId,
+    rejectInactive,
+  );
   return result.success
     ? { ok: true, params, data: result.data }
     : { ok: false, response: result.response };
@@ -160,22 +176,37 @@ const runPrecheck = (
   params: PaymentParams,
 ): Response | null => (precheck ? precheck(params) : null);
 
-/** Create payment callback handler with optional precheck */
+/** Options for payment handler */
+type PaymentHandlerOptions = {
+  precheck?: ((params: PaymentParams) => Response | null) | null;
+  rejectInactive?: boolean;
+};
+
+/** Execute handler with context or return error response */
+const executeWithContext = async (
+  ctx: PaymentContext,
+  handler: PaymentHandler,
+): Promise<Response> => (ctx.ok ? handler(ctx.params, ctx.data) : ctx.response);
+
+/** Create payment callback handler with optional precheck and inactive rejection */
 const createPaymentHandler =
-  (precheck: ((params: PaymentParams) => Response | null) | null) =>
+  (options: PaymentHandlerOptions = {}) =>
   (handler: PaymentHandler) =>
   async (request: Request): Promise<Response> => {
     const params = getPaymentParams(request);
-    const precheckError = runPrecheck(precheck, params);
+    const precheckError = runPrecheck(options.precheck ?? null, params);
     if (precheckError) return precheckError;
-    const ctx = await loadPaymentContext(request);
-    return ctx.ok ? handler(ctx.params, ctx.data) : ctx.response;
+    const ctx = await loadPaymentContext(request, options.rejectInactive);
+    return executeWithContext(ctx, handler);
   };
 
 /**
  * Handle GET /payment/success (Stripe redirect after successful payment)
  */
-const handlePaymentSuccess = createPaymentHandler(requireSessionId)(
+const handlePaymentSuccess = createPaymentHandler({
+  precheck: requireSessionId,
+  rejectInactive: true,
+})(
   async (params, { attendee, event }) =>
     (await verifyAndUpdatePayment(
       params.sessionId as string,
@@ -216,7 +247,7 @@ const verifyCancelSession = async (
 /**
  * Handle GET /payment/cancel (Stripe redirect after cancelled payment)
  */
-const handlePaymentCancel = createPaymentHandler(null)(
+const handlePaymentCancel = createPaymentHandler()(
   async (params, { attendee, event }) => {
     const cancelError = await verifyCancelSession(
       params.sessionId,

@@ -242,6 +242,18 @@ export const withEventBySlug = async (
 ): Promise<Response> =>
   unwrapResult(await fetchEventBySlugOr404(slug), handler);
 
+/** Check if event is active, return 404 if not */
+const requireActiveEvent =
+  (handler: (event: EventWithCount) => Response | Promise<Response>) =>
+  (event: EventWithCount): Response | Promise<Response> =>
+    event.active === 1 ? handler(event) : notFoundResponse();
+
+/** Handle event by slug with active check - return 404 if not found or inactive */
+export const withActiveEventBySlug = (
+  slug: string,
+  fn: (event: EventWithCount) => Response | Promise<Response>,
+): Promise<Response> => withEventBySlug(slug, requireActiveEvent(fn));
+
 /** Session with CSRF token */
 export type AuthSession = { token: string; csrfToken: string };
 

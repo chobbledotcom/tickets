@@ -103,6 +103,7 @@ describe("stripe", () => {
         unit_price: 1000,
         max_quantity: 1,
         webhook_url: null,
+        active: 1,
       };
       const attendee = {
         id: 1,
@@ -134,6 +135,7 @@ describe("stripe", () => {
         unit_price: null,
         max_quantity: 1,
         webhook_url: null,
+        active: 1,
       };
       const attendee = {
         id: 1,
@@ -193,6 +195,7 @@ describe("stripe", () => {
         unit_price: 1000,
         max_quantity: 1,
         webhook_url: null,
+        active: 1,
       };
       const attendee = {
         id: 1,
@@ -230,6 +233,7 @@ describe("stripe", () => {
         unit_price: 1000,
         max_quantity: 1,
         webhook_url: null,
+        active: 1,
       };
       const attendee = {
         id: 1,

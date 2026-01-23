@@ -26,7 +26,7 @@ import {
   parseCookies,
   redirect,
   requireCsrfForm,
-  withEventBySlug,
+  withActiveEventBySlug,
 } from "#routes/utils.ts";
 import { ticketFields } from "#templates/fields.ts";
 import { homePage, ticketPage } from "#templates/public.tsx";
@@ -61,7 +61,7 @@ const ticketResponse =
  * Handle GET /ticket/:slug
  */
 export const handleTicketGet = (slug: string): Promise<Response> =>
-  withEventBySlug(slug, (event) => {
+  withActiveEventBySlug(slug, (event) => {
     const token = generateSecureToken();
     return ticketResponseWithCookie(event)(token)();
   });
@@ -186,7 +186,9 @@ export const handleTicketPost = (
   request: Request,
   slug: string,
 ): Promise<Response> =>
-  withEventBySlug(slug, (event) => processTicketReservation(request, event));
+  withActiveEventBySlug(slug, (event) =>
+    processTicketReservation(request, event),
+  );
 
 /** Parse ticket slug from params */
 const parseTicketSlug = (params: RouteParams): string => params.slug ?? "";
