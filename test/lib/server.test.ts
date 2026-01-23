@@ -1,16 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { encrypt } from "#lib/crypto.ts";
-import {
-  createAttendee,
-  createEvent,
-  createSession,
-  getSession,
-  setSetting,
-} from "#lib/db";
+import { createAttendee, createSession, getSession, setSetting } from "#lib/db";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
 import {
   awaitTestRequest,
+  createEvent,
   createTestDb,
   createTestDbWithSetup,
   getCsrfTokenFromCookie,
@@ -1219,6 +1214,78 @@ describe("server", () => {
 
       const attendees = await getAttendees(1);
       expect(attendees).toEqual([]);
+    });
+
+    test("skips name verification when verify_name=false (for API users)", async () => {
+      await createEvent({
+        name: "API Event",
+        description: "Description",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Login and get CSRF token
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      // Delete with verify_name=false - no need for confirm_name
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/delete?verify_name=false",
+          {
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      // Verify event was deleted
+      const { getEvent } = await import("#lib/db");
+      const event = await getEvent(1);
+      expect(event).toBeNull();
+    });
+  });
+
+  describe("DELETE /admin/event/:id/delete", () => {
+    test("deletes event using DELETE method", async () => {
+      await createEvent({
+        name: "Delete Method Test",
+        description: "Description",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Login and get CSRF token
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      // Use DELETE method with verify_name=false
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/1/delete?verify_name=false", {
+          method: "DELETE",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            cookie: cookie || "",
+            host: "localhost",
+          },
+          body: new URLSearchParams({
+            csrf_token: csrfToken || "",
+          }).toString(),
+        }),
+      );
+      expect(response.status).toBe(302);
+
+      // Verify event was deleted
+      const { getEvent } = await import("#lib/db");
+      const event = await getEvent(1);
+      expect(event).toBeNull();
     });
   });
 
