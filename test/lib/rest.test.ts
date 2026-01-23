@@ -459,7 +459,7 @@ describe("rest/handlers", () => {
       const response = await handler(request);
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
   });
 
@@ -559,7 +559,7 @@ describe("rest/handlers", () => {
       const response = await handler(request, 1);
 
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/");
+      expect(response.headers.get("location")).toBe("/admin");
     });
   });
 

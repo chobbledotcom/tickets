@@ -50,6 +50,7 @@ export const getSecurityHeaders = (
 
 /**
  * Check if a path is embeddable (public ticket pages only)
+ * Paths are normalized to strip trailing slashes
  */
 export const isEmbeddablePath = (path: string): boolean =>
   /^\/ticket\/\d+$/.test(path);

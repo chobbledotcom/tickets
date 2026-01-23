@@ -56,7 +56,7 @@ export {
 // Re-export types
 export type { ServerContext } from "#routes/types.ts";
 
-/** Check if path matches a route prefix (with or without trailing slash) */
+/** Check if path matches a route prefix (paths are normalized to strip trailing slashes) */
 const matchesPrefix = (path: string, prefix: string): boolean =>
   path === prefix || path.startsWith(`${prefix}/`);
 
@@ -118,7 +118,7 @@ const handleRequestInternal = async (
 
   // Require setup before accessing other routes
   if (!(await isSetupComplete())) {
-    return redirect("/setup/");
+    return redirect("/setup");
   }
 
   return (

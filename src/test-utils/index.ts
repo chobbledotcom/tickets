@@ -173,7 +173,7 @@ export const mockSetupFormRequest = (
   csrfToken: string,
 ): Request => {
   return mockFormRequest(
-    "/setup/",
+    "/setup",
     { ...data, csrf_token: csrfToken },
     `setup_csrf=${csrfToken}`,
   );

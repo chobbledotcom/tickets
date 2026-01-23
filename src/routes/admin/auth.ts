@@ -62,7 +62,7 @@ const handleAdminLogin = async (
   await createSession(token, csrfToken, expires);
 
   return redirect(
-    "/admin/",
+    "/admin",
     `__Host-session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`,
   );
 };
@@ -75,9 +75,9 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
     request,
     async (session) => {
       await deleteSession(session.token);
-      return redirect("/admin/", clearSessionCookie);
+      return redirect("/admin", clearSessionCookie);
     },
-    () => redirect("/admin/", clearSessionCookie),
+    () => redirect("/admin", clearSessionCookie),
   );
 
 /** Authentication routes */
