@@ -65,6 +65,8 @@ export const adminDashboardPage = (
         </table>
       </section>
 
+      <br />
+
       <section>
         <form method="POST" action="/admin/event">
           <header>

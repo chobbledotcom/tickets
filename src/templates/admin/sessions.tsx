@@ -74,14 +74,18 @@ export const adminSessionsPage = (
       </section>
 
       {otherSessionCount > 0 && (
-        <section>
-          <form method="POST" action="/admin/sessions">
-            <input type="hidden" name="csrf_token" value={csrfToken} />
-            <button type="submit" class="danger">
-              Log out of all other sessions ({otherSessionCount})
-            </button>
-          </form>
-        </section>
+        <>
+          <br />
+
+          <section>
+            <form method="POST" action="/admin/sessions">
+              <input type="hidden" name="csrf_token" value={csrfToken} />
+              <button type="submit" class="danger">
+                Log out of all other sessions ({otherSessionCount})
+              </button>
+            </form>
+          </section>
+        </>
       )}
     </Layout>
   );
