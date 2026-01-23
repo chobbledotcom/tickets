@@ -294,6 +294,7 @@ describe("forms", () => {
   describe("eventFields validation", () => {
     test("validates thank_you_url rejects javascript: protocol", () => {
       const form = new URLSearchParams({
+        slug: "my-event",
         name: "Event",
         description: "Desc",
         max_attendees: "100",
@@ -309,6 +310,7 @@ describe("forms", () => {
 
     test("validates thank_you_url rejects invalid URL", () => {
       const form = new URLSearchParams({
+        slug: "my-event",
         name: "Event",
         description: "Desc",
         max_attendees: "100",
@@ -324,6 +326,7 @@ describe("forms", () => {
 
     test("validates thank_you_url accepts relative URLs", () => {
       const form = new URLSearchParams({
+        slug: "my-event",
         name: "Event",
         description: "Desc",
         max_attendees: "100",
@@ -336,6 +339,7 @@ describe("forms", () => {
 
     test("validates unit_price rejects negative values", () => {
       const form = new URLSearchParams({
+        slug: "my-event",
         name: "Event",
         description: "Desc",
         max_attendees: "100",
@@ -347,6 +351,37 @@ describe("forms", () => {
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.error).toBe("Price must be 0 or greater");
+      }
+    });
+
+    test("validates slug format", () => {
+      const form = new URLSearchParams({
+        slug: "INVALID_SLUG",
+        name: "Event",
+        description: "Desc",
+        max_attendees: "100",
+        max_quantity: "1",
+        thank_you_url: "https://example.com",
+      });
+      const result = validateForm(form, eventFields);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toContain("lowercase");
+      }
+    });
+
+    test("validates slug is required", () => {
+      const form = new URLSearchParams({
+        name: "Event",
+        description: "Desc",
+        max_attendees: "100",
+        max_quantity: "1",
+        thank_you_url: "https://example.com",
+      });
+      const result = validateForm(form, eventFields);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("URL Slug is required");
       }
     });
   });

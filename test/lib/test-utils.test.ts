@@ -3,10 +3,12 @@ import {
   awaitTestRequest,
   createTestDb,
   createTestDbWithSetup,
+  generateTestSlug,
   mockFormRequest,
   mockRequest,
   randomString,
   resetDb,
+  resetTestSlugCounter,
   testRequest,
   wait,
 } from "#test-utils";
@@ -173,6 +175,21 @@ describe("test-utils", () => {
       await wait(50);
       const elapsed = Date.now() - start;
       expect(elapsed).toBeGreaterThanOrEqual(45);
+    });
+  });
+
+  describe("generateTestSlug", () => {
+    test("generates incrementing slugs", () => {
+      resetTestSlugCounter();
+      expect(generateTestSlug()).toBe("test-event-1");
+      expect(generateTestSlug()).toBe("test-event-2");
+      expect(generateTestSlug()).toBe("test-event-3");
+    });
+
+    test("resetTestSlugCounter resets counter to 0", () => {
+      generateTestSlug(); // Trigger lazy init if needed
+      resetTestSlugCounter();
+      expect(generateTestSlug()).toBe("test-event-1");
     });
   });
 

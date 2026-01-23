@@ -26,7 +26,7 @@ import {
   parseCookies,
   redirect,
   requireCsrfForm,
-  withActiveEvent,
+  withActiveEventBySlug,
 } from "#routes/utils.ts";
 import { ticketFields } from "#templates/fields.ts";
 import { homePage, ticketPage } from "#templates/public.tsx";
@@ -39,14 +39,14 @@ export const handleHome = (): Response => {
 };
 
 /** Path for ticket CSRF cookies */
-const ticketCsrfPath = (eventId: number): string => `/ticket/${eventId}`;
+const ticketCsrfPath = (slug: string): string => `/ticket/${slug}`;
 
 /** Ticket response with CSRF cookie - curried to thread event and token through */
 const ticketResponseWithCookie =
   (event: EventWithCount) =>
   (token: string) =>
   (error?: string, status = 200) =>
-    htmlResponseWithCookie(csrfCookie(token, ticketCsrfPath(event.id)))(
+    htmlResponseWithCookie(csrfCookie(token, ticketCsrfPath(event.slug)))(
       ticketPage(event, token, error),
       status,
     );
@@ -58,10 +58,10 @@ const ticketResponse =
     htmlResponse(ticketPage(event, token, error), status);
 
 /**
- * Handle GET /ticket/:id
+ * Handle GET /ticket/:slug
  */
-export const handleTicketGet = (eventId: number): Promise<Response> =>
-  withActiveEvent(eventId, (event) => {
+export const handleTicketGet = (slug: string): Promise<Response> =>
+  withActiveEventBySlug(slug, (event) => {
     const token = generateSecureToken();
     return ticketResponseWithCookie(event)(token)();
   });
@@ -180,23 +180,24 @@ const processTicketReservation = async (
 };
 
 /**
- * Handle POST /ticket/:id (reserve ticket)
+ * Handle POST /ticket/:slug (reserve ticket)
  */
 export const handleTicketPost = (
   request: Request,
-  eventId: number,
+  slug: string,
 ): Promise<Response> =>
-  withActiveEvent(eventId, (event) => processTicketReservation(request, event));
+  withActiveEventBySlug(slug, (event) =>
+    processTicketReservation(request, event),
+  );
 
-/** Parse ticket ID from params */
-const parseTicketId = (params: RouteParams): number =>
-  Number.parseInt(params.id ?? "0", 10);
+/** Parse ticket slug from params */
+const parseTicketSlug = (params: RouteParams): string => params.slug ?? "";
 
 /** Ticket routes definition */
 const ticketRoutes = defineRoutes({
-  "GET /ticket/:id": (_, params) => handleTicketGet(parseTicketId(params)),
-  "POST /ticket/:id": (request, params) =>
-    handleTicketPost(request, parseTicketId(params)),
+  "GET /ticket/:slug": (_, params) => handleTicketGet(parseTicketSlug(params)),
+  "POST /ticket/:slug": (request, params) =>
+    handleTicketPost(request, parseTicketSlug(params)),
 });
 
 /** Route ticket requests */

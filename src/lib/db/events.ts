@@ -8,6 +8,7 @@ import type { Event, EventWithCount } from "#lib/types.ts";
 
 /** Event input fields for create/update (camelCase) */
 export type EventInput = {
+  slug: string;
   name: string;
   description: string;
   maxAttendees: number;
@@ -26,6 +27,7 @@ export const eventsTable = defineTable<Event, EventInput>({
   primaryKey: "id",
   schema: {
     id: col.generated<number>(),
+    slug: col.simple<string>(),
     created: col.withDefault(() => new Date().toISOString()),
     name: col.simple<string>(),
     description: col.simple<string>(),
@@ -55,6 +57,21 @@ export const updateEvent = (id: number, e: EventInput): Promise<Event | null> =>
  */
 export const getEvent = (id: number): Promise<Event | null> =>
   eventsTable.findById(id);
+
+/**
+ * Check if a slug is already in use (optionally excluding a specific event ID)
+ */
+export const isSlugTaken = async (
+  slug: string,
+  excludeEventId?: number,
+): Promise<boolean> => {
+  const sql = excludeEventId
+    ? "SELECT 1 FROM events WHERE slug = ? AND id != ?"
+    : "SELECT 1 FROM events WHERE slug = ?";
+  const args = excludeEventId ? [slug, excludeEventId] : [slug];
+  const result = await getDb().execute({ sql, args });
+  return result.rows.length > 0;
+};
 
 /**
  * Delete an event and all its attendees
@@ -95,4 +112,20 @@ export const getEventWithCount = (
      WHERE e.id = ?
      GROUP BY e.id`,
     [id],
+  );
+
+/**
+ * Get event with attendee count by slug
+ * Uses custom JOIN query - not covered by table abstraction
+ */
+export const getEventWithCountBySlug = async (
+  slug: string,
+): Promise<EventWithCount | null> =>
+  queryOne<EventWithCount>(
+    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
+     FROM events e
+     LEFT JOIN attendees a ON e.id = a.event_id
+     WHERE e.slug = ?
+     GROUP BY e.id`,
+    [slug],
   );
