@@ -98,6 +98,7 @@ const extractEventInput = (values: Record<string, unknown>): EventInput => ({
   thankYouUrl: values.thank_you_url as string,
   unitPrice: values.unit_price as number | null,
   maxQuantity: values.max_quantity as number,
+  webhookUrl: (values.webhook_url as string) || null,
 });
 
 /** Attendee type */

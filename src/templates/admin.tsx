@@ -128,6 +128,12 @@ export const adminEventPage = (
         <strong>Ticket URL:</strong>{" "}
         <a href={`/ticket/${event.id}`}>/ticket/{event.id}</a>
       </p>
+      {event.webhook_url && (
+        <p>
+          <strong>Webhook URL:</strong>{" "}
+          <a href={event.webhook_url}>{event.webhook_url}</a>
+        </p>
+      )}
 
       <h2>Attendees</h2>
       <p>
@@ -165,6 +171,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   max_quantity: event.max_quantity,
   unit_price: event.unit_price,
   thank_you_url: event.thank_you_url,
+  webhook_url: event.webhook_url,
 });
 
 /**
