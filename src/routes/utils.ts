@@ -2,7 +2,7 @@
  * Shared utilities for route handlers
  */
 
-import { err, ok, type Result } from "#fp";
+import { err, filter, map, ok, pipe, type Result, reduce } from "#fp";
 import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
 import { deleteSession, getEventWithCount, getSession } from "#lib/db";
 import type { EventWithCount } from "#lib/types.ts";
@@ -37,17 +37,17 @@ export const getClientIp = (
  * Parse cookies from request
  */
 export const parseCookies = (request: Request): Map<string, string> => {
-  const cookies = new Map<string, string>();
   const header = request.headers.get("cookie");
-  if (!header) return cookies;
+  if (!header) return new Map<string, string>();
 
-  for (const part of header.split(";")) {
-    const [key, value] = part.trim().split("=");
-    if (key && value) {
-      cookies.set(key, value);
-    }
-  }
-  return cookies;
+  return pipe(
+    map((part: string) => part.trim().split("=")),
+    filter(([key, value]) => Boolean(key && value)),
+    reduce((acc, [key, value]) => {
+      acc.set(key, value);
+      return acc;
+    }, new Map<string, string>()),
+  )(header.split(";"));
 };
 
 /**
