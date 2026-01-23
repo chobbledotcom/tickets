@@ -1315,7 +1315,7 @@ describe("server", () => {
           headers: {
             "content-type": "application/x-www-form-urlencoded",
             cookie: cookie || "",
-            origin: "http://localhost",
+            host: "localhost",
           },
           body: new URLSearchParams({
             csrf_token: csrfToken || "",
