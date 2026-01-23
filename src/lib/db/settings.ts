@@ -86,7 +86,7 @@ export const clearSetupCompleteCache = (): void => {
 
 /**
  * Complete initial setup by storing all configuration
- * Passwords are hashed using scrypt before storage
+ * Passwords are hashed using PBKDF2 before storage
  * Sensitive values are encrypted at rest
  */
 export const completeSetup = async (
@@ -164,7 +164,7 @@ export const verifyAdminPassword = async (
 
 /**
  * Update admin password and invalidate all existing sessions
- * Passwords are hashed using scrypt before storage and encrypted at rest
+ * Passwords are hashed using PBKDF2 before storage and encrypted at rest
  */
 export const updateAdminPassword = async (
   newPassword: string,
