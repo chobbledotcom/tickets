@@ -11,5 +11,5 @@ export {
   handleRequest,
   isEmbeddablePath,
   isValidContentType,
-  isValidOrigin,
+  isValidDomain,
 } from "#routes";
