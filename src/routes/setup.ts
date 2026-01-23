@@ -2,7 +2,7 @@
  * Setup routes - initial system configuration
  */
 
-import { completeSetup } from "#lib/db.ts";
+import { completeSetup } from "#lib/db";
 import { validateForm } from "#lib/forms.tsx";
 import { setupCompletePage, setupFields, setupPage } from "#templates";
 import {

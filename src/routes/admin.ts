@@ -17,7 +17,7 @@ import {
   updateEvent,
   updateStripeKey,
   verifyAdminPassword,
-} from "#lib/db.ts";
+} from "#lib/db";
 import { validateForm } from "#lib/forms.tsx";
 import type { EventWithCount } from "#lib/types.ts";
 import {

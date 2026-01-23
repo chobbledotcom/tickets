@@ -11,7 +11,7 @@ import {
   getSession,
   initDb,
   setDb,
-} from "../lib/db.ts";
+} from "../lib/db/index.ts";
 
 /**
  * Default test admin password

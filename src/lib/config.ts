@@ -4,7 +4,7 @@
  * Only DB_URL and DB_TOKEN come from environment variables
  */
 
-import { getCurrencyCodeFromDb, getStripeSecretKeyFromDb } from "./db.ts";
+import { getCurrencyCodeFromDb, getStripeSecretKeyFromDb } from "./db/index.ts";
 
 /**
  * Get Stripe secret key from database
@@ -54,4 +54,4 @@ export const getPort = (): number => {
 /**
  * Check if initial setup has been completed
  */
-export { isSetupComplete } from "./db.ts";
+export { isSetupComplete } from "./db/index.ts";

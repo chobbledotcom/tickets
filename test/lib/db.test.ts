@@ -35,7 +35,7 @@ import {
   updateEvent,
   updateStripeKey,
   verifyAdminPassword,
-} from "#lib/db.ts";
+} from "#lib/db";
 import { setupTestEncryptionKey } from "#test-utils";
 
 describe("db", () => {
