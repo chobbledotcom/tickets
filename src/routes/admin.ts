@@ -137,6 +137,10 @@ const withEventAttendees = async (
   );
 };
 
+/** Login page response helper */
+const loginResponse = (error?: string, status = 200) =>
+  htmlResponse(adminLoginPage(error), status);
+
 /**
  * Handle GET /admin/
  */
@@ -145,7 +149,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     request,
     async (session) =>
       htmlResponse(adminDashboardPage(await getAllEvents(), session.csrfToken)),
-    () => htmlResponse(adminLoginPage()),
+    () => loginResponse(),
   );
 
 /**
@@ -159,8 +163,8 @@ const handleAdminLogin = async (
 
   // Check rate limiting
   if (await isLoginRateLimited(clientIp)) {
-    return htmlResponse(
-      adminLoginPage("Too many login attempts. Please try again later."),
+    return loginResponse(
+      "Too many login attempts. Please try again later.",
       429,
     );
   }
@@ -169,13 +173,13 @@ const handleAdminLogin = async (
   const validation = validateForm(form, loginFields);
 
   if (!validation.valid) {
-    return htmlResponse(adminLoginPage(validation.error), 400);
+    return loginResponse(validation.error, 400);
   }
 
   const valid = await verifyAdminPassword(validation.values.password as string);
   if (!valid) {
     await recordFailedLogin(clientIp);
-    return htmlResponse(adminLoginPage("Invalid credentials"), 401);
+    return loginResponse("Invalid credentials", 401);
   }
 
   // Clear failed attempts on successful login
