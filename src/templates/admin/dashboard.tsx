@@ -35,30 +35,46 @@ export const adminDashboardPage = (
 
   return String(
     <Layout title="Admin Dashboard">
-      <h1>Admin Dashboard</h1>
-      <p><a href="/admin/settings">Settings</a> | <a href="/admin/sessions">Sessions</a> | <a href="/admin/logout">Logout</a></p>
+      <header>
+        <h1>Admin Dashboard</h1>
+        <nav>
+          <ul>
+            <li><a href="/admin/settings">Settings</a></li>
+            <li><a href="/admin/sessions">Sessions</a></li>
+            <li><a href="/admin/logout">Logout</a></li>
+          </ul>
+        </nav>
+      </header>
 
-      <h2>Events</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Attendees</th>
-            <th>Created</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <Raw html={eventRows} />
-        </tbody>
-      </table>
+      <section>
+        <header>
+          <h2>Events</h2>
+        </header>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Attendees</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={eventRows} />
+          </tbody>
+        </table>
+      </section>
 
-      <h2>Create New Event</h2>
-      <form method="POST" action="/admin/event">
-        <input type="hidden" name="csrf_token" value={csrfToken} />
-        <Raw html={renderFields(eventFields)} />
-        <button type="submit">Create Event</button>
-      </form>
+      <section>
+        <form method="POST" action="/admin/event">
+          <header>
+            <h2>Create New Event</h2>
+          </header>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <Raw html={renderFields(eventFields)} />
+          <button type="submit">Create Event</button>
+        </form>
+      </section>
     </Layout>
   );
 };
