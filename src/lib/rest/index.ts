@@ -25,6 +25,7 @@ export {
   type DeleteHandlerOptions,
   deleteHandler,
   type UpdateHandlerOptions,
+  updateHandler,
 } from "./handlers.ts";
 
 // Resource definition

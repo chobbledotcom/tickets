@@ -16,12 +16,16 @@ import {
   isLoginRateLimited,
   recordFailedLogin,
   updateAdminPassword,
-  updateEvent,
   updateStripeKey,
   verifyAdminPassword,
 } from "#lib/db";
 import { validateForm } from "#lib/forms.tsx";
-import { createHandler, defineResource, deleteHandler } from "#lib/rest";
+import {
+  createHandler,
+  defineResource,
+  deleteHandler,
+  updateHandler,
+} from "#lib/rest";
 import type { EventWithCount } from "#lib/types.ts";
 import {
   adminDashboardPage,
@@ -332,39 +336,33 @@ const withEventPage =
       ),
     );
 
-/** Event form handler callback type */
-type EventFormHandler = (
-  event: EventWithCount,
-  session: AuthSession,
-  form: URLSearchParams,
-  request: Request,
-) => Response | Promise<Response>;
-
-/** Curried event form handler: handler -> (request, eventId) -> Response */
-const withEventFormHandler =
-  (handler: EventFormHandler) =>
-  (request: Request, eventId: number): Promise<Response> =>
-    withAuthForm(request, (session, form) =>
-      withEvent(eventId, (event) => handler(event, session, form, request)),
-    );
+/** Render event error page or 404 */
+const eventErrorPage = async (
+  id: number,
+  renderPage: (
+    event: EventWithCount,
+    csrfToken: string,
+    error: string,
+  ) => string,
+  csrfToken: string,
+  error: string,
+): Promise<Response> => {
+  const event = await getEventWithCount(id);
+  return event
+    ? htmlResponse(renderPage(event, csrfToken, error), 400)
+    : htmlResponse(notFoundPage(), 404);
+};
 
 /** Handle GET /admin/event/:id/edit */
 const handleAdminEventEditGet = withEventPage(adminEventEditPage);
 
 /** Handle POST /admin/event/:id/edit */
-const handleAdminEventEditPost = withEventFormHandler(
-  async (event, session, form, _request) => {
-    const validation = validateForm(form, eventFields);
-    if (!validation.valid) {
-      return htmlResponse(
-        adminEventEditPage(event, session.csrfToken, validation.error),
-        400,
-      );
-    }
-    await updateEvent(event.id, extractEventInput(validation.values));
-    return redirect(`/admin/event/${event.id}`);
-  },
-);
+const handleAdminEventEditPost = updateHandler(eventsResource, {
+  onSuccess: (row) => redirect(`/admin/event/${row.id}`),
+  onError: (id, error, session) =>
+    eventErrorPage(id as number, adminEventEditPage, session.csrfToken, error),
+  onNotFound: () => htmlResponse(notFoundPage(), 404),
+});
 
 /**
  * Handle GET /admin/event/:id/export (CSV export)
@@ -387,19 +385,13 @@ const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
 /** Handle DELETE /admin/event/:id (delete event, optionally verify name) */
 const handleAdminEventDelete = deleteHandler(eventsResource, {
   onSuccess: () => redirect("/admin/"),
-  onVerifyFailed: async (id, _row, session) => {
-    // Fetch EventWithCount for the delete page (includes attendee_count)
-    const event = await getEventWithCount(id as number);
-    if (!event) return htmlResponse(notFoundPage(), 404);
-    return htmlResponse(
-      adminDeleteEventPage(
-        event,
-        session.csrfToken,
-        "Event name does not match. Please type the exact name to confirm deletion.",
-      ),
-      400,
-    );
-  },
+  onVerifyFailed: (id, _row, session) =>
+    eventErrorPage(
+      id as number,
+      adminDeleteEventPage,
+      session.csrfToken,
+      "Event name does not match. Please type the exact name to confirm deletion.",
+    ),
   onNotFound: () => htmlResponse(notFoundPage(), 404),
 });
 

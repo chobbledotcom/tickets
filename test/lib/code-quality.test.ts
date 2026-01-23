@@ -224,8 +224,9 @@ describe("code quality", () => {
       "lib/crypto.ts:clearEncryptionKeyCache",
       // Reset cached Stripe client between tests
       "lib/stripe.ts:resetStripeClient",
-      // Event creation for test data setup (production uses REST library)
+      // Event CRUD for test data setup (production uses REST library)
       "lib/db/events.ts:createEvent",
+      "lib/db/events.ts:updateEvent",
     ];
 
     /**

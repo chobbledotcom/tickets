@@ -3,7 +3,12 @@ import { createClient } from "@libsql/client";
 import { createSession, initDb, setDb } from "#lib/db";
 import { col, defineTable, type Table } from "#lib/db/table.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
-import { createHandler, defineResource, deleteHandler } from "#lib/rest";
+import {
+  createHandler,
+  defineResource,
+  deleteHandler,
+  updateHandler,
+} from "#lib/rest";
 import {
   createTestDbWithSetup,
   resetDb,
@@ -450,6 +455,106 @@ describe("rest/handlers", () => {
         value: "42",
       });
       const response = await handler(request);
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+  });
+
+  describe("updateHandler", () => {
+    test("updates row and calls onSuccess", async () => {
+      const table = createTestTable();
+      const resource = defineResource({ table, fields: testFields, toInput });
+
+      // Create initial row
+      await table.insert({ name: "Original", value: 10 });
+
+      let capturedRow: unknown = null;
+      const handler = updateHandler(resource, {
+        onSuccess: (row) => {
+          capturedRow = row;
+          return new Response("Updated", { status: 200 });
+        },
+        onError: (_id, error) => new Response(error, { status: 400 }),
+        onNotFound: () => new Response("Not Found", { status: 404 }),
+      });
+
+      const request = await createAuthRequest("/items/1", "PUT", {
+        name: "Updated",
+        value: "99",
+      });
+      const response = await handler(request, 1);
+
+      expect(response.status).toBe(200);
+      const updatedRow = capturedRow as TestRow;
+      expect(updatedRow.name).toBe("Updated");
+      expect(updatedRow.value).toBe(99);
+    });
+
+    test("calls onNotFound for non-existent row", async () => {
+      const table = createTestTable();
+      const resource = defineResource({ table, fields: testFields, toInput });
+
+      const handler = updateHandler(resource, {
+        onSuccess: () => new Response("Updated", { status: 200 }),
+        onError: () => new Response("Error", { status: 400 }),
+        onNotFound: () => new Response("Not Found", { status: 404 }),
+      });
+
+      const request = await createAuthRequest("/items/999", "PUT", {
+        name: "Updated",
+        value: "99",
+      });
+      const response = await handler(request, 999);
+
+      expect(response.status).toBe(404);
+    });
+
+    test("calls onError with id for validation failure", async () => {
+      const table = createTestTable();
+      const resource = defineResource({ table, fields: testFields, toInput });
+
+      // Create initial row
+      await table.insert({ name: "Original", value: 10 });
+
+      let capturedId: unknown = null;
+      let errorMessage = "";
+      const handler = updateHandler(resource, {
+        onSuccess: () => new Response("Updated", { status: 200 }),
+        onError: (id, error) => {
+          capturedId = id;
+          errorMessage = error;
+          return new Response(error, { status: 400 });
+        },
+        onNotFound: () => new Response("Not Found", { status: 404 }),
+      });
+
+      const request = await createAuthRequest("/items/1", "PUT", {
+        name: "Updated",
+        // missing value
+      });
+      const response = await handler(request, 1);
+
+      expect(response.status).toBe(400);
+      expect(capturedId).toBe(1);
+      expect(errorMessage).toBe("Value is required");
+    });
+
+    test("redirects for unauthenticated request", async () => {
+      const table = createTestTable();
+      const resource = defineResource({ table, fields: testFields, toInput });
+
+      const handler = updateHandler(resource, {
+        onSuccess: () => new Response("Updated", { status: 200 }),
+        onError: () => new Response("Error", { status: 400 }),
+        onNotFound: () => new Response("Not Found", { status: 404 }),
+      });
+
+      const request = createUnauthRequest("/items/1", "PUT", {
+        name: "Updated",
+        value: "99",
+      });
+      const response = await handler(request, 1);
 
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/");

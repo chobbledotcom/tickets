@@ -13,7 +13,12 @@ import {
   type AuthSession,
   requireAuthForm,
 } from "#routes/utils.ts";
-import type { CreateResult, DeleteResult, Resource } from "./resource.ts";
+import type {
+  CreateResult,
+  DeleteResult,
+  Resource,
+  UpdateResult,
+} from "./resource.ts";
 
 /** Async or sync response */
 type MaybeAsync<T> = T | Promise<T>;
@@ -21,8 +26,16 @@ type MaybeAsync<T> = T | Promise<T>;
 /** Auth context from successful check */
 type AuthOk = AuthFormResult & { ok: true };
 
-/** Callback for validation errors */
+/** Callback for validation errors (create) */
 type OnError = (
+  error: string,
+  session: AuthSession,
+  form: URLSearchParams,
+) => MaybeAsync<Response>;
+
+/** Callback for validation errors with ID (update) */
+type OnErrorWithId = (
+  id: InValue,
   error: string,
   session: AuthSession,
   form: URLSearchParams,
@@ -37,8 +50,10 @@ export interface CreateHandlerOptions<R> {
   onError: OnError;
 }
 
-/** Options for update handler - extends create with onNotFound */
-export interface UpdateHandlerOptions<R> extends CreateHandlerOptions<R> {
+/** Options for update handler */
+export interface UpdateHandlerOptions<R> {
+  onSuccess: OnRowSuccess<R>;
+  onError: OnErrorWithId;
   onNotFound: () => MaybeAsync<Response>;
 }
 
@@ -88,6 +103,18 @@ const dispatchDelete = <R>(
     ? opts.onSuccess(session)
     : opts.onNotFound();
 
+/** Dispatch update result */
+const dispatchUpdate = <R>(
+  id: InValue,
+  result: UpdateResult<R>,
+  auth: AuthOk,
+  opts: UpdateHandlerOptions<R>,
+): MaybeAsync<Response> => {
+  if (result.ok) return opts.onSuccess(result.row, auth.session);
+  if ("notFound" in result) return opts.onNotFound();
+  return opts.onError(id, result.error, auth.session, auth.form);
+};
+
 /** Create POST handler */
 export const createHandler =
   <R, I>(resource: Resource<R, I>, opts: CreateHandlerOptions<R>) =>
@@ -97,6 +124,15 @@ export const createHandler =
       ? dispatchCreate(await resource.create(a.form), a, opts)
       : a.response;
   };
+
+/** Create PUT/PATCH handler for updates */
+export const updateHandler = <R, I>(
+  resource: Resource<R, I>,
+  opts: UpdateHandlerOptions<R>,
+): IdHandler =>
+  authHandler(async (_req, id, auth) =>
+    dispatchUpdate(id, await resource.update(id, auth.form), auth, opts),
+  );
 
 /** Check name verification param */
 const needsVerify = (req: Request): boolean =>
