@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
+  getAllowedDomain,
   getCurrencyCode,
   getStripeSecretKey,
   isPaymentsEnabled,
@@ -72,6 +73,18 @@ describe("config", () => {
     test("returns true when setup is complete", async () => {
       await completeSetup("password123", null, "GBP");
       expect(await isSetupComplete()).toBe(true);
+    });
+  });
+
+  describe("getAllowedDomain", () => {
+    test("returns set value from environment", () => {
+      process.env.ALLOWED_DOMAIN = "example.com";
+      expect(getAllowedDomain()).toBe("example.com");
+    });
+
+    test("returns localhost when set for testing", () => {
+      process.env.ALLOWED_DOMAIN = "localhost";
+      expect(getAllowedDomain()).toBe("localhost");
     });
   });
 });

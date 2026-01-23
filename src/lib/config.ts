@@ -31,6 +31,14 @@ export const getCurrencyCode = async (): Promise<string> => {
 };
 
 /**
+ * Get allowed domain for security validation (build-time config)
+ * This is a required build-time configuration that hardens origin validation
+ */
+export const getAllowedDomain = (): string => {
+  return process.env.ALLOWED_DOMAIN as string;
+};
+
+/**
  * Check if initial setup has been completed
  */
 export { isSetupComplete } from "./db/index.ts";
