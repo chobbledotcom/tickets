@@ -32,8 +32,6 @@
     "precommit": "bun run typecheck && bun run lint && bun run cpd && bun run test:coverage"
   },
   "dependencies": {
-    "@noble/ciphers": "^2.1.1",
-    "@noble/hashes": "^2.0.1",
     "stripe": "^17.0.0"
   },
   "devDependencies": {

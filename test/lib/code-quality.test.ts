@@ -29,11 +29,13 @@ const FORBIDDEN_PATTERNS = [
 ];
 
 /**
- * Files that are allowed to have in-memory state (e.g., test utilities)
+ * Files that are allowed to have in-memory state (e.g., test utilities, caches)
  */
 const ALLOWED_FILES_STATE = [
   "test-utils/index.ts",
   "test-utils/stripe-mock.ts",
+  // Session cache with 10s TTL - legitimate performance optimization
+  "lib/db/sessions.ts",
 ];
 
 /**
@@ -224,6 +226,10 @@ describe("code quality", () => {
       "lib/crypto.ts:clearEncryptionKeyCache",
       // Reset cached Stripe client between tests
       "lib/stripe.ts:resetStripeClient",
+      // Reset cached setup complete status between tests
+      "lib/db/settings.ts:clearSetupCompleteCache",
+      // Reset cached sessions between tests
+      "lib/db/sessions.ts:resetSessionCache",
       // Event CRUD for test data setup (production uses REST library)
       "lib/db/events.ts:createEvent",
       "lib/db/events.ts:updateEvent",

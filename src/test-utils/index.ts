@@ -7,8 +7,8 @@ import { clearEncryptionKeyCache } from "#lib/crypto.ts";
 import { setDb } from "#lib/db/client.ts";
 import { createEvent, type EventInput } from "#lib/db/events.ts";
 import { initDb } from "#lib/db/migrations/index.ts";
-import { getSession } from "#lib/db/sessions.ts";
-import { completeSetup } from "#lib/db/settings.ts";
+import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
+import { clearSetupCompleteCache, completeSetup } from "#lib/db/settings.ts";
 
 /**
  * Default test admin password
@@ -43,10 +43,12 @@ export const clearTestEncryptionKey = (): void => {
 
 /**
  * Create an in-memory database for testing
- * Also sets up the test encryption key
+ * Also sets up the test encryption key and clears caches
  */
 export const createTestDb = async (): Promise<void> => {
   setupTestEncryptionKey();
+  clearSetupCompleteCache();
+  resetSessionCache();
   const client = createClient({ url: ":memory:" });
   setDb(client);
   await initDb();
@@ -66,10 +68,12 @@ export const createTestDbWithSetup = async (
 };
 
 /**
- * Reset the database connection
+ * Reset the database connection and clear caches
  */
 export const resetDb = (): void => {
   setDb(null);
+  clearSetupCompleteCache();
+  resetSessionCache();
 };
 
 /**

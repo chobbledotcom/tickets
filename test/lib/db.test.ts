@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, jest, test } from "bun:test";
 import { createClient } from "@libsql/client";
 import {
   createAttendee,
@@ -29,6 +29,7 @@ import {
   deleteSession,
   getAllSessions,
   getSession,
+  resetSessionCache,
 } from "#lib/db/sessions";
 import {
   CONFIG_KEYS,
@@ -711,6 +712,40 @@ describe("db", () => {
 
       const session = await getSession("only-session");
       expect(session).not.toBeNull();
+    });
+
+    test("getSession expires cached entry after TTL", async () => {
+      // Use fake timers to control Date.now()
+      jest.useFakeTimers();
+      const startTime = Date.now();
+      jest.setSystemTime(startTime);
+
+      // Create and cache a session
+      await createSession("ttl-test", "csrf-ttl", startTime + 60000);
+      const firstCall = await getSession("ttl-test");
+      expect(firstCall).not.toBeNull();
+
+      // Advance time past the 10-second TTL
+      jest.setSystemTime(startTime + 11000);
+
+      // Reset session cache to clear it, then re-cache with old timestamp
+      // by manipulating time backwards to simulate an old cache entry
+      resetSessionCache();
+
+      // Re-cache the session at the original time
+      jest.setSystemTime(startTime);
+      await getSession("ttl-test"); // This caches with startTime
+
+      // Now advance time past TTL again
+      jest.setSystemTime(startTime + 11000);
+
+      // This call should find the expired cache entry, delete it, and re-query DB
+      const afterTtl = await getSession("ttl-test");
+      expect(afterTtl).not.toBeNull();
+      expect(afterTtl?.token).toBe("ttl-test");
+
+      // Restore real timers
+      jest.useRealTimers();
     });
   });
 

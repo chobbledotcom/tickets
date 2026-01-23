@@ -34,12 +34,20 @@ const ENV_VARS = Object.fromEntries(
   ]),
 );
 
+// Banner to inject Node.js globals that many packages expect (per Bunny docs)
+const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
+import { Buffer } from "node:buffer";
+globalThis.process ??= process;
+globalThis.Buffer ??= Buffer;
+globalThis.global ??= globalThis;
+`;
+
 const result = await Bun.build({
   entrypoints: ["./src/edge/bunny-script.ts"],
   outdir: "./dist",
   target: "browser",
   format: "esm",
-  minify: false,
+  minify: true,
   external: [
     "@bunny.net/edgescript-sdk",
     "@libsql/client",
@@ -51,6 +59,7 @@ const result = await Bun.build({
       JSON.stringify(value),
     ]),
   ),
+  banner: NODEJS_GLOBALS_BANNER,
 });
 
 if (!result.success) {

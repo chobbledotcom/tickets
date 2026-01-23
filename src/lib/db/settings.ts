@@ -2,6 +2,7 @@
  * Settings table operations
  */
 
+import { lazyRef } from "#fp";
 import { decrypt, encrypt, hashPassword, verifyPassword } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
 import { deleteAllSessions } from "#lib/db/sessions.ts";
@@ -40,11 +41,47 @@ export const setSetting = async (key: string, value: string): Promise<void> => {
 };
 
 /**
+ * Cached setup complete status using lazyRef pattern.
+ * Once setup is complete (true), it can never go back to false,
+ * so we cache it permanently to avoid per-request DB queries.
+ */
+const [getSetupCompleteCache, setSetupCompleteCache] = lazyRef<boolean>(
+  () => false,
+);
+
+/**
+ * Track whether we've confirmed setup is complete
+ */
+const [getSetupConfirmed, setSetupConfirmed] = lazyRef<boolean>(() => false);
+
+/**
  * Check if initial setup has been completed
+ * Result is cached in memory - once true, we never query again.
  */
 export const isSetupComplete = async (): Promise<boolean> => {
+  // Check both caches (avoid short-circuit to ensure consistent initialization)
+  const confirmed = getSetupConfirmed();
+  const cached = getSetupCompleteCache();
+  if (confirmed && cached) return true;
+
   const value = await getSetting(CONFIG_KEYS.SETUP_COMPLETE);
-  return value === "true";
+  const isComplete = value === "true";
+
+  // Only cache positive result (setup complete is permanent)
+  if (isComplete) {
+    setSetupCompleteCache(true);
+    setSetupConfirmed(true);
+  }
+
+  return isComplete;
+};
+
+/**
+ * Clear setup complete cache (for testing)
+ */
+export const clearSetupCompleteCache = (): void => {
+  setSetupCompleteCache(null);
+  setSetupConfirmed(null);
 };
 
 /**

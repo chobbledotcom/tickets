@@ -2902,6 +2902,11 @@ describe("server", () => {
         const mockCompleteSetup = spyOn(dbModule, "completeSetup");
         mockCompleteSetup.mockRejectedValue(new Error("Database error"));
 
+        // Suppress expected console.error to avoid non-zero exit code
+        const mockConsoleError = spyOn(console, "error").mockImplementation(
+          () => {},
+        );
+
         try {
           await expect(
             handleRequest(
@@ -2917,6 +2922,7 @@ describe("server", () => {
           ).rejects.toThrow("Database error");
         } finally {
           mockCompleteSetup.mockRestore();
+          mockConsoleError.mockRestore();
         }
       });
 
