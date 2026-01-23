@@ -1000,6 +1000,254 @@ describe("server", () => {
     });
   });
 
+  describe("GET /admin/event/:id/delete", () => {
+    test("redirects to login when not authenticated", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await handleRequest(
+        mockRequest("/admin/event/1/delete"),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/999/delete", {
+          headers: { cookie: cookie || "" },
+        }),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("shows delete confirmation page when authenticated", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await handleRequest(
+        new Request("http://localhost/admin/event/1/delete", {
+          headers: { cookie: cookie || "" },
+        }),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Delete Event");
+      expect(html).toContain("Test Event");
+      expect(html).toContain("type its name");
+    });
+  });
+
+  describe("POST /admin/event/:id/delete", () => {
+    test("redirects to login when not authenticated", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await handleRequest(
+        mockFormRequest("/admin/event/1/delete", {
+          confirm_name: "Test Event",
+        }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/999/delete",
+          {
+            confirm_name: "Test Event",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/delete",
+          {
+            confirm_name: "Test Event",
+            csrf_token: "invalid-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid CSRF token");
+    });
+
+    test("rejects mismatched event name", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/delete",
+          {
+            confirm_name: "Wrong Name",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("does not match");
+    });
+
+    test("deletes event with matching name (case insensitive)", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/delete",
+          {
+            confirm_name: "test event", // lowercase
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+
+      // Verify event was deleted
+      const { getEvent } = await import("#lib/db");
+      const event = await getEvent(1);
+      expect(event).toBeNull();
+    });
+
+    test("deletes event with matching name (trimmed)", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/delete",
+          {
+            confirm_name: "  Test Event  ", // with spaces
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("deletes event and all attendees", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+      await createAttendee(1, "Jane Doe", "jane@example.com");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/delete",
+          {
+            confirm_name: "Test Event",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      // Verify event and attendees were deleted
+      const { getEvent, getAttendees } = await import("#lib/db");
+      const event = await getEvent(1);
+      expect(event).toBeNull();
+
+      const attendees = await getAttendees(1);
+      expect(attendees).toEqual([]);
+    });
+  });
+
   describe("GET /ticket/:id", () => {
     test("returns 404 for non-existent event", async () => {
       const response = await handleRequest(mockRequest("/ticket/999"));

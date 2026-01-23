@@ -19,6 +19,7 @@ export type { EventInput } from "./events.ts";
 // Events
 export {
   createEvent,
+  deleteEvent,
   getAllEvents,
   getEvent,
   getEventWithCount,
