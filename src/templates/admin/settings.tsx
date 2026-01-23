@@ -44,6 +44,8 @@ export const adminSettingsPage = (
         </form>
       </section>
 
+      <br />
+
       <section>
         <form method="POST" action="/admin/settings">
           <header>
