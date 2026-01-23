@@ -9,7 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { mapAsync } from "#fp";
+import { mapAsync, reduce } from "#fp";
 import { getDb, queryOne } from "./client.ts";
 
 /**
@@ -112,13 +112,14 @@ export const toSnakeCase = (s: string): string =>
  */
 export const buildInputKeyMap = <Row>(
   columns: (keyof Row)[],
-): Record<string, string> => {
-  const result: Record<string, string> = {};
-  for (const col of columns) {
-    result[col as string] = toCamelCase(col as string);
-  }
-  return result;
-};
+): Record<string, string> =>
+  reduce(
+    (acc, col) => {
+      acc[col as string] = toCamelCase(col as string);
+      return acc;
+    },
+    {} as Record<string, string>,
+  )(columns);
 
 /**
  * Table definition with CRUD operations
