@@ -9,7 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { mapAsync, reduce } from "#fp";
+import { filter, mapAsync, reduce } from "#fp";
 import { getDb, queryOne } from "./client.ts";
 
 /**
@@ -293,16 +293,11 @@ export const defineTable = <Row, Input = Row>(config: {
   };
 
   // Get columns that were provided in input
-  const getProvidedColumns = (input: Partial<Input>): string[] => {
-    const result: string[] = [];
-    for (const col of inputColumns) {
+  const getProvidedColumns = (input: Partial<Input>): string[] =>
+    filter((col: string) => {
       const inputKey = inputKeyMap[col] ?? col;
-      if (inputKey in (input as object)) {
-        result.push(col);
-      }
-    }
-    return result;
-  };
+      return inputKey in (input as object);
+    })(inputColumns);
 
   // Update implementation
   const update = async (
