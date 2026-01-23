@@ -119,23 +119,58 @@ const main = async () => {
   // Print the report
   printReport();
 
-  // Simulate multiple "warm" requests
-  console.log("\nSimulating 5 warm requests (isSetupComplete only):\n");
+  // Complete setup to test caching
+  console.log("Completing setup to test caching...\n");
+  const { completeSetup, isSetupComplete } = await import(
+    "#lib/db/settings.ts"
+  );
+  await completeSetup("testpassword", null, "GBP");
 
-  const { isSetupComplete } = await import("#lib/db/settings.ts");
-  const warmTimings: number[] = [];
+  // Test isSetupComplete caching (before it's cached)
+  console.log("Testing isSetupComplete() caching:\n");
 
+  // First call after setup - should query DB and cache
+  const firstStart = performance.now();
+  await isSetupComplete();
+  const firstDuration = performance.now() - firstStart;
+  console.log(`  First call (queries DB + caches): ${firstDuration.toFixed(2)}ms`);
+
+  // Subsequent calls - should return cached value instantly
+  const cachedTimings: number[] = [];
   for (let i = 0; i < 5; i++) {
     const start = performance.now();
     await isSetupComplete();
     const duration = performance.now() - start;
-    warmTimings.push(duration);
-    console.log(`  Request ${i + 1}: ${duration.toFixed(2)}ms`);
+    cachedTimings.push(duration);
   }
+  const avgCached = cachedTimings.reduce((a, b) => a + b, 0) / cachedTimings.length;
+  console.log(`  Cached calls (avg of 5): ${avgCached.toFixed(4)}ms`);
+  console.log(`  ✅ ${(firstDuration / avgCached).toFixed(0)}x faster with caching!\n`);
 
-  const avgWarm = warmTimings.reduce((a, b) => a + b, 0) / warmTimings.length;
-  console.log(`\n  Average per-request overhead: ${avgWarm.toFixed(2)}ms`);
-  console.log("  (This query runs on EVERY request, even when warm)\n");
+  // Test session caching
+  console.log("Testing session caching (10s TTL):\n");
+  const { createSession, getSession } = await import("#lib/db/sessions.ts");
+
+  // Create a session
+  await createSession("test-token", "test-csrf", Date.now() + 3600000);
+
+  // First call - queries DB and caches
+  const sessionStart1 = performance.now();
+  await getSession("test-token");
+  const sessionDuration1 = performance.now() - sessionStart1;
+  console.log(`  First call (queries DB + caches): ${sessionDuration1.toFixed(2)}ms`);
+
+  // Cached calls
+  const sessionTimings: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    const start = performance.now();
+    await getSession("test-token");
+    const duration = performance.now() - start;
+    sessionTimings.push(duration);
+  }
+  const avgSession = sessionTimings.reduce((a, b) => a + b, 0) / sessionTimings.length;
+  console.log(`  Cached calls (avg of 5): ${avgSession.toFixed(4)}ms`);
+  console.log(`  ✅ ${(sessionDuration1 / avgSession).toFixed(0)}x faster with caching!\n`);
 
   // Network latency reality check
   console.log("=".repeat(60));
@@ -150,26 +185,24 @@ Typical latency ranges:
   - Cross-region:    50-150ms per query
   - Global edge:     100-300ms per query
 
-Current per-request DB queries:
-  1. initDb version check (cold start only)
-  2. isSetupComplete() (EVERY request)
+With caching optimizations:
+  - isSetupComplete(): Cached permanently after first true result
+    → Cold start: 1 query, Warm requests: 0 queries
+  - Session validation: Cached for 10 seconds
+    → Reduces ~50ms per request to ~0ms for repeat checks
 
 Estimated cold start with network:
   JS overhead:       ~30ms
   initDb query:      ~50ms (same region)
-  isSetupComplete:   ~50ms (same region)
+  isSetupComplete:   ~50ms (same region, then cached)
   Route loading:     ~25ms
   ─────────────────────────
   TOTAL:             ~155ms (cold)
 
-Per warm request:
-  isSetupComplete:   ~50ms (same region)
+Per warm request (after first):
+  isSetupComplete:   ~0ms (cached!)
+  Session check:     ~0ms (cached for 10s) or ~50ms (cache miss)
   + Business logic queries
-
-Recommendation:
-  The isSetupComplete() query on every request is the main
-  bottleneck. Consider caching this in memory since setup
-  status never changes to 'false' once set to 'true'.
 `);
 };
 
