@@ -185,13 +185,13 @@ const handleAdminLogin = async (
 
   return redirect(
     "/admin/",
-    `session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=86400`,
+    `__Host-session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`,
   );
 };
 
 /** Cookie to clear admin session */
 const clearSessionCookie =
-  "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0";
+  "__Host-session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0";
 
 /**
  * Handle GET /admin/logout

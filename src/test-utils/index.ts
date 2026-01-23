@@ -142,7 +142,7 @@ export const randomString = (length: number): string => {
 export const getCsrfTokenFromCookie = async (
   cookie: string,
 ): Promise<string | null> => {
-  const sessionMatch = cookie.match(/session=([^;]+)/);
+  const sessionMatch = cookie.match(/__Host-session=([^;]+)/);
   if (!sessionMatch?.[1]) return null;
 
   const sessionToken = sessionMatch[1];
@@ -241,7 +241,7 @@ export const testRequest = (
   const headers: Record<string, string> = { host: "localhost" };
 
   if (token) {
-    headers.cookie = `session=${token}`;
+    headers.cookie = `__Host-session=${token}`;
   } else if (cookie) {
     headers.cookie = cookie;
   }

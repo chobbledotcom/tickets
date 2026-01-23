@@ -58,7 +58,7 @@ export const getAuthenticatedSession = async (
   request: Request,
 ): Promise<{ token: string; csrfToken: string } | null> => {
   const cookies = parseCookies(request);
-  const token = cookies.get("session");
+  const token = cookies.get("__Host-session");
   if (!token) return null;
 
   const session = await getSession(token);

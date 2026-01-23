@@ -149,7 +149,7 @@ describe("server", () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/");
-      expect(response.headers.get("set-cookie")).toContain("session=");
+      expect(response.headers.get("set-cookie")).toContain("__Host-session=");
     });
 
     test("returns 429 when rate limited", async () => {

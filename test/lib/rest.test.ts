@@ -368,7 +368,7 @@ describe("rest/handlers", () => {
       method,
       headers: {
         "content-type": "application/x-www-form-urlencoded",
-        cookie: "session=test-session",
+        cookie: "__Host-session=test-session",
         origin: "http://localhost",
       },
       body: body.toString(),
