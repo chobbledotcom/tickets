@@ -20,7 +20,7 @@ export type EventInput = {
 /**
  * Events table definition
  */
-const eventsTable = defineTable<Event, EventInput>({
+export const eventsTable = defineTable<Event, EventInput>({
   name: "events",
   primaryKey: "id",
   schema: {

@@ -4,9 +4,9 @@
 
 import { createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "../lib/crypto.ts";
+import { createEvent } from "../lib/db/events.ts";
 import {
   completeSetup,
-  createEvent,
   type EventInput,
   getSession,
   initDb,
@@ -207,8 +207,6 @@ export const mockTicketFormRequest = (
  * Options for testRequest helper
  */
 interface TestRequestOptions {
-  /** Session token - will be formatted as "__Host-session={token}" */
-  session?: string;
   /** Full cookie string (use when you have raw set-cookie value) */
   cookie?: string;
   /** HTTP method (defaults to GET, or POST if data is provided) */
@@ -222,27 +220,28 @@ interface TestRequestOptions {
  * Simplifies the verbose new Request() pattern in tests
  *
  * @example
+ * // Simple GET
+ * testRequest("/admin/")
+ *
  * // GET with session token
- * testRequest("/admin/logout", { session: token })
+ * testRequest("/admin/logout", token)
  *
- * // GET with full cookie string
- * testRequest("/admin/", { cookie: setCookieHeader })
- *
- * // POST with form data
- * testRequest("/admin/login", { data: { password: "test" } })
+ * // POST with form data (no auth)
+ * testRequest("/admin/login", null, { data: { password: "test" } })
  *
  * // POST with session and form data
- * testRequest("/admin/event/new", { session: token, data: { name: "Event" } })
+ * testRequest("/admin/event/new", token, { data: { name: "Event" } })
  */
 export const testRequest = (
   path: string,
+  token?: string | null,
   options: TestRequestOptions = {},
 ): Request => {
-  const { session, cookie, method, data } = options;
+  const { cookie, method, data } = options;
   const headers: Record<string, string> = { host: "localhost" };
 
-  if (session) {
-    headers.cookie = `__Host-session=${session}`;
+  if (token) {
+    headers.cookie = `__Host-session=${token}`;
   } else if (cookie) {
     headers.cookie = cookie;
   }
@@ -260,6 +259,34 @@ export const testRequest = (
     method: method ?? "GET",
     headers,
   });
+};
+
+/**
+ * Create and execute a test request, returning the response
+ * Combines testRequest() and handleRequest() for cleaner test code
+ *
+ * @example
+ * // Simple GET
+ * const response = await awaitTestRequest("/admin/")
+ *
+ * // GET with session token
+ * const response = await awaitTestRequest("/admin/logout", token)
+ *
+ * // GET with cookie (from login response)
+ * const response = await awaitTestRequest("/admin/", { cookie })
+ *
+ * // POST with form data
+ * const response = await awaitTestRequest("/admin/login", { data: { password: "test" } })
+ */
+export const awaitTestRequest = async (
+  path: string,
+  tokenOrOptions?: string | TestRequestOptions | null,
+): Promise<Response> => {
+  const { handleRequest } = await import("../server.ts");
+  if (typeof tokenOrOptions === "object" && tokenOrOptions !== null) {
+    return handleRequest(testRequest(path, null, tokenOrOptions));
+  }
+  return handleRequest(testRequest(path, tokenOrOptions));
 };
 
 /** Re-export createEvent and EventInput for test use */

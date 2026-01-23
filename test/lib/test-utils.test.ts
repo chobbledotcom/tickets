@@ -1,6 +1,8 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
+  awaitTestRequest,
   createTestDb,
+  createTestDbWithSetup,
   mockFormRequest,
   mockRequest,
   randomString,
@@ -86,12 +88,12 @@ describe("test-utils", () => {
     });
 
     test("formats session token as cookie", () => {
-      const request = testRequest("/admin/logout", { session: "abc123" });
+      const request = testRequest("/admin/logout", "abc123");
       expect(request.headers.get("cookie")).toBe("__Host-session=abc123");
     });
 
     test("uses raw cookie string when provided", () => {
-      const request = testRequest("/admin/", {
+      const request = testRequest("/admin/", null, {
         cookie: "__Host-session=xyz; other=value",
       });
       expect(request.headers.get("cookie")).toBe(
@@ -99,16 +101,15 @@ describe("test-utils", () => {
       );
     });
 
-    test("session takes precedence over cookie", () => {
-      const request = testRequest("/admin/", {
-        session: "token123",
+    test("token takes precedence over cookie", () => {
+      const request = testRequest("/admin/", "token123", {
         cookie: "__Host-session=other",
       });
       expect(request.headers.get("cookie")).toBe("__Host-session=token123");
     });
 
     test("creates POST request with form data", async () => {
-      const request = testRequest("/admin/login", {
+      const request = testRequest("/admin/login", null, {
         data: { username: "admin", password: "secret" },
       });
       expect(request.method).toBe("POST");
@@ -120,9 +121,8 @@ describe("test-utils", () => {
       expect(body).toContain("password=secret");
     });
 
-    test("combines session with form data", async () => {
-      const request = testRequest("/admin/event/new", {
-        session: "mytoken",
+    test("combines token with form data", async () => {
+      const request = testRequest("/admin/event/new", "mytoken", {
         data: { name: "Test Event" },
       });
       expect(request.method).toBe("POST");
@@ -132,15 +132,14 @@ describe("test-utils", () => {
     });
 
     test("allows custom method override", () => {
-      const request = testRequest("/admin/event/1", {
-        session: "token",
+      const request = testRequest("/admin/event/1", "token", {
         method: "DELETE",
       });
       expect(request.method).toBe("DELETE");
     });
 
     test("allows custom method with form data", async () => {
-      const request = testRequest("/admin/event/1", {
+      const request = testRequest("/admin/event/1", null, {
         method: "PUT",
         data: { name: "Updated" },
       });
@@ -174,6 +173,43 @@ describe("test-utils", () => {
       await wait(50);
       const elapsed = Date.now() - start;
       expect(elapsed).toBeGreaterThanOrEqual(45);
+    });
+  });
+
+  describe("awaitTestRequest", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("makes GET request and returns response", async () => {
+      const response = await awaitTestRequest("/");
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Ticket");
+    });
+
+    test("accepts token as second argument", async () => {
+      const response = await awaitTestRequest("/admin/", "nonexistent-token");
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Login");
+    });
+
+    test("accepts options object as second argument", async () => {
+      const response = await awaitTestRequest("/health", {
+        method: "POST",
+        data: {},
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("accepts cookie in options", async () => {
+      const response = await awaitTestRequest("/admin/", {
+        cookie: "session=fake",
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Login");
     });
   });
 });

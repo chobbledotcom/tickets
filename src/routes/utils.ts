@@ -303,6 +303,8 @@ export type RouteHandlerWithServer = (
 type IdHandlers = {
   GET?: (id: number) => Promise<Response>;
   POST?: (id: number) => Promise<Response>;
+  PATCH?: (id: number) => Promise<Response>;
+  DELETE?: (id: number) => Promise<Response>;
 };
 
 /**
