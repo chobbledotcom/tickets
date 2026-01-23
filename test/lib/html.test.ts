@@ -84,6 +84,7 @@ describe("html", () => {
           unit_price: null,
           max_quantity: 1,
           webhook_url: null,
+          active: 1,
         },
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
@@ -105,6 +106,7 @@ describe("html", () => {
           unit_price: null,
           max_quantity: 1,
           webhook_url: null,
+          active: 1,
         },
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
@@ -138,6 +140,7 @@ describe("html", () => {
       unit_price: null,
       max_quantity: 1,
       webhook_url: null,
+      active: 1,
     };
 
     test("renders event details", () => {
@@ -214,6 +217,7 @@ describe("html", () => {
       unit_price: null,
       max_quantity: 1,
       webhook_url: null,
+      active: 1,
     };
     const csrfToken = "test-csrf-token";
 
@@ -323,6 +327,7 @@ describe("html", () => {
       unit_price: 1000,
       max_quantity: 1,
       webhook_url: null,
+      active: 1,
     };
 
     const attendee: Attendee = {
@@ -386,6 +391,7 @@ describe("html", () => {
       unit_price: 1000,
       max_quantity: 1,
       webhook_url: null,
+      active: 1,
     };
 
     test("renders success message", () => {
@@ -413,6 +419,7 @@ describe("html", () => {
       unit_price: 1000,
       max_quantity: 1,
       webhook_url: null,
+      active: 1,
     };
 
     test("renders cancel message", () => {
@@ -463,6 +470,7 @@ describe("html", () => {
       unit_price: null,
       max_quantity: 1,
       webhook_url: null,
+      active: 1,
     };
 
     test("renders export CSV button", () => {

@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when adding new migrations
  */
-export const LATEST_UPDATE = "added csrf_token to sessions";
+export const LATEST_UPDATE = "added active column to events";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -111,6 +111,11 @@ export const initDb = async (): Promise<void> => {
   // Migration: add csrf_token column if it doesn't exist (for existing databases)
   await runMigration(
     "ALTER TABLE sessions ADD COLUMN csrf_token TEXT NOT NULL DEFAULT ''",
+  );
+
+  // Migration: add active column to events (default true for existing events)
+  await runMigration(
+    "ALTER TABLE events ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
   );
 
   // Create login_attempts table

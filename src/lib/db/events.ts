@@ -15,6 +15,7 @@ export type EventInput = {
   unitPrice?: number | null;
   maxQuantity?: number;
   webhookUrl?: string | null;
+  active?: number;
 };
 
 /**
@@ -33,6 +34,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     unit_price: col.simple<number | null>(),
     max_quantity: col.withDefault(() => 1),
     webhook_url: col.simple<string | null>(),
+    active: col.withDefault(() => 1),
   },
 });
 

@@ -26,7 +26,7 @@ import {
   parseCookies,
   redirect,
   requireCsrfForm,
-  withEvent,
+  withActiveEvent,
 } from "#routes/utils.ts";
 import { ticketFields } from "#templates/fields.ts";
 import { homePage, ticketPage } from "#templates/public.tsx";
@@ -61,7 +61,7 @@ const ticketResponse =
  * Handle GET /ticket/:id
  */
 export const handleTicketGet = (eventId: number): Promise<Response> =>
-  withEvent(eventId, (event) => {
+  withActiveEvent(eventId, (event) => {
     const token = generateSecureToken();
     return ticketResponseWithCookie(event)(token)();
   });
@@ -186,7 +186,7 @@ export const handleTicketPost = (
   request: Request,
   eventId: number,
 ): Promise<Response> =>
-  withEvent(eventId, (event) => processTicketReservation(request, event));
+  withActiveEvent(eventId, (event) => processTicketReservation(request, event));
 
 /** Parse ticket ID from params */
 const parseTicketId = (params: RouteParams): number =>
