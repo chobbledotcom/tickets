@@ -31,7 +31,11 @@ const quantityOptions = (max: number): string =>
 /**
  * Public ticket page
  */
-export const ticketPage = (event: EventWithCount, error?: string): string => {
+export const ticketPage = (
+  event: EventWithCount,
+  csrfToken: string,
+  error?: string,
+): string => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isFull = spotsRemaining <= 0;
   const maxPurchasable = Math.min(event.max_quantity, spotsRemaining);
@@ -49,6 +53,7 @@ export const ticketPage = (event: EventWithCount, error?: string): string => {
         <div class="error">Sorry, this event is full.</div>
       ) : (
         <form method="POST" action={`/ticket/${event.id}`}>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
           <Raw html={renderFields(ticketFields)} />
           {showQuantity ? (
             <div class="field">

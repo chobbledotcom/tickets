@@ -161,13 +161,22 @@ export const getCsrfTokenFromCookie = async (
 };
 
 /**
- * Extract setup CSRF token from set-cookie header
+ * Extract a named cookie value from set-cookie header
  */
-export const getSetupCsrfToken = (setCookie: string | null): string | null => {
+const getCookieValue = (
+  setCookie: string | null,
+  name: string,
+): string | null => {
   if (!setCookie) return null;
-  const match = setCookie.match(/setup_csrf=([^;]+)/);
+  const match = setCookie.match(new RegExp(`${name}=([^;]+)`));
   return match?.[1] ?? null;
 };
+
+/**
+ * Extract setup CSRF token from set-cookie header
+ */
+export const getSetupCsrfToken = (setCookie: string | null): string | null =>
+  getCookieValue(setCookie, "setup_csrf");
 
 /**
  * Create a mock setup POST request with CSRF token
@@ -180,6 +189,27 @@ export const mockSetupFormRequest = (
     "/setup/",
     { ...data, csrf_token: csrfToken },
     `setup_csrf=${csrfToken}`,
+  );
+};
+
+/**
+ * Extract ticket CSRF token from set-cookie header
+ */
+export const getTicketCsrfToken = (setCookie: string | null): string | null =>
+  getCookieValue(setCookie, "csrf_token");
+
+/**
+ * Create a mock ticket form POST request with CSRF token
+ */
+export const mockTicketFormRequest = (
+  eventId: number,
+  data: Record<string, string>,
+  csrfToken: string,
+): Request => {
+  return mockFormRequest(
+    `/ticket/${eventId}`,
+    { ...data, csrf_token: csrfToken },
+    `csrf_token=${csrfToken}`,
   );
 };
 

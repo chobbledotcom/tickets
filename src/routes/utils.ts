@@ -212,6 +212,39 @@ export const requireSessionOr = async (
 ): Promise<Response> =>
   withSession(request, handler, () => redirect("/admin/"));
 
+/** CSRF form result type (for public forms using double-submit cookie) */
+export type CsrfFormResult =
+  | { ok: true; form: URLSearchParams }
+  | { ok: false; response: Response };
+
+/** Cookie name for public form CSRF tokens */
+const CSRF_COOKIE_NAME = "csrf_token";
+
+/** Generate CSRF cookie string */
+export const csrfCookie = (token: string, path: string): string =>
+  `${CSRF_COOKIE_NAME}=${token}; HttpOnly; Secure; SameSite=Strict; Path=${path}; Max-Age=3600`;
+
+/**
+ * Parse form with CSRF validation (double-submit cookie pattern)
+ * This is the integral CSRF check - you cannot get form data without validating CSRF
+ */
+export const requireCsrfForm = async (
+  request: Request,
+  onInvalid: (newToken: string) => Response,
+): Promise<CsrfFormResult> => {
+  const cookies = parseCookies(request);
+  const cookieCsrf = cookies.get(CSRF_COOKIE_NAME) || "";
+  const form = await parseFormData(request);
+  const formCsrf = form.get("csrf_token") || "";
+
+  if (!cookieCsrf || !formCsrf || !validateCsrfToken(cookieCsrf, formCsrf)) {
+    const newToken = generateSecureToken();
+    return { ok: false, response: onInvalid(newToken) };
+  }
+
+  return { ok: true, form };
+};
+
 /** Auth form result type */
 export type AuthFormResult =
   | { ok: true; session: AuthSession; form: URLSearchParams }
