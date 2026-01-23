@@ -148,15 +148,15 @@ export const getBaseUrl = (request: Request): string => {
 };
 
 /**
- * Normalize path to always have a trailing slash
- * This allows consistent path comparisons like "/admin/" instead of checking both "/admin" and "/admin/"
+ * Normalize path by stripping trailing slashes (except root "/")
+ * This allows consistent path comparisons like "/admin" instead of checking both "/admin" and "/admin/"
  */
 export const normalizePath = (path: string): string =>
-  path.endsWith("/") ? path : `${path}/`;
+  path !== "/" && path.endsWith("/") ? path.slice(0, -1) : path;
 
 /**
  * Parse request URL and extract path/method
- * Paths are normalized to always have a trailing slash
+ * Paths are normalized to strip trailing slashes
  */
 export const parseRequest = (
   request: Request,
@@ -236,8 +236,7 @@ export const withSession = async (
 export const requireSessionOr = async (
   request: Request,
   handler: (session: AuthSession) => Response | Promise<Response>,
-): Promise<Response> =>
-  withSession(request, handler, () => redirect("/admin/"));
+): Promise<Response> => withSession(request, handler, () => redirect("/admin"));
 
 /** CSRF form result type (for public forms using double-submit cookie) */
 export type CsrfFormResult =
@@ -285,7 +284,7 @@ export const requireAuthForm = async (
 ): Promise<AuthFormResult> => {
   const session = await getAuthenticatedSession(request);
   if (!session) {
-    return { ok: false, response: redirect("/admin/") };
+    return { ok: false, response: redirect("/admin") };
   }
 
   const form = await parseFormData(request);

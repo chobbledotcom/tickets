@@ -63,7 +63,7 @@ const withEventAttendees = async (
   handler: (event: EventWithCount, attendees: Attendee[]) => Response,
 ): Promise<Response> => {
   if (!(await isAuthenticated(request))) {
-    return redirect("/admin/");
+    return redirect("/admin");
   }
   return withEvent(eventId, async (event) =>
     handler(event, await getAttendees(eventId)),
@@ -74,8 +74,8 @@ const withEventAttendees = async (
  * Handle POST /admin/event (create event)
  */
 const handleCreateEvent = createHandler(eventsResource, {
-  onSuccess: () => redirect("/admin/"),
-  onError: () => redirect("/admin/"),
+  onSuccess: () => redirect("/admin"),
+  onError: () => redirect("/admin"),
 });
 
 /**
@@ -144,7 +144,7 @@ const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
 
 /** Handle DELETE /admin/event/:id (delete event, optionally verify name) */
 const handleAdminEventDelete = deleteHandler(eventsResource, {
-  onSuccess: () => redirect("/admin/"),
+  onSuccess: () => redirect("/admin"),
   onVerifyFailed: (id, _row, session) =>
     eventErrorPage(
       id as number,
@@ -161,19 +161,19 @@ const parseEventId = (params: RouteParams): number =>
 
 /** Event routes */
 export const eventsRoutes = defineRoutes({
-  "POST /admin/event/": (request) => handleCreateEvent(request),
-  "GET /admin/event/:id/": (request, params) =>
+  "POST /admin/event": (request) => handleCreateEvent(request),
+  "GET /admin/event/:id": (request, params) =>
     handleAdminEventGet(request, parseEventId(params)),
-  "GET /admin/event/:id/edit/": (request, params) =>
+  "GET /admin/event/:id/edit": (request, params) =>
     handleAdminEventEditGet(request, parseEventId(params)),
-  "POST /admin/event/:id/edit/": (request, params) =>
+  "POST /admin/event/:id/edit": (request, params) =>
     handleAdminEventEditPost(request, parseEventId(params)),
-  "GET /admin/event/:id/export/": (request, params) =>
+  "GET /admin/event/:id/export": (request, params) =>
     handleAdminEventExport(request, parseEventId(params)),
-  "GET /admin/event/:id/delete/": (request, params) =>
+  "GET /admin/event/:id/delete": (request, params) =>
     handleAdminEventDeleteGet(request, parseEventId(params)),
-  "POST /admin/event/:id/delete/": (request, params) =>
+  "POST /admin/event/:id/delete": (request, params) =>
     handleAdminEventDelete(request, parseEventId(params)),
-  "DELETE /admin/event/:id/delete/": (request, params) =>
+  "DELETE /admin/event/:id/delete": (request, params) =>
     handleAdminEventDelete(request, parseEventId(params)),
 });

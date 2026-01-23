@@ -24,10 +24,10 @@ type CompiledRoute = {
 /**
  * Compile a route pattern into a regex
  * Supports :param syntax for path parameters
- * All paths are normalized to have trailing slashes before matching
+ * All paths are normalized to strip trailing slashes before matching
  * Examples:
- *   "GET /admin/" -> matches /admin/
- *   "GET /admin/event/:id/" -> extracts id param from /admin/event/123/
+ *   "GET /admin" -> matches /admin
+ *   "GET /admin/event/:id" -> extracts id param from /admin/event/123
  */
 const compilePattern = (
   pattern: string,

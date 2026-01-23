@@ -232,8 +232,8 @@ const handlePaymentCancel = createPaymentHandler(null)(
 
 /** Payment routes definition */
 const paymentRoutes = defineRoutes({
-  "GET /payment/success/": (request) => handlePaymentSuccess(request),
-  "GET /payment/cancel/": (request) => handlePaymentCancel(request),
+  "GET /payment/success": (request) => handlePaymentSuccess(request),
+  "GET /payment/cancel": (request) => handlePaymentCancel(request),
 });
 
 /**

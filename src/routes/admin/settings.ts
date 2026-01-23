@@ -44,7 +44,7 @@ const requireAuthValidation = async (
   if (!validation.valid) {
     const errorResponse = onError
       ? await onError(auth.session, auth.form, validation.error)
-      : redirect("/admin/");
+      : redirect("/admin");
     return { ok: false, response: errorResponse };
   }
 
@@ -121,7 +121,7 @@ const handleAdminSettingsPost = (request: Request): Promise<Response> =>
     }
 
     await updateAdminPassword(validation.newPassword);
-    return redirect("/admin/", clearSessionCookie);
+    return redirect("/admin", clearSessionCookie);
   });
 
 /**
@@ -161,7 +161,7 @@ const handleAdminStripePost = async (request: Request): Promise<Response> => {
 
 /** Settings routes */
 export const settingsRoutes = defineRoutes({
-  "GET /admin/settings/": (request) => handleAdminSettingsGet(request),
-  "POST /admin/settings/": (request) => handleAdminSettingsPost(request),
-  "POST /admin/settings/stripe/": (request) => handleAdminStripePost(request),
+  "GET /admin/settings": (request) => handleAdminSettingsGet(request),
+  "POST /admin/settings": (request) => handleAdminSettingsPost(request),
+  "POST /admin/settings/stripe": (request) => handleAdminStripePost(request),
 });

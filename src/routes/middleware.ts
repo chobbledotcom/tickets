@@ -50,10 +50,10 @@ export const getSecurityHeaders = (
 
 /**
  * Check if a path is embeddable (public ticket pages only)
- * Paths are normalized to always have trailing slashes
+ * Paths are normalized to strip trailing slashes
  */
 export const isEmbeddablePath = (path: string): boolean =>
-  /^\/ticket\/\d+\/$/.test(path);
+  /^\/ticket\/\d+$/.test(path);
 
 /**
  * Extract hostname from Host header (removes port if present)

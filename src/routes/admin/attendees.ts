@@ -115,15 +115,15 @@ const attendeeDeleteHandler: RouteHandlerFn = (request, params) => {
 
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
-  "GET /admin/event/:eventId/attendee/:attendeeId/delete/": (
+  "GET /admin/event/:eventId/attendee/:attendeeId/delete": (
     request,
     params,
   ) => {
     const ids = parseAttendeeIds(params);
     return handleAdminAttendeeDeleteGet(request, ids.eventId, ids.attendeeId);
   },
-  "POST /admin/event/:eventId/attendee/:attendeeId/delete/":
+  "POST /admin/event/:eventId/attendee/:attendeeId/delete":
     attendeeDeleteHandler,
-  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete/":
+  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete":
     attendeeDeleteHandler,
 });
