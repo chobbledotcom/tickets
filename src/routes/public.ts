@@ -7,6 +7,7 @@ import { createAttendee, deleteAttendee, hasAvailableSpots } from "#lib/db";
 import { validateForm } from "#lib/forms.tsx";
 import { createCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
+import { notifyWebhook } from "#lib/webhook.ts";
 import { homePage, ticketFields, ticketPage } from "#templates";
 import {
   createIdRoute,
@@ -122,6 +123,9 @@ const processTicketReservation = async (
   if (await requiresPayment(event)) {
     return handlePaymentFlow(request, event, attendee, quantity);
   }
+
+  // Notify webhook for free registrations (paid events notify after payment)
+  await notifyWebhook(event, attendee);
 
   return redirect(event.thank_you_url);
 };

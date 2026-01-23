@@ -94,6 +94,14 @@ export const eventFields: Field[] = [
     placeholder: "https://example.com/thank-you",
     validate: validateSafeUrl,
   },
+  {
+    name: "webhook_url",
+    label: "Webhook URL (optional)",
+    type: "url",
+    placeholder: "https://example.com/webhook",
+    hint: "Receives POST with attendee name and email on registration",
+    validate: validateSafeUrl,
+  },
 ];
 
 /**

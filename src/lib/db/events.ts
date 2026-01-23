@@ -14,6 +14,7 @@ export type EventInput = {
   thankYouUrl: string;
   unitPrice?: number | null;
   maxQuantity?: number;
+  webhookUrl?: string | null;
 };
 
 /**
@@ -22,6 +23,7 @@ export type EventInput = {
 export const createEvent = async (e: EventInput): Promise<Event> => {
   const created = new Date().toISOString();
   const maxQuantity = e.maxQuantity ?? 1;
+  const webhookUrl = e.webhookUrl ?? null;
   const args: InValue[] = [
     created,
     e.name,
@@ -30,10 +32,11 @@ export const createEvent = async (e: EventInput): Promise<Event> => {
     e.thankYouUrl,
     e.unitPrice ?? null,
     maxQuantity,
+    webhookUrl,
   ];
   const result = await getDb().execute({
-    sql: `INSERT INTO events (created, name, description, max_attendees, thank_you_url, unit_price, max_quantity)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO events (created, name, description, max_attendees, thank_you_url, unit_price, max_quantity, webhook_url)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     args,
   });
   return {
@@ -45,6 +48,7 @@ export const createEvent = async (e: EventInput): Promise<Event> => {
     thank_you_url: e.thankYouUrl,
     unit_price: e.unitPrice ?? null,
     max_quantity: maxQuantity,
+    webhook_url: webhookUrl,
   };
 };
 
@@ -62,10 +66,11 @@ export const updateEvent = async (
     e.thankYouUrl,
     e.unitPrice ?? null,
     e.maxQuantity ?? 1,
+    e.webhookUrl ?? null,
     id,
   ];
   const result = await getDb().execute({
-    sql: `UPDATE events SET name = ?, description = ?, max_attendees = ?, thank_you_url = ?, unit_price = ?, max_quantity = ?
+    sql: `UPDATE events SET name = ?, description = ?, max_attendees = ?, thank_you_url = ?, unit_price = ?, max_quantity = ?, webhook_url = ?
           WHERE id = ?`,
     args,
   });

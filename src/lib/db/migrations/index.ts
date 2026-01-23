@@ -71,6 +71,9 @@ export const initDb = async (): Promise<void> => {
     "ALTER TABLE events ADD COLUMN max_quantity INTEGER NOT NULL DEFAULT 1",
   );
 
+  // Migration: add webhook_url column to events (optional webhook for registration notifications)
+  await runMigration("ALTER TABLE events ADD COLUMN webhook_url TEXT");
+
   // Create sessions table
   await client.execute(`
     CREATE TABLE IF NOT EXISTS sessions (

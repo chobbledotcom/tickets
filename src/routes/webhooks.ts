@@ -10,6 +10,7 @@ import {
 } from "#lib/db";
 import { retrieveCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, Event } from "#lib/types.ts";
+import { notifyWebhook } from "#lib/webhook.ts";
 import {
   paymentCancelPage,
   paymentErrorPage,
@@ -80,6 +81,8 @@ const verifyAndUpdatePayment = async (
 
   if (!attendee.stripe_payment_id) {
     await updateAttendeePayment(attendee.id, session.payment_intent as string);
+    // Notify webhook for paid registrations (only on first confirmation)
+    await notifyWebhook(event, attendee);
   }
 
   return htmlResponse(paymentSuccessPage(event, event.thank_you_url));
