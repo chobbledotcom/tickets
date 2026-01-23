@@ -227,6 +227,8 @@ describe("code quality", () => {
       // Event CRUD for test data setup (production uses REST library)
       "lib/db/events.ts:createEvent",
       "lib/db/events.ts:updateEvent",
+      // DB version constant used in production but test pattern doesn't detect constant comparison
+      "lib/db/migrations/index.ts:LATEST_UPDATE",
     ];
 
     /**
