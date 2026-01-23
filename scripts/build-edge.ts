@@ -10,7 +10,6 @@ const ENV_CONFIG: Record<string, string | undefined> = {
   DB_TOKEN: undefined,
   DB_ENCRYPTION_KEY: undefined,
   ALLOWED_DOMAIN: undefined,
-  ADMIN_PASSWORD: "",
   STRIPE_SECRET_KEY: "",
   CURRENCY_CODE: "GBP",
 };
