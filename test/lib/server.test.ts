@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { encrypt } from "#lib/crypto.ts";
 import { createAttendee } from "#lib/db/attendees";
 import { createSession, getSession } from "#lib/db/sessions";

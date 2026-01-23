@@ -3,26 +3,30 @@
  * Extracted from setup.ts to enable proper testing
  */
 
-import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { type Subprocess, spawn } from "bun";
+import { dirname, fromFileUrl, join } from "jsr:@std/path@1";
 
 export const STRIPE_MOCK_VERSION = "0.188.0";
 export const STRIPE_MOCK_PORT = 12111;
 // Go up from src/test-utils to project root
-export const BIN_DIR = join(import.meta.dir, "..", "..", ".bin");
+const currentDir = dirname(fromFileUrl(import.meta.url));
+export const BIN_DIR = join(currentDir, "..", "..", ".bin");
 export const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 
 /**
  * Download stripe-mock binary if not present
  */
 export const downloadStripeMock = async (): Promise<void> => {
-  if (existsSync(STRIPE_MOCK_PATH)) return;
+  try {
+    await Deno.stat(STRIPE_MOCK_PATH);
+    return; // File exists
+  } catch {
+    // File doesn't exist, continue to download
+  }
 
-  mkdirSync(BIN_DIR, { recursive: true });
+  await Deno.mkdir(BIN_DIR, { recursive: true });
 
-  const platform = process.platform === "darwin" ? "darwin" : "linux";
-  const arch = process.arch === "arm64" ? "arm64" : "amd64";
+  const platform = Deno.build.os === "darwin" ? "darwin" : "linux";
+  const arch = Deno.build.arch === "aarch64" ? "arm64" : "amd64";
 
   const url = `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${platform}_${arch}.tar.gz`;
 
@@ -32,25 +36,27 @@ export const downloadStripeMock = async (): Promise<void> => {
   }
 
   const tarPath = join(BIN_DIR, "stripe-mock.tar.gz");
-  await Bun.write(tarPath, response);
+  const data = new Uint8Array(await response.arrayBuffer());
+  await Deno.writeFile(tarPath, data);
 
   // Extract the binary
-  const extract = spawn(["tar", "-xzf", tarPath, "-C", BIN_DIR], {
-    stdout: "ignore",
-    stderr: "ignore",
+  const extract = new Deno.Command("tar", {
+    args: ["-xzf", tarPath, "-C", BIN_DIR],
+    stdout: "null",
+    stderr: "null",
   });
-  await extract.exited;
+  await extract.output();
 
   // Make executable
-  const chmod = spawn(["chmod", "+x", STRIPE_MOCK_PATH], {
-    stdout: "ignore",
-    stderr: "ignore",
+  const chmod = new Deno.Command("chmod", {
+    args: ["+x", STRIPE_MOCK_PATH],
+    stdout: "null",
+    stderr: "null",
   });
-  await chmod.exited;
+  await chmod.output();
 
   // Clean up tar file
-  const rm = spawn(["rm", tarPath], { stdout: "ignore", stderr: "ignore" });
-  await rm.exited;
+  await Deno.remove(tarPath);
 };
 
 /**
@@ -88,7 +94,7 @@ export const waitForStripeMock = async (
  * Manages stripe-mock process lifecycle
  */
 export class StripeMockManager {
-  private process: Subprocess | null = null;
+  private process: Deno.ChildProcess | null = null;
   private port: number;
 
   constructor(port: number = STRIPE_MOCK_PORT) {
@@ -108,10 +114,12 @@ export class StripeMockManager {
     await downloadStripeMock();
 
     // Start stripe-mock
-    this.process = spawn([STRIPE_MOCK_PATH, "-port", String(this.port)], {
-      stdout: "ignore",
-      stderr: "ignore",
+    const command = new Deno.Command(STRIPE_MOCK_PATH, {
+      args: ["-port", String(this.port)],
+      stdout: "null",
+      stderr: "null",
     });
+    this.process = command.spawn();
 
     // Wait for it to be ready
     const ready = await waitForStripeMock(this.port);

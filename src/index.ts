@@ -9,13 +9,10 @@ import { handleRequest } from "#routes/index.ts";
 const startServer = async (port = 3000): Promise<void> => {
   validateEncryptionKey();
   await initDb();
-  Bun.write(Bun.stdout, `Server starting on http://localhost:${port}\n`);
+  console.log(`Server starting on http://localhost:${port}`);
 
-  Bun.serve({
-    port,
-    fetch: handleRequest,
-  });
+  Deno.serve({ port }, handleRequest);
 };
 
-const port = Number.parseInt(process.env.PORT || "3000", 10);
+const port = Number.parseInt(Deno.env.get("PORT") || "3000", 10);
 startServer(port);

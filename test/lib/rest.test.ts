@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { createClient } from "@libsql/client";
 import { setDb } from "#lib/db/client";
 import { initDb } from "#lib/db/migrations";

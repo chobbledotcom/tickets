@@ -65,7 +65,7 @@ const [getKeyCache, setKeyCache] = lazyRef<KeyCache>(() => {
  * Expects DB_ENCRYPTION_KEY to be a base64-encoded 256-bit (32 byte) key
  */
 const getEncryptionKeyBytes = (): Buffer => {
-  const keyString = process.env.DB_ENCRYPTION_KEY;
+  const keyString = Deno.env.get("DB_ENCRYPTION_KEY");
 
   if (!keyString) {
     throw new Error(
@@ -182,7 +182,7 @@ const SCRYPT_N_TEST = 2 ** 1; // Minimal cost for fast tests
 
 // Use test cost when TEST_SCRYPT_N env var is set (much faster for tests)
 const getScryptN = (): number =>
-  process.env.TEST_SCRYPT_N ? SCRYPT_N_TEST : SCRYPT_N_DEFAULT;
+  Deno.env.get("TEST_SCRYPT_N") ? SCRYPT_N_TEST : SCRYPT_N_DEFAULT;
 const SCRYPT_R = 8; // Block size
 const SCRYPT_P = 1; // Parallelization
 const SCRYPT_DKLEN = 32; // Output key length

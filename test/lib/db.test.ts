@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, jest, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compat";
 import { createClient } from "@libsql/client";
 import {
   createAttendee,
@@ -62,8 +62,8 @@ describe("db", () => {
   describe("getDb", () => {
     test("throws error when DB_URL is not set", () => {
       setDb(null);
-      const originalDbUrl = process.env.DB_URL;
-      delete process.env.DB_URL;
+      const originalDbUrl = Deno.env.get("DB_URL");
+      Deno.env.delete("DB_URL");
 
       try {
         expect(() => getDb()).toThrow(
@@ -71,7 +71,7 @@ describe("db", () => {
         );
       } finally {
         if (originalDbUrl) {
-          process.env.DB_URL = originalDbUrl;
+          Deno.env.set("DB_URL", originalDbUrl);
         }
       }
     });
@@ -614,13 +614,17 @@ describe("db", () => {
   describe("getDb", () => {
     test("creates client when db is null", () => {
       setDb(null);
-      const originalDbUrl = process.env.DB_URL;
-      process.env.DB_URL = ":memory:";
+      const originalDbUrl = Deno.env.get("DB_URL");
+      Deno.env.set("DB_URL", ":memory:");
 
       const client = getDb();
       expect(client).toBeDefined();
 
-      process.env.DB_URL = originalDbUrl;
+      if (originalDbUrl) {
+        Deno.env.set("DB_URL", originalDbUrl);
+      } else {
+        Deno.env.delete("DB_URL");
+      }
     });
 
     test("returns existing client when db is set", () => {

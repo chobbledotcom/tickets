@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test, spyOn } from "#test-compat";
 import { encrypt } from "#lib/crypto.ts";
 import { setSetting } from "#lib/db/settings";
 import {
@@ -10,9 +10,12 @@ import {
 import { createTestDb, resetDb } from "#test-utils";
 
 describe("stripe", () => {
-  const originalEnv = { ...process.env };
+  let originalMockHost: string | undefined;
+  let originalMockPort: string | undefined;
 
   beforeEach(async () => {
+    originalMockHost = Deno.env.get("STRIPE_MOCK_HOST");
+    originalMockPort = Deno.env.get("STRIPE_MOCK_PORT");
     resetStripeClient();
     // Create in-memory db for testing
     await createTestDb();
@@ -21,7 +24,17 @@ describe("stripe", () => {
   afterEach(() => {
     resetStripeClient();
     resetDb();
-    process.env = { ...originalEnv };
+    // Restore original env values
+    if (originalMockHost !== undefined) {
+      Deno.env.set("STRIPE_MOCK_HOST", originalMockHost);
+    } else {
+      Deno.env.delete("STRIPE_MOCK_HOST");
+    }
+    if (originalMockPort !== undefined) {
+      Deno.env.set("STRIPE_MOCK_PORT", originalMockPort);
+    } else {
+      Deno.env.delete("STRIPE_MOCK_PORT");
+    }
   });
 
   describe("getStripeClient", () => {
@@ -67,7 +80,7 @@ describe("stripe", () => {
     });
 
     test("returns null when Stripe API throws error", async () => {
-      const { spyOn } = await import("bun:test");
+      // spyOn already imported from #test-compat
 
       // Enable Stripe with mock
       await setSetting("stripe_key", await encrypt("sk_test_mock"));
@@ -155,8 +168,8 @@ describe("stripe", () => {
     test("creates client with mock config when STRIPE_MOCK_HOST is set", async () => {
       // This test exercises the getMockConfig code path
       await setSetting("stripe_key", await encrypt("sk_test_123"));
-      process.env.STRIPE_MOCK_HOST = "localhost";
-      process.env.STRIPE_MOCK_PORT = "12111";
+      Deno.env.set("STRIPE_MOCK_HOST", "localhost");
+      Deno.env.set("STRIPE_MOCK_PORT", "12111");
 
       // This will create a client with mock config, but won't make any API calls
       const client = await getStripeClient();
@@ -165,8 +178,8 @@ describe("stripe", () => {
 
     test("uses default port 12111 when STRIPE_MOCK_PORT not set", async () => {
       await setSetting("stripe_key", await encrypt("sk_test_123"));
-      process.env.STRIPE_MOCK_HOST = "localhost";
-      delete process.env.STRIPE_MOCK_PORT;
+      Deno.env.set("STRIPE_MOCK_HOST", "localhost");
+      Deno.env.delete("STRIPE_MOCK_PORT");
 
       const client = await getStripeClient();
       expect(client).not.toBeNull();

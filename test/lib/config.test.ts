@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import {
   getAllowedDomain,
   getCurrencyCode,
@@ -78,12 +78,12 @@ describe("config", () => {
 
   describe("getAllowedDomain", () => {
     test("returns set value from environment", () => {
-      process.env.ALLOWED_DOMAIN = "example.com";
+      Deno.env.set("ALLOWED_DOMAIN", "example.com");
       expect(getAllowedDomain()).toBe("example.com");
     });
 
     test("returns localhost when set for testing", () => {
-      process.env.ALLOWED_DOMAIN = "localhost";
+      Deno.env.set("ALLOWED_DOMAIN", "localhost");
       expect(getAllowedDomain()).toBe("localhost");
     });
   });

@@ -4,11 +4,11 @@ A minimal ticket reservation system using Bunny Edge Scripting and libsql.
 
 ## Runtime Environment
 
-- **Production**: Bunny Edge Scripting (browser-like JS runtime on Bunny CDN)
-- **Development/Testing**: Bun (for `bun test`, `bun start`, package management)
-- **Build**: `Bun.build` with `target: "browser"` bundles to a single edge-compatible file
+- **Production**: Bunny Edge Scripting (Deno-based runtime on Bunny CDN)
+- **Development/Testing**: Deno (for `deno task test`, `deno task start`, package management)
+- **Build**: `esbuild` with `platform: "browser"` bundles to a single edge-compatible file
 
-Code must work in both environments. Avoid Node.js-specific APIs (no `node:*` imports, no `process` at runtime).
+Code must work in both environments. The edge runtime is Deno-based, so development with Deno ensures parity.
 
 ## Preferences
 
@@ -63,12 +63,13 @@ const result = reduce((acc, item) => {
 
 ## Scripts
 
-- `bun start` - Run the server
-- `bun test` - Run tests
-- `bun run lint` - Check code with Biome
-- `bun run lint:fix` - Fix lint issues
-- `bun run cpd` - Check for duplicate code
-- `bun run precommit` - Run all checks (lint, cpd, tests)
+- `deno task start` - Run the server
+- `deno task test` - Run tests
+- `deno task test:coverage` - Run tests with coverage
+- `deno task lint` - Check code with Deno lint
+- `deno task fmt` - Format code with Deno fmt
+- `deno task build:edge` - Build for Bunny Edge deployment
+- `deno task precommit` - Run all checks (typecheck, lint, tests)
 
 ## Environment Variables
 
@@ -76,18 +77,26 @@ Only database connection settings use environment variables:
 
 - `DB_URL` - Database URL (required, e.g. `libsql://your-db.turso.io`)
 - `DB_TOKEN` - Database auth token (required for remote databases)
+- `DB_ENCRYPTION_KEY` - 32-byte base64-encoded encryption key (required)
+- `ALLOWED_DOMAIN` - Domain for security validation (required)
 - `PORT` - Server port (defaults to 3000)
 
 All other configuration (admin password, Stripe secret key, currency code) is set through the web-based setup page at `/setup/` and stored in the database.
 
-## Lint Rules
+## Deno Configuration
 
-The Biome config enforces:
-- `noForEach` - Use `for...of` or curried `filter`/`map`
-- `noAccumulatingSpread` - Use reduce with mutation
-- `noVar` - Use `const` (or `let` if needed)
-- `noDoubleEquals` - Use `===`
-- `maxComplexity: 7` - Break into smaller functions
+The project uses `deno.json` for configuration:
+- Import maps for `#` prefixed aliases
+- npm packages via `npm:` specifier
+- JSR packages via `jsr:` specifier
+
+## Test Framework
+
+Tests use a custom compatibility layer (`#test-compat`) that provides Jest-like APIs:
+- `describe`, `test`, `it` for test organization
+- `expect()` for assertions
+- `beforeEach`, `afterEach` for setup/teardown
+- `jest.fn()`, `spyOn()` for mocking
 
 ## Test Quality Standards
 
@@ -127,10 +136,10 @@ All tests must meet these mandatory criteria:
 100% test coverage is required to merge into main. To find which specific lines are uncovered, run:
 
 ```bash
-bun test --coverage --coverage-reporter=lcov
+deno task test:coverage
 ```
 
-Then check `coverage/lcov.info` for detailed line-by-line coverage information.
+Then check `coverage/` for detailed coverage information.
 
 ### Test Utilities
 
@@ -149,3 +158,18 @@ import { mockRequest, mockFormRequest, createTestDb, resetDb } from "#test-utils
 | Duplicating test helpers | Use `#test-utils` |
 | Magic numbers/strings | Import constants from production |
 | Testing private internals | Test public API behavior |
+
+## Migration Notes (from Bun)
+
+The codebase was migrated from Bun to Deno. Key differences:
+- `Bun.serve()` → `Deno.serve()`
+- `Bun.build()` → `esbuild`
+- `bun:test` → Custom test compat layer
+- `process.env.X` → `Deno.env.get("X")`
+- `import x from "file" with { type: "text" }` → `Deno.readTextFileSync()`
+- `spawn` from `bun` → `Deno.Command`
+
+Remaining work for full type safety:
+- Add explicit `.ts` extensions to all imports (Deno strict mode)
+- Add `Buffer` import from `node:buffer` where needed
+- Update JSX runtime path resolution

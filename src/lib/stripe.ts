@@ -38,10 +38,10 @@ const withStripe = async <T>(
  * Get Stripe client configuration for mock server (if configured)
  */
 const getMockConfig = once((): Stripe.StripeConfig | undefined => {
-  const mockHost = process.env.STRIPE_MOCK_HOST;
+  const mockHost = Deno.env.get("STRIPE_MOCK_HOST");
   if (!mockHost) return undefined;
 
-  const mockPort = Number.parseInt(process.env.STRIPE_MOCK_PORT || "12111", 10);
+  const mockPort = Number.parseInt(Deno.env.get("STRIPE_MOCK_PORT") || "12111", 10);
   return {
     host: mockHost,
     port: mockPort,

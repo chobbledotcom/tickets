@@ -39,7 +39,7 @@ export const getCurrencyCode = async (): Promise<string> => {
  * This is a required build-time configuration that hardens origin validation
  */
 export const getAllowedDomain = (): string => {
-  return process.env.ALLOWED_DOMAIN as string;
+  return Deno.env.get("ALLOWED_DOMAIN") as string;
 };
 
 /**
