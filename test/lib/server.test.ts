@@ -15,9 +15,9 @@ import {
   getCsrfTokenFromCookie,
   getSetupCsrfToken,
   getTicketCsrfToken,
-  mockCrossOriginFormRequest,
   mockFormRequest,
   mockRequest,
+  mockRequestWithHost,
   mockSetupFormRequest,
   mockTicketFormRequest,
   resetDb,
@@ -70,7 +70,7 @@ describe("server", () => {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            origin: "http://localhost",
+            host: "localhost",
           },
         }),
       );
@@ -94,7 +94,7 @@ describe("server", () => {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            origin: "http://localhost",
+            host: "localhost",
           },
         }),
       );
@@ -121,7 +121,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       expect(response.status).toBe(200);
@@ -176,7 +176,7 @@ describe("server", () => {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            origin: "http://localhost",
+            host: "localhost",
           },
           body: new URLSearchParams({ password: "wrong" }).toString(),
         });
@@ -203,7 +203,7 @@ describe("server", () => {
         method: "POST",
         headers: {
           "content-type": "application/x-www-form-urlencoded",
-          origin: "http://localhost",
+          host: "localhost",
         },
         body: new URLSearchParams({ password: "wrong" }).toString(),
       });
@@ -224,7 +224,7 @@ describe("server", () => {
         method: "POST",
         headers: {
           "content-type": "application/x-www-form-urlencoded",
-          origin: "http://localhost",
+          host: "localhost",
         },
         body: new URLSearchParams({ password: "wrong" }).toString(),
       });
@@ -260,7 +260,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/settings", {
-          headers: { cookie },
+          headers: { host: "localhost", cookie },
         }),
       );
       expect(response.status).toBe(200);
@@ -430,7 +430,7 @@ describe("server", () => {
       // Verify old session is invalidated
       const dashboardResponse = await handleRequest(
         new Request("http://localhost/admin/", {
-          headers: { cookie },
+          headers: { host: "localhost", cookie },
         }),
       );
       const html = await dashboardResponse.text();
@@ -631,7 +631,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/event/999", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       expect(response.status).toBe(404);
@@ -653,7 +653,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/event/1", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       expect(response.status).toBe(200);
@@ -677,7 +677,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/event/1", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       const html = await response.text();
@@ -710,7 +710,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/event/999/export", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       expect(response.status).toBe(404);
@@ -732,7 +732,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/event/1/export", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       expect(response.status).toBe(200);
@@ -763,7 +763,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/event/1/export", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       const csv = await response.text();
@@ -790,7 +790,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/event/1/export", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       const disposition = response.headers.get("content-disposition");
@@ -822,7 +822,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/event/999/edit", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       expect(response.status).toBe(404);
@@ -845,7 +845,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/event/1/edit", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       expect(response.status).toBe(200);
@@ -1039,7 +1039,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/event/999/delete", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       expect(response.status).toBe(404);
@@ -1060,7 +1060,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/event/1/delete", {
-          headers: { cookie: cookie || "" },
+          headers: { host: "localhost", cookie: cookie || "" },
         }),
       );
       expect(response.status).toBe(200);
@@ -1402,7 +1402,10 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(
-        new Request("http://localhost/ticket/1", { method: "PUT" }),
+        new Request("http://localhost/ticket/1", {
+          method: "PUT",
+          headers: { host: "localhost" },
+        }),
       );
       expect(response.status).toBe(404);
     });
@@ -1419,7 +1422,7 @@ describe("server", () => {
     test("nonexistent session shows login page", async () => {
       const response = await handleRequest(
         new Request("http://localhost/admin/", {
-          headers: { cookie: "session=nonexistent" },
+          headers: { host: "localhost", cookie: "session=nonexistent" },
         }),
       );
       expect(response.status).toBe(200);
@@ -1433,7 +1436,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         new Request("http://localhost/admin/", {
-          headers: { cookie: "session=expired-token" },
+          headers: { host: "localhost", cookie: "session=expired-token" },
         }),
       );
       expect(response.status).toBe(200);
@@ -1463,7 +1466,7 @@ describe("server", () => {
       // Now logout
       const logoutResponse = await handleRequest(
         new Request("http://localhost/admin/logout", {
-          headers: { cookie: `session=${token}` },
+          headers: { host: "localhost", cookie: `session=${token}` },
         }),
       );
       expect(logoutResponse.status).toBe(302);
@@ -1600,7 +1603,7 @@ describe("server", () => {
           method: "POST",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            origin: "http://localhost",
+            host: "localhost",
           },
         }),
       );
@@ -2032,7 +2035,7 @@ describe("server", () => {
             method: "POST",
             headers: {
               "content-type": "application/x-www-form-urlencoded",
-              origin: "http://localhost",
+              host: "localhost",
               cookie: `setup_csrf=${cookieCsrf}`,
             },
             body: new URLSearchParams({
@@ -2208,7 +2211,10 @@ describe("server", () => {
 
       test("PUT /setup/ redirects to /setup/ (unsupported method)", async () => {
         const response = await handleRequest(
-          new Request("http://localhost/setup/", { method: "PUT" }),
+          new Request("http://localhost/setup/", {
+            method: "PUT",
+            headers: { host: "localhost" },
+          }),
         );
         // PUT method falls through routeSetup (returns null), then redirects to /setup/
         expect(response.status).toBe(302);
@@ -2223,7 +2229,10 @@ describe("server", () => {
 
         // Step 1: GET the setup page
         const getResponse = await handleRequest(
-          new Request("http://localhost/setup/", { method: "GET" }),
+          new Request("http://localhost/setup/", {
+            method: "GET",
+            headers: { host: "localhost" },
+          }),
         );
         expect(getResponse.status).toBe(200);
 
@@ -2241,7 +2250,7 @@ describe("server", () => {
             method: "POST",
             headers: {
               "content-type": "application/x-www-form-urlencoded",
-              origin: "http://localhost",
+              host: "localhost",
               cookie: `setup_csrf=${csrfToken}`,
             },
             body: new URLSearchParams({
@@ -2262,7 +2271,10 @@ describe("server", () => {
       test("setup cookie path allows both /setup and /setup/", async () => {
         // Cookie path should be /setup (without trailing slash) to match both variants
         const response = await handleRequest(
-          new Request("http://localhost/setup/", { method: "GET" }),
+          new Request("http://localhost/setup/", {
+            method: "GET",
+            headers: { host: "localhost" },
+          }),
         );
 
         const setCookie = response.headers.get("set-cookie");
@@ -2275,7 +2287,10 @@ describe("server", () => {
       test("setup form works when accessed via /setup (no trailing slash)", async () => {
         // GET /setup (no trailing slash)
         const getResponse = await handleRequest(
-          new Request("http://localhost/setup", { method: "GET" }),
+          new Request("http://localhost/setup", {
+            method: "GET",
+            headers: { host: "localhost" },
+          }),
         );
         expect(getResponse.status).toBe(200);
 
@@ -2289,7 +2304,7 @@ describe("server", () => {
             method: "POST",
             headers: {
               "content-type": "application/x-www-form-urlencoded",
-              origin: "http://localhost",
+              host: "localhost",
               cookie: `setup_csrf=${csrfToken}`,
             },
             body: new URLSearchParams({
@@ -2309,7 +2324,10 @@ describe("server", () => {
       test("CSRF token in cookie matches token in HTML form field", async () => {
         // This test verifies that the same token appears in both places
         const response = await handleRequest(
-          new Request("http://localhost/setup/", { method: "GET" }),
+          new Request("http://localhost/setup/", {
+            method: "GET",
+            headers: { host: "localhost" },
+          }),
         );
 
         // Extract token from Set-Cookie header
@@ -2440,158 +2458,13 @@ describe("server", () => {
     });
   });
 
-  describe("CORS protection", () => {
-    test("rejects cross-origin POST requests", async () => {
-      await createEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        mockCrossOriginFormRequest("/ticket/1", {
-          name: "Attacker",
-          email: "attacker@evil.com",
-        }),
-      );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Cross-origin requests not allowed");
-    });
-
-    test("allows same-origin POST requests", async () => {
-      await createEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com/thanks",
-      });
-      const response = await submitTicketForm(1, {
-        name: "John Doe",
-        email: "john@example.com",
-      });
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "https://example.com/thanks",
-      );
-    });
-
-    test("allows GET requests from any origin", async () => {
-      await createEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const response = await handleRequest(
-        new Request("http://localhost/ticket/1", {
-          headers: { origin: "http://evil.com" },
-        }),
-      );
-      expect(response.status).toBe(200);
-    });
-
-    test("rejects cross-origin admin login attempts", async () => {
-      const response = await handleRequest(
-        mockCrossOriginFormRequest("/admin/login", {
-          password: TEST_ADMIN_PASSWORD,
-        }),
-      );
-      expect(response.status).toBe(403);
-    });
-
-    test("CORS rejection response has security headers", async () => {
-      const response = await handleRequest(
-        mockCrossOriginFormRequest("/ticket/1", {
-          name: "Test",
-          email: "test@test.com",
-        }),
-      );
-      expect(response.headers.get("x-frame-options")).toBe("DENY");
-      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
-    });
-
-    test("allows same-origin POST with referer header only (no origin)", async () => {
-      await createEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com/thanks",
-      });
-      // Get CSRF token from GET request
-      const getResponse = await handleRequest(mockRequest("/ticket/1"));
-      const csrfToken = getTicketCsrfToken(
-        getResponse.headers.get("set-cookie"),
-      );
-      const body = new URLSearchParams({
-        name: "John Doe",
-        email: "john@example.com",
-        csrf_token: csrfToken || "",
-      }).toString();
-      const response = await handleRequest(
-        new Request("http://localhost/ticket/1", {
-          method: "POST",
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            referer: "http://localhost/ticket/1",
-            cookie: `csrf_token=${csrfToken}`,
-          },
-          body,
-        }),
-      );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "https://example.com/thanks",
-      );
-    });
-
-    test("rejects cross-origin POST with referer header only", async () => {
-      await createEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const body = new URLSearchParams({
-        name: "Attacker",
-        email: "attacker@evil.com",
-      }).toString();
-      const response = await handleRequest(
-        new Request("http://localhost/ticket/1", {
-          method: "POST",
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            referer: "http://evil.com/phishing-page",
-          },
-          body,
-        }),
-      );
-      expect(response.status).toBe(403);
-    });
-
-    test("rejects POST without origin or referer", async () => {
-      const response = await handleRequest(
-        new Request("http://localhost/admin/login", {
-          method: "POST",
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({ password: "test" }).toString(),
-        }),
-      );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Cross-origin requests not allowed");
-    });
-  });
-
   describe("Content-Type validation", () => {
     test("rejects POST requests without Content-Type header", async () => {
       const response = await handleRequest(
         new Request("http://localhost/admin/login", {
           method: "POST",
           headers: {
-            origin: "http://localhost",
+            host: "localhost",
           },
           body: "password=test",
         }),
@@ -2606,7 +2479,7 @@ describe("server", () => {
         new Request("http://localhost/admin/login", {
           method: "POST",
           headers: {
-            origin: "http://localhost",
+            host: "localhost",
             "content-type": "application/json",
           },
           body: JSON.stringify({ password: "test" }),
@@ -2615,6 +2488,61 @@ describe("server", () => {
       expect(response.status).toBe(400);
       const text = await response.text();
       expect(text).toContain("Invalid Content-Type");
+    });
+  });
+
+  describe("Domain validation", () => {
+    test("allows requests with valid domain", async () => {
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+    });
+
+    test("rejects GET requests to invalid domain", async () => {
+      const response = await handleRequest(
+        mockRequestWithHost("/", "evil.com"),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid domain");
+    });
+
+    test("rejects POST requests to invalid domain", async () => {
+      const response = await handleRequest(
+        mockRequestWithHost("/admin/login", "evil.com", {
+          method: "POST",
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+          },
+          body: "password=test",
+        }),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid domain");
+    });
+
+    test("allows requests with valid domain including port", async () => {
+      const response = await handleRequest(
+        mockRequestWithHost("/", "localhost:3000"),
+      );
+      expect(response.status).toBe(200);
+    });
+
+    test("rejects requests without Host header", async () => {
+      const response = await handleRequest(
+        new Request("http://localhost/", {}),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid domain");
+    });
+
+    test("domain rejection response has security headers", async () => {
+      const response = await handleRequest(
+        mockRequestWithHost("/", "evil.com"),
+      );
+      expect(response.headers.get("x-frame-options")).toBe("DENY");
+      expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     });
   });
 });

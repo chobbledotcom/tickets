@@ -55,35 +55,24 @@ export const isEmbeddablePath = (path: string): boolean =>
   /^\/ticket\/\d+$/.test(path);
 
 /**
- * Validate origin for CORS protection on POST requests
- * Returns true if the request should be allowed
- *
- * Validates against ALLOWED_DOMAIN (build-time config).
- * This prevents attacks where an attacker proxies the app through their own domain.
+ * Extract hostname from Host header (removes port if present)
  */
-export const isValidOrigin = (request: Request): boolean => {
-  // Only check POST requests
-  if (request.method !== "POST") {
-    return true;
+const getHostname = (host: string): string => {
+  const colonIndex = host.indexOf(":");
+  return colonIndex === -1 ? host : host.slice(0, colonIndex);
+};
+
+/**
+ * Validate request domain against ALLOWED_DOMAIN (build-time config).
+ * Checks the Host header to prevent the app being served through unauthorized proxies.
+ * Returns true if the request should be allowed.
+ */
+export const isValidDomain = (request: Request): boolean => {
+  const host = request.headers.get("host");
+  if (!host) {
+    return false;
   }
-
-  const origin = request.headers.get("origin");
-  const referer = request.headers.get("referer");
-
-  // If origin is present, it must match allowed domain
-  if (origin) {
-    const originUrl = new URL(origin);
-    return originUrl.host === ALLOWED_DOMAIN;
-  }
-
-  // Fallback to referer check
-  if (referer) {
-    const refererUrl = new URL(referer);
-    return refererUrl.host === ALLOWED_DOMAIN;
-  }
-
-  // If neither origin nor referer, reject (could be a direct form submission from another site)
-  return false;
+  return getHostname(host) === ALLOWED_DOMAIN;
 };
 
 /**
@@ -112,10 +101,10 @@ export const contentTypeRejectionResponse = (): Response =>
   });
 
 /**
- * Create CORS rejection response
+ * Create domain rejection response
  */
-export const corsRejectionResponse = (): Response =>
-  new Response("Forbidden: Cross-origin requests not allowed", {
+export const domainRejectionResponse = (): Response =>
+  new Response("Forbidden: Invalid domain", {
     status: 403,
     headers: {
       "content-type": "text/plain",
