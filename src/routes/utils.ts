@@ -37,17 +37,17 @@ export const getClientIp = (
  * Parse cookies from request
  */
 export const parseCookies = (request: Request): Map<string, string> => {
-  const cookies = new Map<string, string>();
   const header = request.headers.get("cookie");
-  if (!header) return cookies;
+  if (!header) return new Map<string, string>();
 
+  const result = new Map<string, string>();
   for (const part of header.split(";")) {
     const [key, value] = part.trim().split("=");
     if (key && value) {
-      cookies.set(key, value);
+      result.set(key, value);
     }
   }
-  return cookies;
+  return result;
 };
 
 /**
