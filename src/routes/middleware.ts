@@ -55,11 +55,32 @@ export const isEmbeddablePath = (path: string): boolean =>
   /^\/ticket\/\d+$/.test(path);
 
 /**
+ * Extract hostname from Host header (removes port if present)
+ */
+const getHostname = (host: string): string => {
+  const colonIndex = host.indexOf(":");
+  return colonIndex === -1 ? host : host.slice(0, colonIndex);
+};
+
+/**
+ * Validate request domain against ALLOWED_DOMAIN (build-time config).
+ * Checks the Host header to prevent the app being served through unauthorized proxies.
+ * Returns true if the request should be allowed.
+ */
+export const isValidDomain = (request: Request): boolean => {
+  const host = request.headers.get("host");
+  if (!host) {
+    return false;
+  }
+  return getHostname(host) === ALLOWED_DOMAIN;
+};
+
+/**
  * Validate origin for CORS protection on POST requests
  * Returns true if the request should be allowed
  *
  * Validates against ALLOWED_DOMAIN (build-time config).
- * This prevents attacks where an attacker proxies the app through their own domain.
+ * This provides additional CSRF protection for POST requests.
  */
 export const isValidOrigin = (request: Request): boolean => {
   // Only check POST requests
@@ -116,6 +137,18 @@ export const contentTypeRejectionResponse = (): Response =>
  */
 export const corsRejectionResponse = (): Response =>
   new Response("Forbidden: Cross-origin requests not allowed", {
+    status: 403,
+    headers: {
+      "content-type": "text/plain",
+      ...getSecurityHeaders(false),
+    },
+  });
+
+/**
+ * Create domain rejection response
+ */
+export const domainRejectionResponse = (): Response =>
+  new Response("Forbidden: Invalid domain", {
     status: 403,
     headers: {
       "content-type": "text/plain",

@@ -11,8 +11,10 @@ import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
   corsRejectionResponse,
+  domainRejectionResponse,
   isEmbeddablePath,
   isValidContentType,
+  isValidDomain,
   isValidOrigin,
 } from "./middleware.ts";
 import { handleHome, routeTicket } from "./public.ts";
@@ -26,6 +28,7 @@ export {
   getSecurityHeaders,
   isEmbeddablePath,
   isValidContentType,
+  isValidDomain,
   isValidOrigin,
 } from "./middleware.ts";
 
@@ -103,6 +106,11 @@ export const handleRequest = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
+  // Domain validation: reject requests to unauthorized domains
+  if (!isValidDomain(request)) {
+    return domainRejectionResponse();
+  }
+
   const { path } = parseRequest(request);
   const embeddable = isEmbeddablePath(path);
 
