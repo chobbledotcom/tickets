@@ -7,10 +7,10 @@ import { col, defineTable, type Table } from "#lib/db/table.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
 import {
   createHandler,
-  defineResource,
   deleteHandler,
   updateHandler,
-} from "#lib/rest";
+} from "#lib/rest/handlers";
+import { defineResource } from "#lib/rest/resource";
 import {
   createTestDbWithSetup,
   resetDb,

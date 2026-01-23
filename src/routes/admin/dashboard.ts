@@ -3,7 +3,7 @@
  */
 
 import { getAllEvents } from "#lib/db/events";
-import { adminDashboardPage, adminLoginPage } from "#templates";
+import { adminDashboardPage, adminLoginPage } from "#templates/admin.tsx";
 import { defineRoutes } from "../router.ts";
 import { htmlResponse, withSession } from "../utils.ts";
 

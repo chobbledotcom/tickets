@@ -4,16 +4,16 @@ import {
   adminDashboardPage,
   adminEventPage,
   adminLoginPage,
-  generateAttendeesCsv,
-  homePage,
-  layout,
-  notFoundPage,
+} from "#templates/admin.tsx";
+import { generateAttendeesCsv } from "#templates/csv.ts";
+import { layout } from "#templates/layout.tsx";
+import {
   paymentCancelPage,
   paymentErrorPage,
   paymentPage,
   paymentSuccessPage,
-  ticketPage,
-} from "#templates";
+} from "#templates/payment.tsx";
+import { homePage, notFoundPage, ticketPage } from "#templates/public.tsx";
 
 const TEST_CSRF_TOKEN = "test-csrf-token-abc123";
 

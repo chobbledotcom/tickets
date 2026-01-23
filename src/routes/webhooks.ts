@@ -11,7 +11,7 @@ import { getEvent } from "#lib/db/events";
 import { retrieveCheckoutSession } from "#lib/stripe.ts";
 import type { Attendee, Event } from "#lib/types.ts";
 import { notifyWebhook } from "#lib/webhook.ts";
-import { paymentCancelPage, paymentSuccessPage } from "#templates";
+import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 import { createRouter, defineRoutes } from "./router.ts";
 import { getSearchParam, htmlResponse, paymentErrorResponse } from "./utils.ts";
 

@@ -4,7 +4,8 @@
 
 import { completeSetup } from "#lib/db/settings";
 import { validateForm } from "#lib/forms.tsx";
-import { setupCompletePage, setupFields, setupPage } from "#templates";
+import { setupFields } from "#templates/fields.ts";
+import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 import { createRouter, defineRoutes } from "./router.ts";
 import {
   generateSecureToken,
