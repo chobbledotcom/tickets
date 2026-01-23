@@ -17,9 +17,9 @@
  */
 
 import type { InValue } from "@libsql/client";
+import type { Table } from "#lib/db/table.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
 import { validateForm } from "#lib/forms.tsx";
-import type { Table } from "../db/table.ts";
 
 /** Success result with data */
 type SuccessResult<T> = { ok: true } & T;

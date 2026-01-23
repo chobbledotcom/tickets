@@ -2,8 +2,8 @@
  * Static asset routes - CSS and favicon with long cache
  */
 
-import faviconSvg from "../static/favicon.svg" with { type: "text" };
-import mvpCss from "../static/mvp.css" with { type: "text" };
+import faviconSvg from "#static/favicon.svg" with { type: "text" };
+import mvpCss from "#static/mvp.css" with { type: "text" };
 
 /** Cache for 1 year (immutable assets) */
 const CACHE_HEADERS = {

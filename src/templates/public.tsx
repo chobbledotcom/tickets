@@ -4,9 +4,9 @@
 
 import { renderError, renderFields } from "#lib/forms.tsx";
 import type { EventWithCount } from "#lib/types.ts";
-import { Raw } from "#jsx/jsx-runtime.ts";
-import { ticketFields } from "./fields.ts";
-import { Layout } from "./layout.tsx";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { ticketFields } from "#templates/fields.ts";
+import { Layout } from "#templates/layout.tsx";
 
 /**
  * Home page

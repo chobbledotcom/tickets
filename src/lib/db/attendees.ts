@@ -3,11 +3,11 @@
  */
 
 import { map } from "#fp";
-import { decrypt, encrypt } from "../crypto.ts";
-import type { Attendee } from "../types.ts";
-import { getDb, queryOne } from "./client.ts";
-import { getEventWithCount } from "./events.ts";
-import { col, defineTable } from "./table.ts";
+import { decrypt, encrypt } from "#lib/crypto.ts";
+import { getDb, queryOne } from "#lib/db/client.ts";
+import { getEventWithCount } from "#lib/db/events.ts";
+import { col, defineTable } from "#lib/db/table.ts";
+import type { Attendee } from "#lib/types.ts";
 
 /**
  * Minimal attendees table for deleteById operation

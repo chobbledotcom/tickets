@@ -4,8 +4,8 @@
 
 import Stripe from "stripe";
 import { lazyRef, once } from "#fp";
-import { getCurrencyCode, getStripeSecretKey } from "./config.ts";
-import type { Attendee, Event } from "./types.ts";
+import { getCurrencyCode, getStripeSecretKey } from "#lib/config.ts";
+import type { Attendee, Event } from "#lib/types.ts";
 
 type StripeCache = { client: Stripe; secretKey: string };
 

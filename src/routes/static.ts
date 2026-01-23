@@ -2,9 +2,9 @@
  * Static routes - health check and assets (always available)
  */
 
-import { handleFavicon, handleMvpCss } from "./assets.ts";
-import { handleHealthCheck } from "./health.ts";
-import { createRouter, defineRoutes } from "./router.ts";
+import { handleFavicon, handleMvpCss } from "#routes/assets.ts";
+import { handleHealthCheck } from "#routes/health.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
 
 /** Static routes definition */
 const staticRoutes = defineRoutes({

@@ -2,8 +2,8 @@
  * Sessions table operations
  */
 
-import type { Session } from "../types.ts";
-import { executeByField, getDb, queryOne } from "./client.ts";
+import { executeByField, getDb, queryOne } from "#lib/db/client.ts";
+import type { Session } from "#lib/types.ts";
 
 /**
  * Create a new session with CSRF token

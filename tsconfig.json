@@ -23,10 +23,15 @@
       "#test-utils/*": ["./src/test-utils/*"],
       "#src/*": ["./src/*"],
       "#test/*": ["./test/*"],
-      "#lib/*": ["./src/lib/*"],
       "#jsx/*": ["./src/lib/jsx/*"],
-      "#templates": ["./src/templates/index.ts"],
-      "#templates/*": ["./src/templates/*"]
+      "#lib/db/*": ["./src/lib/db/*"],
+      "#lib/rest/*": ["./src/lib/rest/*"],
+      "#lib/jsx/*": ["./src/lib/jsx/*"],
+      "#lib/*": ["./src/lib/*"],
+      "#routes": ["./src/routes/index.ts"],
+      "#routes/*": ["./src/routes/*"],
+      "#templates/*": ["./src/templates/*"],
+      "#static/*": ["./src/static/*"]
     },
     "types": ["bun-types"]
   },

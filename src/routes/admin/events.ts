@@ -2,28 +2,21 @@
  * Admin event management routes
  */
 
-import { getAttendees } from "#lib/db/attendees";
+import { getAttendees } from "#lib/db/attendees.ts";
 import {
   deleteEvent,
   type EventInput,
   eventsTable,
   getEventWithCount,
-} from "#lib/db/events";
+} from "#lib/db/events.ts";
 import {
   createHandler,
   deleteHandler,
   updateHandler,
-} from "#lib/rest/handlers";
-import { defineResource } from "#lib/rest/resource";
+} from "#lib/rest/handlers.ts";
+import { defineResource } from "#lib/rest/resource.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import {
-  adminDeleteEventPage,
-  adminEventEditPage,
-  adminEventPage,
-} from "#templates/admin/events.tsx";
-import { generateAttendeesCsv } from "#templates/csv.ts";
-import { eventFields } from "#templates/fields.ts";
-import { defineRoutes, type RouteParams } from "../router.ts";
+import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
   htmlResponse,
   isAuthenticated,
@@ -31,7 +24,14 @@ import {
   redirect,
   requireSessionOr,
   withEvent,
-} from "../utils.ts";
+} from "#routes/utils.ts";
+import {
+  adminDeleteEventPage,
+  adminEventEditPage,
+  adminEventPage,
+} from "#templates/admin/events.tsx";
+import { generateAttendeesCsv } from "#templates/csv.ts";
+import { eventFields } from "#templates/fields.ts";
 
 /** Attendee type */
 type Attendee = Awaited<ReturnType<typeof getAttendees>>[number];

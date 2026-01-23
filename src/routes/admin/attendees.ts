@@ -2,22 +2,22 @@
  * Admin attendee management routes
  */
 
-import { deleteAttendee, getAttendee } from "#lib/db/attendees";
-import { getEventWithCount } from "#lib/db/events";
+import { deleteAttendee, getAttendee } from "#lib/db/attendees.ts";
+import { getEventWithCount } from "#lib/db/events.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import { adminDeleteAttendeePage } from "#templates/admin/attendees.tsx";
 import {
   defineRoutes,
   type RouteHandlerFn,
   type RouteParams,
-} from "../router.ts";
+} from "#routes/router.ts";
 import {
   htmlResponse,
   notFoundResponse,
   redirect,
   requireSessionOr,
   withAuthForm,
-} from "../utils.ts";
+} from "#routes/utils.ts";
+import { adminDeleteAttendeePage } from "#templates/admin/attendees.tsx";
 
 /** Attendee type */
 type Attendee = NonNullable<Awaited<ReturnType<typeof getAttendee>>>;

@@ -6,22 +6,22 @@ import {
   clearLoginAttempts,
   isLoginRateLimited,
   recordFailedLogin,
-} from "#lib/db/login-attempts";
-import { createSession, deleteSession } from "#lib/db/sessions";
-import { verifyAdminPassword } from "#lib/db/settings";
+} from "#lib/db/login-attempts.ts";
+import { createSession, deleteSession } from "#lib/db/sessions.ts";
+import { verifyAdminPassword } from "#lib/db/settings.ts";
 import { validateForm } from "#lib/forms.tsx";
-import { loginFields } from "#templates/fields.ts";
-import { defineRoutes } from "../router.ts";
-import type { ServerContext } from "../types.ts";
+import { loginResponse } from "#routes/admin/dashboard.ts";
+import { clearSessionCookie } from "#routes/admin/utils.ts";
+import { defineRoutes } from "#routes/router.ts";
+import type { ServerContext } from "#routes/types.ts";
 import {
   generateSecureToken,
   getClientIp,
   parseFormData,
   redirect,
   withSession,
-} from "../utils.ts";
-import { loginResponse } from "./dashboard.ts";
-import { clearSessionCookie } from "./utils.ts";
+} from "#routes/utils.ts";
+import { loginFields } from "#templates/fields.ts";
 
 /**
  * Handle POST /admin/login

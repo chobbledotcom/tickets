@@ -2,9 +2,9 @@
  * Events table operations
  */
 
-import type { Event, EventWithCount } from "../types.ts";
-import { executeByField, getDb, queryOne } from "./client.ts";
-import { col, defineTable } from "./table.ts";
+import { executeByField, getDb, queryOne } from "#lib/db/client.ts";
+import { col, defineTable } from "#lib/db/table.ts";
+import type { Event, EventWithCount } from "#lib/types.ts";
 
 /** Event input fields for create/update (camelCase) */
 export type EventInput = {

@@ -2,7 +2,7 @@
  * Login attempts table operations (rate limiting)
  */
 
-import { executeByField, getDb, queryOne } from "./client.ts";
+import { executeByField, getDb, queryOne } from "#lib/db/client.ts";
 
 /**
  * Rate limiting constants

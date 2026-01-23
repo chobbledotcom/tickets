@@ -2,9 +2,9 @@
  * Entry point for ticket reservation system
  */
 
-import { handleRequest } from "#routes";
-import { validateEncryptionKey } from "./lib/crypto.ts";
-import { initDb } from "./lib/db/migrations/index.ts";
+import { validateEncryptionKey } from "#lib/crypto.ts";
+import { initDb } from "#lib/db/migrations/index.ts";
+import { handleRequest } from "#routes/index.ts";
 
 const startServer = async (port = 3000): Promise<void> => {
   validateEncryptionKey();

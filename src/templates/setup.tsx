@@ -3,9 +3,9 @@
  */
 
 import { renderError, renderFields } from "#lib/forms.tsx";
-import { Raw } from "#jsx/jsx-runtime.ts";
-import { setupFields } from "./fields.ts";
-import { Layout } from "./layout.tsx";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { setupFields } from "#templates/fields.ts";
+import { Layout } from "#templates/layout.tsx";
 
 /**
  * Initial setup page

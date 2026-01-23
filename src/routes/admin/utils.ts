@@ -3,7 +3,7 @@
  */
 
 import type { validateForm } from "#lib/forms.tsx";
-import type { AuthSession } from "../utils.ts";
+import type { AuthSession } from "#routes/utils.ts";
 
 /** Form field definition type */
 export type FormFields = Parameters<typeof validateForm>[1];

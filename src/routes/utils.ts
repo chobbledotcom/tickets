@@ -4,12 +4,12 @@
 
 import { compact, err, map, ok, pipe, type Result, reduce } from "#fp";
 import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
-import { getEventWithCount } from "#lib/db/events";
-import { deleteSession, getSession } from "#lib/db/sessions";
+import { getEventWithCount } from "#lib/db/events.ts";
+import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import type { EventWithCount } from "#lib/types.ts";
+import type { ServerContext } from "#routes/types.ts";
 import { paymentErrorPage } from "#templates/payment.tsx";
 import { notFoundPage } from "#templates/public.tsx";
-import type { ServerContext } from "./types.ts";
 
 // Re-export for use by other route modules
 export { generateSecureToken };

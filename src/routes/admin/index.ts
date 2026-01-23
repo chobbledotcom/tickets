@@ -2,13 +2,13 @@
  * Admin routes - combined from individual route modules
  */
 
-import { createRouter } from "../router.ts";
-import { attendeesRoutes } from "./attendees.ts";
-import { authRoutes } from "./auth.ts";
-import { dashboardRoutes } from "./dashboard.ts";
-import { eventsRoutes } from "./events.ts";
-import { sessionsRoutes } from "./sessions.ts";
-import { settingsRoutes } from "./settings.ts";
+import { attendeesRoutes } from "#routes/admin/attendees.ts";
+import { authRoutes } from "#routes/admin/auth.ts";
+import { dashboardRoutes } from "#routes/admin/dashboard.ts";
+import { eventsRoutes } from "#routes/admin/events.ts";
+import { sessionsRoutes } from "#routes/admin/sessions.ts";
+import { settingsRoutes } from "#routes/admin/settings.ts";
+import { createRouter } from "#routes/router.ts";
 
 /** Combined admin routes */
 const adminRoutes = {

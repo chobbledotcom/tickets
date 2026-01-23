@@ -5,9 +5,9 @@
 import { map, pipe, reduce } from "#fp";
 import { renderFields } from "#lib/forms.tsx";
 import type { EventWithCount } from "#lib/types.ts";
-import { Raw } from "#jsx/jsx-runtime.ts";
-import { eventFields } from "../fields.ts";
-import { Layout } from "../layout.tsx";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { eventFields } from "#templates/fields.ts";
+import { Layout } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 

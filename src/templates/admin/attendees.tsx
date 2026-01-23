@@ -3,7 +3,7 @@
  */
 
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { Layout } from "../layout.tsx";
+import { Layout } from "#templates/layout.tsx";
 
 /**
  * Admin delete attendee confirmation page

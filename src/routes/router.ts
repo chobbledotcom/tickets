@@ -2,7 +2,7 @@
  * Declarative router with pattern matching
  */
 
-import type { ServerContext } from "./types.ts";
+import type { ServerContext } from "#routes/types.ts";
 
 /** Route parameters extracted from URL patterns */
 export type RouteParams = Record<string, string | undefined>;

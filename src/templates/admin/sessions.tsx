@@ -4,8 +4,8 @@
 
 import { map, pipe, reduce } from "#fp";
 import type { Session } from "#lib/types.ts";
-import { Raw } from "#jsx/jsx-runtime.ts";
-import { Layout } from "../layout.tsx";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { Layout } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
