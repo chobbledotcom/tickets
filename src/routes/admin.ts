@@ -5,11 +5,13 @@
 import {
   clearLoginAttempts,
   createSession,
+  deleteAttendee,
   deleteEvent,
   deleteSession,
   type EventInput,
   eventsTable,
   getAllEvents,
+  getAttendee,
   getAttendees,
   getEventWithCount,
   hasStripeKey,
@@ -29,6 +31,7 @@ import {
 import type { EventWithCount } from "#lib/types.ts";
 import {
   adminDashboardPage,
+  adminDeleteAttendeePage,
   adminDeleteEventPage,
   adminEventEditPage,
   adminEventPage,
@@ -395,6 +398,69 @@ const handleAdminEventDelete = deleteHandler(eventsResource, {
   onNotFound: () => htmlResponse(notFoundPage(), 404),
 });
 
+/** Verify name matches for deletion confirmation (case-insensitive, trimmed) */
+const verifyName = (expected: string, provided: string): boolean =>
+  expected.trim().toLowerCase() === provided.trim().toLowerCase();
+
+/** Attendee with event data */
+type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
+
+/** Load attendee ensuring it belongs to the specified event */
+const loadAttendeeForEvent = async (
+  eventId: number,
+  attendeeId: number,
+): Promise<AttendeeWithEvent | null> => {
+  const event = await getEventWithCount(eventId);
+  if (!event) return null;
+
+  const attendee = await getAttendee(attendeeId);
+  if (!attendee || attendee.event_id !== eventId) return null;
+
+  return { attendee, event };
+};
+
+/** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
+const handleAdminAttendeeDeleteGet = async (
+  request: Request,
+  eventId: number,
+  attendeeId: number,
+): Promise<Response> =>
+  requireSessionOr(request, async (session) => {
+    const data = await loadAttendeeForEvent(eventId, attendeeId);
+    if (!data) return htmlResponse(notFoundPage(), 404);
+
+    return htmlResponse(
+      adminDeleteAttendeePage(data.event, data.attendee, session.csrfToken),
+    );
+  });
+
+/** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
+const handleAdminAttendeeDelete = async (
+  request: Request,
+  eventId: number,
+  attendeeId: number,
+): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const data = await loadAttendeeForEvent(eventId, attendeeId);
+    if (!data) return htmlResponse(notFoundPage(), 404);
+
+    const confirmName = form.get("confirm_name") ?? "";
+    if (!verifyName(data.attendee.name, confirmName)) {
+      return htmlResponse(
+        adminDeleteAttendeePage(
+          data.event,
+          data.attendee,
+          session.csrfToken,
+          "Attendee name does not match. Please type the exact name to confirm deletion.",
+        ),
+        400,
+      );
+    }
+
+    await deleteAttendee(attendeeId);
+    return redirect(`/admin/event/${eventId}`);
+  });
+
 /** Route admin event edit requests */
 const routeAdminEventEdit: RouteHandler = createIdRoute(
   /^\/admin\/event\/(\d+)\/edit$/,
@@ -420,6 +486,27 @@ const routeAdminEventDelete: RouteHandler = createIdRoute(
   }),
 );
 
+/** Route admin attendee delete requests */
+const routeAdminAttendeeDelete: RouteHandler = async (
+  request,
+  path,
+  method,
+) => {
+  const match = path.match(/^\/admin\/event\/(\d+)\/attendee\/(\d+)\/delete$/);
+  if (!match?.[1] || !match[2]) return null;
+
+  const eventId = Number.parseInt(match[1], 10);
+  const attendeeId = Number.parseInt(match[2], 10);
+
+  if (method === "GET") {
+    return handleAdminAttendeeDeleteGet(request, eventId, attendeeId);
+  }
+  if (method === "POST" || method === "DELETE") {
+    return handleAdminAttendeeDelete(request, eventId, attendeeId);
+  }
+  return null;
+};
+
 /** Route admin event detail requests */
 const routeAdminEventDetail: RouteHandler = createIdRoute(
   /^\/admin\/event\/(\d+)$/,
@@ -431,6 +518,7 @@ const routeAdminEvent: RouteHandler = async (request, path, method) =>
   (await routeAdminEventEdit(request, path, method)) ??
   (await routeAdminEventExport(request, path, method)) ??
   (await routeAdminEventDelete(request, path, method)) ??
+  (await routeAdminAttendeeDelete(request, path, method)) ??
   routeAdminEventDetail(request, path, method);
 
 /**

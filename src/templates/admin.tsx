@@ -83,13 +83,18 @@ export const adminDashboardPage = (
   );
 };
 
-const AttendeeRow = ({ a }: { a: Attendee }): string =>
+const AttendeeRow = ({ a, eventId }: { a: Attendee; eventId: number }): string =>
   String(
     <tr>
       <td>{a.name}</td>
       <td>{a.email}</td>
       <td>{a.quantity}</td>
       <td>{new Date(a.created).toLocaleString()}</td>
+      <td>
+        <a href={`/admin/event/${eventId}/attendee/${a.id}/delete`} style="color: #c00;">
+          Delete
+        </a>
+      </td>
     </tr>
   );
 
@@ -102,8 +107,11 @@ export const adminEventPage = (
 ): string => {
   const attendeeRows =
     attendees.length > 0
-      ? pipe(map((a: Attendee) => AttendeeRow({ a })), joinStrings)(attendees)
-      : '<tr><td colspan="4">No attendees yet</td></tr>';
+      ? pipe(
+          map((a: Attendee) => AttendeeRow({ a, eventId: event.id })),
+          joinStrings,
+        )(attendees)
+      : '<tr><td colspan="5">No attendees yet</td></tr>';
 
   return String(
     <Layout title={`Event: ${event.name}`}>
@@ -151,6 +159,7 @@ export const adminEventPage = (
             <th>Email</th>
             <th>Qty</th>
             <th>Registered</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -232,6 +241,55 @@ export const adminDeleteEventPage = (
           style="background: #c00; border-color: #900;"
         >
           Delete Event
+        </button>
+      </form>
+    </Layout>
+  );
+
+/**
+ * Admin delete attendee confirmation page
+ */
+export const adminDeleteAttendeePage = (
+  event: EventWithCount,
+  attendee: Attendee,
+  csrfToken: string,
+  error?: string,
+): string =>
+  String(
+    <Layout title={`Delete Attendee: ${attendee.name}`}>
+      <h1>Delete Attendee</h1>
+      <p><a href={`/admin/event/${event.id}`}>&larr; Back to Event</a></p>
+
+      {error && <div class="error">{error}</div>}
+
+      <p style="color: #c00; font-weight: bold;">
+        Warning: This will permanently remove this attendee from the event.
+      </p>
+
+      <h2>Attendee Details</h2>
+      <p><strong>Name:</strong> {attendee.name}</p>
+      <p><strong>Email:</strong> {attendee.email}</p>
+      <p><strong>Quantity:</strong> {attendee.quantity}</p>
+      <p><strong>Registered:</strong> {new Date(attendee.created).toLocaleString()}</p>
+
+      <p>To delete this attendee, you must type their name "{attendee.name}" into the box below:</p>
+
+      <form method="POST" action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}>
+        <input type="hidden" name="csrf_token" value={csrfToken} />
+        <div class="field">
+          <input
+            type="text"
+            name="confirm_name"
+            placeholder={attendee.name}
+            autocomplete="off"
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          style="background: #c00; border-color: #900;"
+        >
+          Delete Attendee
         </button>
       </form>
     </Layout>

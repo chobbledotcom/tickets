@@ -1289,6 +1289,272 @@ describe("server", () => {
     });
   });
 
+  describe("GET /admin/event/:eventId/attendee/:attendeeId/delete", () => {
+    test("redirects to login when not authenticated", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      const response = await handleRequest(
+        mockRequest("/admin/event/1/attendee/1/delete"),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      const response = await awaitTestRequest(
+        "/admin/event/999/attendee/1/delete",
+        { cookie: cookie || "" },
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 for non-existent attendee", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      const response = await awaitTestRequest(
+        "/admin/event/1/attendee/999/delete",
+        { cookie: cookie || "" },
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 when attendee belongs to different event", async () => {
+      await createEvent({
+        name: "Event 1",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createEvent({
+        name: "Event 2",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(2, "John Doe", "john@example.com"); // Attendee on event 2
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      // Try to delete attendee from event 2 via event 1 URL
+      const response = await awaitTestRequest(
+        "/admin/event/1/attendee/1/delete",
+        { cookie: cookie || "" },
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("shows delete confirmation page when authenticated", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie");
+
+      const response = await awaitTestRequest(
+        "/admin/event/1/attendee/1/delete",
+        { cookie: cookie || "" },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Delete Attendee");
+      expect(html).toContain("John Doe");
+      expect(html).toContain("type their name");
+    });
+  });
+
+  describe("POST /admin/event/:eventId/attendee/:attendeeId/delete", () => {
+    test("redirects to login when not authenticated", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      const response = await handleRequest(
+        mockFormRequest("/admin/event/1/attendee/1/delete", {
+          confirm_name: "John Doe",
+        }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/");
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/999/attendee/1/delete",
+          {
+            confirm_name: "John Doe",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/attendee/1/delete",
+          {
+            confirm_name: "John Doe",
+            csrf_token: "invalid-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid CSRF token");
+    });
+
+    test("rejects mismatched attendee name", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/attendee/1/delete",
+          {
+            confirm_name: "Wrong Name",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("does not match");
+    });
+
+    test("deletes attendee with matching name (case insensitive)", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/attendee/1/delete",
+          {
+            confirm_name: "john doe", // lowercase
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/event/1");
+
+      // Verify attendee was deleted
+      const { getAttendee } = await import("#lib/db");
+      const attendee = await getAttendee(1);
+      expect(attendee).toBeNull();
+    });
+
+    test("deletes attendee with whitespace-trimmed name", async () => {
+      await createEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/attendee/1/delete",
+          {
+            confirm_name: "  John Doe  ", // with spaces
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/event/1");
+    });
+  });
+
   describe("GET /ticket/:id", () => {
     test("returns 404 for non-existent event", async () => {
       const response = await handleRequest(mockRequest("/ticket/999"));
@@ -1572,16 +1838,7 @@ describe("server", () => {
       expect(html).toContain("Invalid payment callback");
     });
 
-    test("returns error for non-existent attendee", async () => {
-      const response = await handleRequest(
-        mockRequest("/payment/cancel?attendee_id=999"),
-      );
-      expect(response.status).toBe(404);
-      const html = await response.text();
-      expect(html).toContain("Attendee not found");
-    });
-
-    test("deletes attendee and shows cancel page", async () => {
+    test("returns error for missing session_id", async () => {
       const event = await createEvent({
         name: "Test",
         description: "Desc",
@@ -1597,10 +1854,193 @@ describe("server", () => {
       const response = await handleRequest(
         mockRequest(`/payment/cancel?attendee_id=${attendee.id}`),
       );
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("Payment Cancelled");
-      expect(html).toContain("/ticket/");
+      expect(html).toContain("Invalid payment callback");
+    });
+
+    test("returns error for non-existent attendee", async () => {
+      const response = await handleRequest(
+        mockRequest("/payment/cancel?attendee_id=999&session_id=cs_test"),
+      );
+      expect(response.status).toBe(404);
+      const html = await response.text();
+      expect(html).toContain("Attendee not found");
+    });
+
+    test("returns error for invalid session", async () => {
+      const { spyOn } = await import("bun:test");
+      const stripeModule = await import("#lib/stripe.ts");
+      await setSetting("stripe_key", await encrypt("sk_test_mock"));
+
+      const event = await createEvent({
+        name: "Test",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createAttendee(
+        event.id,
+        "John",
+        "john@example.com",
+      );
+
+      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue(null);
+
+      try {
+        const response = await handleRequest(
+          mockRequest(
+            `/payment/cancel?attendee_id=${attendee.id}&session_id=invalid`,
+          ),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("Payment session not found");
+      } finally {
+        mockRetrieve.mockRestore();
+        resetStripeClient();
+      }
+    });
+
+    test("returns error for session mismatch", async () => {
+      const { spyOn } = await import("bun:test");
+      const stripeModule = await import("#lib/stripe.ts");
+      await setSetting("stripe_key", await encrypt("sk_test_mock"));
+
+      const event = await createEvent({
+        name: "Test",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createAttendee(
+        event.id,
+        "John",
+        "john@example.com",
+      );
+
+      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_test_cancel",
+        payment_status: "unpaid",
+        metadata: {
+          attendee_id: "999", // Different from actual attendee
+          event_id: String(event.id),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest(
+            `/payment/cancel?attendee_id=${attendee.id}&session_id=cs_test_cancel`,
+          ),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("Payment session mismatch");
+      } finally {
+        mockRetrieve.mockRestore();
+        resetStripeClient();
+      }
+    });
+
+    test("returns error when trying to cancel already paid attendee", async () => {
+      const { spyOn } = await import("bun:test");
+      const stripeModule = await import("#lib/stripe.ts");
+      await setSetting("stripe_key", await encrypt("sk_test_mock"));
+
+      const event = await createEvent({
+        name: "Test",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      // Create an attendee that already has a payment ID
+      const attendee = await createAttendee(
+        event.id,
+        "John",
+        "john@example.com",
+        "pi_already_paid",
+      );
+
+      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_test_cancel",
+        payment_status: "unpaid",
+        metadata: {
+          attendee_id: String(attendee.id),
+          event_id: String(event.id),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest(
+            `/payment/cancel?attendee_id=${attendee.id}&session_id=cs_test_cancel`,
+          ),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("Cannot cancel a completed payment");
+      } finally {
+        mockRetrieve.mockRestore();
+        resetStripeClient();
+      }
+    });
+
+    test("deletes unpaid attendee and shows cancel page when session valid", async () => {
+      const { spyOn } = await import("bun:test");
+      const stripeModule = await import("#lib/stripe.ts");
+      await setSetting("stripe_key", await encrypt("sk_test_mock"));
+
+      const event = await createEvent({
+        name: "Test",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createAttendee(
+        event.id,
+        "John",
+        "john@example.com",
+      );
+
+      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_test_cancel",
+        payment_status: "unpaid",
+        metadata: {
+          attendee_id: String(attendee.id),
+          event_id: String(event.id),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest(
+            `/payment/cancel?attendee_id=${attendee.id}&session_id=cs_test_cancel`,
+          ),
+        );
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Payment Cancelled");
+        expect(html).toContain("/ticket/");
+
+        // Verify attendee was deleted
+        const { getAttendee } = await import("#lib/db");
+        const deleted = await getAttendee(attendee.id);
+        expect(deleted).toBeNull();
+      } finally {
+        mockRetrieve.mockRestore();
+        resetStripeClient();
+      }
     });
   });
 

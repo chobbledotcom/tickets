@@ -111,15 +111,59 @@ const handlePaymentSuccess = async (request: Request): Promise<Response> => {
 };
 
 /**
+ * Verify Stripe session matches attendee for cancellation
+ * Returns error response if verification fails, null if successful
+ */
+const verifyCancelSession = async (
+  sessionId: string | null,
+  attendeeId: string | null,
+  attendee: Attendee,
+): Promise<Response | null> => {
+  if (!sessionId) {
+    return htmlResponse(paymentErrorPage("Invalid payment callback"), 400);
+  }
+
+  const session = await retrieveCheckoutSession(sessionId);
+  if (!session) {
+    return htmlResponse(
+      paymentErrorPage("Payment session not found. Please contact support."),
+      400,
+    );
+  }
+
+  if (session.metadata?.attendee_id !== attendeeId) {
+    return htmlResponse(
+      paymentErrorPage("Payment session mismatch. Please contact support."),
+      400,
+    );
+  }
+
+  // Only allow cancellation of unpaid attendees
+  if (attendee.stripe_payment_id) {
+    return htmlResponse(
+      paymentErrorPage("Cannot cancel a completed payment."),
+      400,
+    );
+  }
+
+  return null;
+};
+
+/**
  * Handle GET /payment/cancel (Stripe redirect after cancelled payment)
  */
 const handlePaymentCancel = async (request: Request): Promise<Response> => {
-  const result = await loadPaymentCallbackData(
-    getSearchParam(request, "attendee_id"),
-  );
+  const attendeeId = getSearchParam(request, "attendee_id");
+  const sessionId = getSearchParam(request, "session_id");
+
+  const result = await loadPaymentCallbackData(attendeeId);
   if (!result.success) return result.response;
 
   const { attendee, event } = result.data;
+
+  const error = await verifyCancelSession(sessionId, attendeeId, attendee);
+  if (error) return error;
+
   await deleteAttendee(attendee.id);
   return htmlResponse(paymentCancelPage(event, `/ticket/${event.id}`));
 };
