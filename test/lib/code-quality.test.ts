@@ -3,6 +3,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 const SRC_DIR = join(import.meta.dir, "../../src");
+const TEST_DIR = join(import.meta.dir, "../../test");
 
 /**
  * Patterns that indicate in-memory state storage at module level.
@@ -170,6 +171,227 @@ describe("code quality", () => {
             );
           }
         }
+      }
+
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe("no test-only exports", () => {
+    /**
+     * Detects exports that exist solely to be tested, violating the principle of
+     * testing outcomes rather than implementation. These typically include:
+     * - Reset/clear functions only used in test cleanup (e.g., resetFooClient)
+     * - Internal helper functions exported just to unit test them
+     * - Config getters that are never actually called in production
+     *
+     * Excluded from checking:
+     * - Test utility modules (test-utils/*) - explicitly for testing
+     * - Library modules (fp/*) - reusable utilities, may not all be used yet
+     * - JSX runtime modules (lib/jsx/*) - used implicitly by JSX compiler
+     * - Index files that only re-export (lib/db/index.ts) - aggregation modules
+     */
+
+    /** Files explicitly for testing */
+    const TEST_UTILITY_PATHS = [
+      "test-utils/index.ts",
+      "test-utils/stripe-mock.ts",
+    ];
+
+    /** Library/infrastructure modules - okay to have unused exports */
+    const LIBRARY_PATHS = [
+      "fp/index.ts", // FP utility library
+      "lib/jsx/jsx-runtime.ts", // JSX compiler runtime
+      "lib/jsx/jsx-dev-runtime.ts", // JSX dev runtime
+    ];
+
+    /** Index modules that only re-export from sub-modules */
+    const AGGREGATION_MODULES = ["lib/db/index.ts", "templates/index.ts"];
+
+    /**
+     * Test hooks - functions that are intentionally exported for test setup/cleanup.
+     * These are necessary for testing but should not be used in production code.
+     * Format: "file:exportName"
+     */
+    const ALLOWED_TEST_HOOKS: string[] = [
+      // Database injection for test isolation
+      "lib/db/client.ts:setDb",
+      // Reset cached encryption key between tests
+      "lib/crypto.ts:clearEncryptionKeyCache",
+      // Reset cached Stripe client between tests
+      "lib/stripe.ts:resetStripeClient",
+    ];
+
+    /**
+     * Patterns to extract exported symbols from source files.
+     * Only captures direct exports, not re-exports.
+     */
+    const EXPORT_PATTERNS = [
+      // export const/let name = ...
+      /^export\s+(?:const|let)\s+(\w+)/gm,
+      // export function name(...) or export async function name(...)
+      /^export\s+(?:async\s+)?function\s+(\w+)/gm,
+      // export class name
+      /^export\s+class\s+(\w+)/gm,
+    ];
+
+    /** Pattern to detect re-export statements (export { x } from "y") */
+    const RE_EXPORT_PATTERN = /^export\s+\{[^}]+\}\s+from\s+['"]/m;
+
+    const extractExports = (content: string): string[] => {
+      const exports: string[] = [];
+
+      for (const pattern of EXPORT_PATTERNS) {
+        pattern.lastIndex = 0;
+        for (const match of content.matchAll(pattern)) {
+          const captured = match[1];
+          if (captured) {
+            exports.push(captured.trim());
+          }
+        }
+      }
+
+      return exports;
+    };
+
+    /**
+     * Check if a symbol is used within the same file (not just defined).
+     * Looks for patterns like `symbolName(` (function calls) or `symbolName.` (property access).
+     */
+    const isUsedInSameFile = (symbolName: string, content: string): boolean => {
+      const lines = content.split("\n");
+      let usageCount = 0;
+
+      for (const line of lines) {
+        // Skip the export definition line
+        if (
+          line.match(
+            new RegExp(
+              `^export\\s+.*(const|let|function|async).*\\b${symbolName}\\b\\s*[=({]`,
+            ),
+          )
+        ) {
+          continue;
+        }
+        // Count usages: function calls or property access
+        const usagePattern = new RegExp(`\\b${symbolName}\\s*[.(]`);
+        if (usagePattern.test(line)) {
+          usageCount++;
+        }
+      }
+
+      return usageCount > 0;
+    };
+
+    const isUsedInProductionCode = async (
+      symbolName: string,
+      sourceFile: string,
+      srcFiles: string[],
+    ): Promise<boolean> => {
+      // Check if it's used within the same file
+      const sourceContent = await Bun.file(sourceFile).text();
+      if (isUsedInSameFile(symbolName, sourceContent)) {
+        return true;
+      }
+
+      // Pattern to find imports of this symbol
+      const importPattern = new RegExp(
+        `import\\s*\\{[^}]*\\b${symbolName}\\b[^}]*\\}`,
+      );
+
+      for (const file of srcFiles) {
+        if (file === sourceFile) continue;
+
+        const relativePath = getRelativePath(file);
+        // Skip test utilities - imports there don't count as production usage
+        if (TEST_UTILITY_PATHS.includes(relativePath)) continue;
+
+        const content = await Bun.file(file).text();
+        if (importPattern.test(content)) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    /** Check if a symbol is imported in any test file */
+    const isUsedInTests = async (symbolName: string): Promise<boolean> => {
+      const testFiles = await getAllTsFiles(TEST_DIR);
+      const importPattern = new RegExp(
+        `import\\s*\\{[^}]*\\b${symbolName}\\b[^}]*\\}`,
+      );
+
+      for (const testFile of testFiles) {
+        const testContent = await Bun.file(testFile).text();
+        if (importPattern.test(testContent)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    /** Check if a file should be skipped (test utils, libraries, aggregation modules) */
+    const shouldSkipFile = (relativePath: string): boolean =>
+      TEST_UTILITY_PATHS.includes(relativePath) ||
+      LIBRARY_PATHS.includes(relativePath) ||
+      AGGREGATION_MODULES.includes(relativePath);
+
+    /** Check if a file is primarily a re-export module */
+    const isPrimarilyReExportModule = (content: string): boolean => {
+      if (!RE_EXPORT_PATTERN.test(content)) return false;
+
+      const lines = content.split("\n");
+      const exportLines = lines.filter((l) => l.startsWith("export"));
+      const reExportLines = lines.filter((l) =>
+        /^export\s+\{[^}]+\}\s+from\s+['"]/.test(l),
+      );
+      return reExportLines.length > exportLines.length / 2;
+    };
+
+    /** Find test-only violations for a single file */
+    const findFileViolations = async (
+      file: string,
+      srcFiles: string[],
+    ): Promise<string[]> => {
+      const relativePath = getRelativePath(file);
+      const violations: string[] = [];
+
+      const content = await Bun.file(file).text();
+      if (isPrimarilyReExportModule(content)) return violations;
+
+      const exports = extractExports(content);
+
+      for (const exportName of exports) {
+        const hookKey = `${relativePath}:${exportName}`;
+        if (ALLOWED_TEST_HOOKS.includes(hookKey)) continue;
+
+        const usedInProduction = await isUsedInProductionCode(
+          exportName,
+          file,
+          srcFiles,
+        );
+
+        if (!usedInProduction && (await isUsedInTests(exportName))) {
+          violations.push(
+            `${relativePath}: "${exportName}" is exported but only used in tests`,
+          );
+        }
+      }
+
+      return violations;
+    };
+
+    test("exports from src/ should be used in production code, not just tests", async () => {
+      const srcFiles = await getAllTsFiles(SRC_DIR);
+      const violations: string[] = [];
+
+      for (const file of srcFiles) {
+        const relativePath = getRelativePath(file);
+        if (shouldSkipFile(relativePath)) continue;
+
+        const fileViolations = await findFileViolations(file, srcFiles);
+        violations.push(...fileViolations);
       }
 
       expect(violations).toEqual([]);

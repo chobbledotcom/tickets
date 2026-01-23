@@ -35,16 +35,6 @@ export const deleteSession = async (token: string): Promise<void> =>
   executeByField("sessions", "token", token);
 
 /**
- * Delete all expired sessions
- */
-export const deleteExpiredSessions = async (): Promise<void> => {
-  await getDb().execute({
-    sql: "DELETE FROM sessions WHERE expires < ?",
-    args: [Date.now()],
-  });
-};
-
-/**
  * Delete all sessions (used when password is changed)
  */
 export const deleteAllSessions = async (): Promise<void> => {

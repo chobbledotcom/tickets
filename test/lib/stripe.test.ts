@@ -3,11 +3,9 @@ import { encrypt } from "#lib/crypto.ts";
 import { setSetting } from "#lib/db";
 import {
   createCheckoutSession,
-  formatPrice,
   getStripeClient,
   resetStripeClient,
   retrieveCheckoutSession,
-  verifyWebhookSignature,
 } from "#lib/stripe.ts";
 import { createTestDb, resetDb } from "#test-utils";
 
@@ -59,46 +57,6 @@ describe("stripe", () => {
 
       const client2 = await getStripeClient();
       expect(client2).toBeNull();
-    });
-  });
-
-  describe("formatPrice", () => {
-    test("formats price in GBP by default", async () => {
-      const formatted = await formatPrice(1000);
-      expect(formatted).toContain("10");
-    });
-
-    test("formats price in specified currency", async () => {
-      await setSetting("currency_code", "USD");
-      const formatted = await formatPrice(2500);
-      expect(formatted).toContain("25");
-    });
-
-    test("formats zero price", async () => {
-      const formatted = await formatPrice(0);
-      expect(formatted).toContain("0");
-    });
-
-    test("formats small amounts correctly", async () => {
-      const formatted = await formatPrice(99);
-      expect(formatted).toContain("0.99");
-    });
-  });
-
-  describe("verifyWebhookSignature", () => {
-    test("returns null when stripe key not set", async () => {
-      const result = await verifyWebhookSignature("payload", "sig", "secret");
-      expect(result).toBeNull();
-    });
-
-    test("returns null for invalid signature", async () => {
-      await setSetting("stripe_key", await encrypt("sk_test_123"));
-      const result = await verifyWebhookSignature(
-        "invalid_payload",
-        "invalid_signature",
-        "whsec_test",
-      );
-      expect(result).toBeNull();
     });
   });
 

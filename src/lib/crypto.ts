@@ -95,13 +95,6 @@ const getEncryptionKeyBytes = (): Uint8Array => {
 };
 
 /**
- * Check if encryption key is configured
- */
-export const isEncryptionConfigured = (): boolean => {
-  return !!process.env.DB_ENCRYPTION_KEY;
-};
-
-/**
  * Validate encryption key is present and valid
  * Call this on startup to fail fast if key is missing
  */
@@ -168,13 +161,6 @@ export const decrypt = async (encrypted: string): Promise<string> => {
   // Decode to string
   const decoder = new TextDecoder();
   return decoder.decode(plaintextBytes);
-};
-
-/**
- * Check if a value is encrypted (has the encryption prefix)
- */
-export const isEncrypted = (value: string): boolean => {
-  return value.startsWith(ENCRYPTION_PREFIX);
 };
 
 /**

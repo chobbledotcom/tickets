@@ -38,7 +38,6 @@ export { initDb } from "./migrations/index.ts";
 export {
   createSession,
   deleteAllSessions,
-  deleteExpiredSessions,
   deleteSession,
   getSession,
 } from "./sessions.ts";
