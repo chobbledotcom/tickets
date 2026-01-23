@@ -1,6 +1,8 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
+  awaitTestRequest,
   createTestDb,
+  createTestDbWithSetup,
   mockFormRequest,
   mockRequest,
   randomString,
@@ -169,6 +171,43 @@ describe("test-utils", () => {
       await wait(50);
       const elapsed = Date.now() - start;
       expect(elapsed).toBeGreaterThanOrEqual(45);
+    });
+  });
+
+  describe("awaitTestRequest", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("makes GET request and returns response", async () => {
+      const response = await awaitTestRequest("/");
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Ticket");
+    });
+
+    test("accepts token as second argument", async () => {
+      const response = await awaitTestRequest("/admin/", "nonexistent-token");
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Login");
+    });
+
+    test("accepts options object as second argument", async () => {
+      const response = await awaitTestRequest("/health", {
+        method: "POST",
+        data: {},
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("accepts cookie in options", async () => {
+      const response = await awaitTestRequest("/admin/", {
+        cookie: "session=fake",
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Login");
     });
   });
 });

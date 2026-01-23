@@ -261,6 +261,34 @@ export const testRequest = (
   });
 };
 
+/**
+ * Create and execute a test request, returning the response
+ * Combines testRequest() and handleRequest() for cleaner test code
+ *
+ * @example
+ * // Simple GET
+ * const response = await awaitTestRequest("/admin/")
+ *
+ * // GET with session token
+ * const response = await awaitTestRequest("/admin/logout", token)
+ *
+ * // GET with cookie (from login response)
+ * const response = await awaitTestRequest("/admin/", { cookie })
+ *
+ * // POST with form data
+ * const response = await awaitTestRequest("/admin/login", { data: { password: "test" } })
+ */
+export const awaitTestRequest = async (
+  path: string,
+  tokenOrOptions?: string | TestRequestOptions | null,
+): Promise<Response> => {
+  const { handleRequest } = await import("../server.ts");
+  if (typeof tokenOrOptions === "object" && tokenOrOptions !== null) {
+    return handleRequest(testRequest(path, null, tokenOrOptions));
+  }
+  return handleRequest(testRequest(path, tokenOrOptions));
+};
+
 /** Re-export createEvent and EventInput for test use */
 export { createEvent };
 export type { EventInput };
