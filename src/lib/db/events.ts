@@ -118,7 +118,7 @@ export const getEventWithCount = (
  * Get event with attendee count by slug
  * Uses custom JOIN query - not covered by table abstraction
  */
-export const getEventWithCountBySlug = async (
+export const getEventWithCountBySlug = (
   slug: string,
 ): Promise<EventWithCount | null> =>
   queryOne<EventWithCount>(

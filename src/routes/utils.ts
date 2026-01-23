@@ -200,10 +200,11 @@ type EventHandler = (event: EventWithCount) => Response | Promise<Response>;
 /**
  * Unwrap Result with handler - returns error response or applies handler to value
  */
-const unwrapResult = async (
+const unwrapResult = (
   result: Result<EventWithCount>,
   handler: EventHandler,
-): Promise<Response> => (result.ok ? handler(result.value) : result.response);
+): Promise<Response> | Response =>
+  result.ok ? handler(result.value) : result.response;
 
 /**
  * Fetch event or return 404 response
