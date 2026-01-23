@@ -203,6 +203,64 @@ export const mockTicketFormRequest = (
   );
 };
 
+/**
+ * Options for testRequest helper
+ */
+interface TestRequestOptions {
+  /** Full cookie string (use when you have raw set-cookie value) */
+  cookie?: string;
+  /** HTTP method (defaults to GET, or POST if data is provided) */
+  method?: string;
+  /** Form data for POST requests */
+  data?: Record<string, string>;
+}
+
+/**
+ * Create a test request with common options
+ * Simplifies the verbose new Request() pattern in tests
+ *
+ * @example
+ * // Simple GET
+ * testRequest("/admin/")
+ *
+ * // GET with session token
+ * testRequest("/admin/logout", token)
+ *
+ * // POST with form data (no auth)
+ * testRequest("/admin/login", null, { data: { password: "test" } })
+ *
+ * // POST with session and form data
+ * testRequest("/admin/event/new", token, { data: { name: "Event" } })
+ */
+export const testRequest = (
+  path: string,
+  token?: string | null,
+  options: TestRequestOptions = {},
+): Request => {
+  const { cookie, method, data } = options;
+  const headers: Record<string, string> = { host: "localhost" };
+
+  if (token) {
+    headers.cookie = `session=${token}`;
+  } else if (cookie) {
+    headers.cookie = cookie;
+  }
+
+  if (data) {
+    headers["content-type"] = "application/x-www-form-urlencoded";
+    return new Request(`http://localhost${path}`, {
+      method: method ?? "POST",
+      headers,
+      body: new URLSearchParams(data).toString(),
+    });
+  }
+
+  return new Request(`http://localhost${path}`, {
+    method: method ?? "GET",
+    headers,
+  });
+};
+
 /** Re-export createEvent and EventInput for test use */
 export { createEvent };
 export type { EventInput };

@@ -5,6 +5,7 @@ import {
   mockRequest,
   randomString,
   resetDb,
+  testRequest,
   wait,
 } from "#test-utils";
 
@@ -73,6 +74,74 @@ describe("test-utils", () => {
         "session=abc123",
       );
       expect(request.headers.get("cookie")).toBe("session=abc123");
+    });
+  });
+
+  describe("testRequest", () => {
+    test("creates a GET request by default", () => {
+      const request = testRequest("/test");
+      expect(request.method).toBe("GET");
+      expect(request.url).toBe("http://localhost/test");
+      expect(request.headers.get("host")).toBe("localhost");
+    });
+
+    test("formats session token as cookie", () => {
+      const request = testRequest("/admin/logout", "abc123");
+      expect(request.headers.get("cookie")).toBe("session=abc123");
+    });
+
+    test("uses raw cookie string when provided", () => {
+      const request = testRequest("/admin/", null, {
+        cookie: "session=xyz; other=value",
+      });
+      expect(request.headers.get("cookie")).toBe("session=xyz; other=value");
+    });
+
+    test("token takes precedence over cookie", () => {
+      const request = testRequest("/admin/", "token123", {
+        cookie: "session=other",
+      });
+      expect(request.headers.get("cookie")).toBe("session=token123");
+    });
+
+    test("creates POST request with form data", async () => {
+      const request = testRequest("/admin/login", null, {
+        data: { username: "admin", password: "secret" },
+      });
+      expect(request.method).toBe("POST");
+      expect(request.headers.get("content-type")).toBe(
+        "application/x-www-form-urlencoded",
+      );
+      const body = await request.text();
+      expect(body).toContain("username=admin");
+      expect(body).toContain("password=secret");
+    });
+
+    test("combines token with form data", async () => {
+      const request = testRequest("/admin/event/new", "mytoken", {
+        data: { name: "Test Event" },
+      });
+      expect(request.method).toBe("POST");
+      expect(request.headers.get("cookie")).toBe("session=mytoken");
+      const body = await request.text();
+      expect(body).toContain("name=Test+Event");
+    });
+
+    test("allows custom method override", () => {
+      const request = testRequest("/admin/event/1", "token", {
+        method: "DELETE",
+      });
+      expect(request.method).toBe("DELETE");
+    });
+
+    test("allows custom method with form data", async () => {
+      const request = testRequest("/admin/event/1", null, {
+        method: "PUT",
+        data: { name: "Updated" },
+      });
+      expect(request.method).toBe("PUT");
+      const body = await request.text();
+      expect(body).toContain("name=Updated");
     });
   });
 
