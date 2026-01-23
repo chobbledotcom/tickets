@@ -24,11 +24,11 @@ export const TEST_ENCRYPTION_KEY =
 
 /**
  * Set up test encryption key in environment
- * Also enables fast scrypt hashing for tests
+ * Also enables fast PBKDF2 hashing for tests
  */
 export const setupTestEncryptionKey = (): void => {
   Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
-  Deno.env.set("TEST_SCRYPT_N", "1"); // Enable fast password hashing for tests
+  Deno.env.set("TEST_PBKDF2_ITERATIONS", "1"); // Enable fast password hashing for tests
   clearEncryptionKeyCache();
 };
 
@@ -37,7 +37,7 @@ export const setupTestEncryptionKey = (): void => {
  */
 export const clearTestEncryptionKey = (): void => {
   Deno.env.delete("DB_ENCRYPTION_KEY");
-  Deno.env.delete("TEST_SCRYPT_N");
+  Deno.env.delete("TEST_PBKDF2_ITERATIONS");
   clearEncryptionKeyCache();
 };
 

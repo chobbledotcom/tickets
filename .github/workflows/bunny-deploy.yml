@@ -20,14 +20,16 @@ jobs:
           repository: chobbledotcom/tickets
           ref: main
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
       - name: Install dependencies
-        run: bun install
+        run: deno install --allow-scripts
 
       - name: Build edge script
-        run: bun run build:edge
+        run: deno task build:edge
         env:
           DB_URL: ${{ secrets.DB_URL }}
           DB_TOKEN: ${{ secrets.DB_TOKEN }}
