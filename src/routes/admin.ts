@@ -7,9 +7,9 @@ import {
   createEvent,
   createSession,
   deleteSession,
+  type EventInput,
   getAllEvents,
   getAttendees,
-  getEventWithCount,
   hasStripeKey,
   isLoginRateLimited,
   recordFailedLogin,
@@ -19,6 +19,7 @@ import {
   verifyAdminPassword,
 } from "#lib/db.ts";
 import { validateForm } from "#lib/forms.tsx";
+import type { EventWithCount } from "#lib/types.ts";
 import {
   adminDashboardPage,
   adminEventEditPage,
@@ -29,55 +30,28 @@ import {
   eventFields,
   generateAttendeesCsv,
   loginFields,
-  notFoundPage,
   stripeKeyFields,
 } from "#templates";
 import type { ServerContext } from "./types.ts";
 import {
+  type AuthSession,
+  chainRoutes,
+  createIdRoute,
+  fetchEventOr404,
   generateSecureToken,
-  getAuthenticatedSession,
   getClientIp,
   htmlResponse,
   isAuthenticated,
+  matchRoute,
   parseFormData,
+  type RouteHandler,
+  type RouteHandlerWithServer,
   redirect,
-  validateCsrfToken,
+  requireAuthForm,
+  requireSessionOr,
+  withAuthForm,
+  withSession,
 } from "./utils.ts";
-
-/** Session with CSRF token */
-type AuthSession = { token: string; csrfToken: string };
-
-/** Result of requiring authenticated session with form data */
-type AuthFormResult =
-  | { ok: true; session: AuthSession; form: URLSearchParams }
-  | { ok: false; response: Response };
-
-/** Require authenticated session, return redirect if not authenticated */
-const requireSession = async (
-  request: Request,
-): Promise<{ session: AuthSession } | { response: Response }> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return { response: redirect("/admin/") };
-  }
-  return { session };
-};
-
-/** Require authenticated session with parsed form and validated CSRF */
-const requireAuthForm = async (request: Request): Promise<AuthFormResult> => {
-  const result = await requireSession(request);
-  if ("response" in result) {
-    return { ok: false, response: result.response };
-  }
-
-  const form = await parseFormData(request);
-  const csrfToken = form.get("csrf_token") || "";
-  if (!validateCsrfToken(result.session.csrfToken, csrfToken)) {
-    return { ok: false, response: htmlResponse("Invalid CSRF token", 403) };
-  }
-
-  return { ok: true, session: result.session, form };
-};
 
 /** Form field definition type */
 type FormFields = Parameters<typeof validateForm>[1];
@@ -114,19 +88,14 @@ const requireAuthValidation = async (
   return { ok: true, session: auth.session, validation };
 };
 
-/** Event with count type */
-type EventWithCount = Awaited<ReturnType<typeof getEventWithCount>> & object;
-
-/** Fetch event or return 404 response */
-const fetchEventOr404 = async (
-  eventId: number,
-): Promise<{ event: EventWithCount } | { response: Response }> => {
-  const event = await getEventWithCount(eventId);
-  if (!event) {
-    return { response: htmlResponse(notFoundPage(), 404) };
-  }
-  return { event };
-};
+/** Extract event input from validated form */
+const extractEventInput = (values: Record<string, unknown>): EventInput => ({
+  name: values.name as string,
+  description: values.description as string,
+  maxAttendees: values.max_attendees as number,
+  thankYouUrl: values.thank_you_url as string,
+  unitPrice: values.unit_price as number | null,
+});
 
 /** Attendee type */
 type Attendee = Awaited<ReturnType<typeof getAttendees>>[number];
@@ -141,22 +110,20 @@ const withEventAttendees = async (
     return redirect("/admin/");
   }
   const result = await fetchEventOr404(eventId);
-  if ("response" in result) return result.response;
-  const attendees = await getAttendees(eventId);
-  return handler(result.event, attendees);
+  if (!result.ok) return result.response;
+  return handler(result.value, await getAttendees(eventId));
 };
 
 /**
  * Handle GET /admin/
  */
-const handleAdminGet = async (request: Request): Promise<Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return htmlResponse(adminLoginPage());
-  }
-  const events = await getAllEvents();
-  return htmlResponse(adminDashboardPage(events, session.csrfToken));
-};
+const handleAdminGet = (request: Request): Promise<Response> =>
+  withSession(
+    request,
+    async (session) =>
+      htmlResponse(adminDashboardPage(await getAllEvents(), session.csrfToken)),
+    () => htmlResponse(adminLoginPage()),
+  );
 
 /**
  * Handle POST /admin/login
@@ -202,33 +169,30 @@ const handleAdminLogin = async (
   );
 };
 
+/** Cookie to clear admin session */
+const clearSessionCookie =
+  "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0";
+
 /**
  * Handle GET /admin/logout
  */
-const handleAdminLogout = async (request: Request): Promise<Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (session) {
-    await deleteSession(session.token);
-  }
-  return redirect(
-    "/admin/",
-    "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0",
+const handleAdminLogout = (request: Request): Promise<Response> =>
+  withSession(
+    request,
+    async (session) => {
+      await deleteSession(session.token);
+      return redirect("/admin/", clearSessionCookie);
+    },
+    () => redirect("/admin/", clearSessionCookie),
   );
-};
 
 /**
  * Handle GET /admin/settings
  */
-const handleAdminSettingsGet = async (request: Request): Promise<Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return redirect("/admin/");
-  }
-  const stripeKeyConfigured = await hasStripeKey();
-  return htmlResponse(
-    adminSettingsPage(session.csrfToken, stripeKeyConfigured),
+const handleAdminSettingsGet = (request: Request): Promise<Response> =>
+  requireSessionOr(request, async (session) =>
+    htmlResponse(adminSettingsPage(session.csrfToken, await hasStripeKey())),
   );
-};
 
 /**
  * Validate change password form data
@@ -266,33 +230,30 @@ const validateChangePasswordForm = (
 /**
  * Handle POST /admin/settings
  */
-const handleAdminSettingsPost = async (request: Request): Promise<Response> => {
-  const auth = await requireAuthForm(request);
-  if (!auth.ok) return auth.response;
+const handleAdminSettingsPost = (request: Request): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const stripeKeyConfigured = await hasStripeKey();
+    const settingsPageWithError = (error: string, status: number) =>
+      htmlResponse(
+        adminSettingsPage(session.csrfToken, stripeKeyConfigured, error),
+        status,
+      );
 
-  const stripeKeyConfigured = await hasStripeKey();
-  const settingsPageWithError = (error: string, status: number) =>
-    htmlResponse(
-      adminSettingsPage(auth.session.csrfToken, stripeKeyConfigured, error),
-      status,
+    const validation = validateChangePasswordForm(form);
+    if (!validation.valid) {
+      return settingsPageWithError(validation.error, 400);
+    }
+
+    const isCurrentValid = await verifyAdminPassword(
+      validation.currentPassword,
     );
+    if (!isCurrentValid) {
+      return settingsPageWithError("Current password is incorrect", 401);
+    }
 
-  const validation = validateChangePasswordForm(auth.form);
-  if (!validation.valid) {
-    return settingsPageWithError(validation.error, 400);
-  }
-
-  const isCurrentValid = await verifyAdminPassword(validation.currentPassword);
-  if (!isCurrentValid) {
-    return settingsPageWithError("Current password is incorrect", 401);
-  }
-
-  await updateAdminPassword(validation.newPassword);
-  return redirect(
-    "/admin/",
-    "session=; HttpOnly; Secure; SameSite=Strict; Path=/admin/; Max-Age=0",
-  );
-};
+    await updateAdminPassword(validation.newPassword);
+    return redirect("/admin/", clearSessionCookie);
+  });
 
 /**
  * Handle POST /admin/settings/stripe
@@ -336,14 +297,7 @@ const handleCreateEvent = async (request: Request): Promise<Response> => {
   const result = await requireAuthValidation(request, eventFields);
   if (!result.ok) return result.response;
 
-  const { values } = result.validation;
-  await createEvent(
-    values.name as string,
-    values.description as string,
-    values.max_attendees as number,
-    values.thank_you_url as string,
-    values.unit_price as number | null,
-  );
+  await createEvent(extractEventInput(result.validation.values));
   return redirect("/admin/");
 };
 
@@ -358,58 +312,38 @@ const handleAdminEventGet = (request: Request, eventId: number) =>
 /**
  * Handle GET /admin/event/:id/edit
  */
-const handleAdminEventEditGet = async (
+const handleAdminEventEditGet = (
   request: Request,
   eventId: number,
-): Promise<Response> => {
-  const sessionResult = await requireSession(request);
-  if ("response" in sessionResult) return sessionResult.response;
-
-  const eventResult = await fetchEventOr404(eventId);
-  if ("response" in eventResult) return eventResult.response;
-
-  return htmlResponse(
-    adminEventEditPage(eventResult.event, sessionResult.session.csrfToken),
-  );
-};
+): Promise<Response> =>
+  requireSessionOr(request, async (session) => {
+    const result = await fetchEventOr404(eventId);
+    if (!result.ok) return result.response;
+    return htmlResponse(adminEventEditPage(result.value, session.csrfToken));
+  });
 
 /**
  * Handle POST /admin/event/:id/edit
  */
-const handleAdminEventEditPost = async (
+const handleAdminEventEditPost = (
   request: Request,
   eventId: number,
-): Promise<Response> => {
-  const auth = await requireAuthForm(request);
-  if (!auth.ok) return auth.response;
+): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const result = await fetchEventOr404(eventId);
+    if (!result.ok) return result.response;
 
-  const eventResult = await fetchEventOr404(eventId);
-  if ("response" in eventResult) return eventResult.response;
+    const validation = validateForm(form, eventFields);
+    if (!validation.valid) {
+      return htmlResponse(
+        adminEventEditPage(result.value, session.csrfToken, validation.error),
+        400,
+      );
+    }
 
-  const validation = validateForm(auth.form, eventFields);
-  if (!validation.valid) {
-    return htmlResponse(
-      adminEventEditPage(
-        eventResult.event,
-        auth.session.csrfToken,
-        validation.error,
-      ),
-      400,
-    );
-  }
-
-  const { values } = validation;
-  await updateEvent(
-    eventId,
-    values.name as string,
-    values.description as string,
-    values.max_attendees as number,
-    values.thank_you_url as string,
-    values.unit_price as number | null,
-  );
-
-  return redirect(`/admin/event/${eventId}`);
-};
+    await updateEvent(eventId, extractEventInput(validation.values));
+    return redirect(`/admin/event/${eventId}`);
+  });
 
 /**
  * Handle GET /admin/event/:id/export (CSV export)
@@ -426,58 +360,32 @@ const handleAdminEventExport = (request: Request, eventId: number) =>
     });
   });
 
-/**
- * Route admin event edit requests
- */
-const routeAdminEventEdit = async (
-  request: Request,
-  path: string,
-  method: string,
-): Promise<Response | null> => {
-  const editMatch = path.match(/^\/admin\/event\/(\d+)\/edit$/);
-  if (!editMatch?.[1]) return null;
+/** Route admin event edit requests */
+const routeAdminEventEdit: RouteHandler = createIdRoute(
+  /^\/admin\/event\/(\d+)\/edit$/,
+  (request) => ({
+    GET: (id) => handleAdminEventEditGet(request, id),
+    POST: (id) => handleAdminEventEditPost(request, id),
+  }),
+);
 
-  const eventId = Number.parseInt(editMatch[1], 10);
-  if (method === "GET") return handleAdminEventEditGet(request, eventId);
-  if (method === "POST") return handleAdminEventEditPost(request, eventId);
-  return null;
-};
+/** Route admin event export requests */
+const routeAdminEventExport: RouteHandler = createIdRoute(
+  /^\/admin\/event\/(\d+)\/export$/,
+  (request) => ({ GET: (id) => handleAdminEventExport(request, id) }),
+);
 
-/**
- * Route admin event export requests
- */
-const routeAdminEventExport = async (
-  request: Request,
-  path: string,
-  method: string,
-): Promise<Response | null> => {
-  const exportMatch = path.match(/^\/admin\/event\/(\d+)\/export$/);
-  if (exportMatch?.[1] && method === "GET") {
-    return handleAdminEventExport(request, Number.parseInt(exportMatch[1], 10));
-  }
-  return null;
-};
+/** Route admin event detail requests */
+const routeAdminEventDetail: RouteHandler = createIdRoute(
+  /^\/admin\/event\/(\d+)$/,
+  (request) => ({ GET: (id) => handleAdminEventGet(request, id) }),
+);
 
-/**
- * Route admin event detail requests
- */
-const routeAdminEvent = async (
-  request: Request,
-  path: string,
-  method: string,
-): Promise<Response | null> => {
-  const editResponse = await routeAdminEventEdit(request, path, method);
-  if (editResponse) return editResponse;
-
-  const exportResponse = await routeAdminEventExport(request, path, method);
-  if (exportResponse) return exportResponse;
-
-  const eventMatch = path.match(/^\/admin\/event\/(\d+)$/);
-  if (eventMatch?.[1] && method === "GET") {
-    return handleAdminEventGet(request, Number.parseInt(eventMatch[1], 10));
-  }
-  return null;
-};
+/** Route admin event requests */
+const routeAdminEvent: RouteHandler = async (request, path, method) =>
+  (await routeAdminEventEdit(request, path, method)) ??
+  (await routeAdminEventExport(request, path, method)) ??
+  routeAdminEventDetail(request, path, method);
 
 /**
  * Check if path is admin root
@@ -488,68 +396,84 @@ const isAdminRoot = (path: string): boolean =>
 /**
  * Route admin settings requests
  */
-const routeAdminSettings = async (
+const routeAdminSettings = (
   request: Request,
   path: string,
   method: string,
-): Promise<Response | null> => {
-  if (path === "/admin/settings") {
-    if (method === "GET") return handleAdminSettingsGet(request);
-    if (method === "POST") return handleAdminSettingsPost(request);
-  }
-  if (path === "/admin/settings/stripe" && method === "POST") {
-    return handleAdminStripePost(request);
-  }
-  return null;
-};
+): Promise<Response | null> =>
+  matchRoute(path, method, [
+    {
+      path: "/admin/settings",
+      method: "GET",
+      handler: () => handleAdminSettingsGet(request),
+    },
+    {
+      path: "/admin/settings",
+      method: "POST",
+      handler: () => handleAdminSettingsPost(request),
+    },
+    {
+      path: "/admin/settings/stripe",
+      method: "POST",
+      handler: () => handleAdminStripePost(request),
+    },
+  ]);
 
-/**
- * Route admin auth requests (login/logout/settings)
- */
-const routeAdminAuth = async (
-  request: Request,
-  path: string,
-  method: string,
-  server?: ServerContext,
-): Promise<Response | null> => {
-  if (path === "/admin/login" && method === "POST") {
-    return handleAdminLogin(request, server);
-  }
-  if (path === "/admin/logout" && method === "GET") {
-    return handleAdminLogout(request);
-  }
-  return routeAdminSettings(request, path, method);
-};
+/** Route admin auth requests (login/logout/settings) */
+const routeAdminAuth: RouteHandlerWithServer = (
+  request,
+  path,
+  method,
+  server,
+) =>
+  chainRoutes(
+    () =>
+      matchRoute(path, method, [
+        {
+          path: "/admin/login",
+          method: "POST",
+          handler: () => handleAdminLogin(request, server),
+        },
+        {
+          path: "/admin/logout",
+          method: "GET",
+          handler: () => handleAdminLogout(request),
+        },
+      ]),
+    () => routeAdminSettings(request, path, method),
+  );
 
-/**
- * Route core admin requests
- */
-const routeAdminCore = async (
-  request: Request,
-  path: string,
-  method: string,
-  server?: ServerContext,
-): Promise<Response | null> => {
-  if (isAdminRoot(path) && method === "GET") {
-    return handleAdminGet(request);
-  }
-  if (path === "/admin/event" && method === "POST") {
-    return handleCreateEvent(request);
-  }
-  return routeAdminAuth(request, path, method, server);
-};
+/** Route core admin requests */
+const routeAdminCore: RouteHandlerWithServer = (
+  request,
+  path,
+  method,
+  server,
+) =>
+  chainRoutes(
+    () =>
+      isAdminRoot(path) && method === "GET"
+        ? handleAdminGet(request)
+        : Promise.resolve(null),
+    () =>
+      matchRoute(path, method, [
+        {
+          path: "/admin/event",
+          method: "POST",
+          handler: () => handleCreateEvent(request),
+        },
+      ]),
+    () => routeAdminAuth(request, path, method, server),
+  );
 
-/**
- * Route admin requests
- */
-export const routeAdmin = async (
-  request: Request,
-  path: string,
-  method: string,
-  server?: ServerContext,
-): Promise<Response | null> => {
-  const coreResponse = await routeAdminCore(request, path, method, server);
-  if (coreResponse) return coreResponse;
-
-  return routeAdminEvent(request, path, method);
-};
+/** Route admin requests */
+export const routeAdmin: RouteHandlerWithServer = (
+  request,
+  path,
+  method,
+  server,
+) =>
+  chainRoutes(
+    () => routeAdminCore(request, path, method, server),
+    () => routeAdminEvent(request, path, method),
+  );

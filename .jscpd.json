@@ -1,5 +1,6 @@
 {
 	"threshold": 0,
+	"_comment": "0% duplication threshold is non-negotiable - use FP patterns from #fp to eliminate all duplication",
 	"reporters": ["console", "json"],
 	"output": ".jscpd-report",
 	"ignore": [
@@ -14,6 +15,6 @@
 	"gitignore": true,
 	"exitCode": 1,
 	"minLines": 1,
-	"minTokens": 40,
+	"minTokens": 25,
 	"path": ["src", "test", "scripts"]
 }

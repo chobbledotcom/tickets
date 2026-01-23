@@ -3,7 +3,7 @@
  * Uses libsql for SQLite-compatible storage
  */
 
-import { type Client, createClient } from "@libsql/client";
+import { type Client, createClient, type InValue } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { decrypt, encrypt, hashPassword, verifyPassword } from "./crypto.ts";
 import type {
@@ -26,6 +26,24 @@ const createDbClient = (): Client => {
 };
 
 const [dbGetter, dbSetter] = lazyRef(createDbClient);
+
+/** Query single row, returning null if not found */
+const queryOne = async <T>(sql: string, args: InValue[]): Promise<T | null> => {
+  const result = await getDb().execute({ sql, args });
+  return result.rows.length === 0 ? null : (result.rows[0] as unknown as T);
+};
+
+/** Execute delete/update by field */
+const executeByField = async (
+  table: string,
+  field: string,
+  value: InValue,
+): Promise<void> => {
+  await getDb().execute({
+    sql: `DELETE FROM ${table} WHERE ${field} = ?`,
+    args: [value],
+  });
+};
 
 /**
  * Get or create database client
@@ -247,30 +265,41 @@ export const updateAdminPassword = async (
   await deleteAllSessions();
 };
 
+/** Event input fields for create/update */
+export type EventInput = {
+  name: string;
+  description: string;
+  maxAttendees: number;
+  thankYouUrl: string;
+  unitPrice?: number | null;
+};
+
 /**
  * Create a new event
  */
-export const createEvent = async (
-  name: string,
-  description: string,
-  maxAttendees: number,
-  thankYouUrl: string,
-  unitPrice: number | null = null,
-): Promise<Event> => {
+export const createEvent = async (e: EventInput): Promise<Event> => {
   const created = new Date().toISOString();
+  const args: InValue[] = [
+    created,
+    e.name,
+    e.description,
+    e.maxAttendees,
+    e.thankYouUrl,
+    e.unitPrice ?? null,
+  ];
   const result = await getDb().execute({
     sql: `INSERT INTO events (created, name, description, max_attendees, thank_you_url, unit_price)
           VALUES (?, ?, ?, ?, ?, ?)`,
-    args: [created, name, description, maxAttendees, thankYouUrl, unitPrice],
+    args,
   });
   return {
     id: Number(result.lastInsertRowid),
     created,
-    name,
-    description,
-    max_attendees: maxAttendees,
-    thank_you_url: thankYouUrl,
-    unit_price: unitPrice,
+    name: e.name,
+    description: e.description,
+    max_attendees: e.maxAttendees,
+    thank_you_url: e.thankYouUrl,
+    unit_price: e.unitPrice ?? null,
   };
 };
 
@@ -279,16 +308,20 @@ export const createEvent = async (
  */
 export const updateEvent = async (
   id: number,
-  name: string,
-  description: string,
-  maxAttendees: number,
-  thankYouUrl: string,
-  unitPrice: number | null = null,
+  e: EventInput,
 ): Promise<Event | null> => {
+  const args: InValue[] = [
+    e.name,
+    e.description,
+    e.maxAttendees,
+    e.thankYouUrl,
+    e.unitPrice ?? null,
+    id,
+  ];
   const result = await getDb().execute({
     sql: `UPDATE events SET name = ?, description = ?, max_attendees = ?, thank_you_url = ?, unit_price = ?
           WHERE id = ?`,
-    args: [name, description, maxAttendees, thankYouUrl, unitPrice, id],
+    args,
   });
   if (result.rowsAffected === 0) return null;
   return getEvent(id);
@@ -311,32 +344,23 @@ export const getAllEvents = async (): Promise<EventWithCount[]> => {
 /**
  * Get a single event by ID
  */
-export const getEvent = async (id: number): Promise<Event | null> => {
-  const result = await getDb().execute({
-    sql: "SELECT * FROM events WHERE id = ?",
-    args: [id],
-  });
-  if (result.rows.length === 0) return null;
-  return result.rows[0] as unknown as Event;
-};
+export const getEvent = async (id: number): Promise<Event | null> =>
+  queryOne<Event>("SELECT * FROM events WHERE id = ?", [id]);
 
 /**
  * Get event with attendee count
  */
 export const getEventWithCount = async (
   id: number,
-): Promise<EventWithCount | null> => {
-  const result = await getDb().execute({
-    sql: `SELECT e.*, COUNT(a.id) as attendee_count
-          FROM events e
-          LEFT JOIN attendees a ON e.id = a.event_id
-          WHERE e.id = ?
-          GROUP BY e.id`,
-    args: [id],
-  });
-  if (result.rows.length === 0) return null;
-  return result.rows[0] as unknown as EventWithCount;
-};
+): Promise<EventWithCount | null> =>
+  queryOne<EventWithCount>(
+    `SELECT e.*, COUNT(a.id) as attendee_count
+     FROM events e
+     LEFT JOIN attendees a ON e.id = a.event_id
+     WHERE e.id = ?
+     GROUP BY e.id`,
+    [id],
+  );
 
 /**
  * Decrypt attendee fields
@@ -400,12 +424,10 @@ export const createAttendee = async (
  * Get an attendee by ID (decrypted)
  */
 export const getAttendee = async (id: number): Promise<Attendee | null> => {
-  const result = await getDb().execute({
-    sql: "SELECT * FROM attendees WHERE id = ?",
-    args: [id],
-  });
-  if (result.rows.length === 0) return null;
-  return decryptAttendee(result.rows[0] as unknown as Attendee);
+  const row = await queryOne<Attendee>("SELECT * FROM attendees WHERE id = ?", [
+    id,
+  ]);
+  return row ? decryptAttendee(row) : null;
 };
 
 /**
@@ -425,12 +447,8 @@ export const updateAttendeePayment = async (
 /**
  * Delete an attendee (for cleanup on payment failure)
  */
-export const deleteAttendee = async (attendeeId: number): Promise<void> => {
-  await getDb().execute({
-    sql: "DELETE FROM attendees WHERE id = ?",
-    args: [attendeeId],
-  });
-};
+export const deleteAttendee = async (attendeeId: number): Promise<void> =>
+  executeByField("attendees", "id", attendeeId);
 
 /**
  * Check if event has available spots
@@ -458,24 +476,17 @@ export const createSession = async (
 /**
  * Get a session by token
  */
-export const getSession = async (token: string): Promise<Session | null> => {
-  const result = await getDb().execute({
-    sql: "SELECT token, csrf_token, expires FROM sessions WHERE token = ?",
-    args: [token],
-  });
-  if (result.rows.length === 0) return null;
-  return result.rows[0] as unknown as Session;
-};
+export const getSession = async (token: string): Promise<Session | null> =>
+  queryOne<Session>(
+    "SELECT token, csrf_token, expires FROM sessions WHERE token = ?",
+    [token],
+  );
 
 /**
  * Delete a session by token
  */
-export const deleteSession = async (token: string): Promise<void> => {
-  await getDb().execute({
-    sql: "DELETE FROM sessions WHERE token = ?",
-    args: [token],
-  });
-};
+export const deleteSession = async (token: string): Promise<void> =>
+  executeByField("sessions", "token", token);
 
 /**
  * Delete all expired sessions
@@ -500,21 +511,19 @@ export const deleteAllSessions = async (): Promise<void> => {
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
+/** Query login attempts for an IP */
+const getLoginAttempts = async (ip: string) =>
+  queryOne<{ attempts: number; locked_until: number | null }>(
+    "SELECT attempts, locked_until FROM login_attempts WHERE ip = ?",
+    [ip],
+  );
+
 /**
  * Check if IP is rate limited for login
  */
 export const isLoginRateLimited = async (ip: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    sql: "SELECT attempts, locked_until FROM login_attempts WHERE ip = ?",
-    args: [ip],
-  });
-
-  if (result.rows.length === 0) return false;
-
-  const row = result.rows[0] as unknown as {
-    attempts: number;
-    locked_until: number | null;
-  };
+  const row = await getLoginAttempts(ip);
+  if (!row) return false;
 
   // Check if currently locked out
   if (row.locked_until && row.locked_until > Date.now()) {
@@ -523,10 +532,7 @@ export const isLoginRateLimited = async (ip: string): Promise<boolean> => {
 
   // If lockout expired, reset
   if (row.locked_until && row.locked_until <= Date.now()) {
-    await getDb().execute({
-      sql: "DELETE FROM login_attempts WHERE ip = ?",
-      args: [ip],
-    });
+    await executeByField("login_attempts", "ip", ip);
     return false;
   }
 
@@ -538,16 +544,8 @@ export const isLoginRateLimited = async (ip: string): Promise<boolean> => {
  * Returns true if the account is now locked
  */
 export const recordFailedLogin = async (ip: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    sql: "SELECT attempts FROM login_attempts WHERE ip = ?",
-    args: [ip],
-  });
-
-  const currentAttempts =
-    result.rows.length > 0
-      ? (result.rows[0] as unknown as { attempts: number }).attempts
-      : 0;
-  const newAttempts = currentAttempts + 1;
+  const row = await getLoginAttempts(ip);
+  const newAttempts = (row?.attempts ?? 0) + 1;
 
   if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
     const lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
@@ -568,9 +566,5 @@ export const recordFailedLogin = async (ip: string): Promise<boolean> => {
 /**
  * Clear login attempts for an IP (on successful login)
  */
-export const clearLoginAttempts = async (ip: string): Promise<void> => {
-  await getDb().execute({
-    sql: "DELETE FROM login_attempts WHERE ip = ?",
-    args: [ip],
-  });
-};
+export const clearLoginAttempts = async (ip: string): Promise<void> =>
+  executeByField("login_attempts", "ip", ip);

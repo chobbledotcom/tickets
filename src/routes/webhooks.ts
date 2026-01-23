@@ -15,7 +15,7 @@ import {
   paymentErrorPage,
   paymentSuccessPage,
 } from "#templates";
-import { htmlResponse } from "./utils.ts";
+import { getSearchParam, htmlResponse } from "./utils.ts";
 
 type PaymentCallbackData = { attendee: Attendee; event: Event };
 type PaymentCallbackResult =
@@ -55,25 +55,14 @@ const loadPaymentCallbackData = async (
 };
 
 /**
- * Handle GET /payment/success (Stripe redirect after successful payment)
+ * Verify Stripe session and update payment
  */
-const handlePaymentSuccess = async (request: Request): Promise<Response> => {
-  const url = new URL(request.url);
-  const attendeeId = url.searchParams.get("attendee_id");
-  const sessionId = url.searchParams.get("session_id");
-
-  if (!sessionId) {
-    return htmlResponse(paymentErrorPage("Invalid payment callback"), 400);
-  }
-
-  const result = await loadPaymentCallbackData(attendeeId);
-  if (!result.success) {
-    return result.response;
-  }
-
-  const { attendee, event } = result.data;
-
-  // Verify payment with Stripe
+const verifyAndUpdatePayment = async (
+  sessionId: string,
+  attendeeId: string,
+  attendee: Attendee,
+  event: Event,
+): Promise<Response | null> => {
   const session = await retrieveCheckoutSession(sessionId);
   if (!session || session.payment_status !== "paid") {
     return htmlResponse(
@@ -82,7 +71,6 @@ const handlePaymentSuccess = async (request: Request): Promise<Response> => {
     );
   }
 
-  // Verify the session belongs to this attendee (prevents IDOR attacks)
   if (session.metadata?.attendee_id !== attendeeId) {
     return htmlResponse(
       paymentErrorPage("Payment session mismatch. Please contact support."),
@@ -90,36 +78,46 @@ const handlePaymentSuccess = async (request: Request): Promise<Response> => {
     );
   }
 
-  // Check if payment was already recorded (prevents replay attacks)
-  if (attendee.stripe_payment_id) {
-    // Already paid - just show success page
-    return htmlResponse(paymentSuccessPage(event, event.thank_you_url));
+  if (!attendee.stripe_payment_id) {
+    await updateAttendeePayment(attendee.id, session.payment_intent as string);
   }
 
-  // Update attendee with payment ID
-  const paymentId = session.payment_intent as string;
-  await updateAttendeePayment(attendee.id, paymentId);
-
   return htmlResponse(paymentSuccessPage(event, event.thank_you_url));
+};
+
+/**
+ * Handle GET /payment/success (Stripe redirect after successful payment)
+ */
+const handlePaymentSuccess = async (request: Request): Promise<Response> => {
+  const attendeeId = getSearchParam(request, "attendee_id");
+  const sessionId = getSearchParam(request, "session_id");
+
+  if (!sessionId) {
+    return htmlResponse(paymentErrorPage("Invalid payment callback"), 400);
+  }
+
+  const result = await loadPaymentCallbackData(attendeeId);
+  if (!result.success) return result.response;
+
+  return (await verifyAndUpdatePayment(
+    sessionId,
+    attendeeId as string,
+    result.data.attendee,
+    result.data.event,
+  )) as Response;
 };
 
 /**
  * Handle GET /payment/cancel (Stripe redirect after cancelled payment)
  */
 const handlePaymentCancel = async (request: Request): Promise<Response> => {
-  const url = new URL(request.url);
-  const attendeeId = url.searchParams.get("attendee_id");
-
-  const result = await loadPaymentCallbackData(attendeeId);
-  if (!result.success) {
-    return result.response;
-  }
+  const result = await loadPaymentCallbackData(
+    getSearchParam(request, "attendee_id"),
+  );
+  if (!result.success) return result.response;
 
   const { attendee, event } = result.data;
-
-  // Delete the unpaid attendee
   await deleteAttendee(attendee.id);
-
   return htmlResponse(paymentCancelPage(event, `/ticket/${event.id}`));
 };
 

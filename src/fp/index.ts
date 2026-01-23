@@ -227,3 +227,23 @@ export const isDefined = <T>(value: T | null | undefined): value is T =>
  * Identity function
  */
 export const identity = <T>(value: T): T => value;
+
+/**
+ * Result type for operations that can fail with a Response
+ */
+export type Result<T> =
+  | { ok: true; value: T }
+  | { ok: false; response: Response };
+
+/**
+ * Create a successful result
+ */
+export const ok = <T>(value: T): Result<T> => ({ ok: true, value });
+
+/**
+ * Create a failed result
+ */
+export const err = (response: Response): Result<never> => ({
+  ok: false,
+  response,
+});

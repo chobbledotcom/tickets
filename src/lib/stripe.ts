@@ -9,6 +9,24 @@ import type { Attendee, Event } from "./types.ts";
 
 type StripeCache = { client: Stripe; secretKey: string };
 
+/** Safely execute async operation, returning null on error */
+const safeAsync = async <T>(fn: () => Promise<T>): Promise<T | null> => {
+  try {
+    return await fn();
+  } catch {
+    return null;
+  }
+};
+
+/** Execute operation with Stripe client, returning null if unavailable */
+const withStripe = async <T>(
+  fn: (stripe: Stripe) => Promise<T>,
+): Promise<T | null> => {
+  const stripe = await getStripeClient();
+  if (!stripe) return null;
+  return safeAsync(() => fn(stripe));
+};
+
 /**
  * Get Stripe client configuration for mock server (if configured)
  */
@@ -75,12 +93,12 @@ export const createCheckoutSession = async (
   const stripe = await getStripeClient();
   if (!stripe || event.unit_price === null) return null;
 
-  try {
-    const currency = (await getCurrencyCode()).toLowerCase();
-    const successUrl = `${baseUrl}/payment/success?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${baseUrl}/payment/cancel?attendee_id=${attendee.id}`;
+  const currency = (await getCurrencyCode()).toLowerCase();
+  const successUrl = `${baseUrl}/payment/success?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = `${baseUrl}/payment/cancel?attendee_id=${attendee.id}`;
 
-    const session = await stripe.checkout.sessions.create({
+  return safeAsync(() =>
+    stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
         {
@@ -90,7 +108,7 @@ export const createCheckoutSession = async (
               name: event.name,
               description: `Ticket for ${event.name}`,
             },
-            unit_amount: event.unit_price,
+            unit_amount: event.unit_price as number,
           },
           quantity: 1,
         },
@@ -103,12 +121,8 @@ export const createCheckoutSession = async (
         attendee_id: String(attendee.id),
         event_id: String(event.id),
       },
-    });
-
-    return session;
-  } catch {
-    return null;
-  }
+    }),
+  );
 };
 
 /**
@@ -116,17 +130,8 @@ export const createCheckoutSession = async (
  */
 export const retrieveCheckoutSession = async (
   sessionId: string,
-): Promise<Stripe.Checkout.Session | null> => {
-  const stripe = await getStripeClient();
-  if (!stripe) return null;
-
-  try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    return session;
-  } catch {
-    return null;
-  }
-};
+): Promise<Stripe.Checkout.Session | null> =>
+  withStripe((stripe) => stripe.checkout.sessions.retrieve(sessionId));
 
 /**
  * Verify a Stripe webhook signature
@@ -138,12 +143,9 @@ export const verifyWebhookSignature = async (
 ): Promise<Stripe.Event | null> => {
   const stripe = await getStripeClient();
   if (!stripe) return null;
-
-  try {
-    return stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-  } catch {
-    return null;
-  }
+  return safeAsync(async () =>
+    stripe.webhooks.constructEvent(payload, signature, webhookSecret),
+  );
 };
 
 /**
