@@ -5,6 +5,7 @@
 import { isSetupComplete } from "#lib/config.ts";
 import { notFoundPage } from "#templates";
 import { routeAdmin } from "./admin.ts";
+import { handleFavicon } from "./favicon.ts";
 import { handleHealthCheck } from "./health.ts";
 import {
   applySecurityHeaders,
@@ -57,6 +58,15 @@ const routeMainApp = async (
 };
 
 /**
+ * Route static assets (health check, favicon) - always available
+ */
+const routeStatic = (path: string, method: string): Response | null => {
+  if (path === "/health") return handleHealthCheck(method);
+  if (path === "/favicon.ico") return handleFavicon(method);
+  return null;
+};
+
+/**
  * Handle incoming requests (internal, without security headers)
  */
 const handleRequestInternal = async (
@@ -65,11 +75,9 @@ const handleRequestInternal = async (
 ): Promise<Response> => {
   const { path, method } = parseRequest(request);
 
-  // Health check always available
-  if (path === "/health") {
-    const healthResponse = handleHealthCheck(method);
-    if (healthResponse) return healthResponse;
-  }
+  // Static routes always available
+  const staticResponse = routeStatic(path, method);
+  if (staticResponse) return staticResponse;
 
   // Setup routes
   const setupResponse = await routeSetup(
