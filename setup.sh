@@ -13,5 +13,9 @@ echo "Deno installed successfully!"
 deno --version
 
 echo ""
+echo "Caching dependencies..."
+deno install
+
+echo ""
 echo "Running tests..."
 deno task test
