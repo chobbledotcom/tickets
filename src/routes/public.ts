@@ -3,14 +3,13 @@
  */
 
 import { isPaymentsEnabled } from "#lib/config.ts";
-import {
-  createAttendee,
-  deleteAttendee,
-  hasAvailableSpots,
-} from "#lib/db/attendees.ts";
+import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
 import { validateForm } from "#lib/forms.tsx";
-import { createCheckoutSession } from "#lib/stripe.ts";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
+import {
+  createCheckoutSessionWithIntent,
+  type RegistrationIntent,
+} from "#lib/stripe.ts";
+import type { EventWithCount } from "#lib/types.ts";
 import { notifyWebhook } from "#lib/webhook.ts";
 import {
   createRouter,
@@ -75,30 +74,33 @@ const requiresPayment = (event: { unit_price: number | null }): boolean => {
   );
 };
 
+/** Common parameters for reservation processing */
+type ReservationParams = {
+  event: EventWithCount;
+  name: string;
+  email: string;
+  quantity: number;
+  token: string;
+};
+
 /**
- * Handle payment flow for ticket purchase
+ * Handle payment flow for ticket purchase.
+ * Creates Stripe session with registration intent - no attendee yet.
+ * Attendee is created atomically after payment confirmation.
  */
 const handlePaymentFlow = async (
   request: Request,
   event: EventWithCount,
-  attendee: Attendee,
-  quantity: number,
+  intent: RegistrationIntent,
   csrfToken: string,
 ): Promise<Response> => {
   const baseUrl = getBaseUrl(request);
-  const session = await createCheckoutSession(
-    event,
-    attendee,
-    baseUrl,
-    quantity,
-  );
+  const session = await createCheckoutSessionWithIntent(event, intent, baseUrl);
 
   if (session?.url) {
     return redirect(session.url);
   }
 
-  // If Stripe session creation failed, clean up and show error
-  await deleteAttendee(attendee.id);
   return ticketResponse(event, csrfToken)(
     "Failed to create payment session. Please try again.",
     500,
@@ -126,14 +128,60 @@ const ticketCsrfError = (event: EventWithCount) => (token: string) =>
     403,
   );
 
+/** Handle paid event registration - check availability, create Stripe session */
+const processPaidReservation = async (
+  request: Request,
+  params: ReservationParams,
+): Promise<Response> => {
+  const { event, name, email, quantity, token } = params;
+  const available = await hasAvailableSpots(event.id, quantity);
+  if (!available) {
+    return ticketResponse(event, token)("Sorry, not enough spots available");
+  }
+
+  const intent: RegistrationIntent = {
+    eventId: event.id,
+    name,
+    email,
+    quantity,
+  };
+  return handlePaymentFlow(request, event, intent, token);
+};
+
+/** Handle free event registration - atomic create with capacity check */
+const processFreeReservation = async (
+  reservation: ReservationParams,
+): Promise<Response> => {
+  const { event, name, email, quantity, token } = reservation;
+  const result = await createAttendeeAtomic(
+    event.id,
+    name,
+    email,
+    null,
+    quantity,
+  );
+
+  if (!result.success) {
+    const message =
+      result.reason === "capacity_exceeded"
+        ? "Sorry, not enough spots available"
+        : "Registration failed. Please try again.";
+    return ticketResponse(event, token)(message);
+  }
+
+  await notifyWebhook(event, result.attendee);
+  return redirect(event.thank_you_url);
+};
+
 /**
- * Process ticket reservation for an event
+ * Process ticket reservation for an event.
+ * - For paid events: creates Stripe session with intent, attendee created after payment
+ * - For free events: atomically creates attendee with capacity check
  */
 const processTicketReservation = async (
   request: Request,
   event: EventWithCount,
 ): Promise<Response> => {
-  // Get current CSRF token from cookie for re-rendering on validation errors
   const cookies = parseCookies(request);
   const currentToken = cookies.get("csrf_token") || generateSecureToken();
 
@@ -142,37 +190,25 @@ const processTicketReservation = async (
 
   const { form } = csrfResult;
   const validation = validateForm(form, ticketFields);
-
   if (!validation.valid) {
     return ticketResponse(event, currentToken)(validation.error);
   }
 
   const quantity = parseQuantity(form, event);
-  const available = await hasAvailableSpots(event.id, quantity);
-  if (!available) {
-    return ticketResponse(
-      event,
-      currentToken,
-    )("Sorry, not enough spots available");
-  }
-
-  const { values } = validation;
-  const attendee = await createAttendee(
-    event.id,
-    values.name as string,
-    values.email as string,
-    null,
+  const name = validation.values.name as string;
+  const email = validation.values.email as string;
+  const params: ReservationParams = {
+    event,
+    name,
+    email,
     quantity,
-  );
+    token: currentToken,
+  };
 
   if (requiresPayment(event)) {
-    return handlePaymentFlow(request, event, attendee, quantity, currentToken);
+    return processPaidReservation(request, params);
   }
-
-  // Notify webhook for free registrations (paid events notify after payment)
-  await notifyWebhook(event, attendee);
-
-  return redirect(event.thank_you_url);
+  return processFreeReservation(params);
 };
 
 /**
