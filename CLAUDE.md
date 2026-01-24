@@ -159,17 +159,3 @@ import { mockRequest, mockFormRequest, createTestDb, resetDb } from "#test-utils
 | Magic numbers/strings | Import constants from production |
 | Testing private internals | Test public API behavior |
 
-## Migration Notes (from Bun)
-
-The codebase was migrated from Bun to Deno. Key differences:
-- `Bun.serve()` → `Deno.serve()`
-- `Bun.build()` → `esbuild`
-- `bun:test` → Custom test compat layer
-- `process.env.X` → `Deno.env.get("X")`
-- `import x from "file" with { type: "text" }` → `Deno.readTextFileSync()`
-- `spawn` from `bun` → `Deno.Command`
-
-Remaining work for full type safety:
-- Add explicit `.ts` extensions to all imports (Deno strict mode)
-- Add `Buffer` import from `node:buffer` where needed
-- Update JSX runtime path resolution

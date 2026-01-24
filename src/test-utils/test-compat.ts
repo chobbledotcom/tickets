@@ -1,6 +1,6 @@
 /**
  * Test compatibility layer for Deno
- * Provides bun:test-like API for easier migration
+ * Provides Jest-like API for testing
  */
 
 import {

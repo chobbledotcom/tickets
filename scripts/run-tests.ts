@@ -1,7 +1,6 @@
 #!/usr/bin/env -S deno run --allow-all
 /**
  * Test runner script that ensures stripe-mock is running before tests
- * This provides Bun-like preload behavior for Deno
  */
 
 import { dirname, fromFileUrl, join } from "jsr:@std/path@1";
@@ -124,7 +123,7 @@ const main = async (): Promise<void> => {
   denoTestArgs.push("test/");
 
   console.log("Running tests...");
-  const testCmd = new Deno.Command("deno", {
+  const testCmd = new Deno.Command(Deno.execPath(), {
     args: denoTestArgs,
     cwd: projectRoot,
     stdin: "inherit",

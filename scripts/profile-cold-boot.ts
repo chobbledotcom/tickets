@@ -2,7 +2,7 @@
  * Cold Boot Performance Profiler
  *
  * Measures the timing of various initialization phases to identify bottlenecks.
- * Run with: bun scripts/profile-cold-boot.ts
+ * Run with: deno run -A scripts/profile-cold-boot.ts
  */
 
 import { createClient } from "@libsql/client";

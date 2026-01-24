@@ -1,6 +1,6 @@
 # Tickets
 
-A minimal ticket reservation system built with Bun and libsql, deployable to Bunny Edge.
+A minimal ticket reservation system built with Deno and libsql, deployable to Bunny Edge.
 
 ## Features
 
@@ -15,14 +15,13 @@ A minimal ticket reservation system built with Bun and libsql, deployable to Bun
 
 ```bash
 # Install dependencies
-bun install
+deno install --allow-scripts
 
 # Run locally (requires DB_URL)
-DB_URL=libsql://your-db.turso.io DB_TOKEN=your-token bun start
+DB_URL=libsql://your-db.turso.io DB_TOKEN=your-token deno task start
 
-# Run tests (requires stripe-mock for full coverage)
-stripe-mock &
-bun test
+# Run tests (stripe-mock is started automatically)
+deno task test
 ```
 
 ## Initial Setup
@@ -66,7 +65,7 @@ Environment variables are inlined at build time since Bunny Edge doesn't support
 
 ```bash
 # Build for edge deployment
-bun run build:edge
+deno task build:edge
 ```
 
 ### First Deployment
@@ -77,31 +76,28 @@ After deploying to Bunny Edge, visit your site URL. You'll be automatically redi
 
 ```bash
 # Run linter
-bun run lint
+deno task lint
 
-# Fix lint issues
-bun run lint:fix
+# Format code
+deno task fmt
 
 # Type check
-bun run typecheck
+deno task typecheck
 
 # Run all pre-commit checks
-bun run precommit
+deno task precommit
 ```
 
 ## Testing
 
-Tests require [stripe-mock](https://github.com/stripe/stripe-mock) for full coverage:
+The test runner automatically downloads and starts stripe-mock:
 
 ```bash
-# Install stripe-mock (macOS)
-brew install stripe/stripe-mock/stripe-mock
-
-# Start stripe-mock
-stripe-mock &
-
 # Run tests
-bun test
+deno task test
+
+# Run tests with coverage
+deno task test:coverage
 ```
 
 ## License

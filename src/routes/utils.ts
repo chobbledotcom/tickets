@@ -23,13 +23,12 @@ export { generateSecureToken };
  * Get client IP from request
  * Note: This server runs directly on edge, not behind a proxy,
  * so we use the direct connection IP from the server context.
- * The IP is passed via the server's requestIP() in Bun.serve.
  */
 export const getClientIp = (
   request: Request,
   server?: ServerContext,
 ): string => {
-  // Use Bun's server.requestIP() if available
+  // Use server.requestIP() if available
   if (server?.requestIP) {
     const info = server.requestIP(request);
     if (info?.address) {
