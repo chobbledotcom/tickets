@@ -143,9 +143,10 @@ export const stripeApi = {
   retrieveCheckoutSession: async (
     sessionId: string,
   ): Promise<Stripe.Checkout.Session | null> => {
-    const stripe = await stripeApi.getStripeClient();
-    if (!stripe) return null;
-    return safeAsync(() => stripe.checkout.sessions.retrieve(sessionId));
+    const client = await stripeApi.getStripeClient();
+    return client
+      ? safeAsync(() => client.checkout.sessions.retrieve(sessionId))
+      : null;
   },
 };
 

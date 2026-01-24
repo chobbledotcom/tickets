@@ -2576,7 +2576,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
@@ -2622,7 +2622,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
@@ -2666,7 +2666,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
@@ -2904,7 +2904,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
@@ -2959,7 +2959,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
@@ -3008,7 +3008,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
