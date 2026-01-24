@@ -5,6 +5,50 @@
  */
 
 import * as esbuild from "esbuild";
+import type { Plugin } from "esbuild";
+
+// Read static assets at build time for inlining
+const STATIC_ASSETS: Record<string, string> = {
+  "favicon.svg": await Deno.readTextFile("./src/static/favicon.svg"),
+  "mvp.css": await Deno.readTextFile("./src/static/mvp.css"),
+};
+
+/**
+ * Plugin to inline static assets and handle Deno-specific imports
+ * Replaces Deno.readTextFileSync calls with pre-read content
+ */
+const inlineAssetsPlugin: Plugin = {
+  name: "inline-assets",
+  setup(build) {
+    // Replace the assets module with inlined content
+    build.onResolve({ filter: /routes\/assets\.ts$/ }, (args) => ({
+      path: args.path,
+      namespace: "inline-assets",
+    }));
+
+    build.onLoad({ filter: /.*/, namespace: "inline-assets" }, () => ({
+      contents: `
+        const faviconSvg = ${JSON.stringify(STATIC_ASSETS["favicon.svg"])};
+        const mvpCss = ${JSON.stringify(STATIC_ASSETS["mvp.css"])};
+
+        const CACHE_HEADERS = {
+          "cache-control": "public, max-age=31536000, immutable",
+        };
+
+        export const handleMvpCss = () =>
+          new Response(mvpCss, {
+            headers: { "content-type": "text/css; charset=utf-8", ...CACHE_HEADERS },
+          });
+
+        export const handleFavicon = () =>
+          new Response(faviconSvg, {
+            headers: { "content-type": "image/svg+xml", ...CACHE_HEADERS },
+          });
+      `,
+      loader: "ts",
+    }));
+  },
+};
 
 // Environment variable configuration: undefined = required, string = default value
 const ENV_CONFIG: Record<string, string | undefined> = {
@@ -36,11 +80,18 @@ const ENV_VARS = Object.fromEntries(
 );
 
 // Banner to inject Node.js globals that many packages expect (per Bunny docs)
+// and Deno.env shim for inlined environment variables
 const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
 import { Buffer } from "node:buffer";
 globalThis.process ??= process;
 globalThis.Buffer ??= Buffer;
 globalThis.global ??= globalThis;
+`;
+
+// Create Deno.env shim with inlined environment variables
+const DENO_ENV_SHIM = `const __INLINED_ENV__ = ${JSON.stringify(ENV_VARS)};
+globalThis.Deno ??= {};
+globalThis.Deno.env ??= { get: (key) => __INLINED_ENV__[key] };
 `;
 
 const result = await esbuild.build({
@@ -50,6 +101,7 @@ const result = await esbuild.build({
   format: "esm",
   minify: true,
   bundle: true,
+  plugins: [inlineAssetsPlugin],
   external: [
     "@bunny.net/edgescript-sdk",
     "@libsql/client",
@@ -61,7 +113,7 @@ const result = await esbuild.build({
       JSON.stringify(value),
     ]),
   ),
-  banner: { js: NODEJS_GLOBALS_BANNER },
+  banner: { js: NODEJS_GLOBALS_BANNER + DENO_ENV_SHIM },
 });
 
 if (result.errors.length > 0) {

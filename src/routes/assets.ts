@@ -2,12 +2,13 @@
  * Static asset routes - CSS and favicon with long cache
  */
 
-import { dirname, fromFileUrl, join } from "jsr:@std/path@1";
+import { dirname, fromFileUrl, join } from "@std/path";
 
 const currentDir = dirname(fromFileUrl(import.meta.url));
 const staticDir = join(currentDir, "..", "static");
 
 // Read static files at module load time
+// These get inlined by esbuild during edge build
 const faviconSvg = Deno.readTextFileSync(join(staticDir, "favicon.svg"));
 const mvpCss = Deno.readTextFileSync(join(staticDir, "mvp.css"));
 
