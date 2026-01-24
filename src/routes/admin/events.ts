@@ -17,11 +17,12 @@ import {
   updateHandler,
 } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
+  getAuthenticatedSession,
+  getPrivateKey,
   htmlResponse,
-  isAuthenticated,
   notFoundResponse,
   redirect,
   requireSessionOr,
@@ -37,9 +38,6 @@ import {
 } from "#templates/admin/events.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields } from "#templates/fields.ts";
-
-/** Attendee type */
-type Attendee = Awaited<ReturnType<typeof getAttendees>>[number];
 
 /** Extract event input from validated form */
 const extractEventInput = (values: Record<string, unknown>): EventInput => ({
@@ -80,11 +78,19 @@ const withEventAttendees = async (
   eventId: number,
   handler: (event: EventWithCount, attendees: Attendee[]) => Response,
 ): Promise<Response> => {
-  if (!(await isAuthenticated(request))) {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
     return redirect("/admin");
   }
+
+  const privateKey = await getPrivateKey(session.token, session.wrappedDataKey);
+  if (!privateKey) {
+    // Session exists but can't derive private key - need to re-login
+    return redirect("/admin");
+  }
+
   return withEvent(eventId, async (event) =>
-    handler(event, await getAttendees(eventId)),
+    handler(event, await getAttendees(eventId, privateKey)),
   );
 };
 

@@ -1,6 +1,9 @@
 /**
  * Webhook notification module
  * Sends attendee registration data to configured webhook URLs
+ *
+ * Note: For security, PII (name, email) is not sent in webhook payloads.
+ * External systems should query the API with authentication if they need PII.
  */
 
 /** Payload sent to webhook endpoints */
@@ -9,8 +12,7 @@ export type WebhookPayload = {
   event_id: number;
   event_name: string;
   attendee: {
-    name: string;
-    email: string;
+    id: number;
     quantity: number;
   };
   timestamp: string;
@@ -24,8 +26,7 @@ export const sendRegistrationWebhook = async (
   webhookUrl: string,
   eventId: number,
   eventName: string,
-  attendeeName: string,
-  attendeeEmail: string,
+  attendeeId: number,
   quantity: number,
 ): Promise<void> => {
   const payload: WebhookPayload = {
@@ -33,8 +34,7 @@ export const sendRegistrationWebhook = async (
     event_id: eventId,
     event_name: eventName,
     attendee: {
-      name: attendeeName,
-      email: attendeeEmail,
+      id: attendeeId,
       quantity,
     },
     timestamp: new Date().toISOString(),
@@ -60,7 +60,7 @@ export const sendRegistrationWebhook = async (
  */
 export const notifyWebhook = async (
   event: { id: number; name: string; webhook_url: string | null },
-  attendee: { name: string; email: string; quantity: number },
+  attendee: { id: number; quantity: number },
 ): Promise<void> => {
   if (!event.webhook_url) return;
 
@@ -68,8 +68,7 @@ export const notifyWebhook = async (
     event.webhook_url,
     event.id,
     event.name,
-    attendee.name,
-    attendee.email,
+    attendee.id,
     attendee.quantity,
   );
 };

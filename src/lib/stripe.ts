@@ -67,7 +67,7 @@ const [getCache, setCache] = lazyRef<StripeCache>(() => {
  * Supports stripe-mock via STRIPE_MOCK_HOST env var
  */
 export const getStripeClient = async (): Promise<Stripe | null> => {
-  const secretKey = await getStripeSecretKey();
+  const secretKey = getStripeSecretKey();
   if (!secretKey) return null;
 
   // Re-create client if secret key changed

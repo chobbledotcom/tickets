@@ -1,29 +1,34 @@
 /**
  * Configuration module for ticket reservation system
  * Reads configuration from database (set during setup phase)
- * Only DB_URL and DB_TOKEN come from environment variables
+ * Stripe keys come from environment variables for security
  */
 
-import {
-  getCurrencyCodeFromDb,
-  getStripeSecretKeyFromDb,
-  isSetupComplete,
-} from "#lib/db/settings.ts";
+import { getCurrencyCodeFromDb, isSetupComplete } from "#lib/db/settings.ts";
 
 /**
- * Get Stripe secret key from database
+ * Get Stripe secret key from environment variable
  * Returns null if not set (payments disabled)
  */
-export const getStripeSecretKey = async (): Promise<string | null> => {
-  const key = await getStripeSecretKeyFromDb();
+export const getStripeSecretKey = (): string | null => {
+  const key = process.env.STRIPE_SECRET_KEY;
+  return key && key.trim() !== "" ? key : null;
+};
+
+/**
+ * Get Stripe publishable key from environment variable
+ * Returns null if not set
+ */
+export const getStripePublishableKey = (): string | null => {
+  const key = process.env.STRIPE_PUBLISHABLE_KEY;
   return key && key.trim() !== "" ? key : null;
 };
 
 /**
  * Check if Stripe payments are enabled
  */
-export const isPaymentsEnabled = async (): Promise<boolean> => {
-  return (await getStripeSecretKey()) !== null;
+export const isPaymentsEnabled = (): boolean => {
+  return getStripeSecretKey() !== null;
 };
 
 /**

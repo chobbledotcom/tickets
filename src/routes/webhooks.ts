@@ -4,7 +4,7 @@
 
 import {
   deleteAttendee,
-  getAttendee,
+  getAttendeeRaw,
   updateAttendeePayment,
 } from "#lib/db/attendees.ts";
 import { getEvent } from "#lib/db/events.ts";
@@ -78,7 +78,7 @@ const loadPaymentCallbackData = async (
     };
   }
 
-  const attendee = await getAttendee(Number.parseInt(attendeeIdStr, 10));
+  const attendee = await getAttendeeRaw(Number.parseInt(attendeeIdStr, 10));
   if (!attendee) {
     return {
       success: false,

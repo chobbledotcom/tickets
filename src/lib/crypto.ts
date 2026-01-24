@@ -318,3 +318,510 @@ export const verifyPassword = async (
   const computedHash = await derivePbkdf2Hash(password, salt, iterations);
   return constantTimeEqualBytes(computedHash, expectedHash);
 };
+
+/**
+ * =============================================================================
+ * Session Token Hashing
+ * =============================================================================
+ * Session tokens are hashed before storage to prevent DB-access attacks.
+ * The actual token (in the cookie) is needed to decrypt session data.
+ */
+
+/**
+ * Hash a session token using SHA-256
+ * Used to store session lookups without exposing the actual token
+ */
+export const hashSessionToken = async (token: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(token);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return toBase64(new Uint8Array(hashBuffer));
+};
+
+/**
+ * =============================================================================
+ * Key Encryption Key (KEK) Derivation
+ * =============================================================================
+ * KEK is derived from password hash + DB_ENCRYPTION_KEY.
+ * This ensures that both factors are needed to unwrap the DATA_KEY.
+ */
+
+/**
+ * Derive a Key Encryption Key (KEK) from password hash and DB_ENCRYPTION_KEY
+ * Uses PBKDF2 with the password hash as input and DB_ENCRYPTION_KEY as salt
+ */
+export const deriveKEK = async (passwordHash: string): Promise<CryptoKey> => {
+  const dbKey = getEncryptionKeyString();
+  const encoder = new TextEncoder();
+
+  // Use DB_ENCRYPTION_KEY as salt - attacker needs both password hash AND env var
+  const salt = encoder.encode(dbKey);
+
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(passwordHash),
+    "PBKDF2",
+    false,
+    ["deriveBits", "deriveKey"],
+  );
+
+  return crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: salt as BufferSource,
+      iterations: getPbkdf2Iterations(),
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+};
+
+/**
+ * =============================================================================
+ * Symmetric Key Wrapping
+ * =============================================================================
+ * Used to wrap DATA_KEY with KEK, and to wrap DATA_KEY with session token.
+ */
+
+const WRAPPED_KEY_PREFIX = "wk:1:";
+
+/**
+ * Generate a random 256-bit symmetric key for data encryption
+ */
+export const generateDataKey = async (): Promise<CryptoKey> => {
+  return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
+    "encrypt",
+    "decrypt",
+  ]);
+};
+
+/**
+ * Wrap a symmetric key with another key using AES-GCM
+ * Returns format: wk:1:$base64iv:$base64wrapped
+ */
+export const wrapKey = async (
+  keyToWrap: CryptoKey,
+  wrappingKey: CryptoKey,
+): Promise<string> => {
+  const iv = getRandomBytes(12);
+
+  // Export the key to raw bytes, then encrypt
+  const rawKey = await crypto.subtle.exportKey("raw", keyToWrap);
+  const wrapped = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    wrappingKey,
+    rawKey,
+  );
+
+  return `${WRAPPED_KEY_PREFIX}${toBase64(iv)}:${toBase64(new Uint8Array(wrapped))}`;
+};
+
+/**
+ * Unwrap a symmetric key
+ * Expects format: wk:1:$base64iv:$base64wrapped
+ */
+export const unwrapKey = async (
+  wrapped: string,
+  unwrappingKey: CryptoKey,
+): Promise<CryptoKey> => {
+  if (!wrapped.startsWith(WRAPPED_KEY_PREFIX)) {
+    throw new Error("Invalid wrapped key format");
+  }
+
+  const withoutPrefix = wrapped.slice(WRAPPED_KEY_PREFIX.length);
+  const colonIndex = withoutPrefix.indexOf(":");
+  if (colonIndex === -1) {
+    throw new Error("Invalid wrapped key format: missing IV separator");
+  }
+
+  const ivBase64 = withoutPrefix.slice(0, colonIndex);
+  const wrappedBase64 = withoutPrefix.slice(colonIndex + 1);
+
+  const iv = fromBase64(ivBase64);
+  const wrappedBytes = fromBase64(wrappedBase64);
+
+  // Decrypt to get raw key bytes
+  const rawKey = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    unwrappingKey,
+    wrappedBytes as BufferSource,
+  );
+
+  // Import as AES-GCM key
+  return crypto.subtle.importKey(
+    "raw",
+    rawKey,
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"],
+  );
+};
+
+/**
+ * Wrap a key using a session token (derives a wrapping key from the token)
+ * Incorporates DB_ENCRYPTION_KEY in salt to ensure session tokens alone
+ * cannot be used to unwrap keys without access to the encryption key.
+ */
+export const wrapKeyWithToken = async (
+  keyToWrap: CryptoKey,
+  sessionToken: string,
+): Promise<string> => {
+  const encoder = new TextEncoder();
+  const tokenKey = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(sessionToken),
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"],
+  );
+
+  // Include DB_ENCRYPTION_KEY in salt to prevent session-only attacks
+  const salt = encoder.encode(`session-key-wrap:${getEncryptionKeyString()}`);
+  const wrappingKey = await crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: 1, // Fast - token is already high entropy
+      hash: "SHA-256",
+    },
+    tokenKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt"],
+  );
+
+  const iv = getRandomBytes(12);
+  const rawKey = await crypto.subtle.exportKey("raw", keyToWrap);
+  const wrapped = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    wrappingKey,
+    rawKey,
+  );
+
+  return `${WRAPPED_KEY_PREFIX}${toBase64(iv)}:${toBase64(new Uint8Array(wrapped))}`;
+};
+
+/**
+ * Unwrap a key using a session token
+ * Incorporates DB_ENCRYPTION_KEY in salt to match wrapKeyWithToken.
+ */
+export const unwrapKeyWithToken = async (
+  wrapped: string,
+  sessionToken: string,
+): Promise<CryptoKey> => {
+  if (!wrapped.startsWith(WRAPPED_KEY_PREFIX)) {
+    throw new Error("Invalid wrapped key format");
+  }
+
+  const encoder = new TextEncoder();
+  const tokenKey = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(sessionToken),
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"],
+  );
+
+  // Include DB_ENCRYPTION_KEY in salt to match wrapKeyWithToken
+  const salt = encoder.encode(`session-key-wrap:${getEncryptionKeyString()}`);
+  const unwrappingKey = await crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: 1,
+      hash: "SHA-256",
+    },
+    tokenKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"],
+  );
+
+  const withoutPrefix = wrapped.slice(WRAPPED_KEY_PREFIX.length);
+  const colonIndex = withoutPrefix.indexOf(":");
+  if (colonIndex === -1) {
+    throw new Error("Invalid wrapped key format: missing IV separator");
+  }
+
+  const ivBase64 = withoutPrefix.slice(0, colonIndex);
+  const wrappedBase64 = withoutPrefix.slice(colonIndex + 1);
+
+  const iv = fromBase64(ivBase64);
+  const wrappedBytes = fromBase64(wrappedBase64);
+
+  const rawKey = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    unwrappingKey,
+    wrappedBytes as BufferSource,
+  );
+
+  return crypto.subtle.importKey(
+    "raw",
+    rawKey,
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"],
+  );
+};
+
+/**
+ * =============================================================================
+ * RSA Key Pair Generation and Hybrid Encryption
+ * =============================================================================
+ * RSA-OAEP is used for asymmetric encryption of attendee PII.
+ * Public key encrypts (always available), private key decrypts (protected).
+ * Hybrid encryption: RSA encrypts a random AES key, AES encrypts the data.
+ */
+
+/**
+ * Generate an RSA key pair for asymmetric encryption
+ * Returns { publicKey, privateKey } as exportable JWK strings
+ */
+export const generateKeyPair = async (): Promise<{
+  publicKey: string;
+  privateKey: string;
+}> => {
+  const keyPair = await crypto.subtle.generateKey(
+    {
+      name: "RSA-OAEP",
+      modulusLength: 2048,
+      publicExponent: new Uint8Array([1, 0, 1]),
+      hash: "SHA-256",
+    },
+    true,
+    ["encrypt", "decrypt"],
+  );
+
+  const publicKeyJwk = await crypto.subtle.exportKey("jwk", keyPair.publicKey);
+  const privateKeyJwk = await crypto.subtle.exportKey(
+    "jwk",
+    keyPair.privateKey,
+  );
+
+  return {
+    publicKey: JSON.stringify(publicKeyJwk),
+    privateKey: JSON.stringify(privateKeyJwk),
+  };
+};
+
+/**
+ * Import a public key from JWK string
+ */
+export const importPublicKey = async (
+  jwkString: string,
+): Promise<CryptoKey> => {
+  const jwk = JSON.parse(jwkString) as JsonWebKey;
+  return crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["encrypt"],
+  );
+};
+
+/**
+ * Import a private key from JWK string
+ */
+export const importPrivateKey = async (
+  jwkString: string,
+): Promise<CryptoKey> => {
+  const jwk = JSON.parse(jwkString) as JsonWebKey;
+  return crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["decrypt"],
+  );
+};
+
+const HYBRID_PREFIX = "hyb:1:";
+
+/**
+ * Encrypt data using hybrid encryption (RSA + AES)
+ * - Generate random AES key
+ * - Encrypt data with AES-GCM
+ * - Encrypt AES key with RSA public key
+ * Returns format: hyb:1:$base64WrappedKey:$base64iv:$base64ciphertext
+ */
+export const hybridEncrypt = async (
+  plaintext: string,
+  publicKey: CryptoKey,
+): Promise<string> => {
+  // Generate random AES key for this encryption
+  const aesKey = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt"],
+  );
+
+  // Encrypt the data with AES
+  const iv = getRandomBytes(12);
+  const encoder = new TextEncoder();
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    aesKey,
+    encoder.encode(plaintext),
+  );
+
+  // Export and encrypt the AES key with RSA
+  const rawAesKey = await crypto.subtle.exportKey("raw", aesKey);
+  const wrappedKey = await crypto.subtle.encrypt(
+    { name: "RSA-OAEP" },
+    publicKey,
+    rawAesKey,
+  );
+
+  return `${HYBRID_PREFIX}${toBase64(new Uint8Array(wrappedKey))}:${toBase64(iv)}:${toBase64(new Uint8Array(ciphertext))}`;
+};
+
+/**
+ * Decrypt data using hybrid encryption
+ * Expects format: hyb:1:$base64WrappedKey:$base64iv:$base64ciphertext
+ */
+export const hybridDecrypt = async (
+  encrypted: string,
+  privateKey: CryptoKey,
+): Promise<string> => {
+  if (!encrypted.startsWith(HYBRID_PREFIX)) {
+    throw new Error("Invalid hybrid encrypted data format");
+  }
+
+  const withoutPrefix = encrypted.slice(HYBRID_PREFIX.length);
+  const parts = withoutPrefix.split(":");
+  if (parts.length !== 3) {
+    throw new Error(
+      "Invalid hybrid encrypted data format: wrong number of parts",
+    );
+  }
+
+  const [wrappedKeyB64, ivB64, ciphertextB64] = parts as [
+    string,
+    string,
+    string,
+  ];
+
+  // Decrypt the AES key with RSA
+  const wrappedKey = fromBase64(wrappedKeyB64);
+  const rawAesKey = await crypto.subtle.decrypt(
+    { name: "RSA-OAEP" },
+    privateKey,
+    wrappedKey as BufferSource,
+  );
+
+  // Import the AES key
+  const aesKey = await crypto.subtle.importKey(
+    "raw",
+    rawAesKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["decrypt"],
+  );
+
+  // Decrypt the data with AES
+  const iv = fromBase64(ivB64);
+  const ciphertext = fromBase64(ciphertextB64);
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    aesKey,
+    ciphertext as BufferSource,
+  );
+
+  return new TextDecoder().decode(plaintext);
+};
+
+/**
+ * Encrypt data with a symmetric key (for wrapping private key with DATA_KEY)
+ * Similar to existing encrypt() but takes a key parameter
+ */
+export const encryptWithKey = async (
+  plaintext: string,
+  key: CryptoKey,
+): Promise<string> => {
+  const iv = getRandomBytes(12);
+  const encoder = new TextEncoder();
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    key,
+    encoder.encode(plaintext),
+  );
+  return `${ENCRYPTION_PREFIX}${toBase64(iv)}:${toBase64(new Uint8Array(ciphertext))}`;
+};
+
+/**
+ * Decrypt data with a symmetric key
+ */
+export const decryptWithKey = async (
+  encrypted: string,
+  key: CryptoKey,
+): Promise<string> => {
+  if (!encrypted.startsWith(ENCRYPTION_PREFIX)) {
+    throw new Error("Invalid encrypted data format");
+  }
+
+  const withoutPrefix = encrypted.slice(ENCRYPTION_PREFIX.length);
+  const colonIndex = withoutPrefix.indexOf(":");
+  if (colonIndex === -1) {
+    throw new Error("Invalid encrypted data format: missing IV separator");
+  }
+
+  const ivB64 = withoutPrefix.slice(0, colonIndex);
+  const ciphertextB64 = withoutPrefix.slice(colonIndex + 1);
+
+  const iv = fromBase64(ivB64);
+  const ciphertext = fromBase64(ciphertextB64);
+
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    key,
+    ciphertext as BufferSource,
+  );
+
+  return new TextDecoder().decode(plaintext);
+};
+
+/**
+ * Encrypt attendee PII using the public key from settings
+ * This can be called without authentication (for public ticket forms)
+ */
+export const encryptAttendeePII = async (
+  plaintext: string,
+  publicKeyJwk: string,
+): Promise<string> => {
+  const publicKey = await importPublicKey(publicKeyJwk);
+  return hybridEncrypt(plaintext, publicKey);
+};
+
+/**
+ * Derive the private key from session credentials
+ * Used to decrypt attendee PII in admin views
+ */
+export const getPrivateKeyFromSession = async (
+  sessionToken: string,
+  wrappedDataKey: string,
+  wrappedPrivateKey: string,
+): Promise<CryptoKey> => {
+  // Unwrap DATA_KEY using session token
+  const dataKey = await unwrapKeyWithToken(wrappedDataKey, sessionToken);
+
+  // Decrypt private key using DATA_KEY
+  const privateKeyJwk = await decryptWithKey(wrappedPrivateKey, dataKey);
+
+  // Import and return the private key
+  return importPrivateKey(privateKeyJwk);
+};
+
+/**
+ * Decrypt attendee PII using the private key
+ * Used in admin views after obtaining private key from session
+ */
+export const decryptAttendeePII = async (
+  encrypted: string,
+  privateKey: CryptoKey,
+): Promise<string> => {
+  return hybridDecrypt(encrypted, privateKey);
+};

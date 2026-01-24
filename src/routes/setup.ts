@@ -37,7 +37,6 @@ type SetupValidation =
   | {
       valid: true;
       password: string;
-      stripeKey: string | null;
       currency: string;
     }
   | { valid: false; error: string };
@@ -63,7 +62,6 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
     hasConfirm: !!values.admin_password_confirm,
     confirmLength: (values.admin_password_confirm as string)?.length,
     currency: values.currency_code,
-    hasStripeKey: !!values.stripe_secret_key,
   });
 
   const password = values.admin_password as string;
@@ -91,7 +89,6 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
   return {
     valid: true,
     password,
-    stripeKey: (values.stripe_secret_key as string | null) || null,
     currency,
   };
 };
@@ -182,11 +179,7 @@ const handleSetupPost = async (
   console.log("[Setup] Form validation passed, completing setup...");
 
   try {
-    await completeSetup(
-      validation.password,
-      validation.stripeKey,
-      validation.currency,
-    );
+    await completeSetup(validation.password, validation.currency);
     // biome-ignore lint/suspicious/noConsole: Debug logging for edge script
     console.log("[Setup] Setup completed successfully!");
     return htmlResponse(setupCompletePage());

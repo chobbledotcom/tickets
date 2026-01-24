@@ -69,13 +69,9 @@ export const handleTicketGet = (slug: string): Promise<Response> =>
 /**
  * Check if payment is required for an event
  */
-const requiresPayment = async (event: {
-  unit_price: number | null;
-}): Promise<boolean> => {
+const requiresPayment = (event: { unit_price: number | null }): boolean => {
   return (
-    (await isPaymentsEnabled()) &&
-    event.unit_price !== null &&
-    event.unit_price > 0
+    isPaymentsEnabled() && event.unit_price !== null && event.unit_price > 0
   );
 };
 
@@ -169,7 +165,7 @@ const processTicketReservation = async (
     quantity,
   );
 
-  if (await requiresPayment(event)) {
+  if (requiresPayment(event)) {
     return handlePaymentFlow(request, event, attendee, quantity, currentToken);
   }
 

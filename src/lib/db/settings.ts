@@ -3,7 +3,16 @@
  */
 
 import { lazyRef } from "#fp";
-import { decrypt, encrypt, hashPassword, verifyPassword } from "#lib/crypto.ts";
+import {
+  deriveKEK,
+  encryptWithKey,
+  generateDataKey,
+  generateKeyPair,
+  hashPassword,
+  unwrapKey,
+  verifyPassword,
+  wrapKey,
+} from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
 import { deleteAllSessions } from "#lib/db/sessions.ts";
 import type { Settings } from "#lib/types.ts";
@@ -13,9 +22,12 @@ import type { Settings } from "#lib/types.ts";
  */
 export const CONFIG_KEYS = {
   ADMIN_PASSWORD: "admin_password",
-  STRIPE_KEY: "stripe_key",
   CURRENCY_CODE: "currency_code",
   SETUP_COMPLETE: "setup_complete",
+  // Encryption key hierarchy
+  WRAPPED_DATA_KEY: "wrapped_data_key",
+  WRAPPED_PRIVATE_KEY: "wrapped_private_key",
+  PUBLIC_KEY: "public_key",
 } as const;
 
 /**
@@ -86,50 +98,41 @@ export const clearSetupCompleteCache = (): void => {
 
 /**
  * Complete initial setup by storing all configuration
- * Passwords are hashed using PBKDF2 before storage
- * Sensitive values are encrypted at rest
+ * Generates the encryption key hierarchy:
+ * - DATA_KEY: random symmetric key for encrypting private key
+ * - RSA key pair: public key encrypts attendee PII, private key decrypts
+ * - KEK: derived from password hash + DB_ENCRYPTION_KEY, wraps DATA_KEY
  */
 export const completeSetup = async (
   adminPassword: string,
-  stripeSecretKey: string | null,
   currencyCode: string,
 ): Promise<void> => {
+  // Hash the password
   const hashedPassword = await hashPassword(adminPassword);
-  const encryptedHash = await encrypt(hashedPassword);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, encryptedHash);
-  if (stripeSecretKey) {
-    const encryptedKey = await encrypt(stripeSecretKey);
-    await setSetting(CONFIG_KEYS.STRIPE_KEY, encryptedKey);
-  }
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
+
+  // Generate DATA_KEY (random symmetric key)
+  const dataKey = await generateDataKey();
+
+  // Generate RSA key pair for asymmetric encryption
+  const { publicKey, privateKey } = await generateKeyPair();
+
+  // Derive KEK from password hash + DB_ENCRYPTION_KEY
+  const kek = await deriveKEK(hashedPassword);
+
+  // Wrap DATA_KEY with KEK
+  const wrappedDataKey = await wrapKey(dataKey, kek);
+  await setSetting(CONFIG_KEYS.WRAPPED_DATA_KEY, wrappedDataKey);
+
+  // Encrypt private key with DATA_KEY
+  const encryptedPrivateKey = await encryptWithKey(privateKey, dataKey);
+  await setSetting(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey);
+
+  // Store public key (plaintext - it's meant to be public)
+  await setSetting(CONFIG_KEYS.PUBLIC_KEY, publicKey);
+
   await setSetting(CONFIG_KEYS.CURRENCY_CODE, currencyCode);
   await setSetting(CONFIG_KEYS.SETUP_COMPLETE, "true");
-};
-
-/**
- * Get Stripe secret key from database (decrypted)
- */
-export const getStripeSecretKeyFromDb = async (): Promise<string | null> => {
-  const value = await getSetting(CONFIG_KEYS.STRIPE_KEY);
-  if (!value) return null;
-  return decrypt(value);
-};
-
-/**
- * Check if a Stripe key has been configured
- */
-export const hasStripeKey = async (): Promise<boolean> => {
-  const value = await getSetting(CONFIG_KEYS.STRIPE_KEY);
-  return value !== null;
-};
-
-/**
- * Update Stripe secret key (encrypted at rest)
- */
-export const updateStripeKey = async (
-  stripeSecretKey: string,
-): Promise<void> => {
-  const encryptedKey = await encrypt(stripeSecretKey);
-  await setSetting(CONFIG_KEYS.STRIPE_KEY, encryptedKey);
 };
 
 /**
@@ -141,36 +144,91 @@ export const getCurrencyCodeFromDb = async (): Promise<string> => {
 };
 
 /**
- * Get admin password hash from database (decrypted)
+ * Get admin password hash from database
  * Returns null if setup hasn't been completed
  */
-export const getAdminPasswordFromDb = async (): Promise<string | null> => {
-  const value = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-  if (!value) return null;
-  return decrypt(value);
+export const getAdminPasswordHash = async (): Promise<string | null> => {
+  return getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
 };
 
 /**
  * Verify admin password using constant-time comparison
- * Checks the database-stored password hash only
+ * Returns the password hash if valid (needed for KEK derivation)
  */
 export const verifyAdminPassword = async (
   password: string,
-): Promise<boolean> => {
-  const storedHash = await getAdminPasswordFromDb();
-  if (storedHash === null) return false;
-  return verifyPassword(password, storedHash);
+): Promise<string | null> => {
+  const storedHash = await getAdminPasswordHash();
+  if (storedHash === null) return null;
+  const isValid = await verifyPassword(password, storedHash);
+  return isValid ? storedHash : null;
 };
 
 /**
- * Update admin password and invalidate all existing sessions
- * Passwords are hashed using PBKDF2 before storage and encrypted at rest
+ * Get the public key for encrypting attendee PII
+ * Always available (it's meant to be public)
+ */
+export const getPublicKey = async (): Promise<string | null> => {
+  return getSetting(CONFIG_KEYS.PUBLIC_KEY);
+};
+
+/**
+ * Get the wrapped DATA_KEY (needs KEK to unwrap)
+ */
+export const getWrappedDataKey = async (): Promise<string | null> => {
+  return getSetting(CONFIG_KEYS.WRAPPED_DATA_KEY);
+};
+
+/**
+ * Get the wrapped private key (needs DATA_KEY to decrypt)
+ */
+export const getWrappedPrivateKey = async (): Promise<string | null> => {
+  return getSetting(CONFIG_KEYS.WRAPPED_PRIVATE_KEY);
+};
+
+/**
+ * Unwrap the DATA_KEY using a password hash
+ * Used during login to get the DATA_KEY for session storage
+ */
+export const unwrapDataKey = async (
+  passwordHash: string,
+): Promise<CryptoKey | null> => {
+  const wrappedDataKey = await getWrappedDataKey();
+  if (!wrappedDataKey) return null;
+
+  const kek = await deriveKEK(passwordHash);
+  return unwrapKey(wrappedDataKey, kek);
+};
+
+/**
+ * Update admin password and re-wrap DATA_KEY with new KEK
+ * Requires the old password to unwrap the existing DATA_KEY
  */
 export const updateAdminPassword = async (
+  oldPassword: string,
   newPassword: string,
-): Promise<void> => {
-  const hashedPassword = await hashPassword(newPassword);
-  const encryptedHash = await encrypt(hashedPassword);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, encryptedHash);
+): Promise<boolean> => {
+  // Verify old password and get its hash
+  const oldHash = await verifyAdminPassword(oldPassword);
+  if (!oldHash) return false;
+
+  // Unwrap DATA_KEY with old KEK
+  const dataKey = await unwrapDataKey(oldHash);
+  if (!dataKey) return false;
+
+  // Hash the new password
+  const newHash = await hashPassword(newPassword);
+
+  // Derive new KEK and re-wrap DATA_KEY
+  const newKek = await deriveKEK(newHash);
+  const newWrappedDataKey = await wrapKey(dataKey, newKek);
+
+  // Update settings
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, newHash);
+  await setSetting(CONFIG_KEYS.WRAPPED_DATA_KEY, newWrappedDataKey);
+
+  // Invalidate all sessions (force re-login with new password)
   await deleteAllSessions();
+
+  return true;
 };

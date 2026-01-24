@@ -60,11 +60,10 @@ export const createTestDb = async (): Promise<void> => {
  * Also sets up the test encryption key
  */
 export const createTestDbWithSetup = async (
-  stripeKey: string | null = null,
   currency = "GBP",
 ): Promise<void> => {
   await createTestDb();
-  await completeSetup(TEST_ADMIN_PASSWORD, stripeKey, currency);
+  await completeSetup(TEST_ADMIN_PASSWORD, currency);
 };
 
 /**

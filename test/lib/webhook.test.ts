@@ -25,16 +25,14 @@ describe("webhook", () => {
       const webhookUrl = "https://example.com/webhook";
       const eventId = 1;
       const eventName = "Test Event";
-      const attendeeName = "John Doe";
-      const attendeeEmail = "john@example.com";
+      const attendeeId = 42;
       const quantity = 2;
 
       await sendRegistrationWebhook(
         webhookUrl,
         eventId,
         eventName,
-        attendeeName,
-        attendeeEmail,
+        attendeeId,
         quantity,
       );
 
@@ -48,8 +46,7 @@ describe("webhook", () => {
       expect(payload.event_type).toBe("attendee.registered");
       expect(payload.event_id).toBe(eventId);
       expect(payload.event_name).toBe(eventName);
-      expect(payload.attendee.name).toBe(attendeeName);
-      expect(payload.attendee.email).toBe(attendeeEmail);
+      expect(payload.attendee.id).toBe(attendeeId);
       expect(payload.attendee.quantity).toBe(quantity);
       expect(payload.timestamp).toBeDefined();
     });
@@ -62,8 +59,7 @@ describe("webhook", () => {
         "https://example.com/webhook",
         1,
         "Test Event",
-        "John",
-        "john@example.com",
+        42,
         1,
       );
 
@@ -79,8 +75,7 @@ describe("webhook", () => {
         webhook_url: "https://example.com/hook",
       };
       const attendee = {
-        name: "Jane Doe",
-        email: "jane@example.com",
+        id: 99,
         quantity: 1,
       };
 
@@ -98,8 +93,7 @@ describe("webhook", () => {
         webhook_url: null,
       };
       const attendee = {
-        name: "Jane Doe",
-        email: "jane@example.com",
+        id: 99,
         quantity: 1,
       };
 
@@ -115,8 +109,7 @@ describe("webhook", () => {
         webhook_url: "https://webhook.site/test",
       };
       const attendee = {
-        name: "Alice Smith",
-        email: "alice@example.com",
+        id: 123,
         quantity: 3,
       };
 
@@ -128,8 +121,7 @@ describe("webhook", () => {
 
       expect(payload.event_id).toBe(42);
       expect(payload.event_name).toBe("Big Conference");
-      expect(payload.attendee.name).toBe("Alice Smith");
-      expect(payload.attendee.email).toBe("alice@example.com");
+      expect(payload.attendee.id).toBe(123);
       expect(payload.attendee.quantity).toBe(3);
     });
   });
