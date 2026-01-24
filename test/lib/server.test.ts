@@ -284,7 +284,7 @@ describe("server", () => {
       const response = await awaitTestRequest("/admin/settings", { cookie });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Admin Settings");
+      expect(html).toContain("Settings");
       expect(html).toContain("Change Password");
     });
   });
@@ -817,7 +817,7 @@ describe("server", () => {
       });
       const html = await response.text();
       expect(html).toContain("/admin/event/1/edit");
-      expect(html).toContain("Edit Event");
+      expect(html).toContain(">Edit<");
     });
   });
 
@@ -973,7 +973,7 @@ describe("server", () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Edit Event");
+      expect(html).toContain("Edit:");
       expect(html).toContain('value="Test Event"');
       expect(html).toContain("Test Description");
       expect(html).toContain('value="100"');

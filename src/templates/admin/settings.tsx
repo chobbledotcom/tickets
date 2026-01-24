@@ -6,6 +6,7 @@ import { renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { changePasswordFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 
 /**
  * Admin settings page
@@ -13,13 +14,8 @@ import { Layout } from "#templates/layout.tsx";
  */
 export const adminSettingsPage = (csrfToken: string, error?: string): string =>
   String(
-    <Layout title="Admin Settings">
-      <header>
-        <h1>Admin Settings</h1>
-        <nav>
-          <a href="/admin/">&larr; Back to Dashboard</a>
-        </nav>
-      </header>
+    <Layout title="Settings">
+      <AdminNav />
 
       {error && <div class="error">{error}</div>}
 

@@ -8,6 +8,7 @@ import type { EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { eventFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -39,16 +40,7 @@ export const adminDashboardPage = (
 
   return String(
     <Layout title="Admin Dashboard">
-      <header>
-        <h1>Admin Dashboard</h1>
-        <nav>
-          <ul>
-            <li><a href="/admin/settings">Settings</a></li>
-            <li><a href="/admin/sessions">Sessions</a></li>
-            <li><a href="/admin/logout">Logout</a></li>
-          </ul>
-        </nav>
-      </header>
+      <AdminNav />
 
       <section>
         <header>
