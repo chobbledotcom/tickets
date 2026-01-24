@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { eventsTable } from "#lib/db/events.ts";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
@@ -19,7 +18,6 @@ import {
   mockRequestWithHost,
   mockSetupFormRequest,
   mockTicketFormRequest,
-  updateTestEvent,
   resetDb,
   resetTestSlugCounter,
   TEST_ADMIN_PASSWORD,
@@ -2091,8 +2089,8 @@ describe("server", () => {
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
-      const attendee = await getAttendeeRaw(1);
-      expect(attendee).toBeNull();
+      const deletedAttendee = await getAttendeeRaw(1);
+      expect(deletedAttendee).toBeNull();
     });
   });
 

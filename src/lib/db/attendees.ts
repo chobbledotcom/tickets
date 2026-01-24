@@ -113,42 +113,6 @@ const buildAttendeeResult = (
   quantity,
 });
 
-/** Common attendee input parameters */
-type AttendeeInput = {
-  eventId: number;
-  name: string;
-  email: string;
-  stripePaymentId?: string | null;
-  quantity?: number;
-};
-
-/** Execute simple insert (no capacity check) */
-const insertAttendee = async (
-  input: Required<AttendeeInput>,
-  encrypted: EncryptedAttendeeData,
-): Promise<Attendee> => {
-  const result = await getDb().execute({
-    sql: "INSERT INTO attendees (event_id, name, email, created, stripe_payment_id, quantity) VALUES (?, ?, ?, ?, ?, ?)",
-    args: [
-      input.eventId,
-      encrypted.encryptedName,
-      encrypted.encryptedEmail,
-      encrypted.created,
-      encrypted.encryptedPaymentId,
-      input.quantity,
-    ],
-  });
-  return buildAttendeeResult(
-    result.lastInsertRowid,
-    input.eventId,
-    input.name,
-    input.email,
-    encrypted.created,
-    input.stripePaymentId,
-    input.quantity,
-  );
-};
-
 /**
  * Get an attendee by ID without decrypting PII
  * Used for payment callbacks and webhooks where decryption is not needed
