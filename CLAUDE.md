@@ -73,15 +73,29 @@ const result = reduce((acc, item) => {
 
 ## Environment Variables
 
-Only database connection settings use environment variables:
+### Required
 
 - `DB_URL` - Database URL (required, e.g. `libsql://your-db.turso.io`)
 - `DB_TOKEN` - Database auth token (required for remote databases)
 - `DB_ENCRYPTION_KEY` - 32-byte base64-encoded encryption key (required)
 - `ALLOWED_DOMAIN` - Domain for security validation (required)
-- `PORT` - Server port (defaults to 3000)
 
-All other configuration (admin password, Stripe secret key, currency code) is set through the web-based setup page at `/setup/` and stored in the database.
+### Optional
+
+- `PORT` - Server port (defaults to 3000)
+- `STRIPE_SECRET_KEY` - Stripe API secret key (enables paid tickets)
+- `STRIPE_PUBLISHABLE_KEY` - Stripe publishable key (for checkout UI)
+- `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret (for secure webhook verification)
+
+### Stripe Webhook Setup
+
+To receive payment confirmations reliably, configure a webhook in Stripe Dashboard:
+1. Go to Developers → Webhooks → Add endpoint
+2. Set URL to `https://your-domain.com/payment/webhook`
+3. Select event: `checkout.session.completed`
+4. Copy the signing secret to `STRIPE_WEBHOOK_SECRET`
+
+Admin password and currency code are set through the web-based setup page at `/setup/` and stored encrypted in the database.
 
 ## Deno Configuration
 

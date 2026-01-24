@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test, spyOn } from "#test-compat";
 import {
+  constructTestWebhookEvent,
   createCheckoutSessionWithIntent,
   getStripeClient,
   refundPayment,
   resetStripeClient,
   retrieveCheckoutSession,
+  type StripeWebhookEvent,
+  verifyWebhookSignature,
 } from "#lib/stripe.ts";
 import { createCheckoutSession, createTestDb, resetDb } from "#test-utils";
 import process from "node:process";
@@ -403,6 +406,253 @@ describe("stripe", () => {
       } finally {
         refundSpy.mockRestore();
       }
+    });
+  });
+
+  describe("verifyWebhookSignature", () => {
+    const TEST_SECRET = "whsec_test_secret_key_for_webhook_verification";
+    let originalWebhookSecret: string | undefined;
+
+    beforeEach(() => {
+      originalWebhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+      Deno.env.set("STRIPE_WEBHOOK_SECRET", TEST_SECRET);
+    });
+
+    afterEach(() => {
+      if (originalWebhookSecret !== undefined) {
+        Deno.env.set("STRIPE_WEBHOOK_SECRET", originalWebhookSecret);
+      } else {
+        Deno.env.delete("STRIPE_WEBHOOK_SECRET");
+      }
+    });
+
+    test("returns error when webhook secret not configured", async () => {
+      Deno.env.delete("STRIPE_WEBHOOK_SECRET");
+      const result = await verifyWebhookSignature(
+        '{"test": true}',
+        "t=1234,v1=abc",
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Webhook secret not configured");
+      }
+    });
+
+    test("returns error for invalid signature header format", async () => {
+      const result = await verifyWebhookSignature(
+        '{"test": true}',
+        "invalid-header",
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Invalid signature header format");
+      }
+    });
+
+    test("returns error for missing timestamp in header", async () => {
+      const result = await verifyWebhookSignature(
+        '{"test": true}',
+        "v1=abc123",
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Invalid signature header format");
+      }
+    });
+
+    test("returns error for missing signature in header", async () => {
+      const result = await verifyWebhookSignature(
+        '{"test": true}',
+        "t=1234",
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Invalid signature header format");
+      }
+    });
+
+    test("returns error for timestamp outside tolerance window", async () => {
+      // Create a signature with old timestamp (more than 5 minutes ago)
+      const oldTimestamp = Math.floor(Date.now() / 1000) - 400; // 400 seconds ago
+      const payload = '{"test": true}';
+      const signedPayload = `${oldTimestamp}.${payload}`;
+
+      // Compute valid signature with old timestamp
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(TEST_SECRET),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+      const signature = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        encoder.encode(signedPayload),
+      );
+      const sigHex = Array.from(new Uint8Array(signature))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      const result = await verifyWebhookSignature(
+        payload,
+        `t=${oldTimestamp},v1=${sigHex}`,
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Timestamp outside tolerance window");
+      }
+    });
+
+    test("returns error for invalid signature", async () => {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const result = await verifyWebhookSignature(
+        '{"test": true}',
+        `t=${timestamp},v1=invalid_signature_that_wont_match`,
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Signature verification failed");
+      }
+    });
+
+    test("returns error for invalid JSON payload", async () => {
+      const payload = "not valid json {{{";
+      const timestamp = Math.floor(Date.now() / 1000);
+      const signedPayload = `${timestamp}.${payload}`;
+
+      // Compute valid signature
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(TEST_SECRET),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+      const signature = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        encoder.encode(signedPayload),
+      );
+      const sigHex = Array.from(new Uint8Array(signature))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      const result = await verifyWebhookSignature(
+        payload,
+        `t=${timestamp},v1=${sigHex}`,
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Invalid JSON payload");
+      }
+    });
+
+    test("verifies valid signature successfully", async () => {
+      const event: StripeWebhookEvent = {
+        id: "evt_test_123",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_test_123",
+            payment_status: "paid",
+            metadata: {
+              event_id: "1",
+              name: "John Doe",
+              email: "john@example.com",
+              quantity: "1",
+            },
+          },
+        },
+      };
+
+      const { payload, signature } = await constructTestWebhookEvent(
+        event,
+        TEST_SECRET,
+      );
+
+      const result = await verifyWebhookSignature(payload, signature);
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.event.id).toBe("evt_test_123");
+        expect(result.event.type).toBe("checkout.session.completed");
+      }
+    });
+
+    test("accepts custom tolerance window", async () => {
+      // Create signature with timestamp 100 seconds ago
+      const oldTimestamp = Math.floor(Date.now() / 1000) - 100;
+      const payload = '{"id": "evt_123", "type": "test"}';
+      const signedPayload = `${oldTimestamp}.${payload}`;
+
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(TEST_SECRET),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+      const signature = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        encoder.encode(signedPayload),
+      );
+      const sigHex = Array.from(new Uint8Array(signature))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      // Should fail with default 300s tolerance but pass with 150s tolerance
+      const resultWithSmallTolerance = await verifyWebhookSignature(
+        payload,
+        `t=${oldTimestamp},v1=${sigHex}`,
+        50, // 50 second tolerance - should fail
+      );
+      expect(resultWithSmallTolerance.valid).toBe(false);
+
+      // Should pass with larger tolerance
+      const resultWithLargeTolerance = await verifyWebhookSignature(
+        payload,
+        `t=${oldTimestamp},v1=${sigHex}`,
+        200, // 200 second tolerance - should pass
+      );
+      expect(resultWithLargeTolerance.valid).toBe(true);
+    });
+  });
+
+  describe("constructTestWebhookEvent", () => {
+    test("creates valid payload and signature pair", async () => {
+      const secret = "whsec_test_construction";
+      const event: StripeWebhookEvent = {
+        id: "evt_constructed",
+        type: "payment_intent.succeeded",
+        data: {
+          object: {
+            amount: 1000,
+            currency: "gbp",
+          },
+        },
+      };
+
+      const { payload, signature } = await constructTestWebhookEvent(
+        event,
+        secret,
+      );
+
+      // Verify payload is valid JSON matching input
+      const parsed = JSON.parse(payload);
+      expect(parsed.id).toBe("evt_constructed");
+      expect(parsed.type).toBe("payment_intent.succeeded");
+
+      // Verify signature format
+      expect(signature).toMatch(/^t=\d+,v1=[a-f0-9]+$/);
+
+      // Signature should be verifiable with the same secret
+      Deno.env.set("STRIPE_WEBHOOK_SECRET", secret);
+      const result = await verifyWebhookSignature(payload, signature);
+      expect(result.valid).toBe(true);
     });
   });
 });

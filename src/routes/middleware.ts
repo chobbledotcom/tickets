@@ -72,15 +72,28 @@ export const isValidDomain = (request: Request): boolean => {
 };
 
 /**
+ * Check if path is a webhook endpoint that accepts JSON
+ */
+export const isWebhookPath = (path: string): boolean =>
+  path === "/payment/webhook";
+
+/**
  * Validate Content-Type for POST requests
  * Returns true if the request is valid (not a POST, or has correct Content-Type)
+ * Webhook endpoints accept application/json, all others require form-urlencoded
  */
-export const isValidContentType = (request: Request): boolean => {
+export const isValidContentType = (request: Request, path: string): boolean => {
   if (request.method !== "POST") {
     return true;
   }
   const contentType = request.headers.get("content-type") || "";
-  // Accept application/x-www-form-urlencoded (with optional charset)
+
+  // Webhook endpoints accept JSON
+  if (isWebhookPath(path)) {
+    return contentType.startsWith("application/json");
+  }
+
+  // All other POST endpoints require form-urlencoded
   return contentType.startsWith("application/x-www-form-urlencoded");
 };
 

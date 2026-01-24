@@ -142,7 +142,8 @@ export const handleRequest = async (
   const embeddable = isEmbeddablePath(path);
 
   // Content-Type validation: reject POST requests without proper Content-Type
-  if (!isValidContentType(request)) {
+  // (webhook endpoints accept JSON, all others require form-urlencoded)
+  if (!isValidContentType(request, path)) {
     return contentTypeRejectionResponse();
   }
 
