@@ -3,6 +3,10 @@
  */
 
 import type { InValue } from "@libsql/client";
+import {
+  getEventActivityLog,
+  logActivity,
+} from "#lib/db/activityLog.ts";
 import { getAttendees } from "#lib/db/attendees.ts";
 import {
   deleteEvent,
@@ -11,11 +15,7 @@ import {
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
-import {
-  createHandler,
-  deleteHandler,
-  updateHandler,
-} from "#lib/rest/handlers.ts";
+import { createHandler, updateHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { defineRoutes, type RouteParams } from "#routes/router.ts";
@@ -29,6 +29,7 @@ import {
   withAuthForm,
   withEvent,
 } from "#routes/utils.ts";
+import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
   adminDeactivateEventPage,
   adminDeleteEventPage,
@@ -76,7 +77,7 @@ const eventsResource = defineResource({
 const withEventAttendees = async (
   request: Request,
   eventId: number,
-  handler: (event: EventWithCount, attendees: Attendee[]) => Response,
+  handler: (event: EventWithCount, attendees: Attendee[]) => Response | Promise<Response>,
 ): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
   if (!session) {
@@ -98,7 +99,10 @@ const withEventAttendees = async (
  * Handle POST /admin/event (create event)
  */
 const handleCreateEvent = createHandler(eventsResource, {
-  onSuccess: () => redirect("/admin"),
+  onSuccess: async (row) => {
+    await logActivity(`Created event '${row.name}'`, row.id);
+    return redirect("/admin");
+  },
   onError: () => redirect("/admin"),
 });
 
@@ -154,9 +158,10 @@ const handleAdminEventEditPost = updateHandler(eventsResource, {
  * Handle GET /admin/event/:id/export (CSV export)
  */
 const handleAdminEventExport = (request: Request, eventId: number) =>
-  withEventAttendees(request, eventId, (event, attendees) => {
+  withEventAttendees(request, eventId, async (event, attendees) => {
     const csv = generateAttendeesCsv(attendees);
     const filename = `${event.name.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
+    await logActivity(`Exported CSV for '${event.name}'`, event.id);
     return new Response(csv, {
       headers: {
         "content-type": "text/csv; charset=utf-8",
@@ -191,18 +196,59 @@ const handleAdminEventReactivatePost = setActiveHandler(1);
 /** Handle GET /admin/event/:id/delete (show confirmation page) */
 const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
 
-/** Handle DELETE /admin/event/:id (delete event, optionally verify name) */
-const handleAdminEventDelete = deleteHandler(eventsResource, {
-  onSuccess: () => redirect("/admin"),
-  onVerifyFailed: (id, _row, session) =>
-    eventErrorPage(
-      id as number,
-      adminDeleteEventPage,
-      session.csrfToken,
-      "Event name does not match. Please type the exact name to confirm deletion.",
-    ),
-  onNotFound: notFoundResponse,
-});
+/** Handle GET /admin/event/:id/activity-log */
+const handleAdminEventActivityLog = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  requireSessionOr(request, async () => {
+    const event = await getEventWithCount(eventId);
+    if (!event) {
+      return notFoundResponse();
+    }
+    const entries = await getEventActivityLog(eventId);
+    return htmlResponse(adminEventActivityLogPage(event, entries));
+  });
+
+/** Verify name matches for deletion confirmation (case-insensitive, trimmed) */
+const verifyName = (expected: string, provided: string): boolean =>
+  expected.trim().toLowerCase() === provided.trim().toLowerCase();
+
+/** Check if name verification should be skipped (for API users) */
+const needsVerify = (req: Request): boolean =>
+  new URL(req.url).searchParams.get("verify_name") !== "false";
+
+/** Handle DELETE /admin/event/:id (delete event with logging) */
+const handleAdminEventDelete = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const event = await getEventWithCount(eventId);
+    if (!event) {
+      return notFoundResponse();
+    }
+
+    if (needsVerify(request)) {
+      const confirmName = form.get("confirm_name") ?? "";
+      if (!verifyName(event.name, confirmName)) {
+        return eventErrorPage(
+          eventId,
+          adminDeleteEventPage,
+          session.csrfToken,
+          "Event name does not match. Please type the exact name to confirm deletion.",
+        );
+      }
+    }
+
+    const attendeeCount = event.attendee_count;
+    const eventName = event.name;
+    await deleteEvent(eventId);
+    await logActivity(
+      `Deleted event '${eventName}' and ${attendeeCount} attendee(s)`,
+    );
+    return redirect("/admin");
+  });
 
 /** Parse event ID from params */
 const parseEventId = (params: RouteParams): number =>
@@ -219,6 +265,8 @@ export const eventsRoutes = defineRoutes({
     handleAdminEventEditPost(request, parseEventId(params)),
   "GET /admin/event/:id/export": (request, params) =>
     handleAdminEventExport(request, parseEventId(params)),
+  "GET /admin/event/:id/activity-log": (request, params) =>
+    handleAdminEventActivityLog(request, parseEventId(params)),
   "GET /admin/event/:id/deactivate": (request, params) =>
     handleAdminEventDeactivateGet(request, parseEventId(params)),
   "POST /admin/event/:id/deactivate": (request, params) =>

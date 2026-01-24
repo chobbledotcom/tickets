@@ -2,6 +2,7 @@
  * Middleware functions for request processing
  */
 
+import { compact } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 
 /** Cached allowed domain (read once at startup) */
@@ -19,22 +20,16 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
  * Build CSP header value
  * Restricts resources to self and prevents clickjacking for non-embeddable pages
  */
-const buildCspHeader = (embeddable: boolean): string => {
-  const directives: string[] = [];
-
-  // Frame ancestors - prevent clickjacking (except for embeddable pages)
-  if (!embeddable) {
-    directives.push("frame-ancestors 'none'");
-  }
-
-  // Restrict resource loading to self (prevents loading from unexpected domains)
-  directives.push("default-src 'self'");
-  directives.push("style-src 'self' 'unsafe-inline'"); // Allow inline styles
-  directives.push("script-src 'self' 'unsafe-inline'"); // Allow inline scripts
-  directives.push("form-action 'self'"); // Restrict form submissions to self
-
-  return directives.join("; ");
-};
+const buildCspHeader = (embeddable: boolean): string =>
+  compact([
+    // Frame ancestors - prevent clickjacking (except for embeddable pages)
+    !embeddable && "frame-ancestors 'none'",
+    // Restrict resource loading to self (prevents loading from unexpected domains)
+    "default-src 'self'",
+    "style-src 'self' 'unsafe-inline'", // Allow inline styles
+    "script-src 'self' 'unsafe-inline'", // Allow inline scripts
+    "form-action 'self'", // Restrict form submissions to self
+  ]).join("; ");
 
 /**
  * Get security headers for a response

@@ -28,7 +28,7 @@ import {
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
 import type { Attendee, Event } from "#lib/types.ts";
-import { notifyWebhook } from "#lib/webhook.ts";
+import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   getSearchParam,
@@ -171,7 +171,7 @@ const processPaymentSession = async (
   // Mark session as processed for idempotency
   await markSessionProcessed(sessionId, result.attendee.id);
 
-  await notifyWebhook(event, result.attendee);
+  await logAndNotifyRegistration(event, result.attendee);
   return { success: true, attendee: result.attendee, event };
 };
 
