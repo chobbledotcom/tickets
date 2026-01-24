@@ -387,15 +387,14 @@ describe("stripe", () => {
     });
 
     test("returns null when Stripe API throws error", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
 
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client to be defined");
 
-      const refundSpy = spyOn(client.refunds, "create").mockRejectedValue(
-        new Error("Network error"),
-      );
+      const refundSpy = spyOn(client.refunds, "create");
+      refundSpy.mockRejectedValue(new Error("Network error"));
 
       try {
         const result = await refundPayment("pi_test_123");

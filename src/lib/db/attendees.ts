@@ -237,59 +237,70 @@ export type CreateAttendeeResult =
   | { success: true; attendee: Attendee }
   | { success: false; reason: "capacity_exceeded" | "encryption_error" };
 
-/**
- * Atomically create attendee with capacity check in single SQL statement.
- * Prevents race conditions by combining check and insert.
- * Returns success with attendee, or failure with reason.
- */
-export const createAttendeeAtomic = async (
-  eventId: number,
-  name: string,
-  email: string,
-  paymentId: string | null = null,
-  qty = 1,
-): Promise<CreateAttendeeResult> => {
-  const enc = await encryptAttendeeFields(name, email, paymentId);
-  if (!enc) {
-    return { success: false, reason: "encryption_error" };
-  }
+/** Stubbable API for testing atomic operations */
+export const attendeesApi = {
+  /**
+   * Atomically create attendee with capacity check in single SQL statement.
+   * Prevents race conditions by combining check and insert.
+   */
+  createAttendeeAtomic: async (
+    eventId: number,
+    name: string,
+    email: string,
+    paymentId: string | null = null,
+    qty = 1,
+  ): Promise<CreateAttendeeResult> => {
+    const enc = await encryptAttendeeFields(name, email, paymentId);
+    if (!enc) {
+      return { success: false, reason: "encryption_error" };
+    }
 
-  // Atomic check-and-insert: only inserts if capacity allows
-  const insertResult = await getDb().execute({
-    sql: `INSERT INTO attendees (event_id, name, email, created, stripe_payment_id, quantity)
-          SELECT ?, ?, ?, ?, ?, ?
-          WHERE (
-            SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?
-          ) + ? <= (
-            SELECT max_attendees FROM events WHERE id = ?
-          )`,
-    args: [
-      eventId,
-      enc.encryptedName,
-      enc.encryptedEmail,
-      enc.created,
-      enc.encryptedPaymentId,
-      qty,
-      eventId,
-      qty,
-      eventId,
-    ],
-  });
+    // Atomic check-and-insert: only inserts if capacity allows
+    const insertResult = await getDb().execute({
+      sql: `INSERT INTO attendees (event_id, name, email, created, stripe_payment_id, quantity)
+            SELECT ?, ?, ?, ?, ?, ?
+            WHERE (
+              SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?
+            ) + ? <= (
+              SELECT max_attendees FROM events WHERE id = ?
+            )`,
+      args: [
+        eventId,
+        enc.encryptedName,
+        enc.encryptedEmail,
+        enc.created,
+        enc.encryptedPaymentId,
+        qty,
+        eventId,
+        qty,
+        eventId,
+      ],
+    });
 
-  if (insertResult.rowsAffected === 0) {
-    return { success: false, reason: "capacity_exceeded" };
-  }
+    if (insertResult.rowsAffected === 0) {
+      return { success: false, reason: "capacity_exceeded" };
+    }
 
-  return {
-    success: true,
-    attendee: buildAttendeeResult(
-      insertResult.lastInsertRowid,
-      eventId,
-      name,
-      email,
-      enc.created,
-      paymentId,
-      qty,
-    ),
-  };
+    return {
+      success: true,
+      attendee: buildAttendeeResult(
+        insertResult.lastInsertRowid,
+        eventId,
+        name,
+        email,
+        enc.created,
+        paymentId,
+        qty,
+      ),
+    };
+  },
 };
+
+/** Wrapper for test mocking - delegates to attendeesApi at runtime */
+export const createAttendeeAtomic = (
+  evtId: number,
+  n: string,
+  e: string,
+  pId: string | null = null,
+  q = 1,
+): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(evtId, n, e, pId, q);
