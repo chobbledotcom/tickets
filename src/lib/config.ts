@@ -5,6 +5,7 @@
  */
 
 import { getCurrencyCodeFromDb, isSetupComplete } from "#lib/db/settings.ts";
+import process from "node:process";
 
 /**
  * Get Stripe secret key from environment variable

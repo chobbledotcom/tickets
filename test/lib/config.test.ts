@@ -9,6 +9,7 @@ import {
 } from "#lib/config.ts";
 import { completeSetup, setSetting } from "#lib/db/settings.ts";
 import { createTestDb, resetDb } from "#test-utils";
+import process from "node:process";
 
 describe("config", () => {
   const originalEnv = { ...process.env };

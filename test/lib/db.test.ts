@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compat";
 import { createClient } from "@libsql/client";
-import { decryptWithKey, importPrivateKey } from "#lib/crypto";
+import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
 import {
   createAttendee,
   deleteAttendee,

@@ -117,7 +117,7 @@ export const createAttendee = async (
  * Used for payment callbacks and webhooks where decryption is not needed
  * Returns the attendee with encrypted fields (id, event_id, quantity are plaintext)
  */
-export const getAttendeeRaw = async (id: number): Promise<Attendee | null> => {
+export const getAttendeeRaw = (id: number): Promise<Attendee | null> => {
   return queryOne<Attendee>("SELECT * FROM attendees WHERE id = ?", [id]);
 };
 

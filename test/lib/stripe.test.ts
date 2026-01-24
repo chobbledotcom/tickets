@@ -6,6 +6,7 @@ import {
   retrieveCheckoutSession,
 } from "#lib/stripe.ts";
 import { createTestDb, resetDb } from "#test-utils";
+import process from "node:process";
 
 describe("stripe", () => {
   let originalMockHost: string | undefined;

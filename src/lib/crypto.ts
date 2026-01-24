@@ -391,7 +391,7 @@ const WRAPPED_KEY_PREFIX = "wk:1:";
 /**
  * Generate a random 256-bit symmetric key for data encryption
  */
-export const generateDataKey = async (): Promise<CryptoKey> => {
+export const generateDataKey = (): Promise<CryptoKey> => {
   return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
     "encrypt",
     "decrypt",
@@ -610,9 +610,7 @@ export const generateKeyPair = async (): Promise<{
 /**
  * Import a public key from JWK string
  */
-export const importPublicKey = async (
-  jwkString: string,
-): Promise<CryptoKey> => {
+export const importPublicKey = (jwkString: string): Promise<CryptoKey> => {
   const jwk = JSON.parse(jwkString) as JsonWebKey;
   return crypto.subtle.importKey(
     "jwk",
@@ -626,9 +624,7 @@ export const importPublicKey = async (
 /**
  * Import a private key from JWK string
  */
-export const importPrivateKey = async (
-  jwkString: string,
-): Promise<CryptoKey> => {
+export const importPrivateKey = (jwkString: string): Promise<CryptoKey> => {
   const jwk = JSON.parse(jwkString) as JsonWebKey;
   return crypto.subtle.importKey(
     "jwk",
@@ -819,7 +815,7 @@ export const getPrivateKeyFromSession = async (
  * Decrypt attendee PII using the private key
  * Used in admin views after obtaining private key from session
  */
-export const decryptAttendeePII = async (
+export const decryptAttendeePII = (
   encrypted: string,
   privateKey: CryptoKey,
 ): Promise<string> => {

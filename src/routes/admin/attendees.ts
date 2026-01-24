@@ -39,7 +39,7 @@ const loadAttendeeForEvent = async (
 };
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
-const handleAdminAttendeeDeleteGet = (
+const handleAdminAttendeeDeleteGet = async (
   request: Request,
   eventId: number,
   attendeeId: number,

@@ -22,6 +22,7 @@ import {
   resetTestSlugCounter,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
+import process from "node:process";
 
 /**
  * Helper to make a ticket form POST request with CSRF token
@@ -3261,9 +3262,8 @@ describe("server", () => {
         mockCompleteSetup.mockRejectedValue(new Error("Database error"));
 
         // Suppress expected console.error to avoid non-zero exit code
-        const mockConsoleError = spyOn(console, "error").mockImplementation(
-          () => {},
-        );
+        const mockConsoleError = spyOn(console, "error");
+        mockConsoleError.mockImplementation(() => {});
 
         try {
           await expect(
