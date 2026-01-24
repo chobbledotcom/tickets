@@ -12,16 +12,11 @@ import { Layout } from "#templates/layout.tsx";
  */
 export const adminLoginPage = (error?: string): string =>
   String(
-    <Layout title="Admin Login">
-      <header>
-        <h1>Admin Login</h1>
-      </header>
-      <section>
-        <Raw html={renderError(error)} />
-        <form method="POST" action="/admin/login">
-          <Raw html={renderFields(loginFields)} />
-          <button type="submit">Login</button>
-        </form>
-      </section>
+    <Layout title="Login">
+      <Raw html={renderError(error)} />
+      <form method="POST" action="/admin/login">
+        <Raw html={renderFields(loginFields)} />
+        <button type="submit">Login</button>
+      </form>
     </Layout>
   );

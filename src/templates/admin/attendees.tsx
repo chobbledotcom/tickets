@@ -4,6 +4,7 @@
 
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { Layout } from "#templates/layout.tsx";
+import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 
 /**
  * Admin delete attendee confirmation page
@@ -16,12 +17,8 @@ export const adminDeleteAttendeePage = (
 ): string =>
   String(
     <Layout title={`Delete Attendee: ${attendee.name}`}>
-      <header>
-        <h1>Delete Attendee</h1>
-        <nav>
-          <a href={`/admin/event/${event.id}`}>&larr; Back to Event</a>
-        </nav>
-      </header>
+      <AdminNav />
+      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
 
       <section>
         {error && <div class="error">{error}</div>}
