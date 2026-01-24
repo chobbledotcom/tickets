@@ -236,14 +236,6 @@ describe("code quality", () => {
       "lib/db/settings.ts:clearSetupCompleteCache",
       // Reset cached sessions between tests
       "lib/db/sessions.ts:resetSessionCache",
-      // Test helpers for creating test data (production uses atomic versions)
-      "lib/db/attendees.ts:createAttendee",
-      "lib/db/attendees.ts:updateAttendeePayment",
-      // Legacy checkout session (production uses createCheckoutSessionWithIntent)
-      "lib/stripe.ts:createCheckoutSession",
-      // Event CRUD for test data setup (production uses REST library)
-      "lib/db/events.ts:createEvent",
-      "lib/db/events.ts:updateEvent",
       // DB version constant used in production but test pattern doesn't detect constant comparison
       "lib/db/migrations/index.ts:LATEST_UPDATE",
       // Client-side Stripe publishable key (for future payment form templates)

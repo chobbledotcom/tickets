@@ -113,64 +113,6 @@ const buildAttendeeResult = (
   quantity,
 });
 
-/** Common attendee input parameters */
-type AttendeeInput = {
-  eventId: number;
-  name: string;
-  email: string;
-  stripePaymentId?: string | null;
-  quantity?: number;
-};
-
-/** Execute simple insert (no capacity check) */
-const insertAttendee = async (
-  input: Required<AttendeeInput>,
-  encrypted: EncryptedAttendeeData,
-): Promise<Attendee> => {
-  const result = await getDb().execute({
-    sql: "INSERT INTO attendees (event_id, name, email, created, stripe_payment_id, quantity) VALUES (?, ?, ?, ?, ?, ?)",
-    args: [
-      input.eventId,
-      encrypted.encryptedName,
-      encrypted.encryptedEmail,
-      encrypted.created,
-      encrypted.encryptedPaymentId,
-      input.quantity,
-    ],
-  });
-  return buildAttendeeResult(
-    result.lastInsertRowid,
-    input.eventId,
-    input.name,
-    input.email,
-    encrypted.created,
-    input.stripePaymentId,
-    input.quantity,
-  );
-};
-
-/**
- * Create a new attendee (reserve tickets)
- * Sensitive fields (name, email) are encrypted with the public key
- * No authentication required - public key is available for encryption
- */
-export const createAttendee = async (
-  eventId: number,
-  name: string,
-  email: string,
-  stripePaymentId: string | null = null,
-  quantity = 1,
-): Promise<Attendee> => {
-  const encrypted = await encryptAttendeeFields(name, email, stripePaymentId);
-  if (!encrypted) {
-    throw new Error("Encryption key not configured. Please complete setup.");
-  }
-  return insertAttendee(
-    { eventId, name, email, stripePaymentId, quantity },
-    encrypted,
-  );
-};
-
 /**
  * Get an attendee by ID without decrypting PII
  * Used for payment callbacks and webhooks where decryption is not needed
@@ -190,28 +132,6 @@ export const getAttendee = async (
 ): Promise<Attendee | null> => {
   const row = await getAttendeeRaw(id);
   return row ? decryptAttendee(row, privateKey) : null;
-};
-
-/**
- * Update attendee's Stripe payment ID (encrypted at rest)
- * Uses public key encryption - no authentication required
- */
-export const updateAttendeePayment = async (
-  attendeeId: number,
-  stripePaymentId: string,
-): Promise<void> => {
-  const publicKeyJwk = await getPublicKey();
-  if (!publicKeyJwk) {
-    throw new Error("Encryption key not configured");
-  }
-  const encryptedPaymentId = await encryptAttendeePII(
-    stripePaymentId,
-    publicKeyJwk,
-  );
-  await getDb().execute({
-    sql: "UPDATE attendees SET stripe_payment_id = ? WHERE id = ?",
-    args: [encryptedPaymentId, attendeeId],
-  });
 };
 
 /**

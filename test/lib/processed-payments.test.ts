@@ -5,7 +5,7 @@ import {
   markSessionProcessed,
 } from "#lib/db/processed-payments.ts";
 import {
-  createAttendee,
+  createTestAttendee,
   createTestDbWithSetup,
   createTestEvent,
   resetDb,
@@ -22,9 +22,9 @@ describe("processed-payments", () => {
     await createTestDbWithSetup();
     // Create test event and attendees to satisfy foreign key constraints
     const event = await createTestEvent();
-    const attendee1 = await createAttendee(event.id, "Test User 1", "test1@example.com");
-    const attendee2 = await createAttendee(event.id, "Test User 2", "test2@example.com");
-    const attendee3 = await createAttendee(event.id, "Test User 3", "test3@example.com");
+    const attendee1 = await createTestAttendee(event.id, event.slug, "Test User 1", "test1@example.com");
+    const attendee2 = await createTestAttendee(event.id, event.slug, "Test User 2", "test2@example.com");
+    const attendee3 = await createTestAttendee(event.id, event.slug, "Test User 3", "test3@example.com");
     testAttendeeId = attendee1.id;
     testAttendeeId2 = attendee2.id;
     testAttendeeId3 = attendee3.id;

@@ -16,10 +16,10 @@ import {
 import { getDb, setDb } from "#lib/db/client.ts";
 import {
   deleteEvent,
+  eventsTable,
   getAllEvents,
   getEvent,
   getEventWithCount,
-  updateEvent,
 } from "#lib/db/events.ts";
 import {
   clearLoginAttempts,
@@ -51,12 +51,12 @@ import {
   verifyAdminPassword,
 } from "#lib/db/settings.ts";
 import {
-  createAttendee,
+  createTestAttendee,
   createTestEvent,
+  resetTestSession,
   resetTestSlugCounter,
   setupTestEncryptionKey,
   TEST_ADMIN_PASSWORD,
-  updateAttendeePayment,
 } from "#test-utils";
 
 /** Helper to get private key for decrypting attendees in tests */
@@ -75,6 +75,7 @@ const getTestPrivateKey = async (): Promise<CryptoKey> => {
 describe("db", () => {
   beforeEach(async () => {
     resetTestSlugCounter();
+    resetTestSession();
     setupTestEncryptionKey();
     const client = createClient({ url: ":memory:" });
     setDb(client);
@@ -248,8 +249,9 @@ describe("db", () => {
       // Setup with initial password
       await completeSetup(oldPassword, "GBP");
 
-      // Create an event to hold attendees
-      const event = await createTestEvent({
+      // Create an event directly (not via REST API since we're using a custom password)
+      const event = await eventsTable.insert({
+        slug: "password-test-event",
         name: "Password Test Event",
         description: "Test event for password change scenario",
         maxAttendees: 100,
@@ -257,24 +259,28 @@ describe("db", () => {
       });
 
       // Create an attendee BEFORE password change
-      const attendeeBefore = await createAttendee(
+      const beforeResult = await createAttendeeAtomic(
         event.id,
         "Alice Before",
         "alice@example.com",
         "pi_before_change",
       );
+      if (!beforeResult.success) throw new Error("Failed to create attendee");
+      const attendeeBefore = beforeResult.attendee;
 
       // Change the password
       const changeSuccess = await updateAdminPassword(oldPassword, newPassword);
       expect(changeSuccess).toBe(true);
 
       // Create an attendee AFTER password change
-      const attendeeAfter = await createAttendee(
+      const afterResult = await createAttendeeAtomic(
         event.id,
         "Bob After",
         "bob@example.com",
         "pi_after_change",
       );
+      if (!afterResult.success) throw new Error("Failed to create attendee");
+      const attendeeAfter = afterResult.attendee;
 
       // Get the private key using the NEW password
       const newPasswordHash = await verifyAdminPassword(newPassword);
@@ -396,7 +402,7 @@ describe("db", () => {
       expect(fetched?.attendee_count).toBe(0);
     });
 
-    test("updateEvent updates event properties", async () => {
+    test("eventsTable.update updates event properties", async () => {
       const created = await createTestEvent({
         name: "Original",
         description: "Original Desc",
@@ -404,7 +410,7 @@ describe("db", () => {
         thankYouUrl: "https://example.com/original",
       });
 
-      const updated = await updateEvent(created.id, {
+      const updated = await eventsTable.update(created.id, {
         slug: created.slug,
         name: "Updated",
         description: "Updated Desc",
@@ -421,8 +427,8 @@ describe("db", () => {
       expect(updated?.unit_price).toBe(1500);
     });
 
-    test("updateEvent returns null for non-existent event", async () => {
-      const result = await updateEvent(999, {
+    test("eventsTable.update returns null for non-existent event", async () => {
+      const result = await eventsTable.update(999, {
         slug: "non-existent",
         name: "Name",
         description: "Desc",
@@ -432,7 +438,7 @@ describe("db", () => {
       expect(result).toBeNull();
     });
 
-    test("updateEvent can set unit_price to null", async () => {
+    test("eventsTable.update can set unit_price to null", async () => {
       const created = await createTestEvent({
         name: "Paid",
         description: "Desc",
@@ -441,7 +447,7 @@ describe("db", () => {
         unitPrice: 1000,
       });
 
-      const updated = await updateEvent(created.id, {
+      const updated = await eventsTable.update(created.id, {
         slug: created.slug,
         name: "Free Now",
         description: "Desc",
@@ -474,8 +480,8 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
-      await createAttendee(event.id, "Jane", "jane@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
 
       await deleteEvent(event.id);
 
@@ -500,62 +506,10 @@ describe("db", () => {
   });
 
   describe("attendees", () => {
-    test("createAttendee creates attendee", async () => {
-      const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createAttendee(
-        event.id,
-        "John Doe",
-        "john@example.com",
-      );
-
-      expect(attendee.id).toBe(1);
-      expect(attendee.event_id).toBe(event.id);
-      expect(attendee.name).toBe("John Doe");
-      expect(attendee.email).toBe("john@example.com");
-      expect(attendee.created).toBeDefined();
-      expect(attendee.stripe_payment_id).toBeNull();
-    });
-
-    test("createAttendee creates attendee with stripe_payment_id", async () => {
-      const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createAttendee(
-        event.id,
-        "John Doe",
-        "john@example.com",
-        "pi_test_123",
-      );
-
-      expect(attendee.stripe_payment_id).toBe("pi_test_123");
-    });
-
     test("getAttendee returns null for missing attendee", async () => {
       const privateKey = await getTestPrivateKey();
       const attendee = await getAttendee(999, privateKey);
       expect(attendee).toBeNull();
-    });
-
-    test("createAttendee throws when encryption key not configured", async () => {
-      // Remove public key to simulate incomplete setup
-      await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = ?",
-        args: [CONFIG_KEYS.PUBLIC_KEY],
-      });
-
-      await expect(
-        createAttendee(1, "John", "john@example.com"),
-      ).rejects.toThrow(
-        "Encryption key not configured. Please complete setup.",
-      );
     });
 
     test("getAttendee returns attendee by id", async () => {
@@ -565,8 +519,9 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const created = await createAttendee(
+      const created = await createTestAttendee(
         event.id,
+        event.slug,
         "John Doe",
         "john@example.com",
       );
@@ -577,38 +532,6 @@ describe("db", () => {
       expect(fetched?.name).toBe("John Doe");
     });
 
-    test("updateAttendeePayment updates stripe_payment_id", async () => {
-      const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createAttendee(
-        event.id,
-        "John Doe",
-        "john@example.com",
-      );
-
-      await updateAttendeePayment(attendee.id, "pi_updated_123");
-
-      const privateKey = await getTestPrivateKey();
-      const updated = await getAttendee(attendee.id, privateKey);
-      expect(updated?.stripe_payment_id).toBe("pi_updated_123");
-    });
-
-    test("updateAttendeePayment throws when encryption key not configured", async () => {
-      // Remove public key to simulate incomplete setup
-      await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = ?",
-        args: [CONFIG_KEYS.PUBLIC_KEY],
-      });
-
-      await expect(updateAttendeePayment(1, "pi_test")).rejects.toThrow(
-        "Encryption key not configured",
-      );
-    });
-
     test("deleteAttendee removes attendee", async () => {
       const event = await createTestEvent({
         name: "Event",
@@ -616,8 +539,9 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const attendee = await createAttendee(
+      const attendee = await createTestAttendee(
         event.id,
+        event.slug,
         "John Doe",
         "john@example.com",
       );
@@ -648,8 +572,8 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
-      await createAttendee(event.id, "Jane", "jane@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
 
       const privateKey = await getTestPrivateKey();
       const attendees = await getAttendees(event.id, privateKey);
@@ -663,7 +587,7 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
 
       const fetched = await getEventWithCount(event.id);
       expect(fetched?.attendee_count).toBe(1);
@@ -676,8 +600,8 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
-      await createAttendee(event.id, "Jane", "jane@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
 
       const events = await getAllEvents();
       expect(events[0]?.attendee_count).toBe(2);
@@ -713,7 +637,8 @@ describe("db", () => {
         maxAttendees: 1,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "First", "first@example.com");
+      // Use createAttendeeAtomic to fill capacity (production code path)
+      await createAttendeeAtomic(event.id, "First", "first@example.com");
 
       const result = await createAttendeeAtomic(
         event.id,
@@ -780,7 +705,7 @@ describe("db", () => {
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
 
       const result = await hasAvailableSpots(event.id);
       expect(result).toBe(true);
@@ -793,8 +718,8 @@ describe("db", () => {
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
-      await createAttendee(event.id, "Jane", "jane@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
 
       const result = await hasAvailableSpots(event.id);
       expect(result).toBe(false);
@@ -1270,13 +1195,16 @@ describe("db", () => {
     });
 
     test("getEventActivityLog returns entries for specific event", async () => {
-      const event1 = await createTestEvent({
+      // Use direct DB insert to avoid auto-logging from REST API
+      const event1 = await eventsTable.insert({
+        slug: "event-1",
         name: "Event 1",
         description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const event2 = await createTestEvent({
+      const event2 = await eventsTable.insert({
+        slug: "event-2",
         name: "Event 2",
         description: "Desc",
         maxAttendees: 50,
@@ -1315,7 +1243,9 @@ describe("db", () => {
     });
 
     test("getAllActivityLog returns all entries", async () => {
-      const event = await createTestEvent({
+      // Use direct DB insert to avoid auto-logging from REST API
+      const event = await eventsTable.insert({
+        slug: "test-event",
         name: "Test Event",
         description: "Desc",
         maxAttendees: 50,
