@@ -50,6 +50,44 @@ const inlineAssetsPlugin: Plugin = {
   },
 };
 
+/**
+ * Plugin to inline Deno.env.get() calls at build time
+ * Replaces Deno.env.get("KEY") with the actual value from build environment
+ */
+const inlineEnvPlugin = (envVars: Record<string, string>): Plugin => ({
+  name: "inline-deno-env",
+  setup(build) {
+    build.onLoad({ filter: /\.ts$/ }, async (args) => {
+      // Skip node_modules and virtual paths (handled by other plugins)
+      if (args.path.includes("node_modules")) return null;
+      if (args.namespace !== "file") return null;
+
+      let source: string;
+      try {
+        source = await Deno.readTextFile(args.path);
+      } catch {
+        return null;
+      }
+
+      // Replace Deno.env.get("KEY") with the inlined value
+      const transformed = source.replace(
+        /Deno\.env\.get\(["'](\w+)["']\)/g,
+        (match, key) => {
+          if (key in envVars) {
+            return JSON.stringify(envVars[key]);
+          }
+          // Keep original for unknown keys (will fail at runtime, which is correct)
+          return match;
+        },
+      );
+
+      if (transformed === source) return null;
+
+      return { contents: transformed, loader: "ts" };
+    });
+  },
+});
+
 // Environment variable configuration: undefined = required, string = default value
 const ENV_CONFIG: Record<string, string | undefined> = {
   DB_URL: undefined,
@@ -80,20 +118,11 @@ const ENV_VARS = Object.fromEntries(
 );
 
 // Banner to inject Node.js globals that many packages expect (per Bunny docs)
-// and Deno.env shim for inlined environment variables
 const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
 import { Buffer } from "node:buffer";
 globalThis.process ??= process;
 globalThis.Buffer ??= Buffer;
 globalThis.global ??= globalThis;
-`;
-
-// Create Deno.env shim with inlined environment variables
-// Force override Deno.env since Bunny Edge is Deno-based and has its own Deno.env
-// that doesn't have access to our build-time environment variables
-const DENO_ENV_SHIM = `const __INLINED_ENV__ = ${JSON.stringify(ENV_VARS)};
-globalThis.Deno ??= {};
-globalThis.Deno.env = { get: (key) => __INLINED_ENV__[key] };
 `;
 
 const result = await esbuild.build({
@@ -103,7 +132,7 @@ const result = await esbuild.build({
   format: "esm",
   minify: true,
   bundle: true,
-  plugins: [inlineAssetsPlugin],
+  plugins: [inlineEnvPlugin(ENV_VARS), inlineAssetsPlugin],
   external: [
     "@bunny.net/edgescript-sdk",
     "@libsql/client",
@@ -115,7 +144,7 @@ const result = await esbuild.build({
       JSON.stringify(value),
     ]),
   ),
-  banner: { js: NODEJS_GLOBALS_BANNER + DENO_ENV_SHIM },
+  banner: { js: NODEJS_GLOBALS_BANNER },
 });
 
 if (result.errors.length > 0) {
