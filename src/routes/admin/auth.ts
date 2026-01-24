@@ -24,6 +24,10 @@ import {
 } from "#routes/utils.ts";
 import { loginFields } from "#templates/fields.ts";
 
+/** Random delay between 100-200ms to prevent timing attacks */
+const randomDelay = (): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 100));
+
 /**
  * Handle POST /admin/login
  */
@@ -31,6 +35,8 @@ const handleAdminLogin = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
+  await randomDelay();
+
   const clientIp = getClientIp(request, server);
 
   // Check rate limiting
