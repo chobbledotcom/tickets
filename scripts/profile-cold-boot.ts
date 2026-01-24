@@ -127,7 +127,7 @@ const main = async () => {
   const { completeSetup, isSetupComplete } = await import(
     "#lib/db/settings.ts"
   );
-  await completeSetup("testpassword", null, "GBP");
+  await completeSetup("testpassword", "GBP");
 
   // Test isSetupComplete caching (before it's cached)
   log("Testing isSetupComplete() caching:\n");

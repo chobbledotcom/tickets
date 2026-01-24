@@ -3,11 +3,25 @@ import {
   clearEncryptionKeyCache,
   constantTimeEqual,
   decrypt,
+  decryptWithKey,
+  deriveKEK,
   encrypt,
+  encryptWithKey,
+  generateDataKey,
+  generateKeyPair,
   generateSecureToken,
   hashPassword,
+  hashSessionToken,
+  hybridDecrypt,
+  hybridEncrypt,
+  importPrivateKey,
+  importPublicKey,
+  unwrapKey,
+  unwrapKeyWithToken,
   validateEncryptionKey,
   verifyPassword,
+  wrapKey,
+  wrapKeyWithToken,
 } from "#lib/crypto.ts";
 import {
   clearTestEncryptionKey,
@@ -262,5 +276,253 @@ describe("password hashing", () => {
       );
       expect(result).toBe(false);
     });
+  });
+});
+
+describe("session token hashing", () => {
+  it("produces consistent hash for same token", async () => {
+    const token = "test-session-token-123";
+    const hash1 = await hashSessionToken(token);
+    const hash2 = await hashSessionToken(token);
+    expect(hash1).toBe(hash2);
+  });
+
+  it("produces different hashes for different tokens", async () => {
+    const hash1 = await hashSessionToken("token1");
+    const hash2 = await hashSessionToken("token2");
+    expect(hash1).not.toBe(hash2);
+  });
+
+  it("returns base64 encoded string", async () => {
+    const hash = await hashSessionToken("test-token");
+    // SHA-256 produces 32 bytes, base64 encodes to 44 characters (with padding)
+    expect(hash.length).toBe(44);
+    expect(hash).toMatch(/^[A-Za-z0-9+/]+=*$/);
+  });
+});
+
+describe("KEK derivation", () => {
+  beforeEach(() => {
+    setupTestEncryptionKey();
+  });
+
+  afterEach(() => {
+    clearTestEncryptionKey();
+  });
+
+  it("derives a usable CryptoKey", async () => {
+    const passwordHash = "pbkdf2:1000:c2FsdA==:aGFzaA==";
+    const kek = await deriveKEK(passwordHash);
+    expect(kek).toBeDefined();
+    expect(kek.type).toBe("secret");
+  });
+
+  it("produces same key for same inputs", async () => {
+    const passwordHash = "pbkdf2:1000:c2FsdA==:aGFzaA==";
+    const kek1 = await deriveKEK(passwordHash);
+    const kek2 = await deriveKEK(passwordHash);
+
+    // Wrap/unwrap with each to verify they're equivalent
+    const dataKey = await generateDataKey();
+    const wrapped1 = await wrapKey(dataKey, kek1);
+    const unwrapped = await unwrapKey(wrapped1, kek2);
+    expect(unwrapped).toBeDefined();
+  });
+
+  it("produces different keys for different password hashes", async () => {
+    const kek1 = await deriveKEK("hash1");
+    const kek2 = await deriveKEK("hash2");
+
+    const dataKey = await generateDataKey();
+    const wrapped = await wrapKey(dataKey, kek1);
+
+    // Should fail to unwrap with different KEK
+    await expect(unwrapKey(wrapped, kek2)).rejects.toThrow();
+  });
+});
+
+describe("key wrapping", () => {
+  beforeEach(() => {
+    setupTestEncryptionKey();
+  });
+
+  afterEach(() => {
+    clearTestEncryptionKey();
+  });
+
+  describe("wrapKey and unwrapKey", () => {
+    it("round-trips a data key", async () => {
+      const dataKey = await generateDataKey();
+      const kek = await deriveKEK("test-hash");
+
+      const wrapped = await wrapKey(dataKey, kek);
+      const unwrapped = await unwrapKey(wrapped, kek);
+
+      // Verify by encrypting/decrypting with both keys
+      const plaintext = "test data";
+      const encrypted = await encryptWithKey(plaintext, dataKey);
+      const decrypted = await decryptWithKey(encrypted, unwrapped);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("produces wrapped key with correct prefix", async () => {
+      const dataKey = await generateDataKey();
+      const kek = await deriveKEK("test-hash");
+      const wrapped = await wrapKey(dataKey, kek);
+      expect(wrapped.startsWith("wk:1:")).toBe(true);
+    });
+
+    it("throws on invalid format", async () => {
+      const kek = await deriveKEK("test-hash");
+      await expect(unwrapKey("invalid", kek)).rejects.toThrow(
+        "Invalid wrapped key format",
+      );
+    });
+
+    it("throws on missing IV separator", async () => {
+      const kek = await deriveKEK("test-hash");
+      await expect(unwrapKey("wk:1:nocoIon", kek)).rejects.toThrow(
+        "Invalid wrapped key format: missing IV separator",
+      );
+    });
+  });
+
+  describe("wrapKeyWithToken and unwrapKeyWithToken", () => {
+    it("round-trips a data key using session token", async () => {
+      const dataKey = await generateDataKey();
+      const sessionToken = generateSecureToken();
+
+      const wrapped = await wrapKeyWithToken(dataKey, sessionToken);
+      const unwrapped = await unwrapKeyWithToken(wrapped, sessionToken);
+
+      // Verify by encrypting/decrypting
+      const plaintext = "test data";
+      const encrypted = await encryptWithKey(plaintext, dataKey);
+      const decrypted = await decryptWithKey(encrypted, unwrapped);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("fails with wrong session token", async () => {
+      const dataKey = await generateDataKey();
+      const token1 = generateSecureToken();
+      const token2 = generateSecureToken();
+
+      const wrapped = await wrapKeyWithToken(dataKey, token1);
+      await expect(unwrapKeyWithToken(wrapped, token2)).rejects.toThrow();
+    });
+  });
+});
+
+describe("RSA key pair and hybrid encryption", () => {
+  describe("generateKeyPair", () => {
+    it("generates valid key pair", async () => {
+      const { publicKey, privateKey } = await generateKeyPair();
+      expect(publicKey).toBeDefined();
+      expect(privateKey).toBeDefined();
+      expect(JSON.parse(publicKey).kty).toBe("RSA");
+      expect(JSON.parse(privateKey).kty).toBe("RSA");
+    });
+
+    it("generates different key pairs each time", async () => {
+      const pair1 = await generateKeyPair();
+      const pair2 = await generateKeyPair();
+      expect(pair1.publicKey).not.toBe(pair2.publicKey);
+      expect(pair1.privateKey).not.toBe(pair2.privateKey);
+    });
+  });
+
+  describe("hybridEncrypt and hybridDecrypt", () => {
+    it("round-trips a simple string", async () => {
+      const { publicKey, privateKey } = await generateKeyPair();
+      const pubKey = await importPublicKey(publicKey);
+      const privKey = await importPrivateKey(privateKey);
+
+      const plaintext = "hello world";
+      const encrypted = await hybridEncrypt(plaintext, pubKey);
+      const decrypted = await hybridDecrypt(encrypted, privKey);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("round-trips unicode and emoji", async () => {
+      const { publicKey, privateKey } = await generateKeyPair();
+      const pubKey = await importPublicKey(publicKey);
+      const privKey = await importPrivateKey(privateKey);
+
+      const plaintext = "こんにちは 🌍 émojis";
+      const encrypted = await hybridEncrypt(plaintext, pubKey);
+      const decrypted = await hybridDecrypt(encrypted, privKey);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it("produces different ciphertext for same plaintext", async () => {
+      const { publicKey } = await generateKeyPair();
+      const pubKey = await importPublicKey(publicKey);
+
+      const encrypted1 = await hybridEncrypt("same text", pubKey);
+      const encrypted2 = await hybridEncrypt("same text", pubKey);
+      expect(encrypted1).not.toBe(encrypted2);
+    });
+
+    it("has correct prefix", async () => {
+      const { publicKey } = await generateKeyPair();
+      const pubKey = await importPublicKey(publicKey);
+
+      const encrypted = await hybridEncrypt("test", pubKey);
+      expect(encrypted.startsWith("hyb:1:")).toBe(true);
+    });
+
+    it("fails with wrong private key", async () => {
+      const pair1 = await generateKeyPair();
+      const pair2 = await generateKeyPair();
+
+      const pubKey = await importPublicKey(pair1.publicKey);
+      const wrongPrivKey = await importPrivateKey(pair2.privateKey);
+
+      const encrypted = await hybridEncrypt("secret", pubKey);
+      await expect(hybridDecrypt(encrypted, wrongPrivKey)).rejects.toThrow();
+    });
+
+    it("throws on invalid format", async () => {
+      const { privateKey } = await generateKeyPair();
+      const privKey = await importPrivateKey(privateKey);
+
+      await expect(hybridDecrypt("invalid", privKey)).rejects.toThrow(
+        "Invalid hybrid encrypted data format",
+      );
+    });
+
+    it("throws on wrong number of parts", async () => {
+      const { privateKey } = await generateKeyPair();
+      const privKey = await importPrivateKey(privateKey);
+
+      await expect(hybridDecrypt("hyb:1:only:two", privKey)).rejects.toThrow(
+        "Invalid hybrid encrypted data format: wrong number of parts",
+      );
+    });
+  });
+});
+
+describe("encryptWithKey and decryptWithKey", () => {
+  it("round-trips data with a generated key", async () => {
+    const key = await generateDataKey();
+    const plaintext = "secret message";
+
+    const encrypted = await encryptWithKey(plaintext, key);
+    const decrypted = await decryptWithKey(encrypted, key);
+    expect(decrypted).toBe(plaintext);
+  });
+
+  it("uses same format as regular encrypt", async () => {
+    const key = await generateDataKey();
+    const encrypted = await encryptWithKey("test", key);
+    expect(encrypted.startsWith("enc:1:")).toBe(true);
+  });
+
+  it("fails with wrong key", async () => {
+    const key1 = await generateDataKey();
+    const key2 = await generateDataKey();
+
+    const encrypted = await encryptWithKey("secret", key1);
+    await expect(decryptWithKey(encrypted, key2)).rejects.toThrow();
   });
 });

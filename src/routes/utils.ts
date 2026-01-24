@@ -3,9 +3,14 @@
  */
 
 import { compact, err, map, ok, pipe, type Result, reduce } from "#fp";
-import { constantTimeEqual, generateSecureToken } from "#lib/crypto.ts";
+import {
+  constantTimeEqual,
+  generateSecureToken,
+  getPrivateKeyFromSession,
+} from "#lib/crypto.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
+import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { paymentErrorPage } from "#templates/payment.tsx";
@@ -61,10 +66,15 @@ export const parseCookies = (request: Request): Map<string, string> => {
 /**
  * Get authenticated session if valid
  * Returns null if not authenticated
+ * Includes wrapped_data_key for deriving the private key when needed
  */
 export const getAuthenticatedSession = async (
   request: Request,
-): Promise<{ token: string; csrfToken: string } | null> => {
+): Promise<{
+  token: string;
+  csrfToken: string;
+  wrappedDataKey: string | null;
+} | null> => {
   const cookies = parseCookies(request);
   const token = cookies.get("__Host-session");
   if (!token) return null;
@@ -77,7 +87,35 @@ export const getAuthenticatedSession = async (
     return null;
   }
 
-  return { token, csrfToken: session.csrf_token };
+  return {
+    token,
+    csrfToken: session.csrf_token,
+    wrappedDataKey: session.wrapped_data_key,
+  };
+};
+
+/**
+ * Get private key for decrypting attendee PII from an authenticated session
+ * Returns null if session doesn't have wrapped_data_key (legacy sessions)
+ */
+export const getPrivateKey = async (
+  token: string,
+  wrappedDataKey: string | null,
+): Promise<CryptoKey | null> => {
+  if (!wrappedDataKey) return null;
+
+  const wrappedPrivateKey = await getWrappedPrivateKey();
+  if (!wrappedPrivateKey) return null;
+
+  try {
+    return await getPrivateKeyFromSession(
+      token,
+      wrappedDataKey,
+      wrappedPrivateKey,
+    );
+  } catch {
+    return null;
+  }
 };
 
 /**
@@ -254,8 +292,12 @@ export const withActiveEventBySlug = (
   fn: (event: EventWithCount) => Response | Promise<Response>,
 ): Promise<Response> => withEventBySlug(slug, requireActiveEvent(fn));
 
-/** Session with CSRF token */
-export type AuthSession = { token: string; csrfToken: string };
+/** Session with CSRF token and wrapped data key for private key derivation */
+export type AuthSession = {
+  token: string;
+  csrfToken: string;
+  wrappedDataKey: string | null;
+};
 
 /**
  * Handle request with authenticated session

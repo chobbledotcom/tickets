@@ -4,23 +4,21 @@
 
 import { deleteAttendee, getAttendee } from "#lib/db/attendees.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { Attendee, EventWithCount } from "#lib/types.ts";
 import {
   defineRoutes,
   type RouteHandlerFn,
   type RouteParams,
 } from "#routes/router.ts";
 import {
+  getAuthenticatedSession,
+  getPrivateKey,
   htmlResponse,
   notFoundResponse,
   redirect,
-  requireSessionOr,
   withAuthForm,
 } from "#routes/utils.ts";
 import { adminDeleteAttendeePage } from "#templates/admin/attendees.tsx";
-
-/** Attendee type */
-type Attendee = NonNullable<Awaited<ReturnType<typeof getAttendee>>>;
 
 /** Attendee with event data */
 type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
@@ -29,42 +27,42 @@ type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
 const loadAttendeeForEvent = async (
   eventId: number,
   attendeeId: number,
+  privateKey: CryptoKey,
 ): Promise<AttendeeWithEvent | null> => {
   const event = await getEventWithCount(eventId);
   if (!event) return null;
 
-  const attendee = await getAttendee(attendeeId);
+  const attendee = await getAttendee(attendeeId, privateKey);
   if (!attendee || attendee.event_id !== eventId) return null;
 
   return { attendee, event };
 };
-
-/** Curried helper: load attendee for event, return 404 or apply handler */
-const withAttendeeForEvent =
-  (eventId: number, attendeeId: number) =>
-  async (
-    handler: (data: AttendeeWithEvent) => Response | Promise<Response>,
-  ): Promise<Response> => {
-    const data = await loadAttendeeForEvent(eventId, attendeeId);
-    return data ? handler(data) : notFoundResponse();
-  };
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = async (
   request: Request,
   eventId: number,
   attendeeId: number,
-): Promise<Response> =>
-  requireSessionOr(request, (session) =>
-    withAttendeeForEvent(
-      eventId,
-      attendeeId,
-    )((data) =>
-      htmlResponse(
-        adminDeleteAttendeePage(data.event, data.attendee, session.csrfToken),
-      ),
-    ),
+): Promise<Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) {
+    return redirect("/admin");
+  }
+
+  const privateKey = await getPrivateKey(session.token, session.wrappedDataKey);
+  if (!privateKey) {
+    return redirect("/admin");
+  }
+
+  const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
+  if (!data) {
+    return notFoundResponse();
+  }
+
+  return htmlResponse(
+    adminDeleteAttendeePage(data.event, data.attendee, session.csrfToken),
   );
+};
 
 /** Verify name matches for deletion confirmation (case-insensitive, trimmed) */
 const verifyName = (expected: string, provided: string): boolean =>
@@ -76,28 +74,36 @@ const handleAdminAttendeeDeletePost = async (
   eventId: number,
   attendeeId: number,
 ): Promise<Response> =>
-  withAuthForm(request, (session, form) =>
-    withAttendeeForEvent(
-      eventId,
-      attendeeId,
-    )(async (data) => {
-      const confirmName = form.get("confirm_name") ?? "";
-      if (!verifyName(data.attendee.name, confirmName)) {
-        return htmlResponse(
-          adminDeleteAttendeePage(
-            data.event,
-            data.attendee,
-            session.csrfToken,
-            "Attendee name does not match. Please type the exact name to confirm deletion.",
-          ),
-          400,
-        );
-      }
+  withAuthForm(request, async (session, form) => {
+    const privateKey = await getPrivateKey(
+      session.token,
+      session.wrappedDataKey,
+    );
+    if (!privateKey) {
+      return redirect("/admin");
+    }
 
-      await deleteAttendee(attendeeId);
-      return redirect(`/admin/event/${eventId}`);
-    }),
-  );
+    const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
+    if (!data) {
+      return notFoundResponse();
+    }
+
+    const confirmName = form.get("confirm_name") ?? "";
+    if (!verifyName(data.attendee.name, confirmName)) {
+      return htmlResponse(
+        adminDeleteAttendeePage(
+          data.event,
+          data.attendee,
+          session.csrfToken,
+          "Attendee name does not match. Please type the exact name to confirm deletion.",
+        ),
+        400,
+      );
+    }
+
+    await deleteAttendee(attendeeId);
+    return redirect(`/admin/event/${eventId}`);
+  });
 
 /** Parse event and attendee IDs from params */
 const parseAttendeeIds = (

@@ -2,55 +2,71 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   getAllowedDomain,
   getCurrencyCode,
+  getStripePublishableKey,
   getStripeSecretKey,
   isPaymentsEnabled,
   isSetupComplete,
 } from "#lib/config.ts";
-import { encrypt } from "#lib/crypto.ts";
 import { completeSetup, setSetting } from "#lib/db/settings";
 import { createTestDb, resetDb } from "#test-utils";
 
 describe("config", () => {
+  const originalEnv = { ...process.env };
+
   beforeEach(async () => {
     await createTestDb();
+    // Clear Stripe env vars for clean tests
+    delete process.env.STRIPE_SECRET_KEY;
+    delete process.env.STRIPE_PUBLISHABLE_KEY;
   });
 
   afterEach(() => {
     resetDb();
+    // Restore original env
+    process.env.STRIPE_SECRET_KEY = originalEnv.STRIPE_SECRET_KEY;
+    process.env.STRIPE_PUBLISHABLE_KEY = originalEnv.STRIPE_PUBLISHABLE_KEY;
   });
 
   describe("getStripeSecretKey", () => {
-    test("returns null when not set in database", async () => {
-      expect(await getStripeSecretKey()).toBeNull();
+    test("returns null when not set in environment", () => {
+      expect(getStripeSecretKey()).toBeNull();
     });
 
-    test("returns null when empty string in database", async () => {
-      await setSetting("stripe_key", "");
-      expect(await getStripeSecretKey()).toBeNull();
+    test("returns null when empty string", () => {
+      process.env.STRIPE_SECRET_KEY = "";
+      expect(getStripeSecretKey()).toBeNull();
     });
 
-    test("returns null when whitespace only in database", async () => {
-      const encrypted = await encrypt("   ");
-      await setSetting("stripe_key", encrypted);
-      expect(await getStripeSecretKey()).toBeNull();
+    test("returns null when whitespace only", () => {
+      process.env.STRIPE_SECRET_KEY = "   ";
+      expect(getStripeSecretKey()).toBeNull();
     });
 
-    test("returns key when set in database", async () => {
-      const encrypted = await encrypt("sk_test_123");
-      await setSetting("stripe_key", encrypted);
-      expect(await getStripeSecretKey()).toBe("sk_test_123");
+    test("returns key when set in environment", () => {
+      process.env.STRIPE_SECRET_KEY = "sk_test_123";
+      expect(getStripeSecretKey()).toBe("sk_test_123");
+    });
+  });
+
+  describe("getStripePublishableKey", () => {
+    test("returns null when not set in environment", () => {
+      expect(getStripePublishableKey()).toBeNull();
+    });
+
+    test("returns key when set in environment", () => {
+      process.env.STRIPE_PUBLISHABLE_KEY = "pk_test_123";
+      expect(getStripePublishableKey()).toBe("pk_test_123");
     });
   });
 
   describe("isPaymentsEnabled", () => {
-    test("returns false when stripe key not set", async () => {
-      expect(await isPaymentsEnabled()).toBe(false);
+    test("returns false when stripe key not set", () => {
+      expect(isPaymentsEnabled()).toBe(false);
     });
 
-    test("returns true when stripe key is set", async () => {
-      const encrypted = await encrypt("sk_test_123");
-      await setSetting("stripe_key", encrypted);
-      expect(await isPaymentsEnabled()).toBe(true);
+    test("returns true when stripe key is set", () => {
+      process.env.STRIPE_SECRET_KEY = "sk_test_123";
+      expect(isPaymentsEnabled()).toBe(true);
     });
   });
 
@@ -71,7 +87,7 @@ describe("config", () => {
     });
 
     test("returns true when setup is complete", async () => {
-      await completeSetup("password123", null, "GBP");
+      await completeSetup("password123", "GBP");
       expect(await isSetupComplete()).toBe(true);
     });
   });

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from "bun:test";
 import { createClient } from "@libsql/client";
+import { decryptWithKey, importPrivateKey } from "#lib/crypto";
 import {
   createAttendee,
   deleteAttendee,
   getAttendee,
+  getAttendeeRaw,
   getAttendees,
   hasAvailableSpots,
   updateAttendeePayment,
@@ -34,22 +36,37 @@ import {
 import {
   CONFIG_KEYS,
   completeSetup,
-  getAdminPasswordFromDb,
+  getAdminPasswordHash,
   getCurrencyCodeFromDb,
+  getPublicKey,
   getSetting,
-  getStripeSecretKeyFromDb,
-  hasStripeKey,
+  getWrappedDataKey,
+  getWrappedPrivateKey,
   isSetupComplete,
   setSetting,
+  unwrapDataKey,
   updateAdminPassword,
-  updateStripeKey,
   verifyAdminPassword,
 } from "#lib/db/settings";
 import {
   createTestEvent,
   resetTestSlugCounter,
   setupTestEncryptionKey,
+  TEST_ADMIN_PASSWORD,
 } from "#test-utils";
+
+/** Helper to get private key for decrypting attendees in tests */
+const getTestPrivateKey = async (): Promise<CryptoKey> => {
+  const passwordHash = await verifyAdminPassword(TEST_ADMIN_PASSWORD);
+  if (!passwordHash) throw new Error("Test setup failed: invalid password");
+  const dataKey = await unwrapDataKey(passwordHash);
+  if (!dataKey) throw new Error("Test setup failed: could not unwrap data key");
+  const wrappedPrivateKey = await getWrappedPrivateKey();
+  if (!wrappedPrivateKey)
+    throw new Error("Test setup failed: no wrapped private key");
+  const privateKeyJwk = await decryptWithKey(wrappedPrivateKey, dataKey);
+  return importPrivateKey(privateKeyJwk);
+};
 
 describe("db", () => {
   beforeEach(async () => {
@@ -58,6 +75,8 @@ describe("db", () => {
     const client = createClient({ url: ":memory:" });
     setDb(client);
     await initDb();
+    // Complete setup to have encryption keys available
+    await completeSetup(TEST_ADMIN_PASSWORD, "GBP");
   });
 
   afterEach(() => {
@@ -138,93 +157,82 @@ describe("db", () => {
   });
 
   describe("setup", () => {
-    test("isSetupComplete returns false initially", async () => {
-      expect(await isSetupComplete()).toBe(false);
-    });
-
-    test("completeSetup sets all config values", async () => {
-      await completeSetup("mypassword", "sk_test_123", "USD");
+    test("completeSetup sets all config values and generates key hierarchy", async () => {
+      await completeSetup("mypassword", "USD");
 
       expect(await isSetupComplete()).toBe(true);
-      // Password is now hashed, so verify it works instead of checking raw value
-      expect(await verifyAdminPassword("mypassword")).toBe(true);
-      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_123");
+      // Password is now hashed, verify it returns the hash on success
+      const hash = await verifyAdminPassword("mypassword");
+      expect(hash).toBeTruthy();
       expect(await getCurrencyCodeFromDb()).toBe("USD");
-    });
 
-    test("completeSetup works without stripe key", async () => {
-      await completeSetup("mypassword", null, "EUR");
-
-      expect(await isSetupComplete()).toBe(true);
-      // Password is now hashed, so verify it works instead of checking raw value
-      expect(await verifyAdminPassword("mypassword")).toBe(true);
-      expect(await getStripeSecretKeyFromDb()).toBeNull();
-      expect(await getCurrencyCodeFromDb()).toBe("EUR");
+      // Key hierarchy should be generated
+      expect(await getPublicKey()).toBeTruthy();
+      expect(await getWrappedDataKey()).toBeTruthy();
+      expect(await getWrappedPrivateKey()).toBeTruthy();
     });
 
     test("CONFIG_KEYS contains expected keys", () => {
       expect(CONFIG_KEYS.ADMIN_PASSWORD).toBe("admin_password");
-      expect(CONFIG_KEYS.STRIPE_KEY).toBe("stripe_key");
       expect(CONFIG_KEYS.CURRENCY_CODE).toBe("currency_code");
       expect(CONFIG_KEYS.SETUP_COMPLETE).toBe("setup_complete");
+      expect(CONFIG_KEYS.WRAPPED_DATA_KEY).toBe("wrapped_data_key");
+      expect(CONFIG_KEYS.WRAPPED_PRIVATE_KEY).toBe("wrapped_private_key");
+      expect(CONFIG_KEYS.PUBLIC_KEY).toBe("public_key");
     });
 
     test("getCurrencyCodeFromDb returns GBP by default", async () => {
       expect(await getCurrencyCodeFromDb()).toBe("GBP");
     });
 
-    test("getAdminPasswordFromDb returns null when not set", async () => {
-      expect(await getAdminPasswordFromDb()).toBeNull();
-    });
-
-    test("getStripeSecretKeyFromDb returns null when not set", async () => {
-      expect(await getStripeSecretKeyFromDb()).toBeNull();
-    });
-
-    test("hasStripeKey returns false when not set", async () => {
-      expect(await hasStripeKey()).toBe(false);
-    });
-
-    test("hasStripeKey returns true when stripe key is configured", async () => {
-      await completeSetup("password123", "sk_test_123", "GBP");
-      expect(await hasStripeKey()).toBe(true);
-    });
-
-    test("updateStripeKey updates the stripe key", async () => {
-      await completeSetup("password123", "sk_test_old", "GBP");
-      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_old");
-
-      await updateStripeKey("sk_test_new");
-      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_new");
-    });
-
-    test("updateStripeKey sets stripe key when none exists", async () => {
-      await completeSetup("password123", null, "GBP");
-      expect(await hasStripeKey()).toBe(false);
-
-      await updateStripeKey("sk_test_123");
-      expect(await hasStripeKey()).toBe(true);
-      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_123");
-    });
   });
 
   describe("admin password", () => {
-    test("verifyAdminPassword returns true for correct password", async () => {
-      await completeSetup("testpassword123", null, "GBP");
+    test("verifyAdminPassword returns hash for correct password", async () => {
+      await completeSetup("testpassword123", "GBP");
       const result = await verifyAdminPassword("testpassword123");
-      expect(result).toBe(true);
+      expect(result).toBeTruthy();
+      expect(result).toContain("pbkdf2:");
     });
 
-    test("verifyAdminPassword returns false for wrong password", async () => {
-      await completeSetup("testpassword123", null, "GBP");
+    test("verifyAdminPassword returns null for wrong password", async () => {
+      await completeSetup("testpassword123", "GBP");
       const result = await verifyAdminPassword("wrong");
-      expect(result).toBe(false);
+      expect(result).toBeNull();
     });
 
-    test("verifyAdminPassword returns false when no password set", async () => {
+    test("verifyAdminPassword returns null when no password set", async () => {
       // Don't set any password
       const result = await verifyAdminPassword("anypassword");
-      expect(result).toBe(false);
+      expect(result).toBeNull();
+    });
+
+    test("updateAdminPassword re-wraps DATA_KEY with new KEK", async () => {
+      await completeSetup("oldpassword123", "GBP");
+      const oldWrappedKey = await getWrappedDataKey();
+
+      const success = await updateAdminPassword("oldpassword123", "newpassword456");
+      expect(success).toBe(true);
+
+      // Wrapped key should be different (re-wrapped with new KEK)
+      const newWrappedKey = await getWrappedDataKey();
+      expect(newWrappedKey).not.toBe(oldWrappedKey);
+
+      // Old password should no longer work
+      expect(await verifyAdminPassword("oldpassword123")).toBeNull();
+
+      // New password should work
+      expect(await verifyAdminPassword("newpassword456")).toBeTruthy();
+    });
+
+    test("updateAdminPassword fails with wrong old password", async () => {
+      await completeSetup("correctpassword", "GBP");
+
+      const success = await updateAdminPassword("wrongpassword", "newpassword");
+      expect(success).toBe(false);
+
+      // Original password should still work
+      expect(await verifyAdminPassword("correctpassword")).toBeTruthy();
     });
   });
 
@@ -402,7 +410,8 @@ describe("db", () => {
 
       await deleteEvent(event.id);
 
-      const attendees = await getAttendees(event.id);
+      const privateKey = await getTestPrivateKey();
+      const attendees = await getAttendees(event.id, privateKey);
       expect(attendees).toEqual([]);
     });
 
@@ -461,7 +470,8 @@ describe("db", () => {
     });
 
     test("getAttendee returns null for missing attendee", async () => {
-      const attendee = await getAttendee(999);
+      const privateKey = await getTestPrivateKey();
+      const attendee = await getAttendee(999, privateKey);
       expect(attendee).toBeNull();
     });
 
@@ -477,7 +487,8 @@ describe("db", () => {
         "John Doe",
         "john@example.com",
       );
-      const fetched = await getAttendee(created.id);
+      const privateKey = await getTestPrivateKey();
+      const fetched = await getAttendee(created.id, privateKey);
 
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe("John Doe");
@@ -498,7 +509,8 @@ describe("db", () => {
 
       await updateAttendeePayment(attendee.id, "pi_updated_123");
 
-      const updated = await getAttendee(attendee.id);
+      const privateKey = await getTestPrivateKey();
+      const updated = await getAttendee(attendee.id, privateKey);
       expect(updated?.stripe_payment_id).toBe("pi_updated_123");
     });
 
@@ -517,7 +529,8 @@ describe("db", () => {
 
       await deleteAttendee(attendee.id);
 
-      const fetched = await getAttendee(attendee.id);
+      const privateKey = await getTestPrivateKey();
+      const fetched = await getAttendee(attendee.id, privateKey);
       expect(fetched).toBeNull();
     });
 
@@ -528,7 +541,8 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const attendees = await getAttendees(event.id);
+      const privateKey = await getTestPrivateKey();
+      const attendees = await getAttendees(event.id, privateKey);
       expect(attendees).toEqual([]);
     });
 
@@ -542,7 +556,8 @@ describe("db", () => {
       await createAttendee(event.id, "John", "john@example.com");
       await createAttendee(event.id, "Jane", "jane@example.com");
 
-      const attendees = await getAttendees(event.id);
+      const privateKey = await getTestPrivateKey();
+      const attendees = await getAttendees(event.id, privateKey);
       expect(attendees.length).toBe(2);
     });
 
@@ -645,7 +660,8 @@ describe("db", () => {
 
       const session = await getSession("test-token");
       expect(session).not.toBeNull();
-      expect(session?.token).toBe("test-token");
+      // Token is hashed in storage, verify by csrf_token and expires
+      expect(session?.csrf_token).toBe("test-csrf-token");
       expect(session?.expires).toBe(expires);
     });
 
@@ -687,9 +703,10 @@ describe("db", () => {
       const sessions = await getAllSessions();
 
       expect(sessions.length).toBe(3);
-      expect(sessions[0]?.token).toBe("session2"); // Newest first (highest expiry)
-      expect(sessions[1]?.token).toBe("session3");
-      expect(sessions[2]?.token).toBe("session1"); // Oldest last (lowest expiry)
+      // Token is hashed, verify order by csrf_token
+      expect(sessions[0]?.csrf_token).toBe("csrf2"); // Newest first (highest expiry)
+      expect(sessions[1]?.csrf_token).toBe("csrf3");
+      expect(sessions[2]?.csrf_token).toBe("csrf1"); // Oldest last (lowest expiry)
     });
 
     test("getAllSessions returns empty array when no sessions", async () => {
@@ -750,7 +767,7 @@ describe("db", () => {
       // This call should find the expired cache entry, delete it, and re-query DB
       const afterTtl = await getSession("ttl-test");
       expect(afterTtl).not.toBeNull();
-      expect(afterTtl?.token).toBe("ttl-test");
+      expect(afterTtl?.csrf_token).toBe("csrf-ttl");
 
       // Restore real timers
       jest.useRealTimers();
@@ -760,7 +777,7 @@ describe("db", () => {
   describe("updateAdminPassword", () => {
     test("updates password and invalidates all sessions", async () => {
       // Set up initial password
-      await completeSetup("initial-password", null, "GBP");
+      await completeSetup("initial-password", "GBP");
 
       // Create some sessions
       await createSession("session1", "csrf1", Date.now() + 10000);
@@ -768,18 +785,22 @@ describe("db", () => {
 
       // Verify initial password works
       const initialValid = await verifyAdminPassword("initial-password");
-      expect(initialValid).toBe(true);
+      expect(initialValid).toBeTruthy();
 
-      // Update password
-      await updateAdminPassword("new-password-123");
+      // Update password (new signature requires old password)
+      const success = await updateAdminPassword(
+        "initial-password",
+        "new-password-123",
+      );
+      expect(success).toBe(true);
 
       // Verify new password works
       const newValid = await verifyAdminPassword("new-password-123");
-      expect(newValid).toBe(true);
+      expect(newValid).toBeTruthy();
 
       // Verify old password no longer works
       const oldValid = await verifyAdminPassword("initial-password");
-      expect(oldValid).toBe(false);
+      expect(oldValid).toBeNull();
 
       // Verify all sessions were invalidated
       const session1 = await getSession("session1");

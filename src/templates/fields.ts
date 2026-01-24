@@ -141,6 +141,7 @@ export const ticketFields: Field[] = [
 
 /**
  * Setup form field definitions
+ * Note: Stripe keys are now configured via environment variables
  */
 export const setupFields: Field[] = [
   {
@@ -155,13 +156,6 @@ export const setupFields: Field[] = [
     label: "Confirm Admin Password *",
     type: "password",
     required: true,
-  },
-  {
-    name: "stripe_secret_key",
-    label: "Stripe Secret Key (optional)",
-    type: "password",
-    placeholder: "sk_live_... or sk_test_...",
-    hint: "Leave empty to disable payments",
   },
   {
     name: "currency_code",
@@ -197,16 +191,3 @@ export const changePasswordFields: Field[] = [
   },
 ];
 
-/**
- * Stripe key settings form field definitions
- */
-export const stripeKeyFields: Field[] = [
-  {
-    name: "stripe_secret_key",
-    label: "New Stripe Secret Key",
-    type: "password",
-    required: true,
-    placeholder: "sk_live_... or sk_test_...",
-    hint: "Enter a new key to replace the existing one",
-  },
-];
