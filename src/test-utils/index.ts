@@ -5,10 +5,15 @@
 import { createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
 import { setDb } from "#lib/db/client.ts";
-import { createEvent, type EventInput } from "#lib/db/events.ts";
+import {
+  getEvent,
+  getEventWithCountBySlug,
+  type EventInput,
+} from "#lib/db/events.ts";
 import { initDb } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { clearSetupCompleteCache, completeSetup } from "#lib/db/settings.ts";
+import type { Event } from "#lib/types.ts";
 
 /**
  * Default test admin password
@@ -73,6 +78,7 @@ export const resetDb = (): void => {
   setDb(null);
   clearSetupCompleteCache();
   resetSessionCache();
+  resetTestSession();
 };
 
 /**
@@ -315,27 +321,218 @@ export const testEventInput = (
   ...overrides,
 });
 
-/** Create a test event with sensible defaults */
-export const createTestEvent = (overrides: Partial<EventInput> = {}) =>
-  createEvent(testEventInput(overrides));
+/** Cached session for test event creation */
+let testSession: { cookie: string; csrfToken: string } | null = null;
 
-/** Re-export createEvent and EventInput for test use */
-export { createEvent };
+/** Get or create an authenticated session for test helpers */
+const getTestSession = async (): Promise<{
+  cookie: string;
+  csrfToken: string;
+}> => {
+  if (testSession) return testSession;
+
+  const { handleRequest } = await import("#src/server.ts");
+  const loginResponse = await handleRequest(
+    mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+  );
+  const cookie = loginResponse.headers.get("set-cookie") || "";
+  const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+  if (!csrfToken) {
+    throw new Error("Failed to get CSRF token for test session");
+  }
+
+  testSession = { cookie, csrfToken };
+  return testSession;
+};
+
+/** Clear cached test session (call in beforeEach with resetDb) */
+export const resetTestSession = (): void => {
+  testSession = null;
+};
+
+/**
+ * Execute an authenticated form request expecting a redirect.
+ * Handles session management, CSRF tokens, and status validation.
+ */
+const authenticatedFormRequest = async <T>(
+  path: string,
+  formData: Record<string, string>,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+): Promise<T> => {
+  const session = await getTestSession();
+  const { handleRequest } = await import("#src/server.ts");
+
+  const response = await handleRequest(
+    mockFormRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
+  );
+
+  if (response.status !== 302) {
+    throw new Error(`Failed to ${errorContext}: ${response.status}`);
+  }
+
+  return onSuccess();
+};
+
+/**
+ * Create an event via the REST API
+ * This is the preferred way to create test events as it exercises production code
+ */
+export const createTestEvent = (
+  overrides: Partial<EventInput> = {},
+): Promise<Event> => {
+  const input = testEventInput(overrides);
+
+  return authenticatedFormRequest(
+    "/admin/event",
+    {
+      slug: input.slug,
+      name: input.name,
+      description: input.description,
+      max_attendees: String(input.maxAttendees),
+      max_quantity: String(input.maxQuantity ?? 1),
+      thank_you_url: input.thankYouUrl,
+      unit_price: input.unitPrice != null ? String(input.unitPrice) : "",
+      webhook_url: input.webhookUrl ?? "",
+    },
+    async () => {
+      const event = await getEventWithCountBySlug(input.slug);
+      if (!event) {
+        throw new Error(`Event not found after creation: ${input.slug}`);
+      }
+      return event;
+    },
+    "create event",
+  );
+};
+
+/** Format optional price field for form submission */
+const formatPrice = (
+  update: number | null | undefined,
+  existing: number | null,
+): string =>
+  update !== undefined
+    ? update != null
+      ? String(update)
+      : ""
+    : existing != null
+      ? String(existing)
+      : "";
+
+/** Format optional nullable string field for form submission */
+const formatOptional = (
+  update: string | null | undefined,
+  existing: string | null,
+): string =>
+  update !== undefined ? update ?? "" : existing ?? "";
+
+/**
+ * Update an event via the REST API
+ */
+export const updateTestEvent = async (
+  eventId: number,
+  updates: Partial<EventInput>,
+): Promise<Event> => {
+  const existing = await getEvent(eventId);
+  if (!existing) {
+    throw new Error(`Event not found: ${eventId}`);
+  }
+
+  return authenticatedFormRequest(
+    `/admin/event/${eventId}/edit`,
+    {
+      slug: updates.slug ?? existing.slug,
+      name: updates.name ?? existing.name,
+      description: updates.description ?? existing.description,
+      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
+      max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
+      thank_you_url: updates.thankYouUrl ?? existing.thank_you_url,
+      unit_price: formatPrice(updates.unitPrice, existing.unit_price),
+      webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
+    },
+    async () => {
+      const updated = await getEvent(eventId);
+      if (!updated) {
+        throw new Error(`Event not found after update: ${eventId}`);
+      }
+      return updated;
+    },
+    "update event",
+  );
+};
+
+/**
+ * Deactivate an event via the REST API
+ */
+export const deactivateTestEvent = (eventId: number): Promise<void> =>
+  authenticatedFormRequest(
+    `/admin/event/${eventId}/deactivate`,
+    {},
+    async () => {},
+    "deactivate event",
+  );
+
 export type { EventInput };
 
-/**
- * Re-export attendee functions for test use
- * These are not used in production (atomic create is used instead)
- * but are useful for setting up test data
- */
-export {
-  createAttendee,
-  getAttendeesRaw,
-  updateAttendeePayment,
-} from "#lib/db/attendees.ts";
+import type { Attendee } from "#lib/types.ts";
+import { getAttendeesRaw } from "#lib/db/attendees.ts";
 
 /**
- * Re-export legacy checkout session for test use
- * Production uses createCheckoutSessionWithIntent instead
+ * Create an attendee via the public ticket form
+ * This exercises the same code path as production (createAttendeeAtomic)
+ * Returns the created attendee (with encrypted fields - use for ID only)
  */
-export { createCheckoutSession } from "#lib/stripe.ts";
+export const createTestAttendee = async (
+  eventId: number,
+  eventSlug: string,
+  name: string,
+  email: string,
+  quantity = 1,
+): Promise<Attendee> => {
+  const { handleRequest } = await import("#src/server.ts");
+
+  // Get count before to find the new attendee
+  const beforeAttendees = await getAttendeesRaw(eventId);
+  const beforeCount = beforeAttendees.length;
+
+  // Get the ticket page to get a CSRF token
+  const pageResponse = await handleRequest(mockRequest(`/ticket/${eventSlug}`));
+  const csrfToken = getTicketCsrfToken(
+    pageResponse.headers.get("set-cookie"),
+  );
+
+  if (!csrfToken) {
+    throw new Error("Failed to get CSRF token for ticket form");
+  }
+
+  // Submit the ticket form
+  const response = await handleRequest(
+    mockTicketFormRequest(eventSlug, { name, email, quantity: String(quantity) }, csrfToken),
+  );
+
+  // Free events redirect to thank you page (302)
+  // Paid events redirect to Stripe (303)
+  if (response.status !== 302 && response.status !== 303) {
+    const body = await response.text();
+    throw new Error(
+      `Failed to create attendee: ${response.status} - ${body.slice(0, 200)}`,
+    );
+  }
+
+  // Get the created attendee (most recent one)
+  const afterAttendees = await getAttendeesRaw(eventId);
+  if (afterAttendees.length <= beforeCount) {
+    throw new Error("Attendee was not created");
+  }
+
+  // Return the first attendee (most recent due to DESC order)
+  return afterAttendees[0] as Attendee;
+};
+
+/**
+ * Re-export getAttendeesRaw for verifying encrypted data in tests
+ * This is used in production by getAttendees, so not a test-only export
+ */
+export { getAttendeesRaw };
+

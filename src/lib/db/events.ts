@@ -40,17 +40,6 @@ export const eventsTable = defineTable<Event, EventInput>({
   },
 });
 
-/**
- * Create a new event
- */
-export const createEvent = (e: EventInput): Promise<Event> =>
-  eventsTable.insert(e);
-
-/**
- * Update an existing event
- */
-export const updateEvent = (id: number, e: EventInput): Promise<Event | null> =>
-  eventsTable.update(id, e);
 
 /**
  * Get a single event by ID
