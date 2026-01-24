@@ -352,45 +352,80 @@ export const resetTestSession = (): void => {
 };
 
 /**
- * Create an event via the REST API
- * This is the preferred way to create test events as it exercises production code
+ * Execute an authenticated form request expecting a redirect.
+ * Handles session management, CSRF tokens, and status validation.
  */
-export const createTestEvent = async (
-  overrides: Partial<EventInput> = {},
-): Promise<Event> => {
-  const input = testEventInput(overrides);
+const authenticatedFormRequest = async <T>(
+  path: string,
+  formData: Record<string, string>,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+): Promise<T> => {
   const session = await getTestSession();
   const { handleRequest } = await import("#src/server.ts");
 
   const response = await handleRequest(
-    mockFormRequest(
-      "/admin/event",
-      {
-        slug: input.slug,
-        name: input.name,
-        description: input.description,
-        max_attendees: String(input.maxAttendees),
-        max_quantity: String(input.maxQuantity ?? 1),
-        thank_you_url: input.thankYouUrl,
-        unit_price: input.unitPrice != null ? String(input.unitPrice) : "",
-        webhook_url: input.webhookUrl ?? "",
-        csrf_token: session.csrfToken,
-      },
-      session.cookie,
-    ),
+    mockFormRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
   );
 
   if (response.status !== 302) {
-    throw new Error(`Failed to create event: ${response.status}`);
+    throw new Error(`Failed to ${errorContext}: ${response.status}`);
   }
 
-  // Find the created event by slug
-  const event = await getEventWithCountBySlug(input.slug);
-  if (!event) {
-    throw new Error(`Event not found after creation: ${input.slug}`);
-  }
-  return event;
+  return onSuccess();
 };
+
+/**
+ * Create an event via the REST API
+ * This is the preferred way to create test events as it exercises production code
+ */
+export const createTestEvent = (
+  overrides: Partial<EventInput> = {},
+): Promise<Event> => {
+  const input = testEventInput(overrides);
+
+  return authenticatedFormRequest(
+    "/admin/event",
+    {
+      slug: input.slug,
+      name: input.name,
+      description: input.description,
+      max_attendees: String(input.maxAttendees),
+      max_quantity: String(input.maxQuantity ?? 1),
+      thank_you_url: input.thankYouUrl,
+      unit_price: input.unitPrice != null ? String(input.unitPrice) : "",
+      webhook_url: input.webhookUrl ?? "",
+    },
+    async () => {
+      const event = await getEventWithCountBySlug(input.slug);
+      if (!event) {
+        throw new Error(`Event not found after creation: ${input.slug}`);
+      }
+      return event;
+    },
+    "create event",
+  );
+};
+
+/** Format optional price field for form submission */
+const formatPrice = (
+  update: number | null | undefined,
+  existing: number | null,
+): string =>
+  update !== undefined
+    ? update != null
+      ? String(update)
+      : ""
+    : existing != null
+      ? String(existing)
+      : "";
+
+/** Format optional nullable string field for form submission */
+const formatOptional = (
+  update: string | null | undefined,
+  existing: string | null,
+): string =>
+  update !== undefined ? update ?? "" : existing ?? "";
 
 /**
  * Update an event via the REST API
@@ -404,67 +439,39 @@ export const updateTestEvent = async (
     throw new Error(`Event not found: ${eventId}`);
   }
 
-  const session = await getTestSession();
-  const { handleRequest } = await import("#src/server.ts");
-
-  const response = await handleRequest(
-    mockFormRequest(
-      `/admin/event/${eventId}/edit`,
-      {
-        slug: updates.slug ?? existing.slug,
-        name: updates.name ?? existing.name,
-        description: updates.description ?? existing.description,
-        max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
-        max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
-        thank_you_url: updates.thankYouUrl ?? existing.thank_you_url,
-        unit_price:
-          updates.unitPrice !== undefined
-            ? updates.unitPrice != null
-              ? String(updates.unitPrice)
-              : ""
-            : existing.unit_price != null
-              ? String(existing.unit_price)
-              : "",
-        webhook_url:
-          updates.webhookUrl !== undefined
-            ? updates.webhookUrl ?? ""
-            : existing.webhook_url ?? "",
-        csrf_token: session.csrfToken,
-      },
-      session.cookie,
-    ),
+  return authenticatedFormRequest(
+    `/admin/event/${eventId}/edit`,
+    {
+      slug: updates.slug ?? existing.slug,
+      name: updates.name ?? existing.name,
+      description: updates.description ?? existing.description,
+      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
+      max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
+      thank_you_url: updates.thankYouUrl ?? existing.thank_you_url,
+      unit_price: formatPrice(updates.unitPrice, existing.unit_price),
+      webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
+    },
+    async () => {
+      const updated = await getEvent(eventId);
+      if (!updated) {
+        throw new Error(`Event not found after update: ${eventId}`);
+      }
+      return updated;
+    },
+    "update event",
   );
-
-  if (response.status !== 302) {
-    throw new Error(`Failed to update event: ${response.status}`);
-  }
-
-  const updated = await getEvent(eventId);
-  if (!updated) {
-    throw new Error(`Event not found after update: ${eventId}`);
-  }
-  return updated;
 };
 
 /**
  * Deactivate an event via the REST API
  */
-export const deactivateTestEvent = async (eventId: number): Promise<void> => {
-  const session = await getTestSession();
-  const { handleRequest } = await import("#src/server.ts");
-
-  const response = await handleRequest(
-    mockFormRequest(
-      `/admin/event/${eventId}/deactivate`,
-      { csrf_token: session.csrfToken },
-      session.cookie,
-    ),
+export const deactivateTestEvent = (eventId: number): Promise<void> =>
+  authenticatedFormRequest(
+    `/admin/event/${eventId}/deactivate`,
+    {},
+    async () => {},
+    "deactivate event",
   );
-
-  if (response.status !== 302) {
-    throw new Error(`Failed to deactivate event: ${response.status}`);
-  }
-};
 
 export type { EventInput };
 

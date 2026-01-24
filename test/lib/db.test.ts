@@ -53,6 +53,7 @@ import {
 import {
   createTestAttendee,
   createTestEvent,
+  resetTestSession,
   resetTestSlugCounter,
   setupTestEncryptionKey,
   TEST_ADMIN_PASSWORD,
@@ -74,6 +75,7 @@ const getTestPrivateKey = async (): Promise<CryptoKey> => {
 describe("db", () => {
   beforeEach(async () => {
     resetTestSlugCounter();
+    resetTestSession();
     setupTestEncryptionKey();
     const client = createClient({ url: ":memory:" });
     setDb(client);
@@ -247,8 +249,9 @@ describe("db", () => {
       // Setup with initial password
       await completeSetup(oldPassword, "GBP");
 
-      // Create an event to hold attendees
-      const event = await createTestEvent({
+      // Create an event directly (not via REST API since we're using a custom password)
+      const event = await eventsTable.insert({
+        slug: "password-test-event",
         name: "Password Test Event",
         description: "Test event for password change scenario",
         maxAttendees: 100,
@@ -256,24 +259,28 @@ describe("db", () => {
       });
 
       // Create an attendee BEFORE password change
-      const attendeeBefore = await createAttendee(
+      const beforeResult = await createAttendeeAtomic(
         event.id,
         "Alice Before",
         "alice@example.com",
         "pi_before_change",
       );
+      if (!beforeResult.success) throw new Error("Failed to create attendee");
+      const attendeeBefore = beforeResult.attendee;
 
       // Change the password
       const changeSuccess = await updateAdminPassword(oldPassword, newPassword);
       expect(changeSuccess).toBe(true);
 
       // Create an attendee AFTER password change
-      const attendeeAfter = await createAttendee(
+      const afterResult = await createAttendeeAtomic(
         event.id,
         "Bob After",
         "bob@example.com",
         "pi_after_change",
       );
+      if (!afterResult.success) throw new Error("Failed to create attendee");
+      const attendeeAfter = afterResult.attendee;
 
       // Get the private key using the NEW password
       const newPasswordHash = await verifyAdminPassword(newPassword);
@@ -1188,13 +1195,16 @@ describe("db", () => {
     });
 
     test("getEventActivityLog returns entries for specific event", async () => {
-      const event1 = await createTestEvent({
+      // Use direct DB insert to avoid auto-logging from REST API
+      const event1 = await eventsTable.insert({
+        slug: "event-1",
         name: "Event 1",
         description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const event2 = await createTestEvent({
+      const event2 = await eventsTable.insert({
+        slug: "event-2",
         name: "Event 2",
         description: "Desc",
         maxAttendees: 50,
@@ -1233,7 +1243,9 @@ describe("db", () => {
     });
 
     test("getAllActivityLog returns all entries", async () => {
-      const event = await createTestEvent({
+      // Use direct DB insert to avoid auto-logging from REST API
+      const event = await eventsTable.insert({
+        slug: "test-event",
         name: "Test Event",
         description: "Desc",
         maxAttendees: 50,
