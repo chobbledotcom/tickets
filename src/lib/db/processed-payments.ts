@@ -18,14 +18,13 @@ export type ProcessedPayment = {
 /**
  * Check if a Stripe session has already been processed
  */
-export const isSessionProcessed = async (
+export const isSessionProcessed = (
   stripeSessionId: string,
-): Promise<ProcessedPayment | null> => {
-  return queryOne<ProcessedPayment>(
+): Promise<ProcessedPayment | null> =>
+  queryOne<ProcessedPayment>(
     "SELECT stripe_session_id, attendee_id, processed_at FROM processed_payments WHERE stripe_session_id = ?",
     [stripeSessionId],
   );
-};
 
 /**
  * Mark a Stripe session as processed (atomically with attendee creation)

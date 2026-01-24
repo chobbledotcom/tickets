@@ -108,6 +108,18 @@ type PaymentResult =
   | { success: true; attendee: Attendee; event: Event }
   | { success: false; error: string; status?: number; refunded?: boolean };
 
+/** Refund payment if intent exists and return failure result */
+const refundAndFail = async (
+  session: CheckoutSession,
+  error: string,
+  status?: number,
+): Promise<PaymentResult> => {
+  if (session.payment_intent) {
+    await refundPayment(session.payment_intent as string);
+  }
+  return { success: false, error, status, refunded: true };
+};
+
 /** Core attendee creation logic shared between redirect and webhook handlers */
 const processPaymentSession = async (
   sessionId: string,
@@ -132,22 +144,12 @@ const processPaymentSession = async (
   // Check if event exists
   const event = await getEvent(intent.eventId);
   if (!event) {
-    if (session.payment_intent) {
-      await refundPayment(session.payment_intent as string);
-    }
-    return { success: false, error: "Event not found", status: 404, refunded: true };
+    return refundAndFail(session, "Event not found", 404);
   }
 
   // Check if event is active
   if (event.active !== 1) {
-    if (session.payment_intent) {
-      await refundPayment(session.payment_intent as string);
-    }
-    return {
-      success: false,
-      error: "This event is no longer accepting registrations.",
-      refunded: true,
-    };
+    return refundAndFail(session, "This event is no longer accepting registrations.");
   }
 
   const paymentIntentId = session.payment_intent as string;
