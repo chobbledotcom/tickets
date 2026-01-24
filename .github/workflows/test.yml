@@ -44,5 +44,16 @@ jobs:
       - name: Copy-paste detection
         run: deno task cpd
 
+      - name: Start stripe-mock
+        run: |
+          .bin/stripe-mock -http-port 12111 &
+          sleep 2
+          curl -s http://localhost:12111 > /dev/null && echo "stripe-mock is running"
+
       - name: Run tests with coverage
+        env:
+          STRIPE_MOCK_HOST: localhost
+          STRIPE_MOCK_PORT: "12111"
+          ALLOWED_DOMAIN: localhost
+          DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
         run: deno task test:coverage
