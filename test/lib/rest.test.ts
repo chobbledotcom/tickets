@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { createClient } from "@libsql/client";
 import { setDb } from "#lib/db/client.ts";
-import { initDb } from "#lib/db/migrations.ts";
+import { initDb } from "#lib/db/migrations/index.ts";
 import { createSession } from "#lib/db/sessions.ts";
 import { col, defineTable, type Table } from "#lib/db/table.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";

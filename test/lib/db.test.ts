@@ -21,7 +21,7 @@ import {
   isLoginRateLimited,
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
-import { initDb, LATEST_UPDATE } from "#lib/db/migrations.ts";
+import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
 import {
   createSession,
   deleteAllSessions,
