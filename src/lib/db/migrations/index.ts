@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when adding new migrations
  */
-export const LATEST_UPDATE = "session token hashing and wrapped data key";
+export const LATEST_UPDATE = "activity log table";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -136,6 +136,17 @@ export const initDb = async (): Promise<void> => {
       ip TEXT PRIMARY KEY,
       attempts INTEGER NOT NULL DEFAULT 0,
       locked_until INTEGER
+    )
+  `);
+
+  // Create activity_log table (unencrypted, admin-only view)
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created TEXT NOT NULL,
+      event_id INTEGER,
+      message TEXT NOT NULL,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL
     )
   `);
 

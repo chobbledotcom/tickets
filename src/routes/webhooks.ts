@@ -8,6 +8,7 @@
  * 4. If capacity exceeded after payment, auto-refund and show error
  */
 
+import { logActivity } from "#lib/db/activityLog.ts";
 import {
   type CreateAttendeeResult,
   createAttendeeAtomic,
@@ -163,6 +164,7 @@ const handlePaymentSuccess = withSessionId(async (sessionId) => {
     return handleFailedCreation(result, paymentIntentId);
   }
 
+  await logActivity(`Added an attendee to event '${event.name}'`, event.id);
   await notifyWebhook(event, result.attendee);
   return htmlResponse(paymentSuccessPage(event, event.thank_you_url));
 });

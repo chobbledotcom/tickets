@@ -3,6 +3,7 @@
  */
 
 import { isPaymentsEnabled } from "#lib/config.ts";
+import { logActivity } from "#lib/db/activityLog.ts";
 import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
 import { validateForm } from "#lib/forms.tsx";
 import {
@@ -169,6 +170,7 @@ const processFreeReservation = async (
     return ticketResponse(event, token)(message);
   }
 
+  await logActivity(`Added an attendee to event '${event.name}'`, event.id);
   await notifyWebhook(event, result.attendee);
   return redirect(event.thank_you_url);
 };
