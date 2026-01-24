@@ -9,7 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { filter, mapAsync, reduce } from "#fp";
+import { compact, filter, mapAsync, reduce } from "#fp";
 import { getDb, queryOne } from "#lib/db/client.ts";
 
 /**
@@ -215,14 +215,15 @@ export const defineTable = <Row, Input = Row>(config: {
 
   // Transform a row from DB (apply read transforms)
   const fromDb = async (row: Row): Promise<Row> => {
-    const result = { ...row };
-    for (const col of allColumns) {
+    const entries = await mapAsync(async (col: keyof Row & string) => {
       const def = schema[col];
-      if (def.read && result[col] !== null) {
-        result[col] = (await def.read(result[col] as never)) as Row[typeof col];
+      const value = row[col];
+      if (def.read && value !== null) {
+        return [col, await def.read(value as never)] as const;
       }
-    }
-    return result;
+      return [col, value] as const;
+    })(allColumns);
+    return Object.fromEntries(entries) as Row;
   };
 
   // Process a single column for toDbValues
@@ -244,14 +245,8 @@ export const defineTable = <Row, Input = Row>(config: {
   const toDbValues = async (
     input: Input | Partial<Input>,
   ): Promise<Record<string, InValue>> => {
-    const result: Record<string, InValue> = {};
-    for (const col of inputColumns) {
-      const entry = await processColumn(col, input);
-      if (entry !== null) {
-        result[entry[0]] = entry[1];
-      }
-    }
-    return result;
+    const entries = await mapAsync((col: string) => processColumn(col, input))(inputColumns);
+    return Object.fromEntries(compact(entries));
   };
 
   // Build return row value for a single column
@@ -279,17 +274,17 @@ export const defineTable = <Row, Input = Row>(config: {
       args,
     });
 
-    const row = {} as Record<string, unknown>;
+    const initialRow = schema[primaryKey].generated
+      ? { [primaryKey]: Number(result.lastInsertRowid) }
+      : {};
 
-    if (schema[primaryKey].generated) {
-      row[primaryKey] = Number(result.lastInsertRowid);
-    }
-
-    for (const col of inputColumns) {
-      row[col] = getReturnValue(col, input, dbValues);
-    }
-
-    return row as Row;
+    return reduce(
+      (row: Record<string, unknown>, col: string) => {
+        row[col] = getReturnValue(col, input, dbValues);
+        return row;
+      },
+      initialRow,
+    )(inputColumns) as Row;
   };
 
   // Get columns that were provided in input
