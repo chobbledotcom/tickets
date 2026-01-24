@@ -55,117 +55,158 @@ const [getCache, setCache] = lazyRef<StripeCache>(() => {
   throw new Error("Stripe cache not initialized");
 });
 
+/** Run operation with stripe client, return null if not available */
+const withClient = async <T>(
+  op: (client: Stripe) => Promise<T>,
+): Promise<T | null> => {
+  const client = await getClientImpl();
+  return client ? safeAsync(() => op(client)) : null;
+};
+
+/** Internal getStripeClient implementation */
+const getClientImpl = async (): Promise<Stripe | null> => {
+  const secretKey = getStripeSecretKey();
+  if (!secretKey) return null;
+
+  try {
+    const cached = getCache();
+    if (cached.secretKey === secretKey) return cached.client;
+  } catch {
+    // Cache not initialized
+  }
+
+  const client = await createStripeClient(secretKey);
+  setCache({ client, secretKey });
+  return client;
+};
+
+/** Build checkout session params */
+type SessionConfig = {
+  event: Event;
+  quantity: number;
+  email: string;
+  successUrl: string;
+  cancelUrl: string;
+  metadata: Record<string, string>;
+};
+
+const buildSessionParams = async (
+  cfg: SessionConfig,
+): Promise<Stripe.Checkout.SessionCreateParams | null> => {
+  if (cfg.event.unit_price === null) return null;
+  const currency = (await getCurrencyCode()).toLowerCase();
+  const label = cfg.quantity > 1 ? `${cfg.quantity} Tickets` : "Ticket";
+  return {
+    payment_method_types: ["card"],
+    line_items: [
+      {
+        price_data: {
+          currency,
+          product_data: {
+            name: cfg.event.name,
+            description: `${label} for ${cfg.event.name}`,
+          },
+          unit_amount: cfg.event.unit_price,
+        },
+        quantity: cfg.quantity,
+      },
+    ],
+    mode: "payment",
+    success_url: cfg.successUrl,
+    cancel_url: cfg.cancelUrl,
+    customer_email: cfg.email,
+    metadata: cfg.metadata,
+  };
+};
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  * Production code uses stripeApi.method() to enable test mocking
  */
 export const stripeApi = {
-  /**
-   * Get or create Stripe client
-   * Returns null if Stripe secret key is not set
-   * Supports stripe-mock via STRIPE_MOCK_HOST env var
-   */
-  getStripeClient: async (): Promise<Stripe | null> => {
-    const secretKey = getStripeSecretKey();
-    if (!secretKey) return null;
+  /** Get or create Stripe client */
+  getStripeClient: getClientImpl,
 
-    // Re-create client if secret key changed
-    try {
-      const cached = getCache();
-      if (cached.secretKey === secretKey) {
-        return cached.client;
-      }
-    } catch {
-      // Cache not initialized yet
-    }
+  /** Reset Stripe client (for testing) */
+  resetStripeClient: (): void => setCache(null),
 
-    const client = await createStripeClient(secretKey);
-    setCache({ client, secretKey });
-    return client;
-  },
-
-  /**
-   * Reset Stripe client (for testing)
-   */
-  resetStripeClient: (): void => {
-    setCache(null);
-  },
-
-  /**
-   * Create a Stripe Checkout session for a ticket purchase
-   */
+  /** Create checkout session for ticket purchase */
   createCheckoutSession: async (
-    event: Event,
+    evt: Event,
     attendee: Attendee,
-    baseUrl: string,
-    quantity = 1,
+    base: string,
+    qty = 1,
   ): Promise<Stripe.Checkout.Session | null> => {
-    const stripe = await stripeApi.getStripeClient();
-    if (!stripe || event.unit_price === null) return null;
-
-    const currency = (await getCurrencyCode()).toLowerCase();
-    const successUrl = `${baseUrl}/payment/success?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${baseUrl}/payment/cancel?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
-    const ticketLabel = quantity > 1 ? `${quantity} Tickets` : "Ticket";
-
-    return safeAsync(() =>
-      stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: [
-          {
-            price_data: {
-              currency,
-              product_data: {
-                name: event.name,
-                description: `${ticketLabel} for ${event.name}`,
-              },
-              unit_amount: event.unit_price as number,
-            },
-            quantity,
-          },
-        ],
-        mode: "payment",
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        customer_email: attendee.email,
-        metadata: {
-          attendee_id: String(attendee.id),
-          event_id: String(event.id),
-          quantity: String(quantity),
-        },
-      })
-    );
+    const attendeeQuery = `attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
+    const sessionParams = await buildSessionParams({
+      event: evt,
+      quantity: qty,
+      email: attendee.email,
+      successUrl: `${base}/payment/success?${attendeeQuery}`,
+      cancelUrl: `${base}/payment/cancel?${attendeeQuery}`,
+      metadata: {
+        attendee_id: String(attendee.id),
+        event_id: String(evt.id),
+        quantity: String(qty),
+      },
+    });
+    if (!sessionParams) return null;
+    return withClient((s) => s.checkout.sessions.create(sessionParams));
   },
 
-  /**
-   * Retrieve a Stripe Checkout session
-   */
-  retrieveCheckoutSession: async (
-    sessionId: string,
+  /** Retrieve checkout session */
+  retrieveCheckoutSession: (id: string): Promise<Stripe.Checkout.Session | null> =>
+    withClient((s) => s.checkout.sessions.retrieve(id)),
+
+  /** Refund a payment */
+  refundPayment: (intentId: string): Promise<Stripe.Refund | null> =>
+    withClient((s) => s.refunds.create({ payment_intent: intentId })),
+
+  /** Create checkout session with intent (deferred attendee creation) */
+  createCheckoutSessionWithIntent: async (
+    event: Event,
+    intent: RegistrationIntent,
+    baseUrl: string,
   ): Promise<Stripe.Checkout.Session | null> => {
-    const client = await stripeApi.getStripeClient();
-    return client
-      ? safeAsync(() => client.checkout.sessions.retrieve(sessionId))
-      : null;
+    const config = await buildSessionParams({
+      event,
+      quantity: intent.quantity,
+      email: intent.email,
+      successUrl: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
+      metadata: {
+        event_id: String(event.id),
+        name: intent.name,
+        email: intent.email,
+        quantity: String(intent.quantity),
+      },
+    });
+    return config ? withClient((stripe) => stripe.checkout.sessions.create(config)) : null;
   },
 };
 
-// Re-export as wrapper functions so mocking stripeApi works
-// These delegate to stripeApi at call time, enabling test mocks
-export const getStripeClient = (): Promise<Stripe | null> =>
-  stripeApi.getStripeClient();
+/** Registration intent stored in Stripe session metadata */
+export type RegistrationIntent = {
+  eventId: number;
+  name: string;
+  email: string;
+  quantity: number;
+};
 
-export const resetStripeClient = (): void => stripeApi.resetStripeClient();
-
+// Wrapper functions that delegate to stripeApi at runtime (enables test mocking)
+export const getStripeClient = () => stripeApi.getStripeClient();
+export const resetStripeClient = () => stripeApi.resetStripeClient();
+export const retrieveCheckoutSession = (id: string) =>
+  stripeApi.retrieveCheckoutSession(id);
+export const refundPayment = (id: string) => stripeApi.refundPayment(id);
 export const createCheckoutSession = (
-  event: Event,
-  attendee: Attendee,
-  baseUrl: string,
-  quantity?: number,
-): Promise<Stripe.Checkout.Session | null> =>
-  stripeApi.createCheckoutSession(event, attendee, baseUrl, quantity);
-
-export const retrieveCheckoutSession = (
-  sessionId: string,
-): Promise<Stripe.Checkout.Session | null> =>
-  stripeApi.retrieveCheckoutSession(sessionId);
+  e: Event,
+  a: Attendee,
+  b: string,
+  q?: number,
+) => stripeApi.createCheckoutSession(e, a, b, q);
+export const createCheckoutSessionWithIntent = (
+  e: Event,
+  i: RegistrationIntent,
+  b: string,
+) => stripeApi.createCheckoutSessionWithIntent(e, i, b);
