@@ -235,6 +235,69 @@ describe("db", () => {
       // Original password should still work
       expect(await verifyAdminPassword("correctpassword")).toBeTruthy();
     });
+
+    test("password change allows decryption of both old and new attendee records", async () => {
+      const oldPassword = "oldpassword123";
+      const newPassword = "newpassword456";
+
+      // Setup with initial password
+      await completeSetup(oldPassword, "GBP");
+
+      // Create an event to hold attendees
+      const event = await createTestEvent({
+        name: "Password Test Event",
+        description: "Test event for password change scenario",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com/thanks",
+      });
+
+      // Create an attendee BEFORE password change
+      const attendeeBefore = await createAttendee(
+        event.id,
+        "Alice Before",
+        "alice@example.com",
+        "pi_before_change",
+      );
+
+      // Change the password
+      const changeSuccess = await updateAdminPassword(oldPassword, newPassword);
+      expect(changeSuccess).toBe(true);
+
+      // Create an attendee AFTER password change
+      const attendeeAfter = await createAttendee(
+        event.id,
+        "Bob After",
+        "bob@example.com",
+        "pi_after_change",
+      );
+
+      // Get the private key using the NEW password
+      const newPasswordHash = await verifyAdminPassword(newPassword);
+      expect(newPasswordHash).toBeTruthy();
+
+      const dataKey = await unwrapDataKey(newPasswordHash!);
+      expect(dataKey).toBeTruthy();
+
+      const wrappedPrivateKey = await getWrappedPrivateKey();
+      expect(wrappedPrivateKey).toBeTruthy();
+
+      const privateKeyJwk = await decryptWithKey(wrappedPrivateKey!, dataKey!);
+      const privateKey = await importPrivateKey(privateKeyJwk);
+
+      // Decrypt the attendee created BEFORE password change
+      const decryptedBefore = await getAttendee(attendeeBefore.id, privateKey);
+      expect(decryptedBefore).not.toBeNull();
+      expect(decryptedBefore?.name).toBe("Alice Before");
+      expect(decryptedBefore?.email).toBe("alice@example.com");
+      expect(decryptedBefore?.stripe_payment_id).toBe("pi_before_change");
+
+      // Decrypt the attendee created AFTER password change
+      const decryptedAfter = await getAttendee(attendeeAfter.id, privateKey);
+      expect(decryptedAfter).not.toBeNull();
+      expect(decryptedAfter?.name).toBe("Bob After");
+      expect(decryptedAfter?.email).toBe("bob@example.com");
+      expect(decryptedAfter?.stripe_payment_id).toBe("pi_after_change");
+    });
   });
 
   describe("events", () => {
