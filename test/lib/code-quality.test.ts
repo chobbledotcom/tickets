@@ -236,8 +236,6 @@ describe("code quality", () => {
       "lib/db/settings.ts:clearSetupCompleteCache",
       // Reset cached sessions between tests
       "lib/db/sessions.ts:resetSessionCache",
-      // Legacy checkout session (production uses createCheckoutSessionWithIntent)
-      "lib/stripe.ts:createCheckoutSession",
       // DB version constant used in production but test pattern doesn't detect constant comparison
       "lib/db/migrations/index.ts:LATEST_UPDATE",
       // Client-side Stripe publishable key (for future payment form templates)

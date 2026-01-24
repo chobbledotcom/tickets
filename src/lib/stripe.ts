@@ -10,7 +10,7 @@ import {
   getStripeSecretKey,
   getStripeWebhookSecret,
 } from "#lib/config.ts";
-import type { Attendee, Event } from "#lib/types.ts";
+import type { Event } from "#lib/types.ts";
 
 /** Lazy-load Stripe SDK only when needed */
 const loadStripe = once(async () => {
@@ -134,30 +134,6 @@ export const stripeApi = {
   /** Reset Stripe client (for testing) */
   resetStripeClient: (): void => setCache(null),
 
-  /** Create checkout session for ticket purchase */
-  createCheckoutSession: async (
-    evt: Event,
-    attendee: Attendee,
-    base: string,
-    qty = 1,
-  ): Promise<Stripe.Checkout.Session | null> => {
-    const attendeeQuery = `attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
-    const sessionParams = await buildSessionParams({
-      event: evt,
-      quantity: qty,
-      email: attendee.email,
-      successUrl: `${base}/payment/success?${attendeeQuery}`,
-      cancelUrl: `${base}/payment/cancel?${attendeeQuery}`,
-      metadata: {
-        attendee_id: String(attendee.id),
-        event_id: String(evt.id),
-        quantity: String(qty),
-      },
-    });
-    if (!sessionParams) return null;
-    return withClient((s) => s.checkout.sessions.create(sessionParams));
-  },
-
   /** Retrieve checkout session */
   retrieveCheckoutSession: (id: string): Promise<Stripe.Checkout.Session | null> =>
     withClient((s) => s.checkout.sessions.retrieve(id)),
@@ -203,12 +179,6 @@ export const resetStripeClient = () => stripeApi.resetStripeClient();
 export const retrieveCheckoutSession = (id: string) =>
   stripeApi.retrieveCheckoutSession(id);
 export const refundPayment = (id: string) => stripeApi.refundPayment(id);
-export const createCheckoutSession = (
-  e: Event,
-  a: Attendee,
-  b: string,
-  q?: number,
-) => stripeApi.createCheckoutSession(e, a, b, q);
 export const createCheckoutSessionWithIntent = (
   e: Event,
   i: RegistrationIntent,

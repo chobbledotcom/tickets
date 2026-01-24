@@ -9,7 +9,7 @@ import {
   type StripeWebhookEvent,
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
-import { createCheckoutSession, createTestDb, resetDb } from "#test-utils";
+import { createTestDb, resetDb } from "#test-utils";
 import process from "node:process";
 
 describe("stripe", () => {
@@ -107,71 +107,6 @@ describe("stripe", () => {
     });
   });
 
-  describe("createCheckoutSession", () => {
-    test("returns null when stripe key not set", async () => {
-      const event = {
-        id: 1,
-        slug: "test-event",
-        name: "Test",
-        description: "Desc",
-        created: new Date().toISOString(),
-        max_attendees: 50,
-        thank_you_url: "https://example.com",
-        unit_price: 1000,
-        max_quantity: 1,
-        webhook_url: null,
-        active: 1,
-      };
-      const attendee = {
-        id: 1,
-        event_id: 1,
-        name: "John",
-        email: "john@example.com",
-        created: new Date().toISOString(),
-        stripe_payment_id: null,
-        quantity: 1,
-      };
-      const result = await createCheckoutSession(
-        event,
-        attendee,
-        "http://localhost",
-      );
-      expect(result).toBeNull();
-    });
-
-    test("returns null when unit_price is null", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
-      const event = {
-        id: 1,
-        slug: "test-event",
-        name: "Test",
-        description: "Desc",
-        created: new Date().toISOString(),
-        max_attendees: 50,
-        thank_you_url: "https://example.com",
-        unit_price: null,
-        max_quantity: 1,
-        webhook_url: null,
-        active: 1,
-      };
-      const attendee = {
-        id: 1,
-        event_id: 1,
-        name: "John",
-        email: "john@example.com",
-        created: new Date().toISOString(),
-        stripe_payment_id: null,
-        quantity: 1,
-      };
-      const result = await createCheckoutSession(
-        event,
-        attendee,
-        "http://localhost",
-      );
-      expect(result).toBeNull();
-    });
-  });
-
   describe("mock configuration", () => {
     test("creates client with mock config when STRIPE_MOCK_HOST is set", async () => {
       // This test exercises the getMockConfig code path
@@ -198,47 +133,10 @@ describe("stripe", () => {
     // These tests require stripe-mock running on localhost:12111
     // STRIPE_MOCK_HOST/PORT are set in test/setup.ts
 
-    test("creates checkout session with stripe-mock", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
-
-      const event = {
-        id: 1,
-        slug: "test-event",
-        name: "Test Event",
-        description: "Test Description",
-        created: new Date().toISOString(),
-        max_attendees: 50,
-        thank_you_url: "https://example.com/thanks",
-        unit_price: 1000,
-        max_quantity: 1,
-        webhook_url: null,
-        active: 1,
-      };
-      const attendee = {
-        id: 1,
-        event_id: 1,
-        name: "John Doe",
-        email: "john@example.com",
-        created: new Date().toISOString(),
-        stripe_payment_id: null,
-        quantity: 1,
-      };
-
-      const session = await createCheckoutSession(
-        event,
-        attendee,
-        "http://localhost:3000",
-      );
-
-      expect(session).not.toBeNull();
-      expect(session?.id).toBeDefined();
-      expect(session?.url).toBeDefined();
-    });
-
     test("retrieves checkout session with stripe-mock", async () => {
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
-      // First create a session
+      // First create a session using intent-based flow
       const event = {
         id: 1,
         slug: "test-event",
@@ -252,19 +150,16 @@ describe("stripe", () => {
         webhook_url: null,
         active: 1,
       };
-      const attendee = {
-        id: 1,
-        event_id: 1,
+      const intent = {
+        eventId: 1,
         name: "John Doe",
         email: "john@example.com",
-        created: new Date().toISOString(),
-        stripe_payment_id: null,
         quantity: 1,
       };
 
-      const createdSession = await createCheckoutSession(
+      const createdSession = await createCheckoutSessionWithIntent(
         event,
-        attendee,
+        intent,
         "http://localhost:3000",
       );
       expect(createdSession).not.toBeNull();

@@ -529,8 +529,3 @@ export const createTestAttendee = async (
  */
 export { getAttendeesRaw };
 
-/**
- * Re-export legacy checkout session for test use
- * Production uses createCheckoutSessionWithIntent instead
- */
-export { createCheckoutSession } from "#lib/stripe.ts";
