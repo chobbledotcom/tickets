@@ -10,7 +10,7 @@ import {
   type RegistrationIntent,
 } from "#lib/stripe.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import { notifyWebhook } from "#lib/webhook.ts";
+import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import {
   createRouter,
   defineRoutes,
@@ -169,7 +169,7 @@ const processFreeReservation = async (
     return ticketResponse(event, token)(message);
   }
 
-  await notifyWebhook(event, result.attendee);
+  await logAndNotifyRegistration(event, result.attendee);
   return redirect(event.thank_you_url);
 };
 

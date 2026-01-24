@@ -2,6 +2,7 @@
  * Admin attendee management routes
  */
 
+import { logActivity } from "#lib/db/activityLog.ts";
 import { deleteAttendee, getAttendee } from "#lib/db/attendees.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
@@ -102,6 +103,10 @@ const handleAdminAttendeeDeletePost = (
     }
 
     await deleteAttendee(attendeeId);
+    await logActivity(
+      `Deleted an attendee from event '${data.event.name}'`,
+      eventId,
+    );
     return redirect(`/admin/event/${eventId}`);
   });
 

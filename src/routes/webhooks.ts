@@ -19,7 +19,7 @@ import {
   retrieveCheckoutSession,
 } from "#lib/stripe.ts";
 import type { Event } from "#lib/types.ts";
-import { notifyWebhook } from "#lib/webhook.ts";
+import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   getSearchParam,
@@ -163,7 +163,7 @@ const handlePaymentSuccess = withSessionId(async (sessionId) => {
     return handleFailedCreation(result, paymentIntentId);
   }
 
-  await notifyWebhook(event, result.attendee);
+  await logAndNotifyRegistration(event, result.attendee);
   return htmlResponse(paymentSuccessPage(event, event.thank_you_url));
 });
 

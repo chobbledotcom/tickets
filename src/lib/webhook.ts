@@ -6,6 +6,8 @@
  * External systems should query the API with authentication if they need PII.
  */
 
+import { logActivity } from "#lib/db/activityLog.ts";
+
 /** Payload sent to webhook endpoints */
 export type WebhookPayload = {
   event_type: "attendee.registered";
@@ -17,6 +19,12 @@ export type WebhookPayload = {
   };
   timestamp: string;
 };
+
+/** Event data needed for webhook notifications */
+type WebhookEvent = { id: number; name: string; webhook_url: string | null };
+
+/** Attendee data needed for webhook notifications */
+type WebhookAttendee = { id: number; quantity: number };
 
 /**
  * Send a webhook notification for a new attendee registration
@@ -59,8 +67,8 @@ export const sendRegistrationWebhook = async (
  * Safe to call even if no webhook is configured
  */
 export const notifyWebhook = async (
-  event: { id: number; name: string; webhook_url: string | null },
-  attendee: { id: number; quantity: number },
+  event: WebhookEvent,
+  attendee: WebhookAttendee,
 ): Promise<void> => {
   if (!event.webhook_url) return;
 
@@ -71,4 +79,16 @@ export const notifyWebhook = async (
     attendee.id,
     attendee.quantity,
   );
+};
+
+/**
+ * Log attendee registration and notify webhook
+ * Combines activity logging and webhook notification for successful registrations
+ */
+export const logAndNotifyRegistration = async (
+  event: WebhookEvent,
+  attendee: WebhookAttendee,
+): Promise<void> => {
+  await logActivity(`Added an attendee to event '${event.name}'`, event.id);
+  await notifyWebhook(event, attendee);
 };

@@ -2,6 +2,11 @@ import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compa
 import { createClient } from "@libsql/client";
 import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
 import {
+  getAllActivityLog,
+  getEventActivityLog,
+  logActivity,
+} from "#lib/db/activityLog.ts";
+import {
   createAttendeeAtomic,
   deleteAttendee,
   getAttendee,
@@ -1238,6 +1243,110 @@ describe("db", () => {
       // But the DB should have the transformed value (read transform lowercases)
       const fromDb = await testTable.findById(row.id);
       expect(fromDb?.name).toBe("test event"); // Read transform lowercases the uppercased "TEST EVENT"
+    });
+  });
+
+  describe("activity log", () => {
+    test("logActivity creates log entry with message", async () => {
+      const entry = await logActivity("Test action");
+
+      expect(entry.id).toBe(1);
+      expect(entry.message).toBe("Test action");
+      expect(entry.event_id).toBeNull();
+      expect(entry.created).toBeDefined();
+    });
+
+    test("logActivity creates log entry with event ID", async () => {
+      const event = await createTestEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const entry = await logActivity("Created event 'Test Event'", event.id);
+
+      expect(entry.event_id).toBe(event.id);
+      expect(entry.message).toBe("Created event 'Test Event'");
+    });
+
+    test("getEventActivityLog returns entries for specific event", async () => {
+      const event1 = await createTestEvent({
+        name: "Event 1",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const event2 = await createTestEvent({
+        name: "Event 2",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      await logActivity("Action for event 1", event1.id);
+      await logActivity("Another action for event 1", event1.id);
+      await logActivity("Action for event 2", event2.id);
+
+      const event1Log = await getEventActivityLog(event1.id);
+      expect(event1Log.length).toBe(2);
+      expect(event1Log[0]?.message).toBe("Another action for event 1");
+      expect(event1Log[1]?.message).toBe("Action for event 1");
+    });
+
+    test("getEventActivityLog returns empty array when no entries", async () => {
+      const entries = await getEventActivityLog(999);
+      expect(entries).toEqual([]);
+    });
+
+    test("getEventActivityLog respects limit", async () => {
+      const event = await createTestEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      await logActivity("Action 1", event.id);
+      await logActivity("Action 2", event.id);
+      await logActivity("Action 3", event.id);
+
+      const entries = await getEventActivityLog(event.id, 2);
+      expect(entries.length).toBe(2);
+    });
+
+    test("getAllActivityLog returns all entries", async () => {
+      const event = await createTestEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      await logActivity("Global action");
+      await logActivity("Event action", event.id);
+
+      const entries = await getAllActivityLog();
+      expect(entries.length).toBe(2);
+    });
+
+    test("getAllActivityLog returns entries in descending order", async () => {
+      await logActivity("First action");
+      await logActivity("Second action");
+      await logActivity("Third action");
+
+      const entries = await getAllActivityLog();
+      expect(entries[0]?.message).toBe("Third action");
+      expect(entries[1]?.message).toBe("Second action");
+      expect(entries[2]?.message).toBe("First action");
+    });
+
+    test("getAllActivityLog respects limit", async () => {
+      await logActivity("Action 1");
+      await logActivity("Action 2");
+      await logActivity("Action 3");
+
+      const entries = await getAllActivityLog(2);
+      expect(entries.length).toBe(2);
     });
   });
 });

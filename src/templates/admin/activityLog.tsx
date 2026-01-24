@@ -1,0 +1,86 @@
+/**
+ * Admin activity log page template
+ */
+
+import { map, pipe, reduce } from "#fp";
+import type { ActivityLogEntry } from "#lib/db/activityLog.ts";
+import type { EventWithCount } from "#lib/types.ts";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { Layout } from "#templates/layout.tsx";
+import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+
+const joinStrings = reduce((acc: string, s: string) => acc + s, "");
+
+const ActivityLogRow = ({ entry }: { entry: ActivityLogEntry }): string =>
+  String(
+    <tr>
+      <td>{new Date(entry.created).toLocaleString()}</td>
+      <td>{entry.message}</td>
+    </tr>
+  );
+
+/** Generate activity log table rows */
+const activityLogRows = (entries: ActivityLogEntry[]): string =>
+  entries.length > 0
+    ? pipe(
+        map((entry: ActivityLogEntry) => ActivityLogRow({ entry })),
+        joinStrings,
+      )(entries)
+    : '<tr><td colspan="2">No activity recorded yet</td></tr>';
+
+/**
+ * Admin activity log page for a specific event
+ */
+export const adminEventActivityLogPage = (
+  event: EventWithCount,
+  entries: ActivityLogEntry[],
+): string =>
+  String(
+    <Layout title={`Activity Log: ${event.name}`}>
+      <AdminNav />
+      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
+
+      <section>
+        <h2>Activity Log</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Activity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={activityLogRows(entries)} />
+          </tbody>
+        </table>
+      </section>
+    </Layout>
+  );
+
+/**
+ * Admin global activity log page (all events)
+ */
+export const adminGlobalActivityLogPage = (
+  entries: ActivityLogEntry[],
+): string =>
+  String(
+    <Layout title="Activity Log">
+      <AdminNav />
+      <Breadcrumb href="/admin/" label="Dashboard" />
+
+      <section>
+        <h2>Activity Log</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Activity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={activityLogRows(entries)} />
+          </tbody>
+        </table>
+      </section>
+    </Layout>
+  );
