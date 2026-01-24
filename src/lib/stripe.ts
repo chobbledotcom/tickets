@@ -5,7 +5,11 @@
 
 import type Stripe from "stripe";
 import { lazyRef, once } from "#fp";
-import { getCurrencyCode, getStripeSecretKey } from "#lib/config.ts";
+import {
+  getCurrencyCode,
+  getStripeSecretKey,
+  getStripeWebhookSecret,
+} from "#lib/config.ts";
 import type { Attendee, Event } from "#lib/types.ts";
 
 /** Lazy-load Stripe SDK only when needed */
@@ -210,3 +214,156 @@ export const createCheckoutSessionWithIntent = (
   i: RegistrationIntent,
   b: string,
 ) => stripeApi.createCheckoutSessionWithIntent(e, i, b);
+
+/**
+ * =============================================================================
+ * Webhook Signature Verification (Web Crypto API for Edge compatibility)
+ * =============================================================================
+ * Implements Stripe webhook signature verification without the Stripe SDK.
+ * Uses HMAC-SHA256 via Web Crypto API for Bunny Edge Scripts compatibility.
+ */
+
+/** Default timestamp tolerance: 5 minutes (300 seconds) */
+const DEFAULT_TOLERANCE_SECONDS = 300;
+
+/** Parse Stripe signature header into components */
+const parseSignatureHeader = (
+  header: string,
+): { timestamp: number; signatures: string[] } | null => {
+  const parts = header.split(",");
+  let timestamp = 0;
+  const signatures: string[] = [];
+
+  for (const part of parts) {
+    const [key, value] = part.split("=");
+    if (key === "t") {
+      timestamp = Number.parseInt(value ?? "0", 10);
+    } else if (key === "v1" && value) {
+      signatures.push(value);
+    }
+  }
+
+  if (timestamp === 0 || signatures.length === 0) {
+    return null;
+  }
+
+  return { timestamp, signatures };
+};
+
+/** Compute HMAC-SHA256 signature using Web Crypto API */
+const computeSignature = async (
+  payload: string,
+  secret: string,
+): Promise<string> => {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(payload),
+  );
+  // Convert to hex string
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+};
+
+/** Constant-time string comparison to prevent timing attacks */
+const secureCompare = (a: string, b: string): boolean => {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+};
+
+/** Webhook verification result */
+export type WebhookVerifyResult =
+  | { valid: true; event: StripeWebhookEvent }
+  | { valid: false; error: string };
+
+/** Stripe webhook event structure (subset we care about) */
+export type StripeWebhookEvent = {
+  id: string;
+  type: string;
+  data: {
+    object: Record<string, unknown>;
+  };
+};
+
+/**
+ * Verify Stripe webhook signature using Web Crypto API.
+ * Compatible with edge runtimes (Bunny Edge Scripts, Cloudflare Workers, Deno Deploy).
+ *
+ * @param payload - Raw request body as string
+ * @param signature - Stripe-Signature header value
+ * @param toleranceSeconds - Max age of event in seconds (default: 300)
+ */
+export const verifyWebhookSignature = async (
+  payload: string,
+  signature: string,
+  toleranceSeconds = DEFAULT_TOLERANCE_SECONDS,
+): Promise<WebhookVerifyResult> => {
+  const secret = getStripeWebhookSecret();
+  if (!secret) {
+    return { valid: false, error: "Webhook secret not configured" };
+  }
+
+  const parsed = parseSignatureHeader(signature);
+  if (!parsed) {
+    return { valid: false, error: "Invalid signature header format" };
+  }
+
+  const { timestamp, signatures } = parsed;
+
+  // Check timestamp tolerance
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - timestamp) > toleranceSeconds) {
+    return { valid: false, error: "Timestamp outside tolerance window" };
+  }
+
+  // Compute expected signature
+  const signedPayload = `${timestamp}.${payload}`;
+  const expectedSignature = await computeSignature(signedPayload, secret);
+
+  // Check if any signature matches (constant-time)
+  const isValid = signatures.some((sig) => secureCompare(sig, expectedSignature));
+
+  if (!isValid) {
+    return { valid: false, error: "Signature verification failed" };
+  }
+
+  // Parse and return the event
+  try {
+    const event = JSON.parse(payload) as StripeWebhookEvent;
+    return { valid: true, event };
+  } catch {
+    return { valid: false, error: "Invalid JSON payload" };
+  };
+};
+
+/**
+ * Construct a test webhook event (for testing purposes).
+ * Generates a valid signature for the given payload.
+ */
+export const constructTestWebhookEvent = async (
+  event: StripeWebhookEvent,
+  secret: string,
+): Promise<{ payload: string; signature: string }> => {
+  const payload = JSON.stringify(event);
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signedPayload = `${timestamp}.${payload}`;
+  const sig = await computeSignature(signedPayload, secret);
+
+  return {
+    payload,
+    signature: `t=${timestamp},v1=${sig}`,
+  };
+};
