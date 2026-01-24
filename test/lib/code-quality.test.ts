@@ -241,9 +241,6 @@ describe("code quality", () => {
       "lib/db/attendees.ts:updateAttendeePayment",
       // Legacy checkout session (production uses createCheckoutSessionWithIntent)
       "lib/stripe.ts:createCheckoutSession",
-      // Event CRUD for test data setup (production uses REST library)
-      "lib/db/events.ts:createEvent",
-      "lib/db/events.ts:updateEvent",
       // DB version constant used in production but test pattern doesn't detect constant comparison
       "lib/db/migrations/index.ts:LATEST_UPDATE",
       // Client-side Stripe publishable key (for future payment form templates)

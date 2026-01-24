@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { updateEvent } from "#lib/db/events.ts";
+import { eventsTable } from "#lib/db/events.ts";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
 import {
   awaitTestRequest,
   createAttendee,
-  createEvent,
   createTestDb,
   createTestDbWithSetup,
   createTestEvent,
+  deactivateTestEvent,
   getCsrfTokenFromCookie,
   getSetupCsrfToken,
   getTicketCsrfToken,
@@ -18,6 +18,7 @@ import {
   mockRequestWithHost,
   mockSetupFormRequest,
   mockTicketFormRequest,
+  updateTestEvent,
   resetDb,
   resetTestSlugCounter,
   TEST_ADMIN_PASSWORD,
@@ -701,7 +702,7 @@ describe("server", () => {
 
     test("rejects duplicate slug", async () => {
       // First, create an event with a specific slug
-      await createEvent({
+      await createTestEvent({
         slug: "duplicate-slug",
         name: "First Event",
         description: "Desc",
@@ -1104,14 +1105,14 @@ describe("server", () => {
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       // Create two events
-      await createEvent({
+      await createTestEvent({
         slug: "first-event",
         name: "First",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createEvent({
+      await createTestEvent({
         slug: "second-event",
         name: "Second",
         description: "Desc",
@@ -1309,14 +1310,7 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
       // Deactivate the event first
-      await updateEvent(event.id, {
-        slug: event.slug,
-        name: event.name,
-        description: event.description,
-        maxAttendees: event.max_attendees,
-        thankYouUrl: event.thank_you_url,
-        active: 0,
-      });
+      await deactivateTestEvent(event.id);
 
       const response = await awaitTestRequest("/admin/event/1/reactivate", {
         cookie: cookie || "",
@@ -1343,14 +1337,7 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
       // Deactivate the event first
-      await updateEvent(event.id, {
-        slug: event.slug,
-        name: event.name,
-        description: event.description,
-        maxAttendees: event.max_attendees,
-        thankYouUrl: event.thank_you_url,
-        active: 0,
-      });
+      await deactivateTestEvent(event.id);
 
       const response = await handleRequest(
         mockFormRequest(
@@ -2138,14 +2125,7 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
       // Deactivate the event
-      await updateEvent(event.id, {
-        slug: event.slug,
-        name: event.name,
-        description: event.description,
-        maxAttendees: event.max_attendees,
-        thankYouUrl: event.thank_you_url,
-        active: 0,
-      });
+      await deactivateTestEvent(event.id);
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}`),
       );
@@ -2175,14 +2155,7 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
       // Deactivate the event
-      await updateEvent(event.id, {
-        slug: event.slug,
-        name: event.name,
-        description: event.description,
-        maxAttendees: event.max_attendees,
-        thankYouUrl: event.thank_you_url,
-        active: 0,
-      });
+      await deactivateTestEvent(event.id);
       const response = await handleRequest(
         mockFormRequest(`/ticket/${event.slug}`, {
           name: "John",
@@ -2491,14 +2464,7 @@ describe("server", () => {
       });
 
       // Deactivate the event
-      await updateEvent(event.id, {
-        slug: event.slug,
-        name: event.name,
-        description: event.description,
-        maxAttendees: event.max_attendees,
-        thankYouUrl: event.thank_you_url,
-        active: 0,
-      });
+      await deactivateTestEvent(event.id);
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({

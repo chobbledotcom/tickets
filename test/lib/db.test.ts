@@ -16,10 +16,10 @@ import {
 import { getDb, setDb } from "#lib/db/client.ts";
 import {
   deleteEvent,
+  eventsTable,
   getAllEvents,
   getEvent,
   getEventWithCount,
-  updateEvent,
 } from "#lib/db/events.ts";
 import {
   clearLoginAttempts,
@@ -396,7 +396,7 @@ describe("db", () => {
       expect(fetched?.attendee_count).toBe(0);
     });
 
-    test("updateEvent updates event properties", async () => {
+    test("eventsTable.update updates event properties", async () => {
       const created = await createTestEvent({
         name: "Original",
         description: "Original Desc",
@@ -404,7 +404,7 @@ describe("db", () => {
         thankYouUrl: "https://example.com/original",
       });
 
-      const updated = await updateEvent(created.id, {
+      const updated = await eventsTable.update(created.id, {
         slug: created.slug,
         name: "Updated",
         description: "Updated Desc",
@@ -421,8 +421,8 @@ describe("db", () => {
       expect(updated?.unit_price).toBe(1500);
     });
 
-    test("updateEvent returns null for non-existent event", async () => {
-      const result = await updateEvent(999, {
+    test("eventsTable.update returns null for non-existent event", async () => {
+      const result = await eventsTable.update(999, {
         slug: "non-existent",
         name: "Name",
         description: "Desc",
@@ -432,7 +432,7 @@ describe("db", () => {
       expect(result).toBeNull();
     });
 
-    test("updateEvent can set unit_price to null", async () => {
+    test("eventsTable.update can set unit_price to null", async () => {
       const created = await createTestEvent({
         name: "Paid",
         description: "Desc",
@@ -441,7 +441,7 @@ describe("db", () => {
         unitPrice: 1000,
       });
 
-      const updated = await updateEvent(created.id, {
+      const updated = await eventsTable.update(created.id, {
         slug: created.slug,
         name: "Free Now",
         description: "Desc",
