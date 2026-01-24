@@ -349,7 +349,7 @@ export const hashIpAddress = async (ip: string): Promise<string> => {
 
   const hmacKey = await crypto.subtle.importKey(
     "raw",
-    keyBytes,
+    keyBytes as BufferSource,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
