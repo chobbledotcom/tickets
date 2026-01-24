@@ -1,6 +1,6 @@
 /**
  * Crypto utilities using Web Crypto API for edge compatibility
- * Works in both Bun and browser/edge environments
+ * Works in both Deno and browser/edge environments
  */
 
 import { lazyRef } from "#fp";
@@ -106,7 +106,7 @@ const [getKeyCache, setKeyCache] = lazyRef<KeyCache>(() => {
  * Expects DB_ENCRYPTION_KEY to be a base64-encoded 256-bit (32 byte) key
  */
 const getEncryptionKeyString = (): string => {
-  const keyString = process.env.DB_ENCRYPTION_KEY;
+  const keyString = Deno.env.get("DB_ENCRYPTION_KEY");
 
   if (!keyString) {
     throw new Error(
@@ -237,7 +237,7 @@ const PBKDF2_ITERATIONS_TEST = 1000; // Fast iterations for tests
 
 // Use test iterations when TEST_PBKDF2_ITERATIONS env var is set
 const getPbkdf2Iterations = (): number =>
-  process.env.TEST_PBKDF2_ITERATIONS
+  Deno.env.get("TEST_PBKDF2_ITERATIONS")
     ? PBKDF2_ITERATIONS_TEST
     : PBKDF2_ITERATIONS_DEFAULT;
 const PBKDF2_HASH_LENGTH = 32; // Output key length in bytes
@@ -391,7 +391,7 @@ const WRAPPED_KEY_PREFIX = "wk:1:";
 /**
  * Generate a random 256-bit symmetric key for data encryption
  */
-export const generateDataKey = async (): Promise<CryptoKey> => {
+export const generateDataKey = (): Promise<CryptoKey> => {
   return crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, [
     "encrypt",
     "decrypt",
@@ -610,9 +610,7 @@ export const generateKeyPair = async (): Promise<{
 /**
  * Import a public key from JWK string
  */
-export const importPublicKey = async (
-  jwkString: string,
-): Promise<CryptoKey> => {
+export const importPublicKey = (jwkString: string): Promise<CryptoKey> => {
   const jwk = JSON.parse(jwkString) as JsonWebKey;
   return crypto.subtle.importKey(
     "jwk",
@@ -626,9 +624,7 @@ export const importPublicKey = async (
 /**
  * Import a private key from JWK string
  */
-export const importPrivateKey = async (
-  jwkString: string,
-): Promise<CryptoKey> => {
+export const importPrivateKey = (jwkString: string): Promise<CryptoKey> => {
   const jwk = JSON.parse(jwkString) as JsonWebKey;
   return crypto.subtle.importKey(
     "jwk",
@@ -819,7 +815,7 @@ export const getPrivateKeyFromSession = async (
  * Decrypt attendee PII using the private key
  * Used in admin views after obtaining private key from session
  */
-export const decryptAttendeePII = async (
+export const decryptAttendeePII = (
   encrypted: string,
   privateKey: CryptoKey,
 ): Promise<string> => {

@@ -32,8 +32,7 @@
       "#routes/*": ["./src/routes/*"],
       "#templates/*": ["./src/templates/*"],
       "#static/*": ["./src/static/*"]
-    },
-    "types": ["bun-types"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"],
   "exclude": ["node_modules"]

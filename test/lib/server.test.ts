@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { createAttendee } from "#lib/db/attendees";
-import { updateEvent } from "#lib/db/events";
-import { createSession, getSession } from "#lib/db/sessions";
+import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { createAttendee } from "#lib/db/attendees.ts";
+import { updateEvent } from "#lib/db/events.ts";
+import { createSession, getSession } from "#lib/db/sessions.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
 import {
@@ -22,6 +22,7 @@ import {
   resetTestSlugCounter,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
+import process from "node:process";
 
 /**
  * Helper to make a ticket form POST request with CSRF token
@@ -641,7 +642,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin");
 
       // Verify event was actually created
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).not.toBeNull();
       expect(event?.slug).toBe("new-event");
@@ -1174,7 +1175,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify the event was updated
-      const { getEventWithCount } = await import("#lib/db/events");
+      const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(1);
       expect(updated?.name).toBe("Updated Event");
       expect(updated?.description).toBe("Updated Description");
@@ -1274,7 +1275,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify event is now inactive
-      const { getEventWithCount } = await import("#lib/db/events");
+      const { getEventWithCount } = await import("#lib/db/events.ts");
       const event = await getEventWithCount(1);
       expect(event?.active).toBe(0);
     });
@@ -1362,7 +1363,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify event is now active
-      const { getEventWithCount } = await import("#lib/db/events");
+      const { getEventWithCount } = await import("#lib/db/events.ts");
       const activeEvent = await getEventWithCount(1);
       expect(activeEvent?.active).toBe(1);
     });
@@ -1541,7 +1542,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin");
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
@@ -1603,8 +1604,8 @@ describe("server", () => {
       expect(response.status).toBe(302);
 
       // Verify event and attendees were deleted
-      const { getEvent } = await import("#lib/db/events");
-      const { getAttendeesRaw } = await import("#lib/db/attendees");
+      const { getEvent } = await import("#lib/db/events.ts");
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
 
@@ -1640,7 +1641,7 @@ describe("server", () => {
       expect(response.status).toBe(302);
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
@@ -1679,7 +1680,7 @@ describe("server", () => {
       expect(response.status).toBe(302);
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
@@ -2009,7 +2010,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import("#lib/db/attendees");
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const attendee = await getAttendeeRaw(1);
       expect(attendee).toBeNull();
     });
@@ -2101,7 +2102,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import("#lib/db/attendees");
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const attendee = await getAttendeeRaw(1);
       expect(attendee).toBeNull();
     });
@@ -2470,7 +2471,7 @@ describe("server", () => {
       expect(html).toContain("no longer accepting registrations");
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import("#lib/db/attendees");
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const deleted = await getAttendeeRaw(attendee.id);
       expect(deleted).toBeNull();
     });
@@ -2515,8 +2516,8 @@ describe("server", () => {
     });
 
     test("returns error for invalid session", async () => {
-      const { spyOn } = await import("bun:test");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { spyOn } = await import("#test-compat");
+      const { stripeApi } = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
       const event = await createTestEvent({
@@ -2531,7 +2532,7 @@ describe("server", () => {
         "john@example.com",
       );
 
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue(null);
 
       try {
@@ -2550,8 +2551,8 @@ describe("server", () => {
     });
 
     test("returns error for session mismatch", async () => {
-      const { spyOn } = await import("bun:test");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { spyOn } = await import("#test-compat");
+      const { stripeApi } = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
       const event = await createTestEvent({
@@ -2566,7 +2567,7 @@ describe("server", () => {
         "john@example.com",
       );
 
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_cancel",
         payment_status: "unpaid",
@@ -2575,7 +2576,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
@@ -2594,8 +2595,8 @@ describe("server", () => {
     });
 
     test("returns error when trying to cancel already paid attendee", async () => {
-      const { spyOn } = await import("bun:test");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { spyOn } = await import("#test-compat");
+      const { stripeApi } = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
       const event = await createTestEvent({
@@ -2612,7 +2613,7 @@ describe("server", () => {
         "pi_already_paid",
       );
 
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_cancel",
         payment_status: "unpaid",
@@ -2621,7 +2622,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
@@ -2640,8 +2641,8 @@ describe("server", () => {
     });
 
     test("deletes unpaid attendee and shows cancel page when session valid", async () => {
-      const { spyOn } = await import("bun:test");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { spyOn } = await import("#test-compat");
+      const { stripeApi } = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
       const event = await createTestEvent({
@@ -2656,7 +2657,7 @@ describe("server", () => {
         "john@example.com",
       );
 
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_cancel",
         payment_status: "unpaid",
@@ -2665,7 +2666,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
@@ -2680,7 +2681,7 @@ describe("server", () => {
         expect(html).toContain("/ticket/");
 
         // Verify attendee was deleted
-        const { getAttendeeRaw } = await import("#lib/db/attendees");
+        const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
         const deleted = await getAttendeeRaw(attendee.id);
         expect(deleted).toBeNull();
       } finally {
@@ -2824,7 +2825,7 @@ describe("server", () => {
 
       // Delete the event - need to delete attendee first due to FK constraint
       // then recreate attendee pointing to deleted event
-      const { getDb } = await import("#lib/db/client");
+      const { getDb } = await import("#lib/db/client.ts");
 
       // Disable foreign key checks, delete event, re-enable
       await getDb().execute("PRAGMA foreign_keys = OFF");
@@ -2874,8 +2875,8 @@ describe("server", () => {
     });
 
     test("updates attendee and shows success when payment verified", async () => {
-      const { spyOn } = await import("bun:test");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { spyOn } = await import("#test-compat");
+      const { stripeApi } = await import("#lib/stripe.ts");
 
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2893,7 +2894,7 @@ describe("server", () => {
       );
 
       // Mock retrieveCheckoutSession to return a paid session with correct metadata
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_paid",
         payment_status: "paid",
@@ -2903,7 +2904,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
@@ -2919,7 +2920,7 @@ describe("server", () => {
         expect(html).toContain("https://example.com/thanks");
 
         // Verify attendee was updated with payment ID (encrypted at rest)
-        const { getAttendeeRaw } = await import("#lib/db/attendees");
+        const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
         const updatedAttendee = await getAttendeeRaw(attendee.id);
         // Payment ID is encrypted, so just verify it was set
         expect(updatedAttendee?.stripe_payment_id).not.toBeNull();
@@ -2929,8 +2930,8 @@ describe("server", () => {
     });
 
     test("rejects payment with mismatched attendee_id (IDOR protection)", async () => {
-      const { spyOn } = await import("bun:test");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { spyOn } = await import("#test-compat");
+      const { stripeApi } = await import("#lib/stripe.ts");
 
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2948,7 +2949,7 @@ describe("server", () => {
       );
 
       // Mock returns a different attendee_id than the one in the URL
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_paid",
         payment_status: "paid",
@@ -2958,7 +2959,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
@@ -2977,8 +2978,8 @@ describe("server", () => {
     });
 
     test("handles already paid attendee (replay protection)", async () => {
-      const { spyOn } = await import("bun:test");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { spyOn } = await import("#test-compat");
+      const { stripeApi } = await import("#lib/stripe.ts");
 
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2997,7 +2998,7 @@ describe("server", () => {
         "pi_already_paid",
       );
 
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_paid",
         payment_status: "paid",
@@ -3007,7 +3008,7 @@ describe("server", () => {
           event_id: String(event.id),
         },
       } as unknown as Awaited<
-        ReturnType<typeof stripeModule.retrieveCheckoutSession>
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
       >);
 
       try {
@@ -3023,7 +3024,7 @@ describe("server", () => {
         expect(html).toContain("Payment Successful");
 
         // Verify original payment ID wasn't overwritten (encrypted at rest)
-        const { getAttendeeRaw } = await import("#lib/db/attendees");
+        const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
         const checkedAttendee = await getAttendeeRaw(attendee.id);
         // Payment ID is encrypted, so just verify it's still set
         expect(checkedAttendee?.stripe_payment_id).not.toBeNull();
@@ -3248,8 +3249,8 @@ describe("server", () => {
       });
 
       test("POST /setup/ throws error when completeSetup fails", async () => {
-        const { spyOn } = await import("bun:test");
-        const dbModule = await import("#lib/db/settings");
+        const { spyOn } = await import("#test-compat");
+        const { settingsApi } = await import("#lib/db/settings.ts");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
         const csrfToken = getSetupCsrfToken(
@@ -3257,13 +3258,12 @@ describe("server", () => {
         );
 
         // Mock completeSetup to throw an error
-        const mockCompleteSetup = spyOn(dbModule, "completeSetup");
+        const mockCompleteSetup = spyOn(settingsApi, "completeSetup");
         mockCompleteSetup.mockRejectedValue(new Error("Database error"));
 
         // Suppress expected console.error to avoid non-zero exit code
-        const mockConsoleError = spyOn(console, "error").mockImplementation(
-          () => {},
-        );
+        const mockConsoleError = spyOn(console, "error");
+        mockConsoleError.mockImplementation(() => {});
 
         try {
           await expect(

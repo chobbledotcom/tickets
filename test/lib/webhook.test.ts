@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import {
   notifyWebhook,
   sendRegistrationWebhook,
@@ -6,7 +6,8 @@ import {
 } from "#lib/webhook.ts";
 
 describe("webhook", () => {
-  let fetchSpy: ReturnType<typeof spyOn>;
+  // deno-lint-ignore no-explicit-any
+  let fetchSpy: any;
   let originalFetch: typeof fetch;
 
   beforeEach(() => {

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#test-compat";
 import { Fragment, jsx, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
 
 describe("jsx-runtime", () => {

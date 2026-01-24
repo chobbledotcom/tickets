@@ -5,6 +5,7 @@
  */
 
 import { getCurrencyCodeFromDb, isSetupComplete } from "#lib/db/settings.ts";
+import process from "node:process";
 
 /**
  * Get Stripe secret key from environment variable
@@ -35,7 +36,7 @@ export const isPaymentsEnabled = (): boolean => {
  * Get currency code from database
  * Defaults to GBP if not set
  */
-export const getCurrencyCode = async (): Promise<string> => {
+export const getCurrencyCode = (): Promise<string> => {
   return getCurrencyCodeFromDb();
 };
 
@@ -44,7 +45,7 @@ export const getCurrencyCode = async (): Promise<string> => {
  * This is a required build-time configuration that hardens origin validation
  */
 export const getAllowedDomain = (): string => {
-  return process.env.ALLOWED_DOMAIN as string;
+  return Deno.env.get("ALLOWED_DOMAIN") as string;
 };
 
 /**

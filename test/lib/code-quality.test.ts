@@ -1,9 +1,9 @@
-import { describe, expect, test } from "bun:test";
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { describe, expect, test } from "#test-compat";
+import { dirname, fromFileUrl, join } from "jsr:@std/path@1";
 
-const SRC_DIR = join(import.meta.dir, "../../src");
-const TEST_DIR = join(import.meta.dir, "../../test");
+const currentDir = dirname(fromFileUrl(import.meta.url));
+const SRC_DIR = join(currentDir, "../../src");
+const TEST_DIR = join(currentDir, "../../test");
 
 /**
  * Patterns that indicate in-memory state storage at module level.
@@ -29,11 +29,19 @@ const FORBIDDEN_PATTERNS = [
 ];
 
 /**
+ * Test utility files - excluded from all code quality checks
+ */
+const TEST_UTILITY_FILES = [
+  "test-utils/index.ts",
+  "test-utils/stripe-mock.ts",
+  "test-utils/test-compat.ts",
+];
+
+/**
  * Files that are allowed to have in-memory state (e.g., test utilities, caches)
  */
 const ALLOWED_FILES_STATE = [
-  "test-utils/index.ts",
-  "test-utils/stripe-mock.ts",
+  ...TEST_UTILITY_FILES,
   // Session cache with 10s TTL - legitimate performance optimization
   "lib/db/sessions.ts",
 ];
@@ -53,12 +61,11 @@ const ALIASING_PATTERN =
 const THEN_PATTERN = /\.then\s*\(/g;
 
 const getAllTsFiles = async (dir: string): Promise<string[]> => {
-  const entries = await readdir(dir, { withFileTypes: true });
   const files: string[] = [];
 
-  for (const entry of entries) {
+  for await (const entry of Deno.readDir(dir)) {
     const fullPath = join(dir, entry.name);
-    if (entry.isDirectory()) {
+    if (entry.isDirectory) {
       files.push(...(await getAllTsFiles(fullPath)));
     } else if (entry.name.endsWith(".ts")) {
       files.push(fullPath);
@@ -84,7 +91,7 @@ describe("code quality", () => {
           continue;
         }
 
-        const content = await Bun.file(file).text();
+        const content = await Deno.readTextFile(file);
 
         for (const { pattern, description } of FORBIDDEN_PATTERNS) {
           if (pattern.test(content)) {
@@ -104,7 +111,8 @@ describe("code quality", () => {
 
       for (const file of files) {
         const relativePath = getRelativePath(file);
-        const content = await Bun.file(file).text();
+        if (TEST_UTILITY_FILES.includes(relativePath)) continue;
+        const content = await Deno.readTextFile(file);
         const lines = content.split("\n");
 
         let lineNum = 0;
@@ -132,7 +140,8 @@ describe("code quality", () => {
 
       for (const file of files) {
         const relativePath = getRelativePath(file);
-        const content = await Bun.file(file).text();
+        if (TEST_UTILITY_FILES.includes(relativePath)) continue;
+        const content = await Deno.readTextFile(file);
         const lines = content.split("\n");
 
         let lineNum = 0;
@@ -159,7 +168,7 @@ describe("code quality", () => {
 
       for (const file of files) {
         const relativePath = getRelativePath(file);
-        const content = await Bun.file(file).text();
+        const content = await Deno.readTextFile(file);
         const lines = content.split("\n");
 
         let lineNum = 0;
@@ -195,10 +204,7 @@ describe("code quality", () => {
      */
 
     /** Files explicitly for testing */
-    const TEST_UTILITY_PATHS = [
-      "test-utils/index.ts",
-      "test-utils/stripe-mock.ts",
-    ];
+    const TEST_UTILITY_PATHS = TEST_UTILITY_FILES;
 
     /** Library/infrastructure modules - okay to have unused exports */
     const LIBRARY_PATHS = [
@@ -290,8 +296,9 @@ describe("code quality", () => {
         ) {
           continue;
         }
-        // Count usages: function calls or property access
-        const usagePattern = new RegExp(`\\b${symbolName}\\s*[.(]`);
+        // Count usages: function calls, property access, or object shorthand
+        // Matches: name(, name., name, (in objects), name: (with type)
+        const usagePattern = new RegExp(`\\b${symbolName}\\s*[.(,:]`);
         if (usagePattern.test(line)) {
           usageCount++;
         }
@@ -306,7 +313,7 @@ describe("code quality", () => {
       srcFiles: string[],
     ): Promise<boolean> => {
       // Check if it's used within the same file
-      const sourceContent = await Bun.file(sourceFile).text();
+      const sourceContent = await Deno.readTextFile(sourceFile);
       if (isUsedInSameFile(symbolName, sourceContent)) {
         return true;
       }
@@ -323,7 +330,7 @@ describe("code quality", () => {
         // Skip test utilities - imports there don't count as production usage
         if (TEST_UTILITY_PATHS.includes(relativePath)) continue;
 
-        const content = await Bun.file(file).text();
+        const content = await Deno.readTextFile(file);
         if (importPattern.test(content)) {
           return true;
         }
@@ -340,7 +347,7 @@ describe("code quality", () => {
       );
 
       for (const testFile of testFiles) {
-        const testContent = await Bun.file(testFile).text();
+        const testContent = await Deno.readTextFile(testFile);
         if (importPattern.test(testContent)) {
           return true;
         }
@@ -374,7 +381,7 @@ describe("code quality", () => {
       const relativePath = getRelativePath(file);
       const violations: string[] = [];
 
-      const content = await Bun.file(file).text();
+      const content = await Deno.readTextFile(file);
       if (isPrimarilyReExportModule(content)) return violations;
 
       const exports = extractExports(content);

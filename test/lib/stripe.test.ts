@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test, spyOn } from "#test-compat";
 import {
   createCheckoutSession,
   getStripeClient,
@@ -6,11 +6,15 @@ import {
   retrieveCheckoutSession,
 } from "#lib/stripe.ts";
 import { createTestDb, resetDb } from "#test-utils";
+import process from "node:process";
 
 describe("stripe", () => {
-  const originalEnv = { ...process.env };
+  let originalMockHost: string | undefined;
+  let originalMockPort: string | undefined;
 
   beforeEach(async () => {
+    originalMockHost = Deno.env.get("STRIPE_MOCK_HOST");
+    originalMockPort = Deno.env.get("STRIPE_MOCK_PORT");
     resetStripeClient();
     // Create in-memory db for testing
     await createTestDb();
@@ -21,7 +25,17 @@ describe("stripe", () => {
   afterEach(() => {
     resetStripeClient();
     resetDb();
-    process.env = { ...originalEnv };
+    // Restore original env values
+    if (originalMockHost !== undefined) {
+      Deno.env.set("STRIPE_MOCK_HOST", originalMockHost);
+    } else {
+      Deno.env.delete("STRIPE_MOCK_HOST");
+    }
+    if (originalMockPort !== undefined) {
+      Deno.env.set("STRIPE_MOCK_PORT", originalMockPort);
+    } else {
+      Deno.env.delete("STRIPE_MOCK_PORT");
+    }
   });
 
   describe("getStripeClient", () => {
@@ -66,7 +80,7 @@ describe("stripe", () => {
     });
 
     test("returns null when Stripe API throws error", async () => {
-      const { spyOn } = await import("bun:test");
+      // spyOn already imported from #test-compat
 
       // Enable Stripe with mock
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
@@ -84,7 +98,7 @@ describe("stripe", () => {
         expect(result).toBeNull();
         expect(retrieveSpy).toHaveBeenCalledWith("cs_test_123");
       } finally {
-        retrieveSpy.mockRestore();
+        retrieveSpy.mockRestore?.();
       }
     });
   });

@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, jest, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compat";
 import { createClient } from "@libsql/client";
-import { decryptWithKey, importPrivateKey } from "#lib/crypto";
+import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
 import {
   createAttendee,
   deleteAttendee,
@@ -8,21 +8,21 @@ import {
   getAttendees,
   hasAvailableSpots,
   updateAttendeePayment,
-} from "#lib/db/attendees";
-import { getDb, setDb } from "#lib/db/client";
+} from "#lib/db/attendees.ts";
+import { getDb, setDb } from "#lib/db/client.ts";
 import {
   deleteEvent,
   getAllEvents,
   getEvent,
   getEventWithCount,
   updateEvent,
-} from "#lib/db/events";
+} from "#lib/db/events.ts";
 import {
   clearLoginAttempts,
   isLoginRateLimited,
   recordFailedLogin,
-} from "#lib/db/login-attempts";
-import { initDb, LATEST_UPDATE } from "#lib/db/migrations";
+} from "#lib/db/login-attempts.ts";
+import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
 import {
   createSession,
   deleteAllSessions,
@@ -31,7 +31,7 @@ import {
   getAllSessions,
   getSession,
   resetSessionCache,
-} from "#lib/db/sessions";
+} from "#lib/db/sessions.ts";
 import {
   CONFIG_KEYS,
   completeSetup,
@@ -45,7 +45,7 @@ import {
   unwrapDataKey,
   updateAdminPassword,
   verifyAdminPassword,
-} from "#lib/db/settings";
+} from "#lib/db/settings.ts";
 import {
   createTestEvent,
   resetTestSlugCounter,
@@ -84,8 +84,8 @@ describe("db", () => {
   describe("getDb", () => {
     test("throws error when DB_URL is not set", () => {
       setDb(null);
-      const originalDbUrl = process.env.DB_URL;
-      delete process.env.DB_URL;
+      const originalDbUrl = Deno.env.get("DB_URL");
+      Deno.env.delete("DB_URL");
 
       try {
         expect(() => getDb()).toThrow(
@@ -93,7 +93,7 @@ describe("db", () => {
         );
       } finally {
         if (originalDbUrl) {
-          process.env.DB_URL = originalDbUrl;
+          Deno.env.set("DB_URL", originalDbUrl);
         }
       }
     });
@@ -663,13 +663,17 @@ describe("db", () => {
   describe("getDb", () => {
     test("creates client when db is null", () => {
       setDb(null);
-      const originalDbUrl = process.env.DB_URL;
-      process.env.DB_URL = ":memory:";
+      const originalDbUrl = Deno.env.get("DB_URL");
+      Deno.env.set("DB_URL", ":memory:");
 
       const client = getDb();
       expect(client).toBeDefined();
 
-      process.env.DB_URL = originalDbUrl;
+      if (originalDbUrl) {
+        Deno.env.set("DB_URL", originalDbUrl);
+      } else {
+        Deno.env.delete("DB_URL");
+      }
     });
 
     test("returns existing client when db is set", () => {
@@ -963,8 +967,8 @@ describe("db", () => {
 
     test("col.encrypted creates column with encrypt/decrypt transforms", async () => {
       const { col } = await import("#lib/db/table.ts");
-      const encrypt = async (v: string) => `enc:${v}`;
-      const decrypt = async (v: string) => v.replace("enc:", "");
+      const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
+      const decrypt = (v: string) => Promise.resolve(v.replace("enc:", ""));
       const def = col.encrypted(encrypt, decrypt);
       expect(await def.write?.("hello")).toBe("enc:hello");
       expect(await def.read?.("enc:hello")).toBe("hello");
@@ -972,8 +976,8 @@ describe("db", () => {
 
     test("col.encryptedNullable handles null values", async () => {
       const { col } = await import("#lib/db/table.ts");
-      const encrypt = async (v: string) => `enc:${v}`;
-      const decrypt = async (v: string) => v.replace("enc:", "");
+      const encrypt = (v: string) => Promise.resolve(`enc:${v}`);
+      const decrypt = (v: string) => Promise.resolve(v.replace("enc:", ""));
       const def = col.encryptedNullable(encrypt, decrypt);
       expect(await def.write?.(null)).toBe(null);
       expect(await def.read?.(null)).toBe(null);

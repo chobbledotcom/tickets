@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "#test-compat";
 import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminEventPage } from "#templates/admin/events.tsx";

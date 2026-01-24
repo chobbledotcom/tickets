@@ -1,16 +1,16 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { createClient } from "@libsql/client";
-import { setDb } from "#lib/db/client";
-import { initDb } from "#lib/db/migrations";
-import { createSession } from "#lib/db/sessions";
+import { setDb } from "#lib/db/client.ts";
+import { initDb } from "#lib/db/migrations/index.ts";
+import { createSession } from "#lib/db/sessions.ts";
 import { col, defineTable, type Table } from "#lib/db/table.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
 import {
   createHandler,
   deleteHandler,
   updateHandler,
-} from "#lib/rest/handlers";
-import { defineResource } from "#lib/rest/resource";
+} from "#lib/rest/handlers.ts";
+import { defineResource } from "#lib/rest/resource.ts";
 import {
   createTestDbWithSetup,
   resetDb,

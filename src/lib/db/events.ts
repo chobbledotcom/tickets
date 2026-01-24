@@ -102,7 +102,7 @@ export const getAllEvents = async (): Promise<EventWithCount[]> => {
  * Get event with attendee count (sum of quantities)
  * Uses custom JOIN query - not covered by table abstraction
  */
-export const getEventWithCount = async (
+export const getEventWithCount = (
   id: number,
 ): Promise<EventWithCount | null> =>
   queryOne<EventWithCount>(
@@ -118,7 +118,7 @@ export const getEventWithCount = async (
  * Get event with attendee count by slug
  * Uses custom JOIN query - not covered by table abstraction
  */
-export const getEventWithCountBySlug = async (
+export const getEventWithCountBySlug = (
   slug: string,
 ): Promise<EventWithCount | null> =>
   queryOne<EventWithCount>(

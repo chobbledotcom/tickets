@@ -1,5 +1,5 @@
 /**
- * Ticket Reservation System - Bun Server
+ * Ticket Reservation System - Server
  *
  * This file re-exports from the routes module for backward compatibility.
  * New code should import directly from #routes.

@@ -11,7 +11,7 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 /** Query login attempts for an IP */
-const getLoginAttempts = async (ip: string) =>
+const getLoginAttempts = (ip: string) =>
   queryOne<{ attempts: number; locked_until: number | null }>(
     "SELECT attempts, locked_until FROM login_attempts WHERE ip = ?",
     [ip],
@@ -65,5 +65,5 @@ export const recordFailedLogin = async (ip: string): Promise<boolean> => {
 /**
  * Clear login attempts for an IP (on successful login)
  */
-export const clearLoginAttempts = async (ip: string): Promise<void> =>
+export const clearLoginAttempts = (ip: string): Promise<void> =>
   executeByField("login_attempts", "ip", ip);
