@@ -468,16 +468,66 @@ export const deactivateTestEvent = async (eventId: number): Promise<void> => {
 
 export type { EventInput };
 
+import type { Attendee } from "#lib/types.ts";
+import { getAttendeesRaw } from "#lib/db/attendees.ts";
+
 /**
- * Re-export attendee functions for test use
- * These are not used in production (atomic create is used instead)
- * but are useful for setting up test data
+ * Create an attendee via the public ticket form
+ * This exercises the same code path as production (createAttendeeAtomic)
+ * Returns the created attendee (with encrypted fields - use for ID only)
  */
-export {
-  createAttendee,
-  getAttendeesRaw,
-  updateAttendeePayment,
-} from "#lib/db/attendees.ts";
+export const createTestAttendee = async (
+  eventId: number,
+  eventSlug: string,
+  name: string,
+  email: string,
+  quantity = 1,
+): Promise<Attendee> => {
+  const { handleRequest } = await import("#src/server.ts");
+
+  // Get count before to find the new attendee
+  const beforeAttendees = await getAttendeesRaw(eventId);
+  const beforeCount = beforeAttendees.length;
+
+  // Get the ticket page to get a CSRF token
+  const pageResponse = await handleRequest(mockRequest(`/ticket/${eventSlug}`));
+  const csrfToken = getTicketCsrfToken(
+    pageResponse.headers.get("set-cookie"),
+  );
+
+  if (!csrfToken) {
+    throw new Error("Failed to get CSRF token for ticket form");
+  }
+
+  // Submit the ticket form
+  const response = await handleRequest(
+    mockTicketFormRequest(eventSlug, { name, email, quantity: String(quantity) }, csrfToken),
+  );
+
+  // Free events redirect to thank you page (302)
+  // Paid events redirect to Stripe (303)
+  if (response.status !== 302 && response.status !== 303) {
+    const body = await response.text();
+    throw new Error(
+      `Failed to create attendee: ${response.status} - ${body.slice(0, 200)}`,
+    );
+  }
+
+  // Get the created attendee (most recent one)
+  const afterAttendees = await getAttendeesRaw(eventId);
+  if (afterAttendees.length <= beforeCount) {
+    throw new Error("Attendee was not created");
+  }
+
+  // Return the first attendee (most recent due to DESC order)
+  return afterAttendees[0] as Attendee;
+};
+
+/**
+ * Re-export getAttendeesRaw for verifying encrypted data in tests
+ * This is used in production by getAttendees, so not a test-only export
+ */
+export { getAttendeesRaw };
 
 /**
  * Re-export legacy checkout session for test use

@@ -51,12 +51,11 @@ import {
   verifyAdminPassword,
 } from "#lib/db/settings.ts";
 import {
-  createAttendee,
+  createTestAttendee,
   createTestEvent,
   resetTestSlugCounter,
   setupTestEncryptionKey,
   TEST_ADMIN_PASSWORD,
-  updateAttendeePayment,
 } from "#test-utils";
 
 /** Helper to get private key for decrypting attendees in tests */
@@ -474,8 +473,8 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
-      await createAttendee(event.id, "Jane", "jane@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
 
       await deleteEvent(event.id);
 
@@ -500,62 +499,10 @@ describe("db", () => {
   });
 
   describe("attendees", () => {
-    test("createAttendee creates attendee", async () => {
-      const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createAttendee(
-        event.id,
-        "John Doe",
-        "john@example.com",
-      );
-
-      expect(attendee.id).toBe(1);
-      expect(attendee.event_id).toBe(event.id);
-      expect(attendee.name).toBe("John Doe");
-      expect(attendee.email).toBe("john@example.com");
-      expect(attendee.created).toBeDefined();
-      expect(attendee.stripe_payment_id).toBeNull();
-    });
-
-    test("createAttendee creates attendee with stripe_payment_id", async () => {
-      const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createAttendee(
-        event.id,
-        "John Doe",
-        "john@example.com",
-        "pi_test_123",
-      );
-
-      expect(attendee.stripe_payment_id).toBe("pi_test_123");
-    });
-
     test("getAttendee returns null for missing attendee", async () => {
       const privateKey = await getTestPrivateKey();
       const attendee = await getAttendee(999, privateKey);
       expect(attendee).toBeNull();
-    });
-
-    test("createAttendee throws when encryption key not configured", async () => {
-      // Remove public key to simulate incomplete setup
-      await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = ?",
-        args: [CONFIG_KEYS.PUBLIC_KEY],
-      });
-
-      await expect(
-        createAttendee(1, "John", "john@example.com"),
-      ).rejects.toThrow(
-        "Encryption key not configured. Please complete setup.",
-      );
     });
 
     test("getAttendee returns attendee by id", async () => {
@@ -565,8 +512,9 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const created = await createAttendee(
+      const created = await createTestAttendee(
         event.id,
+        event.slug,
         "John Doe",
         "john@example.com",
       );
@@ -577,38 +525,6 @@ describe("db", () => {
       expect(fetched?.name).toBe("John Doe");
     });
 
-    test("updateAttendeePayment updates stripe_payment_id", async () => {
-      const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
-        maxAttendees: 50,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createAttendee(
-        event.id,
-        "John Doe",
-        "john@example.com",
-      );
-
-      await updateAttendeePayment(attendee.id, "pi_updated_123");
-
-      const privateKey = await getTestPrivateKey();
-      const updated = await getAttendee(attendee.id, privateKey);
-      expect(updated?.stripe_payment_id).toBe("pi_updated_123");
-    });
-
-    test("updateAttendeePayment throws when encryption key not configured", async () => {
-      // Remove public key to simulate incomplete setup
-      await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = ?",
-        args: [CONFIG_KEYS.PUBLIC_KEY],
-      });
-
-      await expect(updateAttendeePayment(1, "pi_test")).rejects.toThrow(
-        "Encryption key not configured",
-      );
-    });
-
     test("deleteAttendee removes attendee", async () => {
       const event = await createTestEvent({
         name: "Event",
@@ -616,8 +532,9 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const attendee = await createAttendee(
+      const attendee = await createTestAttendee(
         event.id,
+        event.slug,
         "John Doe",
         "john@example.com",
       );
@@ -648,8 +565,8 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
-      await createAttendee(event.id, "Jane", "jane@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
 
       const privateKey = await getTestPrivateKey();
       const attendees = await getAttendees(event.id, privateKey);
@@ -663,7 +580,7 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
 
       const fetched = await getEventWithCount(event.id);
       expect(fetched?.attendee_count).toBe(1);
@@ -676,8 +593,8 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
-      await createAttendee(event.id, "Jane", "jane@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
 
       const events = await getAllEvents();
       expect(events[0]?.attendee_count).toBe(2);
@@ -713,7 +630,8 @@ describe("db", () => {
         maxAttendees: 1,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "First", "first@example.com");
+      // Use createAttendeeAtomic to fill capacity (production code path)
+      await createAttendeeAtomic(event.id, "First", "first@example.com");
 
       const result = await createAttendeeAtomic(
         event.id,
@@ -780,7 +698,7 @@ describe("db", () => {
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
 
       const result = await hasAvailableSpots(event.id);
       expect(result).toBe(true);
@@ -793,8 +711,8 @@ describe("db", () => {
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(event.id, "John", "john@example.com");
-      await createAttendee(event.id, "Jane", "jane@example.com");
+      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
 
       const result = await hasAvailableSpots(event.id);
       expect(result).toBe(false);

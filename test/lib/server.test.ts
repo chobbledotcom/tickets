@@ -3,9 +3,10 @@ import { eventsTable } from "#lib/db/events.ts";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
+import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
   awaitTestRequest,
-  createAttendee,
+  createTestAttendee,
   createTestDb,
   createTestDbWithSetup,
   createTestEvent,
@@ -884,16 +885,16 @@ describe("server", () => {
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
-      await createAttendee(1, "Jane Smith", "jane@example.com");
+      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "Jane Smith", "jane@example.com");
 
-      const response = await awaitTestRequest("/admin/event/1/export", {
+      const response = await awaitTestRequest(`/admin/event/${event.id}/export`, {
         cookie: cookie || "",
       });
       const csv = await response.text();
@@ -1569,18 +1570,18 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie") || "";
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
-      await createAttendee(1, "Jane Doe", "jane@example.com");
+      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      await createTestAttendee(event.id, event.slug, "Jane Doe", "jane@example.com");
 
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/event/1/delete",
+          `/admin/event/${event.id}/delete`,
           {
             confirm_name: "Test Event",
             csrf_token: csrfToken || "",
@@ -1593,10 +1594,10 @@ describe("server", () => {
       // Verify event and attendees were deleted
       const { getEvent } = await import("#lib/db/events.ts");
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
-      const event = await getEvent(1);
-      expect(event).toBeNull();
+      const deleted = await getEvent(event.id);
+      expect(deleted).toBeNull();
 
-      const attendees = await getAttendeesRaw(1);
+      const attendees = await getAttendeesRaw(event.id);
       expect(attendees).toEqual([]);
     });
 
@@ -1675,16 +1676,16 @@ describe("server", () => {
 
   describe("GET /admin/event/:eventId/attendee/:attendeeId/delete", () => {
     test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       const response = await handleRequest(
-        mockRequest("/admin/event/1/attendee/1/delete"),
+        mockRequest(`/admin/event/${event.id}/attendee/${attendee.id}/delete`),
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin");
@@ -1704,20 +1705,20 @@ describe("server", () => {
     });
 
     test("redirects when session lacks wrapped data key", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       // Create session without wrapped_data_key (simulates legacy session)
       const token = "test-token-no-data-key";
       await createSession(token, "csrf123", Date.now() + 3600000, null);
 
       const response = await awaitTestRequest(
-        "/admin/event/1/attendee/1/delete",
+        `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
         { cookie: `__Host-session=${token}` },
       );
       expect(response.status).toBe(302);
@@ -1725,20 +1726,20 @@ describe("server", () => {
     });
 
     test("redirects when wrapped data key is invalid", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       // Create session with invalid wrapped_data_key (triggers decryption failure)
       const token = "test-token-invalid-key";
       await createSession(token, "csrf123", Date.now() + 3600000, "invalid");
 
       const response = await awaitTestRequest(
-        "/admin/event/1/attendee/1/delete",
+        `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
         { cookie: `__Host-session=${token}` },
       );
       expect(response.status).toBe(302);
@@ -1766,19 +1767,19 @@ describe("server", () => {
     });
 
     test("returns 404 when attendee belongs to different event", async () => {
-      await createTestEvent({
+      const event1 = await createTestEvent({
         name: "Event 1",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createTestEvent({
+      const event2 = await createTestEvent({
         name: "Event 2",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(2, "John Doe", "john@example.com"); // Attendee on event 2
+      const attendee = await createTestAttendee(event2.id, event2.slug, "John Doe", "john@example.com");
 
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
@@ -1787,20 +1788,20 @@ describe("server", () => {
 
       // Try to delete attendee from event 2 via event 1 URL
       const response = await awaitTestRequest(
-        "/admin/event/1/attendee/1/delete",
+        `/admin/event/${event1.id}/attendee/${attendee.id}/delete`,
         { cookie: cookie || "" },
       );
       expect(response.status).toBe(404);
     });
 
     test("shows delete confirmation page when authenticated", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
@@ -1808,7 +1809,7 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       const response = await awaitTestRequest(
-        "/admin/event/1/attendee/1/delete",
+        `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
         { cookie: cookie || "" },
       );
       expect(response.status).toBe(200);
@@ -1821,16 +1822,16 @@ describe("server", () => {
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/delete", () => {
     test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       const response = await handleRequest(
-        mockFormRequest("/admin/event/1/attendee/1/delete", {
+        mockFormRequest(`/admin/event/${event.id}/attendee/${attendee.id}/delete`, {
           confirm_name: "John Doe",
         }),
       );
@@ -1839,13 +1840,13 @@ describe("server", () => {
     });
 
     test("redirects when wrapped data key is invalid", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       // Create session with invalid wrapped_data_key
       const token = "test-token-invalid-post";
@@ -1853,7 +1854,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/event/1/attendee/1/delete",
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
           { confirm_name: "John Doe", csrf_token: "csrf123" },
           `__Host-session=${token}`,
         ),
@@ -1910,13 +1911,13 @@ describe("server", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
@@ -1925,7 +1926,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/event/1/attendee/1/delete",
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
           {
             confirm_name: "John Doe",
             csrf_token: "invalid-token",
@@ -1939,13 +1940,13 @@ describe("server", () => {
     });
 
     test("rejects mismatched attendee name", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
@@ -1955,7 +1956,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/event/1/attendee/1/delete",
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
           {
             confirm_name: "Wrong Name",
             csrf_token: csrfToken || "",
@@ -1969,13 +1970,13 @@ describe("server", () => {
     });
 
     test("deletes attendee with matching name (case insensitive)", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
@@ -1985,7 +1986,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/event/1/attendee/1/delete",
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
           {
             confirm_name: "john doe", // lowercase
             csrf_token: csrfToken || "",
@@ -1994,22 +1995,22 @@ describe("server", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/event/1");
+      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
-      const attendee = await getAttendeeRaw(1);
-      expect(attendee).toBeNull();
+      const deleted = await getAttendeeRaw(attendee.id);
+      expect(deleted).toBeNull();
     });
 
     test("deletes attendee with whitespace-trimmed name", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
@@ -2019,7 +2020,7 @@ describe("server", () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/event/1/attendee/1/delete",
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
           {
             confirm_name: "  John Doe  ", // with spaces
             csrf_token: csrfToken || "",
@@ -2034,18 +2035,18 @@ describe("server", () => {
 
   describe("PATCH /admin/event/:eventId/attendee/:attendeeId/delete", () => {
     test("route handler returns null for unsupported method", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       // PATCH is not supported by this specific route handler, which returns null.
       // The request then continues through middleware that returns 403.
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/1/attendee/1/delete", {
+        new Request(`http://localhost/admin/event/${event.id}/attendee/${attendee.id}/delete`, {
           method: "PATCH",
         }),
       );
@@ -2055,13 +2056,13 @@ describe("server", () => {
 
   describe("DELETE /admin/event/:eventId/attendee/:attendeeId/delete", () => {
     test("deletes attendee with DELETE method", async () => {
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createAttendee(1, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
@@ -2075,7 +2076,7 @@ describe("server", () => {
       }).toString();
 
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/1/attendee/1/delete", {
+        new Request(`http://localhost/admin/event/${event.id}/attendee/${attendee.id}/delete`, {
           method: "DELETE",
           headers: {
             host: "localhost",
@@ -2517,8 +2518,8 @@ describe("server", () => {
         unitPrice: 1000,
       });
 
-      // Fill the event with another attendee
-      await createAttendee(event.id, "First", "first@example.com", "pi_first");
+      // Fill the event with another attendee (using atomic to simulate production flow)
+      await createAttendeeAtomic(event.id, "First", "first@example.com", "pi_first");
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
@@ -2910,8 +2911,8 @@ describe("server", () => {
         unitPrice: 1000,
       });
 
-      // Create attendee as if payment was already processed
-      await createAttendee(event.id, "John", "john@example.com", "pi_test_123");
+      // Create attendee as if payment was already processed (using atomic to simulate production flow)
+      await createAttendeeAtomic(event.id, "John", "john@example.com", "pi_test_123");
 
       // Mock returns same session again (user refreshes success page)
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
@@ -3004,8 +3005,8 @@ describe("server", () => {
         unitPrice: 1000,
       });
 
-      // Fill the event
-      await createAttendee(event.id, "First", "first@example.com", "pi_first");
+      // Fill the event (using atomic to simulate production flow)
+      await createAttendeeAtomic(event.id, "First", "first@example.com", "pi_first");
 
       // Try to register - should fail before Stripe session is created
       const response = await submitTicketForm(event.slug, {

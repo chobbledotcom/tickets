@@ -236,9 +236,6 @@ describe("code quality", () => {
       "lib/db/settings.ts:clearSetupCompleteCache",
       // Reset cached sessions between tests
       "lib/db/sessions.ts:resetSessionCache",
-      // Test helpers for creating test data (production uses atomic versions)
-      "lib/db/attendees.ts:createAttendee",
-      "lib/db/attendees.ts:updateAttendeePayment",
       // Legacy checkout session (production uses createCheckoutSessionWithIntent)
       "lib/stripe.ts:createCheckoutSession",
       // DB version constant used in production but test pattern doesn't detect constant comparison
