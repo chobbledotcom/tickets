@@ -4,8 +4,8 @@
   "tasks": {
     "start": "deno run --allow-net --allow-env --allow-read src/index.ts",
     "build:edge": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-edge.ts",
-    "test": "deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run test/",
-    "test:coverage": "deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --coverage=coverage test/",
+    "test": "deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys test/",
+    "test:coverage": "deno test --no-check --allow-net --allow-env --allow-read --allow-write --allow-run --allow-sys --coverage=coverage test/",
     "lint": "deno lint src test scripts",
     "lint:fix": "deno lint --fix src test scripts",
     "fmt": "deno fmt src test scripts",
