@@ -517,11 +517,28 @@ export const spyOn = <T extends Record<string, unknown>>(
   const original = obj[method] as (...args: unknown[]) => unknown;
   const mock = fn(original) as SpyFn;
 
-  mock.mockRestore = () => {
-    obj[method] = original as T[keyof T];
-  };
+  // Try to replace the method - use Object.defineProperty for globalThis
+  // as direct assignment may fail for built-in globals like fetch
+  if (obj === globalThis) {
+    Object.defineProperty(obj, method, {
+      value: mock,
+      writable: true,
+      configurable: true,
+    });
+    mock.mockRestore = () => {
+      Object.defineProperty(obj, method, {
+        value: original,
+        writable: true,
+        configurable: true,
+      });
+    };
+  } else {
+    obj[method] = mock as T[keyof T];
+    mock.mockRestore = () => {
+      obj[method] = original as T[keyof T];
+    };
+  }
 
-  obj[method] = mock as T[keyof T];
   return mock;
 };
 
