@@ -232,3 +232,23 @@ export const updateAdminPassword = async (
 
   return true;
 };
+
+/**
+ * Stubbable API for testing - allows mocking in ES modules
+ * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
+ */
+export const settingsApi = {
+  completeSetup,
+  getSetting,
+  setSetting,
+  isSetupComplete,
+  clearSetupCompleteCache,
+  getAdminPasswordHash,
+  verifyAdminPassword,
+  getPublicKey,
+  getWrappedDataKey,
+  getWrappedPrivateKey,
+  unwrapDataKey,
+  updateAdminPassword,
+  getCurrencyCodeFromDb,
+};

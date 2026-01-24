@@ -14,6 +14,7 @@ export const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 
 /**
  * Download stripe-mock binary if not present
+ * Uses curl instead of fetch to avoid Deno TLS certificate issues
  */
 export const downloadStripeMock = async (): Promise<void> => {
   try {
@@ -30,14 +31,19 @@ export const downloadStripeMock = async (): Promise<void> => {
 
   const url = `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${platform}_${arch}.tar.gz`;
 
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to download stripe-mock: ${response.status}`);
+  // Use curl to download - avoids Deno TLS certificate issues
+  const curlCmd = new Deno.Command("curl", {
+    args: ["-sL", url, "-o", "-"],
+    stdout: "piped",
+    stderr: "null",
+  });
+  const curlResult = await curlCmd.output();
+  if (!curlResult.success) {
+    throw new Error("Failed to download stripe-mock with curl");
   }
 
   const tarPath = join(BIN_DIR, "stripe-mock.tar.gz");
-  const data = new Uint8Array(await response.arrayBuffer());
-  await Deno.writeFile(tarPath, data);
+  await Deno.writeFile(tarPath, curlResult.stdout);
 
   // Extract the binary
   const extract = new Deno.Command("tar", {

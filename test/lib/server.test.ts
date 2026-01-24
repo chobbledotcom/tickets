@@ -2517,7 +2517,7 @@ describe("server", () => {
 
     test("returns error for invalid session", async () => {
       const { spyOn } = await import("#test-compat");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
       const event = await createTestEvent({
@@ -2532,7 +2532,7 @@ describe("server", () => {
         "john@example.com",
       );
 
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue(null);
 
       try {
@@ -2552,7 +2552,7 @@ describe("server", () => {
 
     test("returns error for session mismatch", async () => {
       const { spyOn } = await import("#test-compat");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
       const event = await createTestEvent({
@@ -2567,7 +2567,7 @@ describe("server", () => {
         "john@example.com",
       );
 
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_cancel",
         payment_status: "unpaid",
@@ -2596,7 +2596,7 @@ describe("server", () => {
 
     test("returns error when trying to cancel already paid attendee", async () => {
       const { spyOn } = await import("#test-compat");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
       const event = await createTestEvent({
@@ -2613,7 +2613,7 @@ describe("server", () => {
         "pi_already_paid",
       );
 
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_cancel",
         payment_status: "unpaid",
@@ -2642,7 +2642,7 @@ describe("server", () => {
 
     test("deletes unpaid attendee and shows cancel page when session valid", async () => {
       const { spyOn } = await import("#test-compat");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
       const event = await createTestEvent({
@@ -2657,7 +2657,7 @@ describe("server", () => {
         "john@example.com",
       );
 
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_cancel",
         payment_status: "unpaid",
@@ -2876,7 +2876,7 @@ describe("server", () => {
 
     test("updates attendee and shows success when payment verified", async () => {
       const { spyOn } = await import("#test-compat");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#lib/stripe.ts");
 
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2894,7 +2894,7 @@ describe("server", () => {
       );
 
       // Mock retrieveCheckoutSession to return a paid session with correct metadata
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_paid",
         payment_status: "paid",
@@ -2931,7 +2931,7 @@ describe("server", () => {
 
     test("rejects payment with mismatched attendee_id (IDOR protection)", async () => {
       const { spyOn } = await import("#test-compat");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#lib/stripe.ts");
 
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2949,7 +2949,7 @@ describe("server", () => {
       );
 
       // Mock returns a different attendee_id than the one in the URL
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_paid",
         payment_status: "paid",
@@ -2979,7 +2979,7 @@ describe("server", () => {
 
     test("handles already paid attendee (replay protection)", async () => {
       const { spyOn } = await import("#test-compat");
-      const stripeModule = await import("#lib/stripe.ts");
+      const { stripeApi } = await import("#lib/stripe.ts");
 
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2998,7 +2998,7 @@ describe("server", () => {
         "pi_already_paid",
       );
 
-      const mockRetrieve = spyOn(stripeModule, "retrieveCheckoutSession");
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
         id: "cs_test_paid",
         payment_status: "paid",
@@ -3250,7 +3250,7 @@ describe("server", () => {
 
       test("POST /setup/ throws error when completeSetup fails", async () => {
         const { spyOn } = await import("#test-compat");
-        const dbModule = await import("#lib/db/settings.ts");
+        const { settingsApi } = await import("#lib/db/settings.ts");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
         const csrfToken = getSetupCsrfToken(
@@ -3258,7 +3258,7 @@ describe("server", () => {
         );
 
         // Mock completeSetup to throw an error
-        const mockCompleteSetup = spyOn(dbModule, "completeSetup");
+        const mockCompleteSetup = spyOn(settingsApi, "completeSetup");
         mockCompleteSetup.mockRejectedValue(new Error("Database error"));
 
         // Suppress expected console.error to avoid non-zero exit code

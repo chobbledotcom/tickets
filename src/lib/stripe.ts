@@ -25,15 +25,6 @@ const safeAsync = async <T>(fn: () => Promise<T>): Promise<T | null> => {
   }
 };
 
-/** Execute operation with Stripe client, returning null if unavailable */
-const withStripe = async <T>(
-  fn: (stripe: Stripe) => Promise<T>,
-): Promise<T | null> => {
-  const stripe = await getStripeClient();
-  if (!stripe) return null;
-  return safeAsync(() => fn(stripe));
-};
-
 /**
  * Get Stripe client configuration for mock server (if configured)
  */
@@ -41,7 +32,10 @@ const getMockConfig = once((): Stripe.StripeConfig | undefined => {
   const mockHost = Deno.env.get("STRIPE_MOCK_HOST");
   if (!mockHost) return undefined;
 
-  const mockPort = Number.parseInt(Deno.env.get("STRIPE_MOCK_PORT") || "12111", 10);
+  const mockPort = Number.parseInt(
+    Deno.env.get("STRIPE_MOCK_PORT") || "12111",
+    10,
+  );
   return {
     host: mockHost,
     port: mockPort,
@@ -62,86 +56,115 @@ const [getCache, setCache] = lazyRef<StripeCache>(() => {
 });
 
 /**
- * Get or create Stripe client
- * Returns null if Stripe secret key is not set
- * Supports stripe-mock via STRIPE_MOCK_HOST env var
+ * Stubbable API for testing - allows mocking in ES modules
+ * Production code uses stripeApi.method() to enable test mocking
  */
-export const getStripeClient = async (): Promise<Stripe | null> => {
-  const secretKey = getStripeSecretKey();
-  if (!secretKey) return null;
+export const stripeApi = {
+  /**
+   * Get or create Stripe client
+   * Returns null if Stripe secret key is not set
+   * Supports stripe-mock via STRIPE_MOCK_HOST env var
+   */
+  getStripeClient: async (): Promise<Stripe | null> => {
+    const secretKey = getStripeSecretKey();
+    if (!secretKey) return null;
 
-  // Re-create client if secret key changed
-  try {
-    const cached = getCache();
-    if (cached.secretKey === secretKey) {
-      return cached.client;
+    // Re-create client if secret key changed
+    try {
+      const cached = getCache();
+      if (cached.secretKey === secretKey) {
+        return cached.client;
+      }
+    } catch {
+      // Cache not initialized yet
     }
-  } catch {
-    // Cache not initialized yet
-  }
 
-  const client = await createStripeClient(secretKey);
-  setCache({ client, secretKey });
-  return client;
+    const client = await createStripeClient(secretKey);
+    setCache({ client, secretKey });
+    return client;
+  },
+
+  /**
+   * Reset Stripe client (for testing)
+   */
+  resetStripeClient: (): void => {
+    setCache(null);
+  },
+
+  /**
+   * Create a Stripe Checkout session for a ticket purchase
+   */
+  createCheckoutSession: async (
+    event: Event,
+    attendee: Attendee,
+    baseUrl: string,
+    quantity = 1,
+  ): Promise<Stripe.Checkout.Session | null> => {
+    const stripe = await stripeApi.getStripeClient();
+    if (!stripe || event.unit_price === null) return null;
+
+    const currency = (await getCurrencyCode()).toLowerCase();
+    const successUrl = `${baseUrl}/payment/success?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${baseUrl}/payment/cancel?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
+    const ticketLabel = quantity > 1 ? `${quantity} Tickets` : "Ticket";
+
+    return safeAsync(() =>
+      stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency,
+              product_data: {
+                name: event.name,
+                description: `${ticketLabel} for ${event.name}`,
+              },
+              unit_amount: event.unit_price as number,
+            },
+            quantity,
+          },
+        ],
+        mode: "payment",
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        customer_email: attendee.email,
+        metadata: {
+          attendee_id: String(attendee.id),
+          event_id: String(event.id),
+          quantity: String(quantity),
+        },
+      })
+    );
+  },
+
+  /**
+   * Retrieve a Stripe Checkout session
+   */
+  retrieveCheckoutSession: async (
+    sessionId: string,
+  ): Promise<Stripe.Checkout.Session | null> => {
+    const stripe = await stripeApi.getStripeClient();
+    if (!stripe) return null;
+    return safeAsync(() => stripe.checkout.sessions.retrieve(sessionId));
+  },
 };
 
-/**
- * Reset Stripe client (for testing)
- */
-export const resetStripeClient = (): void => {
-  setCache(null);
-};
+// Re-export as wrapper functions so mocking stripeApi works
+// These delegate to stripeApi at call time, enabling test mocks
+export const getStripeClient = (): Promise<Stripe | null> =>
+  stripeApi.getStripeClient();
 
-/**
- * Create a Stripe Checkout session for a ticket purchase
- */
-export const createCheckoutSession = async (
+export const resetStripeClient = (): void => stripeApi.resetStripeClient();
+
+export const createCheckoutSession = (
   event: Event,
   attendee: Attendee,
   baseUrl: string,
-  quantity = 1,
-): Promise<Stripe.Checkout.Session | null> => {
-  const stripe = await getStripeClient();
-  if (!stripe || event.unit_price === null) return null;
+  quantity?: number,
+): Promise<Stripe.Checkout.Session | null> =>
+  stripeApi.createCheckoutSession(event, attendee, baseUrl, quantity);
 
-  const currency = (await getCurrencyCode()).toLowerCase();
-  const successUrl = `${baseUrl}/payment/success?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
-  const cancelUrl = `${baseUrl}/payment/cancel?attendee_id=${attendee.id}&session_id={CHECKOUT_SESSION_ID}`;
-  const ticketLabel = quantity > 1 ? `${quantity} Tickets` : "Ticket";
-
-  return safeAsync(() =>
-    stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency,
-            product_data: {
-              name: event.name,
-              description: `${ticketLabel} for ${event.name}`,
-            },
-            unit_amount: event.unit_price as number,
-          },
-          quantity,
-        },
-      ],
-      mode: "payment",
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      customer_email: attendee.email,
-      metadata: {
-        attendee_id: String(attendee.id),
-        event_id: String(event.id),
-        quantity: String(quantity),
-      },
-    }),
-  );
-};
-
-/**
- * Retrieve a Stripe Checkout session
- */
 export const retrieveCheckoutSession = (
   sessionId: string,
 ): Promise<Stripe.Checkout.Session | null> =>
-  withStripe((stripe) => stripe.checkout.sessions.retrieve(sessionId));
+  stripeApi.retrieveCheckoutSession(sessionId);

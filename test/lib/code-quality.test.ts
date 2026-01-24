@@ -296,8 +296,9 @@ describe("code quality", () => {
         ) {
           continue;
         }
-        // Count usages: function calls or property access
-        const usagePattern = new RegExp(`\\b${symbolName}\\s*[.(]`);
+        // Count usages: function calls, property access, or object shorthand
+        // Matches: name(, name., name, (in objects), name: (with type)
+        const usagePattern = new RegExp(`\\b${symbolName}\\s*[.(,:]`);
         if (usagePattern.test(line)) {
           usageCount++;
         }

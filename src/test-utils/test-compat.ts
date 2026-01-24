@@ -544,6 +544,8 @@ interface SpyFn extends MockFn {
 
 /**
  * Spy on an object's method
+ * Note: ES module exports cannot be mocked - use dependency injection or
+ * integration tests with real implementations (e.g., stripe-mock) instead
  */
 // deno-lint-ignore no-explicit-any
 export const spyOn = <T extends Record<string, any>>(
@@ -553,9 +555,9 @@ export const spyOn = <T extends Record<string, any>>(
   const original = obj[method] as (...args: unknown[]) => unknown;
   const mock = fn(original) as SpyFn;
 
-  // Try to replace the method - use Object.defineProperty for globalThis
-  // as direct assignment may fail for built-in globals like fetch
-  if ((obj as unknown) === globalThis) {
+  // Try Object.defineProperty first (works for globalThis and some objects)
+  // then fall back to direct assignment for plain objects
+  try {
     Object.defineProperty(obj, method, {
       value: mock,
       writable: true,
@@ -568,7 +570,8 @@ export const spyOn = <T extends Record<string, any>>(
         configurable: true,
       });
     };
-  } else {
+  } catch {
+    // Direct assignment for plain objects (will still fail for frozen objects)
     obj[method] = mock as T[keyof T];
     mock.mockRestore = () => {
       obj[method] = original as T[keyof T];
