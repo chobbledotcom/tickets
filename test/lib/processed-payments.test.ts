@@ -4,11 +4,30 @@ import {
   isSessionProcessed,
   markSessionProcessed,
 } from "#lib/db/processed-payments.ts";
-import { createTestDb, resetDb } from "#test-utils";
+import {
+  createAttendee,
+  createTestDbWithSetup,
+  createTestEvent,
+  resetDb,
+  resetTestSlugCounter,
+} from "#test-utils";
 
 describe("processed-payments", () => {
+  let testAttendeeId: number;
+  let testAttendeeId2: number;
+  let testAttendeeId3: number;
+
   beforeEach(async () => {
-    await createTestDb();
+    resetTestSlugCounter();
+    await createTestDbWithSetup();
+    // Create test event and attendees to satisfy foreign key constraints
+    const event = await createTestEvent();
+    const attendee1 = await createAttendee(event.id, "Test User 1", "test1@example.com");
+    const attendee2 = await createAttendee(event.id, "Test User 2", "test2@example.com");
+    const attendee3 = await createAttendee(event.id, "Test User 3", "test3@example.com");
+    testAttendeeId = attendee1.id;
+    testAttendeeId2 = attendee2.id;
+    testAttendeeId3 = attendee3.id;
   });
 
   afterEach(() => {
@@ -22,49 +41,51 @@ describe("processed-payments", () => {
     });
 
     test("returns record for processed session", async () => {
-      await markSessionProcessed("cs_processed_123", 42);
+      await markSessionProcessed("cs_processed_123", testAttendeeId);
 
       const result = await isSessionProcessed("cs_processed_123");
       expect(result).not.toBeNull();
       expect(result?.stripe_session_id).toBe("cs_processed_123");
-      expect(result?.attendee_id).toBe(42);
+      expect(result?.attendee_id).toBe(testAttendeeId);
       expect(result?.processed_at).toBeDefined();
     });
   });
 
   describe("markSessionProcessed", () => {
     test("returns true for first processing", async () => {
-      const result = await markSessionProcessed("cs_new_session", 1);
+      const result = await markSessionProcessed("cs_new_session", testAttendeeId);
       expect(result).toBe(true);
     });
 
     test("returns false for duplicate processing", async () => {
       // First attempt should succeed
-      const first = await markSessionProcessed("cs_duplicate", 1);
+      const first = await markSessionProcessed("cs_duplicate", testAttendeeId);
       expect(first).toBe(true);
 
       // Second attempt with same session ID should fail
-      const second = await markSessionProcessed("cs_duplicate", 2);
+      const second = await markSessionProcessed("cs_duplicate", testAttendeeId2);
       expect(second).toBe(false);
     });
 
     test("stores correct attendee ID", async () => {
-      await markSessionProcessed("cs_attendee_test", 99);
+      await markSessionProcessed("cs_attendee_test", testAttendeeId);
 
       const record = await isSessionProcessed("cs_attendee_test");
-      expect(record?.attendee_id).toBe(99);
+      expect(record?.attendee_id).toBe(testAttendeeId);
     });
 
     test("stores ISO timestamp", async () => {
       const before = new Date().toISOString();
-      await markSessionProcessed("cs_timestamp_test", 1);
+      await markSessionProcessed("cs_timestamp_test", testAttendeeId);
       const after = new Date().toISOString();
 
       const record = await isSessionProcessed("cs_timestamp_test");
+      expect(record).not.toBeNull();
       expect(record?.processed_at).toBeDefined();
       // Timestamp should be between before and after
-      expect(record?.processed_at >= before).toBe(true);
-      expect(record?.processed_at <= after).toBe(true);
+      const processedAt = record?.processed_at ?? "";
+      expect(processedAt >= before).toBe(true);
+      expect(processedAt <= after).toBe(true);
     });
   });
 
@@ -75,10 +96,10 @@ describe("processed-payments", () => {
     });
 
     test("returns attendee ID for processed session", async () => {
-      await markSessionProcessed("cs_with_attendee", 123);
+      await markSessionProcessed("cs_with_attendee", testAttendeeId);
 
       const result = await getProcessedAttendeeId("cs_with_attendee");
-      expect(result).toBe(123);
+      expect(result).toBe(testAttendeeId);
     });
   });
 
@@ -86,11 +107,11 @@ describe("processed-payments", () => {
     test("multiple concurrent processing attempts only create one record", async () => {
       const sessionId = "cs_concurrent";
 
-      // Simulate concurrent attempts
+      // Simulate concurrent attempts with different attendees
       const results = await Promise.all([
-        markSessionProcessed(sessionId, 1),
-        markSessionProcessed(sessionId, 2),
-        markSessionProcessed(sessionId, 3),
+        markSessionProcessed(sessionId, testAttendeeId),
+        markSessionProcessed(sessionId, testAttendeeId2),
+        markSessionProcessed(sessionId, testAttendeeId3),
       ]);
 
       // Only one should succeed

@@ -248,6 +248,10 @@ describe("code quality", () => {
       "lib/db/migrations/index.ts:LATEST_UPDATE",
       // Client-side Stripe publishable key (for future payment form templates)
       "lib/config.ts:getStripePublishableKey",
+      // Test helper for creating signed webhook payloads
+      "lib/stripe.ts:constructTestWebhookEvent",
+      // Convenience wrapper for idempotency checks (production uses isSessionProcessed directly)
+      "lib/db/processed-payments.ts:getProcessedAttendeeId",
     ];
 
     /**

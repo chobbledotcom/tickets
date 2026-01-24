@@ -41,9 +41,14 @@ export const markSessionProcessed = async (
       args: [stripeSessionId, attendeeId, new Date().toISOString()],
     });
     return true;
-  } catch {
+  } catch (e) {
     // Unique constraint violation - session already processed
-    return false;
+    const errorMsg = String(e);
+    if (errorMsg.includes("UNIQUE constraint") || errorMsg.includes("PRIMARY KEY constraint")) {
+      return false;
+    }
+    // Re-throw unexpected errors (like table not existing)
+    throw e;
   }
 };
 

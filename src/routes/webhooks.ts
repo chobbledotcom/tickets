@@ -103,39 +103,23 @@ const validatePaidSession = async (
   return { ok: true, data: { session, intent } };
 };
 
-/** Load and validate event for payment callback */
-const loadEventForPayment = async (
-  eventId: number,
-): Promise<{ event: Event } | { error: Response }> => {
-  const event = await getEvent(eventId);
-  if (!event) {
-    return { error: paymentErrorResponse("Event not found", 404) };
-  }
-  if (event.active !== 1) {
-    return {
-      error: paymentErrorResponse(
-        "This event is no longer accepting registrations.",
-      ),
-    };
-  }
-  return { event };
-};
+/** Result type for processPaymentSession */
+type PaymentResult =
+  | { success: true; attendee: Attendee; event: Event }
+  | { success: false; error: string; status?: number; refunded?: boolean };
 
 /** Core attendee creation logic shared between redirect and webhook handlers */
 const processPaymentSession = async (
   sessionId: string,
   session: CheckoutSession,
   intent: RegistrationIntent,
-): Promise<
-  | { success: true; attendee: Attendee; event: Event }
-  | { success: false; error: string; refunded?: boolean }
-> => {
+): Promise<PaymentResult> => {
   // Idempotency check: if session already processed, return success
   const existing = await isSessionProcessed(sessionId);
   if (existing) {
     const event = await getEvent(intent.eventId);
     if (!event) {
-      return { success: false, error: "Event not found" };
+      return { success: false, error: "Event not found", status: 404 };
     }
     // Session was already processed - this is a retry/duplicate
     return {
@@ -145,14 +129,26 @@ const processPaymentSession = async (
     };
   }
 
-  const eventResult = await loadEventForPayment(intent.eventId);
-  if ("error" in eventResult) {
+  // Check if event exists
+  const event = await getEvent(intent.eventId);
+  if (!event) {
     if (session.payment_intent) {
       await refundPayment(session.payment_intent as string);
     }
-    return { success: false, error: "Event not found or inactive", refunded: true };
+    return { success: false, error: "Event not found", status: 404, refunded: true };
   }
-  const { event } = eventResult;
+
+  // Check if event is active
+  if (event.active !== 1) {
+    if (session.payment_intent) {
+      await refundPayment(session.payment_intent as string);
+    }
+    return {
+      success: false,
+      error: "This event is no longer accepting registrations.",
+      refunded: true,
+    };
+  }
 
   const paymentIntentId = session.payment_intent as string;
   const result = await createAttendeeAtomic(
@@ -167,8 +163,8 @@ const processPaymentSession = async (
     await refundPayment(paymentIntentId);
     const errorMsg =
       result.reason === "capacity_exceeded"
-        ? "Event sold out - payment refunded"
-        : "Registration failed - payment refunded";
+        ? "Sorry, this event sold out while you were completing payment."
+        : "Registration failed.";
     return { success: false, error: errorMsg, refunded: true };
   }
 
@@ -194,12 +190,10 @@ const handlePaymentSuccess = withSessionId(async (sessionId) => {
   const result = await processPaymentSession(sessionId, session, intent);
 
   if (!result.success) {
-    if (result.refunded) {
-      return paymentErrorResponse(
-        `${result.error}. Your payment has been automatically refunded.`,
-      );
-    }
-    return paymentErrorResponse(result.error);
+    const message = result.refunded
+      ? `${result.error} Your payment has been automatically refunded.`
+      : result.error;
+    return paymentErrorResponse(message, result.status);
   }
 
   return htmlResponse(paymentSuccessPage(result.event, result.event.thank_you_url));
