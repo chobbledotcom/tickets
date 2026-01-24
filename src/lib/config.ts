@@ -25,6 +25,15 @@ export const getStripePublishableKey = (): string | null => {
 };
 
 /**
+ * Get Stripe webhook signing secret from environment variable
+ * Required for verifying webhook signatures
+ */
+export const getStripeWebhookSecret = (): string | null => {
+  const key = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+  return key && key.trim() !== "" ? key : null;
+};
+
+/**
  * Check if Stripe payments are enabled
  */
 export const isPaymentsEnabled = (): boolean => {

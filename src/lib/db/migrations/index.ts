@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when adding new migrations
  */
-export const LATEST_UPDATE = "session token hashing and wrapped data key";
+export const LATEST_UPDATE = "add processed_payments table for idempotency";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -136,6 +136,17 @@ export const initDb = async (): Promise<void> => {
       ip TEXT PRIMARY KEY,
       attempts INTEGER NOT NULL DEFAULT 0,
       locked_until INTEGER
+    )
+  `);
+
+  // Create processed_payments table for webhook idempotency
+  // Tracks Stripe session IDs to prevent duplicate attendee creation
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS processed_payments (
+      stripe_session_id TEXT PRIMARY KEY,
+      attendee_id INTEGER NOT NULL,
+      processed_at TEXT NOT NULL,
+      FOREIGN KEY (attendee_id) REFERENCES attendees(id)
     )
   `);
 
