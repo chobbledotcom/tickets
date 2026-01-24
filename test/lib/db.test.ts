@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compa
 import { createClient } from "@libsql/client";
 import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
 import {
-  getActivityLogEntry,
   getAllActivityLog,
   getEventActivityLog,
   logActivity,
@@ -1348,19 +1347,6 @@ describe("db", () => {
 
       const entries = await getAllActivityLog(2);
       expect(entries.length).toBe(2);
-    });
-
-    test("getActivityLogEntry returns entry by ID", async () => {
-      const created = await logActivity("Test action");
-      const fetched = await getActivityLogEntry(created.id);
-
-      expect(fetched).not.toBeNull();
-      expect(fetched?.message).toBe("Test action");
-    });
-
-    test("getActivityLogEntry returns null for non-existent entry", async () => {
-      const entry = await getActivityLogEntry(999);
-      expect(entry).toBeNull();
     });
   });
 });

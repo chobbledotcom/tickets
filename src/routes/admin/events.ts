@@ -214,6 +214,10 @@ const handleAdminEventActivityLog = (
 const verifyName = (expected: string, provided: string): boolean =>
   expected.trim().toLowerCase() === provided.trim().toLowerCase();
 
+/** Check if name verification should be skipped (for API users) */
+const needsVerify = (req: Request): boolean =>
+  new URL(req.url).searchParams.get("verify_name") !== "false";
+
 /** Handle DELETE /admin/event/:id (delete event with logging) */
 const handleAdminEventDelete = (
   request: Request,
@@ -225,14 +229,16 @@ const handleAdminEventDelete = (
       return notFoundResponse();
     }
 
-    const confirmName = form.get("confirm_name") ?? "";
-    if (!verifyName(event.name, confirmName)) {
-      return eventErrorPage(
-        eventId,
-        adminDeleteEventPage,
-        session.csrfToken,
-        "Event name does not match. Please type the exact name to confirm deletion.",
-      );
+    if (needsVerify(request)) {
+      const confirmName = form.get("confirm_name") ?? "";
+      if (!verifyName(event.name, confirmName)) {
+        return eventErrorPage(
+          eventId,
+          adminDeleteEventPage,
+          session.csrfToken,
+          "Event name does not match. Please type the exact name to confirm deletion.",
+        );
+      }
     }
 
     const attendeeCount = event.attendee_count;

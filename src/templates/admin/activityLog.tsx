@@ -19,22 +19,23 @@ const ActivityLogRow = ({ entry }: { entry: ActivityLogEntry }): string =>
     </tr>
   );
 
+/** Generate activity log table rows */
+const activityLogRows = (entries: ActivityLogEntry[]): string =>
+  entries.length > 0
+    ? pipe(
+        map((entry: ActivityLogEntry) => ActivityLogRow({ entry })),
+        joinStrings,
+      )(entries)
+    : '<tr><td colspan="2">No activity recorded yet</td></tr>';
+
 /**
  * Admin activity log page for a specific event
  */
 export const adminEventActivityLogPage = (
   event: EventWithCount,
   entries: ActivityLogEntry[],
-): string => {
-  const rows =
-    entries.length > 0
-      ? pipe(
-          map((entry: ActivityLogEntry) => ActivityLogRow({ entry })),
-          joinStrings,
-        )(entries)
-      : '<tr><td colspan="2">No activity recorded yet</td></tr>';
-
-  return String(
+): string =>
+  String(
     <Layout title={`Activity Log: ${event.name}`}>
       <AdminNav />
       <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
@@ -49,10 +50,37 @@ export const adminEventActivityLogPage = (
             </tr>
           </thead>
           <tbody>
-            <Raw html={rows} />
+            <Raw html={activityLogRows(entries)} />
           </tbody>
         </table>
       </section>
     </Layout>
   );
-};
+
+/**
+ * Admin global activity log page (all events)
+ */
+export const adminGlobalActivityLogPage = (
+  entries: ActivityLogEntry[],
+): string =>
+  String(
+    <Layout title="Activity Log">
+      <AdminNav />
+      <Breadcrumb href="/admin/" label="Dashboard" />
+
+      <section>
+        <h2>Activity Log</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Activity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={activityLogRows(entries)} />
+          </tbody>
+        </table>
+      </section>
+    </Layout>
+  );

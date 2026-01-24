@@ -5,7 +5,7 @@
  * Not encrypted, no personal info - just action descriptions.
  */
 
-import { getDb, queryOne } from "#lib/db/client.ts";
+import { getDb } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 
 /** Activity log entry */
@@ -47,39 +47,30 @@ export const logActivity = (
 ): Promise<ActivityLogEntry> =>
   activityLogTable.insert({ message, eventId: eventId ?? null });
 
-/**
- * Get activity log entries for an event (most recent first)
- */
-export const getEventActivityLog = async (
-  eventId: number,
-  limit = 100,
+/** Query activity log with optional event filter */
+const queryActivityLog = async (
+  eventId: number | null,
+  limit: number,
 ): Promise<ActivityLogEntry[]> => {
+  const whereClause = eventId !== null ? "WHERE event_id = ?" : "";
+  const args = eventId !== null ? [eventId, limit] : [limit];
   const result = await getDb().execute({
-    sql: `SELECT * FROM activity_log WHERE event_id = ? ORDER BY created DESC LIMIT ?`,
-    args: [eventId, limit],
+    sql: `SELECT * FROM activity_log ${whereClause} ORDER BY created DESC, id DESC LIMIT ?`,
+    args,
   });
   return result.rows as unknown as ActivityLogEntry[];
 };
+
+/**
+ * Get activity log entries for an event (most recent first)
+ */
+export const getEventActivityLog = (
+  eventId: number,
+  limit = 100,
+): Promise<ActivityLogEntry[]> => queryActivityLog(eventId, limit);
 
 /**
  * Get all activity log entries (most recent first)
  */
-export const getAllActivityLog = async (
-  limit = 100,
-): Promise<ActivityLogEntry[]> => {
-  const result = await getDb().execute({
-    sql: `SELECT * FROM activity_log ORDER BY created DESC LIMIT ?`,
-    args: [limit],
-  });
-  return result.rows as unknown as ActivityLogEntry[];
-};
-
-/**
- * Get a single activity log entry by ID
- */
-export const getActivityLogEntry = (
-  id: number,
-): Promise<ActivityLogEntry | null> => queryOne<ActivityLogEntry>(
-  `SELECT * FROM activity_log WHERE id = ?`,
-  [id],
-);
+export const getAllActivityLog = (limit = 100): Promise<ActivityLogEntry[]> =>
+  queryActivityLog(null, limit);
