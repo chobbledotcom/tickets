@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when adding new migrations
  */
-export const LATEST_UPDATE = "added slug and active columns to events";
+export const LATEST_UPDATE = "session token hashing and wrapped data key";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -125,6 +125,10 @@ export const initDb = async (): Promise<void> => {
   await runMigration(
     "ALTER TABLE events ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
   );
+
+  // Migration: add wrapped_data_key column to sessions (per-session encryption key)
+  // Note: token column now stores hashed tokens, old unhashed tokens will be invalid
+  await runMigration("ALTER TABLE sessions ADD COLUMN wrapped_data_key TEXT");
 
   // Create login_attempts table
   await client.execute(`

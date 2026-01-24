@@ -32,9 +32,10 @@ export interface Settings {
 }
 
 export interface Session {
-  token: string;
+  token: string; // Contains the hashed token for DB storage
   csrf_token: string;
   expires: number;
+  wrapped_data_key: string | null;
 }
 
 export interface EventWithCount extends Event {

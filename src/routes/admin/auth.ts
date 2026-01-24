@@ -2,13 +2,14 @@
  * Admin authentication routes - login and logout
  */
 
+import { wrapKeyWithToken } from "#lib/crypto.ts";
 import {
   clearLoginAttempts,
   isLoginRateLimited,
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
 import { createSession, deleteSession } from "#lib/db/sessions.ts";
-import { verifyAdminPassword } from "#lib/db/settings.ts";
+import { unwrapDataKey, verifyAdminPassword } from "#lib/db/settings.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { loginResponse } from "#routes/admin/dashboard.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
@@ -47,8 +48,10 @@ const handleAdminLogin = async (
     return loginResponse(validation.error, 400);
   }
 
-  const valid = await verifyAdminPassword(validation.values.password as string);
-  if (!valid) {
+  const passwordHash = await verifyAdminPassword(
+    validation.values.password as string,
+  );
+  if (!passwordHash) {
     await recordFailedLogin(clientIp);
     return loginResponse("Invalid credentials", 401);
   }
@@ -56,10 +59,19 @@ const handleAdminLogin = async (
   // Clear failed attempts on successful login
   await clearLoginAttempts(clientIp);
 
+  // Unwrap DATA_KEY using password-derived KEK
+  const dataKey = await unwrapDataKey(passwordHash);
+
   const token = generateSecureToken();
   const csrfToken = generateSecureToken();
   const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-  await createSession(token, csrfToken, expires);
+
+  // Wrap DATA_KEY with session token for stateless access
+  const wrappedDataKey = dataKey
+    ? await wrapKeyWithToken(dataKey, token)
+    : null;
+
+  await createSession(token, csrfToken, expires, wrappedDataKey);
 
   return redirect(
     "/admin",

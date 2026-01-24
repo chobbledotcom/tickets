@@ -235,6 +235,8 @@ describe("code quality", () => {
       "lib/db/events.ts:updateEvent",
       // DB version constant used in production but test pattern doesn't detect constant comparison
       "lib/db/migrations/index.ts:LATEST_UPDATE",
+      // Client-side Stripe publishable key (for future payment form templates)
+      "lib/config.ts:getStripePublishableKey",
     ];
 
     /**
