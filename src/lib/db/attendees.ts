@@ -67,6 +67,88 @@ export const getAttendees = async (
   );
 };
 
+/** Encrypted attendee data for insertion */
+type EncryptedAttendeeData = {
+  created: string;
+  encryptedName: string;
+  encryptedEmail: string;
+  encryptedPaymentId: string | null;
+};
+
+/** Encrypt attendee fields, returning null if key not configured */
+const encryptAttendeeFields = async (
+  name: string,
+  email: string,
+  stripePaymentId: string | null,
+): Promise<EncryptedAttendeeData | null> => {
+  const publicKeyJwk = await getPublicKey();
+  if (!publicKeyJwk) return null;
+
+  return {
+    created: new Date().toISOString(),
+    encryptedName: await encryptAttendeePII(name, publicKeyJwk),
+    encryptedEmail: await encryptAttendeePII(email, publicKeyJwk),
+    encryptedPaymentId: stripePaymentId
+      ? await encryptAttendeePII(stripePaymentId, publicKeyJwk)
+      : null,
+  };
+};
+
+/** Build plain Attendee object from insert result */
+const buildAttendeeResult = (
+  insertId: number | bigint | undefined,
+  eventId: number,
+  name: string,
+  email: string,
+  created: string,
+  stripePaymentId: string | null,
+  quantity: number,
+): Attendee => ({
+  id: Number(insertId ?? 0),
+  event_id: eventId,
+  name,
+  email,
+  created,
+  stripe_payment_id: stripePaymentId,
+  quantity,
+});
+
+/** Common attendee input parameters */
+type AttendeeInput = {
+  eventId: number;
+  name: string;
+  email: string;
+  stripePaymentId?: string | null;
+  quantity?: number;
+};
+
+/** Execute simple insert (no capacity check) */
+const insertAttendee = async (
+  input: Required<AttendeeInput>,
+  encrypted: EncryptedAttendeeData,
+): Promise<Attendee> => {
+  const result = await getDb().execute({
+    sql: "INSERT INTO attendees (event_id, name, email, created, stripe_payment_id, quantity) VALUES (?, ?, ?, ?, ?, ?)",
+    args: [
+      input.eventId,
+      encrypted.encryptedName,
+      encrypted.encryptedEmail,
+      encrypted.created,
+      encrypted.encryptedPaymentId,
+      input.quantity,
+    ],
+  });
+  return buildAttendeeResult(
+    result.lastInsertRowid,
+    input.eventId,
+    input.name,
+    input.email,
+    encrypted.created,
+    input.stripePaymentId,
+    input.quantity,
+  );
+};
+
 /**
  * Create a new attendee (reserve tickets)
  * Sensitive fields (name, email) are encrypted with the public key
@@ -79,37 +161,14 @@ export const createAttendee = async (
   stripePaymentId: string | null = null,
   quantity = 1,
 ): Promise<Attendee> => {
-  const publicKeyJwk = await getPublicKey();
-  if (!publicKeyJwk) {
+  const encrypted = await encryptAttendeeFields(name, email, stripePaymentId);
+  if (!encrypted) {
     throw new Error("Encryption key not configured. Please complete setup.");
   }
-
-  const created = new Date().toISOString();
-  const encryptedName = await encryptAttendeePII(name, publicKeyJwk);
-  const encryptedEmail = await encryptAttendeePII(email, publicKeyJwk);
-  const encryptedPaymentId = stripePaymentId
-    ? await encryptAttendeePII(stripePaymentId, publicKeyJwk)
-    : null;
-  const result = await getDb().execute({
-    sql: "INSERT INTO attendees (event_id, name, email, created, stripe_payment_id, quantity) VALUES (?, ?, ?, ?, ?, ?)",
-    args: [
-      eventId,
-      encryptedName,
-      encryptedEmail,
-      created,
-      encryptedPaymentId,
-      quantity,
-    ],
-  });
-  return {
-    id: Number(result.lastInsertRowid),
-    event_id: eventId,
-    name,
-    email,
-    created,
-    stripe_payment_id: stripePaymentId,
-    quantity,
-  };
+  return insertAttendee(
+    { eventId, name, email, stripePaymentId, quantity },
+    encrypted,
+  );
 };
 
 /**
@@ -172,3 +231,76 @@ export const hasAvailableSpots = async (
   if (!event) return false;
   return event.attendee_count + quantity <= event.max_attendees;
 };
+
+/** Result of atomic attendee creation */
+export type CreateAttendeeResult =
+  | { success: true; attendee: Attendee }
+  | { success: false; reason: "capacity_exceeded" | "encryption_error" };
+
+/** Stubbable API for testing atomic operations */
+export const attendeesApi = {
+  /**
+   * Atomically create attendee with capacity check in single SQL statement.
+   * Prevents race conditions by combining check and insert.
+   */
+  createAttendeeAtomic: async (
+    eventId: number,
+    name: string,
+    email: string,
+    paymentId: string | null = null,
+    qty = 1,
+  ): Promise<CreateAttendeeResult> => {
+    const enc = await encryptAttendeeFields(name, email, paymentId);
+    if (!enc) {
+      return { success: false, reason: "encryption_error" };
+    }
+
+    // Atomic check-and-insert: only inserts if capacity allows
+    const insertResult = await getDb().execute({
+      sql: `INSERT INTO attendees (event_id, name, email, created, stripe_payment_id, quantity)
+            SELECT ?, ?, ?, ?, ?, ?
+            WHERE (
+              SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?
+            ) + ? <= (
+              SELECT max_attendees FROM events WHERE id = ?
+            )`,
+      args: [
+        eventId,
+        enc.encryptedName,
+        enc.encryptedEmail,
+        enc.created,
+        enc.encryptedPaymentId,
+        qty,
+        eventId,
+        qty,
+        eventId,
+      ],
+    });
+
+    if (insertResult.rowsAffected === 0) {
+      return { success: false, reason: "capacity_exceeded" };
+    }
+
+    return {
+      success: true,
+      attendee: buildAttendeeResult(
+        insertResult.lastInsertRowid,
+        eventId,
+        name,
+        email,
+        enc.created,
+        paymentId,
+        qty,
+      ),
+    };
+  },
+};
+
+/** Wrapper for test mocking - delegates to attendeesApi at runtime */
+export const createAttendeeAtomic = (
+  evtId: number,
+  n: string,
+  e: string,
+  pId: string | null = null,
+  q = 1,
+): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(evtId, n, e, pId, q);

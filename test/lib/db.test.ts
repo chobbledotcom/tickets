@@ -2,12 +2,11 @@ import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compa
 import { createClient } from "@libsql/client";
 import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
 import {
-  createAttendee,
+  createAttendeeAtomic,
   deleteAttendee,
   getAttendee,
   getAttendees,
   hasAvailableSpots,
-  updateAttendeePayment,
 } from "#lib/db/attendees.ts";
 import { getDb, setDb } from "#lib/db/client.ts";
 import {
@@ -47,10 +46,12 @@ import {
   verifyAdminPassword,
 } from "#lib/db/settings.ts";
 import {
+  createAttendee,
   createTestEvent,
   resetTestSlugCounter,
   setupTestEncryptionKey,
   TEST_ADMIN_PASSWORD,
+  updateAttendeePayment,
 } from "#test-utils";
 
 /** Helper to get private key for decrypting attendees in tests */
@@ -612,6 +613,78 @@ describe("db", () => {
 
       const events = await getAllEvents();
       expect(events[0]?.attendee_count).toBe(2);
+    });
+
+    test("createAttendeeAtomic succeeds when capacity available", async () => {
+      const event = await createTestEvent({
+        name: "Event",
+        description: "Desc",
+        maxAttendees: 2,
+        thankYouUrl: "https://example.com",
+      });
+
+      const result = await createAttendeeAtomic(
+        event.id,
+        "John",
+        "john@example.com",
+        "pi_test",
+        1,
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.attendee.name).toBe("John");
+        expect(result.attendee.stripe_payment_id).toBe("pi_test");
+      }
+    });
+
+    test("createAttendeeAtomic fails when capacity exceeded", async () => {
+      const event = await createTestEvent({
+        name: "Event",
+        description: "Desc",
+        maxAttendees: 1,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(event.id, "First", "first@example.com");
+
+      const result = await createAttendeeAtomic(
+        event.id,
+        "Second",
+        "second@example.com",
+        null,
+        1,
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.reason).toBe("capacity_exceeded");
+      }
+    });
+
+    test("createAttendeeAtomic fails when encryption key not configured", async () => {
+      const event = await createTestEvent({
+        name: "Event",
+        description: "Desc",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Remove public key to simulate incomplete setup
+      await getDb().execute({
+        sql: "DELETE FROM settings WHERE key = ?",
+        args: [CONFIG_KEYS.PUBLIC_KEY],
+      });
+
+      const result = await createAttendeeAtomic(
+        event.id,
+        "John",
+        "john@example.com",
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.reason).toBe("encryption_error");
+      }
     });
   });
 
