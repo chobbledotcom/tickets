@@ -721,7 +721,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin");
 
       // Verify event was actually created
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).not.toBeNull();
       expect(event?.slug).toBe("new-event");
@@ -1235,7 +1235,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify the event was updated
-      const { getEventWithCount } = await import("#lib/db/events");
+      const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(1);
       expect(updated?.name).toBe("Updated Event");
       expect(updated?.description).toBe("Updated Description");
@@ -1335,7 +1335,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify event is now inactive
-      const { getEventWithCount } = await import("#lib/db/events");
+      const { getEventWithCount } = await import("#lib/db/events.ts");
       const event = await getEventWithCount(1);
       expect(event?.active).toBe(0);
     });
@@ -1423,7 +1423,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify event is now active
-      const { getEventWithCount } = await import("#lib/db/events");
+      const { getEventWithCount } = await import("#lib/db/events.ts");
       const activeEvent = await getEventWithCount(1);
       expect(activeEvent?.active).toBe(1);
     });
@@ -1602,7 +1602,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin");
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
@@ -1664,8 +1664,8 @@ describe("server", () => {
       expect(response.status).toBe(302);
 
       // Verify event and attendees were deleted
-      const { getEvent } = await import("#lib/db/events");
-      const { getAttendees } = await import("#lib/db/attendees");
+      const { getEvent } = await import("#lib/db/events.ts");
+      const { getAttendees } = await import("#lib/db/attendees.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
 
@@ -1701,7 +1701,7 @@ describe("server", () => {
       expect(response.status).toBe(302);
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
@@ -1740,7 +1740,7 @@ describe("server", () => {
       expect(response.status).toBe(302);
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
@@ -2004,7 +2004,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify attendee was deleted
-      const { getAttendee } = await import("#lib/db/attendees");
+      const { getAttendee } = await import("#lib/db/attendees.ts");
       const attendee = await getAttendee(1);
       expect(attendee).toBeNull();
     });
@@ -2096,7 +2096,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify attendee was deleted
-      const { getAttendee } = await import("#lib/db/attendees");
+      const { getAttendee } = await import("#lib/db/attendees.ts");
       const attendee = await getAttendee(1);
       expect(attendee).toBeNull();
     });
@@ -2465,7 +2465,7 @@ describe("server", () => {
       expect(html).toContain("no longer accepting registrations");
 
       // Verify attendee was deleted
-      const { getAttendee } = await import("#lib/db/attendees");
+      const { getAttendee } = await import("#lib/db/attendees.ts");
       const deleted = await getAttendee(attendee.id);
       expect(deleted).toBeNull();
     });
@@ -2675,7 +2675,7 @@ describe("server", () => {
         expect(html).toContain("/ticket/");
 
         // Verify attendee was deleted
-        const { getAttendee } = await import("#lib/db/attendees");
+        const { getAttendee } = await import("#lib/db/attendees.ts");
         const deleted = await getAttendee(attendee.id);
         expect(deleted).toBeNull();
       } finally {
@@ -2818,7 +2818,7 @@ describe("server", () => {
 
       // Delete the event - need to delete attendee first due to FK constraint
       // then recreate attendee pointing to deleted event
-      const { getDb } = await import("#lib/db/client");
+      const { getDb } = await import("#lib/db/client.ts");
 
       // Disable foreign key checks, delete event, re-enable
       await getDb().execute("PRAGMA foreign_keys = OFF");
@@ -2913,7 +2913,7 @@ describe("server", () => {
         expect(html).toContain("https://example.com/thanks");
 
         // Verify attendee was updated with payment ID
-        const { getAttendee } = await import("#lib/db/attendees");
+        const { getAttendee } = await import("#lib/db/attendees.ts");
         const updatedAttendee = await getAttendee(attendee.id);
         expect(updatedAttendee?.stripe_payment_id).toBe("pi_test_123");
       } finally {
@@ -3016,7 +3016,7 @@ describe("server", () => {
         expect(html).toContain("Payment Successful");
 
         // Verify original payment ID wasn't overwritten
-        const { getAttendee } = await import("#lib/db/attendees");
+        const { getAttendee } = await import("#lib/db/attendees.ts");
         const checkedAttendee = await getAttendee(attendee.id);
         expect(checkedAttendee?.stripe_payment_id).toBe("pi_already_paid");
       } finally {
@@ -3264,7 +3264,7 @@ describe("server", () => {
 
       test("POST /setup/ throws error when completeSetup fails", async () => {
         const { spyOn } = await import("bun:test");
-        const dbModule = await import("#lib/db/settings");
+        const dbModule = await import("#lib/db/settings.ts");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
         const csrfToken = getSetupCsrfToken(

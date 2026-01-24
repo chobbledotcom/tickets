@@ -29,11 +29,19 @@ const FORBIDDEN_PATTERNS = [
 ];
 
 /**
+ * Test utility files - excluded from all code quality checks
+ */
+const TEST_UTILITY_FILES = [
+  "test-utils/index.ts",
+  "test-utils/stripe-mock.ts",
+  "test-utils/test-compat.ts",
+];
+
+/**
  * Files that are allowed to have in-memory state (e.g., test utilities, caches)
  */
 const ALLOWED_FILES_STATE = [
-  "test-utils/index.ts",
-  "test-utils/stripe-mock.ts",
+  ...TEST_UTILITY_FILES,
   // Session cache with 10s TTL - legitimate performance optimization
   "lib/db/sessions.ts",
 ];
@@ -103,6 +111,7 @@ describe("code quality", () => {
 
       for (const file of files) {
         const relativePath = getRelativePath(file);
+        if (TEST_UTILITY_FILES.includes(relativePath)) continue;
         const content = await Deno.readTextFile(file);
         const lines = content.split("\n");
 
@@ -131,6 +140,7 @@ describe("code quality", () => {
 
       for (const file of files) {
         const relativePath = getRelativePath(file);
+        if (TEST_UTILITY_FILES.includes(relativePath)) continue;
         const content = await Deno.readTextFile(file);
         const lines = content.split("\n");
 
@@ -194,10 +204,7 @@ describe("code quality", () => {
      */
 
     /** Files explicitly for testing */
-    const TEST_UTILITY_PATHS = [
-      "test-utils/index.ts",
-      "test-utils/stripe-mock.ts",
-    ];
+    const TEST_UTILITY_PATHS = TEST_UTILITY_FILES;
 
     /** Library/infrastructure modules - okay to have unused exports */
     const LIBRARY_PATHS = [

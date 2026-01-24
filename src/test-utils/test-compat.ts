@@ -26,6 +26,7 @@ interface DescribeContext {
   afterEach?: TestFn;
   beforeAll?: TestFn;
   afterAll?: TestFn;
+  parent?: DescribeContext;
 }
 
 const contextStack: DescribeContext[] = [];
@@ -38,10 +39,37 @@ const getCurrentContext = (): DescribeContext => {
 };
 
 /**
+ * Get all beforeEach functions from current context up through parents
+ */
+const getBeforeEachChain = (ctx: DescribeContext): TestFn[] => {
+  const chain: TestFn[] = [];
+  let current: DescribeContext | undefined = ctx;
+  while (current) {
+    if (current.beforeEach) chain.unshift(current.beforeEach);
+    current = current.parent;
+  }
+  return chain;
+};
+
+/**
+ * Get all afterEach functions from current context up through parents
+ */
+const getAfterEachChain = (ctx: DescribeContext): TestFn[] => {
+  const chain: TestFn[] = [];
+  let current: DescribeContext | undefined = ctx;
+  while (current) {
+    if (current.afterEach) chain.push(current.afterEach);
+    current = current.parent;
+  }
+  return chain;
+};
+
+/**
  * Jest-like describe block
  */
 export const describe = (_name: string, fn: () => void): void => {
-  const context: DescribeContext = {};
+  const parent = contextStack[contextStack.length - 1];
+  const context: DescribeContext = { parent };
   contextStack.push(context);
 
   // Execute the describe block to collect tests
@@ -55,15 +83,21 @@ export const describe = (_name: string, fn: () => void): void => {
  */
 export const test = (name: string, fn: TestFn): void => {
   const ctx = getCurrentContext();
+  const beforeEachChain = getBeforeEachChain(ctx);
+  const afterEachChain = getAfterEachChain(ctx);
 
   Deno.test({
     name,
     fn: async () => {
-      if (ctx.beforeEach) await ctx.beforeEach();
+      for (const beforeFn of beforeEachChain) {
+        await beforeFn();
+      }
       try {
         await fn();
       } finally {
-        if (ctx.afterEach) await ctx.afterEach();
+        for (const afterFn of afterEachChain) {
+          await afterFn();
+        }
       }
     },
     sanitizeOps: false,
