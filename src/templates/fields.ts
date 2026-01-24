@@ -2,7 +2,7 @@
  * Form field definitions for all forms
  */
 
-import type { Field } from "#lib/forms.ts";
+import type { Field } from "#lib/forms.tsx";
 import { isValidSlug } from "#lib/slug.ts";
 
 /**

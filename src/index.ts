@@ -11,7 +11,7 @@ const startServer = async (port = 3000): Promise<void> => {
   await initDb();
   console.log(`Server starting on http://localhost:${port}`);
 
-  Deno.serve({ port }, handleRequest);
+  Deno.serve({ port }, (request) => handleRequest(request));
 };
 
 const port = Number.parseInt(Deno.env.get("PORT") || "3000", 10);

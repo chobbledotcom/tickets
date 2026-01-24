@@ -98,7 +98,7 @@ describe("stripe", () => {
         expect(result).toBeNull();
         expect(retrieveSpy).toHaveBeenCalledWith("cs_test_123");
       } finally {
-        retrieveSpy.mockRestore();
+        retrieveSpy.mockRestore?.();
       }
     });
   });

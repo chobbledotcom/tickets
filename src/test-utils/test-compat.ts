@@ -39,29 +39,21 @@ const getCurrentContext = (): DescribeContext => {
 };
 
 /**
- * Get all beforeEach functions from current context up through parents
+ * Collect hook functions from context chain
  */
-const getBeforeEachChain = (ctx: DescribeContext): TestFn[] => {
-  const chain: TestFn[] = [];
+const collectHooks = (
+  ctx: DescribeContext,
+  hookType: "beforeEach" | "afterEach",
+): TestFn[] => {
+  const hooks: TestFn[] = [];
   let current: DescribeContext | undefined = ctx;
   while (current) {
-    if (current.beforeEach) chain.unshift(current.beforeEach);
+    const hook = current[hookType];
+    if (hook) hooks.push(hook);
     current = current.parent;
   }
-  return chain;
-};
-
-/**
- * Get all afterEach functions from current context up through parents
- */
-const getAfterEachChain = (ctx: DescribeContext): TestFn[] => {
-  const chain: TestFn[] = [];
-  let current: DescribeContext | undefined = ctx;
-  while (current) {
-    if (current.afterEach) chain.push(current.afterEach);
-    current = current.parent;
-  }
-  return chain;
+  // beforeEach runs parent-to-child (reverse), afterEach runs child-to-parent (as-is)
+  return hookType === "beforeEach" ? hooks.reverse() : hooks;
 };
 
 /**
@@ -83,8 +75,8 @@ export const describe = (_name: string, fn: () => void): void => {
  */
 export const test = (name: string, fn: TestFn): void => {
   const ctx = getCurrentContext();
-  const beforeEachChain = getBeforeEachChain(ctx);
-  const afterEachChain = getAfterEachChain(ctx);
+  const beforeEachChain = collectHooks(ctx, "beforeEach");
+  const afterEachChain = collectHooks(ctx, "afterEach");
 
   Deno.test({
     name,
@@ -462,6 +454,7 @@ interface MockFn {
   };
   mockClear(): void;
   mockReset(): void;
+  mockRestore?: () => void;
   mockImplementation(fn: (...args: unknown[]) => unknown): MockFn;
   mockReturnValue(value: unknown): MockFn;
   mockResolvedValue(value: unknown): MockFn;
@@ -530,8 +523,16 @@ export const fn = (impl?: (...args: unknown[]) => unknown): MockFn => {
 /**
  * Jest-like jest object
  */
-export const jest = {
+export const jest: {
+  fn: typeof fn;
+  useFakeTimers: () => void;
+  useRealTimers: () => void;
+  setSystemTime: (time: number | Date) => void;
+} = {
   fn,
+  useFakeTimers: () => {},
+  useRealTimers: () => {},
+  setSystemTime: () => {},
 };
 
 /**
@@ -544,7 +545,8 @@ interface SpyFn extends MockFn {
 /**
  * Spy on an object's method
  */
-export const spyOn = <T extends Record<string, unknown>>(
+// deno-lint-ignore no-explicit-any
+export const spyOn = <T extends Record<string, any>>(
   obj: T,
   method: keyof T,
 ): SpyFn => {
@@ -553,7 +555,7 @@ export const spyOn = <T extends Record<string, unknown>>(
 
   // Try to replace the method - use Object.defineProperty for globalThis
   // as direct assignment may fail for built-in globals like fetch
-  if (obj === globalThis) {
+  if ((obj as unknown) === globalThis) {
     Object.defineProperty(obj, method, {
       value: mock,
       writable: true,
