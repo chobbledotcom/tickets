@@ -322,3 +322,20 @@ export const createTestEvent = (overrides: Partial<EventInput> = {}) =>
 /** Re-export createEvent and EventInput for test use */
 export { createEvent };
 export type { EventInput };
+
+/**
+ * Re-export attendee functions for test use
+ * These are not used in production (atomic create is used instead)
+ * but are useful for setting up test data
+ */
+export {
+  createAttendee,
+  getAttendeesRaw,
+  updateAttendeePayment,
+} from "#lib/db/attendees.ts";
+
+/**
+ * Re-export legacy checkout session for test use
+ * Production uses createCheckoutSessionWithIntent instead
+ */
+export { createCheckoutSession } from "#lib/stripe.ts";
