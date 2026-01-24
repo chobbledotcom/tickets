@@ -10,6 +10,7 @@ import {
   generateDataKey,
   generateKeyPair,
   generateSecureToken,
+  hashIpAddress,
   hashPassword,
   hashSessionToken,
   hybridDecrypt,
@@ -296,6 +297,67 @@ describe("session token hashing", () => {
   it("returns base64 encoded string", async () => {
     const hash = await hashSessionToken("test-token");
     // SHA-256 produces 32 bytes, base64 encodes to 44 characters (with padding)
+    expect(hash.length).toBe(44);
+    expect(hash).toMatch(/^[A-Za-z0-9+/]+=*$/);
+  });
+});
+
+describe("IP address hashing", () => {
+  beforeEach(() => {
+    setupTestEncryptionKey();
+  });
+
+  afterEach(() => {
+    clearTestEncryptionKey();
+  });
+
+  it("produces consistent hash for same IP", async () => {
+    const ip = "192.168.1.1";
+    const hash1 = await hashIpAddress(ip);
+    const hash2 = await hashIpAddress(ip);
+    expect(hash1).toBe(hash2);
+  });
+
+  it("produces different hashes for different IPs", async () => {
+    const hash1 = await hashIpAddress("192.168.1.1");
+    const hash2 = await hashIpAddress("192.168.1.2");
+    expect(hash1).not.toBe(hash2);
+  });
+
+  it("returns base64 encoded string", async () => {
+    const hash = await hashIpAddress("10.0.0.1");
+    // HMAC-SHA-256 produces 32 bytes, base64 encodes to 44 characters (with padding)
+    expect(hash.length).toBe(44);
+    expect(hash).toMatch(/^[A-Za-z0-9+/]+=*$/);
+  });
+
+  it("produces different hashes with different encryption keys", async () => {
+    const ip = "192.168.1.1";
+    const hash1 = await hashIpAddress(ip);
+
+    // Change the encryption key
+    clearTestEncryptionKey();
+    Deno.env.set(
+      "DB_ENCRYPTION_KEY",
+      "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY=",
+    );
+
+    const hash2 = await hashIpAddress(ip);
+    expect(hash1).not.toBe(hash2);
+
+    // Restore original key
+    clearTestEncryptionKey();
+    setupTestEncryptionKey();
+  });
+
+  it("handles IPv6 addresses", async () => {
+    const hash = await hashIpAddress("2001:db8::1");
+    expect(hash.length).toBe(44);
+    expect(hash).toMatch(/^[A-Za-z0-9+/]+=*$/);
+  });
+
+  it("handles special fallback value", async () => {
+    const hash = await hashIpAddress("direct");
     expect(hash.length).toBe(44);
     expect(hash).toMatch(/^[A-Za-z0-9+/]+=*$/);
   });

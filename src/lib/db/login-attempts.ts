@@ -2,6 +2,7 @@
  * Login attempts table operations (rate limiting)
  */
 
+import { hashIpAddress } from "#lib/crypto.ts";
 import { executeByField, getDb, queryOne } from "#lib/db/client.ts";
 
 /**
@@ -10,60 +11,69 @@ import { executeByField, getDb, queryOne } from "#lib/db/client.ts";
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
-/** Query login attempts for an IP */
-const getLoginAttempts = (ip: string) =>
-  queryOne<{ attempts: number; locked_until: number | null }>(
+type LoginAttemptRow = { attempts: number; locked_until: number | null };
+
+/** Hash IP and query login attempts, then apply handler function */
+const withHashedIpAttempts = async <T>(
+  ip: string,
+  handler: (hashedIp: string, row: LoginAttemptRow | null) => Promise<T>,
+): Promise<T> => {
+  const hashedIp = await hashIpAddress(ip);
+  const row = await queryOne<LoginAttemptRow>(
     "SELECT attempts, locked_until FROM login_attempts WHERE ip = ?",
-    [ip],
+    [hashedIp],
   );
+  return handler(hashedIp, row);
+};
 
 /**
  * Check if IP is rate limited for login
  */
-export const isLoginRateLimited = async (ip: string): Promise<boolean> => {
-  const row = await getLoginAttempts(ip);
-  if (!row) return false;
+export const isLoginRateLimited = (ip: string): Promise<boolean> =>
+  withHashedIpAttempts(ip, async (hashedIp, row) => {
+    if (!row) return false;
 
-  // Check if currently locked out
-  if (row.locked_until && row.locked_until > Date.now()) {
-    return true;
-  }
+    // Check if currently locked out
+    if (row.locked_until && row.locked_until > Date.now()) {
+      return true;
+    }
 
-  // If lockout expired, reset
-  if (row.locked_until && row.locked_until <= Date.now()) {
-    await executeByField("login_attempts", "ip", ip);
+    // If lockout expired, reset
+    if (row.locked_until && row.locked_until <= Date.now()) {
+      await executeByField("login_attempts", "ip", hashedIp);
+    }
+
     return false;
-  }
-
-  return false;
-};
+  });
 
 /**
  * Record a failed login attempt
  * Returns true if the account is now locked
  */
-export const recordFailedLogin = async (ip: string): Promise<boolean> => {
-  const row = await getLoginAttempts(ip);
-  const newAttempts = (row?.attempts ?? 0) + 1;
+export const recordFailedLogin = (ip: string): Promise<boolean> =>
+  withHashedIpAttempts(ip, async (hashedIp, row) => {
+    const newAttempts = (row?.attempts ?? 0) + 1;
 
-  if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
-    const lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+    if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+      const lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+      await getDb().execute({
+        sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
+        args: [hashedIp, newAttempts, lockedUntil],
+      });
+      return true;
+    }
+
     await getDb().execute({
-      sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
-      args: [ip, newAttempts, lockedUntil],
+      sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
+      args: [hashedIp, newAttempts],
     });
-    return true;
-  }
-
-  await getDb().execute({
-    sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, NULL)",
-    args: [ip, newAttempts],
+    return false;
   });
-  return false;
-};
 
 /**
  * Clear login attempts for an IP (on successful login)
  */
-export const clearLoginAttempts = (ip: string): Promise<void> =>
-  executeByField("login_attempts", "ip", ip);
+export const clearLoginAttempts = async (ip: string): Promise<void> => {
+  const hashedIp = await hashIpAddress(ip);
+  await executeByField("login_attempts", "ip", hashedIp);
+};

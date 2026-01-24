@@ -339,6 +339,33 @@ export const hashSessionToken = async (token: string): Promise<string> => {
 };
 
 /**
+ * Hash an IP address using HMAC-SHA256 with DB_ENCRYPTION_KEY
+ * Uses HMAC instead of plain SHA-256 because IPs are a limited keyspace
+ * and would be vulnerable to rainbow table attacks without keyed hashing
+ */
+export const hashIpAddress = async (ip: string): Promise<string> => {
+  const keyString = getEncryptionKeyString();
+  const keyBytes = decodeKeyBytes(keyString);
+
+  const hmacKey = await crypto.subtle.importKey(
+    "raw",
+    keyBytes as BufferSource,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+
+  const encoder = new TextEncoder();
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    hmacKey,
+    encoder.encode(ip),
+  );
+
+  return toBase64(new Uint8Array(signature));
+};
+
+/**
  * =============================================================================
  * Key Encryption Key (KEK) Derivation
  * =============================================================================
