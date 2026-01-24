@@ -47,7 +47,7 @@ describe("html", () => {
   describe("adminLoginPage", () => {
     test("renders login form", () => {
       const html = adminLoginPage();
-      expect(html).toContain("Admin Login");
+      expect(html).toContain("Login");
       expect(html).toContain('action="/admin/login"');
       expect(html).toContain('type="password"');
     });

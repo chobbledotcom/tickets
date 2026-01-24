@@ -8,6 +8,7 @@ import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { eventFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -43,19 +44,21 @@ export const adminEventPage = (
 
   return String(
     <Layout title={`Event: ${event.name}`}>
+      <AdminNav />
+
       <header>
+        <Breadcrumb href="/admin/" label="Dashboard" />
         <h1>{event.name}</h1>
         <nav>
-          <ul>
-            <li><a href="/admin/">&larr; Back to Dashboard</a></li>
-            <li><a href={`/admin/event/${event.id}/edit`}>Edit Event</a></li>
-            {event.active === 1 ? (
-              <li><a href={`/admin/event/${event.id}/deactivate`} class="danger">Deactivate</a></li>
-            ) : (
-              <li><a href={`/admin/event/${event.id}/reactivate`}>Reactivate</a></li>
-            )}
-            <li><a href={`/admin/event/${event.id}/delete`} class="danger">Delete Event</a></li>
-          </ul>
+          <a href={`/admin/event/${event.id}/edit`}>Edit</a>
+          {" | "}
+          {event.active === 1 ? (
+            <a href={`/admin/event/${event.id}/deactivate`} class="danger">Deactivate</a>
+          ) : (
+            <a href={`/admin/event/${event.id}/reactivate`}>Reactivate</a>
+          )}
+          {" | "}
+          <a href={`/admin/event/${event.id}/delete`} class="danger">Delete</a>
         </nav>
       </header>
 
@@ -142,12 +145,8 @@ export const adminEventEditPage = (
 ): string =>
   String(
     <Layout title={`Edit: ${event.name}`}>
-      <header>
-        <h1>Edit Event</h1>
-        <nav>
-          <a href={`/admin/event/${event.id}`}>&larr; Back to Event</a>
-        </nav>
-      </header>
+      <AdminNav />
+      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
       <section>
         <Raw html={renderError(error)} />
         <form method="POST" action={`/admin/event/${event.id}/edit`}>
@@ -169,12 +168,8 @@ export const adminDeleteEventPage = (
 ): string =>
   String(
     <Layout title={`Delete: ${event.name}`}>
-      <header>
-        <h1>Delete Event</h1>
-        <nav>
-          <a href={`/admin/event/${event.id}`}>&larr; Back to Event</a>
-        </nav>
-      </header>
+      <AdminNav />
+      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
 
       <section>
         {error && <div class="error">{error}</div>}
@@ -215,12 +210,8 @@ export const adminDeactivateEventPage = (
 ): string =>
   String(
     <Layout title={`Deactivate: ${event.name}`}>
-      <header>
-        <h1>Deactivate Event</h1>
-        <nav>
-          <a href={`/admin/event/${event.id}`}>&larr; Back to Event</a>
-        </nav>
-      </header>
+      <AdminNav />
+      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
 
       <section>
         <article>
@@ -254,12 +245,8 @@ export const adminReactivateEventPage = (
 ): string =>
   String(
     <Layout title={`Reactivate: ${event.name}`}>
-      <header>
-        <h1>Reactivate Event</h1>
-        <nav>
-          <a href={`/admin/event/${event.id}`}>&larr; Back to Event</a>
-        </nav>
-      </header>
+      <AdminNav />
+      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
 
       <section>
         <article>

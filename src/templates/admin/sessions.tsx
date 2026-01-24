@@ -6,6 +6,7 @@ import { map, pipe, reduce } from "#fp";
 import type { Session } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -48,13 +49,8 @@ export const adminSessionsPage = (
   ).length;
 
   return String(
-    <Layout title="Admin Sessions">
-      <header>
-        <h1>Sessions</h1>
-        <nav>
-          <a href="/admin/">&larr; Back to Dashboard</a>
-        </nav>
-      </header>
+    <Layout title="Sessions">
+      <AdminNav />
 
       {success && <div class="success">{success}</div>}
 

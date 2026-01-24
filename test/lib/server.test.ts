@@ -133,7 +133,7 @@ describe("server", () => {
       const response = await handleRequest(mockRequest("/admin/"));
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Admin Login");
+      expect(html).toContain("Login");
     });
 
     test("shows dashboard when authenticated", async () => {
@@ -158,7 +158,7 @@ describe("server", () => {
       const response = await handleRequest(mockRequest("/admin"));
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Admin Login");
+      expect(html).toContain("Login");
     });
   });
 
@@ -284,7 +284,7 @@ describe("server", () => {
       const response = await awaitTestRequest("/admin/settings", { cookie });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Admin Settings");
+      expect(html).toContain("Settings");
       expect(html).toContain("Change Password");
     });
   });
@@ -449,7 +449,7 @@ describe("server", () => {
       // Verify old session is invalidated
       const dashboardResponse = await awaitTestRequest("/admin/", { cookie });
       const html = await dashboardResponse.text();
-      expect(html).toContain("Admin Login"); // Should show login, not dashboard
+      expect(html).toContain("Login"); // Should show login, not dashboard
 
       // Verify new password works
       const newLoginResponse = await handleRequest(
@@ -817,7 +817,7 @@ describe("server", () => {
       });
       const html = await response.text();
       expect(html).toContain("/admin/event/1/edit");
-      expect(html).toContain("Edit Event");
+      expect(html).toContain(">Edit<");
     });
   });
 
@@ -973,7 +973,7 @@ describe("server", () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Edit Event");
+      expect(html).toContain("Edit:");
       expect(html).toContain('value="Test Event"');
       expect(html).toContain("Test Description");
       expect(html).toContain('value="100"');
@@ -2318,7 +2318,7 @@ describe("server", () => {
       const response = await awaitTestRequest("/admin/", "nonexistent");
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Admin Login");
+      expect(html).toContain("Login");
     });
 
     test("expired session is deleted and shows login page", async () => {
@@ -2328,7 +2328,7 @@ describe("server", () => {
       const response = await awaitTestRequest("/admin/", "expired-token");
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Admin Login");
+      expect(html).toContain("Login");
 
       // Verify the expired session was deleted
       const session = await getSession("expired-token");
