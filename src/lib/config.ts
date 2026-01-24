@@ -11,7 +11,7 @@ import { getCurrencyCodeFromDb, isSetupComplete } from "#lib/db/settings.ts";
  * Returns null if not set (payments disabled)
  */
 export const getStripeSecretKey = (): string | null => {
-  const key = process.env.STRIPE_SECRET_KEY;
+  const key = Deno.env.get("STRIPE_SECRET_KEY");
   return key && key.trim() !== "" ? key : null;
 };
 
@@ -20,7 +20,7 @@ export const getStripeSecretKey = (): string | null => {
  * Returns null if not set
  */
 export const getStripePublishableKey = (): string | null => {
-  const key = process.env.STRIPE_PUBLISHABLE_KEY;
+  const key = Deno.env.get("STRIPE_PUBLISHABLE_KEY");
   return key && key.trim() !== "" ? key : null;
 };
 
@@ -35,7 +35,7 @@ export const isPaymentsEnabled = (): boolean => {
  * Get currency code from database
  * Defaults to GBP if not set
  */
-export const getCurrencyCode = async (): Promise<string> => {
+export const getCurrencyCode = (): Promise<string> => {
   return getCurrencyCodeFromDb();
 };
 
@@ -44,7 +44,7 @@ export const getCurrencyCode = async (): Promise<string> => {
  * This is a required build-time configuration that hardens origin validation
  */
 export const getAllowedDomain = (): string => {
-  return process.env.ALLOWED_DOMAIN as string;
+  return Deno.env.get("ALLOWED_DOMAIN") as string;
 };
 
 /**

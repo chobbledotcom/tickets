@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { describe, expect, test } from "#test-compat";
+
 import {
   BIN_DIR,
   downloadStripeMock,
@@ -76,7 +76,14 @@ describe("stripe-mock utilities", () => {
   describe("downloadStripeMock", () => {
     test("skips download when binary already exists", async () => {
       // Binary should already exist from test setup
-      expect(existsSync(STRIPE_MOCK_PATH)).toBe(true);
+      let exists = false;
+      try {
+        await Deno.stat(STRIPE_MOCK_PATH);
+        exists = true;
+      } catch {
+        exists = false;
+      }
+      expect(exists).toBe(true);
 
       // This should return immediately without downloading
       const start = Date.now();
@@ -156,7 +163,7 @@ describe("stripe-mock utilities", () => {
       }
     });
 
-    test("start throws when stripe-mock fails to start", async () => {
+    test("start throws when stripe-mock fails to start", () => {
       // Use a port that will conflict or an invalid path scenario
       // We'll test this by using a mock - but since we can't easily mock,
       // we'll test the error path differently

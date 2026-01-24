@@ -2,7 +2,7 @@
  * Setup routes - initial system configuration
  */
 
-import { completeSetup } from "#lib/db/settings.ts";
+import { settingsApi } from "#lib/db/settings.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
@@ -179,7 +179,7 @@ const handleSetupPost = async (
   console.log("[Setup] Form validation passed, completing setup...");
 
   try {
-    await completeSetup(validation.password, validation.currency);
+    await settingsApi.completeSetup(validation.password, validation.currency);
     // biome-ignore lint/suspicious/noConsole: Debug logging for edge script
     console.log("[Setup] Setup completed successfully!");
     return htmlResponse(setupCompletePage());

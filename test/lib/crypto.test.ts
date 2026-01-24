@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "#test-compat";
 import {
   clearEncryptionKeyCache,
   constantTimeEqual,
@@ -115,7 +115,7 @@ describe("encryption", () => {
     });
 
     it("throws when key is wrong length", () => {
-      process.env.DB_ENCRYPTION_KEY = btoa("tooshort");
+      Deno.env.set("DB_ENCRYPTION_KEY", btoa("tooshort"));
       clearEncryptionKeyCache();
       expect(() => validateEncryptionKey()).toThrow(
         "DB_ENCRYPTION_KEY must be 32 bytes",
@@ -209,14 +209,14 @@ describe("encryption", () => {
 
       // Generate a different valid 32-byte key
       const newKey = btoa("abcdefghijklmnopqrstuvwxyz012345");
-      process.env.DB_ENCRYPTION_KEY = newKey;
+      Deno.env.set("DB_ENCRYPTION_KEY", newKey);
       clearEncryptionKeyCache();
 
       // Decryption with new key should fail
       await expect(decrypt(encrypted)).rejects.toThrow();
 
       // Restore original key
-      process.env.DB_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+      Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
       clearEncryptionKeyCache();
 
       // Now decryption should work again

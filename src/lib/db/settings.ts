@@ -147,7 +147,7 @@ export const getCurrencyCodeFromDb = async (): Promise<string> => {
  * Get admin password hash from database
  * Returns null if setup hasn't been completed
  */
-export const getAdminPasswordHash = async (): Promise<string | null> => {
+export const getAdminPasswordHash = (): Promise<string | null> => {
   return getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
 };
 
@@ -168,21 +168,21 @@ export const verifyAdminPassword = async (
  * Get the public key for encrypting attendee PII
  * Always available (it's meant to be public)
  */
-export const getPublicKey = async (): Promise<string | null> => {
+export const getPublicKey = (): Promise<string | null> => {
   return getSetting(CONFIG_KEYS.PUBLIC_KEY);
 };
 
 /**
  * Get the wrapped DATA_KEY (needs KEK to unwrap)
  */
-export const getWrappedDataKey = async (): Promise<string | null> => {
+export const getWrappedDataKey = (): Promise<string | null> => {
   return getSetting(CONFIG_KEYS.WRAPPED_DATA_KEY);
 };
 
 /**
  * Get the wrapped private key (needs DATA_KEY to decrypt)
  */
-export const getWrappedPrivateKey = async (): Promise<string | null> => {
+export const getWrappedPrivateKey = (): Promise<string | null> => {
   return getSetting(CONFIG_KEYS.WRAPPED_PRIVATE_KEY);
 };
 
@@ -231,4 +231,24 @@ export const updateAdminPassword = async (
   await deleteAllSessions();
 
   return true;
+};
+
+/**
+ * Stubbable API for testing - allows mocking in ES modules
+ * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
+ */
+export const settingsApi = {
+  completeSetup,
+  getSetting,
+  setSetting,
+  isSetupComplete,
+  clearSetupCompleteCache,
+  getAdminPasswordHash,
+  verifyAdminPassword,
+  getPublicKey,
+  getWrappedDataKey,
+  getWrappedPrivateKey,
+  unwrapDataKey,
+  updateAdminPassword,
+  getCurrencyCodeFromDb,
 };

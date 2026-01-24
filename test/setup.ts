@@ -16,16 +16,14 @@ const manager = new StripeMockManager();
 setupTestEncryptionKey();
 
 // Configure allowed domain for tests (security middleware)
-process.env.ALLOWED_DOMAIN = "localhost";
+Deno.env.set("ALLOWED_DOMAIN", "localhost");
 
 // Configure stripe-mock env vars
-process.env.STRIPE_MOCK_HOST = "localhost";
-process.env.STRIPE_MOCK_PORT = String(STRIPE_MOCK_PORT);
+Deno.env.set("STRIPE_MOCK_HOST", "localhost");
+Deno.env.set("STRIPE_MOCK_PORT", String(STRIPE_MOCK_PORT));
 
 // Start stripe-mock before tests
 await manager.start();
 
 // Register cleanup on process exit
-// Note: Signal handlers use manager.stop directly to avoid creating
-// uncovered arrow functions (signals aren't sent during tests)
-process.on("exit", manager.stop.bind(manager));
+globalThis.addEventListener("unload", () => manager.stop());

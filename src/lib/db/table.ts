@@ -163,14 +163,14 @@ const getValueWithDefault = <T>(value: unknown, def: ColumnDef<T>): unknown => {
 };
 
 /** Apply write transform to a value */
-const applyWriteTransform = async <T>(
+const applyWriteTransform = <T>(
   value: unknown,
   def: ColumnDef<T>,
 ): Promise<unknown> => {
   if (def.write && value !== null && value !== undefined) {
-    return def.write(value as T);
+    return Promise.resolve(def.write(value as T));
   }
-  return value;
+  return Promise.resolve(value);
 };
 
 /** Build INSERT SQL */
@@ -371,8 +371,8 @@ type AsyncTransform<T> = (v: T) => Promise<T>;
 /** Wrap encrypt/decrypt functions to handle null values */
 const wrapNullable =
   <T>(fn: AsyncTransform<T>): AsyncTransform<T | null> =>
-  async (v) =>
-    v === null ? null : fn(v);
+  (v) =>
+    v === null ? Promise.resolve(null) : fn(v);
 
 /**
  * Helper to create column definitions

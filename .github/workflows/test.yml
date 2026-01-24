@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+env:
+  STRIPE_MOCK_VERSION: "0.188.0"
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,20 +16,44 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Cache stripe-mock
+        uses: actions/cache@v4
+        with:
+          path: .bin
+          key: stripe-mock-${{ env.STRIPE_MOCK_VERSION }}-linux-amd64
+
+      - name: Download stripe-mock
+        run: |
+          if [ ! -f .bin/stripe-mock ]; then
+            mkdir -p .bin
+            curl -sL "https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_linux_amd64.tar.gz" | tar -xz -C .bin
+            chmod +x .bin/stripe-mock
+          fi
 
       - name: Install dependencies
-        run: bun install
-
-      - name: Type check
-        run: bun run typecheck
+        run: deno install --allow-scripts
 
       - name: Lint
-        run: bun run lint
+        run: deno task lint
 
-      - name: Check for duplicate code
-        run: bun run cpd
+      - name: Copy-paste detection
+        run: deno task cpd
+
+      - name: Start stripe-mock
+        run: |
+          .bin/stripe-mock -http-port 12111 &
+          sleep 2
+          curl -s http://localhost:12111 > /dev/null && echo "stripe-mock is running"
 
       - name: Run tests with coverage
-        run: bun run test:coverage
+        env:
+          STRIPE_MOCK_HOST: localhost
+          STRIPE_MOCK_PORT: "12111"
+          ALLOWED_DOMAIN: localhost
+          DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+        run: deno task test:coverage

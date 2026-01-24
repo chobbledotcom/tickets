@@ -162,10 +162,10 @@ export const createRouter = (
 ) => Promise<Response | null>) => {
   const compiled = compileRoutes(routes);
 
-  return async (request, path, method, server) => {
+  return (request, path, method, server) => {
     const match = matchRequest(compiled, method, path);
-    if (!match) return null;
-    return match.handler(request, match.params, server);
+    if (!match) return Promise.resolve(null);
+    return Promise.resolve(match.handler(request, match.params, server));
   };
 };
 

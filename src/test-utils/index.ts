@@ -27,8 +27,8 @@ export const TEST_ENCRYPTION_KEY =
  * Also enables fast PBKDF2 hashing for tests
  */
 export const setupTestEncryptionKey = (): void => {
-  process.env.DB_ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
-  process.env.TEST_PBKDF2_ITERATIONS = "1"; // Enable fast password hashing for tests
+  Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
+  Deno.env.set("TEST_PBKDF2_ITERATIONS", "1"); // Enable fast password hashing for tests
   clearEncryptionKeyCache();
 };
 
@@ -36,8 +36,8 @@ export const setupTestEncryptionKey = (): void => {
  * Clear test encryption key from environment
  */
 export const clearTestEncryptionKey = (): void => {
-  delete process.env.DB_ENCRYPTION_KEY;
-  delete process.env.TEST_PBKDF2_ITERATIONS;
+  Deno.env.delete("DB_ENCRYPTION_KEY");
+  Deno.env.delete("TEST_PBKDF2_ITERATIONS");
   clearEncryptionKeyCache();
 };
 

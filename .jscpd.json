@@ -6,7 +6,7 @@
 	"ignore": [
 		"**/node_modules/**",
 		"**/package-lock.json",
-		"**/bun.lock",
+		"**/deno.lock",
 		"bunny-script.ts",
 		"src/fp/index.ts",
 		"src/lib/crypto.ts",

@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { updateEvent } from "#lib/db/events";
-import { createSession, getSession } from "#lib/db/sessions";
+import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { updateEvent } from "#lib/db/events.ts";
+import { createSession, getSession } from "#lib/db/sessions.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
 import {
@@ -22,6 +22,7 @@ import {
   resetTestSlugCounter,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
+import process from "node:process";
 
 /**
  * Helper to make a ticket form POST request with CSRF token
@@ -641,7 +642,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin");
 
       // Verify event was actually created
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).not.toBeNull();
       expect(event?.slug).toBe("new-event");
@@ -1174,7 +1175,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify the event was updated
-      const { getEventWithCount } = await import("#lib/db/events");
+      const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(1);
       expect(updated?.name).toBe("Updated Event");
       expect(updated?.description).toBe("Updated Description");
@@ -1274,7 +1275,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify event is now inactive
-      const { getEventWithCount } = await import("#lib/db/events");
+      const { getEventWithCount } = await import("#lib/db/events.ts");
       const event = await getEventWithCount(1);
       expect(event?.active).toBe(0);
     });
@@ -1362,7 +1363,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify event is now active
-      const { getEventWithCount } = await import("#lib/db/events");
+      const { getEventWithCount } = await import("#lib/db/events.ts");
       const activeEvent = await getEventWithCount(1);
       expect(activeEvent?.active).toBe(1);
     });
@@ -1541,7 +1542,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin");
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
@@ -1603,8 +1604,8 @@ describe("server", () => {
       expect(response.status).toBe(302);
 
       // Verify event and attendees were deleted
-      const { getEvent } = await import("#lib/db/events");
-      const { getAttendeesRaw } = await import("#lib/db/attendees");
+      const { getEvent } = await import("#lib/db/events.ts");
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
 
@@ -1640,7 +1641,7 @@ describe("server", () => {
       expect(response.status).toBe(302);
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
@@ -1679,7 +1680,7 @@ describe("server", () => {
       expect(response.status).toBe(302);
 
       // Verify event was deleted
-      const { getEvent } = await import("#lib/db/events");
+      const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
@@ -2009,7 +2010,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import("#lib/db/attendees");
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const attendee = await getAttendeeRaw(1);
       expect(attendee).toBeNull();
     });
@@ -2101,7 +2102,7 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify attendee was deleted
-      const { getAttendeeRaw } = await import("#lib/db/attendees");
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const attendee = await getAttendeeRaw(1);
       expect(attendee).toBeNull();
     });
@@ -2406,7 +2407,7 @@ describe("server", () => {
     });
 
     test("returns error when payment not verified", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2448,7 +2449,7 @@ describe("server", () => {
     });
 
     test("returns error for invalid session metadata", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2477,7 +2478,7 @@ describe("server", () => {
     });
 
     test("rejects payment for inactive event and refunds", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2537,7 +2538,7 @@ describe("server", () => {
     });
 
     test("refunds payment when event is sold out at confirmation time", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2601,7 +2602,7 @@ describe("server", () => {
     });
 
     test("returns error when session not found", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2623,7 +2624,7 @@ describe("server", () => {
     });
 
     test("returns error for invalid session metadata", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2650,7 +2651,7 @@ describe("server", () => {
     });
 
     test("returns error when event not found", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2682,7 +2683,7 @@ describe("server", () => {
     });
 
     test("shows cancel page with link back to ticket form", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2841,7 +2842,7 @@ describe("server", () => {
     });
 
     test("returns error when event not found in session metadata", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
 
@@ -2880,7 +2881,7 @@ describe("server", () => {
     });
 
     test("creates attendee and shows success when payment verified", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
 
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
@@ -2920,7 +2921,7 @@ describe("server", () => {
         expect(html).toContain("https://example.com/thanks");
 
         // Verify attendee was created with payment ID (encrypted at rest)
-        const { getAttendeesRaw } = await import("#lib/db/attendees");
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.stripe_payment_id).not.toBeNull();
@@ -2930,7 +2931,7 @@ describe("server", () => {
     });
 
     test("handles replay of same session (idempotent)", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
 
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
@@ -2978,7 +2979,7 @@ describe("server", () => {
     });
 
     test("handles multiple quantity purchase", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
 
       process.env.STRIPE_SECRET_KEY = "sk_test_mock";
@@ -3052,7 +3053,7 @@ describe("server", () => {
     });
 
     test("handles encryption error during payment confirmation", async () => {
-      const { spyOn } = await import("bun:test");
+      const { spyOn } = await import("#test-compat");
       const stripeModule = await import("#lib/stripe.ts");
       const attendeesModule = await import("#lib/db/attendees");
 
@@ -3328,8 +3329,8 @@ describe("server", () => {
       });
 
       test("POST /setup/ throws error when completeSetup fails", async () => {
-        const { spyOn } = await import("bun:test");
-        const dbModule = await import("#lib/db/settings");
+        const { spyOn } = await import("#test-compat");
+        const { settingsApi } = await import("#lib/db/settings.ts");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
         const csrfToken = getSetupCsrfToken(
@@ -3337,13 +3338,12 @@ describe("server", () => {
         );
 
         // Mock completeSetup to throw an error
-        const mockCompleteSetup = spyOn(dbModule, "completeSetup");
+        const mockCompleteSetup = spyOn(settingsApi, "completeSetup");
         mockCompleteSetup.mockRejectedValue(new Error("Database error"));
 
         // Suppress expected console.error to avoid non-zero exit code
-        const mockConsoleError = spyOn(console, "error").mockImplementation(
-          () => {},
-        );
+        const mockConsoleError = spyOn(console, "error");
+        mockConsoleError.mockImplementation(() => {});
 
         try {
           await expect(

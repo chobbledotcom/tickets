@@ -23,13 +23,12 @@ export { generateSecureToken };
  * Get client IP from request
  * Note: This server runs directly on edge, not behind a proxy,
  * so we use the direct connection IP from the server context.
- * The IP is passed via the server's requestIP() in Bun.serve.
  */
 export const getClientIp = (
   request: Request,
   server?: ServerContext,
 ): string => {
-  // Use Bun's server.requestIP() if available
+  // Use server.requestIP() if available
   if (server?.requestIP) {
     const info = server.requestIP(request);
     if (info?.address) {
@@ -231,10 +230,11 @@ type EventHandler = (event: EventWithCount) => Response | Promise<Response>;
 /**
  * Unwrap Result with handler - returns error response or applies handler to value
  */
-const unwrapResult = async (
+const unwrapResult = (
   result: Result<EventWithCount>,
   handler: EventHandler,
-): Promise<Response> => (result.ok ? handler(result.value) : result.response);
+): Promise<Response> | Response =>
+  result.ok ? handler(result.value) : result.response;
 
 /**
  * Fetch event or return 404 response
@@ -307,7 +307,7 @@ export const withSession = async (
 /**
  * Handle request requiring session - redirect to /admin/ if not authenticated
  */
-export const requireSessionOr = async (
+export const requireSessionOr = (
   request: Request,
   handler: (session: AuthSession) => Response | Promise<Response>,
 ): Promise<Response> => withSession(request, handler, () => redirect("/admin"));

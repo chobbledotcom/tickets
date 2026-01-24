@@ -2,7 +2,7 @@
  * Cold Boot Performance Profiler
  *
  * Measures the timing of various initialization phases to identify bottlenecks.
- * Run with: bun scripts/profile-cold-boot.ts
+ * Run with: deno run -A scripts/profile-cold-boot.ts
  */
 
 import { createClient } from "@libsql/client";
@@ -64,7 +64,7 @@ const main = async () => {
   log("Profiling cold boot performance...\n");
 
   // Set up test environment
-  process.env.ALLOWED_DOMAIN = "localhost";
+  Deno.env.set("ALLOWED_DOMAIN", "localhost");
 
   // Use in-memory DB to isolate JS overhead from network latency
   const client = createClient({ url: ":memory:" });
