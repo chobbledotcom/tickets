@@ -462,6 +462,8 @@ export const unwrapKey = async (
 
 /**
  * Wrap a key using a session token (derives a wrapping key from the token)
+ * Incorporates DB_ENCRYPTION_KEY in salt to ensure session tokens alone
+ * cannot be used to unwrap keys without access to the encryption key.
  */
 export const wrapKeyWithToken = async (
   keyToWrap: CryptoKey,
@@ -476,10 +478,12 @@ export const wrapKeyWithToken = async (
     ["deriveKey"],
   );
 
+  // Include DB_ENCRYPTION_KEY in salt to prevent session-only attacks
+  const salt = encoder.encode(`session-key-wrap:${getEncryptionKeyString()}`);
   const wrappingKey = await crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: encoder.encode("session-key-wrap"),
+      salt,
       iterations: 1, // Fast - token is already high entropy
       hash: "SHA-256",
     },
@@ -502,6 +506,7 @@ export const wrapKeyWithToken = async (
 
 /**
  * Unwrap a key using a session token
+ * Incorporates DB_ENCRYPTION_KEY in salt to match wrapKeyWithToken.
  */
 export const unwrapKeyWithToken = async (
   wrapped: string,
@@ -520,10 +525,12 @@ export const unwrapKeyWithToken = async (
     ["deriveKey"],
   );
 
+  // Include DB_ENCRYPTION_KEY in salt to match wrapKeyWithToken
+  const salt = encoder.encode(`session-key-wrap:${getEncryptionKeyString()}`);
   const unwrappingKey = await crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt: encoder.encode("session-key-wrap"),
+      salt,
       iterations: 1,
       hash: "SHA-256",
     },
