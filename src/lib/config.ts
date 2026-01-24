@@ -5,14 +5,13 @@
  */
 
 import { getCurrencyCodeFromDb, isSetupComplete } from "#lib/db/settings.ts";
-import process from "node:process";
 
 /**
  * Get Stripe secret key from environment variable
  * Returns null if not set (payments disabled)
  */
 export const getStripeSecretKey = (): string | null => {
-  const key = process.env.STRIPE_SECRET_KEY;
+  const key = Deno.env.get("STRIPE_SECRET_KEY");
   return key && key.trim() !== "" ? key : null;
 };
 
@@ -21,7 +20,7 @@ export const getStripeSecretKey = (): string | null => {
  * Returns null if not set
  */
 export const getStripePublishableKey = (): string | null => {
-  const key = process.env.STRIPE_PUBLISHABLE_KEY;
+  const key = Deno.env.get("STRIPE_PUBLISHABLE_KEY");
   return key && key.trim() !== "" ? key : null;
 };
 

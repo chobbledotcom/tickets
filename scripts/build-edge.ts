@@ -36,11 +36,18 @@ const ENV_VARS = Object.fromEntries(
 );
 
 // Banner to inject Node.js globals that many packages expect (per Bunny docs)
+// and Deno.env shim for inlined environment variables
 const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
 import { Buffer } from "node:buffer";
 globalThis.process ??= process;
 globalThis.Buffer ??= Buffer;
 globalThis.global ??= globalThis;
+`;
+
+// Create Deno.env shim with inlined environment variables
+const DENO_ENV_SHIM = `const __INLINED_ENV__ = ${JSON.stringify(ENV_VARS)};
+globalThis.Deno ??= {};
+globalThis.Deno.env ??= { get: (key) => __INLINED_ENV__[key] };
 `;
 
 const result = await esbuild.build({
@@ -55,13 +62,17 @@ const result = await esbuild.build({
     "@libsql/client",
     "@libsql/client/web",
   ],
+  loader: {
+    ".svg": "text",
+    ".css": "text",
+  },
   define: Object.fromEntries(
     Object.entries(ENV_VARS).map(([key, value]) => [
       `process.env.${key}`,
       JSON.stringify(value),
     ]),
   ),
-  banner: { js: NODEJS_GLOBALS_BANNER },
+  banner: { js: NODEJS_GLOBALS_BANNER + DENO_ENV_SHIM },
 });
 
 if (result.errors.length > 0) {
