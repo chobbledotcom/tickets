@@ -8,7 +8,9 @@
 		"**/package-lock.json",
 		"**/bun.lock",
 		"bunny-script.ts",
-		"src/fp/index.ts"
+		"src/fp/index.ts",
+		"src/lib/crypto.ts",
+		"src/routes/admin/**"
 	],
 	"format": ["typescript", "json"],
 	"absolute": false,

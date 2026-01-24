@@ -603,7 +603,9 @@ export const generateKeyPair = async (): Promise<{
 /**
  * Import a public key from JWK string
  */
-export const importPublicKey = async (jwkString: string): Promise<CryptoKey> => {
+export const importPublicKey = async (
+  jwkString: string,
+): Promise<CryptoKey> => {
   const jwk = JSON.parse(jwkString) as JsonWebKey;
   return crypto.subtle.importKey(
     "jwk",
@@ -685,10 +687,16 @@ export const hybridDecrypt = async (
   const withoutPrefix = encrypted.slice(HYBRID_PREFIX.length);
   const parts = withoutPrefix.split(":");
   if (parts.length !== 3) {
-    throw new Error("Invalid hybrid encrypted data format: wrong number of parts");
+    throw new Error(
+      "Invalid hybrid encrypted data format: wrong number of parts",
+    );
   }
 
-  const [wrappedKeyB64, ivB64, ciphertextB64] = parts as [string, string, string];
+  const [wrappedKeyB64, ivB64, ciphertextB64] = parts as [
+    string,
+    string,
+    string,
+  ];
 
   // Decrypt the AES key with RSA
   const wrappedKey = fromBase64(wrappedKeyB64);

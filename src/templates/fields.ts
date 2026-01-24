@@ -190,4 +190,3 @@ export const changePasswordFields: Field[] = [
     required: true,
   },
 ];
-

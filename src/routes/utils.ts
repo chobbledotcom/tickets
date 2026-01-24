@@ -119,13 +119,6 @@ export const getPrivateKey = async (
 };
 
 /**
- * Check if request has valid session
- */
-export const isAuthenticated = async (request: Request): Promise<boolean> => {
-  return (await getAuthenticatedSession(request)) !== null;
-};
-
-/**
  * Validate CSRF token using constant-time comparison
  */
 export const validateCsrfToken = (

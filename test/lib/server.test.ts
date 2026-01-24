@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createAttendee } from "#lib/db/attendees";
 import { updateEvent } from "#lib/db/events";
 import { createSession, getSession } from "#lib/db/sessions";
-import { setSetting } from "#lib/db/settings";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
 import {
@@ -742,6 +741,25 @@ describe("server", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/event/1"));
       expect(response.status).toBe(302);
+    });
+
+    test("redirects when wrapped data key is invalid", async () => {
+      await createTestEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Create session with invalid wrapped_data_key
+      const token = "test-token-invalid-event";
+      await createSession(token, "csrf123", Date.now() + 3600000, "invalid");
+
+      const response = await awaitTestRequest("/admin/event/1", {
+        cookie: `__Host-session=${token}`,
+      });
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1586,11 +1604,11 @@ describe("server", () => {
 
       // Verify event and attendees were deleted
       const { getEvent } = await import("#lib/db/events");
-      const { getAttendees } = await import("#lib/db/attendees");
+      const { getAttendeesRaw } = await import("#lib/db/attendees");
       const event = await getEvent(1);
       expect(event).toBeNull();
 
-      const attendees = await getAttendees(1);
+      const attendees = await getAttendeesRaw(1);
       expect(attendees).toEqual([]);
     });
 
@@ -1697,6 +1715,48 @@ describe("server", () => {
       expect(response.status).toBe(404);
     });
 
+    test("redirects when session lacks wrapped data key", async () => {
+      await createTestEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      // Create session without wrapped_data_key (simulates legacy session)
+      const token = "test-token-no-data-key";
+      await createSession(token, "csrf123", Date.now() + 3600000, null);
+
+      const response = await awaitTestRequest(
+        "/admin/event/1/attendee/1/delete",
+        { cookie: `__Host-session=${token}` },
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+    });
+
+    test("redirects when wrapped data key is invalid", async () => {
+      await createTestEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      // Create session with invalid wrapped_data_key (triggers decryption failure)
+      const token = "test-token-invalid-key";
+      await createSession(token, "csrf123", Date.now() + 3600000, "invalid");
+
+      const response = await awaitTestRequest(
+        "/admin/event/1/attendee/1/delete",
+        { cookie: `__Host-session=${token}` },
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+    });
+
     test("returns 404 for non-existent attendee", async () => {
       await createTestEvent({
         name: "Test Event",
@@ -1785,6 +1845,30 @@ describe("server", () => {
         mockFormRequest("/admin/event/1/attendee/1/delete", {
           confirm_name: "John Doe",
         }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+    });
+
+    test("redirects when wrapped data key is invalid", async () => {
+      await createTestEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createAttendee(1, "John Doe", "john@example.com");
+
+      // Create session with invalid wrapped_data_key
+      const token = "test-token-invalid-post";
+      await createSession(token, "csrf123", Date.now() + 3600000, "invalid");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/attendee/1/delete",
+          { confirm_name: "John Doe", csrf_token: "csrf123" },
+          `__Host-session=${token}`,
+        ),
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin");
@@ -1925,8 +2009,8 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify attendee was deleted
-      const { getAttendee } = await import("#lib/db/attendees");
-      const attendee = await getAttendee(1);
+      const { getAttendeeRaw } = await import("#lib/db/attendees");
+      const attendee = await getAttendeeRaw(1);
       expect(attendee).toBeNull();
     });
 
@@ -2017,8 +2101,8 @@ describe("server", () => {
       expect(response.headers.get("location")).toBe("/admin/event/1");
 
       // Verify attendee was deleted
-      const { getAttendee } = await import("#lib/db/attendees");
-      const attendee = await getAttendee(1);
+      const { getAttendeeRaw } = await import("#lib/db/attendees");
+      const attendee = await getAttendeeRaw(1);
       expect(attendee).toBeNull();
     });
   });
@@ -2386,8 +2470,8 @@ describe("server", () => {
       expect(html).toContain("no longer accepting registrations");
 
       // Verify attendee was deleted
-      const { getAttendee } = await import("#lib/db/attendees");
-      const deleted = await getAttendee(attendee.id);
+      const { getAttendeeRaw } = await import("#lib/db/attendees");
+      const deleted = await getAttendeeRaw(attendee.id);
       expect(deleted).toBeNull();
     });
   });
@@ -2596,8 +2680,8 @@ describe("server", () => {
         expect(html).toContain("/ticket/");
 
         // Verify attendee was deleted
-        const { getAttendee } = await import("#lib/db/attendees");
-        const deleted = await getAttendee(attendee.id);
+        const { getAttendeeRaw } = await import("#lib/db/attendees");
+        const deleted = await getAttendeeRaw(attendee.id);
         expect(deleted).toBeNull();
       } finally {
         mockRetrieve.mockRestore();

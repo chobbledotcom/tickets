@@ -410,6 +410,20 @@ describe("key wrapping", () => {
       const wrapped = await wrapKeyWithToken(dataKey, token1);
       await expect(unwrapKeyWithToken(wrapped, token2)).rejects.toThrow();
     });
+
+    it("throws on invalid wrapped key format (missing prefix)", async () => {
+      const sessionToken = generateSecureToken();
+      await expect(
+        unwrapKeyWithToken("invalid-data", sessionToken),
+      ).rejects.toThrow("Invalid wrapped key format");
+    });
+
+    it("throws on invalid wrapped key format (missing IV separator)", async () => {
+      const sessionToken = generateSecureToken();
+      await expect(
+        unwrapKeyWithToken("wk:1:nodatahere", sessionToken),
+      ).rejects.toThrow("Invalid wrapped key format: missing IV separator");
+    });
   });
 });
 
@@ -524,5 +538,19 @@ describe("encryptWithKey and decryptWithKey", () => {
 
     const encrypted = await encryptWithKey("secret", key1);
     await expect(decryptWithKey(encrypted, key2)).rejects.toThrow();
+  });
+
+  it("throws on invalid encrypted data format (missing prefix)", async () => {
+    const key = await generateDataKey();
+    await expect(decryptWithKey("invalid-data", key)).rejects.toThrow(
+      "Invalid encrypted data format",
+    );
+  });
+
+  it("throws on invalid encrypted data format (missing IV separator)", async () => {
+    const key = await generateDataKey();
+    await expect(decryptWithKey("enc:1:nodatahere", key)).rejects.toThrow(
+      "Invalid encrypted data format: missing IV separator",
+    );
   });
 });

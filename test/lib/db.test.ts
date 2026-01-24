@@ -5,7 +5,6 @@ import {
   createAttendee,
   deleteAttendee,
   getAttendee,
-  getAttendeeRaw,
   getAttendees,
   hasAvailableSpots,
   updateAttendeePayment,
@@ -36,7 +35,6 @@ import {
 import {
   CONFIG_KEYS,
   completeSetup,
-  getAdminPasswordHash,
   getCurrencyCodeFromDb,
   getPublicKey,
   getSetting,
@@ -184,7 +182,6 @@ describe("db", () => {
     test("getCurrencyCodeFromDb returns GBP by default", async () => {
       expect(await getCurrencyCodeFromDb()).toBe("GBP");
     });
-
   });
 
   describe("admin password", () => {
@@ -211,7 +208,10 @@ describe("db", () => {
       await completeSetup("oldpassword123", "GBP");
       const oldWrappedKey = await getWrappedDataKey();
 
-      const success = await updateAdminPassword("oldpassword123", "newpassword456");
+      const success = await updateAdminPassword(
+        "oldpassword123",
+        "newpassword456",
+      );
       expect(success).toBe(true);
 
       // Wrapped key should be different (re-wrapped with new KEK)
@@ -475,6 +475,20 @@ describe("db", () => {
       expect(attendee).toBeNull();
     });
 
+    test("createAttendee throws when encryption key not configured", async () => {
+      // Remove public key to simulate incomplete setup
+      await getDb().execute({
+        sql: "DELETE FROM settings WHERE key = ?",
+        args: [CONFIG_KEYS.PUBLIC_KEY],
+      });
+
+      await expect(
+        createAttendee(1, "John", "john@example.com"),
+      ).rejects.toThrow(
+        "Encryption key not configured. Please complete setup.",
+      );
+    });
+
     test("getAttendee returns attendee by id", async () => {
       const event = await createTestEvent({
         name: "Event",
@@ -512,6 +526,18 @@ describe("db", () => {
       const privateKey = await getTestPrivateKey();
       const updated = await getAttendee(attendee.id, privateKey);
       expect(updated?.stripe_payment_id).toBe("pi_updated_123");
+    });
+
+    test("updateAttendeePayment throws when encryption key not configured", async () => {
+      // Remove public key to simulate incomplete setup
+      await getDb().execute({
+        sql: "DELETE FROM settings WHERE key = ?",
+        args: [CONFIG_KEYS.PUBLIC_KEY],
+      });
+
+      await expect(updateAttendeePayment(1, "pi_test")).rejects.toThrow(
+        "Encryption key not configured",
+      );
     });
 
     test("deleteAttendee removes attendee", async () => {

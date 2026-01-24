@@ -42,6 +42,18 @@ const decryptAttendee = async (
 };
 
 /**
+ * Get attendees for an event without decrypting PII
+ * Used for tests and operations that don't need decrypted data
+ */
+export const getAttendeesRaw = async (eventId: number): Promise<Attendee[]> => {
+  const result = await getDb().execute({
+    sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
+    args: [eventId],
+  });
+  return result.rows as unknown as Attendee[];
+};
+
+/**
  * Get attendees for an event (decrypted)
  * Requires private key for decryption - only available to authenticated sessions
  */
@@ -49,12 +61,10 @@ export const getAttendees = async (
   eventId: number,
   privateKey: CryptoKey,
 ): Promise<Attendee[]> => {
-  const result = await getDb().execute({
-    sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
-    args: [eventId],
-  });
-  const rows = result.rows as unknown as Attendee[];
-  return Promise.all(map((row: Attendee) => decryptAttendee(row, privateKey))(rows));
+  const rows = await getAttendeesRaw(eventId);
+  return Promise.all(
+    map((row: Attendee) => decryptAttendee(row, privateKey))(rows),
+  );
 };
 
 /**

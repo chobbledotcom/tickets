@@ -67,7 +67,9 @@ const handleAdminLogin = async (
   const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
 
   // Wrap DATA_KEY with session token for stateless access
-  const wrappedDataKey = dataKey ? await wrapKeyWithToken(dataKey, token) : null;
+  const wrappedDataKey = dataKey
+    ? await wrapKeyWithToken(dataKey, token)
+    : null;
 
   await createSession(token, csrfToken, expires, wrappedDataKey);
 
