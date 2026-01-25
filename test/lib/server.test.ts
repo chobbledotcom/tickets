@@ -1299,6 +1299,50 @@ describe("server", () => {
       expect(updated?.thank_you_url).toBe("https://example.com/updated");
       expect(updated?.unit_price).toBe(2000);
     });
+
+    test("clears thank_you_url when set to empty string", async () => {
+      const password = TEST_ADMIN_PASSWORD;
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const event = await createTestEvent({
+        name: "Event With URL",
+        description: "Has a thank you URL",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+      });
+
+      // Verify the event has a thank_you_url initially
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const initial = await getEventWithCount(1);
+      expect(initial?.thank_you_url).toBe("https://example.com/thanks");
+
+      // Update with empty thank_you_url to clear it
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/edit",
+          {
+            slug: event.slug,
+            name: "Event With URL",
+            description: "Has a thank you URL",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "", // Empty string to clear
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/event/1");
+
+      // Verify the thank_you_url was cleared (stored as empty string in DB)
+      const updated = await getEventWithCount(1);
+      expect(updated?.thank_you_url).toBe("");
+    });
   });
 
   describe("GET /admin/event/:id/deactivate", () => {

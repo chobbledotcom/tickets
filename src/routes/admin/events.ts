@@ -53,7 +53,7 @@ const extractEventInput = async (
     name: values.name as string,
     description: values.description as string,
     maxAttendees: values.max_attendees as number,
-    thankYouUrl: values.thank_you_url as string,
+    thankYouUrl: (values.thank_you_url as string) || "",
     unitPrice: values.unit_price as number | null,
     maxQuantity: values.max_quantity as number,
     webhookUrl: (values.webhook_url as string) || null,
