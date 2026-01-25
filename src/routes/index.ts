@@ -5,6 +5,7 @@
 
 import { once } from "#fp";
 import { isSetupComplete } from "#lib/config.ts";
+import { createRequestTimer, logRequest } from "#lib/logger.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
@@ -133,20 +134,28 @@ export const handleRequest = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
+  const { path, method } = parseRequest(request);
+  const getElapsed = createRequestTimer();
+
   // Domain validation: reject requests to unauthorized domains
   if (!isValidDomain(request)) {
-    return domainRejectionResponse();
+    const response = domainRejectionResponse();
+    logRequest({ method, path, status: response.status, durationMs: getElapsed() });
+    return response;
   }
 
-  const { path } = parseRequest(request);
   const embeddable = isEmbeddablePath(path);
 
   // Content-Type validation: reject POST requests without proper Content-Type
   // (webhook endpoints accept JSON, all others require form-urlencoded)
   if (!isValidContentType(request, path)) {
-    return contentTypeRejectionResponse();
+    const response = contentTypeRejectionResponse();
+    logRequest({ method, path, status: response.status, durationMs: getElapsed() });
+    return response;
   }
 
   const response = await handleRequestInternal(request, server);
-  return applySecurityHeaders(response, embeddable);
+  const finalResponse = applySecurityHeaders(response, embeddable);
+  logRequest({ method, path, status: finalResponse.status, durationMs: getElapsed() });
+  return finalResponse;
 };
