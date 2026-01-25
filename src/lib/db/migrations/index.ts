@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when adding new migrations
  */
-export const LATEST_UPDATE = "remove name and description requirements";
+export const LATEST_UPDATE = "drop name and description columns";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -55,13 +55,10 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Create events table
-  // Note: name and description columns kept for backwards compatibility but are no longer used
   await client.execute(`
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created TEXT NOT NULL,
-      name TEXT NOT NULL DEFAULT '',
-      description TEXT NOT NULL DEFAULT '',
       max_attendees INTEGER NOT NULL,
       thank_you_url TEXT NOT NULL,
       unit_price INTEGER
@@ -134,6 +131,10 @@ export const initDb = async (): Promise<void> => {
   await runMigration(
     "ALTER TABLE events ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
   );
+
+  // Migration: drop legacy name and description columns (no longer used)
+  await runMigration("ALTER TABLE events DROP COLUMN name");
+  await runMigration("ALTER TABLE events DROP COLUMN description");
 
   // Migration: add wrapped_data_key column to sessions (per-session encryption key)
   // Note: token column now stores hashed tokens, old unhashed tokens will be invalid
