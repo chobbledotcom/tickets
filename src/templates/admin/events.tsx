@@ -51,15 +51,12 @@ export const adminEventPage = (
         <h1>{event.name}</h1>
         <nav>
           <a href={`/admin/event/${event.id}/edit`}>Edit</a>
-          {" | "}
           <a href={`/admin/event/${event.id}/activity-log`}>Activity Log</a>
-          {" | "}
           {event.active === 1 ? (
             <a href={`/admin/event/${event.id}/deactivate`} class="danger">Deactivate</a>
           ) : (
             <a href={`/admin/event/${event.id}/reactivate`}>Reactivate</a>
           )}
-          {" | "}
           <a href={`/admin/event/${event.id}/delete`} class="danger">Delete</a>
         </nav>
       </header>
