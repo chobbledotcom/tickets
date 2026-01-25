@@ -1,5 +1,5 @@
 /**
- * Public routes - home page and ticket reservation
+ * Public routes - ticket reservation
  */
 
 import { isPaymentsEnabled } from "#lib/config.ts";
@@ -28,14 +28,12 @@ import {
   withActiveEventBySlug,
 } from "#routes/utils.ts";
 import { ticketFields } from "#templates/fields.ts";
-import { homePage, ticketPage } from "#templates/public.tsx";
+import { ticketPage } from "#templates/public.tsx";
 
 /**
- * Handle GET / (home page)
+ * Handle GET / (home page) - redirect to admin
  */
-export const handleHome = (): Response => {
-  return htmlResponse(homePage());
-};
+export const handleHome = (): Response => redirect("/admin/");
 
 /** Path for ticket CSRF cookies */
 const ticketCsrfPath = (slug: string): string => `/ticket/${slug}`;

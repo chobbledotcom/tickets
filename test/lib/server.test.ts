@@ -49,11 +49,10 @@ describe("server", () => {
   });
 
   describe("GET /", () => {
-    test("returns home page", async () => {
+    test("redirects to admin", async () => {
       const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Ticket Reservation System");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe("/admin/");
     });
   });
 
