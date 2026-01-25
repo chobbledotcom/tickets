@@ -3,11 +3,16 @@
  */
 
 import {
+  getStripeWebhookEndpointId,
   hasStripeKey,
+  setStripeWebhookConfig,
   updateAdminPassword,
   updateStripeKey,
 } from "#lib/db/settings.ts";
+import { resetDatabase } from "#lib/db/migrations/index.ts";
 import { validateForm } from "#lib/forms.tsx";
+import { setupWebhookEndpoint } from "#lib/stripe.ts";
+import { getAllowedDomain } from "#lib/config.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
@@ -94,6 +99,9 @@ const handleAdminSettingsPost = (request: Request): Promise<Response> =>
 
 /**
  * Handle POST /admin/settings/stripe
+ *
+ * When the Stripe secret key is saved, automatically creates/updates
+ * a webhook endpoint in Stripe and stores the signing secret.
  */
 const handleAdminStripePost = (request: Request): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
@@ -110,16 +118,69 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
     }
 
     const stripeSecretKey = validation.values.stripe_secret_key as string;
+
+    // Set up webhook endpoint automatically
+    const domain = getAllowedDomain();
+    const webhookUrl = `https://${domain}/payment/webhook`;
+    const existingEndpointId = await getStripeWebhookEndpointId();
+
+    const webhookResult = await setupWebhookEndpoint(
+      stripeSecretKey,
+      webhookUrl,
+      existingEndpointId,
+    );
+
+    if (!webhookResult.success) {
+      return settingsPageWithError(
+        `Failed to set up Stripe webhook: ${webhookResult.error}`,
+        400,
+      );
+    }
+
+    // Store both the Stripe key and webhook config
     await updateStripeKey(stripeSecretKey);
+    await setStripeWebhookConfig(webhookResult.secret, webhookResult.endpointId);
 
     return htmlResponse(
       adminSettingsPage(
         session.csrfToken,
         true,
         undefined,
-        "Stripe key updated successfully",
+        "Stripe key updated and webhook configured successfully",
       ),
     );
+  });
+
+/**
+ * Expected confirmation phrase for database reset
+ */
+const RESET_DATABASE_PHRASE =
+  "The site will be fully reset and all data will be lost.";
+
+/**
+ * Handle POST /admin/settings/reset-database
+ */
+const handleResetDatabasePost = (request: Request): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const stripeKeyConfigured = await hasStripeKey();
+    const settingsPageWithError = (error: string, status: number) =>
+      htmlResponse(
+        adminSettingsPage(session.csrfToken, stripeKeyConfigured, error),
+        status,
+      );
+
+    const confirmPhrase = form.get("confirm_phrase") ?? "";
+    if (confirmPhrase.trim() !== RESET_DATABASE_PHRASE) {
+      return settingsPageWithError(
+        "Confirmation phrase does not match. Please type the exact phrase to confirm reset.",
+        400,
+      );
+    }
+
+    await resetDatabase();
+
+    // Redirect to setup page since the database is now empty
+    return redirect("/setup/", clearSessionCookie);
   });
 
 /** Settings routes */
@@ -127,4 +188,6 @@ export const settingsRoutes = defineRoutes({
   "GET /admin/settings": (request) => handleAdminSettingsGet(request),
   "POST /admin/settings": (request) => handleAdminSettingsPost(request),
   "POST /admin/settings/stripe": (request) => handleAdminStripePost(request),
+  "POST /admin/settings/reset-database": (request) =>
+    handleResetDatabasePost(request),
 });

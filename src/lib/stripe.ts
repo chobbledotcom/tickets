@@ -113,8 +113,8 @@ const buildSessionParams = async (
         price_data: {
           currency,
           product_data: {
-            name: cfg.event.name,
-            description: `${label} for ${cfg.event.name}`,
+            name: `Ticket: ${cfg.event.slug}`,
+            description: label,
           },
           unit_amount: cfg.event.unit_price,
         },
@@ -129,11 +129,31 @@ const buildSessionParams = async (
   };
 };
 
+/** Result of webhook endpoint setup */
+export type WebhookSetupResult =
+  | { success: true; endpointId: string; secret: string }
+  | { success: false; error: string };
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  * Production code uses stripeApi.method() to enable test mocking
  */
-export const stripeApi = {
+export const stripeApi: {
+  getStripeClient: () => Promise<Stripe | null>;
+  resetStripeClient: () => void;
+  retrieveCheckoutSession: (id: string) => Promise<Stripe.Checkout.Session | null>;
+  refundPayment: (intentId: string) => Promise<Stripe.Refund | null>;
+  createCheckoutSessionWithIntent: (
+    event: Event,
+    intent: RegistrationIntent,
+    baseUrl: string,
+  ) => Promise<Stripe.Checkout.Session | null>;
+  setupWebhookEndpoint: (
+    secretKey: string,
+    webhookUrl: string,
+    existingEndpointId?: string | null,
+  ) => Promise<WebhookSetupResult>;
+} = {
   /** Get or create Stripe client */
   getStripeClient: getClientImpl,
 
@@ -179,6 +199,13 @@ export const stripeApi = {
         )
       : null;
   },
+
+  // Placeholder - will be set after setupWebhookEndpointImpl is defined
+  setupWebhookEndpoint: null as unknown as (
+    secretKey: string,
+    webhookUrl: string,
+    existingEndpointId?: string | null,
+  ) => Promise<WebhookSetupResult>,
 };
 
 /** Registration intent stored in Stripe session metadata */
@@ -188,6 +215,80 @@ export type RegistrationIntent = {
   email: string;
   quantity: number;
 };
+
+/**
+ * Internal implementation of webhook endpoint setup.
+ * Use setupWebhookEndpoint export for production code.
+ */
+const setupWebhookEndpointImpl = async (
+  secretKey: string,
+  webhookUrl: string,
+  existingEndpointId?: string | null,
+): Promise<WebhookSetupResult> => {
+  try {
+    const client = await createStripeClient(secretKey);
+
+    // If we have an existing endpoint ID, try to delete it so we can recreate
+    // (update doesn't return the secret, so we need to recreate to get a fresh one)
+    if (existingEndpointId) {
+      try {
+        await client.webhookEndpoints.del(existingEndpointId);
+      } catch {
+        // Endpoint doesn't exist or can't be deleted, will create new one
+      }
+    }
+
+    // Check if a webhook already exists for this exact URL
+    const existingEndpoints = await client.webhookEndpoints.list({ limit: 100 });
+    const existingForUrl = existingEndpoints.data.find(
+      (ep) => ep.url === webhookUrl,
+    );
+
+    if (existingForUrl) {
+      // Delete existing endpoint to recreate with fresh secret
+      await client.webhookEndpoints.del(existingForUrl.id);
+    }
+
+    // Create new webhook endpoint
+    const endpoint = await client.webhookEndpoints.create({
+      url: webhookUrl,
+      enabled_events: ["checkout.session.completed"],
+    });
+
+    if (!endpoint.secret) {
+      return { success: false, error: "Stripe did not return webhook secret" };
+    }
+
+    return {
+      success: true,
+      endpointId: endpoint.id,
+      secret: endpoint.secret,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    logError({ code: ErrorCode.STRIPE_WEBHOOK_SETUP, detail: message });
+    return { success: false, error: message };
+  }
+};
+
+// Add setupWebhookEndpoint to stripeApi for testability
+stripeApi.setupWebhookEndpoint = setupWebhookEndpointImpl;
+
+/**
+ * Create or update a webhook endpoint for the given URL.
+ * If an endpoint already exists for this URL, updates it.
+ * Returns the webhook secret for signature verification.
+ *
+ * @param secretKey - Stripe secret key to use (passed directly since this runs before key is stored)
+ * @param webhookUrl - Full URL for the webhook endpoint
+ * @param existingEndpointId - Optional existing endpoint ID to update
+ */
+export const setupWebhookEndpoint = (
+  secretKey: string,
+  webhookUrl: string,
+  existingEndpointId?: string | null,
+): Promise<WebhookSetupResult> =>
+  stripeApi.setupWebhookEndpoint(secretKey, webhookUrl, existingEndpointId);
 
 // Wrapper functions that delegate to stripeApi at runtime (enables test mocking)
 export const getStripeClient = () => stripeApi.getStripeClient();
@@ -297,7 +398,7 @@ export const verifyWebhookSignature = async (
   signature: string,
   toleranceSeconds = DEFAULT_TOLERANCE_SECONDS,
 ): Promise<WebhookVerifyResult> => {
-  const secret = getStripeWebhookSecret();
+  const secret = await getStripeWebhookSecret();
   if (!secret) {
     logError({ code: ErrorCode.CONFIG_MISSING, detail: "webhook secret" });
     return { valid: false, error: "Webhook secret not configured" };

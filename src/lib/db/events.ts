@@ -11,8 +11,6 @@ import type { Event, EventWithCount } from "#lib/types.ts";
 export type EventInput = {
   slug: string;
   slugIndex: string;
-  name: string;
-  description: string;
   maxAttendees: number;
   thankYouUrl?: string | null;
   unitPrice?: number | null;
@@ -27,7 +25,7 @@ export const computeSlugIndex = (slug: string): Promise<string> =>
 
 /**
  * Events table definition
- * name, description, slug are encrypted; slug_index is HMAC for lookups
+ * slug is encrypted; slug_index is HMAC for lookups
  */
 export const eventsTable = defineTable<Event, EventInput>({
   name: "events",
@@ -37,8 +35,6 @@ export const eventsTable = defineTable<Event, EventInput>({
     slug: col.encrypted<string>(encrypt, decrypt),
     slug_index: col.simple<string>(),
     created: col.withDefault(() => new Date().toISOString()),
-    name: col.encrypted<string>(encrypt, decrypt),
-    description: col.encrypted<string>(encrypt, decrypt),
     max_attendees: col.simple<number>(),
     thank_you_url: col.encryptedNullable<string>(encrypt, decrypt),
     unit_price: col.simple<number | null>(),

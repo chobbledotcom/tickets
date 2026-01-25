@@ -373,8 +373,6 @@ describe("forms", () => {
 
     test("validates slug is required", () => {
       const form = new URLSearchParams({
-        name: "Event",
-        description: "Desc",
         max_attendees: "100",
         max_quantity: "1",
         thank_you_url: "https://example.com",
@@ -382,7 +380,7 @@ describe("forms", () => {
       const result = validateForm(form, eventFields);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.error).toBe("URL Slug is required");
+        expect(result.error).toBe("Identifier is required");
       }
     });
   });

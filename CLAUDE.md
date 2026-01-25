@@ -87,17 +87,13 @@ const result = reduce((acc, item) => {
 ### Optional
 
 - `PORT` - Server port (defaults to 3000)
-- `STRIPE_SECRET_KEY` - Stripe API secret key (enables paid tickets)
-- `STRIPE_PUBLISHABLE_KEY` - Stripe publishable key (for checkout UI)
-- `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret (for secure webhook verification)
 
-### Stripe Webhook Setup
+### Stripe Configuration
 
-To receive payment confirmations reliably, configure a webhook in Stripe Dashboard:
-1. Go to Developers → Webhooks → Add endpoint
-2. Set URL to `https://your-domain.com/payment/webhook`
-3. Select event: `checkout.session.completed`
-4. Copy the signing secret to `STRIPE_WEBHOOK_SECRET`
+Stripe is configured via the admin settings page (`/admin/settings`), not environment variables:
+- Enter your Stripe secret key in the admin settings
+- The webhook endpoint is automatically created in your Stripe account
+- The webhook signing secret is stored encrypted in the database
 
 Admin password and currency code are set through the web-based setup page at `/setup/` and stored encrypted in the database.
 

@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when adding new migrations
  */
-export const LATEST_UPDATE = "add slug_index column for encrypted slug lookup";
+export const LATEST_UPDATE = "drop name and description columns";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -59,8 +59,6 @@ export const initDb = async (): Promise<void> => {
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created TEXT NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL,
       max_attendees INTEGER NOT NULL,
       thank_you_url TEXT NOT NULL,
       unit_price INTEGER
@@ -134,6 +132,10 @@ export const initDb = async (): Promise<void> => {
     "ALTER TABLE events ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
   );
 
+  // Migration: drop legacy name and description columns (no longer used)
+  await runMigration("ALTER TABLE events DROP COLUMN name");
+  await runMigration("ALTER TABLE events DROP COLUMN description");
+
   // Migration: add wrapped_data_key column to sessions (per-session encryption key)
   // Note: token column now stores hashed tokens, old unhashed tokens will be invalid
   await runMigration("ALTER TABLE sessions ADD COLUMN wrapped_data_key TEXT");
@@ -174,4 +176,27 @@ export const initDb = async (): Promise<void> => {
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
     args: [LATEST_UPDATE],
   });
+};
+
+/**
+ * All database tables in order for safe dropping (respects foreign key constraints)
+ */
+const ALL_TABLES = [
+  "activity_log",
+  "processed_payments",
+  "attendees",
+  "events",
+  "sessions",
+  "login_attempts",
+  "settings",
+] as const;
+
+/**
+ * Reset the database by dropping all tables
+ */
+export const resetDatabase = async (): Promise<void> => {
+  const client = getDb();
+  for (const table of ALL_TABLES) {
+    await client.execute(`DROP TABLE IF EXISTS ${table}`);
+  }
 };

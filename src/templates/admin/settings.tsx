@@ -43,5 +43,28 @@ export const adminSettingsPage = (
           <Raw html={renderFields(changePasswordFields)} />
           <button type="submit">Change Password</button>
         </form>
+
+        <form method="POST" action="/admin/settings/reset-database">
+            <h2>Reset Database</h2>
+          <article>
+            <aside>
+              <p><strong>Warning:</strong> This will permanently delete all events, attendees, settings, and other data. This action cannot be undone.</p>
+            </aside>
+          </article>
+          <p>To reset the database, type the following phrase into the box below:</p>
+          <p><strong>"The site will be fully reset and all data will be lost."</strong></p>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <label for="confirm_phrase">Confirmation phrase</label>
+          <input
+            type="text"
+            id="confirm_phrase"
+            name="confirm_phrase"
+            autocomplete="off"
+            required
+          />
+          <button type="submit" class="danger">
+            Reset Database
+          </button>
+        </form>
     </Layout>
   );

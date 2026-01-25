@@ -13,7 +13,7 @@ import { ErrorCode, logError } from "#lib/logger.ts";
 export type WebhookPayload = {
   event_type: "attendee.registered";
   event_id: number;
-  event_name: string;
+  event_slug: string;
   remaining_places: number;
   total_places: number;
   attendee: {
@@ -26,7 +26,7 @@ export type WebhookPayload = {
 /** Event data needed for webhook notifications */
 type WebhookEvent = {
   id: number;
-  name: string;
+  slug: string;
   webhook_url: string | null;
   max_attendees: number;
   attendee_count: number;
@@ -42,7 +42,7 @@ type WebhookAttendee = { id: number; quantity: number };
 export const sendRegistrationWebhook = async (
   webhookUrl: string,
   eventId: number,
-  eventName: string,
+  eventSlug: string,
   attendeeId: number,
   quantity: number,
   maxAttendees: number,
@@ -51,7 +51,7 @@ export const sendRegistrationWebhook = async (
   const payload: WebhookPayload = {
     event_type: "attendee.registered",
     event_id: eventId,
-    event_name: eventName,
+    event_slug: eventSlug,
     remaining_places: maxAttendees - attendeeCount - quantity,
     total_places: maxAttendees,
     attendee: {
@@ -88,7 +88,7 @@ export const notifyWebhook = async (
   await sendRegistrationWebhook(
     event.webhook_url,
     event.id,
-    event.name,
+    event.slug,
     attendee.id,
     attendee.quantity,
     event.max_attendees,
@@ -104,6 +104,6 @@ export const logAndNotifyRegistration = async (
   event: WebhookEvent,
   attendee: WebhookAttendee,
 ): Promise<void> => {
-  await logActivity(`Added an attendee to event '${event.name}'`, event.id);
+  await logActivity(`Added an attendee to event '${event.slug}'`, event.id);
   await notifyWebhook(event, attendee);
 };

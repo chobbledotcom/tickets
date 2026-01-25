@@ -10,15 +10,14 @@ import { escapeHtml, Layout } from "#templates/layout.tsx";
  * Payment page - redirects to Stripe Checkout
  */
 export const paymentPage = (
-  event: Event,
+  _event: Event,
   attendee: Attendee,
   checkoutUrl: string,
   formattedPrice: string,
 ): string =>
   String(
-    <Layout title={`Payment: ${event.name}`}>
+    <Layout title="Payment">
         <h1>Complete Your Payment</h1>
-        <p>You are purchasing a ticket for <strong>{event.name}</strong></p>
 
         <aside>
           <p><strong>Name:</strong> {attendee.name}</p>
@@ -34,12 +33,12 @@ export const paymentPage = (
 /**
  * Payment success page - with optional redirect
  */
-export const paymentSuccessPage = (event: Event, thankYouUrl: string | null): string =>
+export const paymentSuccessPage = (_event: Event, thankYouUrl: string | null): string =>
   String(
     <Layout title="Payment Successful">
         <h1>Payment Successful!</h1>
         <div class="success">
-          <p>Thank you for your payment. Your ticket for <strong>{event.name}</strong> has been confirmed.</p>
+          <p>Thank you for your payment. Your ticket has been confirmed.</p>
         </div>
         {thankYouUrl ? (
           <>
@@ -66,11 +65,11 @@ export const reservationSuccessPage = (): string =>
 /**
  * Payment cancelled page
  */
-export const paymentCancelPage = (event: Event, ticketUrl: string): string =>
+export const paymentCancelPage = (_event: Event, ticketUrl: string): string =>
   String(
     <Layout title="Payment Cancelled">
         <h1>Payment Cancelled</h1>
-        <p>Your payment was cancelled. Your ticket reservation for <strong>{event.name}</strong> has been removed.</p>
+        <p>Your payment was cancelled. Your ticket reservation has been removed.</p>
         <p><a href={ticketUrl}><i>Try again</i></a></p>
     </Layout>
   );

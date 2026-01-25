@@ -26,7 +26,7 @@ import {
   isLoginRateLimited,
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
-import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
+import { initDb, LATEST_UPDATE, resetDatabase } from "#lib/db/migrations/index.ts";
 import {
   createSession,
   deleteAllSessions,
@@ -141,6 +141,54 @@ describe("db", () => {
       // Should be very fast since it bails early (typically < 5ms)
       // We just check it completes without error
       expect(duration).toBeLessThan(100);
+    });
+  });
+
+  describe("resetDatabase", () => {
+    test("drops all tables", async () => {
+      // Create some data first
+      await createTestEvent({
+        slug: "test-event",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      await createSession("test-token", "test-csrf", Date.now() + 1000);
+
+      // Reset the database
+      await resetDatabase();
+
+      // Verify tables are gone by checking that they don't exist
+      const client = getDb();
+
+      // Check that events table was dropped
+      const tablesResult = await client.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'",
+      );
+      const tableNames = tablesResult.rows.map((r) => r.name);
+      expect(tableNames).not.toContain("events");
+      expect(tableNames).not.toContain("attendees");
+      expect(tableNames).not.toContain("sessions");
+      expect(tableNames).not.toContain("settings");
+      expect(tableNames).not.toContain("login_attempts");
+      expect(tableNames).not.toContain("processed_payments");
+      expect(tableNames).not.toContain("activity_log");
+    });
+
+    test("can reinitialize database after reset", async () => {
+      // Reset and reinitialize
+      await resetDatabase();
+      await initDb();
+
+      // Verify we can create new data
+      await completeSetup(TEST_ADMIN_PASSWORD, "USD");
+      const event = await createTestEvent({
+        slug: "new-event",
+        maxAttendees: 25,
+        thankYouUrl: "https://example.com",
+      });
+
+      expect(event.id).toBe(1);
+      expect(event.slug).toBe("new-event");
     });
   });
 
@@ -293,8 +341,6 @@ describe("db", () => {
       // Create an event via REST API
       const event = await createTestEvent({
         slug: "password-test-event",
-        name: "Password Test Event",
-        description: "Test event for password change scenario",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
       });
@@ -355,15 +401,13 @@ describe("db", () => {
   describe("events", () => {
     test("createEvent creates event with correct properties", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Test Description",
+        slug: "my-test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
       });
 
       expect(event.id).toBe(1);
-      expect(event.name).toBe("Test Event");
-      expect(event.description).toBe("Test Description");
+      expect(event.slug).toBe("my-test-event");
       expect(event.max_attendees).toBe(100);
       expect(event.thank_you_url).toBe("https://example.com/thanks");
       expect(event.created).toBeDefined();
@@ -372,8 +416,6 @@ describe("db", () => {
 
     test("createEvent creates event with unit_price", async () => {
       const event = await createTestEvent({
-        name: "Paid Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
@@ -389,14 +431,12 @@ describe("db", () => {
 
     test("getAllEvents returns events with attendee count", async () => {
       await createTestEvent({
-        name: "Event 1",
-        description: "Desc 1",
+        slug: "event-1",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       await createTestEvent({
-        name: "Event 2",
-        description: "Desc 2",
+        slug: "event-2",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -414,15 +454,14 @@ describe("db", () => {
 
     test("getEvent returns event by id", async () => {
       const created = await createTestEvent({
-        name: "Test",
-        description: "Desc",
+        slug: "fetch-test",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       const fetched = await getEvent(created.id);
 
       expect(fetched).not.toBeNull();
-      expect(fetched?.name).toBe("Test");
+      expect(fetched?.slug).toBe("fetch-test");
     });
 
     test("getEventWithCount returns null for missing event", async () => {
@@ -432,8 +471,6 @@ describe("db", () => {
 
     test("getEventWithCount returns event with count", async () => {
       const created = await createTestEvent({
-        name: "Test",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -445,24 +482,20 @@ describe("db", () => {
 
     test("eventsTable.update updates event properties", async () => {
       const created = await createTestEvent({
-        name: "Original",
-        description: "Original Desc",
+        slug: "original-event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/original",
       });
 
       const updated = await eventsTable.update(created.id, {
-        slug: created.slug,
-        name: "Updated",
-        description: "Updated Desc",
+        slug: "updated-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/updated",
         unitPrice: 1500,
       });
 
       expect(updated).not.toBeNull();
-      expect(updated?.name).toBe("Updated");
-      expect(updated?.description).toBe("Updated Desc");
+      expect(updated?.slug).toBe("updated-event");
       expect(updated?.max_attendees).toBe(100);
       expect(updated?.thank_you_url).toBe("https://example.com/updated");
       expect(updated?.unit_price).toBe(1500);
@@ -471,8 +504,6 @@ describe("db", () => {
     test("eventsTable.update returns null for non-existent event", async () => {
       const result = await eventsTable.update(999, {
         slug: "non-existent",
-        name: "Name",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -481,8 +512,6 @@ describe("db", () => {
 
     test("eventsTable.update can set unit_price to null", async () => {
       const created = await createTestEvent({
-        name: "Paid",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
@@ -490,8 +519,6 @@ describe("db", () => {
 
       const updated = await eventsTable.update(created.id, {
         slug: created.slug,
-        name: "Free Now",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: null,
@@ -502,8 +529,6 @@ describe("db", () => {
 
     test("deleteEvent removes event", async () => {
       const event = await createTestEvent({
-        name: "Event to Delete",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -516,8 +541,6 @@ describe("db", () => {
 
     test("deleteEvent removes all attendees for the event", async () => {
       const event = await createTestEvent({
-        name: "Event with Attendees",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -533,8 +556,6 @@ describe("db", () => {
 
     test("deleteEvent works with no attendees", async () => {
       const event = await createTestEvent({
-        name: "Empty Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -555,8 +576,6 @@ describe("db", () => {
 
     test("getAttendee returns attendee by id", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -575,8 +594,6 @@ describe("db", () => {
 
     test("deleteAttendee removes attendee", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -596,8 +613,6 @@ describe("db", () => {
 
     test("getAttendees returns empty array when no attendees", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -608,8 +623,6 @@ describe("db", () => {
 
     test("getAttendees returns attendees for event", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -623,8 +636,6 @@ describe("db", () => {
 
     test("attendee count reflects in getEventWithCount", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -636,8 +647,6 @@ describe("db", () => {
 
     test("attendee count reflects in getAllEvents", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -650,8 +659,6 @@ describe("db", () => {
 
     test("createAttendeeAtomic succeeds when capacity available", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
@@ -673,8 +680,6 @@ describe("db", () => {
 
     test("createAttendeeAtomic fails when capacity exceeded", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 1,
         thankYouUrl: "https://example.com",
       });
@@ -697,8 +702,6 @@ describe("db", () => {
 
     test("createAttendeeAtomic fails when encryption key not configured", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -730,8 +733,6 @@ describe("db", () => {
 
     test("returns true when spots available", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
@@ -741,8 +742,6 @@ describe("db", () => {
 
     test("returns true when some spots taken", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
@@ -754,8 +753,6 @@ describe("db", () => {
 
     test("returns false when event is full", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
@@ -1109,14 +1106,12 @@ describe("db", () => {
 
       // Create some test events directly
       await createTestEvent({
-        name: "Event 1",
-        description: "Desc",
+        slug: "event-1",
         maxAttendees: 10,
         thankYouUrl: "https://example.com",
       });
       await createTestEvent({
-        name: "Event 2",
-        description: "Desc",
+        slug: "event-2",
         maxAttendees: 20,
         thankYouUrl: "https://example.com",
       });
@@ -1131,8 +1126,6 @@ describe("db", () => {
 
       // Create an event first
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 10,
         thankYouUrl: "https://example.com",
       });
@@ -1157,26 +1150,28 @@ describe("db", () => {
 
     test("defineTable with write transform transforms values on insert", async () => {
       const { col, defineTable } = await import("#lib/db/table.ts");
-      // Create a table with a write transform that uppercases name
+      // Create a table with a write transform that uppercases slug
       type TestRow = {
         id: number;
-        name: string;
+        slug: string;
+        slug_index: string;
         created: string;
-        description: string;
         max_attendees: number;
         thank_you_url: string;
         unit_price: number | null;
         max_quantity: number;
         webhook_url: string | null;
+        active: number;
       };
       type TestInput = {
-        name: string;
-        description: string;
+        slug: string;
+        slugIndex: string;
         maxAttendees: number;
         thankYouUrl: string;
         unitPrice?: number | null;
         maxQuantity?: number;
         webhookUrl?: string | null;
+        active?: number;
       };
       const testTable = defineTable<TestRow, TestInput>({
         name: "events",
@@ -1184,31 +1179,32 @@ describe("db", () => {
         schema: {
           id: col.generated<number>(),
           created: col.withDefault(() => new Date().toISOString()),
-          name: col.transform(
+          slug: col.transform(
             (v: string) => v.toUpperCase(),
             (v: string) => v.toLowerCase(),
           ),
-          description: col.simple<string>(),
+          slug_index: col.simple<string>(),
           max_attendees: col.simple<number>(),
           thank_you_url: col.simple<string>(),
           unit_price: col.simple<number | null>(),
           max_quantity: col.withDefault(() => 1),
           webhook_url: col.simple<string | null>(),
+          active: col.withDefault(() => 1),
         },
       });
 
       // Insert should apply the write transform
       const row = await testTable.insert({
-        name: "Test Event",
-        description: "Test",
+        slug: "test-event",
+        slugIndex: "test-index",
         maxAttendees: 10,
         thankYouUrl: "http://test.com",
       });
-      expect(row.name).toBe("Test Event"); // Returns original input value
+      expect(row.slug).toBe("test-event"); // Returns original input value
 
       // But the DB should have the transformed value (read transform lowercases)
       const fromDb = await testTable.findById(row.id);
-      expect(fromDb?.name).toBe("test event"); // Read transform lowercases the uppercased "TEST EVENT"
+      expect(fromDb?.slug).toBe("test-event"); // Read transform lowercases the uppercased "TEST-EVENT"
     });
   });
 
@@ -1224,8 +1220,6 @@ describe("db", () => {
 
     test("logActivity creates log entry with event ID", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -1238,15 +1232,11 @@ describe("db", () => {
     test("getEventActivityLog returns entries for specific event", async () => {
       const event1 = await createTestEvent({
         slug: "event-1",
-        name: "Event 1",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       const event2 = await createTestEvent({
         slug: "event-2",
-        name: "Event 2",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -1269,8 +1259,6 @@ describe("db", () => {
 
     test("getEventActivityLog respects limit", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -1286,8 +1274,6 @@ describe("db", () => {
     test("getAllActivityLog returns all entries", async () => {
       const event = await createTestEvent({
         slug: "test-event",
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });

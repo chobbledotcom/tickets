@@ -69,8 +69,6 @@ describe("html", () => {
           id: 1,
           slug: "event-1",
           slug_index: "event-1-index",
-          name: "Event 1",
-          description: "Desc 1",
           max_attendees: 100,
           thank_you_url: "https://example.com",
           created: "2024-01-01T00:00:00Z",
@@ -82,19 +80,17 @@ describe("html", () => {
         },
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
-      expect(html).toContain("Event 1");
+      expect(html).toContain("event-1");
       expect(html).toContain("25 / 100");
       expect(html).toContain("/admin/event/1");
     });
 
-    test("escapes event names", () => {
+    test("displays event slug as identifier", () => {
       const events: EventWithCount[] = [
         {
           id: 1,
-          slug: "test-event",
-          slug_index: "test-event-index",
-          name: "<script>evil()</script>",
-          description: "Desc",
+          slug: "my-test-event",
+          slug_index: "my-test-event-index",
           max_attendees: 100,
           thank_you_url: "https://example.com",
           created: "2024-01-01T00:00:00Z",
@@ -106,14 +102,14 @@ describe("html", () => {
         },
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
-      expect(html).toContain("&lt;script&gt;");
+      expect(html).toContain("my-test-event");
+      expect(html).toContain("Identifier");
     });
 
     test("renders create event form", () => {
       const html = adminDashboardPage([], TEST_CSRF_TOKEN);
       expect(html).toContain("Create New Event");
-      expect(html).toContain('name="name"');
-      expect(html).toContain('name="description"');
+      expect(html).toContain('name="slug"');
       expect(html).toContain('name="max_attendees"');
       expect(html).toContain('name="thank_you_url"');
     });
@@ -129,8 +125,6 @@ describe("html", () => {
       id: 1,
       slug: "test-event",
       slug_index: "test-event-index",
-      name: "Test Event",
-      description: "Test Description",
       max_attendees: 100,
       thank_you_url: "https://example.com/thanks",
       created: "2024-01-01T00:00:00Z",
@@ -143,8 +137,7 @@ describe("html", () => {
 
     test("renders event details", () => {
       const html = adminEventPage(event, [], "localhost");
-      expect(html).toContain("Test Event");
-      expect(html).toContain("Test Description");
+      expect(html).toContain("test-event");
       expect(html).toContain("100");
       expect(html).toContain("https://example.com/thanks");
     });
@@ -216,8 +209,6 @@ describe("html", () => {
       id: 1,
       slug: "test-event",
       slug_index: "test-event-index",
-      name: "Test Event",
-      description: "Test Description",
       max_attendees: 100,
       thank_you_url: "https://example.com/thanks",
       created: "2024-01-01T00:00:00Z",
@@ -229,15 +220,9 @@ describe("html", () => {
     };
     const csrfToken = "test-csrf-token";
 
-    test("renders event info", () => {
+    test("renders page title", () => {
       const html = ticketPage(event, csrfToken);
-      expect(html).toContain("Test Event");
-      expect(html).toContain("Test Description");
-    });
-
-    test("shows spots remaining", () => {
-      const html = ticketPage(event, csrfToken);
-      expect(html).toContain("50"); // 100 - 50
+      expect(html).toContain("Reserve Ticket");
     });
 
     test("renders registration form when spots available", () => {
@@ -270,13 +255,10 @@ describe("html", () => {
       expect(html).not.toContain(">Reserve Ticket</button>");
     });
 
-    test("escapes event data", () => {
-      const evilEvent: EventWithCount = {
-        ...event,
-        name: "<script>evil()</script>",
-      };
-      const html = ticketPage(evilEvent, csrfToken);
-      expect(html).toContain("&lt;script&gt;");
+    test("does not display event header content", () => {
+      const html = ticketPage(event, csrfToken);
+      // Verify there's no h1 with event info before the form
+      expect(html).not.toContain("<h1>test-event</h1>");
     });
 
     test("shows quantity selector when max_quantity > 1 and spots available", () => {
@@ -328,8 +310,6 @@ describe("html", () => {
       id: 1,
       slug: "test-event",
       slug_index: "test-event-index",
-      name: "Test Event",
-      description: "Test Description",
       max_attendees: 100,
       thank_you_url: "https://example.com/thanks",
       created: "2024-01-01T00:00:00Z",
@@ -357,7 +337,6 @@ describe("html", () => {
         "£10.00",
       );
       expect(html).toContain("Complete Your Payment");
-      expect(html).toContain("Test Event");
       expect(html).toContain("John Doe");
       expect(html).toContain("john@example.com");
       expect(html).toContain("£10.00");
@@ -394,8 +373,6 @@ describe("html", () => {
       id: 1,
       slug: "test-event",
       slug_index: "test-event-index",
-      name: "Test Event",
-      description: "Test Description",
       max_attendees: 100,
       thank_you_url: "https://example.com/thanks",
       created: "2024-01-01T00:00:00Z",
@@ -408,7 +385,6 @@ describe("html", () => {
     test("renders success message", () => {
       const html = paymentSuccessPage(event, "https://example.com/thanks");
       expect(html).toContain("Payment Successful");
-      expect(html).toContain("Test Event");
       expect(html).toContain("https://example.com/thanks");
     });
 
@@ -424,8 +400,6 @@ describe("html", () => {
       id: 1,
       slug: "test-event",
       slug_index: "test-event-index",
-      name: "Test Event",
-      description: "Test Description",
       max_attendees: 100,
       thank_you_url: "https://example.com/thanks",
       created: "2024-01-01T00:00:00Z",
@@ -438,7 +412,6 @@ describe("html", () => {
     test("renders cancel message", () => {
       const html = paymentCancelPage(event, "/ticket/test-event");
       expect(html).toContain("Payment Cancelled");
-      expect(html).toContain("Test Event");
       expect(html).toContain("/ticket/test-event");
       expect(html).toContain("Try again");
     });
@@ -476,8 +449,6 @@ describe("html", () => {
       id: 1,
       slug: "test-event",
       slug_index: "test-event-index",
-      name: "Test Event",
-      description: "Test Description",
       max_attendees: 100,
       thank_you_url: "https://example.com/thanks",
       created: "2024-01-01T00:00:00Z",

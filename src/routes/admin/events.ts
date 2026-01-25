@@ -50,8 +50,6 @@ const extractEventInput = async (
   return {
     slug,
     slugIndex: await computeSlugIndex(slug),
-    name: values.name as string,
-    description: values.description as string,
     maxAttendees: values.max_attendees as number,
     thankYouUrl: (values.thank_you_url as string) || "",
     unitPrice: values.unit_price as number | null,
@@ -76,7 +74,7 @@ const eventsResource = defineResource({
   table: eventsTable,
   fields: eventFields,
   toInput: extractEventInput,
-  nameField: "name",
+  nameField: "slug",
   onDelete: (id) => deleteEvent(id as number),
   validate: validateEventInput,
 });
@@ -108,7 +106,7 @@ const withEventAttendees = async (
  */
 const handleCreateEvent = createHandler(eventsResource, {
   onSuccess: async (row) => {
-    await logActivity(`Created event '${row.name}'`, row.id);
+    await logActivity(`Created event '${row.slug}'`, row.id);
     return redirect("/admin");
   },
   onError: () => redirect("/admin"),
@@ -168,8 +166,8 @@ const handleAdminEventEditPost = updateHandler(eventsResource, {
 const handleAdminEventExport = (request: Request, eventId: number) =>
   withEventAttendees(request, eventId, async (event, attendees) => {
     const csv = generateAttendeesCsv(attendees);
-    const filename = `${event.name.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
-    await logActivity(`Exported CSV for '${event.name}'`, event.id);
+    const filename = `${event.slug.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
+    await logActivity(`Exported CSV for '${event.slug}'`, event.id);
     return new Response(csv, {
       headers: {
         "content-type": "text/csv; charset=utf-8",
@@ -195,18 +193,18 @@ const handleAdminEventDeactivatePost = (
       return notFoundResponse();
     }
 
-    const confirmName = form.get("confirm_name") ?? "";
-    if (!verifyName(event.name, confirmName)) {
+    const confirmIdentifier = form.get("confirm_identifier") ?? "";
+    if (!verifyIdentifier(event.slug, confirmIdentifier)) {
       return eventErrorPage(
         eventId,
         adminDeactivateEventPage,
         session.csrfToken,
-        "Event name does not match. Please type the exact name to confirm.",
+        "Event identifier does not match. Please type the exact identifier to confirm.",
       );
     }
 
     await eventsTable.update(eventId, { active: 0 });
-    await logActivity(`Deactivated event '${event.name}'`, eventId);
+    await logActivity(`Deactivated event '${event.slug}'`, eventId);
     return redirect(`/admin/event/${eventId}`);
   });
 
@@ -221,18 +219,18 @@ const handleAdminEventReactivatePost = (
       return notFoundResponse();
     }
 
-    const confirmName = form.get("confirm_name") ?? "";
-    if (!verifyName(event.name, confirmName)) {
+    const confirmIdentifier = form.get("confirm_identifier") ?? "";
+    if (!verifyIdentifier(event.slug, confirmIdentifier)) {
       return eventErrorPage(
         eventId,
         adminReactivateEventPage,
         session.csrfToken,
-        "Event name does not match. Please type the exact name to confirm.",
+        "Event identifier does not match. Please type the exact identifier to confirm.",
       );
     }
 
     await eventsTable.update(eventId, { active: 1 });
-    await logActivity(`Reactivated event '${event.name}'`, eventId);
+    await logActivity(`Reactivated event '${event.slug}'`, eventId);
     return redirect(`/admin/event/${eventId}`);
   });
 
@@ -253,13 +251,13 @@ const handleAdminEventActivityLog = (
     return htmlResponse(adminEventActivityLogPage(event, entries));
   });
 
-/** Verify name matches for deletion confirmation (case-insensitive, trimmed) */
-const verifyName = (expected: string, provided: string): boolean =>
+/** Verify identifier matches for deletion confirmation (case-insensitive, trimmed) */
+const verifyIdentifier = (expected: string, provided: string): boolean =>
   expected.trim().toLowerCase() === provided.trim().toLowerCase();
 
-/** Check if name verification should be skipped (for API users) */
+/** Check if identifier verification should be skipped (for API users) */
 const needsVerify = (req: Request): boolean =>
-  new URL(req.url).searchParams.get("verify_name") !== "false";
+  new URL(req.url).searchParams.get("verify_identifier") !== "false";
 
 /** Handle DELETE /admin/event/:id (delete event with logging) */
 const handleAdminEventDelete = (
@@ -273,22 +271,22 @@ const handleAdminEventDelete = (
     }
 
     if (needsVerify(request)) {
-      const confirmName = form.get("confirm_name") ?? "";
-      if (!verifyName(event.name, confirmName)) {
+      const confirmIdentifier = form.get("confirm_identifier") ?? "";
+      if (!verifyIdentifier(event.slug, confirmIdentifier)) {
         return eventErrorPage(
           eventId,
           adminDeleteEventPage,
           session.csrfToken,
-          "Event name does not match. Please type the exact name to confirm deletion.",
+          "Identifier does not match. Please type the exact identifier to confirm deletion.",
         );
       }
     }
 
     const attendeeCount = event.attendee_count;
-    const eventName = event.name;
+    const eventSlug = event.slug;
     await deleteEvent(eventId);
     await logActivity(
-      `Deleted event '${eventName}' and ${attendeeCount} attendee(s)`,
+      `Deleted event '${eventSlug}' and ${attendeeCount} attendee(s)`,
     );
     return redirect("/admin");
   });
