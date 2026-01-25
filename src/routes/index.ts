@@ -102,10 +102,10 @@ const routeMainApp: RouterFn = async (request, path, method, server) =>
  */
 const handleRequestInternal = async (
   request: Request,
+  path: string,
+  method: string,
   server?: ServerContext,
 ): Promise<Response> => {
-  const { path, method } = parseRequest(request);
-
   // Static routes always available (minimal overhead)
   const staticResponse = await routeStatic(request, path, method);
   if (staticResponse) return staticResponse;
@@ -127,6 +127,17 @@ const handleRequestInternal = async (
   );
 };
 
+/** Log request and return response */
+const logAndReturn = (
+  response: Response,
+  method: string,
+  path: string,
+  getElapsed: () => number,
+): Response => {
+  logRequest({ method, path, status: response.status, durationMs: getElapsed() });
+  return response;
+};
+
 /**
  * Handle incoming requests with security headers and domain validation
  */
@@ -139,9 +150,7 @@ export const handleRequest = async (
 
   // Domain validation: reject requests to unauthorized domains
   if (!isValidDomain(request)) {
-    const response = domainRejectionResponse();
-    logRequest({ method, path, status: response.status, durationMs: getElapsed() });
-    return response;
+    return logAndReturn(domainRejectionResponse(), method, path, getElapsed);
   }
 
   const embeddable = isEmbeddablePath(path);
@@ -149,13 +158,9 @@ export const handleRequest = async (
   // Content-Type validation: reject POST requests without proper Content-Type
   // (webhook endpoints accept JSON, all others require form-urlencoded)
   if (!isValidContentType(request, path)) {
-    const response = contentTypeRejectionResponse();
-    logRequest({ method, path, status: response.status, durationMs: getElapsed() });
-    return response;
+    return logAndReturn(contentTypeRejectionResponse(), method, path, getElapsed);
   }
 
-  const response = await handleRequestInternal(request, server);
-  const finalResponse = applySecurityHeaders(response, embeddable);
-  logRequest({ method, path, status: finalResponse.status, durationMs: getElapsed() });
-  return finalResponse;
+  const response = await handleRequestInternal(request, path, method, server);
+  return logAndReturn(applySecurityHeaders(response, embeddable), method, path, getElapsed);
 };
