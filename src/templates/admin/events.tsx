@@ -8,7 +8,7 @@ import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { eventFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -46,8 +46,6 @@ export const adminEventPage = (
     <Layout title={`Event: ${event.name}`}>
       <AdminNav />
 
-      <header>
-        <Breadcrumb href="/admin/" label="Dashboard" />
         <h1>{event.name}</h1>
         <nav>
           <ul>
@@ -62,9 +60,7 @@ export const adminEventPage = (
             <li><a href={`/admin/event/${event.id}/delete`} class="danger">Delete</a></li>
           </ul>
         </nav>
-      </header>
 
-      <section>
         <article>
           <h2>Event Details</h2>
           <p>
@@ -95,9 +91,7 @@ export const adminEventPage = (
             </p>
           )}
         </article>
-      </section>
 
-      <section>
         <h2>Attendees</h2>
         <table>
           <thead>
@@ -113,7 +107,6 @@ export const adminEventPage = (
             <Raw html={attendeeRows} />
           </tbody>
         </table>
-      </section>
     </Layout>
   );
 };
@@ -143,15 +136,12 @@ export const adminEventEditPage = (
   String(
     <Layout title={`Edit: ${event.name}`}>
       <AdminNav />
-      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
-      <section>
         <Raw html={renderError(error)} />
         <form method="POST" action={`/admin/event/${event.id}/edit`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
           <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
           <button type="submit">Save Changes</button>
         </form>
-      </section>
     </Layout>
   );
 
@@ -166,9 +156,6 @@ export const adminDeleteEventPage = (
   String(
     <Layout title={`Delete: ${event.name}`}>
       <AdminNav />
-      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
-
-      <section>
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -194,7 +181,6 @@ export const adminDeleteEventPage = (
             Delete Event
           </button>
         </form>
-      </section>
     </Layout>
   );
 
@@ -209,9 +195,6 @@ export const adminDeactivateEventPage = (
   String(
     <Layout title={`Deactivate: ${event.name}`}>
       <AdminNav />
-      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
-
-      <section>
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -243,7 +226,6 @@ export const adminDeactivateEventPage = (
             Deactivate Event
           </button>
         </form>
-      </section>
     </Layout>
   );
 
@@ -258,9 +240,6 @@ export const adminReactivateEventPage = (
   String(
     <Layout title={`Reactivate: ${event.name}`}>
       <AdminNav />
-      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
-
-      <section>
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -287,6 +266,5 @@ export const adminReactivateEventPage = (
             Reactivate Event
           </button>
         </form>
-      </section>
     </Layout>
   );

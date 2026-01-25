@@ -49,11 +49,10 @@ describe("server", () => {
   });
 
   describe("GET /", () => {
-    test("returns home page", async () => {
+    test("redirects to admin", async () => {
       const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Ticket Reservation System");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("Location")).toBe("/admin/");
     });
   });
 
@@ -149,7 +148,7 @@ describe("server", () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Admin Dashboard");
+      expect(html).toContain("Events");
     });
   });
 
@@ -3821,7 +3820,7 @@ describe("server", () => {
   describe("Domain validation", () => {
     test("allows requests with valid domain", async () => {
       const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(302); // Homepage redirects to /admin/
     });
 
     test("rejects GET requests to invalid domain", async () => {
@@ -3852,7 +3851,7 @@ describe("server", () => {
       const response = await handleRequest(
         mockRequestWithHost("/", "localhost:3000"),
       );
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(302); // Homepage redirects to /admin/
     });
 
     test("rejects requests without Host header", async () => {

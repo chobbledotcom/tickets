@@ -1,5 +1,5 @@
 /**
- * Public page templates - home and ticket pages
+ * Public page templates - ticket reservation pages
  */
 
 import { renderError, renderFields } from "#lib/forms.tsx";
@@ -7,24 +7,6 @@ import type { EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { ticketFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-
-/**
- * Home page
- */
-export const homePage = (): string =>
-  String(
-    <Layout title="Ticket Reservation System">
-      <header>
-        <h1>Ticket Reservation System</h1>
-        <p>Welcome to the ticket reservation system.</p>
-        <nav>
-          <ul>
-            <li><a href="/admin/"><b>Admin Login</b></a></li>
-          </ul>
-        </nav>
-      </header>
-    </Layout>
-  );
 
 /**
  * Build quantity select options
@@ -49,29 +31,20 @@ export const ticketPage = (
 
   return String(
     <Layout title={`Reserve Ticket: ${event.name}`}>
-      <header>
         <h1>{event.name}</h1>
         <p>{event.description}</p>
-      </header>
 
-      <section>
         <aside>
           <p><strong>Spots remaining:</strong> {spotsRemaining}</p>
         </aside>
-      </section>
 
       <Raw html={renderError(error)} />
 
       {isFull ? (
-        <section>
           <div class="error">Sorry, this event is full.</div>
-        </section>
       ) : (
-        <section>
           <form method="POST" action={`/ticket/${event.slug}`}>
-            <header>
               <h2>Reserve Your Ticket</h2>
-            </header>
             <input type="hidden" name="csrf_token" value={csrfToken} />
             <Raw html={renderFields(ticketFields)} />
             {showQuantity ? (
@@ -86,7 +59,6 @@ export const ticketPage = (
             )}
             <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
           </form>
-        </section>
       )}
     </Layout>
   );

@@ -54,7 +54,6 @@ export const adminSessionsPage = (
 
       {success && <div class="success">{success}</div>}
 
-      <section>
         <table>
           <thead>
             <tr>
@@ -67,20 +66,17 @@ export const adminSessionsPage = (
             <Raw html={sessionRows} />
           </tbody>
         </table>
-      </section>
 
       {otherSessionCount > 0 && (
         <>
           <br />
 
-          <section>
             <form method="POST" action="/admin/sessions">
               <input type="hidden" name="csrf_token" value={csrfToken} />
               <button type="submit" class="danger">
                 Log out of all other sessions ({otherSessionCount})
               </button>
             </form>
-          </section>
         </>
       )}
     </Layout>

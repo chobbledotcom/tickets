@@ -11,7 +11,7 @@ import {
   paymentPage,
   paymentSuccessPage,
 } from "#templates/payment.tsx";
-import { homePage, notFoundPage, ticketPage } from "#templates/public.tsx";
+import { notFoundPage, ticketPage } from "#templates/public.tsx";
 
 const TEST_CSRF_TOKEN = "test-csrf-token-abc123";
 
@@ -33,14 +33,6 @@ describe("html", () => {
     test("links to MVP.css stylesheet", () => {
       const html = layout("Title", "content");
       expect(html).toContain('<link rel="stylesheet" href="/mvp.css">');
-    });
-  });
-
-  describe("homePage", () => {
-    test("renders home page", () => {
-      const html = homePage();
-      expect(html).toContain("Ticket Reservation System");
-      expect(html).toContain("/admin/");
     });
   });
 
@@ -67,7 +59,7 @@ describe("html", () => {
   describe("adminDashboardPage", () => {
     test("renders empty state when no events", () => {
       const html = adminDashboardPage([], TEST_CSRF_TOKEN);
-      expect(html).toContain("Admin Dashboard");
+      expect(html).toContain("Events");
       expect(html).toContain("No events yet");
     });
 
