@@ -14,7 +14,7 @@ export type EventInput = {
   name: string;
   description: string;
   maxAttendees: number;
-  thankYouUrl: string;
+  thankYouUrl?: string | null;
   unitPrice?: number | null;
   maxQuantity?: number;
   webhookUrl?: string | null;
@@ -40,7 +40,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     name: col.encrypted<string>(encrypt, decrypt),
     description: col.encrypted<string>(encrypt, decrypt),
     max_attendees: col.simple<number>(),
-    thank_you_url: col.encrypted<string>(encrypt, decrypt),
+    thank_you_url: col.encryptedNullable<string>(encrypt, decrypt),
     unit_price: col.simple<number | null>(),
     max_quantity: col.withDefault(() => 1),
     webhook_url: col.encryptedNullable<string>(encrypt, decrypt),

@@ -10,7 +10,7 @@ export interface Event {
   name: string;
   description: string;
   max_attendees: number;
-  thank_you_url: string;
+  thank_you_url: string | null;
   unit_price: number | null;
   max_quantity: number;
   webhook_url: string | null;
