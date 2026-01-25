@@ -7,10 +7,12 @@ import {
   constantTimeEqual,
   generateSecureToken,
   getPrivateKeyFromSession,
+  unwrapKeyWithToken,
 } from "#lib/crypto.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
+import { ErrorCode, logError } from "#lib/logger.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { paymentErrorPage } from "#templates/payment.tsx";
@@ -66,6 +68,9 @@ export const parseCookies = (request: Request): Map<string, string> => {
  * Get authenticated session if valid
  * Returns null if not authenticated
  * Includes wrapped_data_key for deriving the private key when needed
+ *
+ * Validates that wrapped_data_key can be unwrapped with current DB_ENCRYPTION_KEY.
+ * If unwrapping fails (e.g., after key rotation), the session is invalidated.
  */
 export const getAuthenticatedSession = async (
   request: Request,
@@ -84,6 +89,22 @@ export const getAuthenticatedSession = async (
   if (session.expires < Date.now()) {
     await deleteSession(token);
     return null;
+  }
+
+  // Validate wrapped_data_key can be unwrapped with current DB_ENCRYPTION_KEY
+  // This catches sessions created before a key rotation
+  if (session.wrapped_data_key) {
+    try {
+      await unwrapKeyWithToken(session.wrapped_data_key, token);
+    } catch {
+      // Key unwrapping failed - likely due to DB_ENCRYPTION_KEY rotation
+      logError({
+        code: ErrorCode.KEY_DERIVATION,
+        detail: "Session has invalid wrapped_data_key, likely due to DB_ENCRYPTION_KEY rotation. User must re-login.",
+      });
+      await deleteSession(token);
+      return null;
+    }
   }
 
   return {
