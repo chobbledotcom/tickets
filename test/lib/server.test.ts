@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { createSession, getSession } from "#lib/db/sessions.ts";
+import { updateStripeKey } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -22,7 +23,6 @@ import {
   resetTestSlugCounter,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
-import process from "node:process";
 
 /**
  * Helper to make a ticket form POST request with CSRF token
@@ -457,6 +457,123 @@ describe("server", () => {
       );
       expect(newLoginResponse.status).toBe(302);
       expect(newLoginResponse.headers.get("location")).toBe("/admin");
+    });
+  });
+
+  describe("POST /admin/settings/stripe", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/stripe", {
+          stripe_secret_key: "sk_test_123",
+        }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "sk_test_123",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
+    test("rejects missing stripe key", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("required");
+    });
+
+    test("updates Stripe key successfully", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "sk_test_new_key_123",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Stripe key updated successfully");
+      expect(html).toContain("A Stripe secret key is currently configured");
+    });
+
+    test("settings page shows Stripe is not configured initially", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No Stripe key is configured");
+      expect(html).toContain("Payments are disabled");
+    });
+
+    test("settings page shows Stripe is configured after setting key", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      // Set the Stripe key
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "sk_test_configured",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+
+      // Check the settings page shows it's configured
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain("A Stripe secret key is currently configured");
     });
   });
 
@@ -2381,7 +2498,7 @@ describe("server", () => {
     test("returns error when payment not verified", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
         name: "Test",
@@ -2423,7 +2540,7 @@ describe("server", () => {
     test("returns error for invalid session metadata", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       // Mock session with missing metadata
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
@@ -2452,7 +2569,7 @@ describe("server", () => {
     test("rejects payment for inactive event and refunds", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
         name: "Test",
@@ -2505,7 +2622,7 @@ describe("server", () => {
     test("refunds payment when event is sold out at confirmation time", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       // Create event with only 1 spot
       const event = await createTestEvent({
@@ -2569,7 +2686,7 @@ describe("server", () => {
     test("returns error when session not found", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       // Mock session retrieval to return null (session not found)
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
@@ -2591,7 +2708,7 @@ describe("server", () => {
     test("returns error for invalid session metadata", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
@@ -2618,7 +2735,7 @@ describe("server", () => {
     test("returns error when event not found", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
@@ -2650,7 +2767,7 @@ describe("server", () => {
     test("shows cancel page with link back to ticket form", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
         name: "Test",
@@ -2706,12 +2823,11 @@ describe("server", () => {
 
     afterEach(() => {
       resetStripeClient();
-      delete process.env.STRIPE_SECRET_KEY;
     });
 
     test("handles payment flow error when Stripe fails", async () => {
       // Set a fake Stripe key to enable payments (in database)
-      process.env.STRIPE_SECRET_KEY = "sk_test_fake_key";
+      await updateStripeKey("sk_test_fake_key");
 
       // Create a paid event
       const event = await createTestEvent({
@@ -2735,7 +2851,7 @@ describe("server", () => {
     });
 
     test("free ticket still works when payments enabled", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_fake_key";
+      await updateStripeKey("sk_test_fake_key");
 
       // Create a free event (no price)
       const event = await createTestEvent({
@@ -2759,7 +2875,7 @@ describe("server", () => {
     });
 
     test("zero price ticket is treated as free", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_fake_key";
+      await updateStripeKey("sk_test_fake_key");
 
       // Create event with 0 price
       const event = await createTestEvent({
@@ -2783,7 +2899,7 @@ describe("server", () => {
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
         name: "Paid Event",
@@ -2809,7 +2925,7 @@ describe("server", () => {
     test("returns error when event not found in session metadata", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
@@ -2849,7 +2965,7 @@ describe("server", () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
 
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
         name: "Paid Event",
@@ -2899,7 +3015,7 @@ describe("server", () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
 
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
         name: "Paid Event",
@@ -2947,7 +3063,7 @@ describe("server", () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
 
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
         name: "Paid Event",
@@ -2992,7 +3108,7 @@ describe("server", () => {
     });
 
     test("rejects paid event registration when sold out before payment", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       // Create paid event with only 1 spot
       const event = await createTestEvent({
@@ -3022,7 +3138,7 @@ describe("server", () => {
       const { stripeApi } = await import("#lib/stripe.ts");
       const { attendeesApi } = await import("#lib/db/attendees.ts");
 
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
         name: "Paid Event",

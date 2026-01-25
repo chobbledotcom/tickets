@@ -42,12 +42,15 @@ import {
   getCurrencyCodeFromDb,
   getPublicKey,
   getSetting,
+  getStripeSecretKeyFromDb,
   getWrappedDataKey,
   getWrappedPrivateKey,
+  hasStripeKey,
   isSetupComplete,
   setSetting,
   unwrapDataKey,
   updateAdminPassword,
+  updateStripeKey,
   verifyAdminPassword,
 } from "#lib/db/settings.ts";
 import {
@@ -184,10 +187,49 @@ describe("db", () => {
       expect(CONFIG_KEYS.WRAPPED_DATA_KEY).toBe("wrapped_data_key");
       expect(CONFIG_KEYS.WRAPPED_PRIVATE_KEY).toBe("wrapped_private_key");
       expect(CONFIG_KEYS.PUBLIC_KEY).toBe("public_key");
+      expect(CONFIG_KEYS.STRIPE_SECRET_KEY).toBe("stripe_secret_key");
     });
 
     test("getCurrencyCodeFromDb returns GBP by default", async () => {
       expect(await getCurrencyCodeFromDb()).toBe("GBP");
+    });
+  });
+
+  describe("stripe key", () => {
+    test("hasStripeKey returns false when not set", async () => {
+      expect(await hasStripeKey()).toBe(false);
+    });
+
+    test("hasStripeKey returns true after setting key", async () => {
+      await updateStripeKey("sk_test_123");
+      expect(await hasStripeKey()).toBe(true);
+    });
+
+    test("getStripeSecretKeyFromDb returns null when not set", async () => {
+      expect(await getStripeSecretKeyFromDb()).toBeNull();
+    });
+
+    test("getStripeSecretKeyFromDb returns decrypted key after setting", async () => {
+      await updateStripeKey("sk_test_secret_key");
+      const key = await getStripeSecretKeyFromDb();
+      expect(key).toBe("sk_test_secret_key");
+    });
+
+    test("updateStripeKey stores key encrypted", async () => {
+      await updateStripeKey("sk_test_encrypted");
+      // Verify the raw value in DB is encrypted (starts with enc:1:)
+      const rawValue = await getSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
+      expect(rawValue).toMatch(/^enc:1:/);
+      // But getStripeSecretKeyFromDb returns decrypted
+      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_encrypted");
+    });
+
+    test("updateStripeKey overwrites existing key", async () => {
+      await updateStripeKey("sk_test_first");
+      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_first");
+
+      await updateStripeKey("sk_test_second");
+      expect(await getStripeSecretKeyFromDb()).toBe("sk_test_second");
     });
   });
 

@@ -1,9 +1,12 @@
 /**
- * Admin settings routes - password configuration
- * Note: Stripe keys are now configured via environment variables
+ * Admin settings routes - password and Stripe key configuration
  */
 
-import { updateAdminPassword } from "#lib/db/settings.ts";
+import {
+  hasStripeKey,
+  updateAdminPassword,
+  updateStripeKey,
+} from "#lib/db/settings.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -14,15 +17,18 @@ import {
   withAuthForm,
 } from "#routes/utils.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
-import { changePasswordFields } from "#templates/fields.ts";
+import { changePasswordFields, stripeKeyFields } from "#templates/fields.ts";
 
 /**
  * Handle GET /admin/settings
  */
 const handleAdminSettingsGet = (request: Request): Promise<Response> =>
-  requireSessionOr(request, (session) =>
-    htmlResponse(adminSettingsPage(session.csrfToken)),
-  );
+  requireSessionOr(request, async (session) => {
+    const stripeKeyConfigured = await hasStripeKey();
+    return htmlResponse(
+      adminSettingsPage(session.csrfToken, stripeKeyConfigured),
+    );
+  });
 
 /**
  * Validate change password form data
@@ -62,8 +68,12 @@ const validateChangePasswordForm = (
  */
 const handleAdminSettingsPost = (request: Request): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
+    const stripeKeyConfigured = await hasStripeKey();
     const settingsPageWithError = (error: string, status: number) =>
-      htmlResponse(adminSettingsPage(session.csrfToken, error), status);
+      htmlResponse(
+        adminSettingsPage(session.csrfToken, stripeKeyConfigured, error),
+        status,
+      );
 
     const validation = validateChangePasswordForm(form);
     if (!validation.valid) {
@@ -82,8 +92,39 @@ const handleAdminSettingsPost = (request: Request): Promise<Response> =>
     return redirect("/admin", clearSessionCookie);
   });
 
+/**
+ * Handle POST /admin/settings/stripe
+ */
+const handleAdminStripePost = (request: Request): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const stripeKeyConfigured = await hasStripeKey();
+    const settingsPageWithError = (error: string, status: number) =>
+      htmlResponse(
+        adminSettingsPage(session.csrfToken, stripeKeyConfigured, error),
+        status,
+      );
+
+    const validation = validateForm(form, stripeKeyFields);
+    if (!validation.valid) {
+      return settingsPageWithError(validation.error, 400);
+    }
+
+    const stripeSecretKey = validation.values.stripe_secret_key as string;
+    await updateStripeKey(stripeSecretKey);
+
+    return htmlResponse(
+      adminSettingsPage(
+        session.csrfToken,
+        true,
+        undefined,
+        "Stripe key updated successfully",
+      ),
+    );
+  });
+
 /** Settings routes */
 export const settingsRoutes = defineRoutes({
   "GET /admin/settings": (request) => handleAdminSettingsGet(request),
   "POST /admin/settings": (request) => handleAdminSettingsPost(request),
+  "POST /admin/settings/stripe": (request) => handleAdminStripePost(request),
 });
