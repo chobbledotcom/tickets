@@ -3561,6 +3561,11 @@ describe("server", () => {
         );
       });
 
+      test("responses have X-Robots-Tag: noindex, nofollow", async () => {
+        const response = await handleRequest(mockRequest("/"));
+        expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      });
+
       test("ticket pages also have base security headers", async () => {
         const event = await createTestEvent({
           name: "Event",
@@ -3575,6 +3580,7 @@ describe("server", () => {
         expect(response.headers.get("referrer-policy")).toBe(
           "strict-origin-when-cross-origin",
         );
+        expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
       });
     });
   });
@@ -3664,6 +3670,7 @@ describe("server", () => {
       );
       expect(response.headers.get("x-frame-options")).toBe("DENY");
       expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     });
   });
 });
