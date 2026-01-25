@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { updateStripeKey } from "#lib/db/settings.ts";
-import { resetStripeClient } from "#lib/stripe.ts";
+import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#src/server.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
@@ -514,27 +514,40 @@ describe("server", () => {
     });
 
     test("updates Stripe key successfully", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      // Mock webhook setup to succeed
+      const mockSetupWebhook = spyOn(stripeApi, "setupWebhookEndpoint");
+      mockSetupWebhook.mockResolvedValue({
+        success: true,
+        endpointId: "we_test_123",
+        secret: "whsec_test_secret",
+      });
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/stripe",
-          {
-            stripe_secret_key: "sk_test_new_key_123",
-            csrf_token: csrfToken || "",
-          },
-          cookie,
-        ),
-      );
+      try {
+        const loginResponse = await handleRequest(
+          mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+        );
+        const cookie = loginResponse.headers.get("set-cookie") || "";
+        const csrfToken = await getCsrfTokenFromCookie(cookie);
 
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Stripe key updated successfully");
-      expect(html).toContain("A Stripe secret key is currently configured");
+        const response = await handleRequest(
+          mockFormRequest(
+            "/admin/settings/stripe",
+            {
+              stripe_secret_key: "sk_test_new_key_123",
+              csrf_token: csrfToken || "",
+            },
+            cookie,
+          ),
+        );
+
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Stripe key updated");
+        expect(html).toContain("webhook configured");
+        expect(html).toContain("A Stripe secret key is currently configured");
+      } finally {
+        mockSetupWebhook.mockRestore();
+      }
     });
 
     test("settings page shows Stripe is not configured initially", async () => {
@@ -551,28 +564,40 @@ describe("server", () => {
     });
 
     test("settings page shows Stripe is configured after setting key", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      // Mock webhook setup to succeed
+      const mockSetupWebhook = spyOn(stripeApi, "setupWebhookEndpoint");
+      mockSetupWebhook.mockResolvedValue({
+        success: true,
+        endpointId: "we_test_123",
+        secret: "whsec_test_secret",
+      });
 
-      // Set the Stripe key
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/stripe",
-          {
-            stripe_secret_key: "sk_test_configured",
-            csrf_token: csrfToken || "",
-          },
-          cookie,
-        ),
-      );
+      try {
+        const loginResponse = await handleRequest(
+          mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+        );
+        const cookie = loginResponse.headers.get("set-cookie") || "";
+        const csrfToken = await getCsrfTokenFromCookie(cookie);
 
-      // Check the settings page shows it's configured
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).toContain("A Stripe secret key is currently configured");
+        // Set the Stripe key
+        await handleRequest(
+          mockFormRequest(
+            "/admin/settings/stripe",
+            {
+              stripe_secret_key: "sk_test_configured",
+              csrf_token: csrfToken || "",
+            },
+            cookie,
+          ),
+        );
+
+        // Check the settings page shows it's configured
+        const response = await awaitTestRequest("/admin/settings", { cookie });
+        const html = await response.text();
+        expect(html).toContain("A Stripe secret key is currently configured");
+      } finally {
+        mockSetupWebhook.mockRestore();
+      }
     });
   });
 
