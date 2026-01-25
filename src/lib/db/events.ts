@@ -3,9 +3,9 @@
  */
 
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
-import { executeByField, getDb, queryOne } from "#lib/db/client.ts";
+import { executeByField, getDb, queryBatch, queryOne } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
-import type { Event, EventWithCount } from "#lib/types.ts";
+import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 
 /** Event input fields for create/update (camelCase) */
 export type EventInput = {
@@ -86,6 +86,19 @@ const decryptEventWithCount = async (
   return { ...event, attendee_count: row.attendee_count };
 };
 
+/** Decrypt raw event row and add attendee count */
+const decryptEventRow = async (
+  row: Event,
+  attendeeCount: number,
+): Promise<EventWithCount> => {
+  const event = await eventsTable.fromDb(row);
+  return { ...event, attendee_count: attendeeCount };
+};
+
+/** Extract event row from batch result, returning null if not found */
+const extractEventRow = (result: { rows: unknown[] } | undefined): Event | null =>
+  (result?.rows[0] as unknown as Event) ?? null;
+
 /**
  * Get all events with attendee counts (sum of quantities)
  * Uses custom JOIN query - not covered by table abstraction
@@ -137,4 +150,63 @@ export const getEventWithCountBySlug = async (
     [slugIndex],
   );
   return row ? decryptEventWithCount(row) : null;
+};
+
+/** Result type for combined event + attendees query */
+export type EventWithAttendees = {
+  event: EventWithCount;
+  attendeesRaw: Attendee[];
+};
+
+/**
+ * Get event and all attendees in a single database round-trip.
+ * Uses batch API to execute both queries together, reducing latency
+ * for remote databases like Turso from 2 RTTs to 1.
+ * Computes attendee_count from the attendees array.
+ */
+export const getEventWithAttendeesRaw = async (
+  id: number,
+): Promise<EventWithAttendees | null> => {
+  const [eventResult, attendeesResult] = await queryBatch([
+    { sql: "SELECT * FROM events WHERE id = ?", args: [id] },
+    { sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC", args: [id] },
+  ]);
+
+  const eventRow = extractEventRow(eventResult);
+  if (!eventRow) return null;
+
+  const attendeesRaw = (attendeesResult?.rows ?? []) as unknown as Attendee[];
+  const count = attendeesRaw.reduce((sum, a) => sum + a.quantity, 0);
+  return { event: await decryptEventRow(eventRow, count), attendeesRaw };
+};
+
+/** Result type for event + single attendee query */
+export type EventWithAttendeeRaw = {
+  event: EventWithCount;
+  attendeeRaw: Attendee | null;
+};
+
+/**
+ * Get event and a single attendee in a single database round-trip.
+ * Used for attendee management pages where we need both the event context
+ * and the specific attendee data.
+ */
+export const getEventWithAttendeeRaw = async (
+  eventId: number,
+  attendeeId: number,
+): Promise<EventWithAttendeeRaw | null> => {
+  const [eventResult, attendeeResult, countResult] = await queryBatch([
+    { sql: "SELECT * FROM events WHERE id = ?", args: [eventId] },
+    { sql: "SELECT * FROM attendees WHERE id = ?", args: [attendeeId] },
+    { sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ?", args: [eventId] },
+  ]);
+
+  const eventRow = extractEventRow(eventResult);
+  if (!eventRow) return null;
+
+  const count = (countResult?.rows[0] as unknown as { count: number })?.count ?? 0;
+  return {
+    event: await decryptEventRow(eventRow, count),
+    attendeeRaw: (attendeeResult?.rows[0] as unknown as Attendee) ?? null,
+  };
 };

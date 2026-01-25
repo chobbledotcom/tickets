@@ -2,7 +2,7 @@
  * Database client setup and core utilities
  */
 
-import { type Client, createClient, type InValue } from "@libsql/client";
+import { type Client, createClient, type InValue, type ResultSet } from "@libsql/client";
 import { lazyRef } from "#fp";
 
 const createDbClient = (): Client => {
@@ -48,3 +48,11 @@ export const executeByField = async (
     args: [value],
   });
 };
+
+/**
+ * Execute multiple queries in a single round-trip using Turso batch API.
+ * Significantly reduces latency for remote databases.
+ */
+export const queryBatch = (
+  statements: Array<{ sql: string; args: InValue[] }>,
+): Promise<ResultSet[]> => getDb().batch(statements, "read");

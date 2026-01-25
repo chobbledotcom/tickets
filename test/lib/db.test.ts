@@ -8,9 +8,10 @@ import {
 } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
+  decryptAttendees,
   deleteAttendee,
   getAttendee,
-  getAttendees,
+  getAttendeesRaw,
   hasAvailableSpots,
 } from "#lib/db/attendees.ts";
 import { getDb, setDb } from "#lib/db/client.ts";
@@ -550,7 +551,8 @@ describe("db", () => {
       await deleteEvent(event.id);
 
       const privateKey = await getTestPrivateKey();
-      const attendees = await getAttendees(event.id, privateKey);
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendees(raw, privateKey);
       expect(attendees).toEqual([]);
     });
 
@@ -611,17 +613,18 @@ describe("db", () => {
       expect(fetched).toBeNull();
     });
 
-    test("getAttendees returns empty array when no attendees", async () => {
+    test("decryptAttendees returns empty array when no attendees", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       const privateKey = await getTestPrivateKey();
-      const attendees = await getAttendees(event.id, privateKey);
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendees(raw, privateKey);
       expect(attendees).toEqual([]);
     });
 
-    test("getAttendees returns attendees for event", async () => {
+    test("decryptAttendees returns decrypted attendees for event", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
@@ -630,7 +633,8 @@ describe("db", () => {
       await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
 
       const privateKey = await getTestPrivateKey();
-      const attendees = await getAttendees(event.id, privateKey);
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendees(raw, privateKey);
       expect(attendees.length).toBe(2);
     });
 
