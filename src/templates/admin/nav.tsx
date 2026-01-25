@@ -8,7 +8,7 @@
 export const AdminNav = (): JSX.Element => (
   <nav>
     <ul>
-      <li><a href="/admin/">Dashboard</a></li>
+      <li><a href="/admin/">Events</a></li>
       <li><a href="/admin/settings">Settings</a></li>
       <li><a href="/admin/sessions">Sessions</a></li>
       <li><a href="/admin/logout">Logout</a></li>

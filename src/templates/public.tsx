@@ -31,29 +31,20 @@ export const ticketPage = (
 
   return String(
     <Layout title={`Reserve Ticket: ${event.name}`}>
-      <header>
         <h1>{event.name}</h1>
         <p>{event.description}</p>
-      </header>
 
-      <section>
         <aside>
           <p><strong>Spots remaining:</strong> {spotsRemaining}</p>
         </aside>
-      </section>
 
       <Raw html={renderError(error)} />
 
       {isFull ? (
-        <section>
           <div class="error">Sorry, this event is full.</div>
-        </section>
       ) : (
-        <section>
           <form method="POST" action={`/ticket/${event.slug}`}>
-            <header>
               <h2>Reserve Your Ticket</h2>
-            </header>
             <input type="hidden" name="csrf_token" value={csrfToken} />
             <Raw html={renderFields(ticketFields)} />
             {showQuantity ? (
@@ -68,7 +59,6 @@ export const ticketPage = (
             )}
             <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
           </form>
-        </section>
       )}
     </Layout>
   );

@@ -42,11 +42,7 @@ export const adminDashboardPage = (
     <Layout title="Admin Dashboard">
       <AdminNav />
 
-      <section>
-        <header>
-          <h2>Events</h2>
-        </header>
-        <table>
+      <table>
           <thead>
             <tr>
               <th>Name</th>
@@ -60,20 +56,15 @@ export const adminDashboardPage = (
             <Raw html={eventRows} />
           </tbody>
         </table>
-      </section>
 
       <br />
 
-      <section>
         <form method="POST" action="/admin/event">
-          <header>
             <h2>Create New Event</h2>
-          </header>
           <input type="hidden" name="csrf_token" value={csrfToken} />
           <Raw html={renderFields(eventFields)} />
           <button type="submit">Create Event</button>
         </form>
-      </section>
     </Layout>
   );
 };
