@@ -6,7 +6,7 @@ import { createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
 import { setDb } from "#lib/db/client.ts";
 import {
-  getEvent,
+  getEventWithCount,
   getEventWithCountBySlug,
   type EventInput,
 } from "#lib/db/events.ts";
@@ -434,7 +434,7 @@ export const updateTestEvent = async (
   eventId: number,
   updates: Partial<EventInput>,
 ): Promise<Event> => {
-  const existing = await getEvent(eventId);
+  const existing = await getEventWithCount(eventId);
   if (!existing) {
     throw new Error(`Event not found: ${eventId}`);
   }
@@ -452,7 +452,7 @@ export const updateTestEvent = async (
       webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
     },
     async () => {
-      const updated = await getEvent(eventId);
+      const updated = await getEventWithCount(eventId);
       if (!updated) {
         throw new Error(`Event not found after update: ${eventId}`);
       }
