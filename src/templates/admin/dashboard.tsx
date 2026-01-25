@@ -39,7 +39,7 @@ export const adminDashboardPage = (
       : '<tr><td colspan="5">No events yet</td></tr>';
 
   return String(
-    <Layout title="Admin Dashboard">
+    <Layout title="Events">
       <AdminNav />
 
       <table>

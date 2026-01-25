@@ -148,7 +148,7 @@ describe("server", () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Admin Dashboard");
+      expect(html).toContain("Events");
     });
   });
 
