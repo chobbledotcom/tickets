@@ -4,20 +4,41 @@
 
 import { renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { changePasswordFields } from "#templates/fields.ts";
+import { changePasswordFields, stripeKeyFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
 /**
  * Admin settings page
- * Note: Stripe keys are now configured via environment variables
  */
-export const adminSettingsPage = (csrfToken: string, error?: string): string =>
+export const adminSettingsPage = (
+  csrfToken: string,
+  stripeKeyConfigured: boolean,
+  error?: string,
+  success?: string,
+): string =>
   String(
     <Layout title="Settings">
       <AdminNav />
 
       {error && <div class="error">{error}</div>}
+      {success && <div class="success">{success}</div>}
+
+      <section>
+        <form method="POST" action="/admin/settings/stripe">
+          <header>
+            <h2>Stripe Settings</h2>
+          </header>
+          <p>
+            {stripeKeyConfigured
+              ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
+              : "No Stripe key is configured. Payments are disabled."}
+          </p>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <Raw html={renderFields(stripeKeyFields)} />
+          <button type="submit">Update Stripe Key</button>
+        </form>
+      </section>
 
       <section>
         <form method="POST" action="/admin/settings">

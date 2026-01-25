@@ -4,7 +4,9 @@
 
 import { lazyRef } from "#fp";
 import {
+  decrypt,
   deriveKEK,
+  encrypt,
   encryptWithKey,
   generateDataKey,
   generateKeyPair,
@@ -28,6 +30,8 @@ export const CONFIG_KEYS = {
   WRAPPED_DATA_KEY: "wrapped_data_key",
   WRAPPED_PRIVATE_KEY: "wrapped_private_key",
   PUBLIC_KEY: "public_key",
+  // Stripe configuration (encrypted)
+  STRIPE_SECRET_KEY: "stripe_secret_key",
 } as const;
 
 /**
@@ -144,6 +148,34 @@ export const getCurrencyCodeFromDb = async (): Promise<string> => {
 };
 
 /**
+ * Check if a Stripe key has been configured in the database
+ */
+export const hasStripeKey = async (): Promise<boolean> => {
+  const value = await getSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
+  return value !== null;
+};
+
+/**
+ * Get Stripe secret key from database (decrypted)
+ * Returns null if not configured
+ */
+export const getStripeSecretKeyFromDb = async (): Promise<string | null> => {
+  const value = await getSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
+  if (!value) return null;
+  return decrypt(value);
+};
+
+/**
+ * Update Stripe secret key (encrypted at rest)
+ */
+export const updateStripeKey = async (
+  stripeSecretKey: string,
+): Promise<void> => {
+  const encryptedKey = await encrypt(stripeSecretKey);
+  await setSetting(CONFIG_KEYS.STRIPE_SECRET_KEY, encryptedKey);
+};
+
+/**
  * Get admin password hash from database
  * Returns null if setup hasn't been completed
  */
@@ -251,4 +283,7 @@ export const settingsApi = {
   unwrapDataKey,
   updateAdminPassword,
   getCurrencyCodeFromDb,
+  hasStripeKey,
+  getStripeSecretKeyFromDb,
+  updateStripeKey,
 };
