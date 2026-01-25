@@ -33,7 +33,10 @@ const AttendeeRow = ({ a, eventId }: { a: Attendee; eventId: number }): string =
 export const adminEventPage = (
   event: EventWithCount,
   attendees: Attendee[],
+  allowedDomain: string,
 ): string => {
+  const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
+  const embedCode = `<iframe src="${ticketUrl}" loading="lazy" style="border: none; width: 100%; height: 10rem">Loading..</iframe>`;
   const attendeeRows =
     attendees.length > 0
       ? pipe(
@@ -90,6 +93,16 @@ export const adminEventPage = (
               <a href={event.webhook_url}>{event.webhook_url}</a>
             </p>
           )}
+          <p>
+            <label for={`embed-code-${event.id}`}><strong>Embed Code:</strong></label>
+            <input
+              type="text"
+              id={`embed-code-${event.id}`}
+              value={embedCode}
+              readonly
+              onclick="this.select()"
+            />
+          </p>
         </article>
 
         <h2>Attendees</h2>
