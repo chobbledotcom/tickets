@@ -30,21 +30,13 @@ export const ticketPage = (
   const showQuantity = maxPurchasable > 1;
 
   return String(
-    <Layout title={`Reserve Ticket: ${event.name}`}>
-        <h1>{event.name}</h1>
-        <p>{event.description}</p>
-
-        <aside>
-          <p><strong>Spots remaining:</strong> {spotsRemaining}</p>
-        </aside>
-
+    <Layout title="Reserve Ticket">
       <Raw html={renderError(error)} />
 
       {isFull ? (
           <div class="error">Sorry, this event is full.</div>
       ) : (
           <form method="POST" action={`/ticket/${event.slug}`}>
-              <h2>Reserve Your Ticket</h2>
             <input type="hidden" name="csrf_token" value={csrfToken} />
             <Raw html={renderFields(ticketFields)} />
             {showQuantity ? (

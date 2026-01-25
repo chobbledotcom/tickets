@@ -113,8 +113,8 @@ const buildSessionParams = async (
         price_data: {
           currency,
           product_data: {
-            name: cfg.event.name,
-            description: `${label} for ${cfg.event.name}`,
+            name: `Ticket: ${cfg.event.slug}`,
+            description: label,
           },
           unit_amount: cfg.event.unit_price,
         },

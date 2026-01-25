@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when adding new migrations
  */
-export const LATEST_UPDATE = "add slug_index column for encrypted slug lookup";
+export const LATEST_UPDATE = "remove name and description requirements";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -55,12 +55,13 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Create events table
+  // Note: name and description columns kept for backwards compatibility but are no longer used
   await client.execute(`
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created TEXT NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL,
+      name TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
       max_attendees INTEGER NOT NULL,
       thank_you_url TEXT NOT NULL,
       unit_price INTEGER
