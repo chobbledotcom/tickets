@@ -13,6 +13,8 @@ export type WebhookPayload = {
   event_type: "attendee.registered";
   event_id: number;
   event_name: string;
+  remaining_places: number;
+  total_places: number;
   attendee: {
     id: number;
     quantity: number;
@@ -21,7 +23,13 @@ export type WebhookPayload = {
 };
 
 /** Event data needed for webhook notifications */
-type WebhookEvent = { id: number; name: string; webhook_url: string | null };
+type WebhookEvent = {
+  id: number;
+  name: string;
+  webhook_url: string | null;
+  max_attendees: number;
+  attendee_count: number;
+};
 
 /** Attendee data needed for webhook notifications */
 type WebhookAttendee = { id: number; quantity: number };
@@ -36,11 +44,15 @@ export const sendRegistrationWebhook = async (
   eventName: string,
   attendeeId: number,
   quantity: number,
+  maxAttendees: number,
+  attendeeCount: number,
 ): Promise<void> => {
   const payload: WebhookPayload = {
     event_type: "attendee.registered",
     event_id: eventId,
     event_name: eventName,
+    remaining_places: maxAttendees - attendeeCount - quantity,
+    total_places: maxAttendees,
     attendee: {
       id: attendeeId,
       quantity,
@@ -78,6 +90,8 @@ export const notifyWebhook = async (
     event.name,
     attendee.id,
     attendee.quantity,
+    event.max_attendees,
+    event.attendee_count,
   );
 };
 

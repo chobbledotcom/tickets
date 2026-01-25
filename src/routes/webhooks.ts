@@ -15,7 +15,7 @@
  */
 
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
-import { getEvent } from "#lib/db/events.ts";
+import { getEventWithCount } from "#lib/db/events.ts";
 import {
   isSessionProcessed,
   markSessionProcessed,
@@ -27,7 +27,7 @@ import {
   type StripeWebhookEvent,
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
-import type { Attendee, Event } from "#lib/types.ts";
+import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
@@ -105,7 +105,7 @@ const validatePaidSession = async (
 
 /** Result type for processPaymentSession */
 type PaymentResult =
-  | { success: true; attendee: Attendee; event: Event }
+  | { success: true; attendee: Attendee; event: EventWithCount }
   | { success: false; error: string; status?: number; refunded?: boolean };
 
 /** Refund payment if intent exists and return failure result */
@@ -129,7 +129,7 @@ const processPaymentSession = async (
   // Idempotency check: if session already processed, return success
   const existing = await isSessionProcessed(sessionId);
   if (existing) {
-    const event = await getEvent(intent.eventId);
+    const event = await getEventWithCount(intent.eventId);
     if (!event) {
       return { success: false, error: "Event not found", status: 404 };
     }
@@ -142,7 +142,7 @@ const processPaymentSession = async (
   }
 
   // Check if event exists
-  const event = await getEvent(intent.eventId);
+  const event = await getEventWithCount(intent.eventId);
   if (!event) {
     return refundAndFail(session, "Event not found", 404);
   }
@@ -217,7 +217,7 @@ const handlePaymentCancel = withSessionId(async (sid) => {
     return paymentErrorResponse("Invalid payment session data");
   }
 
-  const event = await getEvent(intent.eventId);
+  const event = await getEventWithCount(intent.eventId);
   if (!event) {
     return paymentErrorResponse("Event not found", 404);
   }
