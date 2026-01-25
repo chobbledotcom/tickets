@@ -319,8 +319,7 @@ describe("html", () => {
   describe("notFoundPage", () => {
     test("renders not found message", () => {
       const html = notFoundPage();
-      expect(html).toContain("Not Found");
-      expect(html).toContain("doesn't exist");
+      expect(html).toContain("<h1>Not Found</h1>");
     });
   });
 

@@ -91,14 +91,11 @@ export const ticketPage = (
 };
 
 /**
- * Event not found page
+ * Not found page
  */
 export const notFoundPage = (): string =>
   String(
     <Layout title="Not Found">
-      <header>
-        <h1>Event Not Found</h1>
-        <p>The event you're looking for doesn't exist.</p>
-      </header>
+      <h1>Not Found</h1>
     </Layout>
   );
