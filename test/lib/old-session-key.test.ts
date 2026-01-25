@@ -39,7 +39,7 @@ describe("old session key handling", () => {
     resetDb();
   });
 
-  test("user with old session key sees blank screen when DB_ENCRYPTION_KEY changes", async () => {
+  test("invalidates session and shows login when DB_ENCRYPTION_KEY changes", async () => {
     // Step 1: Login to get a valid session with wrapped_data_key
     const loginResponse = await handleRequest(
       mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
@@ -73,53 +73,25 @@ describe("old session key handling", () => {
     resetSessionCache();
 
     // Step 4: User returns with their old session cookie
-    // BUG: The session appears valid but crypto operations silently fail
+    // Session should be invalidated because wrapped_data_key can't be unwrapped
     const responseAfter = await handleRequest(
       requestWithSession("/admin/", sessionCookie),
     );
 
-    // BUG DEMONSTRATION:
-    // The user sees the admin dashboard (200 OK, "Logout" link visible)
-    // but their session is effectively broken - they cannot decrypt any PII
+    // User sees the login page, not the dashboard
+    // (getAuthenticatedSession returns null, so /admin/ shows login form)
     expect(responseAfter.status).toBe(200);
     const htmlAfter = await responseAfter.text();
-    expect(htmlAfter).toContain("Logout"); // User appears logged in
+    expect(htmlAfter).toContain("Login"); // Shows login form
+    expect(htmlAfter).not.toContain("Logout"); // Not authenticated
 
-    // The session is returned as "valid" even though crypto is broken
+    // Session is invalidated - getAuthenticatedSession returns null
     const sessionAfter = await getAuthenticatedSession(
       requestWithSession("/admin/", sessionCookie),
     );
-    expect(sessionAfter).not.toBeNull(); // Session appears valid
-    expect(sessionAfter?.wrappedDataKey).toBeDefined(); // Has wrapped key
+    expect(sessionAfter).toBeNull(); // Session was invalidated
 
-    // BUT: The private key derivation fails silently
-    // This is because wrappedDataKey was encrypted with the OLD DB_ENCRYPTION_KEY
-    // but unwrapKeyWithToken uses the NEW key in its PBKDF2 salt
-    const privateKeyAfter = await getPrivateKey(
-      sessionAfter!.token,
-      sessionAfter!.wrappedDataKey,
-    );
-    expect(privateKeyAfter).toBeNull(); // Crypto silently fails!
-
-    // EXPECTED BEHAVIOR:
-    // User should be redirected to login (302 to /admin/) when their session
-    // has an invalid wrapped_data_key, rather than being shown a broken dashboard
-    //
-    // ACTUAL BEHAVIOR (BUG):
-    // - User sees the dashboard (appears logged in)
-    // - Any page that tries to decrypt attendee PII will either:
-    //   a) Show encrypted/garbled data
-    //   b) Throw an error causing 500/blank screen
-    //   c) Silently fail showing empty data
-    // - User is stuck and doesn't know they need to re-login
-    //
-    // FIX OPTIONS:
-    // 1. Validate wrapped_data_key can be unwrapped in getAuthenticatedSession()
-    // 2. Add a "key version" to wrapped_data_key and invalidate on mismatch
-    // 3. Delete all sessions when DB_ENCRYPTION_KEY changes (ops procedure)
-
-    console.log(
-      "BUG CONFIRMED: User has valid-looking session but crypto operations fail",
-    );
+    // Note: The error "E_KEY_DERIVATION" is logged with detail:
+    // "Session has invalid wrapped_data_key, likely due to DB_ENCRYPTION_KEY rotation. User must re-login."
   });
 });
