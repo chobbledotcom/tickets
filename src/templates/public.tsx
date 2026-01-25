@@ -1,5 +1,5 @@
 /**
- * Public page templates - home and ticket pages
+ * Public page templates - ticket reservation pages
  */
 
 import { renderError, renderFields } from "#lib/forms.tsx";
@@ -7,24 +7,6 @@ import type { EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { ticketFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-
-/**
- * Home page
- */
-export const homePage = (): string =>
-  String(
-    <Layout title="Ticket Reservation System">
-      <header>
-        <h1>Ticket Reservation System</h1>
-        <p>Welcome to the ticket reservation system.</p>
-        <nav>
-          <ul>
-            <li><a href="/admin/"><b>Admin Login</b></a></li>
-          </ul>
-        </nav>
-      </header>
-    </Layout>
-  );
 
 /**
  * Build quantity select options

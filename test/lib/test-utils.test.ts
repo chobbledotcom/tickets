@@ -199,10 +199,10 @@ describe("test-utils", () => {
     });
 
     test("makes GET request and returns response", async () => {
-      const response = await awaitTestRequest("/");
+      const response = await awaitTestRequest("/admin/");
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Ticket");
+      expect(html).toContain("Login");
     });
 
     test("accepts token as second argument", async () => {
