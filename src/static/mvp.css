@@ -7,12 +7,12 @@
   --color-accent: #118bee15;
   --color-bg: #fff;
   --color-bg-secondary: #e9e9e9;
-  --color-link: #118bee;
+  --color-link: #791a81;
   --color-secondary: #920de9;
   --color-secondary-accent: #920de90b;
   --color-shadow: #f4f4f4;
-  --color-table: #118bee;
-  --color-text: #000;
+  --color-table: #791a81;
+  --color-text: #111;
   --color-text-secondary: #999;
   --color-scrollbar: #cacae8;
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
@@ -249,8 +249,6 @@ h5,
 h6 {
   line-height: var(--line-height);
   text-wrap: balance;
-  font-weight: normal;
-  color: #791a81;
 }
 
 mark {
