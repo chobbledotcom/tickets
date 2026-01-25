@@ -51,11 +51,10 @@ const joinStrings = reduce((acc: string, s: string) => acc + s, "");
  */
 export const renderField = (field: Field, value: string = ""): string =>
   String(
-    <div class="form-group">
-      <label for={field.name}>{field.label}</label>
+    <label>
+      {field.label}
       {field.type === "textarea" ? (
         <textarea
-          id={field.name}
           name={field.name}
           rows="3"
           required={field.required}
@@ -66,7 +65,6 @@ export const renderField = (field: Field, value: string = ""): string =>
       ) : (
         <input
           type={field.type}
-          id={field.name}
           name={field.name}
           value={value || undefined}
           required={field.required}
@@ -80,7 +78,7 @@ export const renderField = (field: Field, value: string = ""): string =>
           {field.hint}
         </small>
       )}
-    </div>
+    </label>
   );
 
 /**
