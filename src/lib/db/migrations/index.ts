@@ -176,3 +176,26 @@ export const initDb = async (): Promise<void> => {
     args: [LATEST_UPDATE],
   });
 };
+
+/**
+ * All database tables in order for safe dropping (respects foreign key constraints)
+ */
+const ALL_TABLES = [
+  "activity_log",
+  "processed_payments",
+  "attendees",
+  "events",
+  "sessions",
+  "login_attempts",
+  "settings",
+] as const;
+
+/**
+ * Reset the database by dropping all tables
+ */
+export const resetDatabase = async (): Promise<void> => {
+  const client = getDb();
+  for (const table of ALL_TABLES) {
+    await client.execute(`DROP TABLE IF EXISTS ${table}`);
+  }
+};
