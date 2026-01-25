@@ -10,6 +10,7 @@ import {
   getStripeSecretKey,
   getStripeWebhookSecret,
 } from "#lib/config.ts";
+import { ErrorCode, type ErrorCodeType, logError } from "#lib/logger.ts";
 import type { Event } from "#lib/types.ts";
 
 /** Lazy-load Stripe SDK only when needed */
@@ -21,10 +22,14 @@ const loadStripe = once(async () => {
 type StripeCache = { client: Stripe; secretKey: string };
 
 /** Safely execute async operation, returning null on error */
-const safeAsync = async <T>(fn: () => Promise<T>): Promise<T | null> => {
+const safeAsync = async <T>(
+  fn: () => Promise<T>,
+  errorCode: ErrorCodeType,
+): Promise<T | null> => {
   try {
     return await fn();
   } catch {
+    logError({ code: errorCode });
     return null;
   }
 };
@@ -62,9 +67,10 @@ const [getCache, setCache] = lazyRef<StripeCache>(() => {
 /** Run operation with stripe client, return null if not available */
 const withClient = async <T>(
   op: (client: Stripe) => Promise<T>,
+  errorCode: ErrorCodeType,
 ): Promise<T | null> => {
   const client = await getClientImpl();
-  return client ? safeAsync(() => op(client)) : null;
+  return client ? safeAsync(() => op(client), errorCode) : null;
 };
 
 /** Internal getStripeClient implementation */
@@ -135,12 +141,17 @@ export const stripeApi = {
   resetStripeClient: (): void => setCache(null),
 
   /** Retrieve checkout session */
-  retrieveCheckoutSession: (id: string): Promise<Stripe.Checkout.Session | null> =>
-    withClient((s) => s.checkout.sessions.retrieve(id)),
+  retrieveCheckoutSession: (
+    id: string,
+  ): Promise<Stripe.Checkout.Session | null> =>
+    withClient((s) => s.checkout.sessions.retrieve(id), ErrorCode.STRIPE_SESSION),
 
   /** Refund a payment */
   refundPayment: (intentId: string): Promise<Stripe.Refund | null> =>
-    withClient((s) => s.refunds.create({ payment_intent: intentId })),
+    withClient(
+      (s) => s.refunds.create({ payment_intent: intentId }),
+      ErrorCode.STRIPE_REFUND,
+    ),
 
   /** Create checkout session with intent (deferred attendee creation) */
   createCheckoutSessionWithIntent: async (
@@ -161,7 +172,12 @@ export const stripeApi = {
         quantity: String(intent.quantity),
       },
     });
-    return config ? withClient((stripe) => stripe.checkout.sessions.create(config)) : null;
+    return config
+      ? withClient(
+          (stripe) => stripe.checkout.sessions.create(config),
+          ErrorCode.STRIPE_CHECKOUT,
+        )
+      : null;
   },
 };
 
@@ -283,11 +299,13 @@ export const verifyWebhookSignature = async (
 ): Promise<WebhookVerifyResult> => {
   const secret = getStripeWebhookSecret();
   if (!secret) {
+    logError({ code: ErrorCode.CONFIG_MISSING, detail: "webhook secret" });
     return { valid: false, error: "Webhook secret not configured" };
   }
 
   const parsed = parseSignatureHeader(signature);
   if (!parsed) {
+    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "invalid header format" });
     return { valid: false, error: "Invalid signature header format" };
   }
 
@@ -296,6 +314,7 @@ export const verifyWebhookSignature = async (
   // Check timestamp tolerance
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - timestamp) > toleranceSeconds) {
+    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "timestamp out of tolerance" });
     return { valid: false, error: "Timestamp outside tolerance window" };
   }
 
@@ -307,6 +326,7 @@ export const verifyWebhookSignature = async (
   const isValid = signatures.some((sig) => secureCompare(sig, expectedSignature));
 
   if (!isValid) {
+    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" });
     return { valid: false, error: "Signature verification failed" };
   }
 
@@ -315,8 +335,9 @@ export const verifyWebhookSignature = async (
     const event = JSON.parse(payload) as StripeWebhookEvent;
     return { valid: true, event };
   } catch {
+    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "invalid JSON" });
     return { valid: false, error: "Invalid JSON payload" };
-  };
+  }
 };
 
 /**

@@ -7,6 +7,7 @@
  */
 
 import { logActivity } from "#lib/db/activityLog.ts";
+import { ErrorCode, logError } from "#lib/logger.ts";
 
 /** Payload sent to webhook endpoints */
 export type WebhookPayload = {
@@ -70,7 +71,7 @@ export const sendRegistrationWebhook = async (
     });
   } catch {
     // Webhook failures should not block registration
-    // In a production system, you might want to queue for retry
+    logError({ code: ErrorCode.WEBHOOK_SEND, eventId, attendeeId });
   }
 };
 
