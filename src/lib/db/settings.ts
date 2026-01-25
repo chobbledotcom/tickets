@@ -32,6 +32,8 @@ export const CONFIG_KEYS = {
   PUBLIC_KEY: "public_key",
   // Stripe configuration (encrypted)
   STRIPE_SECRET_KEY: "stripe_secret_key",
+  STRIPE_WEBHOOK_SECRET: "stripe_webhook_secret",
+  STRIPE_WEBHOOK_ENDPOINT_ID: "stripe_webhook_endpoint_id",
 } as const;
 
 /**
@@ -176,6 +178,36 @@ export const updateStripeKey = async (
 };
 
 /**
+ * Get Stripe webhook secret from database (decrypted)
+ * Returns null if not configured
+ */
+export const getStripeWebhookSecretFromDb = async (): Promise<string | null> => {
+  const value = await getSetting(CONFIG_KEYS.STRIPE_WEBHOOK_SECRET);
+  if (!value) return null;
+  return decrypt(value);
+};
+
+/**
+ * Get Stripe webhook endpoint ID from database
+ * Returns null if not configured
+ */
+export const getStripeWebhookEndpointId = (): Promise<string | null> => {
+  return getSetting(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID);
+};
+
+/**
+ * Store Stripe webhook configuration (secret encrypted, endpoint ID plaintext)
+ */
+export const setStripeWebhookConfig = async (
+  webhookSecret: string,
+  endpointId: string,
+): Promise<void> => {
+  const encryptedSecret = await encrypt(webhookSecret);
+  await setSetting(CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, encryptedSecret);
+  await setSetting(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, endpointId);
+};
+
+/**
  * Get admin password hash from database
  * Returns null if setup hasn't been completed
  */
@@ -286,4 +318,7 @@ export const settingsApi = {
   hasStripeKey,
   getStripeSecretKeyFromDb,
   updateStripeKey,
+  getStripeWebhookSecretFromDb,
+  getStripeWebhookEndpointId,
+  setStripeWebhookConfig,
 };

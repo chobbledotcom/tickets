@@ -3,11 +3,15 @@
  */
 
 import {
+  getStripeWebhookEndpointId,
   hasStripeKey,
+  setStripeWebhookConfig,
   updateAdminPassword,
   updateStripeKey,
 } from "#lib/db/settings.ts";
 import { validateForm } from "#lib/forms.tsx";
+import { setupWebhookEndpoint } from "#lib/stripe.ts";
+import { getAllowedDomain } from "#lib/config.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
@@ -94,6 +98,9 @@ const handleAdminSettingsPost = (request: Request): Promise<Response> =>
 
 /**
  * Handle POST /admin/settings/stripe
+ *
+ * When the Stripe secret key is saved, automatically creates/updates
+ * a webhook endpoint in Stripe and stores the signing secret.
  */
 const handleAdminStripePost = (request: Request): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
@@ -110,14 +117,35 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
     }
 
     const stripeSecretKey = validation.values.stripe_secret_key as string;
+
+    // Set up webhook endpoint automatically
+    const domain = getAllowedDomain();
+    const webhookUrl = `https://${domain}/payment/webhook`;
+    const existingEndpointId = await getStripeWebhookEndpointId();
+
+    const webhookResult = await setupWebhookEndpoint(
+      stripeSecretKey,
+      webhookUrl,
+      existingEndpointId,
+    );
+
+    if (!webhookResult.success) {
+      return settingsPageWithError(
+        `Failed to set up Stripe webhook: ${webhookResult.error}`,
+        400,
+      );
+    }
+
+    // Store both the Stripe key and webhook config
     await updateStripeKey(stripeSecretKey);
+    await setStripeWebhookConfig(webhookResult.secret, webhookResult.endpointId);
 
     return htmlResponse(
       adminSettingsPage(
         session.csrfToken,
         true,
         undefined,
-        "Stripe key updated successfully",
+        "Stripe key updated and webhook configured successfully",
       ),
     );
   });
