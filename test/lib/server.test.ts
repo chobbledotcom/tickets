@@ -2228,8 +2228,8 @@ describe("server", () => {
       );
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Test Event");
       expect(html).toContain("Reserve Ticket");
+      expect(html).toContain(`action="/ticket/${event.slug}"`);
     });
 
     test("returns 404 for inactive event", async () => {

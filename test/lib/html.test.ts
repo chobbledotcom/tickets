@@ -82,18 +82,18 @@ describe("html", () => {
         },
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
-      expect(html).toContain("Event 1");
+      expect(html).toContain("event-1");
       expect(html).toContain("25 / 100");
       expect(html).toContain("/admin/event/1");
     });
 
-    test("escapes event names", () => {
+    test("displays event slug as identifier", () => {
       const events: EventWithCount[] = [
         {
           id: 1,
-          slug: "test-event",
-          slug_index: "test-event-index",
-          name: "<script>evil()</script>",
+          slug: "my-test-event",
+          slug_index: "my-test-event-index",
+          name: "My Test Event",
           description: "Desc",
           max_attendees: 100,
           thank_you_url: "https://example.com",
@@ -106,7 +106,8 @@ describe("html", () => {
         },
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
-      expect(html).toContain("&lt;script&gt;");
+      expect(html).toContain("my-test-event");
+      expect(html).toContain("Identifier");
     });
 
     test("renders create event form", () => {
@@ -221,15 +222,9 @@ describe("html", () => {
     };
     const csrfToken = "test-csrf-token";
 
-    test("renders event info", () => {
+    test("renders page title", () => {
       const html = ticketPage(event, csrfToken);
-      expect(html).toContain("Test Event");
-      expect(html).toContain("Test Description");
-    });
-
-    test("shows spots remaining", () => {
-      const html = ticketPage(event, csrfToken);
-      expect(html).toContain("50"); // 100 - 50
+      expect(html).toContain("Reserve Ticket");
     });
 
     test("renders registration form when spots available", () => {
@@ -262,13 +257,10 @@ describe("html", () => {
       expect(html).not.toContain(">Reserve Ticket</button>");
     });
 
-    test("escapes event data", () => {
-      const evilEvent: EventWithCount = {
-        ...event,
-        name: "<script>evil()</script>",
-      };
-      const html = ticketPage(evilEvent, csrfToken);
-      expect(html).toContain("&lt;script&gt;");
+    test("does not display event name or description", () => {
+      const html = ticketPage(event, csrfToken);
+      expect(html).not.toContain("<h1>Test Event</h1>");
+      expect(html).not.toContain("<p>Test Description</p>");
     });
 
     test("shows quantity selector when max_quantity > 1 and spots available", () => {
