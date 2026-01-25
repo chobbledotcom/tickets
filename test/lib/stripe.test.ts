@@ -9,7 +9,7 @@ import {
   type StripeWebhookEvent,
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
-import { updateStripeKey } from "#lib/db/settings.ts";
+import { setStripeWebhookConfig, updateStripeKey } from "#lib/db/settings.ts";
 import { createTestDb, resetDb } from "#test-utils";
 
 describe("stripe", () => {
@@ -307,23 +307,16 @@ describe("stripe", () => {
 
   describe("verifyWebhookSignature", () => {
     const TEST_SECRET = "whsec_test_secret_key_for_webhook_verification";
-    let originalWebhookSecret: string | undefined;
 
-    beforeEach(() => {
-      originalWebhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
-      Deno.env.set("STRIPE_WEBHOOK_SECRET", TEST_SECRET);
-    });
-
-    afterEach(() => {
-      if (originalWebhookSecret !== undefined) {
-        Deno.env.set("STRIPE_WEBHOOK_SECRET", originalWebhookSecret);
-      } else {
-        Deno.env.delete("STRIPE_WEBHOOK_SECRET");
-      }
+    beforeEach(async () => {
+      // Set webhook secret in database (encrypted)
+      await setStripeWebhookConfig(TEST_SECRET, "we_test_endpoint");
     });
 
     test("returns error when webhook secret not configured", async () => {
-      Deno.env.delete("STRIPE_WEBHOOK_SECRET");
+      // Reset DB to have no webhook secret configured
+      await resetDb();
+      await createTestDb();
       const result = await verifyWebhookSignature(
         '{"test": true}',
         "t=1234,v1=abc",
@@ -545,8 +538,8 @@ describe("stripe", () => {
       // Verify signature format
       expect(signature).toMatch(/^t=\d+,v1=[a-f0-9]+$/);
 
-      // Signature should be verifiable with the same secret
-      Deno.env.set("STRIPE_WEBHOOK_SECRET", secret);
+      // Signature should be verifiable with the same secret (stored in DB)
+      await setStripeWebhookConfig(secret, "we_test_construction");
       const result = await verifyWebhookSignature(payload, signature);
       expect(result.valid).toBe(true);
     });

@@ -7,6 +7,7 @@
 import {
   getCurrencyCodeFromDb,
   getStripeSecretKeyFromDb,
+  getStripeWebhookSecretFromDb,
   isSetupComplete,
 } from "#lib/db/settings.ts";
 
@@ -28,12 +29,11 @@ export const getStripePublishableKey = (): string | null => {
 };
 
 /**
- * Get Stripe webhook signing secret from environment variable
- * Required for verifying webhook signatures
+ * Get Stripe webhook signing secret from database (encrypted)
+ * Automatically configured when Stripe secret key is saved
  */
-export const getStripeWebhookSecret = (): string | null => {
-  const key = Deno.env.get("STRIPE_WEBHOOK_SECRET");
-  return key && key.trim() !== "" ? key : null;
+export const getStripeWebhookSecret = (): Promise<string | null> => {
+  return getStripeWebhookSecretFromDb();
 };
 
 /**
