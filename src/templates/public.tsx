@@ -18,7 +18,9 @@ export const homePage = (): string =>
         <h1>Ticket Reservation System</h1>
         <p>Welcome to the ticket reservation system.</p>
         <nav>
-          <a href="/admin/"><b>Admin Login</b></a>
+          <ul>
+            <li><a href="/admin/"><b>Admin Login</b></a></li>
+          </ul>
         </nav>
       </header>
     </Layout>
