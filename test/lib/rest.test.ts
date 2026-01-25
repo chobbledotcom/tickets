@@ -118,12 +118,12 @@ describe("rest/resource", () => {
   });
 
   describe("parseInput", () => {
-    test("parses valid form data into Input", () => {
+    test("parses valid form data into Input", async () => {
       const table = createTestTable();
       const resource = defineResource({ table, fields: testFields, toInput });
 
       const form = new URLSearchParams({ name: "Test", value: "42" });
-      const result = resource.parseInput(form);
+      const result = await resource.parseInput(form);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -131,12 +131,12 @@ describe("rest/resource", () => {
       }
     });
 
-    test("returns error for missing required field", () => {
+    test("returns error for missing required field", async () => {
       const table = createTestTable();
       const resource = defineResource({ table, fields: testFields, toInput });
 
       const form = new URLSearchParams({ name: "Test" }); // missing value
-      const result = resource.parseInput(form);
+      const result = await resource.parseInput(form);
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -144,12 +144,12 @@ describe("rest/resource", () => {
       }
     });
 
-    test("returns error for empty required field", () => {
+    test("returns error for empty required field", async () => {
       const table = createTestTable();
       const resource = defineResource({ table, fields: testFields, toInput });
 
       const form = new URLSearchParams({ name: "", value: "42" });
-      const result = resource.parseInput(form);
+      const result = await resource.parseInput(form);
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -159,13 +159,13 @@ describe("rest/resource", () => {
   });
 
   describe("parsePartialInput", () => {
-    test("parses only provided fields", () => {
+    test("parses only provided fields", async () => {
       const table = createTestTable();
       const resource = defineResource({ table, fields: testFields, toInput });
 
       // Only provide name, value not present in form
       const form = new URLSearchParams({ name: "Updated" });
-      const result = resource.parsePartialInput(form);
+      const result = await resource.parsePartialInput(form);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -174,13 +174,13 @@ describe("rest/resource", () => {
       }
     });
 
-    test("validates provided fields", () => {
+    test("validates provided fields", async () => {
       const table = createTestTable();
       const resource = defineResource({ table, fields: testFields, toInput });
 
       // Provide name but it's empty (should fail validation)
       const form = new URLSearchParams({ name: "" });
-      const result = resource.parsePartialInput(form);
+      const result = await resource.parsePartialInput(form);
 
       expect(result.ok).toBe(false);
     });

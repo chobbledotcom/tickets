@@ -9,6 +9,7 @@ import {
 } from "#lib/db/activityLog.ts";
 import { getAttendees } from "#lib/db/attendees.ts";
 import {
+  computeSlugIndex,
   deleteEvent,
   type EventInput,
   eventsTable,
@@ -40,17 +41,23 @@ import {
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields } from "#templates/fields.ts";
 
-/** Extract event input from validated form */
-const extractEventInput = (values: Record<string, unknown>): EventInput => ({
-  slug: values.slug as string,
-  name: values.name as string,
-  description: values.description as string,
-  maxAttendees: values.max_attendees as number,
-  thankYouUrl: values.thank_you_url as string,
-  unitPrice: values.unit_price as number | null,
-  maxQuantity: values.max_quantity as number,
-  webhookUrl: (values.webhook_url as string) || null,
-});
+/** Extract event input from validated form (async to compute slugIndex) */
+const extractEventInput = async (
+  values: Record<string, unknown>,
+): Promise<EventInput> => {
+  const slug = values.slug as string;
+  return {
+    slug,
+    slugIndex: await computeSlugIndex(slug),
+    name: values.name as string,
+    description: values.description as string,
+    maxAttendees: values.max_attendees as number,
+    thankYouUrl: values.thank_you_url as string,
+    unitPrice: values.unit_price as number | null,
+    maxQuantity: values.max_quantity as number,
+    webhookUrl: (values.webhook_url as string) || null,
+  };
+};
 
 /** Validate slug uniqueness */
 const validateEventInput = async (

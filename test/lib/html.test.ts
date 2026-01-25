@@ -76,6 +76,7 @@ describe("html", () => {
         {
           id: 1,
           slug: "event-1",
+          slug_index: "event-1-index",
           name: "Event 1",
           description: "Desc 1",
           max_attendees: 100,
@@ -99,6 +100,7 @@ describe("html", () => {
         {
           id: 1,
           slug: "test-event",
+          slug_index: "test-event-index",
           name: "<script>evil()</script>",
           description: "Desc",
           max_attendees: 100,
@@ -134,6 +136,7 @@ describe("html", () => {
     const event: EventWithCount = {
       id: 1,
       slug: "test-event",
+      slug_index: "test-event-index",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
@@ -212,6 +215,7 @@ describe("html", () => {
     const event: EventWithCount = {
       id: 1,
       slug: "test-event",
+      slug_index: "test-event-index",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
@@ -324,6 +328,7 @@ describe("html", () => {
     const event: Event = {
       id: 1,
       slug: "test-event",
+      slug_index: "test-event-index",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
@@ -389,6 +394,7 @@ describe("html", () => {
     const event: Event = {
       id: 1,
       slug: "test-event",
+      slug_index: "test-event-index",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
@@ -418,6 +424,7 @@ describe("html", () => {
     const event: Event = {
       id: 1,
       slug: "test-event",
+      slug_index: "test-event-index",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
@@ -469,6 +476,7 @@ describe("html", () => {
     const event: EventWithCount = {
       id: 1,
       slug: "test-event",
+      slug_index: "test-event-index",
       name: "Test Event",
       description: "Test Description",
       max_attendees: 100,
