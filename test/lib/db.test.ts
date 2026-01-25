@@ -26,7 +26,7 @@ import {
   isLoginRateLimited,
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
-import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
+import { initDb, LATEST_UPDATE, resetDatabase } from "#lib/db/migrations/index.ts";
 import {
   createSession,
   deleteAllSessions,
@@ -141,6 +141,54 @@ describe("db", () => {
       // Should be very fast since it bails early (typically < 5ms)
       // We just check it completes without error
       expect(duration).toBeLessThan(100);
+    });
+  });
+
+  describe("resetDatabase", () => {
+    test("drops all tables", async () => {
+      // Create some data first
+      await createTestEvent({
+        slug: "test-event",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      await createSession("test-token", "test-csrf", Date.now() + 1000);
+
+      // Reset the database
+      await resetDatabase();
+
+      // Verify tables are gone by checking that they don't exist
+      const client = getDb();
+
+      // Check that events table was dropped
+      const tablesResult = await client.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'",
+      );
+      const tableNames = tablesResult.rows.map((r) => r.name);
+      expect(tableNames).not.toContain("events");
+      expect(tableNames).not.toContain("attendees");
+      expect(tableNames).not.toContain("sessions");
+      expect(tableNames).not.toContain("settings");
+      expect(tableNames).not.toContain("login_attempts");
+      expect(tableNames).not.toContain("processed_payments");
+      expect(tableNames).not.toContain("activity_log");
+    });
+
+    test("can reinitialize database after reset", async () => {
+      // Reset and reinitialize
+      await resetDatabase();
+      await initDb();
+
+      // Verify we can create new data
+      await completeSetup(TEST_ADMIN_PASSWORD, "USD");
+      const event = await createTestEvent({
+        slug: "new-event",
+        maxAttendees: 25,
+        thankYouUrl: "https://example.com",
+      });
+
+      expect(event.id).toBe(1);
+      expect(event.slug).toBe("new-event");
     });
   });
 
