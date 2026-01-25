@@ -466,13 +466,36 @@ export const updateTestEvent = async (
 /**
  * Deactivate an event via the REST API
  */
-export const deactivateTestEvent = (eventId: number): Promise<void> =>
-  authenticatedFormRequest(
+export const deactivateTestEvent = async (eventId: number): Promise<void> => {
+  const event = await getEventWithCount(eventId);
+  if (!event) {
+    throw new Error(`Event not found: ${eventId}`);
+  }
+
+  return authenticatedFormRequest(
     `/admin/event/${eventId}/deactivate`,
-    {},
+    { confirm_name: event.name },
     async () => {},
     "deactivate event",
   );
+};
+
+/**
+ * Reactivate an event via the REST API
+ */
+export const reactivateTestEvent = async (eventId: number): Promise<void> => {
+  const event = await getEventWithCount(eventId);
+  if (!event) {
+    throw new Error(`Event not found: ${eventId}`);
+  }
+
+  return authenticatedFormRequest(
+    `/admin/event/${eventId}/reactivate`,
+    { confirm_name: event.name },
+    async () => {},
+    "reactivate event",
+  );
+};
 
 export type { EventInput };
 

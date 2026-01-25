@@ -1349,6 +1349,9 @@ describe("server", () => {
       const html = await response.text();
       expect(html).toContain("Deactivate Event");
       expect(html).toContain("Return a 404");
+      expect(html).toContain('name="confirm_name"');
+      expect(html).toContain("type its name");
+      expect(html).toContain("Test Event");
     });
   });
 
@@ -1384,7 +1387,7 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/deactivate",
-          { csrf_token: csrfToken || "" },
+          { csrf_token: csrfToken || "", confirm_name: "Test Event" },
           cookie,
         ),
       );
@@ -1395,6 +1398,32 @@ describe("server", () => {
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const event = await getEventWithCount(1);
       expect(event?.active).toBe(0);
+    });
+
+    test("returns error when name does not match", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      await createTestEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/deactivate",
+          { csrf_token: csrfToken || "", confirm_name: "Wrong Name" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Event name does not match");
     });
   });
 
@@ -1435,6 +1464,8 @@ describe("server", () => {
       const html = await response.text();
       expect(html).toContain("Reactivate Event");
       expect(html).toContain("available for registrations");
+      expect(html).toContain('name="confirm_name"');
+      expect(html).toContain("type its name");
     });
   });
 
@@ -1458,7 +1489,7 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/reactivate",
-          { csrf_token: csrfToken || "" },
+          { csrf_token: csrfToken || "", confirm_name: "Test Event" },
           cookie,
         ),
       );
@@ -1469,6 +1500,34 @@ describe("server", () => {
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const activeEvent = await getEventWithCount(1);
       expect(activeEvent?.active).toBe(1);
+    });
+
+    test("returns error when name does not match", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const event = await createTestEvent({
+        name: "Test Event",
+        description: "Desc",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      // Deactivate the event first
+      await deactivateTestEvent(event.id);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/reactivate",
+          { csrf_token: csrfToken || "", confirm_name: "Wrong Name" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Event name does not match");
     });
   });
 
