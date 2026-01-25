@@ -15,7 +15,7 @@
  */
 
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
+import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
   isSessionProcessed,
   markSessionProcessed,
@@ -217,7 +217,8 @@ const handlePaymentCancel = withSessionId(async (sid) => {
     return paymentErrorResponse("Invalid payment session data");
   }
 
-  const event = await getEventWithCount(intent.eventId);
+  // Use getEvent (not getEventWithCount) - we only need slug for redirect
+  const event = await getEvent(intent.eventId);
   if (!event) {
     return paymentErrorResponse("Event not found", 404);
   }
