@@ -2,6 +2,10 @@
 
 A minimal ticket reservation system using Bunny Edge Scripting and libsql.
 
+## Getting Started
+
+Run `./setup.sh` to install Deno, cache dependencies, and run all precommit checks (typecheck, lint, tests).
+
 ## Runtime Environment
 
 - **Production**: Bunny Edge Scripting (Deno-based runtime on Bunny CDN)
