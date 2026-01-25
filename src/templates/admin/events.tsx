@@ -190,10 +190,13 @@ export const adminDeleteEventPage = (
 export const adminDeactivateEventPage = (
   event: EventWithCount,
   csrfToken: string,
+  error?: string,
 ): string =>
   String(
     <Layout title={`Deactivate: ${event.name}`}>
       <AdminNav />
+        {error && <div class="error">{error}</div>}
+
         <article>
           <aside>
             <p><strong>Warning:</strong> Deactivating this event will:</p>
@@ -206,8 +209,19 @@ export const adminDeactivateEventPage = (
           </aside>
         </article>
 
+        <p>To deactivate this event, you must type its name "{event.name}" into the box below:</p>
+
         <form method="POST" action={`/admin/event/${event.id}/deactivate`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
+          <label for="confirm_name">Event name</label>
+          <input
+            type="text"
+            id="confirm_name"
+            name="confirm_name"
+            placeholder={event.name}
+            autocomplete="off"
+            required
+          />
           <button type="submit" class="danger">
             Deactivate Event
           </button>
@@ -221,10 +235,13 @@ export const adminDeactivateEventPage = (
 export const adminReactivateEventPage = (
   event: EventWithCount,
   csrfToken: string,
+  error?: string,
 ): string =>
   String(
     <Layout title={`Reactivate: ${event.name}`}>
       <AdminNav />
+        {error && <div class="error">{error}</div>}
+
         <article>
           <aside>
             <p>Reactivating this event will make it available for registrations again.</p>
@@ -232,8 +249,19 @@ export const adminReactivateEventPage = (
           </aside>
         </article>
 
+        <p>To reactivate this event, you must type its name "{event.name}" into the box below:</p>
+
         <form method="POST" action={`/admin/event/${event.id}/reactivate`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
+          <label for="confirm_name">Event name</label>
+          <input
+            type="text"
+            id="confirm_name"
+            name="confirm_name"
+            placeholder={event.name}
+            autocomplete="off"
+            required
+          />
           <button type="submit">
             Reactivate Event
           </button>
