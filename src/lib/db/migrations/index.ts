@@ -10,6 +10,17 @@ import { getDb } from "#lib/db/client.ts";
 export const LATEST_UPDATE = "consolidated schema v1";
 
 /**
+ * Run a migration that may fail if already applied (e.g., adding a column that exists)
+ */
+const runMigration = async (sql: string): Promise<void> => {
+  try {
+    await getDb().execute(sql);
+  } catch {
+    // Migration already applied, ignore error
+  }
+};
+
+/**
  * Check if database is already up to date by reading from settings table
  */
 const isDbUpToDate = async (): Promise<boolean> => {
@@ -33,10 +44,8 @@ export const initDb = async (): Promise<void> => {
     return;
   }
 
-  const client = getDb();
-
   // Create settings table
-  await client.execute(`
+  await runMigration(`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -44,7 +53,7 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Create events table
-  await client.execute(`
+  await runMigration(`
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created TEXT NOT NULL,
@@ -60,12 +69,12 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Create index on slug_index for fast lookups
-  await client.execute(`
+  await runMigration(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug_index ON events(slug_index)
   `);
 
   // Create attendees table
-  await client.execute(`
+  await runMigration(`
     CREATE TABLE IF NOT EXISTS attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id INTEGER NOT NULL,
@@ -79,7 +88,7 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Create sessions table
-  await client.execute(`
+  await runMigration(`
     CREATE TABLE IF NOT EXISTS sessions (
       token TEXT PRIMARY KEY,
       csrf_token TEXT NOT NULL,
@@ -89,7 +98,7 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Create login_attempts table
-  await client.execute(`
+  await runMigration(`
     CREATE TABLE IF NOT EXISTS login_attempts (
       ip TEXT PRIMARY KEY,
       attempts INTEGER NOT NULL DEFAULT 0,
@@ -99,7 +108,7 @@ export const initDb = async (): Promise<void> => {
 
   // Create processed_payments table for webhook idempotency
   // Tracks Stripe session IDs to prevent duplicate attendee creation
-  await client.execute(`
+  await runMigration(`
     CREATE TABLE IF NOT EXISTS processed_payments (
       stripe_session_id TEXT PRIMARY KEY,
       attendee_id INTEGER NOT NULL,
@@ -109,7 +118,7 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Create activity_log table (unencrypted, admin-only view)
-  await client.execute(`
+  await runMigration(`
     CREATE TABLE IF NOT EXISTS activity_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       created TEXT NOT NULL,
@@ -120,7 +129,7 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Update the version marker
-  await client.execute({
+  await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
     args: [LATEST_UPDATE],
   });
