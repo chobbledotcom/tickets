@@ -2247,7 +2247,7 @@ describe("server", () => {
       );
       expect(response.status).toBe(404);
       const html = await response.text();
-      expect(html).toContain("Event Not Found");
+      expect(html).toContain("<h1>Not Found</h1>");
     });
   });
 
