@@ -20,6 +20,7 @@ import {
   isSessionProcessed,
   markSessionProcessed,
 } from "#lib/db/processed-payments.ts";
+import { ErrorCode, logError } from "#lib/logger.ts";
 import {
   type RegistrationIntent,
   refundPayment,
@@ -310,8 +311,11 @@ const handleStripeWebhook = async (request: Request): Promise<Response> => {
 
   if (!result.success) {
     // Log error but return 200 to prevent Stripe retries for business logic failures
-    // biome-ignore lint/suspicious/noConsole: Webhook error logging
-    console.error(`[Webhook] Payment processing failed: ${result.error}`);
+    logError({
+      code: ErrorCode.STRIPE_SESSION,
+      eventId: intent.eventId,
+      detail: result.error,
+    });
   }
 
   return new Response(
