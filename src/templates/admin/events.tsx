@@ -50,14 +50,17 @@ export const adminEventPage = (
         <Breadcrumb href="/admin/" label="Dashboard" />
         <h1>{event.name}</h1>
         <nav>
-          <a href={`/admin/event/${event.id}/edit`}>Edit</a>
-          <a href={`/admin/event/${event.id}/activity-log`}>Activity Log</a>
-          {event.active === 1 ? (
-            <a href={`/admin/event/${event.id}/deactivate`} class="danger">Deactivate</a>
-          ) : (
-            <a href={`/admin/event/${event.id}/reactivate`}>Reactivate</a>
-          )}
-          <a href={`/admin/event/${event.id}/delete`} class="danger">Delete</a>
+          <ul>
+            <li><a href={`/admin/event/${event.id}/edit`}>Edit</a></li>
+            <li><a href={`/admin/event/${event.id}/activity-log`}>Activity Log</a></li>
+            <li><a href={`/admin/event/${event.id}/export`}>Export CSV</a></li>
+            {event.active === 1 ? (
+              <li><a href={`/admin/event/${event.id}/deactivate`} class="danger">Deactivate</a></li>
+            ) : (
+              <li><a href={`/admin/event/${event.id}/reactivate`}>Reactivate</a></li>
+            )}
+            <li><a href={`/admin/event/${event.id}/delete`} class="danger">Delete</a></li>
+          </ul>
         </nav>
       </header>
 
@@ -95,12 +98,7 @@ export const adminEventPage = (
       </section>
 
       <section>
-        <header>
-          <h2>Attendees</h2>
-          <nav>
-            <a href={`/admin/event/${event.id}/export`}><i>Export CSV</i></a>
-          </nav>
-        </header>
+        <h2>Attendees</h2>
         <table>
           <thead>
             <tr>
