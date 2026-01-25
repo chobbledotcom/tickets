@@ -309,10 +309,10 @@ export const generateTestSlug = (): string => {
   return `test-event-${slugCounter.value}`;
 };
 
-/** Default test event input with slug */
+/** Default test event input with slug (slugIndex computed by REST API) */
 export const testEventInput = (
-  overrides: Partial<EventInput> = {},
-): EventInput => ({
+  overrides: Partial<Omit<EventInput, "slugIndex">> = {},
+): Omit<EventInput, "slugIndex"> => ({
   slug: generateTestSlug(),
   name: "Test Event",
   description: "Test Description",
