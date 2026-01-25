@@ -68,6 +68,17 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
   const passwordConfirm = values.admin_password_confirm as string;
   const currency = ((values.currency_code as string) || "GBP").toUpperCase();
 
+  // Check Data Controller Agreement acceptance
+  const acceptAgreement = form.get("accept_agreement");
+  if (acceptAgreement !== "yes") {
+    // biome-ignore lint/suspicious/noConsole: Debug logging for edge script
+    console.log("[Setup] Agreement not accepted");
+    return {
+      valid: false,
+      error: "You must accept the Data Controller Agreement to continue",
+    };
+  }
+
   if (password.length < 8) {
     // biome-ignore lint/suspicious/noConsole: Debug logging for edge script
     console.log("[Setup] Password too short:", password.length);

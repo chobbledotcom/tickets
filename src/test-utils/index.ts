@@ -176,6 +176,7 @@ export const getSetupCsrfToken = (setCookie: string | null): string | null =>
 
 /**
  * Create a mock setup POST request with CSRF token
+ * Automatically includes accept_agreement: "yes" unless explicitly overridden
  */
 export const mockSetupFormRequest = (
   data: Record<string, string>,
@@ -183,7 +184,7 @@ export const mockSetupFormRequest = (
 ): Request => {
   return mockFormRequest(
     "/setup",
-    { ...data, csrf_token: csrfToken },
+    { accept_agreement: "yes", ...data, csrf_token: csrfToken },
     `setup_csrf=${csrfToken}`,
   );
 };
