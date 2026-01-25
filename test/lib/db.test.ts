@@ -293,8 +293,6 @@ describe("db", () => {
       // Create an event via REST API
       const event = await createTestEvent({
         slug: "password-test-event",
-        name: "Password Test Event",
-        description: "Test event for password change scenario",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
       });
@@ -355,15 +353,13 @@ describe("db", () => {
   describe("events", () => {
     test("createEvent creates event with correct properties", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Test Description",
+        slug: "my-test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
       });
 
       expect(event.id).toBe(1);
-      expect(event.name).toBe("Test Event");
-      expect(event.description).toBe("Test Description");
+      expect(event.slug).toBe("my-test-event");
       expect(event.max_attendees).toBe(100);
       expect(event.thank_you_url).toBe("https://example.com/thanks");
       expect(event.created).toBeDefined();
@@ -372,8 +368,6 @@ describe("db", () => {
 
     test("createEvent creates event with unit_price", async () => {
       const event = await createTestEvent({
-        name: "Paid Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
@@ -389,14 +383,12 @@ describe("db", () => {
 
     test("getAllEvents returns events with attendee count", async () => {
       await createTestEvent({
-        name: "Event 1",
-        description: "Desc 1",
+        slug: "event-1",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       await createTestEvent({
-        name: "Event 2",
-        description: "Desc 2",
+        slug: "event-2",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -414,15 +406,14 @@ describe("db", () => {
 
     test("getEvent returns event by id", async () => {
       const created = await createTestEvent({
-        name: "Test",
-        description: "Desc",
+        slug: "fetch-test",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       const fetched = await getEvent(created.id);
 
       expect(fetched).not.toBeNull();
-      expect(fetched?.name).toBe("Test");
+      expect(fetched?.slug).toBe("fetch-test");
     });
 
     test("getEventWithCount returns null for missing event", async () => {
@@ -432,8 +423,6 @@ describe("db", () => {
 
     test("getEventWithCount returns event with count", async () => {
       const created = await createTestEvent({
-        name: "Test",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -445,24 +434,20 @@ describe("db", () => {
 
     test("eventsTable.update updates event properties", async () => {
       const created = await createTestEvent({
-        name: "Original",
-        description: "Original Desc",
+        slug: "original-event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/original",
       });
 
       const updated = await eventsTable.update(created.id, {
-        slug: created.slug,
-        name: "Updated",
-        description: "Updated Desc",
+        slug: "updated-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/updated",
         unitPrice: 1500,
       });
 
       expect(updated).not.toBeNull();
-      expect(updated?.name).toBe("Updated");
-      expect(updated?.description).toBe("Updated Desc");
+      expect(updated?.slug).toBe("updated-event");
       expect(updated?.max_attendees).toBe(100);
       expect(updated?.thank_you_url).toBe("https://example.com/updated");
       expect(updated?.unit_price).toBe(1500);
@@ -471,8 +456,6 @@ describe("db", () => {
     test("eventsTable.update returns null for non-existent event", async () => {
       const result = await eventsTable.update(999, {
         slug: "non-existent",
-        name: "Name",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -481,8 +464,6 @@ describe("db", () => {
 
     test("eventsTable.update can set unit_price to null", async () => {
       const created = await createTestEvent({
-        name: "Paid",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
@@ -490,8 +471,6 @@ describe("db", () => {
 
       const updated = await eventsTable.update(created.id, {
         slug: created.slug,
-        name: "Free Now",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: null,
@@ -502,8 +481,6 @@ describe("db", () => {
 
     test("deleteEvent removes event", async () => {
       const event = await createTestEvent({
-        name: "Event to Delete",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -516,8 +493,6 @@ describe("db", () => {
 
     test("deleteEvent removes all attendees for the event", async () => {
       const event = await createTestEvent({
-        name: "Event with Attendees",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -533,8 +508,6 @@ describe("db", () => {
 
     test("deleteEvent works with no attendees", async () => {
       const event = await createTestEvent({
-        name: "Empty Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -555,8 +528,6 @@ describe("db", () => {
 
     test("getAttendee returns attendee by id", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -575,8 +546,6 @@ describe("db", () => {
 
     test("deleteAttendee removes attendee", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -596,8 +565,6 @@ describe("db", () => {
 
     test("getAttendees returns empty array when no attendees", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -608,8 +575,6 @@ describe("db", () => {
 
     test("getAttendees returns attendees for event", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -623,8 +588,6 @@ describe("db", () => {
 
     test("attendee count reflects in getEventWithCount", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -636,8 +599,6 @@ describe("db", () => {
 
     test("attendee count reflects in getAllEvents", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -650,8 +611,6 @@ describe("db", () => {
 
     test("createAttendeeAtomic succeeds when capacity available", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
@@ -673,8 +632,6 @@ describe("db", () => {
 
     test("createAttendeeAtomic fails when capacity exceeded", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 1,
         thankYouUrl: "https://example.com",
       });
@@ -697,8 +654,6 @@ describe("db", () => {
 
     test("createAttendeeAtomic fails when encryption key not configured", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -730,8 +685,6 @@ describe("db", () => {
 
     test("returns true when spots available", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
@@ -741,8 +694,6 @@ describe("db", () => {
 
     test("returns true when some spots taken", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
@@ -754,8 +705,6 @@ describe("db", () => {
 
     test("returns false when event is full", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
@@ -1109,14 +1058,12 @@ describe("db", () => {
 
       // Create some test events directly
       await createTestEvent({
-        name: "Event 1",
-        description: "Desc",
+        slug: "event-1",
         maxAttendees: 10,
         thankYouUrl: "https://example.com",
       });
       await createTestEvent({
-        name: "Event 2",
-        description: "Desc",
+        slug: "event-2",
         maxAttendees: 20,
         thankYouUrl: "https://example.com",
       });
@@ -1131,8 +1078,6 @@ describe("db", () => {
 
       // Create an event first
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 10,
         thankYouUrl: "https://example.com",
       });
@@ -1224,8 +1169,6 @@ describe("db", () => {
 
     test("logActivity creates log entry with event ID", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -1238,15 +1181,11 @@ describe("db", () => {
     test("getEventActivityLog returns entries for specific event", async () => {
       const event1 = await createTestEvent({
         slug: "event-1",
-        name: "Event 1",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       const event2 = await createTestEvent({
         slug: "event-2",
-        name: "Event 2",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -1269,8 +1208,6 @@ describe("db", () => {
 
     test("getEventActivityLog respects limit", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -1286,8 +1223,6 @@ describe("db", () => {
     test("getAllActivityLog returns all entries", async () => {
       const event = await createTestEvent({
         slug: "test-event",
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });

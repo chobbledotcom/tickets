@@ -720,8 +720,7 @@ describe("server", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
         mockFormRequest("/admin/event", {
-          name: "Test",
-          description: "Desc",
+          slug: "test-event",
           max_attendees: "100",
           max_quantity: "1",
           thank_you_url: "https://example.com",
@@ -744,8 +743,6 @@ describe("server", () => {
           "/admin/event",
           {
             slug: "new-event",
-            name: "New Event",
-            description: "Description",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
@@ -775,8 +772,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event",
           {
-            name: "New Event",
-            description: "Description",
+            slug: "new-event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
@@ -802,8 +798,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event",
           {
-            name: "",
-            description: "",
+            slug: "",
             max_attendees: "",
             thank_you_url: "",
             csrf_token: csrfToken || "",
@@ -819,8 +814,6 @@ describe("server", () => {
       // First, create an event with a specific slug
       await createTestEvent({
         slug: "duplicate-slug",
-        name: "First Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -838,8 +831,6 @@ describe("server", () => {
           "/admin/event",
           {
             slug: "duplicate-slug",
-            name: "Second Event",
-            description: "Another desc",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com",
@@ -862,8 +853,6 @@ describe("server", () => {
 
     test("redirects when wrapped data key is invalid", async () => {
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -899,9 +888,8 @@ describe("server", () => {
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
-      await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
+      const event = await createTestEvent({
+        slug: "test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -911,7 +899,7 @@ describe("server", () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Test Event");
+      expect(html).toContain(event.slug);
     });
 
     test("shows Edit link on event page", async () => {
@@ -922,8 +910,6 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -940,8 +926,6 @@ describe("server", () => {
   describe("GET /admin/event/:id/export", () => {
     test("redirects to login when not authenticated", async () => {
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -973,8 +957,6 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1000,8 +982,6 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1019,7 +999,7 @@ describe("server", () => {
       expect(csv).toContain("jane@example.com");
     });
 
-    test("sanitizes event name for filename", async () => {
+    test("sanitizes slug for filename", async () => {
       const password = TEST_ADMIN_PASSWORD;
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password }),
@@ -1027,8 +1007,7 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       await createTestEvent({
-        name: "Test Event / Special!",
-        description: "Desc",
+        slug: "test-event-special",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1037,17 +1016,14 @@ describe("server", () => {
         cookie: cookie || "",
       });
       const disposition = response.headers.get("content-disposition");
-      expect(disposition).toContain("Test_Event___Special_");
-      expect(disposition).not.toContain("/");
-      expect(disposition).not.toContain("!");
+      // Dashes are replaced with underscores in filename sanitization
+      expect(disposition).toContain("test_event_special");
     });
   });
 
   describe("GET /admin/event/:id/edit", () => {
     test("redirects to login when not authenticated", async () => {
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1077,8 +1053,7 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       await createTestEvent({
-        name: "Test Event",
-        description: "Test Description",
+        slug: "test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1500,
@@ -1090,8 +1065,7 @@ describe("server", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Edit:");
-      expect(html).toContain('value="Test Event"');
-      expect(html).toContain("Test Description");
+      expect(html).toContain('value="test-event"');
       expect(html).toContain('value="100"');
       expect(html).toContain('value="1500"');
       expect(html).toContain('value="https://example.com/thanks"');
@@ -1101,15 +1075,12 @@ describe("server", () => {
   describe("POST /admin/event/:id/edit", () => {
     test("redirects to login when not authenticated", async () => {
       await createTestEvent({
-        name: "Test",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(
         mockFormRequest("/admin/event/1/edit", {
-          name: "Updated",
-          description: "Updated Desc",
+          slug: "updated-event",
           max_attendees: "50",
           max_quantity: "1",
           thank_you_url: "https://example.com/updated",
@@ -1131,8 +1102,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event/999/edit",
           {
-            name: "Updated",
-            description: "Updated Desc",
+            slug: "updated-event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/updated",
@@ -1152,8 +1122,6 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie") || "";
 
       await createTestEvent({
-        name: "Test",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1162,8 +1130,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            name: "Updated",
-            description: "Updated Desc",
+            slug: "updated-event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/updated",
@@ -1186,8 +1153,6 @@ describe("server", () => {
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       await createTestEvent({
-        name: "Test",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1196,8 +1161,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            name: "",
-            description: "Desc",
+            slug: "",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com",
@@ -1208,7 +1172,7 @@ describe("server", () => {
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("Event Name is required");
+      expect(html).toContain("Identifier is required");
     });
 
     test("rejects duplicate slug on update", async () => {
@@ -1222,15 +1186,11 @@ describe("server", () => {
       // Create two events
       await createTestEvent({
         slug: "first-event",
-        name: "First",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       await createTestEvent({
         slug: "second-event",
-        name: "Second",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1241,8 +1201,6 @@ describe("server", () => {
           "/admin/event/1/edit",
           {
             slug: "second-event",
-            name: "Updated First",
-            description: "Desc",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com",
@@ -1265,8 +1223,6 @@ describe("server", () => {
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       const event = await createTestEvent({
-        name: "Original",
-        description: "Original Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1276,8 +1232,6 @@ describe("server", () => {
           "/admin/event/1/edit",
           {
             slug: event.slug,
-            name: "Updated Event",
-            description: "Updated Description",
             max_attendees: "200",
             max_quantity: "5",
             thank_you_url: "https://example.com/updated",
@@ -1293,8 +1247,6 @@ describe("server", () => {
       // Verify the event was updated
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(1);
-      expect(updated?.name).toBe("Updated Event");
-      expect(updated?.description).toBe("Updated Description");
       expect(updated?.max_attendees).toBe(200);
       expect(updated?.thank_you_url).toBe("https://example.com/updated");
       expect(updated?.unit_price).toBe(2000);
@@ -1304,8 +1256,6 @@ describe("server", () => {
   describe("GET /admin/event/:id/deactivate", () => {
     test("redirects to login when not authenticated", async () => {
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1335,8 +1285,6 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1357,8 +1305,6 @@ describe("server", () => {
   describe("POST /admin/event/:id/deactivate", () => {
     test("redirects to login when not authenticated", async () => {
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1377,8 +1323,6 @@ describe("server", () => {
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1429,8 +1373,6 @@ describe("server", () => {
   describe("GET /admin/event/:id/reactivate", () => {
     test("redirects to login when not authenticated", async () => {
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1448,8 +1390,6 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie");
 
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1477,8 +1417,6 @@ describe("server", () => {
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1533,8 +1471,6 @@ describe("server", () => {
   describe("GET /admin/event/:id/delete", () => {
     test("redirects to login when not authenticated", async () => {
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1563,9 +1499,8 @@ describe("server", () => {
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
-      await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
+      const event = await createTestEvent({
+        slug: "test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1576,22 +1511,21 @@ describe("server", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Delete Event");
-      expect(html).toContain("Test Event");
-      expect(html).toContain("type its name");
+      expect(html).toContain(event.slug);
+      expect(html).toContain("type its identifier");
     });
   });
 
   describe("POST /admin/event/:id/delete", () => {
     test("redirects to login when not authenticated", async () => {
-      await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
+      const event = await createTestEvent({
+        slug: "test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(
         mockFormRequest("/admin/event/1/delete", {
-          confirm_name: "Test Event",
+          confirm_identifier: event.slug,
         }),
       );
       expect(response.status).toBe(302);
@@ -1609,7 +1543,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event/999/delete",
           {
-            confirm_name: "Test Event",
+            confirm_identifier: "test-event",
             csrf_token: csrfToken || "",
           },
           cookie,
@@ -1624,9 +1558,8 @@ describe("server", () => {
       );
       const cookie = loginResponse.headers.get("set-cookie") || "";
 
-      await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
+      const event = await createTestEvent({
+        slug: "test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1635,7 +1568,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event/1/delete",
           {
-            confirm_name: "Test Event",
+            confirm_identifier: event.slug,
             csrf_token: "invalid-token",
           },
           cookie,
@@ -1646,7 +1579,7 @@ describe("server", () => {
       expect(html).toContain("Invalid CSRF token");
     });
 
-    test("rejects mismatched event name", async () => {
+    test("rejects mismatched event identifier", async () => {
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
       );
@@ -1654,8 +1587,7 @@ describe("server", () => {
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
+        slug: "test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1664,7 +1596,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event/1/delete",
           {
-            confirm_name: "Wrong Name",
+            confirm_identifier: "wrong-identifier",
             csrf_token: csrfToken || "",
           },
           cookie,
@@ -1675,7 +1607,7 @@ describe("server", () => {
       expect(html).toContain("does not match");
     });
 
-    test("deletes event with matching name (case insensitive)", async () => {
+    test("deletes event with matching identifier (case insensitive)", async () => {
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
       );
@@ -1683,8 +1615,7 @@ describe("server", () => {
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
+        slug: "test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1693,7 +1624,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event/1/delete",
           {
-            confirm_name: "test event", // lowercase
+            confirm_identifier: "TEST-EVENT", // uppercase (case insensitive)
             csrf_token: csrfToken || "",
           },
           cookie,
@@ -1704,11 +1635,11 @@ describe("server", () => {
 
       // Verify event was deleted
       const { getEvent } = await import("#lib/db/events.ts");
-      const event = await getEvent(1);
-      expect(event).toBeNull();
+      const deletedEvent = await getEvent(1);
+      expect(deletedEvent).toBeNull();
     });
 
-    test("deletes event with matching name (trimmed)", async () => {
+    test("deletes event with matching identifier (trimmed)", async () => {
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
       );
@@ -1716,8 +1647,7 @@ describe("server", () => {
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
+        slug: "test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1726,7 +1656,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event/1/delete",
           {
-            confirm_name: "  Test Event  ", // with spaces
+            confirm_identifier: "  test-event  ", // with spaces
             csrf_token: csrfToken || "",
           },
           cookie,
@@ -1744,8 +1674,7 @@ describe("server", () => {
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
+        slug: "test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1756,7 +1685,7 @@ describe("server", () => {
         mockFormRequest(
           `/admin/event/${event.id}/delete`,
           {
-            confirm_name: "Test Event",
+            confirm_identifier: event.slug,
             csrf_token: csrfToken || "",
           },
           cookie,
@@ -1774,10 +1703,9 @@ describe("server", () => {
       expect(attendees).toEqual([]);
     });
 
-    test("skips name verification when verify_name=false (for API users)", async () => {
+    test("skips identifier verification when verify_identifier=false (for API users)", async () => {
       await createTestEvent({
-        name: "API Event",
-        description: "Description",
+        slug: "api-event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -1789,10 +1717,10 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie") || "";
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
-      // Delete with verify_name=false - no need for confirm_name
+      // Delete with verify_identifier=false - no need for confirm_identifier
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/event/1/delete?verify_name=false",
+          "/admin/event/1/delete?verify_identifier=false",
           {
             csrf_token: csrfToken || "",
           },
@@ -1811,8 +1739,7 @@ describe("server", () => {
   describe("DELETE /admin/event/:id/delete", () => {
     test("deletes event using DELETE method", async () => {
       await createTestEvent({
-        name: "Delete Method Test",
-        description: "Description",
+        slug: "delete-method-test",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -1824,9 +1751,9 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie") || "";
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
-      // Use DELETE method with verify_name=false
+      // Use DELETE method with verify_identifier=false
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/1/delete?verify_name=false", {
+        new Request("http://localhost/admin/event/1/delete?verify_identifier=false", {
           method: "DELETE",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
@@ -1850,8 +1777,6 @@ describe("server", () => {
   describe("GET /admin/event/:eventId/attendee/:attendeeId/delete", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1879,8 +1804,6 @@ describe("server", () => {
 
     test("redirects when session lacks wrapped data key", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1900,8 +1823,6 @@ describe("server", () => {
 
     test("redirects when wrapped data key is invalid", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1921,8 +1842,6 @@ describe("server", () => {
 
     test("returns 404 for non-existent attendee", async () => {
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1941,14 +1860,12 @@ describe("server", () => {
 
     test("returns 404 when attendee belongs to different event", async () => {
       const event1 = await createTestEvent({
-        name: "Event 1",
-        description: "Desc",
+        slug: "event-1",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       const event2 = await createTestEvent({
-        name: "Event 2",
-        description: "Desc",
+        slug: "event-2",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1969,8 +1886,6 @@ describe("server", () => {
 
     test("shows delete confirmation page when authenticated", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1996,8 +1911,6 @@ describe("server", () => {
   describe("POST /admin/event/:eventId/attendee/:attendeeId/delete", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -2014,8 +1927,6 @@ describe("server", () => {
 
     test("redirects when wrapped data key is invalid", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -2058,8 +1969,6 @@ describe("server", () => {
 
     test("returns 404 for non-existent attendee", async () => {
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -2085,8 +1994,6 @@ describe("server", () => {
 
     test("rejects invalid CSRF token", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -2114,8 +2021,6 @@ describe("server", () => {
 
     test("rejects mismatched attendee name", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -2144,8 +2049,6 @@ describe("server", () => {
 
     test("deletes attendee with matching name (case insensitive)", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -2178,8 +2081,6 @@ describe("server", () => {
 
     test("deletes attendee with whitespace-trimmed name", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -2209,8 +2110,6 @@ describe("server", () => {
   describe("PATCH /admin/event/:eventId/attendee/:attendeeId/delete", () => {
     test("route handler returns null for unsupported method", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -2230,8 +2129,6 @@ describe("server", () => {
   describe("DELETE /admin/event/:eventId/attendee/:attendeeId/delete", () => {
     test("deletes attendee with DELETE method", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -2277,8 +2174,6 @@ describe("server", () => {
 
     test("shows ticket page for existing event", async () => {
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -2293,8 +2188,6 @@ describe("server", () => {
 
     test("returns 404 for inactive event", async () => {
       const event = await createTestEvent({
-        name: "Inactive Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -2323,8 +2216,6 @@ describe("server", () => {
 
     test("returns 404 for inactive event", async () => {
       const event = await createTestEvent({
-        name: "Inactive Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -2341,8 +2232,6 @@ describe("server", () => {
 
     test("rejects request without CSRF token", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -2359,8 +2248,6 @@ describe("server", () => {
 
     test("validates required fields", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -2375,8 +2262,6 @@ describe("server", () => {
 
     test("validates name is required", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -2389,8 +2274,6 @@ describe("server", () => {
 
     test("validates email is required", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -2403,8 +2286,6 @@ describe("server", () => {
 
     test("creates attendee and redirects to thank you page", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
       });
@@ -2420,8 +2301,6 @@ describe("server", () => {
 
     test("rejects when event is full", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 1,
         thankYouUrl: "https://example.com",
       });
@@ -2441,8 +2320,6 @@ describe("server", () => {
 
     test("returns 404 for unsupported method on ticket route", async () => {
       const event = await createTestEvent({
-        name: "Event",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -2520,8 +2397,7 @@ describe("server", () => {
         mockFormRequest(
           "/admin/event",
           {
-            name: "Paid Event",
-            description: "Description",
+            slug: "paid-event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
@@ -2559,8 +2435,6 @@ describe("server", () => {
       await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
-        name: "Test",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
@@ -2630,8 +2504,6 @@ describe("server", () => {
       await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
-        name: "Test",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
@@ -2684,8 +2556,6 @@ describe("server", () => {
 
       // Create event with only 1 spot
       const event = await createTestEvent({
-        name: "Test",
-        description: "Desc",
         maxAttendees: 1,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
@@ -2828,8 +2698,6 @@ describe("server", () => {
       await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
-        name: "Test",
-        description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
@@ -2889,8 +2757,6 @@ describe("server", () => {
 
       // Create a paid event
       const event = await createTestEvent({
-        name: "Paid Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000, // 10.00 price
@@ -2913,8 +2779,6 @@ describe("server", () => {
 
       // Create a free event (no price)
       const event = await createTestEvent({
-        name: "Free Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: null, // free
@@ -2937,8 +2801,6 @@ describe("server", () => {
 
       // Create event with 0 price
       const event = await createTestEvent({
-        name: "Zero Price Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 0, // zero price
@@ -2960,8 +2822,6 @@ describe("server", () => {
       await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
-        name: "Paid Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000, // 10.00 price
@@ -3026,8 +2886,6 @@ describe("server", () => {
       await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
-        name: "Paid Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
@@ -3076,8 +2934,6 @@ describe("server", () => {
       await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
-        name: "Paid Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
@@ -3124,8 +2980,6 @@ describe("server", () => {
       await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
-        name: "Paid Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
@@ -3170,8 +3024,6 @@ describe("server", () => {
 
       // Create paid event with only 1 spot
       const event = await createTestEvent({
-        name: "Paid Event",
-        description: "Description",
         maxAttendees: 1,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
@@ -3199,8 +3051,6 @@ describe("server", () => {
       await updateStripeKey("sk_test_mock");
 
       const event = await createTestEvent({
-        name: "Paid Event",
-        description: "Description",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1000,
@@ -3698,8 +3548,6 @@ describe("server", () => {
 
       test("ticket page does NOT have X-Frame-Options (embeddable)", async () => {
         const event = await createTestEvent({
-          name: "Event",
-          description: "Desc",
           maxAttendees: 50,
           thankYouUrl: "https://example.com",
         });
@@ -3735,8 +3583,6 @@ describe("server", () => {
 
       test("ticket page has CSP but allows embedding (no frame-ancestors)", async () => {
         const event = await createTestEvent({
-          name: "Event",
-          description: "Desc",
           maxAttendees: 50,
           thankYouUrl: "https://example.com",
         });
@@ -3767,8 +3613,6 @@ describe("server", () => {
 
       test("ticket pages also have base security headers", async () => {
         const event = await createTestEvent({
-          name: "Event",
-          description: "Desc",
           maxAttendees: 50,
           thankYouUrl: "https://example.com",
         });

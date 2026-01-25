@@ -24,7 +24,7 @@ describe("webhook", () => {
     test("sends POST request with correct payload", async () => {
       const webhookUrl = "https://example.com/webhook";
       const eventId = 1;
-      const eventName = "Test Event";
+      const eventSlug = "test-event";
       const attendeeId = 42;
       const quantity = 2;
       const maxAttendees = 100;
@@ -33,7 +33,7 @@ describe("webhook", () => {
       await sendRegistrationWebhook(
         webhookUrl,
         eventId,
-        eventName,
+        eventSlug,
         attendeeId,
         quantity,
         maxAttendees,
@@ -49,7 +49,7 @@ describe("webhook", () => {
       const payload = JSON.parse(options.body as string) as WebhookPayload;
       expect(payload.event_type).toBe("attendee.registered");
       expect(payload.event_id).toBe(eventId);
-      expect(payload.event_name).toBe(eventName);
+      expect(payload.event_slug).toBe(eventSlug);
       expect(payload.remaining_places).toBe(48); // 100 - 50 - 2
       expect(payload.total_places).toBe(100);
       expect(payload.attendee.id).toBe(attendeeId);
@@ -64,7 +64,7 @@ describe("webhook", () => {
       await sendRegistrationWebhook(
         "https://example.com/webhook",
         1,
-        "Test Event",
+        "test-event",
         42,
         1,
         100,
@@ -79,7 +79,7 @@ describe("webhook", () => {
     test("sends webhook when webhook_url is configured", async () => {
       const event = {
         id: 1,
-        name: "Test Event",
+        slug: "test-event",
         webhook_url: "https://example.com/hook",
         max_attendees: 100,
         attendee_count: 10,
@@ -99,7 +99,7 @@ describe("webhook", () => {
     test("does nothing when webhook_url is null", async () => {
       const event = {
         id: 1,
-        name: "Test Event",
+        slug: "test-event",
         webhook_url: null,
         max_attendees: 100,
         attendee_count: 10,
@@ -117,7 +117,7 @@ describe("webhook", () => {
     test("passes correct attendee data to webhook", async () => {
       const event = {
         id: 42,
-        name: "Big Conference",
+        slug: "big-conference",
         webhook_url: "https://webhook.site/test",
         max_attendees: 200,
         attendee_count: 50,
@@ -134,7 +134,7 @@ describe("webhook", () => {
       const payload = JSON.parse(options.body as string) as WebhookPayload;
 
       expect(payload.event_id).toBe(42);
-      expect(payload.event_name).toBe("Big Conference");
+      expect(payload.event_slug).toBe("big-conference");
       expect(payload.remaining_places).toBe(147); // 200 - 50 - 3
       expect(payload.total_places).toBe(200);
       expect(payload.attendee.id).toBe(123);

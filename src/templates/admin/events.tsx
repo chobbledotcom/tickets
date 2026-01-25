@@ -43,10 +43,10 @@ export const adminEventPage = (
       : '<tr><td colspan="5">No attendees yet</td></tr>';
 
   return String(
-    <Layout title={`Event: ${event.name}`}>
+    <Layout title={`Event: ${event.slug}`}>
       <AdminNav />
 
-        <h1>{event.name}</h1>
+        <h1>{event.slug}</h1>
         <nav>
           <ul>
             <li><a href={`/admin/event/${event.id}/edit`}>Edit</a></li>
@@ -71,7 +71,6 @@ export const adminEventPage = (
               <span style="color: red;">Inactive (returns 404 on public page)</span>
             )}
           </p>
-          <p><strong>Description:</strong> {event.description}</p>
           <p><strong>Max Attendees:</strong> {event.max_attendees}</p>
           <p><strong>Max Tickets Per Purchase:</strong> {event.max_quantity}</p>
           <p><strong>Tickets Sold:</strong> {event.attendee_count}</p>
@@ -116,8 +115,6 @@ export const adminEventPage = (
  */
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   slug: event.slug,
-  name: event.name,
-  description: event.description,
   max_attendees: event.max_attendees,
   max_quantity: event.max_quantity,
   unit_price: event.unit_price,
@@ -134,7 +131,7 @@ export const adminEventEditPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Edit: ${event.name}`}>
+    <Layout title={`Edit: ${event.slug}`}>
       <AdminNav />
         <Raw html={renderError(error)} />
         <form method="POST" action={`/admin/event/${event.id}/edit`}>
@@ -154,7 +151,7 @@ export const adminDeleteEventPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Delete: ${event.name}`}>
+    <Layout title={`Delete: ${event.slug}`}>
       <AdminNav />
         {error && <div class="error">{error}</div>}
 
@@ -164,16 +161,16 @@ export const adminDeleteEventPage = (
           </aside>
         </article>
 
-        <p>To delete this event, you must type its name "{event.name}" into the box below:</p>
+        <p>To delete this event, type its identifier "{event.slug}" into the box below:</p>
 
         <form method="POST" action={`/admin/event/${event.id}/delete`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
-          <label for="confirm_name">Event name</label>
+          <label for="confirm_identifier">Event identifier</label>
           <input
             type="text"
-            id="confirm_name"
-            name="confirm_name"
-            placeholder={event.name}
+            id="confirm_identifier"
+            name="confirm_identifier"
+            placeholder={event.slug}
             autocomplete="off"
             required
           />
@@ -193,7 +190,7 @@ export const adminDeactivateEventPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Deactivate: ${event.name}`}>
+    <Layout title={`Deactivate: ${event.slug}`}>
       <AdminNav />
         {error && <div class="error">{error}</div>}
 
@@ -238,7 +235,7 @@ export const adminReactivateEventPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Reactivate: ${event.name}`}>
+    <Layout title={`Reactivate: ${event.slug}`}>
       <AdminNav />
         {error && <div class="error">{error}</div>}
 

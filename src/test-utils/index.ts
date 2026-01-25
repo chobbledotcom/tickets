@@ -315,8 +315,6 @@ export const testEventInput = (
   overrides: Partial<Omit<EventInput, "slugIndex">> = {},
 ): Omit<EventInput, "slugIndex"> => ({
   slug: generateTestSlug(),
-  name: "Test Event",
-  description: "Test Description",
   maxAttendees: 100,
   thankYouUrl: "https://example.com/thanks",
   ...overrides,
@@ -389,8 +387,6 @@ export const createTestEvent = (
     "/admin/event",
     {
       slug: input.slug,
-      name: input.name,
-      description: input.description,
       max_attendees: String(input.maxAttendees),
       max_quantity: String(input.maxQuantity ?? 1),
       thank_you_url: input.thankYouUrl,
@@ -444,8 +440,6 @@ export const updateTestEvent = async (
     `/admin/event/${eventId}/edit`,
     {
       slug: updates.slug ?? existing.slug,
-      name: updates.name ?? existing.name,
-      description: updates.description ?? existing.description,
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
       max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
       thank_you_url: updates.thankYouUrl ?? existing.thank_you_url,

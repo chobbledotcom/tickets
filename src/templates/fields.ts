@@ -67,22 +67,15 @@ export const loginFields: Field[] = [
  * Event form field definitions (shared between create and edit)
  */
 export const eventFields: Field[] = [
-  { name: "name", label: "Event Name", type: "text", required: true },
   {
     name: "slug",
-    label: "URL Slug",
+    label: "Identifier",
     type: "text",
     required: true,
     pattern: "[a-z0-9]+(-[a-z0-9]+)*",
     placeholder: "my-event-2024",
-    hint: "Used in public ticket URL: /ticket/your-slug",
+    hint: "Used in public ticket URL: /ticket/your-identifier",
     validate: validateSlug,
-  },
-  {
-    name: "description",
-    label: "Description",
-    type: "textarea",
-    required: true,
   },
   {
     name: "max_attendees",

@@ -7,8 +7,6 @@ export interface Event {
   slug: string;
   slug_index: string;
   created: string;
-  name: string;
-  description: string;
   max_attendees: number;
   thank_you_url: string;
   unit_price: number | null;
