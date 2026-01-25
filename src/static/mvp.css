@@ -399,6 +399,7 @@ form {
   border-radius: var(--border-radius);
   box-shadow: var(--box-shadow) var(--color-shadow);
   display: block;
+  margin-bottom: 2rem;
   max-width: var(--width-card-wide);
   min-width: var(--width-card);
   padding: 1.5rem;
