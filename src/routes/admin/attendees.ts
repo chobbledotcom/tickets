@@ -3,8 +3,8 @@
  */
 
 import { logActivity } from "#lib/db/activityLog.ts";
-import { deleteAttendee, getAttendee } from "#lib/db/attendees.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
+import { decryptAttendeeOrNull, deleteAttendee } from "#lib/db/attendees.ts";
+import { getEventWithAttendeeRaw } from "#lib/db/events.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import {
   defineRoutes,
@@ -24,19 +24,23 @@ import { adminDeleteAttendeePage } from "#templates/admin/attendees.tsx";
 /** Attendee with event data */
 type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
 
-/** Load attendee ensuring it belongs to the specified event */
+/**
+ * Load attendee ensuring it belongs to the specified event.
+ * Uses batched query to fetch event + attendee in a single DB round-trip.
+ */
 const loadAttendeeForEvent = async (
   eventId: number,
   attendeeId: number,
   privateKey: CryptoKey,
 ): Promise<AttendeeWithEvent | null> => {
-  const event = await getEventWithCount(eventId);
-  if (!event) return null;
+  // Fetch event and attendee in single DB round-trip
+  const result = await getEventWithAttendeeRaw(eventId, attendeeId);
+  if (!result) return null;
 
-  const attendee = await getAttendee(attendeeId, privateKey);
+  const attendee = await decryptAttendeeOrNull(result.attendeeRaw, privateKey);
   if (!attendee || attendee.event_id !== eventId) return null;
 
-  return { attendee, event };
+  return { attendee, event: result.event };
 };
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */

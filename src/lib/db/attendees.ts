@@ -54,18 +54,25 @@ export const getAttendeesRaw = async (eventId: number): Promise<Attendee[]> => {
 };
 
 /**
- * Get attendees for an event (decrypted)
- * Requires private key for decryption - only available to authenticated sessions
+ * Decrypt a list of raw attendees.
+ * Used when attendees are fetched via batch query.
  */
-export const getAttendees = async (
-  eventId: number,
+export const decryptAttendees = (
+  rows: Attendee[],
   privateKey: CryptoKey,
-): Promise<Attendee[]> => {
-  const rows = await getAttendeesRaw(eventId);
-  return Promise.all(
-    map((row: Attendee) => decryptAttendee(row, privateKey))(rows),
-  );
-};
+): Promise<Attendee[]> =>
+  Promise.all(map((row: Attendee) => decryptAttendee(row, privateKey))(rows));
+
+/**
+ * Decrypt a single raw attendee, handling null input.
+ * Used when attendee is fetched via batch query.
+ */
+export const decryptAttendeeOrNull = (
+  row: Attendee | null,
+  privateKey: CryptoKey,
+): Promise<Attendee | null> =>
+  row ? decryptAttendee(row, privateKey) : Promise.resolve(null);
+
 
 /** Encrypted attendee data for insertion */
 type EncryptedAttendeeData = {

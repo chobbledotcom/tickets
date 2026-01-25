@@ -244,6 +244,12 @@ describe("code quality", () => {
       "lib/stripe.ts:constructTestWebhookEvent",
       // Convenience wrapper for idempotency checks (production uses isSessionProcessed directly)
       "lib/db/processed-payments.ts:getProcessedAttendeeId",
+      // Raw attendee fetch for testing encrypted data (production uses batched getEventWithAttendeesRaw)
+      "lib/db/attendees.ts:getAttendeesRaw",
+      // Single attendee fetch for tests (production uses batched getEventWithAttendeeRaw)
+      "lib/db/attendees.ts:getAttendee",
+      // Event activity log fetch for tests (production uses batched getEventWithActivityLog)
+      "lib/db/activityLog.ts:getEventActivityLog",
     ];
 
     /**

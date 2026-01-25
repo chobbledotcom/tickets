@@ -5,15 +5,16 @@
 import type { InValue } from "@libsql/client";
 import { getAllowedDomain } from "#lib/config.ts";
 import {
-  getEventActivityLog,
+  getEventWithActivityLog,
   logActivity,
 } from "#lib/db/activityLog.ts";
-import { getAttendees } from "#lib/db/attendees.ts";
+import { decryptAttendees } from "#lib/db/attendees.ts";
 import {
   computeSlugIndex,
   deleteEvent,
   type EventInput,
   eventsTable,
+  getEventWithAttendeesRaw,
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
@@ -79,7 +80,10 @@ const eventsResource = defineResource({
   validate: validateEventInput,
 });
 
-/** Handle event with attendees - auth, fetch, then apply handler fn */
+/**
+ * Handle event with attendees - auth, fetch, then apply handler fn.
+ * Uses batched query to fetch event + attendees in a single DB round-trip.
+ */
 const withEventAttendees = async (
   request: Request,
   eventId: number,
@@ -96,9 +100,14 @@ const withEventAttendees = async (
     return redirect("/admin");
   }
 
-  return withEvent(eventId, async (event) =>
-    handler(event, await getAttendees(eventId, privateKey)),
-  );
+  // Fetch event and attendees in single DB round-trip
+  const result = await getEventWithAttendeesRaw(eventId);
+  if (!result) {
+    return notFoundResponse();
+  }
+
+  const attendees = await decryptAttendees(result.attendeesRaw, privateKey);
+  return handler(result.event, attendees);
 };
 
 /**
@@ -237,18 +246,20 @@ const handleAdminEventReactivatePost = (
 /** Handle GET /admin/event/:id/delete (show confirmation page) */
 const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
 
-/** Handle GET /admin/event/:id/activity-log */
+/**
+ * Handle GET /admin/event/:id/activity-log
+ * Uses batched query to fetch event + activity log in a single DB round-trip.
+ */
 const handleAdminEventActivityLog = (
   request: Request,
   eventId: number,
 ): Promise<Response> =>
   requireSessionOr(request, async () => {
-    const event = await getEventWithCount(eventId);
-    if (!event) {
+    const result = await getEventWithActivityLog(eventId);
+    if (!result) {
       return notFoundResponse();
     }
-    const entries = await getEventActivityLog(eventId);
-    return htmlResponse(adminEventActivityLogPage(event, entries));
+    return htmlResponse(adminEventActivityLogPage(result.event, result.entries));
   });
 
 /** Verify identifier matches for deletion confirmation (case-insensitive, trimmed) */
