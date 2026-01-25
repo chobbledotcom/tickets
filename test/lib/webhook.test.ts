@@ -27,6 +27,8 @@ describe("webhook", () => {
       const eventName = "Test Event";
       const attendeeId = 42;
       const quantity = 2;
+      const maxAttendees = 100;
+      const attendeeCount = 50;
 
       await sendRegistrationWebhook(
         webhookUrl,
@@ -34,6 +36,8 @@ describe("webhook", () => {
         eventName,
         attendeeId,
         quantity,
+        maxAttendees,
+        attendeeCount,
       );
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -46,6 +50,8 @@ describe("webhook", () => {
       expect(payload.event_type).toBe("attendee.registered");
       expect(payload.event_id).toBe(eventId);
       expect(payload.event_name).toBe(eventName);
+      expect(payload.remaining_places).toBe(48); // 100 - 50 - 2
+      expect(payload.total_places).toBe(100);
       expect(payload.attendee.id).toBe(attendeeId);
       expect(payload.attendee.quantity).toBe(quantity);
       expect(payload.timestamp).toBeDefined();
@@ -61,6 +67,8 @@ describe("webhook", () => {
         "Test Event",
         42,
         1,
+        100,
+        50,
       );
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -73,6 +81,8 @@ describe("webhook", () => {
         id: 1,
         name: "Test Event",
         webhook_url: "https://example.com/hook",
+        max_attendees: 100,
+        attendee_count: 10,
       };
       const attendee = {
         id: 99,
@@ -91,6 +101,8 @@ describe("webhook", () => {
         id: 1,
         name: "Test Event",
         webhook_url: null,
+        max_attendees: 100,
+        attendee_count: 10,
       };
       const attendee = {
         id: 99,
@@ -107,6 +119,8 @@ describe("webhook", () => {
         id: 42,
         name: "Big Conference",
         webhook_url: "https://webhook.site/test",
+        max_attendees: 200,
+        attendee_count: 50,
       };
       const attendee = {
         id: 123,
@@ -121,6 +135,8 @@ describe("webhook", () => {
 
       expect(payload.event_id).toBe(42);
       expect(payload.event_name).toBe("Big Conference");
+      expect(payload.remaining_places).toBe(147); // 200 - 50 - 3
+      expect(payload.total_places).toBe(200);
       expect(payload.attendee.id).toBe(123);
       expect(payload.attendee.quantity).toBe(3);
     });
