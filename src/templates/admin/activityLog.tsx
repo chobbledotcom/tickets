@@ -7,7 +7,7 @@ import type { ActivityLogEntry } from "#lib/db/activityLog.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -38,9 +38,6 @@ export const adminEventActivityLogPage = (
   String(
     <Layout title={`Activity Log: ${event.name}`}>
       <AdminNav />
-      <Breadcrumb href={`/admin/event/${event.id}`} label={event.name} />
-
-      <section>
         <h2>Activity Log</h2>
         <table>
           <thead>
@@ -53,7 +50,6 @@ export const adminEventActivityLogPage = (
             <Raw html={activityLogRows(entries)} />
           </tbody>
         </table>
-      </section>
     </Layout>
   );
 
@@ -66,9 +62,6 @@ export const adminGlobalActivityLogPage = (
   String(
     <Layout title="Activity Log">
       <AdminNav />
-      <Breadcrumb href="/admin/" label="Dashboard" />
-
-      <section>
         <h2>Activity Log</h2>
         <table>
           <thead>
@@ -81,6 +74,5 @@ export const adminGlobalActivityLogPage = (
             <Raw html={activityLogRows(entries)} />
           </tbody>
         </table>
-      </section>
     </Layout>
   );

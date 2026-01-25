@@ -59,7 +59,7 @@ describe("html", () => {
   describe("adminDashboardPage", () => {
     test("renders empty state when no events", () => {
       const html = adminDashboardPage([], TEST_CSRF_TOKEN);
-      expect(html).toContain("Admin Dashboard");
+      expect(html).toContain("Events");
       expect(html).toContain("No events yet");
     });
 

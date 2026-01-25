@@ -23,7 +23,7 @@
   --width-card: 285px;
   --width-card-medium: 460px;
   --width-card-wide: 800px;
-  --width-content: 1080px;
+  --width-content: 800px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -249,6 +249,8 @@ h5,
 h6 {
   line-height: var(--line-height);
   text-wrap: balance;
+  font-weight: normal;
+  color: #791a81;
 }
 
 mark {
@@ -300,7 +302,6 @@ sup {
 a {
   color: var(--color-link);
   display: inline-block;
-  font-weight: bold;
   text-decoration: underline;
 }
 
