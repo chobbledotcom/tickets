@@ -40,10 +40,10 @@ export const eventsTable = defineTable<Event, EventInput>({
     name: col.encrypted<string>(encrypt, decrypt),
     description: col.encrypted<string>(encrypt, decrypt),
     max_attendees: col.simple<number>(),
-    thank_you_url: col.simple<string>(),
+    thank_you_url: col.encrypted<string>(encrypt, decrypt),
     unit_price: col.simple<number | null>(),
     max_quantity: col.withDefault(() => 1),
-    webhook_url: col.simple<string | null>(),
+    webhook_url: col.encryptedNullable<string>(encrypt, decrypt),
     active: col.withDefault(() => 1),
   },
 });
