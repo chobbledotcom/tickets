@@ -46,6 +46,9 @@ export const clearTestEncryptionKey = (): void => {
   clearEncryptionKeyCache();
 };
 
+/** Track if test database schema has been initialized */
+let testDbInitialized = false;
+
 /**
  * Create an in-memory database for testing
  * Also sets up the test encryption key and clears caches
@@ -57,6 +60,7 @@ export const createTestDb = async (): Promise<void> => {
   const client = createClient({ url: ":memory:" });
   setDb(client);
   await initDb();
+  testDbInitialized = true;
 };
 
 /**
@@ -72,10 +76,109 @@ export const createTestDbWithSetup = async (
 };
 
 /**
- * Reset the database connection and clear caches
+ * Initialize test database schema once, then reset data.
+ * Call this in beforeEach - it creates the DB on first call,
+ * then just clears data on subsequent calls.
+ * This is much faster than createTestDb() for each test.
+ *
+ * Note: For tests that run in parallel within a file, the first
+ * test to run will create the DB, subsequent ones will clear data.
+ */
+export const initTestDb = async (): Promise<void> => {
+  if (!testDbInitialized) {
+    await createTestDb();
+  } else {
+    await resetTestDbData();
+  }
+};
+
+/**
+ * Initialize test database with setup completed.
+ * Call this in beforeEach - creates DB on first call,
+ * then just clears data and re-runs setup on subsequent calls.
+ */
+export const initTestDbWithSetup = async (currency = "GBP"): Promise<void> => {
+  if (!testDbInitialized) {
+    await createTestDbWithSetup(currency);
+  } else {
+    await resetTestDbDataWithSetup(currency);
+  }
+};
+
+/**
+ * Mark test database as uninitialized.
+ * Call this in afterAll if you need to force re-creation in the next test file.
+ */
+export const markTestDbUninitialized = (): void => {
+  testDbInitialized = false;
+};
+
+/**
+ * Reset the database connection and clear caches.
+ * This destroys the database - use resetTestDbData() instead
+ * when you want to keep the schema and just clear data.
  */
 export const resetDb = (): void => {
   setDb(null);
+  testDbInitialized = false;
+  clearSetupCompleteCache();
+  resetSessionCache();
+  resetTestSession();
+};
+
+/**
+ * Tables in correct order for deletion (respects FK constraints)
+ */
+const DATA_TABLES = [
+  "activity_log",
+  "processed_payments",
+  "attendees",
+  "events",
+  "sessions",
+  "login_attempts",
+  "settings",
+] as const;
+
+/**
+ * Clear all data from tables without dropping schema.
+ * Much faster than recreating the database for each test.
+ */
+export const clearAllTableData = async (): Promise<void> => {
+  const { getDb } = await import("#lib/db/client.ts");
+  const db = getDb();
+  for (const table of DATA_TABLES) {
+    await db.execute(`DELETE FROM ${table}`);
+  }
+};
+
+/**
+ * Reset test database data without recreating schema.
+ * Use this between tests when the schema is already initialized.
+ * This is much faster than createTestDb() for test isolation.
+ */
+export const resetTestDbData = async (): Promise<void> => {
+  // Only clear if DB is initialized (tables exist)
+  if (testDbInitialized) {
+    await clearAllTableData();
+  }
+  clearSetupCompleteCache();
+  resetSessionCache();
+  resetTestSession();
+};
+
+/**
+ * Reset test database data and run setup.
+ * Use this between tests when schema is already initialized
+ * and tests need a "setup complete" state.
+ */
+export const resetTestDbDataWithSetup = async (
+  currency = "GBP",
+): Promise<void> => {
+  // Only clear if DB is initialized (tables exist)
+  if (testDbInitialized) {
+    await clearAllTableData();
+    await completeSetup(TEST_ADMIN_PASSWORD, currency);
+  }
   clearSetupCompleteCache();
   resetSessionCache();
   resetTestSession();
