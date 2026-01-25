@@ -10,9 +10,9 @@ import {
   generateDataKey,
   generateKeyPair,
   generateSecureToken,
-  hashIpAddress,
   hashPassword,
   hashSessionToken,
+  hmacHash,
   hybridDecrypt,
   hybridEncrypt,
   importPrivateKey,
@@ -302,7 +302,7 @@ describe("session token hashing", () => {
   });
 });
 
-describe("IP address hashing", () => {
+describe("hmacHash", () => {
   beforeEach(() => {
     setupTestEncryptionKey();
   });
@@ -313,19 +313,19 @@ describe("IP address hashing", () => {
 
   it("produces consistent hash for same IP", async () => {
     const ip = "192.168.1.1";
-    const hash1 = await hashIpAddress(ip);
-    const hash2 = await hashIpAddress(ip);
+    const hash1 = await hmacHash(ip);
+    const hash2 = await hmacHash(ip);
     expect(hash1).toBe(hash2);
   });
 
   it("produces different hashes for different IPs", async () => {
-    const hash1 = await hashIpAddress("192.168.1.1");
-    const hash2 = await hashIpAddress("192.168.1.2");
+    const hash1 = await hmacHash("192.168.1.1");
+    const hash2 = await hmacHash("192.168.1.2");
     expect(hash1).not.toBe(hash2);
   });
 
   it("returns base64 encoded string", async () => {
-    const hash = await hashIpAddress("10.0.0.1");
+    const hash = await hmacHash("10.0.0.1");
     // HMAC-SHA-256 produces 32 bytes, base64 encodes to 44 characters (with padding)
     expect(hash.length).toBe(44);
     expect(hash).toMatch(/^[A-Za-z0-9+/]+=*$/);
@@ -333,7 +333,7 @@ describe("IP address hashing", () => {
 
   it("produces different hashes with different encryption keys", async () => {
     const ip = "192.168.1.1";
-    const hash1 = await hashIpAddress(ip);
+    const hash1 = await hmacHash(ip);
 
     // Change the encryption key
     clearTestEncryptionKey();
@@ -342,7 +342,7 @@ describe("IP address hashing", () => {
       "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY=",
     );
 
-    const hash2 = await hashIpAddress(ip);
+    const hash2 = await hmacHash(ip);
     expect(hash1).not.toBe(hash2);
 
     // Restore original key
@@ -351,13 +351,13 @@ describe("IP address hashing", () => {
   });
 
   it("handles IPv6 addresses", async () => {
-    const hash = await hashIpAddress("2001:db8::1");
+    const hash = await hmacHash("2001:db8::1");
     expect(hash.length).toBe(44);
     expect(hash).toMatch(/^[A-Za-z0-9+/]+=*$/);
   });
 
   it("handles special fallback value", async () => {
-    const hash = await hashIpAddress("direct");
+    const hash = await hmacHash("direct");
     expect(hash.length).toBe(44);
     expect(hash).toMatch(/^[A-Za-z0-9+/]+=*$/);
   });

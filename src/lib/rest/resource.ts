@@ -56,8 +56,8 @@ type ValidateFn<Input> =
 export interface Resource<Row, Input> {
   readonly table: Table<Row, Input>;
   readonly fields: Field[];
-  parseInput: (form: URLSearchParams) => ParseResult<Input>;
-  parsePartialInput: (form: URLSearchParams) => ParseResult<Partial<Input>>;
+  parseInput: (form: URLSearchParams) => Promise<ParseResult<Input>>;
+  parsePartialInput: (form: URLSearchParams) => Promise<ParseResult<Partial<Input>>>;
   create: (form: URLSearchParams) => Promise<CreateResult<Row>>;
   update: (id: InValue, form: URLSearchParams) => Promise<UpdateResult<Row>>;
   delete: (id: InValue) => Promise<DeleteResult>;
@@ -70,7 +70,7 @@ export interface Resource<Row, Input> {
 export interface ResourceConfig<Row, Input> {
   table: Table<Row, Input>;
   fields: Field[];
-  toInput: (values: FieldValues) => Input;
+  toInput: (values: FieldValues) => Input | Promise<Input>;
   nameField?: keyof Row & string;
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
@@ -79,14 +79,14 @@ export interface ResourceConfig<Row, Input> {
 }
 
 /** Validate form and convert to result type */
-const validateAndParse = <T>(
+const validateAndParse = async <T>(
   form: URLSearchParams,
   fields: Field[],
-  toInput: (values: FieldValues) => T,
-): ParseResult<T> => {
+  toInput: (values: FieldValues) => T | Promise<T>,
+): Promise<ParseResult<T>> => {
   const validation = validateForm(form, fields);
   return validation.valid
-    ? { ok: true, input: toInput(validation.values) }
+    ? { ok: true, input: await toInput(validation.values) }
     : { ok: false, error: validation.error };
 };
 
@@ -117,11 +117,11 @@ const toUpdateResult = <Row>(row: Row | null): UpdateResult<Row> =>
 /** Parse and validate input, returning parsed input or error */
 const parseAndValidate = async <Input>(
   form: URLSearchParams,
-  parseInput: (form: URLSearchParams) => ParseResult<Input>,
+  parseInput: (form: URLSearchParams) => Promise<ParseResult<Input>>,
   validate: ValidateFn<Input>,
   id?: InValue,
 ): Promise<ParseResult<Input>> => {
-  const parsed = parseInput(form);
+  const parsed = await parseInput(form);
   if (!parsed.ok) return parsed;
   const validationError = await runValidation(validate, parsed.input, id);
   return validationError ?? parsed;
@@ -135,16 +135,16 @@ export const defineResource = <Row, Input>(
 ): Resource<Row, Input> => {
   const { table, fields, toInput, nameField } = config;
 
-  const parseInput = (form: URLSearchParams): ParseResult<Input> =>
+  const parseInput = (form: URLSearchParams): Promise<ParseResult<Input>> =>
     validateAndParse(form, fields, toInput);
 
   const parsePartialInput = (
     form: URLSearchParams,
-  ): ParseResult<Partial<Input>> =>
+  ): Promise<ParseResult<Partial<Input>>> =>
     validateAndParse(
       form,
       fields.filter((f) => form.has(f.name)),
-      (v) => toInput(v) as Partial<Input>,
+      async (v) => (await toInput(v)) as Partial<Input>,
     );
 
   const create = async (form: URLSearchParams): Promise<CreateResult<Row>> => {

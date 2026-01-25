@@ -5,6 +5,7 @@
 export interface Event {
   id: number;
   slug: string;
+  slug_index: string;
   created: string;
   name: string;
   description: string;

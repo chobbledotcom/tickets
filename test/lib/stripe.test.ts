@@ -139,6 +139,7 @@ describe("stripe", () => {
       const event = {
         id: 1,
         slug: "test-event",
+        slug_index: "test-event-index",
         name: "Test Event",
         description: "Test Description",
         created: new Date().toISOString(),
@@ -177,6 +178,7 @@ describe("stripe", () => {
       const event = {
         id: 1,
         slug: "test-event",
+        slug_index: "test-event-index",
         name: "Test Event",
         description: "Test Description",
         created: new Date().toISOString(),
@@ -223,6 +225,7 @@ describe("stripe", () => {
       const event = {
         id: 1,
         slug: "test-event",
+        slug_index: "test-event-index",
         name: "Test",
         description: "Desc",
         created: new Date().toISOString(),
@@ -252,6 +255,7 @@ describe("stripe", () => {
       const event = {
         id: 1,
         slug: "test-event",
+        slug_index: "test-event-index",
         name: "Test",
         description: "Desc",
         created: new Date().toISOString(),

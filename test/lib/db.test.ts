@@ -285,14 +285,13 @@ describe("db", () => {
     });
 
     test("password change allows decryption of both old and new attendee records", async () => {
-      const oldPassword = "oldpassword123";
       const newPassword = "newpassword456";
 
-      // Setup with initial password
-      await completeSetup(oldPassword, "GBP");
+      // Setup with TEST_ADMIN_PASSWORD so createTestEvent works
+      await completeSetup(TEST_ADMIN_PASSWORD, "GBP");
 
-      // Create an event directly (not via REST API since we're using a custom password)
-      const event = await eventsTable.insert({
+      // Create an event via REST API
+      const event = await createTestEvent({
         slug: "password-test-event",
         name: "Password Test Event",
         description: "Test event for password change scenario",
@@ -311,7 +310,7 @@ describe("db", () => {
       const attendeeBefore = beforeResult.attendee;
 
       // Change the password
-      const changeSuccess = await updateAdminPassword(oldPassword, newPassword);
+      const changeSuccess = await updateAdminPassword(TEST_ADMIN_PASSWORD, newPassword);
       expect(changeSuccess).toBe(true);
 
       // Create an attendee AFTER password change
@@ -1237,15 +1236,14 @@ describe("db", () => {
     });
 
     test("getEventActivityLog returns entries for specific event", async () => {
-      // Use direct DB insert to avoid auto-logging from REST API
-      const event1 = await eventsTable.insert({
+      const event1 = await createTestEvent({
         slug: "event-1",
         name: "Event 1",
         description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const event2 = await eventsTable.insert({
+      const event2 = await createTestEvent({
         slug: "event-2",
         name: "Event 2",
         description: "Desc",
@@ -1258,7 +1256,8 @@ describe("db", () => {
       await logActivity("Action for event 2", event2.id);
 
       const event1Log = await getEventActivityLog(event1.id);
-      expect(event1Log.length).toBe(2);
+      // REST API also logs "Created event", so we have 3 entries for event 1
+      expect(event1Log.length).toBe(3);
       expect(event1Log[0]?.message).toBe("Another action for event 1");
       expect(event1Log[1]?.message).toBe("Action for event 1");
     });
@@ -1285,8 +1284,7 @@ describe("db", () => {
     });
 
     test("getAllActivityLog returns all entries", async () => {
-      // Use direct DB insert to avoid auto-logging from REST API
-      const event = await eventsTable.insert({
+      const event = await createTestEvent({
         slug: "test-event",
         name: "Test Event",
         description: "Desc",
@@ -1298,7 +1296,8 @@ describe("db", () => {
       await logActivity("Event action", event.id);
 
       const entries = await getAllActivityLog();
-      expect(entries.length).toBe(2);
+      // REST API logs "Created event", so we have 3 entries total
+      expect(entries.length).toBe(3);
     });
 
     test("getAllActivityLog returns entries in descending order", async () => {
