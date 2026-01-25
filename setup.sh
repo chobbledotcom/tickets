@@ -18,5 +18,5 @@ echo "Caching dependencies..."
 deno install
 
 echo ""
-echo "Running tests..."
-deno task test
+echo "Running precommit checks..."
+deno task precommit
