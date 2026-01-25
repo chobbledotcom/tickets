@@ -142,7 +142,7 @@ describe("html", () => {
     };
 
     test("renders event details", () => {
-      const html = adminEventPage(event, []);
+      const html = adminEventPage(event, [], "localhost");
       expect(html).toContain("Test Event");
       expect(html).toContain("Test Description");
       expect(html).toContain("100");
@@ -150,17 +150,25 @@ describe("html", () => {
     });
 
     test("shows spots remaining", () => {
-      const html = adminEventPage(event, []);
+      const html = adminEventPage(event, [], "localhost");
       expect(html).toContain("98"); // 100 - 2
     });
 
     test("shows ticket URL", () => {
-      const html = adminEventPage(event, []);
+      const html = adminEventPage(event, [], "localhost");
       expect(html).toContain("/ticket/test-event");
     });
 
+    test("shows embed code with allowed domain", () => {
+      const html = adminEventPage(event, [], "example.com");
+      expect(html).toContain("Embed Code:");
+      expect(html).toContain("https://example.com/ticket/test-event");
+      expect(html).toContain("loading=");
+      expect(html).toContain("readonly");
+    });
+
     test("renders empty attendees state", () => {
-      const html = adminEventPage(event, []);
+      const html = adminEventPage(event, [], "localhost");
       expect(html).toContain("No attendees yet");
     });
 
@@ -176,7 +184,7 @@ describe("html", () => {
           quantity: 1,
         },
       ];
-      const html = adminEventPage(event, attendees);
+      const html = adminEventPage(event, attendees, "localhost");
       expect(html).toContain("John Doe");
       expect(html).toContain("john@example.com");
     });
@@ -193,12 +201,12 @@ describe("html", () => {
           quantity: 1,
         },
       ];
-      const html = adminEventPage(event, attendees);
+      const html = adminEventPage(event, attendees, "localhost");
       expect(html).toContain("&lt;script&gt;");
     });
 
     test("includes back link", () => {
-      const html = adminEventPage(event, []);
+      const html = adminEventPage(event, [], "localhost");
       expect(html).toContain("/admin/");
     });
   });
@@ -481,7 +489,7 @@ describe("html", () => {
     };
 
     test("renders export CSV button", () => {
-      const html = adminEventPage(event, []);
+      const html = adminEventPage(event, [], "localhost");
       expect(html).toContain("/admin/event/1/export");
       expect(html).toContain("Export CSV");
     });
