@@ -79,10 +79,17 @@ export const adminEventPage = (
           <p><strong>Max Tickets Per Purchase:</strong> {event.max_quantity}</p>
           <p><strong>Tickets Sold:</strong> {event.attendee_count}</p>
           <p><strong>Spots Remaining:</strong> {event.max_attendees - event.attendee_count}</p>
-          <p>
-            <strong>Thank You URL:</strong>{" "}
-            <a href={event.thank_you_url}>{event.thank_you_url}</a>
-          </p>
+          {event.thank_you_url ? (
+            <p>
+              <strong>Thank You URL:</strong>{" "}
+              <a href={event.thank_you_url}>{event.thank_you_url}</a>
+            </p>
+          ) : (
+            <p>
+              <strong>Thank You URL:</strong>{" "}
+              <em>None (shows simple success message)</em>
+            </p>
+          )}
           <p>
             <strong>Ticket URL:</strong>{" "}
             <a href={`/ticket/${event.slug}`}>/ticket/{event.slug}</a>

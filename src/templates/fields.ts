@@ -109,10 +109,10 @@ export const eventFields: Field[] = [
   },
   {
     name: "thank_you_url",
-    label: "Thank You URL",
+    label: "Thank You URL (optional)",
     type: "url",
-    required: true,
     placeholder: "https://example.com/thank-you",
+    hint: "Leave blank to show a simple success message",
     validate: validateSafeUrl,
   },
   {
