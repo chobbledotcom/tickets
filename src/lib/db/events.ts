@@ -26,7 +26,6 @@ export const computeSlugIndex = (slug: string): Promise<string> =>
 /**
  * Events table definition
  * slug is encrypted; slug_index is HMAC for lookups
- * Note: Legacy name/description columns may exist in DB but are not used
  */
 export const eventsTable = defineTable<Event, EventInput>({
   name: "events",

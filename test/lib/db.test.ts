@@ -1102,26 +1102,28 @@ describe("db", () => {
 
     test("defineTable with write transform transforms values on insert", async () => {
       const { col, defineTable } = await import("#lib/db/table.ts");
-      // Create a table with a write transform that uppercases name
+      // Create a table with a write transform that uppercases slug
       type TestRow = {
         id: number;
-        name: string;
+        slug: string;
+        slug_index: string;
         created: string;
-        description: string;
         max_attendees: number;
         thank_you_url: string;
         unit_price: number | null;
         max_quantity: number;
         webhook_url: string | null;
+        active: number;
       };
       type TestInput = {
-        name: string;
-        description: string;
+        slug: string;
+        slugIndex: string;
         maxAttendees: number;
         thankYouUrl: string;
         unitPrice?: number | null;
         maxQuantity?: number;
         webhookUrl?: string | null;
+        active?: number;
       };
       const testTable = defineTable<TestRow, TestInput>({
         name: "events",
@@ -1129,31 +1131,32 @@ describe("db", () => {
         schema: {
           id: col.generated<number>(),
           created: col.withDefault(() => new Date().toISOString()),
-          name: col.transform(
+          slug: col.transform(
             (v: string) => v.toUpperCase(),
             (v: string) => v.toLowerCase(),
           ),
-          description: col.simple<string>(),
+          slug_index: col.simple<string>(),
           max_attendees: col.simple<number>(),
           thank_you_url: col.simple<string>(),
           unit_price: col.simple<number | null>(),
           max_quantity: col.withDefault(() => 1),
           webhook_url: col.simple<string | null>(),
+          active: col.withDefault(() => 1),
         },
       });
 
       // Insert should apply the write transform
       const row = await testTable.insert({
-        name: "Test Event",
-        description: "Test",
+        slug: "test-event",
+        slugIndex: "test-index",
         maxAttendees: 10,
         thankYouUrl: "http://test.com",
       });
-      expect(row.name).toBe("Test Event"); // Returns original input value
+      expect(row.slug).toBe("test-event"); // Returns original input value
 
       // But the DB should have the transformed value (read transform lowercases)
       const fromDb = await testTable.findById(row.id);
-      expect(fromDb?.name).toBe("test event"); // Read transform lowercases the uppercased "TEST EVENT"
+      expect(fromDb?.slug).toBe("test-event"); // Read transform lowercases the uppercased "TEST-EVENT"
     });
   });
 
