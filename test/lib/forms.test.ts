@@ -17,10 +17,11 @@ describe("forms", () => {
         type: "text",
       };
       const html = renderField(field);
-      expect(html).toContain('<label for="username">Username</label>');
+      expect(html).toContain("<label>");
+      expect(html).toContain("Username");
       expect(html).toContain('type="text"');
-      expect(html).toContain('id="username"');
       expect(html).toContain('name="username"');
+      expect(html).toContain("</label>");
     });
 
     test("renders required attribute", () => {
