@@ -2,7 +2,7 @@
  * Login attempts table operations (rate limiting)
  */
 
-import { hashIpAddress } from "#lib/crypto.ts";
+import { hmacHash } from "#lib/crypto.ts";
 import { executeByField, getDb, queryOne } from "#lib/db/client.ts";
 
 /**
@@ -18,7 +18,7 @@ const withHashedIpAttempts = async <T>(
   ip: string,
   handler: (hashedIp: string, row: LoginAttemptRow | null) => Promise<T>,
 ): Promise<T> => {
-  const hashedIp = await hashIpAddress(ip);
+  const hashedIp = await hmacHash(ip);
   const row = await queryOne<LoginAttemptRow>(
     "SELECT attempts, locked_until FROM login_attempts WHERE ip = ?",
     [hashedIp],
@@ -74,6 +74,6 @@ export const recordFailedLogin = (ip: string): Promise<boolean> =>
  * Clear login attempts for an IP (on successful login)
  */
 export const clearLoginAttempts = async (ip: string): Promise<void> => {
-  const hashedIp = await hashIpAddress(ip);
+  const hashedIp = await hmacHash(ip);
   await executeByField("login_attempts", "ip", hashedIp);
 };

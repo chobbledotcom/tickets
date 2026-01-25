@@ -366,13 +366,6 @@ export const hmacHash = async (value: string): Promise<string> => {
 };
 
 /**
- * Hash an IP address using HMAC-SHA256 with DB_ENCRYPTION_KEY
- * Uses HMAC instead of plain SHA-256 because IPs are a limited keyspace
- * and would be vulnerable to rainbow table attacks without keyed hashing
- */
-export const hashIpAddress = (ip: string): Promise<string> => hmacHash(ip);
-
-/**
  * =============================================================================
  * Key Encryption Key (KEK) Derivation
  * =============================================================================
