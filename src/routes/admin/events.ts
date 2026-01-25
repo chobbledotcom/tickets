@@ -183,22 +183,57 @@ const handleAdminEventDeactivateGet = withEventPage(adminDeactivateEventPage);
 /** Handle GET /admin/event/:id/reactivate (show confirmation page) */
 const handleAdminEventReactivateGet = withEventPage(adminReactivateEventPage);
 
-/** Create handler to set event active status */
-const setActiveHandler =
-  (active: number) =>
-  (request: Request, eventId: number): Promise<Response> =>
-    withAuthForm(request, () =>
-      withEvent(eventId, async () => {
-        await eventsTable.update(eventId, { active });
-        return redirect(`/admin/event/${eventId}`);
-      }),
-    );
-
 /** Handle POST /admin/event/:id/deactivate */
-const handleAdminEventDeactivatePost = setActiveHandler(0);
+const handleAdminEventDeactivatePost = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const event = await getEventWithCount(eventId);
+    if (!event) {
+      return notFoundResponse();
+    }
+
+    const confirmName = form.get("confirm_name") ?? "";
+    if (!verifyName(event.name, confirmName)) {
+      return eventErrorPage(
+        eventId,
+        adminDeactivateEventPage,
+        session.csrfToken,
+        "Event name does not match. Please type the exact name to confirm.",
+      );
+    }
+
+    await eventsTable.update(eventId, { active: 0 });
+    await logActivity(`Deactivated event '${event.name}'`, eventId);
+    return redirect(`/admin/event/${eventId}`);
+  });
 
 /** Handle POST /admin/event/:id/reactivate */
-const handleAdminEventReactivatePost = setActiveHandler(1);
+const handleAdminEventReactivatePost = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const event = await getEventWithCount(eventId);
+    if (!event) {
+      return notFoundResponse();
+    }
+
+    const confirmName = form.get("confirm_name") ?? "";
+    if (!verifyName(event.name, confirmName)) {
+      return eventErrorPage(
+        eventId,
+        adminReactivateEventPage,
+        session.csrfToken,
+        "Event name does not match. Please type the exact name to confirm.",
+      );
+    }
+
+    await eventsTable.update(eventId, { active: 1 });
+    await logActivity(`Reactivated event '${event.name}'`, eventId);
+    return redirect(`/admin/event/${eventId}`);
+  });
 
 /** Handle GET /admin/event/:id/delete (show confirmation page) */
 const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);

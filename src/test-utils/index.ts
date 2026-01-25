@@ -464,15 +464,33 @@ export const updateTestEvent = async (
 };
 
 /**
+ * Change event active status via the REST API
+ */
+const changeEventStatus =
+  (action: "deactivate" | "reactivate") =>
+  async (eventId: number): Promise<void> => {
+    const event = await getEventWithCount(eventId);
+    if (!event) {
+      throw new Error(`Event not found: ${eventId}`);
+    }
+
+    return authenticatedFormRequest(
+      `/admin/event/${eventId}/${action}`,
+      { confirm_name: event.name },
+      async () => {},
+      `${action} event`,
+    );
+  };
+
+/**
  * Deactivate an event via the REST API
  */
-export const deactivateTestEvent = (eventId: number): Promise<void> =>
-  authenticatedFormRequest(
-    `/admin/event/${eventId}/deactivate`,
-    {},
-    async () => {},
-    "deactivate event",
-  );
+export const deactivateTestEvent = changeEventStatus("deactivate");
+
+/**
+ * Reactivate an event via the REST API
+ */
+export const reactivateTestEvent = changeEventStatus("reactivate");
 
 export type { EventInput };
 
