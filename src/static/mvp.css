@@ -149,7 +149,8 @@ nav {
   align-items: center;
   display: flex;
   font-weight: bold;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 1.5rem;
   margin-bottom: 7rem;
 }
 
