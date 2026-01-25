@@ -1,18 +1,21 @@
 /**
  * Configuration module for ticket reservation system
  * Reads configuration from database (set during setup phase)
- * Stripe keys come from environment variables for security
+ * Stripe secret key is configured via admin settings (stored encrypted in DB)
  */
 
-import { getCurrencyCodeFromDb, isSetupComplete } from "#lib/db/settings.ts";
+import {
+  getCurrencyCodeFromDb,
+  getStripeSecretKeyFromDb,
+  isSetupComplete,
+} from "#lib/db/settings.ts";
 
 /**
- * Get Stripe secret key from environment variable
- * Returns null if not set (payments disabled)
+ * Get Stripe secret key from database (encrypted)
+ * Returns null if not configured (payments disabled)
  */
-export const getStripeSecretKey = (): string | null => {
-  const key = Deno.env.get("STRIPE_SECRET_KEY");
-  return key && key.trim() !== "" ? key : null;
+export const getStripeSecretKey = (): Promise<string | null> => {
+  return getStripeSecretKeyFromDb();
 };
 
 /**
@@ -36,8 +39,8 @@ export const getStripeWebhookSecret = (): string | null => {
 /**
  * Check if Stripe payments are enabled
  */
-export const isPaymentsEnabled = (): boolean => {
-  return getStripeSecretKey() !== null;
+export const isPaymentsEnabled = async (): Promise<boolean> => {
+  return (await getStripeSecretKey()) !== null;
 };
 
 /**

@@ -9,8 +9,8 @@ import {
   type StripeWebhookEvent,
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
+import { updateStripeKey } from "#lib/db/settings.ts";
 import { createTestDb, resetDb } from "#test-utils";
-import process from "node:process";
 
 describe("stripe", () => {
   let originalMockHost: string | undefined;
@@ -22,8 +22,6 @@ describe("stripe", () => {
     resetStripeClient();
     // Create in-memory db for testing
     await createTestDb();
-    // Clear Stripe key by default
-    delete process.env.STRIPE_SECRET_KEY;
   });
 
   afterEach(() => {
@@ -48,14 +46,14 @@ describe("stripe", () => {
       expect(client).toBeNull();
     });
 
-    test("returns client when stripe key is set in environment", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
+    test("returns client when stripe key is set in database", async () => {
+      await updateStripeKey("sk_test_123");
       const client = await getStripeClient();
       expect(client).not.toBeNull();
     });
 
     test("returns same client on subsequent calls", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
+      await updateStripeKey("sk_test_123");
       const client1 = await getStripeClient();
       const client2 = await getStripeClient();
       expect(client1).toBe(client2);
@@ -63,14 +61,15 @@ describe("stripe", () => {
   });
 
   describe("resetStripeClient", () => {
-    test("resets client to null", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
+    test("resets client to null after key removed from db", async () => {
+      await updateStripeKey("sk_test_123");
       const client1 = await getStripeClient();
       expect(client1).not.toBeNull();
 
       resetStripeClient();
-      // Clear the environment variable too
-      delete process.env.STRIPE_SECRET_KEY;
+      // Reset DB to clear the stripe key
+      resetDb();
+      await createTestDb();
 
       const client2 = await getStripeClient();
       expect(client2).toBeNull();
@@ -87,7 +86,7 @@ describe("stripe", () => {
       // spyOn already imported from #test-compat
 
       // Enable Stripe with mock
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client to be defined");
 
@@ -110,9 +109,9 @@ describe("stripe", () => {
   describe("mock configuration", () => {
     test("creates client with mock config when STRIPE_MOCK_HOST is set", async () => {
       // This test exercises the getMockConfig code path
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
-      process.env.STRIPE_MOCK_HOST = "localhost";
-      process.env.STRIPE_MOCK_PORT = "12111";
+      await updateStripeKey("sk_test_123");
+      Deno.env.set("STRIPE_MOCK_HOST", "localhost");
+      Deno.env.set("STRIPE_MOCK_PORT", "12111");
 
       // This will create a client with mock config, but won't make any API calls
       const client = await getStripeClient();
@@ -120,9 +119,9 @@ describe("stripe", () => {
     });
 
     test("uses default port 12111 when STRIPE_MOCK_PORT not set", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
-      process.env.STRIPE_MOCK_HOST = "localhost";
-      delete process.env.STRIPE_MOCK_PORT;
+      await updateStripeKey("sk_test_123");
+      Deno.env.set("STRIPE_MOCK_HOST", "localhost");
+      Deno.env.delete("STRIPE_MOCK_PORT");
 
       const client = await getStripeClient();
       expect(client).not.toBeNull();
@@ -134,7 +133,7 @@ describe("stripe", () => {
     // STRIPE_MOCK_HOST/PORT are set in test/setup.ts
 
     test("retrieves checkout session with stripe-mock", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       // First create a session using intent-based flow
       const event = {
@@ -173,7 +172,7 @@ describe("stripe", () => {
     });
 
     test("creates checkout session with intent metadata", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       const event = {
         id: 1,
@@ -209,7 +208,7 @@ describe("stripe", () => {
     });
 
     test("refunds payment with stripe-mock", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
 
       // stripe-mock accepts any payment_intent ID
       const refund = await refundPayment("pi_test_123");
@@ -249,7 +248,7 @@ describe("stripe", () => {
     });
 
     test("returns null when unit_price is null", async () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
+      await updateStripeKey("sk_test_123");
       const event = {
         id: 1,
         slug: "test-event",
@@ -285,9 +284,7 @@ describe("stripe", () => {
     });
 
     test("returns null when Stripe API throws error", async () => {
-      const { spyOn } = await import("#test-compat");
-
-      process.env.STRIPE_SECRET_KEY = "sk_test_mock";
+      await updateStripeKey("sk_test_mock");
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client to be defined");
 

@@ -7,7 +7,7 @@ import {
   isPaymentsEnabled,
   isSetupComplete,
 } from "#lib/config.ts";
-import { completeSetup, setSetting } from "#lib/db/settings.ts";
+import { completeSetup, setSetting, updateStripeKey } from "#lib/db/settings.ts";
 import { createTestDb, resetDb } from "#test-utils";
 import process from "node:process";
 
@@ -17,35 +17,23 @@ describe("config", () => {
   beforeEach(async () => {
     await createTestDb();
     // Clear Stripe env vars for clean tests
-    delete process.env.STRIPE_SECRET_KEY;
     delete process.env.STRIPE_PUBLISHABLE_KEY;
   });
 
   afterEach(() => {
     resetDb();
     // Restore original env
-    process.env.STRIPE_SECRET_KEY = originalEnv.STRIPE_SECRET_KEY;
     process.env.STRIPE_PUBLISHABLE_KEY = originalEnv.STRIPE_PUBLISHABLE_KEY;
   });
 
   describe("getStripeSecretKey", () => {
-    test("returns null when not set in environment", () => {
-      expect(getStripeSecretKey()).toBeNull();
+    test("returns null when not set in database", async () => {
+      expect(await getStripeSecretKey()).toBeNull();
     });
 
-    test("returns null when empty string", () => {
-      process.env.STRIPE_SECRET_KEY = "";
-      expect(getStripeSecretKey()).toBeNull();
-    });
-
-    test("returns null when whitespace only", () => {
-      process.env.STRIPE_SECRET_KEY = "   ";
-      expect(getStripeSecretKey()).toBeNull();
-    });
-
-    test("returns key when set in environment", () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
-      expect(getStripeSecretKey()).toBe("sk_test_123");
+    test("returns key when set in database", async () => {
+      await updateStripeKey("sk_test_123");
+      expect(await getStripeSecretKey()).toBe("sk_test_123");
     });
   });
 
@@ -61,13 +49,13 @@ describe("config", () => {
   });
 
   describe("isPaymentsEnabled", () => {
-    test("returns false when stripe key not set", () => {
-      expect(isPaymentsEnabled()).toBe(false);
+    test("returns false when stripe key not set", async () => {
+      expect(await isPaymentsEnabled()).toBe(false);
     });
 
-    test("returns true when stripe key is set", () => {
-      process.env.STRIPE_SECRET_KEY = "sk_test_123";
-      expect(isPaymentsEnabled()).toBe(true);
+    test("returns true when stripe key is set", async () => {
+      await updateStripeKey("sk_test_123");
+      expect(await isPaymentsEnabled()).toBe(true);
     });
   });
 

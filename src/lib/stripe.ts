@@ -69,7 +69,7 @@ const withClient = async <T>(
 
 /** Internal getStripeClient implementation */
 const getClientImpl = async (): Promise<Stripe | null> => {
-  const secretKey = getStripeSecretKey();
+  const secretKey = await getStripeSecretKey();
   if (!secretKey) return null;
 
   try {
