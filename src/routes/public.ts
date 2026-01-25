@@ -28,6 +28,7 @@ import {
   withActiveEventBySlug,
 } from "#routes/utils.ts";
 import { ticketFields } from "#templates/fields.ts";
+import { reservationSuccessPage } from "#templates/payment.tsx";
 import { ticketPage } from "#templates/public.tsx";
 
 /**
@@ -172,7 +173,9 @@ const processFreeReservation = async (
   }
 
   await logAndNotifyRegistration(event, result.attendee);
-  return redirect(event.thank_you_url);
+  return event.thank_you_url
+    ? redirect(event.thank_you_url)
+    : htmlResponse(reservationSuccessPage());
 };
 
 /**
