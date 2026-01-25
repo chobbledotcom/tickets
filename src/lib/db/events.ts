@@ -12,7 +12,7 @@ export type EventInput = {
   slug: string;
   slugIndex: string;
   maxAttendees: number;
-  thankYouUrl: string;
+  thankYouUrl?: string | null;
   unitPrice?: number | null;
   maxQuantity?: number;
   webhookUrl?: string | null;
@@ -37,7 +37,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     slug_index: col.simple<string>(),
     created: col.withDefault(() => new Date().toISOString()),
     max_attendees: col.simple<number>(),
-    thank_you_url: col.encrypted<string>(encrypt, decrypt),
+    thank_you_url: col.encryptedNullable<string>(encrypt, decrypt),
     unit_price: col.simple<number | null>(),
     max_quantity: col.withDefault(() => 1),
     webhook_url: col.encryptedNullable<string>(encrypt, decrypt),

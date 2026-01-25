@@ -3,6 +3,7 @@
  */
 
 import type { InValue } from "@libsql/client";
+import { getAllowedDomain } from "#lib/config.ts";
 import {
   getEventActivityLog,
   logActivity,
@@ -116,7 +117,7 @@ const handleCreateEvent = createHandler(eventsResource, {
  */
 const handleAdminEventGet = (request: Request, eventId: number) =>
   withEventAttendees(request, eventId, (event, attendees) =>
-    htmlResponse(adminEventPage(event, attendees)),
+    htmlResponse(adminEventPage(event, attendees, getAllowedDomain())),
   );
 
 /** Curried event page GET handler: renderPage -> (request, eventId) -> Response */

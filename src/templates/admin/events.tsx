@@ -33,7 +33,10 @@ const AttendeeRow = ({ a, eventId }: { a: Attendee; eventId: number }): string =
 export const adminEventPage = (
   event: EventWithCount,
   attendees: Attendee[],
+  allowedDomain: string,
 ): string => {
+  const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
+  const embedCode = `<iframe src="${ticketUrl}" loading="lazy" style="border: none; width: 100%; height: 10rem">Loading..</iframe>`;
   const attendeeRows =
     attendees.length > 0
       ? pipe(
@@ -75,10 +78,17 @@ export const adminEventPage = (
           <p><strong>Max Tickets Per Purchase:</strong> {event.max_quantity}</p>
           <p><strong>Tickets Sold:</strong> {event.attendee_count}</p>
           <p><strong>Spots Remaining:</strong> {event.max_attendees - event.attendee_count}</p>
-          <p>
-            <strong>Thank You URL:</strong>{" "}
-            <a href={event.thank_you_url}>{event.thank_you_url}</a>
-          </p>
+          {event.thank_you_url ? (
+            <p>
+              <strong>Thank You URL:</strong>{" "}
+              <a href={event.thank_you_url}>{event.thank_you_url}</a>
+            </p>
+          ) : (
+            <p>
+              <strong>Thank You URL:</strong>{" "}
+              <em>None (shows simple success message)</em>
+            </p>
+          )}
           <p>
             <strong>Ticket URL:</strong>{" "}
             <a href={`/ticket/${event.slug}`}>/ticket/{event.slug}</a>
@@ -89,6 +99,16 @@ export const adminEventPage = (
               <a href={event.webhook_url}>{event.webhook_url}</a>
             </p>
           )}
+          <p>
+            <label for={`embed-code-${event.id}`}><strong>Embed Code:</strong></label>
+            <input
+              type="text"
+              id={`embed-code-${event.id}`}
+              value={embedCode}
+              readonly
+              onclick="this.select()"
+            />
+          </p>
         </article>
 
         <h2>Attendees</h2>
