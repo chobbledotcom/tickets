@@ -470,7 +470,7 @@ const changeEventStatus =
 
     return authenticatedFormRequest(
       `/admin/event/${eventId}/${action}`,
-      { confirm_name: event.name },
+      { confirm_identifier: event.slug },
       async () => {},
       `${action} event`,
     );

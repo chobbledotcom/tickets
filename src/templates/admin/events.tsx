@@ -206,16 +206,16 @@ export const adminDeactivateEventPage = (
           </aside>
         </article>
 
-        <p>To deactivate this event, you must type its name "{event.name}" into the box below:</p>
+        <p>To deactivate this event, type its identifier "{event.slug}" into the box below:</p>
 
         <form method="POST" action={`/admin/event/${event.id}/deactivate`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
-          <label for="confirm_name">Event name</label>
+          <label for="confirm_identifier">Event identifier</label>
           <input
             type="text"
-            id="confirm_name"
-            name="confirm_name"
-            placeholder={event.name}
+            id="confirm_identifier"
+            name="confirm_identifier"
+            placeholder={event.slug}
             autocomplete="off"
             required
           />
@@ -246,16 +246,16 @@ export const adminReactivateEventPage = (
           </aside>
         </article>
 
-        <p>To reactivate this event, you must type its name "{event.name}" into the box below:</p>
+        <p>To reactivate this event, type its identifier "{event.slug}" into the box below:</p>
 
         <form method="POST" action={`/admin/event/${event.id}/reactivate`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
-          <label for="confirm_name">Event name</label>
+          <label for="confirm_identifier">Event identifier</label>
           <input
             type="text"
-            id="confirm_name"
-            name="confirm_name"
-            placeholder={event.name}
+            id="confirm_identifier"
+            name="confirm_identifier"
+            placeholder={event.slug}
             autocomplete="off"
             required
           />

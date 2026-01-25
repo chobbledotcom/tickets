@@ -1284,7 +1284,7 @@ describe("server", () => {
       );
       const cookie = loginResponse.headers.get("set-cookie");
 
-      await createTestEvent({
+      const event = await createTestEvent({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1296,9 +1296,9 @@ describe("server", () => {
       const html = await response.text();
       expect(html).toContain("Deactivate Event");
       expect(html).toContain("Return a 404");
-      expect(html).toContain('name="confirm_name"');
-      expect(html).toContain("type its name");
-      expect(html).toContain("Test Event");
+      expect(html).toContain('name="confirm_identifier"');
+      expect(html).toContain("type its identifier");
+      expect(html).toContain(event.slug);
     });
   });
 
@@ -1322,7 +1322,7 @@ describe("server", () => {
       const cookie = loginResponse.headers.get("set-cookie") || "";
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
-      await createTestEvent({
+      const event = await createTestEvent({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1330,7 +1330,7 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/deactivate",
-          { csrf_token: csrfToken || "", confirm_name: "Test Event" },
+          { csrf_token: csrfToken || "", confirm_identifier: event.slug },
           cookie,
         ),
       );
@@ -1339,11 +1339,11 @@ describe("server", () => {
 
       // Verify event is now inactive
       const { getEventWithCount } = await import("#lib/db/events.ts");
-      const event = await getEventWithCount(1);
-      expect(event?.active).toBe(0);
+      const deactivatedEvent = await getEventWithCount(1);
+      expect(deactivatedEvent?.active).toBe(0);
     });
 
-    test("returns error when name does not match", async () => {
+    test("returns error when identifier does not match", async () => {
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
       );
@@ -1351,8 +1351,7 @@ describe("server", () => {
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
+        slug: "test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1360,13 +1359,13 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/deactivate",
-          { csrf_token: csrfToken || "", confirm_name: "Wrong Name" },
+          { csrf_token: csrfToken || "", confirm_identifier: "wrong-identifier" },
           cookie,
         ),
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("Event name does not match");
+      expect(html).toContain("Event identifier does not match");
     });
   });
 
@@ -1403,8 +1402,8 @@ describe("server", () => {
       const html = await response.text();
       expect(html).toContain("Reactivate Event");
       expect(html).toContain("available for registrations");
-      expect(html).toContain('name="confirm_name"');
-      expect(html).toContain("type its name");
+      expect(html).toContain('name="confirm_identifier"');
+      expect(html).toContain("type its identifier");
     });
   });
 
@@ -1426,7 +1425,7 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/reactivate",
-          { csrf_token: csrfToken || "", confirm_name: "Test Event" },
+          { csrf_token: csrfToken || "", confirm_identifier: event.slug },
           cookie,
         ),
       );
@@ -1447,8 +1446,7 @@ describe("server", () => {
       const csrfToken = await getCsrfTokenFromCookie(cookie);
 
       const event = await createTestEvent({
-        name: "Test Event",
-        description: "Desc",
+        slug: "test-event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1458,13 +1456,13 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/reactivate",
-          { csrf_token: csrfToken || "", confirm_name: "Wrong Name" },
+          { csrf_token: csrfToken || "", confirm_identifier: "wrong-identifier" },
           cookie,
         ),
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("Event name does not match");
+      expect(html).toContain("Event identifier does not match");
     });
   });
 

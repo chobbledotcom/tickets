@@ -192,18 +192,18 @@ const handleAdminEventDeactivatePost = (
       return notFoundResponse();
     }
 
-    const confirmName = form.get("confirm_name") ?? "";
-    if (!verifyName(event.name, confirmName)) {
+    const confirmIdentifier = form.get("confirm_identifier") ?? "";
+    if (!verifyIdentifier(event.slug, confirmIdentifier)) {
       return eventErrorPage(
         eventId,
         adminDeactivateEventPage,
         session.csrfToken,
-        "Event name does not match. Please type the exact name to confirm.",
+        "Event identifier does not match. Please type the exact identifier to confirm.",
       );
     }
 
     await eventsTable.update(eventId, { active: 0 });
-    await logActivity(`Deactivated event '${event.name}'`, eventId);
+    await logActivity(`Deactivated event '${event.slug}'`, eventId);
     return redirect(`/admin/event/${eventId}`);
   });
 
@@ -218,18 +218,18 @@ const handleAdminEventReactivatePost = (
       return notFoundResponse();
     }
 
-    const confirmName = form.get("confirm_name") ?? "";
-    if (!verifyName(event.name, confirmName)) {
+    const confirmIdentifier = form.get("confirm_identifier") ?? "";
+    if (!verifyIdentifier(event.slug, confirmIdentifier)) {
       return eventErrorPage(
         eventId,
         adminReactivateEventPage,
         session.csrfToken,
-        "Event name does not match. Please type the exact name to confirm.",
+        "Event identifier does not match. Please type the exact identifier to confirm.",
       );
     }
 
     await eventsTable.update(eventId, { active: 1 });
-    await logActivity(`Reactivated event '${event.name}'`, eventId);
+    await logActivity(`Reactivated event '${event.slug}'`, eventId);
     return redirect(`/admin/event/${eventId}`);
   });
 
