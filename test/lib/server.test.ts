@@ -601,6 +601,111 @@ describe("server", () => {
     });
   });
 
+  describe("POST /admin/settings/reset-database", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/reset-database", {
+          confirm_phrase:
+            "The site will be fully reset and all data will be lost.",
+        }),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/reset-database",
+          {
+            confirm_phrase:
+              "The site will be fully reset and all data will be lost.",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
+    test("rejects wrong confirmation phrase", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/reset-database",
+          {
+            confirm_phrase: "wrong phrase",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Confirmation phrase does not match");
+    });
+
+    test("resets database and redirects to setup on correct phrase", async () => {
+      // Create some data first
+      await createTestEvent({
+        slug: "test-event",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com/thanks",
+      });
+
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const csrfToken = await getCsrfTokenFromCookie(cookie);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/reset-database",
+          {
+            confirm_phrase:
+              "The site will be fully reset and all data will be lost.",
+            csrf_token: csrfToken || "",
+          },
+          cookie,
+        ),
+      );
+
+      // Should redirect to setup page with session cleared
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/setup/");
+      expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+    });
+
+    test("settings page shows reset database section", async () => {
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      );
+      const cookie = loginResponse.headers.get("set-cookie") || "";
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Reset Database");
+      expect(html).toContain(
+        "The site will be fully reset and all data will be lost.",
+      );
+      expect(html).toContain("confirm_phrase");
+    });
+  });
+
   describe("GET /admin/sessions", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/sessions"));

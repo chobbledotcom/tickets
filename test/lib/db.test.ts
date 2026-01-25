@@ -26,7 +26,7 @@ import {
   isLoginRateLimited,
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
-import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
+import { initDb, LATEST_UPDATE, resetDatabase } from "#lib/db/migrations/index.ts";
 import {
   createSession,
   deleteAllSessions,
@@ -141,6 +141,54 @@ describe("db", () => {
       // Should be very fast since it bails early (typically < 5ms)
       // We just check it completes without error
       expect(duration).toBeLessThan(100);
+    });
+  });
+
+  describe("resetDatabase", () => {
+    test("drops all tables", async () => {
+      // Create some data first
+      await createTestEvent({
+        slug: "test-event",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      await createSession("test-token", "test-csrf", Date.now() + 1000);
+
+      // Reset the database
+      await resetDatabase();
+
+      // Verify tables are gone by checking that they don't exist
+      const client = getDb();
+
+      // Check that events table was dropped
+      const tablesResult = await client.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'",
+      );
+      const tableNames = tablesResult.rows.map((r) => r.name);
+      expect(tableNames).not.toContain("events");
+      expect(tableNames).not.toContain("attendees");
+      expect(tableNames).not.toContain("sessions");
+      expect(tableNames).not.toContain("settings");
+      expect(tableNames).not.toContain("login_attempts");
+      expect(tableNames).not.toContain("processed_payments");
+      expect(tableNames).not.toContain("activity_log");
+    });
+
+    test("can reinitialize database after reset", async () => {
+      // Reset and reinitialize
+      await resetDatabase();
+      await initDb();
+
+      // Verify we can create new data
+      await completeSetup(TEST_ADMIN_PASSWORD, "USD");
+      const event = await createTestEvent({
+        slug: "new-event",
+        maxAttendees: 25,
+        thankYouUrl: "https://example.com",
+      });
+
+      expect(event.id).toBe(1);
+      expect(event.slug).toBe("new-event");
     });
   });
 
@@ -1102,26 +1150,28 @@ describe("db", () => {
 
     test("defineTable with write transform transforms values on insert", async () => {
       const { col, defineTable } = await import("#lib/db/table.ts");
-      // Create a table with a write transform that uppercases name
+      // Create a table with a write transform that uppercases slug
       type TestRow = {
         id: number;
-        name: string;
+        slug: string;
+        slug_index: string;
         created: string;
-        description: string;
         max_attendees: number;
         thank_you_url: string;
         unit_price: number | null;
         max_quantity: number;
         webhook_url: string | null;
+        active: number;
       };
       type TestInput = {
-        name: string;
-        description: string;
+        slug: string;
+        slugIndex: string;
         maxAttendees: number;
         thankYouUrl: string;
         unitPrice?: number | null;
         maxQuantity?: number;
         webhookUrl?: string | null;
+        active?: number;
       };
       const testTable = defineTable<TestRow, TestInput>({
         name: "events",
@@ -1129,31 +1179,32 @@ describe("db", () => {
         schema: {
           id: col.generated<number>(),
           created: col.withDefault(() => new Date().toISOString()),
-          name: col.transform(
+          slug: col.transform(
             (v: string) => v.toUpperCase(),
             (v: string) => v.toLowerCase(),
           ),
-          description: col.simple<string>(),
+          slug_index: col.simple<string>(),
           max_attendees: col.simple<number>(),
           thank_you_url: col.simple<string>(),
           unit_price: col.simple<number | null>(),
           max_quantity: col.withDefault(() => 1),
           webhook_url: col.simple<string | null>(),
+          active: col.withDefault(() => 1),
         },
       });
 
       // Insert should apply the write transform
       const row = await testTable.insert({
-        name: "Test Event",
-        description: "Test",
+        slug: "test-event",
+        slugIndex: "test-index",
         maxAttendees: 10,
         thankYouUrl: "http://test.com",
       });
-      expect(row.name).toBe("Test Event"); // Returns original input value
+      expect(row.slug).toBe("test-event"); // Returns original input value
 
       // But the DB should have the transformed value (read transform lowercases)
       const fromDb = await testTable.findById(row.id);
-      expect(fromDb?.name).toBe("test event"); // Read transform lowercases the uppercased "TEST EVENT"
+      expect(fromDb?.slug).toBe("test-event"); // Read transform lowercases the uppercased "TEST-EVENT"
     });
   });
 
