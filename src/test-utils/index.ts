@@ -6,6 +6,8 @@ import { createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
 import { setDb } from "#lib/db/client.ts";
 import {
+  computeSlugIndex,
+  eventsTable,
   getEvent,
   getEventWithCountBySlug,
   type EventInput,
@@ -474,6 +476,18 @@ export const deactivateTestEvent = (eventId: number): Promise<void> =>
   );
 
 export type { EventInput };
+
+/**
+ * Insert an event directly into the database (bypassing REST API)
+ * Use this when you need to avoid auto-logging or use a custom setup
+ * Automatically computes slugIndex from slug
+ */
+export const insertTestEventDirect = async (
+  input: Omit<EventInput, "slugIndex">,
+): Promise<Event> => {
+  const slugIndex = await computeSlugIndex(input.slug);
+  return eventsTable.insert({ ...input, slugIndex });
+};
 
 import type { Attendee } from "#lib/types.ts";
 import { getAttendeesRaw } from "#lib/db/attendees.ts";

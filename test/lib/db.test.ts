@@ -53,6 +53,7 @@ import {
 import {
   createTestAttendee,
   createTestEvent,
+  insertTestEventDirect,
   resetTestSession,
   resetTestSlugCounter,
   setupTestEncryptionKey,
@@ -250,7 +251,7 @@ describe("db", () => {
       await completeSetup(oldPassword, "GBP");
 
       // Create an event directly (not via REST API since we're using a custom password)
-      const event = await eventsTable.insert({
+      const event = await insertTestEventDirect({
         slug: "password-test-event",
         name: "Password Test Event",
         description: "Test event for password change scenario",
@@ -1196,14 +1197,14 @@ describe("db", () => {
 
     test("getEventActivityLog returns entries for specific event", async () => {
       // Use direct DB insert to avoid auto-logging from REST API
-      const event1 = await eventsTable.insert({
+      const event1 = await insertTestEventDirect({
         slug: "event-1",
         name: "Event 1",
         description: "Desc",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const event2 = await eventsTable.insert({
+      const event2 = await insertTestEventDirect({
         slug: "event-2",
         name: "Event 2",
         description: "Desc",
@@ -1244,7 +1245,7 @@ describe("db", () => {
 
     test("getAllActivityLog returns all entries", async () => {
       // Use direct DB insert to avoid auto-logging from REST API
-      const event = await eventsTable.insert({
+      const event = await insertTestEventDirect({
         slug: "test-event",
         name: "Test Event",
         description: "Desc",

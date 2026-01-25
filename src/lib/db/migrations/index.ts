@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when adding new migrations
  */
-export const LATEST_UPDATE = "add processed_payments and activity_log tables";
+export const LATEST_UPDATE = "add slug_index column for encrypted slug lookup";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -116,9 +116,17 @@ export const initDb = async (): Promise<void> => {
   // Migration: add slug column to events (unique identifier for public URLs)
   await runMigration("ALTER TABLE events ADD COLUMN slug TEXT");
 
-  // Migration: create index on slug for fast lookups
+  // Migration: create index on slug for fast lookups (legacy, slug is now encrypted)
   await runMigration(
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug ON events(slug)",
+  );
+
+  // Migration: add slug_index column for blind index lookup (slug is now encrypted)
+  await runMigration("ALTER TABLE events ADD COLUMN slug_index TEXT");
+
+  // Migration: create index on slug_index for fast lookups
+  await runMigration(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug_index ON events(slug_index)",
   );
 
   // Migration: add active column to events (default true for existing events)
