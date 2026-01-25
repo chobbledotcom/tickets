@@ -3229,6 +3229,7 @@ describe("server", () => {
         expect(html).toContain("Initial Setup");
         expect(html).toContain("Admin Password");
         expect(html).toContain("Currency Code");
+        expect(html).toContain("Data Controller Agreement");
       });
 
       test("GET /setup (without trailing slash) shows setup page", async () => {
@@ -3388,6 +3389,28 @@ describe("server", () => {
         expect(html).toContain("Currency code must be 3 uppercase letters");
       });
 
+      test("POST /setup/ without accepting agreement shows error", async () => {
+        const getResponse = await handleRequest(mockRequest("/setup/"));
+        const csrfToken = getSetupCsrfToken(
+          getResponse.headers.get("set-cookie"),
+        );
+
+        const response = await handleRequest(
+          mockSetupFormRequest(
+            {
+              admin_password: "mypassword123",
+              admin_password_confirm: "mypassword123",
+              currency_code: "GBP",
+              accept_agreement: "", // Explicitly not accepting
+            },
+            csrfToken as string,
+          ),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("must accept the Data Controller Agreement");
+      });
+
       test("POST /setup/ normalizes lowercase currency to uppercase", async () => {
         const getResponse = await handleRequest(mockRequest("/setup/"));
         const csrfToken = getSetupCsrfToken(
@@ -3488,6 +3511,7 @@ describe("server", () => {
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
               currency_code: "GBP",
+              accept_agreement: "yes",
               csrf_token: csrfToken as string,
             }).toString(),
           }),
@@ -3542,6 +3566,7 @@ describe("server", () => {
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
               currency_code: "GBP",
+              accept_agreement: "yes",
               csrf_token: csrfToken as string,
             }).toString(),
           }),

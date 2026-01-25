@@ -62,6 +62,16 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
     `Form values: passwordLength=${password?.length} confirmLength=${passwordConfirm?.length} currency=${currency}`,
   );
 
+  // Check Data Controller Agreement acceptance
+  const acceptAgreement = form.get("accept_agreement");
+  if (acceptAgreement !== "yes") {
+    logDebug("Setup", "Agreement not accepted");
+    return {
+      valid: false,
+      error: "You must accept the Data Controller Agreement to continue",
+    };
+  }
+
   if (password.length < 8) {
     logDebug("Setup", `Password too short: ${password.length}`);
     return { valid: false, error: "Password must be at least 8 characters" };

@@ -8,6 +8,50 @@ import { setupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /**
+ * Data Controller Agreement - displayed during setup
+ * Users must accept these terms to complete setup
+ */
+const DataControllerAgreement = (): JSX.Element => (
+  <fieldset class="agreement">
+    <legend>Data Controller Agreement</legend>
+    <p>By completing setup, you confirm:</p>
+    <ol>
+      <li>
+        <strong>You are the data controller</strong> - You decide what data to collect and are
+        responsible for your own GDPR/data protection compliance
+      </li>
+      <li>
+        <strong>We are a data processor</strong> - We store your encrypted data but cannot access
+        attendee information without your admin password
+      </li>
+      <li>
+        <strong>Your data is encrypted</strong> - Attendee names, emails, and payment references are
+        encrypted at rest. Only you can decrypt them by logging in
+      </li>
+      <li>
+        <strong>Your responsibilities</strong> - You are responsible for providing a privacy policy,
+        having lawful basis for collecting data, responding to data subject requests, and compliance
+        with your local data protection laws
+      </li>
+      <li>
+        <strong>Breach notification</strong> - We will notify you promptly if we detect a security
+        incident affecting your data
+      </li>
+      <li>
+        <strong>Deletion</strong> - Your data is deleted when you delete your events or close your
+        account
+      </li>
+    </ol>
+    <div class="field">
+      <label>
+        <input type="checkbox" name="accept_agreement" value="yes" required />I understand and
+        accept these terms
+      </label>
+    </div>
+  </fieldset>
+);
+
+/**
  * Initial setup page
  */
 export const setupPage = (error?: string, csrfToken?: string): string =>
@@ -22,6 +66,7 @@ export const setupPage = (error?: string, csrfToken?: string): string =>
         <form method="POST" action="/setup/">
           {csrfToken && <input type="hidden" name="csrf_token" value={csrfToken} />}
           <Raw html={renderFields(setupFields, { currency_code: "GBP" })} />
+          <DataControllerAgreement />
           <button type="submit">Complete Setup</button>
         </form>
       </section>
