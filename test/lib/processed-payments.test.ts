@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import {
+  deleteStaleReservation,
   finalizeSession,
   getProcessedAttendeeId,
+  isReservationStale,
   isSessionProcessed,
   reserveSession,
+  STALE_RESERVATION_MS,
 } from "#lib/db/processed-payments.ts";
 import {
   createTestAttendee,
@@ -257,6 +260,99 @@ describe("processed-payments", () => {
       expect(reserveC.reserved).toBe(false);
       if (!reserveC.reserved) {
         expect(reserveC.existing.attendee_id).toBe(testAttendeeId);
+      }
+    });
+  });
+
+  describe("isReservationStale", () => {
+    test("returns false for recent timestamp", () => {
+      const recent = new Date().toISOString();
+      expect(isReservationStale(recent)).toBe(false);
+    });
+
+    test("returns false for timestamp just under threshold", () => {
+      const justUnder = new Date(Date.now() - STALE_RESERVATION_MS + 1000).toISOString();
+      expect(isReservationStale(justUnder)).toBe(false);
+    });
+
+    test("returns true for timestamp over threshold", () => {
+      const stale = new Date(Date.now() - STALE_RESERVATION_MS - 1000).toISOString();
+      expect(isReservationStale(stale)).toBe(true);
+    });
+
+    test("returns true for very old timestamp", () => {
+      const veryOld = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      expect(isReservationStale(veryOld)).toBe(true);
+    });
+  });
+
+  describe("deleteStaleReservation", () => {
+    test("deletes reservation with null attendee_id", async () => {
+      await reserveSession("cs_stale_to_delete");
+
+      // Verify it exists
+      let record = await isSessionProcessed("cs_stale_to_delete");
+      expect(record).not.toBeNull();
+
+      // Delete it
+      await deleteStaleReservation("cs_stale_to_delete");
+
+      // Verify it's gone
+      record = await isSessionProcessed("cs_stale_to_delete");
+      expect(record).toBeNull();
+    });
+
+    test("does not delete finalized reservation", async () => {
+      await reserveSession("cs_finalized_no_delete");
+      await finalizeSession("cs_finalized_no_delete", testAttendeeId);
+
+      // Try to delete it (should not work due to attendee_id IS NULL condition)
+      await deleteStaleReservation("cs_finalized_no_delete");
+
+      // Verify it still exists
+      const record = await isSessionProcessed("cs_finalized_no_delete");
+      expect(record).not.toBeNull();
+      expect(record?.attendee_id).toBe(testAttendeeId);
+    });
+
+    test("does nothing for non-existent session", async () => {
+      // Should not throw
+      await deleteStaleReservation("cs_nonexistent");
+    });
+  });
+
+  describe("stale reservation recovery", () => {
+    test("STALE_RESERVATION_MS is 5 minutes", () => {
+      expect(STALE_RESERVATION_MS).toBe(5 * 60 * 1000);
+    });
+
+    test("reserveSession does not recover fresh unfinalized reservation", async () => {
+      // Create a reservation that is NOT stale
+      await reserveSession("cs_fresh_unfinalized");
+
+      // Another request tries to reserve
+      const result = await reserveSession("cs_fresh_unfinalized");
+
+      // Should fail (reservation is fresh, still being processed)
+      expect(result.reserved).toBe(false);
+      if (!result.reserved) {
+        expect(result.existing.attendee_id).toBeNull();
+      }
+    });
+
+    test("reserveSession does not recover finalized reservation regardless of age", async () => {
+      // Create and finalize a reservation
+      await reserveSession("cs_old_finalized");
+      await finalizeSession("cs_old_finalized", testAttendeeId);
+
+      // Even if it were old, finalized reservations should never be deleted
+      // (The staleness check only applies to NULL attendee_id)
+      const result = await reserveSession("cs_old_finalized");
+
+      // Should fail with existing attendee
+      expect(result.reserved).toBe(false);
+      if (!result.reserved) {
+        expect(result.existing.attendee_id).toBe(testAttendeeId);
       }
     });
   });

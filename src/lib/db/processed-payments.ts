@@ -8,10 +8,15 @@
  *
  * If reserveSession fails (session already claimed), we check if it's:
  * - Finalized (attendee_id set) → return success with existing attendee
- * - Still processing (attendee_id NULL) → return conflict error
+ * - Still processing (attendee_id NULL) → check staleness
+ *   - Stale (>5min old) → delete and retry (process likely crashed)
+ *   - Fresh → return conflict error (still being processed)
  */
 
 import { getDb, queryOne } from "#lib/db/client.ts";
+
+/** Threshold for considering an unfinalized reservation abandoned (5 minutes) */
+export const STALE_RESERVATION_MS = 5 * 60 * 1000;
 
 /** Processed payment record */
 export type ProcessedPayment = {
@@ -37,9 +42,33 @@ export const isSessionProcessed = (
   );
 
 /**
+ * Check if a reservation is stale (abandoned by a crashed process)
+ */
+export const isReservationStale = (processedAt: string): boolean => {
+  const reservedAt = new Date(processedAt).getTime();
+  return Date.now() - reservedAt > STALE_RESERVATION_MS;
+};
+
+/**
+ * Delete a stale reservation to allow retry
+ */
+export const deleteStaleReservation = async (
+  stripeSessionId: string,
+): Promise<void> => {
+  await getDb().execute({
+    sql: "DELETE FROM processed_payments WHERE stripe_session_id = ? AND attendee_id IS NULL",
+    args: [stripeSessionId],
+  });
+};
+
+/**
  * Reserve a Stripe session for processing (first phase of two-phase lock)
  * Inserts with NULL attendee_id to claim the session.
  * Returns { reserved: true } if we claimed it, or { reserved: false, existing } if already claimed.
+ *
+ * Handles abandoned reservations: if an existing reservation has NULL attendee_id
+ * and is older than STALE_RESERVATION_MS, we assume the process crashed and
+ * delete the stale record to allow retry.
  */
 export const reserveSession = async (
   stripeSessionId: string,
@@ -63,6 +92,13 @@ export const reserveSession = async (
         // Shouldn't happen in practice, treat as reservable
         return reserveSession(stripeSessionId);
       }
+
+      // Check if reservation is stale (abandoned by crashed process)
+      if (existing.attendee_id === null && isReservationStale(existing.processed_at)) {
+        await deleteStaleReservation(stripeSessionId);
+        return reserveSession(stripeSessionId);
+      }
+
       return { reserved: false, existing };
     }
     throw e;
