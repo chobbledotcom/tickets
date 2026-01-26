@@ -660,3 +660,19 @@ input[type="submit"].danger:hover {
     --color-danger-hover: #cc0000;
   }
 }
+
+/* Agreement/disclaimer styling */
+fieldset.agreement {
+  margin-top: 2rem;
+}
+
+.password-warning {
+  color: #cc0000;
+  font-weight: bold;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[color-mode="user"] .password-warning {
+    color: #ff4444;
+  }
+}
