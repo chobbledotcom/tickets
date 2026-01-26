@@ -42,6 +42,10 @@ const DataControllerAgreement = (): JSX.Element => (
         account
       </li>
     </ol>
+    <p class="password-warning">
+      If you lose your password you will be <u>permanently</u> unable to view attendee lists. Do not
+      lose your password.
+    </p>
     <div class="field">
       <label>
         <input type="checkbox" name="accept_agreement" value="yes" required />I understand and
