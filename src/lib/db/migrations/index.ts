@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "consolidated schema v1";
+export const LATEST_UPDATE = "consolidated schema v2";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -108,14 +108,32 @@ export const initDb = async (): Promise<void> => {
 
   // Create processed_payments table for webhook idempotency
   // Tracks Stripe session IDs to prevent duplicate attendee creation
+  // attendee_id is nullable: NULL means session is reserved but attendee not yet created
   await runMigration(`
     CREATE TABLE IF NOT EXISTS processed_payments (
       stripe_session_id TEXT PRIMARY KEY,
-      attendee_id INTEGER NOT NULL,
+      attendee_id INTEGER,
       processed_at TEXT NOT NULL,
       FOREIGN KEY (attendee_id) REFERENCES attendees(id)
     )
   `);
+
+  // Migration: drop NOT NULL constraint on attendee_id for existing databases
+  // SQLite doesn't support ALTER COLUMN, so we recreate the table if needed
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS processed_payments_new (
+      stripe_session_id TEXT PRIMARY KEY,
+      attendee_id INTEGER,
+      processed_at TEXT NOT NULL,
+      FOREIGN KEY (attendee_id) REFERENCES attendees(id)
+    )
+  `);
+  await runMigration(`
+    INSERT OR IGNORE INTO processed_payments_new
+    SELECT stripe_session_id, attendee_id, processed_at FROM processed_payments
+  `);
+  await runMigration(`DROP TABLE IF EXISTS processed_payments`);
+  await runMigration(`ALTER TABLE processed_payments_new RENAME TO processed_payments`);
 
   // Create activity_log table (unencrypted, admin-only view)
   await runMigration(`

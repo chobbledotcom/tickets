@@ -1,24 +1,25 @@
 /**
  * Webhook routes - payment callbacks and Stripe webhooks
  *
- * Payment flow (race-condition safe with idempotency):
+ * Payment flow (race-condition safe with two-phase locking):
  * 1. User submits form -> Stripe session created with intent metadata (no attendee yet)
  * 2. User pays on Stripe -> redirected to /payment/success OR webhook fires
- * 3. First handler (redirect or webhook) atomically creates attendee with capacity check
- * 4. Subsequent handlers check processed_payments table for idempotency
+ * 3. First handler reserves session (DB lock), creates attendee, finalizes lock
+ * 4. Subsequent handlers see reserved/finalized session and return existing attendee
  * 5. If capacity exceeded after payment, auto-refund and show error
  *
  * Security:
  * - Stripe webhooks are verified using HMAC-SHA256 signature
  * - Session ID alone cannot create attendees - Stripe API confirms payment status
- * - Idempotency prevents duplicate attendee creation from retries/race conditions
+ * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
+import type Stripe from "stripe";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
-  isSessionProcessed,
-  markSessionProcessed,
+  finalizeSession,
+  reserveSession,
 } from "#lib/db/processed-payments.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import {
@@ -38,24 +39,65 @@ import {
 } from "#routes/utils.ts";
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 
-/** Stripe checkout session type */
-type CheckoutSession = NonNullable<
-  Awaited<ReturnType<typeof retrieveCheckoutSession>>
->;
+/** Common metadata structure for Stripe checkout sessions */
+type SessionMetadata = {
+  event_id: string;
+  name: string;
+  email: string;
+  quantity?: string;
+};
 
-/** Extract registration intent from Stripe session metadata */
-const extractIntent = (session: CheckoutSession): RegistrationIntent | null => {
-  const { metadata } = session;
+/**
+ * Validated Stripe checkout session with required fields for payment processing.
+ * Uses strict types instead of Record<string, unknown>.
+ */
+type ValidatedCheckoutSession = {
+  id: string;
+  payment_status: "paid" | "unpaid" | "no_payment_required";
+  payment_intent: string | null;
+  metadata: SessionMetadata;
+};
+
+/**
+ * Type guard to validate a Stripe checkout session has required fields.
+ * Returns a strictly-typed session or null if validation fails.
+ */
+const validateCheckoutSession = (
+  session: Stripe.Checkout.Session,
+): ValidatedCheckoutSession | null => {
+  const { id, payment_status, payment_intent, metadata } = session;
+
+  if (typeof id !== "string" || typeof payment_status !== "string") {
+    return null;
+  }
+
   if (!metadata?.event_id || !metadata?.name || !metadata?.email) {
     return null;
   }
+
   return {
-    eventId: Number.parseInt(metadata.event_id, 10),
-    name: metadata.name,
-    email: metadata.email,
-    quantity: Number.parseInt(metadata.quantity || "1", 10),
+    id,
+    payment_status: payment_status as ValidatedCheckoutSession["payment_status"],
+    payment_intent:
+      typeof payment_intent === "string" ? payment_intent : null,
+    metadata: {
+      event_id: metadata.event_id,
+      name: metadata.name,
+      email: metadata.email,
+      quantity: metadata.quantity,
+    },
   };
 };
+
+/** Extract registration intent from validated session metadata */
+const extractIntent = (
+  session: ValidatedCheckoutSession,
+): RegistrationIntent => ({
+  eventId: Number.parseInt(session.metadata.event_id, 10),
+  name: session.metadata.name,
+  email: session.metadata.email,
+  quantity: Number.parseInt(session.metadata.quantity || "1", 10),
+});
 
 /** Wrap handler with session ID extraction */
 const withSessionId =
@@ -69,7 +111,7 @@ const withSessionId =
 
 /** Validate session is retrieved and paid */
 type ValidatedSession = {
-  session: CheckoutSession;
+  session: ValidatedCheckoutSession;
   intent: RegistrationIntent;
 };
 type SessionValidation =
@@ -79,13 +121,22 @@ type SessionValidation =
 const validatePaidSession = async (
   sessionId: string,
 ): Promise<SessionValidation> => {
-  const session = await retrieveCheckoutSession(sessionId);
-  if (!session) {
+  const rawSession = await retrieveCheckoutSession(sessionId);
+  if (!rawSession) {
     return {
       ok: false,
       response: paymentErrorResponse("Payment session not found"),
     };
   }
+
+  const session = validateCheckoutSession(rawSession);
+  if (!session) {
+    return {
+      ok: false,
+      response: paymentErrorResponse("Invalid payment session data"),
+    };
+  }
+
   if (session.payment_status !== "paid") {
     return {
       ok: false,
@@ -94,13 +145,8 @@ const validatePaidSession = async (
       ),
     };
   }
+
   const intent = extractIntent(session);
-  if (!intent) {
-    return {
-      ok: false,
-      response: paymentErrorResponse("Invalid payment session data"),
-    };
-  }
   return { ok: true, data: { session, intent } };
 };
 
@@ -109,38 +155,82 @@ type PaymentResult =
   | { success: true; attendee: Attendee; event: EventWithCount }
   | { success: false; error: string; status?: number; refunded?: boolean };
 
-/** Refund payment if intent exists and return failure result */
+/**
+ * Attempt to refund a payment intent. Returns true if refund succeeded, false otherwise.
+ * Logs an error if refund fails.
+ */
+const tryRefund = async (paymentIntentId: string | null): Promise<boolean> => {
+  if (!paymentIntentId) return false;
+
+  const refundResult = await refundPayment(paymentIntentId);
+  const refunded = refundResult !== null;
+
+  if (!refunded) {
+    logError({
+      code: ErrorCode.STRIPE_REFUND,
+      detail: `Failed to refund payment intent ${paymentIntentId}`,
+    });
+  }
+
+  return refunded;
+};
+
+/**
+ * Attempt to refund payment and return failure result.
+ * Reports refund status accurately based on API result.
+ */
 const refundAndFail = async (
-  session: CheckoutSession,
+  session: ValidatedCheckoutSession,
   error: string,
   status?: number,
 ): Promise<PaymentResult> => {
-  if (session.payment_intent) {
-    await refundPayment(session.payment_intent as string);
-  }
-  return { success: false, error, status, refunded: true };
+  const refunded = await tryRefund(session.payment_intent);
+  return { success: false, error, status, refunded };
 };
 
-/** Core attendee creation logic shared between redirect and webhook handlers */
+/**
+ * Core attendee creation logic shared between redirect and webhook handlers.
+ * Uses two-phase locking to prevent duplicate attendee creation:
+ * 1. Reserve session (claims the lock)
+ * 2. Create attendee atomically
+ * 3. Finalize session (records attendee ID)
+ */
 const processPaymentSession = async (
   sessionId: string,
-  session: CheckoutSession,
+  session: ValidatedCheckoutSession,
   intent: RegistrationIntent,
 ): Promise<PaymentResult> => {
-  // Idempotency check: if session already processed, return success
-  const existing = await isSessionProcessed(sessionId);
-  if (existing) {
-    const event = await getEventWithCount(intent.eventId);
-    if (!event) {
-      return { success: false, error: "Event not found", status: 404 };
+  // Phase 1: Try to reserve the session (claim the lock)
+  const reservation = await reserveSession(sessionId);
+
+  if (!reservation.reserved) {
+    // Session already claimed by another request
+    const { existing } = reservation;
+
+    if (existing.attendee_id !== null) {
+      // Session fully processed - return existing attendee
+      const event = await getEventWithCount(intent.eventId);
+      if (!event) {
+        return { success: false, error: "Event not found", status: 404 };
+      }
+      return {
+        success: true,
+        attendee: { id: existing.attendee_id } as Attendee,
+        event,
+      };
     }
-    // Session was already processed - this is a retry/duplicate
+
+    // Session reserved but not finalized - another request is processing
+    // This is a race condition where both arrived at nearly the same time
+    // Return a conflict error (the other request will complete the work)
     return {
-      success: true,
-      attendee: { id: existing.attendee_id } as Attendee,
-      event,
+      success: false,
+      error: "Payment is being processed. Please wait a moment and refresh.",
+      status: 409,
     };
   }
+
+  // We have the lock - proceed with attendee creation
 
   // Check if event exists
   const event = await getEventWithCount(intent.eventId);
@@ -150,10 +240,14 @@ const processPaymentSession = async (
 
   // Check if event is active
   if (event.active !== 1) {
-    return refundAndFail(session, "This event is no longer accepting registrations.");
+    return refundAndFail(
+      session,
+      "This event is no longer accepting registrations.",
+    );
   }
 
-  const paymentIntentId = session.payment_intent as string;
+  // Phase 2: Create attendee atomically with capacity check
+  const paymentIntentId = session.payment_intent;
   const result = await createAttendeeAtomic(
     intent.eventId,
     intent.name,
@@ -163,19 +257,32 @@ const processPaymentSession = async (
   );
 
   if (!result.success) {
-    await refundPayment(paymentIntentId);
+    const refunded = await tryRefund(paymentIntentId);
     const errorMsg =
       result.reason === "capacity_exceeded"
         ? "Sorry, this event sold out while you were completing payment."
         : "Registration failed.";
-    return { success: false, error: errorMsg, refunded: true };
+    return { success: false, error: errorMsg, refunded };
   }
 
-  // Mark session as processed for idempotency
-  await markSessionProcessed(sessionId, result.attendee.id);
+  // Phase 3: Finalize the session with the attendee ID
+  await finalizeSession(sessionId, result.attendee.id);
 
   await logAndNotifyRegistration(event, result.attendee);
   return { success: true, attendee: result.attendee, event };
+};
+
+/**
+ * Format error message based on refund status
+ */
+const formatPaymentError = (result: PaymentResult & { success: false }): string => {
+  if (result.refunded === true) {
+    return `${result.error} Your payment has been automatically refunded.`;
+  }
+  if (result.refunded === false) {
+    return `${result.error} Please contact support for a refund.`;
+  }
+  return result.error;
 };
 
 /**
@@ -183,7 +290,7 @@ const processPaymentSession = async (
  *
  * Atomically creates attendee with capacity check. If event is full after
  * payment completed, automatically refunds and shows error.
- * Uses idempotency to handle duplicate requests safely.
+ * Uses two-phase locking to handle duplicate requests safely.
  */
 const handlePaymentSuccess = withSessionId(async (sessionId) => {
   const validation = await validatePaidSession(sessionId);
@@ -193,13 +300,12 @@ const handlePaymentSuccess = withSessionId(async (sessionId) => {
   const result = await processPaymentSession(sessionId, session, intent);
 
   if (!result.success) {
-    const message = result.refunded
-      ? `${result.error} Your payment has been automatically refunded.`
-      : result.error;
-    return paymentErrorResponse(message, result.status);
+    return paymentErrorResponse(formatPaymentError(result), result.status);
   }
 
-  return htmlResponse(paymentSuccessPage(result.event, result.event.thank_you_url));
+  return htmlResponse(
+    paymentSuccessPage(result.event, result.event.thank_you_url),
+  );
 });
 
 /**
@@ -208,15 +314,17 @@ const handlePaymentSuccess = withSessionId(async (sessionId) => {
  * No attendee cleanup needed - attendee is only created after successful payment.
  */
 const handlePaymentCancel = withSessionId(async (sid) => {
-  const session = await retrieveCheckoutSession(sid);
-  if (!session) {
+  const rawSession = await retrieveCheckoutSession(sid);
+  if (!rawSession) {
     return paymentErrorResponse("Payment session not found");
   }
 
-  const intent = extractIntent(session);
-  if (!intent) {
+  const session = validateCheckoutSession(rawSession);
+  if (!session) {
     return paymentErrorResponse("Invalid payment session data");
   }
+
+  const intent = extractIntent(session);
 
   // Use getEvent (not getEventWithCount) - we only need slug for redirect
   const event = await getEvent(intent.eventId);
@@ -235,23 +343,53 @@ const handlePaymentCancel = withSessionId(async (sid) => {
  * Uses signature verification for security.
  */
 
-/** Extract checkout session data from webhook event */
+/**
+ * Validated webhook session data with required fields.
+ */
+type WebhookSessionData = {
+  id: string;
+  payment_status: string;
+  payment_intent: string | null;
+  metadata: SessionMetadata;
+};
+
+/**
+ * Validate webhook event data and extract session.
+ * Returns null if event type doesn't match or data is invalid.
+ */
 const extractSessionFromEvent = (
   event: StripeWebhookEvent,
-): CheckoutSession | null => {
+): ValidatedCheckoutSession | null => {
   if (event.type !== "checkout.session.completed") {
     return null;
   }
-  const obj = event.data.object;
-  // Validate required fields
+
+  const obj = event.data.object as Partial<WebhookSessionData>;
+
+  // Validate required fields with strict type checking
   if (
     typeof obj.id !== "string" ||
     typeof obj.payment_status !== "string" ||
-    !obj.metadata
+    !obj.metadata ||
+    typeof obj.metadata.event_id !== "string" ||
+    typeof obj.metadata.name !== "string" ||
+    typeof obj.metadata.email !== "string"
   ) {
     return null;
   }
-  return obj as unknown as CheckoutSession;
+
+  return {
+    id: obj.id,
+    payment_status: obj.payment_status as ValidatedCheckoutSession["payment_status"],
+    payment_intent:
+      typeof obj.payment_intent === "string" ? obj.payment_intent : null,
+    metadata: {
+      event_id: obj.metadata.event_id,
+      name: obj.metadata.name,
+      email: obj.metadata.email,
+      quantity: obj.metadata.quantity,
+    },
+  };
 };
 
 /**
@@ -302,11 +440,8 @@ const handleStripeWebhook = async (request: Request): Promise<Response> => {
 
   // Extract intent from metadata
   const intent = extractIntent(session);
-  if (!intent) {
-    return new Response("Missing registration metadata", { status: 400 });
-  }
 
-  // Process the payment (with idempotency)
+  // Process the payment (with two-phase locking)
   const result = await processPaymentSession(session.id, session, intent);
 
   if (!result.success) {
