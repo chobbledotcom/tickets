@@ -4,15 +4,16 @@
 
 import { type Client, createClient, type InValue, type ResultSet } from "@libsql/client";
 import { lazyRef } from "#fp";
+import { getEnv } from "#lib/env.ts";
 
 const createDbClient = (): Client => {
-  const url = Deno.env.get("DB_URL");
+  const url = getEnv("DB_URL");
   if (!url) {
     throw new Error("DB_URL environment variable is required");
   }
   return createClient({
     url,
-    authToken: Deno.env.get("DB_TOKEN"),
+    authToken: getEnv("DB_TOKEN"),
   });
 };
 

@@ -10,6 +10,7 @@ import {
   getStripeSecretKey,
   getStripeWebhookSecret,
 } from "#lib/config.ts";
+import { getEnv } from "#lib/env.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#lib/logger.ts";
 import type { Event } from "#lib/types.ts";
 
@@ -38,11 +39,11 @@ const safeAsync = async <T>(
  * Get Stripe client configuration for mock server (if configured)
  */
 const getMockConfig = once((): Stripe.StripeConfig | undefined => {
-  const mockHost = Deno.env.get("STRIPE_MOCK_HOST");
+  const mockHost = getEnv("STRIPE_MOCK_HOST");
   if (!mockHost) return undefined;
 
   const mockPort = Number.parseInt(
-    Deno.env.get("STRIPE_MOCK_PORT") || "12111",
+    getEnv("STRIPE_MOCK_PORT") || "12111",
     10,
   );
   return {

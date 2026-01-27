@@ -77,7 +77,9 @@ const result = reduce((acc, item) => {
 
 ## Environment Variables
 
-### Required
+Environment variables are configured as **Bunny native secrets** in the Bunny Edge Scripting dashboard. They are read at runtime via `process.env`.
+
+### Required (configure in Bunny dashboard)
 
 - `DB_URL` - Database URL (required, e.g. `libsql://your-db.turso.io`)
 - `DB_TOKEN` - Database auth token (required for remote databases)
@@ -86,7 +88,7 @@ const result = reduce((acc, item) => {
 
 ### Optional
 
-- `PORT` - Server port (defaults to 3000)
+- `PORT` - Server port (defaults to 3000, local dev only)
 
 ### Stripe Configuration
 

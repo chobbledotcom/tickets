@@ -50,18 +50,25 @@ All other configuration (admin password, Stripe keys, currency) is set through t
 
 ### GitHub Secrets
 
-Add these secrets to your GitHub repository for Bunny Edge deployment:
+Add these secrets to your GitHub repository for deployment:
 
 | Secret | Description |
 |--------|-------------|
-| `DB_URL` | LibSQL database URL |
-| `DB_TOKEN` | Database auth token |
 | `BUNNY_SCRIPT_ID` | Bunny Edge script ID |
 | `BUNNY_ACCESS_KEY` | Bunny API access key |
 
-### Build Process
+### Bunny Native Secrets
 
-Environment variables are inlined at build time since Bunny Edge doesn't support runtime environment variables. The build script (`scripts/build-edge.ts`) handles this automatically.
+Configure these environment variables in the Bunny Edge Scripting dashboard:
+
+| Variable | Description |
+|----------|-------------|
+| `DB_URL` | LibSQL database URL |
+| `DB_TOKEN` | Database auth token |
+| `DB_ENCRYPTION_KEY` | 32-byte base64-encoded encryption key |
+| `ALLOWED_DOMAIN` | Domain for security validation |
+
+### Build Process
 
 ```bash
 # Build for edge deployment

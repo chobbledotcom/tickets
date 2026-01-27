@@ -60,7 +60,7 @@ const getHostname = (host: string): string => {
 };
 
 /**
- * Validate request domain against ALLOWED_DOMAIN (build-time config).
+ * Validate request domain against ALLOWED_DOMAIN.
  * Checks the Host header to prevent the app being served through unauthorized proxies.
  * Returns true if the request should be allowed.
  */
