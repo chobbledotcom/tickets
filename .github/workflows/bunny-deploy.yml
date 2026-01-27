@@ -30,8 +30,6 @@ jobs:
 
       - name: Build edge script
         run: deno task build:edge
-        # Secrets are now configured via Bunny's native environment variables
-        # No need to pass them at build time
 
       - name: Deploy Script to Bunny Edge Scripting
         uses: BunnyWay/actions/deploy-script@main

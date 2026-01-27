@@ -77,7 +77,7 @@ const result = reduce((acc, item) => {
 
 ## Environment Variables
 
-Environment variables are configured as **Bunny native secrets** in the Bunny Edge Scripting dashboard. They are read at runtime via `process.env`, not inlined at build time.
+Environment variables are configured as **Bunny native secrets** in the Bunny Edge Scripting dashboard. They are read at runtime via `process.env`.
 
 ### Required (configure in Bunny dashboard)
 
