@@ -4,6 +4,7 @@
  */
 
 import { lazyRef } from "#fp";
+import { getEnv } from "#lib/env.ts";
 
 /**
  * Constant-time string comparison to prevent timing attacks
@@ -106,7 +107,7 @@ const [getKeyCache, setKeyCache] = lazyRef<KeyCache>(() => {
  * Expects DB_ENCRYPTION_KEY to be a base64-encoded 256-bit (32 byte) key
  */
 const getEncryptionKeyString = (): string => {
-  const keyString = Deno.env.get("DB_ENCRYPTION_KEY");
+  const keyString = getEnv("DB_ENCRYPTION_KEY");
 
   if (!keyString) {
     throw new Error(
@@ -237,7 +238,7 @@ const PBKDF2_ITERATIONS_TEST = 1000; // Fast iterations for tests
 
 // Use test iterations when TEST_PBKDF2_ITERATIONS env var is set
 const getPbkdf2Iterations = (): number =>
-  Deno.env.get("TEST_PBKDF2_ITERATIONS")
+  getEnv("TEST_PBKDF2_ITERATIONS")
     ? PBKDF2_ITERATIONS_TEST
     : PBKDF2_ITERATIONS_DEFAULT;
 const PBKDF2_HASH_LENGTH = 32; // Output key length in bytes

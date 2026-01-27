@@ -10,6 +10,7 @@ import {
   getStripeWebhookSecretFromDb,
   isSetupComplete,
 } from "#lib/db/settings.ts";
+import { getEnv } from "#lib/env.ts";
 
 /**
  * Get Stripe secret key from database (encrypted)
@@ -24,7 +25,7 @@ export const getStripeSecretKey = (): Promise<string | null> => {
  * Returns null if not set
  */
 export const getStripePublishableKey = (): string | null => {
-  const key = Deno.env.get("STRIPE_PUBLISHABLE_KEY");
+  const key = getEnv("STRIPE_PUBLISHABLE_KEY");
   return key && key.trim() !== "" ? key : null;
 };
 
@@ -52,11 +53,11 @@ export const getCurrencyCode = (): Promise<string> => {
 };
 
 /**
- * Get allowed domain for security validation (build-time config)
- * This is a required build-time configuration that hardens origin validation
+ * Get allowed domain for security validation (runtime config via Bunny secrets)
+ * This is a required configuration that hardens origin validation
  */
 export const getAllowedDomain = (): string => {
-  return Deno.env.get("ALLOWED_DOMAIN") as string;
+  return getEnv("ALLOWED_DOMAIN") as string;
 };
 
 /**

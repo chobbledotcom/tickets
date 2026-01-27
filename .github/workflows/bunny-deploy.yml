@@ -30,13 +30,8 @@ jobs:
 
       - name: Build edge script
         run: deno task build:edge
-        env:
-          DB_URL: ${{ secrets.DB_URL }}
-          DB_TOKEN: ${{ secrets.DB_TOKEN }}
-          DB_ENCRYPTION_KEY: ${{ secrets.DB_ENCRYPTION_KEY }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          CURRENCY_CODE: ${{ secrets.CURRENCY_CODE || 'GBP' }}
-          ALLOWED_DOMAIN: ${{ secrets.ALLOWED_DOMAIN }}
+        # Secrets are now configured via Bunny's native environment variables
+        # No need to pass them at build time
 
       - name: Deploy Script to Bunny Edge Scripting
         uses: BunnyWay/actions/deploy-script@main

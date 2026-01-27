@@ -1,7 +1,7 @@
 /**
  * Build script for Bunny Edge deployment
  * Bundles edge script into a single deployable file
- * Inlines environment variables since they're not available at edge runtime
+ * Secrets are read at runtime via Bunny's native environment variables
  */
 
 import * as esbuild from "esbuild";
@@ -50,74 +50,8 @@ const inlineAssetsPlugin: Plugin = {
   },
 };
 
-/**
- * Plugin to inline Deno.env.get() calls at build time
- * Replaces Deno.env.get("KEY") with the actual value from build environment
- */
-const inlineEnvPlugin = (envVars: Record<string, string>): Plugin => ({
-  name: "inline-deno-env",
-  setup(build) {
-    build.onLoad({ filter: /\.ts$/ }, async (args) => {
-      // Skip node_modules and virtual paths (handled by other plugins)
-      if (args.path.includes("node_modules")) return null;
-      if (args.namespace !== "file") return null;
-
-      let source: string;
-      try {
-        source = await Deno.readTextFile(args.path);
-      } catch {
-        return null;
-      }
-
-      // Replace Deno.env.get("KEY") with the inlined value
-      const transformed = source.replace(
-        /Deno\.env\.get\(["'](\w+)["']\)/g,
-        (match, key) => {
-          if (key in envVars) {
-            return JSON.stringify(envVars[key]);
-          }
-          // Keep original for unknown keys (will fail at runtime, which is correct)
-          return match;
-        },
-      );
-
-      if (transformed === source) return null;
-
-      return { contents: transformed, loader: "ts" };
-    });
-  },
-});
-
-// Environment variable configuration: undefined = required, string = default value
-const ENV_CONFIG: Record<string, string | undefined> = {
-  DB_URL: undefined,
-  DB_TOKEN: undefined,
-  DB_ENCRYPTION_KEY: undefined,
-  ALLOWED_DOMAIN: undefined,
-  STRIPE_SECRET_KEY: "",
-  CURRENCY_CODE: "GBP",
-};
-
-const missing = Object.entries(ENV_CONFIG)
-  .filter(([key, defaultVal]) => defaultVal === undefined && !Deno.env.get(key))
-  .map(([key]) => key);
-
-if (missing.length > 0) {
-  console.error(
-    `Missing required environment variables: ${missing.join(", ")}`,
-  );
-  Deno.exit(1);
-}
-
-// Read env vars with defaults
-const ENV_VARS = Object.fromEntries(
-  Object.entries(ENV_CONFIG).map(([key, defaultVal]) => [
-    key,
-    Deno.env.get(key) ?? defaultVal ?? "",
-  ]),
-);
-
 // Banner to inject Node.js globals that many packages expect (per Bunny docs)
+// process.env is populated by Bunny's native secrets at runtime
 const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
 import { Buffer } from "node:buffer";
 globalThis.process ??= process;
@@ -132,18 +66,12 @@ const result = await esbuild.build({
   format: "esm",
   minify: true,
   bundle: true,
-  plugins: [inlineEnvPlugin(ENV_VARS), inlineAssetsPlugin],
+  plugins: [inlineAssetsPlugin],
   external: [
     "@bunny.net/edgescript-sdk",
     "@libsql/client",
     "@libsql/client/web",
   ],
-  define: Object.fromEntries(
-    Object.entries(ENV_VARS).map(([key, value]) => [
-      `process.env.${key}`,
-      JSON.stringify(value),
-    ]),
-  ),
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
 
@@ -169,7 +97,7 @@ try {
 const finalContent = content
   .replace(
     /from\s+["']@bunny\.net\/edgescript-sdk["']/g,
-    'from "https://esm.sh/@bunny.net/edgescript-sdk@0.10.0"',
+    'from "https://esm.sh/@bunny.net/edgescript-sdk@0.11.0"',
   )
   .replace(
     /from\s+["']@libsql\/client\/web["']/g,
