@@ -6,11 +6,15 @@
 
 import * as esbuild from "esbuild";
 import type { Plugin } from "esbuild";
+import { minifyCss } from "./css-minify.ts";
 
 // Read static assets at build time for inlining
+const rawCss = await Deno.readTextFile("./src/static/mvp.css");
+const minifiedCss = await minifyCss(rawCss);
+
 const STATIC_ASSETS: Record<string, string> = {
   "favicon.svg": await Deno.readTextFile("./src/static/favicon.svg"),
-  "mvp.css": await Deno.readTextFile("./src/static/mvp.css"),
+  "mvp.css": minifiedCss,
 };
 
 /**
