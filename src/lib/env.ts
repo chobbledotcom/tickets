@@ -27,14 +27,3 @@ export function getEnv(key: string): string | undefined {
 
   return undefined;
 }
-
-/**
- * Get a required environment variable, throws if not set
- */
-export function requireEnv(key: string): string {
-  const value = getEnv(key);
-  if (value === undefined || value === "") {
-    throw new Error(`Required environment variable ${key} is not set`);
-  }
-  return value;
-}
