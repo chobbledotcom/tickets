@@ -289,7 +289,7 @@ export const awaitTestRequest = async (
   path: string,
   tokenOrOptions?: string | TestRequestOptions | null,
 ): Promise<Response> => {
-  const { handleRequest } = await import("#src/server.ts");
+  const { handleRequest } = await import("#routes");
   if (typeof tokenOrOptions === "object" && tokenOrOptions !== null) {
     return handleRequest(testRequest(path, null, tokenOrOptions));
   }
@@ -330,7 +330,7 @@ const getTestSession = async (): Promise<{
 }> => {
   if (testSession) return testSession;
 
-  const { handleRequest } = await import("#src/server.ts");
+  const { handleRequest } = await import("#routes");
   const loginResponse = await handleRequest(
     mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
   );
@@ -361,7 +361,7 @@ const authenticatedFormRequest = async <T>(
   errorContext: string,
 ): Promise<T> => {
   const session = await getTestSession();
-  const { handleRequest } = await import("#src/server.ts");
+  const { handleRequest } = await import("#routes");
 
   const response = await handleRequest(
     mockFormRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
@@ -503,7 +503,7 @@ export const createTestAttendee = async (
   email: string,
   quantity = 1,
 ): Promise<Attendee> => {
-  const { handleRequest } = await import("#src/server.ts");
+  const { handleRequest } = await import("#routes");
 
   // Get count before to find the new attendee
   const beforeAttendees = await getAttendeesRaw(eventId);

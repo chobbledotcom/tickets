@@ -8,7 +8,7 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ENCRYPTION_KEY,
 } from "#test-utils";
-import { handleRequest } from "#src/server.ts";
+import { handleRequest } from "#routes";
 import { getAuthenticatedSession, getPrivateKey } from "#routes/utils.ts";
 
 // Set ALLOWED_DOMAIN for security middleware (required for login)

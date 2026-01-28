@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { createClient } from "@libsql/client";
+import { createClient, type InValue } from "@libsql/client";
 import { setDb } from "#lib/db/client.ts";
 import { initDb } from "#lib/db/migrations/index.ts";
 import { createSession } from "#lib/db/sessions.ts";
@@ -393,7 +393,7 @@ describe("rest/handlers", () => {
     /** Standard update handler options */
     const updateOpts = () => ({
       onSuccess: successResponse(200, "Updated"),
-      onError: (_id: number, error: string) => new Response(error, { status: 400 }),
+      onError: (_id: InValue, error: string) => new Response(error, { status: 400 }),
       onNotFound: successResponse(404, "Not Found"),
     });
 
