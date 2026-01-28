@@ -2458,6 +2458,243 @@ describe("server", () => {
     });
   });
 
+  describe("GET /ticket/:slug1+:slug2 (multi-ticket)", () => {
+    test("returns 404 when no valid events", async () => {
+      const response = await handleRequest(
+        mockRequest("/ticket/nonexistent1+nonexistent2"),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("shows multi-ticket page for multiple existing events", async () => {
+      const event1 = await createTestEvent({
+        slug: "multi-event-1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-event-2",
+        maxAttendees: 100,
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Reserve Tickets");
+      expect(html).toContain(event1.slug);
+      expect(html).toContain(event2.slug);
+      expect(html).toContain("Select Tickets");
+    });
+
+    test("shows sold-out label for full events", async () => {
+      const event1 = await createTestEvent({
+        slug: "multi-available",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-full",
+        maxAttendees: 1,
+      });
+      // Fill up event2
+      await createAttendeeAtomic(event2.id, "John", "john@example.com", null, 1);
+
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Sold Out");
+    });
+
+    test("filters out inactive events", async () => {
+      const event1 = await createTestEvent({
+        slug: "multi-active",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-inactive",
+        maxAttendees: 50,
+      });
+      await deactivateTestEvent(event2.id);
+
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      // The active event should have a quantity selector
+      expect(html).toContain(`quantity_${event1.id}`);
+      // The inactive event should not have a quantity selector
+      expect(html).not.toContain(`quantity_${event2.id}`);
+    });
+
+    test("returns 404 when all events are inactive", async () => {
+      const event1 = await createTestEvent({
+        slug: "all-inactive-1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        slug: "all-inactive-2",
+        maxAttendees: 50,
+      });
+      await deactivateTestEvent(event1.id);
+      await deactivateTestEvent(event2.id);
+
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /ticket/:slug1+:slug2 (multi-ticket)", () => {
+    /** Helper to submit multi-ticket form with CSRF */
+    const submitMultiTicketForm = async (
+      slugs: string[],
+      data: Record<string, string>,
+    ): Promise<Response> => {
+      const path = `/ticket/${slugs.join("+")}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      return handleRequest(
+        mockFormRequest(path, { ...data, csrf_token: csrfToken }, `csrf_token=${csrfToken}`),
+      );
+    };
+
+    test("returns 404 when no valid events", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/ticket/nonexistent1+nonexistent2", {
+          name: "John",
+          email: "john@example.com",
+        }),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("validates name is required", async () => {
+      const event1 = await createTestEvent({
+        slug: "post-multi-1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        slug: "post-multi-2",
+        maxAttendees: 50,
+      });
+      const response = await submitMultiTicketForm([event1.slug, event2.slug], {
+        name: "",
+        email: "john@example.com",
+        [`quantity_${event1.id}`]: "1",
+      });
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("required");
+    });
+
+    test("requires at least one ticket selected", async () => {
+      const event1 = await createTestEvent({
+        slug: "post-multi-empty-1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        slug: "post-multi-empty-2",
+        maxAttendees: 50,
+      });
+      const response = await submitMultiTicketForm([event1.slug, event2.slug], {
+        name: "John Doe",
+        email: "john@example.com",
+        [`quantity_${event1.id}`]: "0",
+        [`quantity_${event2.id}`]: "0",
+      });
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Please select at least one ticket");
+    });
+
+    test("creates attendees for selected free events", async () => {
+      const event1 = await createTestEvent({
+        slug: "post-multi-free-1",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        slug: "post-multi-free-2",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const response = await submitMultiTicketForm([event1.slug, event2.slug], {
+        name: "John Doe",
+        email: "john@example.com",
+        [`quantity_${event1.id}`]: "2",
+        [`quantity_${event2.id}`]: "1",
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("success");
+
+      // Verify attendees were created
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(event1.id);
+      const attendees2 = await getAttendeesRaw(event2.id);
+      expect(attendees1.length).toBe(1);
+      expect(attendees1[0]?.quantity).toBe(2);
+      expect(attendees2.length).toBe(1);
+      expect(attendees2[0]?.quantity).toBe(1);
+    });
+
+    test("only registers for events with quantity > 0", async () => {
+      const event1 = await createTestEvent({
+        slug: "post-multi-partial-1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        slug: "post-multi-partial-2",
+        maxAttendees: 50,
+      });
+      const response = await submitMultiTicketForm([event1.slug, event2.slug], {
+        name: "John Doe",
+        email: "john@example.com",
+        [`quantity_${event1.id}`]: "1",
+        [`quantity_${event2.id}`]: "0",
+      });
+      expect(response.status).toBe(200);
+
+      // Verify only event1 has an attendee
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(event1.id);
+      const attendees2 = await getAttendeesRaw(event2.id);
+      expect(attendees1.length).toBe(1);
+      expect(attendees2.length).toBe(0);
+    });
+
+    test("caps quantity at max purchasable", async () => {
+      const event1 = await createTestEvent({
+        slug: "post-multi-cap-1",
+        maxAttendees: 3,
+        maxQuantity: 2,
+      });
+      const event2 = await createTestEvent({
+        slug: "post-multi-cap-2",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const response = await submitMultiTicketForm([event1.slug, event2.slug], {
+        name: "John Doe",
+        email: "john@example.com",
+        [`quantity_${event1.id}`]: "10", // Request more than max
+        [`quantity_${event2.id}`]: "0",
+      });
+      expect(response.status).toBe(200);
+
+      // Verify quantity was capped
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const attendees = await getAttendeesRaw(event1.id);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]?.quantity).toBe(2); // Capped at maxQuantity
+    });
+  });
+
   describe("404 handling", () => {
     test("returns 404 for unknown routes", async () => {
       const response = await handleRequest(mockRequest("/unknown/path"));

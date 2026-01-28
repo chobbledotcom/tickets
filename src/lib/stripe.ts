@@ -149,6 +149,10 @@ export const stripeApi: {
     intent: RegistrationIntent,
     baseUrl: string,
   ) => Promise<Stripe.Checkout.Session | null>;
+  createMultiCheckoutSession: (
+    intent: MultiRegistrationIntent,
+    baseUrl: string,
+  ) => Promise<Stripe.Checkout.Session | null>;
   setupWebhookEndpoint: (
     secretKey: string,
     webhookUrl: string,
@@ -201,6 +205,57 @@ export const stripeApi: {
       : null;
   },
 
+  /** Create checkout session for multi-event registration */
+  createMultiCheckoutSession: async (
+    intent: MultiRegistrationIntent,
+    baseUrl: string,
+  ): Promise<Stripe.Checkout.Session | null> => {
+    const currency = (await getCurrencyCode()).toLowerCase();
+
+    // Build line items for each event
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
+      intent.items.map((item) => ({
+        price_data: {
+          currency,
+          product_data: {
+            name: `Ticket: ${item.slug}`,
+            description:
+              item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
+          },
+          unit_amount: item.unitPrice,
+        },
+        quantity: item.quantity,
+      }));
+
+    // Serialize items for metadata (JSON encoded)
+    const itemsJson = JSON.stringify(
+      intent.items.map((i) => ({
+        e: i.eventId,
+        q: i.quantity,
+      })),
+    );
+
+    const params: Stripe.Checkout.SessionCreateParams = {
+      payment_method_types: ["card"],
+      line_items: lineItems,
+      mode: "payment",
+      success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
+      customer_email: intent.email,
+      metadata: {
+        multi: "1",
+        name: intent.name,
+        email: intent.email,
+        items: itemsJson,
+      },
+    };
+
+    return withClient(
+      (stripe) => stripe.checkout.sessions.create(params),
+      ErrorCode.STRIPE_CHECKOUT,
+    );
+  },
+
   // Placeholder - will be set after setupWebhookEndpointImpl is defined
   setupWebhookEndpoint: null as unknown as (
     secretKey: string,
@@ -215,6 +270,21 @@ export type RegistrationIntent = {
   name: string;
   email: string;
   quantity: number;
+};
+
+/** Single event registration within a multi-event order */
+export type MultiRegistrationItem = {
+  eventId: number;
+  quantity: number;
+  unitPrice: number;
+  slug: string;
+};
+
+/** Multi-event registration intent stored in Stripe session metadata */
+export type MultiRegistrationIntent = {
+  name: string;
+  email: string;
+  items: MultiRegistrationItem[];
 };
 
 /**
@@ -302,6 +372,10 @@ export const createCheckoutSessionWithIntent = (
   i: RegistrationIntent,
   b: string,
 ) => stripeApi.createCheckoutSessionWithIntent(e, i, b);
+export const createMultiCheckoutSession = (
+  i: MultiRegistrationIntent,
+  b: string,
+) => stripeApi.createMultiCheckoutSession(i, b);
 
 /**
  * =============================================================================

@@ -2,11 +2,15 @@
  * Public page templates - ticket reservation pages
  */
 
+import { map, pipe } from "#fp";
 import { renderError, renderFields } from "#lib/forms.tsx";
 import type { EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { ticketFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+
+/** Quantity values parsed from multi-ticket form */
+export type MultiTicketQuantities = Map<number, number>;
 
 /**
  * Build quantity select options
@@ -65,3 +69,90 @@ export const notFoundPage = (): string =>
       <h1>Not Found</h1>
     </Layout>
   );
+
+/** Event info for multi-ticket display */
+export type MultiTicketEvent = {
+  event: EventWithCount;
+  isSoldOut: boolean;
+  maxPurchasable: number;
+};
+
+/** Build multi-ticket event info from event */
+export const buildMultiTicketEvent = (
+  event: EventWithCount,
+): MultiTicketEvent => {
+  const spotsRemaining = event.max_attendees - event.attendee_count;
+  const isSoldOut = spotsRemaining <= 0;
+  const maxPurchasable = isSoldOut
+    ? 0
+    : Math.min(event.max_quantity, spotsRemaining);
+  return { event, isSoldOut, maxPurchasable };
+};
+
+/** Render quantity selector for a single event in multi-ticket form */
+const renderMultiEventRow = (info: MultiTicketEvent): string => {
+  const { event, isSoldOut, maxPurchasable } = info;
+  const fieldName = `quantity_${event.id}`;
+
+  if (isSoldOut) {
+    return `
+      <div class="multi-ticket-row sold-out">
+        <label>${event.slug}</label>
+        <span class="sold-out-label">Sold Out</span>
+      </div>
+    `;
+  }
+
+  const options = Array.from({ length: maxPurchasable + 1 }, (_, i) => i)
+    .map((n) => `<option value="${n}">${n}</option>`)
+    .join("");
+
+  return `
+    <div class="multi-ticket-row">
+      <label for="${fieldName}">${event.slug}</label>
+      <select name="${fieldName}" id="${fieldName}">
+        ${options}
+      </select>
+    </div>
+  `;
+};
+
+/**
+ * Multi-ticket page - register for multiple events at once
+ */
+export const multiTicketPage = (
+  events: MultiTicketEvent[],
+  slugs: string[],
+  csrfToken: string,
+  error?: string,
+): string => {
+  const allSoldOut = events.every((e) => e.isSoldOut);
+  const formAction = `/ticket/${slugs.join("+")}`;
+
+  const eventRows = pipe(
+    map(renderMultiEventRow),
+    (rows: string[]) => rows.join(""),
+  )(events);
+
+  return String(
+    <Layout title="Reserve Tickets">
+      <Raw html={renderError(error)} />
+
+      {allSoldOut ? (
+        <div class="error">Sorry, all events are sold out.</div>
+      ) : (
+        <form method="POST" action={formAction}>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <Raw html={renderFields(ticketFields)} />
+
+          <fieldset class="multi-ticket-events">
+            <legend>Select Tickets</legend>
+            <Raw html={eventRows} />
+          </fieldset>
+
+          <button type="submit">Reserve Tickets</button>
+        </form>
+      )}
+    </Layout>
+  );
+};

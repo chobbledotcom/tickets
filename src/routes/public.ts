@@ -2,26 +2,27 @@
  * Public routes - ticket reservation
  */
 
+import { compact, filter, map, pipe, reduce } from "#fp";
 import { isPaymentsEnabled } from "#lib/config.ts";
 import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
+import { getEventsBySlugsBatch } from "#lib/db/events.ts";
 import { validateForm } from "#lib/forms.tsx";
 import {
   createCheckoutSessionWithIntent,
+  createMultiCheckoutSession,
+  type MultiRegistrationIntent,
+  type MultiRegistrationItem,
   type RegistrationIntent,
 } from "#lib/stripe.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
-import {
-  createRouter,
-  defineRoutes,
-  type RouteParams,
-} from "#routes/router.ts";
 import {
   csrfCookie,
   generateSecureToken,
   getBaseUrl,
   htmlResponse,
   htmlResponseWithCookie,
+  notFoundResponse,
   parseCookies,
   redirect,
   requireCsrfForm,
@@ -29,25 +30,40 @@ import {
 } from "#routes/utils.ts";
 import { ticketFields } from "#templates/fields.ts";
 import { reservationSuccessPage } from "#templates/payment.tsx";
-import { ticketPage } from "#templates/public.tsx";
+import {
+  buildMultiTicketEvent,
+  type MultiTicketEvent,
+  multiTicketPage,
+  ticketPage,
+} from "#templates/public.tsx";
 
 /**
  * Handle GET / (home page) - redirect to admin
  */
 export const handleHome = (): Response => redirect("/admin/");
 
+/** Create curried response builder with CSRF cookie */
+const makeCsrfResponseBuilder =
+  <P extends unknown[]>(
+    getPath: (...params: P) => string,
+    getContent: (token: string, error: string | undefined, ...params: P) => string,
+  ) =>
+  (...params: P) =>
+  (token: string) =>
+  (error?: string, status = 200) =>
+    htmlResponseWithCookie(csrfCookie(token, getPath(...params)))(
+      getContent(token, error, ...params),
+      status,
+    );
+
 /** Path for ticket CSRF cookies */
 const ticketCsrfPath = (slug: string): string => `/ticket/${slug}`;
 
-/** Ticket response with CSRF cookie - curried to thread event and token through */
-const ticketResponseWithCookie =
-  (event: EventWithCount) =>
-  (token: string) =>
-  (error?: string, status = 200) =>
-    htmlResponseWithCookie(csrfCookie(token, ticketCsrfPath(event.slug)))(
-      ticketPage(event, token, error),
-      status,
-    );
+/** Ticket response with CSRF cookie */
+const ticketResponseWithCookie = makeCsrfResponseBuilder(
+  (event: EventWithCount) => ticketCsrfPath(event.slug),
+  (token, error, event) => ticketPage(event, token, error),
+);
 
 /** Ticket response without cookie - for validation errors after CSRF passed */
 const ticketResponse =
@@ -86,43 +102,42 @@ type ReservationParams = {
   token: string;
 };
 
-/**
- * Handle payment flow for ticket purchase.
- * Creates Stripe session with registration intent - no attendee yet.
- * Attendee is created atomically after payment confirmation.
- */
+/** Try to redirect to checkout, or return error using provided handler */
+const tryCheckoutRedirect = <T>(
+  sessionUrl: string | undefined | null,
+  errorHandler: () => T,
+): Response | T => (sessionUrl ? redirect(sessionUrl) : errorHandler());
+
+/** Handle payment flow for single-ticket purchase */
 const handlePaymentFlow = async (
   request: Request,
   event: EventWithCount,
   intent: RegistrationIntent,
   csrfToken: string,
 ): Promise<Response> => {
-  const baseUrl = getBaseUrl(request);
-  const session = await createCheckoutSessionWithIntent(event, intent, baseUrl);
-
-  if (session?.url) {
-    return redirect(session.url);
-  }
-
-  return ticketResponse(event, csrfToken)(
-    "Failed to create payment session. Please try again.",
-    500,
+  const session = await createCheckoutSessionWithIntent(
+    event,
+    intent,
+    getBaseUrl(request),
+  );
+  return tryCheckoutRedirect(session?.url, () =>
+    ticketResponse(event, csrfToken)(
+      "Failed to create payment session. Please try again.",
+      500,
+    ),
   );
 };
 
-/**
- * Parse and validate quantity from form
- * Returns at least 1, capped at max_quantity (availability checked separately)
- */
-const parseQuantity = (
-  form: URLSearchParams,
-  event: EventWithCount,
-): number => {
-  const raw = form.get("quantity") || "1";
+/** Parse and validate a quantity value from a raw string, capping at max */
+const parseQuantityValue = (raw: string, max: number, minDefault = 1): number => {
   const quantity = Number.parseInt(raw, 10);
-  if (Number.isNaN(quantity) || quantity < 1) return 1;
-  return Math.min(quantity, event.max_quantity);
+  if (Number.isNaN(quantity) || quantity < minDefault) return minDefault;
+  return Math.min(quantity, max);
 };
+
+/** Parse quantity from single-ticket form */
+const parseQuantity = (form: URLSearchParams, event: EventWithCount): number =>
+  parseQuantityValue(form.get("quantity") || "1", event.max_quantity);
 
 /** CSRF error response for ticket page */
 const ticketCsrfError = (event: EventWithCount) => (token: string) =>
@@ -151,25 +166,26 @@ const processPaidReservation = async (
   return handlePaymentFlow(request, event, intent, token);
 };
 
+/** Format error message for failed attendee creation */
+const formatAtomicError = (
+  reason: "capacity_exceeded" | "encryption_error",
+  eventSlug?: string,
+): string =>
+  reason === "capacity_exceeded"
+    ? eventSlug
+      ? `Sorry, ${eventSlug} no longer has enough spots available`
+      : "Sorry, not enough spots available"
+    : "Registration failed. Please try again.";
+
 /** Handle free event registration - atomic create with capacity check */
 const processFreeReservation = async (
   reservation: ReservationParams,
 ): Promise<Response> => {
   const { event, name, email, quantity, token } = reservation;
-  const result = await createAttendeeAtomic(
-    event.id,
-    name,
-    email,
-    null,
-    quantity,
-  );
+  const result = await createAttendeeAtomic(event.id, name, email, null, quantity);
 
   if (!result.success) {
-    const message =
-      result.reason === "capacity_exceeded"
-        ? "Sorry, not enough spots available"
-        : "Registration failed. Please try again.";
-    return ticketResponse(event, token)(message);
+    return ticketResponse(event, token)(formatAtomicError(result.reason));
   }
 
   await logAndNotifyRegistration(event, result.attendee);
@@ -227,15 +243,281 @@ export const handleTicketPost = (
     processTicketReservation(request, event),
   );
 
-/** Parse ticket slug from params */
-const parseTicketSlug = (params: RouteParams): string => params.slug ?? "";
+/** Check if slug contains multiple events (has + separator) */
+const isMultiSlug = (slug: string): boolean => slug.includes("+");
 
-/** Ticket routes definition */
-const ticketRoutes = defineRoutes({
-  "GET /ticket/:slug": (_, params) => handleTicketGet(parseTicketSlug(params)),
-  "POST /ticket/:slug": (request, params) =>
-    handleTicketPost(request, parseTicketSlug(params)),
-});
+/** Parse multi-ticket slugs from a combined slug string */
+const parseMultiSlugs = (slug: string): string[] =>
+  slug.split("+").filter((s) => s.length > 0);
 
-/** Route ticket requests */
-export const routeTicket = createRouter(ticketRoutes);
+/** Filter and transform events to active multi-ticket events */
+const getActiveMultiEvents = (
+  events: (EventWithCount | null)[],
+): MultiTicketEvent[] =>
+  pipe(
+    filter((e: EventWithCount) => e.active === 1),
+    map(buildMultiTicketEvent),
+  )(compact(events));
+
+/** CSRF path for multi-ticket form */
+const multiTicketCsrfPath = (slugs: string[]): string =>
+  `/ticket/${slugs.join("+")}`;
+
+/** Multi-ticket response with CSRF cookie */
+const multiTicketResponseWithCookie = makeCsrfResponseBuilder(
+  (slugs: string[], _events: MultiTicketEvent[]) => multiTicketCsrfPath(slugs),
+  (token, error, slugs, events) => multiTicketPage(events, slugs, token, error),
+);
+
+/** Multi-ticket response without cookie (for validation errors) */
+const multiTicketResponse =
+  (slugs: string[], events: MultiTicketEvent[], token: string) =>
+  (error: string, status = 400) =>
+    htmlResponse(multiTicketPage(events, slugs, token, error), status);
+
+/** Load and validate active events for multi-ticket, return 404 if none */
+const withActiveMultiEvents = async (
+  slugs: string[],
+  handler: (activeEvents: MultiTicketEvent[]) => Response | Promise<Response>,
+): Promise<Response> => {
+  const events = await getEventsBySlugsBatch(slugs);
+  const activeEvents = getActiveMultiEvents(events);
+  return activeEvents.length === 0 ? notFoundResponse() : handler(activeEvents);
+};
+
+/** Handle GET for multi-ticket page */
+const handleMultiTicketGet = (slugs: string[]): Promise<Response> =>
+  withActiveMultiEvents(slugs, (activeEvents) => {
+    const token = generateSecureToken();
+    return multiTicketResponseWithCookie(slugs, activeEvents)(token)();
+  });
+
+/** Parse quantity values from multi-ticket form */
+const parseMultiQuantities = (
+  form: URLSearchParams,
+  events: MultiTicketEvent[],
+): Map<number, number> => {
+  const quantities = new Map<number, number>();
+
+  for (const { event, isSoldOut, maxPurchasable } of events) {
+    if (isSoldOut) continue;
+
+    const raw = form.get(`quantity_${event.id}`) || "0";
+    const quantity = parseQuantityValue(raw, maxPurchasable, 0);
+    if (quantity > 0) {
+      quantities.set(event.id, quantity);
+    }
+  }
+
+  return quantities;
+};
+
+/** Filter events to those with selected quantity, returning event and quantity */
+const eventsWithQuantity = (
+  events: MultiTicketEvent[],
+  quantities: Map<number, number>,
+): Array<{ event: EventWithCount; qty: number }> =>
+  pipe(
+    map(({ event }: MultiTicketEvent) => ({
+      event,
+      qty: quantities.get(event.id) ?? 0,
+    })),
+    filter(({ qty }) => qty > 0),
+  )(events) as Array<{ event: EventWithCount; qty: number }>;
+
+/** Check if all selected events have available spots */
+const checkMultiAvailability = async (
+  events: MultiTicketEvent[],
+  quantities: Map<number, number>,
+): Promise<boolean> => {
+  for (const { event, qty } of eventsWithQuantity(events, quantities)) {
+    if (!(await hasAvailableSpots(event.id, qty))) return false;
+  }
+  return true;
+};
+
+/** Build multi-registration items from events and quantities */
+const buildMultiRegistrationItems = (
+  events: MultiTicketEvent[],
+  quantities: Map<number, number>,
+): MultiRegistrationItem[] =>
+  pipe(
+    filter(({ event }: MultiTicketEvent) => {
+      const qty = quantities.get(event.id);
+      return qty !== undefined && qty > 0;
+    }),
+    map(({ event }: MultiTicketEvent) => ({
+      eventId: event.id,
+      quantity: quantities.get(event.id) as number,
+      unitPrice: event.unit_price ?? 0,
+      slug: event.slug,
+    })),
+  )(events) as MultiRegistrationItem[];
+
+/** Check if any selected event requires payment */
+const anyRequiresPayment = async (
+  items: MultiRegistrationItem[],
+): Promise<boolean> => {
+  const paymentsEnabled = await isPaymentsEnabled();
+  if (!paymentsEnabled) return false;
+  return items.some((item) => item.unitPrice > 0);
+};
+
+/** Handle payment flow for multi-ticket purchase */
+const handleMultiPaymentFlow = async (
+  request: Request,
+  slugs: string[],
+  events: MultiTicketEvent[],
+  intent: MultiRegistrationIntent,
+  csrfToken: string,
+): Promise<Response> => {
+  const session = await createMultiCheckoutSession(intent, getBaseUrl(request));
+  return tryCheckoutRedirect(session?.url, () =>
+    multiTicketResponse(slugs, events, csrfToken)(
+      "Failed to create payment session. Please try again.",
+      500,
+    ),
+  );
+};
+
+/** Handle free multi-ticket registration */
+const processMultiFreeReservation = async (
+  events: MultiTicketEvent[],
+  quantities: Map<number, number>,
+  name: string,
+  email: string,
+): Promise<{ success: true } | { success: false; error: string }> => {
+  for (const { event, qty } of eventsWithQuantity(events, quantities)) {
+    const result = await createAttendeeAtomic(event.id, name, email, null, qty);
+    if (!result.success) {
+      return { success: false, error: formatAtomicError(result.reason, event.slug) };
+    }
+    await logAndNotifyRegistration(event, result.attendee);
+  }
+  return { success: true };
+};
+
+/** Handle POST for multi-ticket registration */
+const handleMultiTicketPost = (
+  request: Request,
+  slugs: string[],
+): Promise<Response> =>
+  withActiveMultiEvents(slugs, async (activeEvents) => {
+    const cookies = parseCookies(request);
+  const currentToken = cookies.get("csrf_token") || generateSecureToken();
+
+  // CSRF validation
+  const csrfError = (token: string) =>
+    multiTicketResponseWithCookie(slugs, activeEvents)(token)(
+      "Invalid or expired form. Please try again.",
+      403,
+    );
+
+  const csrfResult = await requireCsrfForm(request, csrfError);
+  if (!csrfResult.ok) return csrfResult.response;
+
+  const { form } = csrfResult;
+
+  // Validate name/email fields
+  const validation = validateForm(form, ticketFields);
+  if (!validation.valid) {
+    return multiTicketResponse(slugs, activeEvents, currentToken)(
+      validation.error,
+    );
+  }
+
+  const name = validation.values.name as string;
+  const email = validation.values.email as string;
+
+  // Parse quantities
+  const quantities = parseMultiQuantities(form, activeEvents);
+
+  // Check at least one ticket selected
+  const totalQuantity = reduce((sum: number, qty: number) => sum + qty, 0)(
+    Array.from(quantities.values()),
+  );
+  if (totalQuantity === 0) {
+    return multiTicketResponse(slugs, activeEvents, currentToken)(
+      "Please select at least one ticket",
+    );
+  }
+
+  // Build registration items
+  const items = buildMultiRegistrationItems(activeEvents, quantities);
+
+  // Check if payment required
+  if (await anyRequiresPayment(items)) {
+    // Check availability before creating Stripe session
+    const available = await checkMultiAvailability(activeEvents, quantities);
+    if (!available) {
+      return multiTicketResponse(slugs, activeEvents, currentToken)(
+        "Sorry, some tickets are no longer available",
+      );
+    }
+
+    const intent: MultiRegistrationIntent = { name, email, items };
+    return handleMultiPaymentFlow(
+      request,
+      slugs,
+      activeEvents,
+      intent,
+      currentToken,
+    );
+  }
+
+  // Free registration
+  const result = await processMultiFreeReservation(
+    activeEvents,
+    quantities,
+    name,
+    email,
+  );
+
+  if (!result.success) {
+    return multiTicketResponse(slugs, activeEvents, currentToken)(result.error);
+  }
+
+  return htmlResponse(reservationSuccessPage());
+  });
+
+/** Slug pattern for extracting slug from path */
+const SLUG_PATTERN = /^\/ticket\/(.+)$/;
+
+/** Extract slug from path */
+const extractSlugFromPath = (path: string): string | null => {
+  const match = path.match(SLUG_PATTERN);
+  return match?.[1] ?? null;
+};
+
+/** Route ticket requests - handles both single and multi-ticket */
+export const routeTicket = (
+  request: Request,
+  path: string,
+  method: string,
+): Promise<Response | null> => {
+  const slug = extractSlugFromPath(path);
+  if (!slug) return Promise.resolve(null);
+
+  // Check if this is a multi-ticket URL
+  if (isMultiSlug(slug)) {
+    const slugs = parseMultiSlugs(slug);
+
+    if (method === "GET") {
+      return handleMultiTicketGet(slugs);
+    }
+    if (method === "POST") {
+      return handleMultiTicketPost(request, slugs);
+    }
+    return Promise.resolve(null);
+  }
+
+  // Single ticket
+  if (method === "GET") {
+    return handleTicketGet(slug);
+  }
+  if (method === "POST") {
+    return handleTicketPost(request, slug);
+  }
+
+  return Promise.resolve(null);
+};

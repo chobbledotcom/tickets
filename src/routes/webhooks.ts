@@ -15,7 +15,7 @@
  */
 
 import type Stripe from "stripe";
-import { createAttendeeAtomic } from "#lib/db/attendees.ts";
+import { createAttendeeAtomic, deleteAttendee } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
   finalizeSession,
@@ -39,12 +39,17 @@ import {
 } from "#routes/utils.ts";
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 
+/** Parsed multi-ticket item from metadata */
+type MultiItem = { e: number; q: number };
+
 /** Common metadata structure for Stripe checkout sessions */
 type SessionMetadata = {
-  event_id: string;
+  event_id?: string;
   name: string;
   email: string;
   quantity?: string;
+  multi?: string;
+  items?: string;
 };
 
 /**
@@ -58,9 +63,14 @@ type ValidatedCheckoutSession = {
   metadata: SessionMetadata;
 };
 
+/** Check if session is a multi-ticket session */
+const isMultiSession = (metadata: SessionMetadata): boolean =>
+  metadata.multi === "1" && typeof metadata.items === "string";
+
 /**
  * Type guard to validate a Stripe checkout session has required fields.
  * Returns a strictly-typed session or null if validation fails.
+ * Supports both single-event and multi-event sessions.
  */
 const validateCheckoutSession = (
   session: Stripe.Checkout.Session,
@@ -71,7 +81,13 @@ const validateCheckoutSession = (
     return null;
   }
 
-  if (!metadata?.event_id || !metadata?.name || !metadata?.email) {
+  if (!metadata?.name || !metadata?.email) {
+    return null;
+  }
+
+  // Multi-ticket sessions have items instead of event_id
+  const isMulti = isMultiSession(metadata as SessionMetadata);
+  if (!isMulti && !metadata?.event_id) {
     return null;
   }
 
@@ -85,15 +101,17 @@ const validateCheckoutSession = (
       name: metadata.name,
       email: metadata.email,
       quantity: metadata.quantity,
+      multi: metadata.multi,
+      items: metadata.items,
     },
   };
 };
 
-/** Extract registration intent from validated session metadata */
+/** Extract registration intent from validated session metadata (single-ticket only) */
 const extractIntent = (
   session: ValidatedCheckoutSession,
 ): RegistrationIntent => ({
-  eventId: Number.parseInt(session.metadata.event_id, 10),
+  eventId: Number.parseInt(session.metadata.event_id ?? "0", 10),
   name: session.metadata.name,
   email: session.metadata.email,
   quantity: Number.parseInt(session.metadata.quantity || "1", 10),
@@ -109,11 +127,11 @@ const withSessionId =
       : Promise.resolve(paymentErrorResponse("Invalid payment callback"));
   };
 
-/** Validate session is retrieved and paid */
-type ValidatedSession = {
-  session: ValidatedCheckoutSession;
-  intent: RegistrationIntent;
-};
+/** Validated session data - either single or multi */
+type ValidatedSession =
+  | { type: "single"; session: ValidatedCheckoutSession; intent: RegistrationIntent }
+  | { type: "multi"; session: ValidatedCheckoutSession; intent: MultiIntent };
+
 type SessionValidation =
   | { ok: true; data: ValidatedSession }
   | { ok: false; response: Response };
@@ -146,8 +164,20 @@ const validatePaidSession = async (
     };
   }
 
+  // Check if this is a multi-ticket session
+  if (isMultiSession(session.metadata)) {
+    const multiIntent = extractMultiIntent(session);
+    if (!multiIntent) {
+      return {
+        ok: false,
+        response: paymentErrorResponse("Invalid multi-ticket session data"),
+      };
+    }
+    return { ok: true, data: { type: "multi", session, intent: multiIntent } };
+  }
+
   const intent = extractIntent(session);
-  return { ok: true, data: { session, intent } };
+  return { ok: true, data: { type: "single", session, intent } };
 };
 
 /** Result type for processPaymentSession */
@@ -188,6 +218,160 @@ const refundAndFail = async (
   return { success: false, error, status, refunded };
 };
 
+/** Return success result for an already-processed session */
+const alreadyProcessedResult = async (
+  eventId: number,
+  attendeeId: number,
+): Promise<PaymentResult> => {
+  const event = await getEventWithCount(eventId);
+  if (!event) return { success: false, error: "Event not found", status: 404 };
+  return { success: true, attendee: { id: attendeeId } as Attendee, event };
+};
+
+/** Parse multi-ticket items from metadata */
+const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
+  try {
+    const parsed = JSON.parse(itemsJson);
+    if (!Array.isArray(parsed)) return null;
+    return parsed as MultiItem[];
+  } catch {
+    return null;
+  }
+};
+
+/** Multi-ticket registration intent */
+type MultiIntent = {
+  name: string;
+  email: string;
+  items: MultiItem[];
+};
+
+/** Extract multi-ticket intent from session metadata */
+const extractMultiIntent = (
+  session: ValidatedCheckoutSession,
+): MultiIntent | null => {
+  const { metadata } = session;
+  if (!metadata.items) return null;
+
+  const items = parseMultiItems(metadata.items);
+  if (!items || items.length === 0) return null;
+
+  return {
+    name: metadata.name,
+    email: metadata.email,
+    items,
+  };
+};
+
+/**
+ * Process multi-ticket payment session.
+ * Creates attendees for all events atomically.
+ * If any creation fails, deletes already-created attendees and refunds.
+ */
+const processMultiPaymentSession = async (
+  sessionId: string,
+  session: ValidatedCheckoutSession,
+  intent: MultiIntent,
+): Promise<PaymentResult> => {
+  // Phase 1: Reserve the session
+  const reservation = await reserveSession(sessionId);
+
+  if (!reservation.reserved) {
+    const { existing } = reservation;
+
+    if (existing.attendee_id !== null) {
+      const firstEventId = intent.items[0]?.e;
+      if (!firstEventId) {
+        return { success: false, error: "Invalid session data", status: 400 };
+      }
+      return alreadyProcessedResult(firstEventId, existing.attendee_id);
+    }
+
+    // Still being processed by another request
+    return {
+      success: false,
+      error: "Payment is being processed. Please wait a moment and refresh.",
+      status: 409,
+    };
+  }
+
+  // Phase 2: Create attendees for all events
+  const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
+  let failedEvent: EventWithCount | null = null;
+  let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
+
+  for (const item of intent.items) {
+    const event = await getEventWithCount(item.e);
+    if (!event) {
+      // Event not found - rollback and refund
+      for (const created of createdAttendees) {
+        await deleteAttendee(created.attendee.id);
+      }
+      return refundAndFail(session, "Event not found", 404);
+    }
+
+    if (event.active !== 1) {
+      // Event no longer active - rollback and refund
+      for (const created of createdAttendees) {
+        await deleteAttendee(created.attendee.id);
+      }
+      return refundAndFail(
+        session,
+        `${event.slug} is no longer accepting registrations.`,
+      );
+    }
+
+    const result = await createAttendeeAtomic(
+      item.e,
+      intent.name,
+      intent.email,
+      session.payment_intent,
+      item.q,
+    );
+
+    if (!result.success) {
+      failedEvent = event;
+      failureReason = result.reason;
+      break;
+    }
+
+    createdAttendees.push({ attendee: result.attendee, event });
+  }
+
+  // If any creation failed, rollback all created attendees and refund
+  if (failedEvent && failureReason) {
+    for (const created of createdAttendees) {
+      await deleteAttendee(created.attendee.id);
+    }
+
+    const refunded = await tryRefund(session.payment_intent);
+    const errorMsg =
+      failureReason === "capacity_exceeded"
+        ? `Sorry, ${failedEvent.slug} sold out while you were completing payment.`
+        : "Registration failed.";
+    return { success: false, error: errorMsg, refunded };
+  }
+
+  // Phase 3: Finalize with first attendee ID (for idempotency tracking)
+  const firstAttendee = createdAttendees[0];
+  if (!firstAttendee) {
+    return refundAndFail(session, "No attendees created", 500);
+  }
+
+  await finalizeSession(sessionId, firstAttendee.attendee.id);
+
+  // Log and notify for all created attendees
+  for (const { event, attendee } of createdAttendees) {
+    await logAndNotifyRegistration(event, attendee);
+  }
+
+  return {
+    success: true,
+    attendee: firstAttendee.attendee,
+    event: firstAttendee.event,
+  };
+};
+
 /**
  * Core attendee creation logic shared between redirect and webhook handlers.
  * Uses two-phase locking to prevent duplicate attendee creation:
@@ -208,16 +392,7 @@ const processPaymentSession = async (
     const { existing } = reservation;
 
     if (existing.attendee_id !== null) {
-      // Session fully processed - return existing attendee
-      const event = await getEventWithCount(intent.eventId);
-      if (!event) {
-        return { success: false, error: "Event not found", status: 404 };
-      }
-      return {
-        success: true,
-        attendee: { id: existing.attendee_id } as Attendee,
-        event,
-      };
+      return alreadyProcessedResult(intent.eventId, existing.attendee_id);
     }
 
     // Session reserved but not finalized - another request is processing
@@ -295,17 +470,21 @@ const formatPaymentError = (result: PaymentResult & { success: false }): string 
 const handlePaymentSuccess = withSessionId(async (sessionId) => {
   const validation = await validatePaidSession(sessionId);
   if (!validation.ok) return validation.response;
-  const { session, intent } = validation.data;
 
-  const result = await processPaymentSession(sessionId, session, intent);
+  const { data } = validation;
+  const result =
+    data.type === "multi"
+      ? await processMultiPaymentSession(sessionId, data.session, data.intent)
+      : await processPaymentSession(sessionId, data.session, data.intent);
 
   if (!result.success) {
     return paymentErrorResponse(formatPaymentError(result), result.status);
   }
 
-  return htmlResponse(
-    paymentSuccessPage(result.event, result.event.thank_you_url),
-  );
+  // For multi-ticket, don't redirect to thank_you_url (different events may have different URLs)
+  const thankYouUrl =
+    data.type === "single" ? result.event.thank_you_url : null;
+  return htmlResponse(paymentSuccessPage(result.event, thankYouUrl));
 });
 
 /**
@@ -356,6 +535,7 @@ type WebhookSessionData = {
 /**
  * Validate webhook event data and extract session.
  * Returns null if event type doesn't match or data is invalid.
+ * Supports both single-event and multi-event sessions.
  */
 const extractSessionFromEvent = (
   event: StripeWebhookEvent,
@@ -371,10 +551,16 @@ const extractSessionFromEvent = (
     typeof obj.id !== "string" ||
     typeof obj.payment_status !== "string" ||
     !obj.metadata ||
-    typeof obj.metadata.event_id !== "string" ||
     typeof obj.metadata.name !== "string" ||
     typeof obj.metadata.email !== "string"
   ) {
+    return null;
+  }
+
+  // Multi-ticket sessions have items instead of event_id
+  const isMulti =
+    obj.metadata.multi === "1" && typeof obj.metadata.items === "string";
+  if (!isMulti && typeof obj.metadata.event_id !== "string") {
     return null;
   }
 
@@ -388,6 +574,8 @@ const extractSessionFromEvent = (
       name: obj.metadata.name,
       email: obj.metadata.email,
       quantity: obj.metadata.quantity,
+      multi: obj.metadata.multi,
+      items: obj.metadata.items,
     },
   };
 };
@@ -438,17 +626,30 @@ const handleStripeWebhook = async (request: Request): Promise<Response> => {
     });
   }
 
-  // Extract intent from metadata
-  const intent = extractIntent(session);
+  // Determine if this is a multi-ticket session and process accordingly
+  const isMulti = isMultiSession(session.metadata);
+  let result: PaymentResult;
 
-  // Process the payment (with two-phase locking)
-  const result = await processPaymentSession(session.id, session, intent);
+  let eventIdForLog: number | undefined;
+
+  if (isMulti) {
+    const multiIntent = extractMultiIntent(session);
+    if (!multiIntent) {
+      return new Response("Invalid multi-ticket session data", { status: 400 });
+    }
+    eventIdForLog = multiIntent.items[0]?.e;
+    result = await processMultiPaymentSession(session.id, session, multiIntent);
+  } else {
+    const intent = extractIntent(session);
+    eventIdForLog = intent.eventId;
+    result = await processPaymentSession(session.id, session, intent);
+  }
 
   if (!result.success) {
     // Log error but return 200 to prevent Stripe retries for business logic failures
     logError({
       code: ErrorCode.STRIPE_SESSION,
-      eventId: intent.eventId,
+      eventId: eventIdForLog,
       detail: result.error,
     });
   }
