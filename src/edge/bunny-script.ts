@@ -7,7 +7,7 @@ import * as BunnySDK from "@bunny.net/edgescript-sdk";
 import { once } from "#fp";
 import { validateEncryptionKey } from "#lib/crypto.ts";
 import { initDb } from "#lib/db/migrations/index.ts";
-import { handleRequest } from "#src/server.ts";
+import { handleRequest } from "#routes";
 
 const initialize = once(async (): Promise<void> => {
   validateEncryptionKey();

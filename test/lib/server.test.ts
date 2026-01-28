@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-comp
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { updateStripeKey } from "#lib/db/settings.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
-import { handleRequest } from "#src/server.ts";
+import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
   awaitTestRequest,

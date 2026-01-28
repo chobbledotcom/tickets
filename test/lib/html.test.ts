@@ -4,7 +4,6 @@ import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminEventPage } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
-import { layout } from "#templates/layout.tsx";
 import {
   paymentCancelPage,
   paymentErrorPage,
@@ -16,26 +15,6 @@ import { notFoundPage, ticketPage } from "#templates/public.tsx";
 const TEST_CSRF_TOKEN = "test-csrf-token-abc123";
 
 describe("html", () => {
-  describe("layout", () => {
-    test("wraps content in HTML structure", () => {
-      const html = layout("Test Title", "<p>Content</p>");
-      expect(html).toContain("<!DOCTYPE html>");
-      expect(html).toContain("<title>Test Title</title>");
-      expect(html).toContain("<p>Content</p>");
-    });
-
-    test("escapes HTML in title", () => {
-      const html = layout("<script>alert()</script>", "content");
-      expect(html).toContain("&lt;script&gt;");
-      expect(html).not.toContain("<script>alert()");
-    });
-
-    test("links to MVP.css stylesheet", () => {
-      const html = layout("Title", "content");
-      expect(html).toContain('<link rel="stylesheet" href="/mvp.css">');
-    });
-  });
-
   describe("adminLoginPage", () => {
     test("renders login form", () => {
       const html = adminLoginPage();

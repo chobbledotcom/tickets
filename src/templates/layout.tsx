@@ -2,7 +2,7 @@
  * Base layout and common template utilities
  */
 
-import { type Child, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
+import { type Child, SafeHtml } from "#jsx/jsx-runtime.ts";
 
 export const escapeHtml = (str: string): string =>
   str
@@ -39,9 +39,3 @@ export const Layout = ({ title, children }: LayoutProps): SafeHtml =>
     )
   );
 
-/**
- * Legacy function wrapper for backward compatibility
- * Note: content is expected to be pre-rendered HTML
- */
-export const layout = (title: string, content: string): string =>
-  String(<Layout title={title}><Raw html={content} /></Layout>);
