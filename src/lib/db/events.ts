@@ -210,3 +210,40 @@ export const getEventWithAttendeeRaw = async (
     attendeeRaw: (attendeeResult?.rows[0] as unknown as Attendee) ?? null,
   };
 };
+
+/**
+ * Get multiple events by slugs in a single database round-trip.
+ * Returns events in the same order as the input slugs.
+ * Missing or inactive events are returned as null.
+ */
+export const getEventsBySlugsBatch = async (
+  slugs: string[],
+): Promise<(EventWithCount | null)[]> => {
+  if (slugs.length === 0) return [];
+
+  // Compute slug indices for all slugs
+  const slugIndices = await Promise.all(slugs.map(computeSlugIndex));
+
+  // Build a single query with IN clause for all slug indices
+  const placeholders = slugIndices.map(() => "?").join(", ");
+  const result = await getDb().execute({
+    sql: `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
+          FROM events e
+          LEFT JOIN attendees a ON e.id = a.event_id
+          WHERE e.slug_index IN (${placeholders})
+          GROUP BY e.id`,
+    args: slugIndices,
+  });
+
+  const rows = result.rows as unknown as EventWithCount[];
+  const decryptedEvents = await Promise.all(rows.map(decryptEventWithCount));
+
+  // Create a map of slug_index -> event for ordering
+  const eventBySlugIndex = new Map<string, EventWithCount>();
+  for (const event of decryptedEvents) {
+    eventBySlugIndex.set(event.slug_index, event);
+  }
+
+  // Return events in the same order as input slugs
+  return slugIndices.map((index) => eventBySlugIndex.get(index) ?? null);
+};
