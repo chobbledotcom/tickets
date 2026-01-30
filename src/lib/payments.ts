@@ -7,6 +7,7 @@
  */
 
 import { getPaymentProvider as getConfiguredProvider } from "#lib/config.ts";
+import { logDebug } from "#lib/logger.ts";
 import type { Event } from "#lib/types.ts";
 
 /** Supported payment provider identifiers */
@@ -153,12 +154,18 @@ export interface PaymentProvider {
 export const getActivePaymentProvider =
   async (): Promise<PaymentProvider | null> => {
     const providerType = await getConfiguredProvider();
-    if (!providerType) return null;
+    if (!providerType) {
+      logDebug("Payment", "No payment provider configured in settings");
+      return null;
+    }
+
+    logDebug("Payment", `Resolving payment provider: ${providerType}`);
 
     if (providerType === "stripe") {
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       return stripePaymentProvider;
     }
 
+    logDebug("Payment", `Unknown payment provider type: ${providerType}`);
     return null;
   };

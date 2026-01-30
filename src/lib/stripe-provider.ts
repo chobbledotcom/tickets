@@ -6,6 +6,7 @@
  */
 
 import type { Event } from "#lib/types.ts";
+import { logDebug } from "#lib/logger.ts";
 import type {
   CheckoutSessionResult,
   MultiRegistrationIntent,
@@ -29,8 +30,17 @@ import {
 /** Convert a Stripe session response to a provider-agnostic CheckoutSessionResult */
 const toCheckoutResult = (
   session: { id: string; url?: string | null } | null,
-): CheckoutSessionResult =>
-  session?.url ? { sessionId: session.id, checkoutUrl: session.url } : null;
+): CheckoutSessionResult => {
+  if (!session) {
+    logDebug("Stripe", "toCheckoutResult: session is null");
+    return null;
+  }
+  if (!session.url) {
+    logDebug("Stripe", `toCheckoutResult: session ${session.id} has no URL`);
+    return null;
+  }
+  return { sessionId: session.id, checkoutUrl: session.url };
+};
 
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {

@@ -11,7 +11,7 @@ import {
   getStripeWebhookSecret,
 } from "#lib/config.ts";
 import { getEnv } from "#lib/env.ts";
-import { ErrorCode, type ErrorCodeType, logError } from "#lib/logger.ts";
+import { ErrorCode, type ErrorCodeType, logDebug, logError } from "#lib/logger.ts";
 import type {
   MultiRegistrationIntent,
   RegistrationIntent,
@@ -36,8 +36,9 @@ const safeAsync = async <T>(
 ): Promise<T | null> => {
   try {
     return await fn();
-  } catch {
-    logError({ code: errorCode });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : "unknown";
+    logError({ code: errorCode, detail });
     return null;
   }
 };
@@ -84,15 +85,22 @@ const withClient = async <T>(
 /** Internal getStripeClient implementation */
 const getClientImpl = async (): Promise<Stripe | null> => {
   const secretKey = await getStripeSecretKey();
-  if (!secretKey) return null;
+  if (!secretKey) {
+    logDebug("Stripe", "No secret key configured, cannot create client");
+    return null;
+  }
 
   try {
     const cached = getCache();
-    if (cached.secretKey === secretKey) return cached.client;
+    if (cached.secretKey === secretKey) {
+      logDebug("Stripe", "Using cached Stripe client");
+      return cached.client;
+    }
   } catch {
     // Cache not initialized
   }
 
+  logDebug("Stripe", "Creating new Stripe client");
   const client = await createStripeClient(secretKey);
   setCache({ client, secretKey });
   return client;
@@ -186,6 +194,7 @@ export const stripeApi: {
     intent: RegistrationIntent,
     baseUrl: string,
   ): Promise<Stripe.Checkout.Session | null> => {
+    logDebug("Stripe", `Creating checkout session for event=${event.id} qty=${intent.quantity}`);
     const config = await buildSessionParams({
       event,
       quantity: intent.quantity,
@@ -200,12 +209,17 @@ export const stripeApi: {
         ...(intent.phone ? { phone: intent.phone } : {}),
       },
     });
-    return config
-      ? withClient(
-          (stripe) => stripe.checkout.sessions.create(config),
-          ErrorCode.STRIPE_CHECKOUT,
-        )
-      : null;
+    if (!config) {
+      logDebug("Stripe", `Session params returned null for event=${event.id} (missing unit_price?)`);
+      return null;
+    }
+    logDebug("Stripe", `Calling Stripe API checkout.sessions.create for event=${event.id}`);
+    const session = await withClient(
+      (stripe) => stripe.checkout.sessions.create(config),
+      ErrorCode.STRIPE_CHECKOUT,
+    );
+    logDebug("Stripe", session ? `Session created id=${session.id} url=${session.url ?? "none"}` : `Session creation failed for event=${event.id}`);
+    return session;
   },
 
   /** Create checkout session for multi-event registration */
@@ -213,6 +227,7 @@ export const stripeApi: {
     intent: MultiRegistrationIntent,
     baseUrl: string,
   ): Promise<Stripe.Checkout.Session | null> => {
+    logDebug("Stripe", `Creating multi-checkout session for ${intent.items.length} events`);
     const currency = (await getCurrencyCode()).toLowerCase();
 
     // Build line items for each event
@@ -254,10 +269,13 @@ export const stripeApi: {
       },
     };
 
-    return withClient(
+    logDebug("Stripe", "Calling Stripe API checkout.sessions.create for multi-checkout");
+    const session = await withClient(
       (stripe) => stripe.checkout.sessions.create(params),
       ErrorCode.STRIPE_CHECKOUT,
     );
+    logDebug("Stripe", session ? `Multi-session created id=${session.id} url=${session.url ?? "none"}` : "Multi-session creation failed");
+    return session;
   },
 
   // Placeholder - will be set after setupWebhookEndpointImpl is defined
