@@ -56,6 +56,7 @@ describe("html", () => {
           max_quantity: 1,
           webhook_url: null,
           active: 1,
+          fields: "email",
         },
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
@@ -78,6 +79,7 @@ describe("html", () => {
           max_quantity: 1,
           webhook_url: null,
           active: 1,
+          fields: "email",
         },
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
@@ -112,6 +114,7 @@ describe("html", () => {
       max_quantity: 1,
       webhook_url: null,
       active: 1,
+      fields: "email",
     };
 
     test("renders event details", () => {
@@ -154,6 +157,7 @@ describe("html", () => {
           created: "2024-01-01T12:00:00Z",
           stripe_payment_id: null,
           quantity: 1,
+          phone: "",
         },
       ];
       const html = adminEventPage(event, attendees, "localhost");
@@ -171,6 +175,7 @@ describe("html", () => {
           created: "2024-01-01T12:00:00Z",
           stripe_payment_id: null,
           quantity: 1,
+          phone: "",
         },
       ];
       const html = adminEventPage(event, attendees, "localhost");
@@ -180,6 +185,46 @@ describe("html", () => {
     test("includes back link", () => {
       const html = adminEventPage(event, [], "localhost");
       expect(html).toContain("/admin/");
+    });
+
+    test("shows contact fields label", () => {
+      const html = adminEventPage(event, [], "localhost");
+      expect(html).toContain("Contact Fields");
+      expect(html).toContain("Email");
+    });
+
+    test("shows phone contact fields label for phone events", () => {
+      const phoneEvent = { ...event, fields: "phone" as const };
+      const html = adminEventPage(phoneEvent, [], "localhost");
+      expect(html).toContain("Phone Number");
+    });
+
+    test("shows both contact fields label", () => {
+      const bothEvent = { ...event, fields: "both" as const };
+      const html = adminEventPage(bothEvent, [], "localhost");
+      expect(html).toContain("Email &amp; Phone Number");
+    });
+
+    test("shows phone column in attendee table", () => {
+      const html = adminEventPage(event, [], "localhost");
+      expect(html).toContain("<th>Phone</th>");
+    });
+
+    test("shows attendee phone in table row", () => {
+      const attendees: Attendee[] = [
+        {
+          id: 1,
+          event_id: 1,
+          name: "John Doe",
+          email: "john@example.com",
+          created: "2024-01-01T12:00:00Z",
+          stripe_payment_id: null,
+          quantity: 1,
+          phone: "+1 555 123 4567",
+        },
+      ];
+      const html = adminEventPage(event, attendees, "localhost");
+      expect(html).toContain("+1 555 123 4567");
     });
   });
 
@@ -196,6 +241,7 @@ describe("html", () => {
       max_quantity: 1,
       webhook_url: null,
       active: 1,
+      fields: "email",
     };
     const csrfToken = "test-csrf-token";
 
@@ -275,6 +321,27 @@ describe("html", () => {
       expect(html).toContain("Reserve Ticket"); // Singular
       expect(html).not.toContain("Reserve Tickets"); // Not plural
     });
+
+    test("shows phone field for phone-only events", () => {
+      const phoneEvent = { ...event, fields: "phone" as const };
+      const html = ticketPage(phoneEvent, csrfToken);
+      expect(html).toContain('name="phone"');
+      expect(html).toContain("Your Phone Number");
+      expect(html).not.toContain('name="email"');
+    });
+
+    test("shows both email and phone for both setting", () => {
+      const bothEvent = { ...event, fields: "both" as const };
+      const html = ticketPage(bothEvent, csrfToken);
+      expect(html).toContain('name="email"');
+      expect(html).toContain('name="phone"');
+    });
+
+    test("shows only email for email setting", () => {
+      const html = ticketPage(event, csrfToken);
+      expect(html).toContain('name="email"');
+      expect(html).not.toContain('name="phone"');
+    });
   });
 
   describe("notFoundPage", () => {
@@ -296,6 +363,7 @@ describe("html", () => {
       max_quantity: 1,
       webhook_url: null,
       active: 1,
+      fields: "email",
     };
 
     const attendee: Attendee = {
@@ -303,6 +371,7 @@ describe("html", () => {
       event_id: 1,
       name: "John Doe",
       email: "john@example.com",
+      phone: "",
       created: "2024-01-01T12:00:00Z",
       stripe_payment_id: null,
       quantity: 1,
@@ -359,6 +428,7 @@ describe("html", () => {
       max_quantity: 1,
       webhook_url: null,
       active: 1,
+      fields: "email",
     };
 
     test("renders success message", () => {
@@ -386,6 +456,7 @@ describe("html", () => {
       max_quantity: 1,
       webhook_url: null,
       active: 1,
+      fields: "email",
     };
 
     test("renders cancel message", () => {
@@ -436,6 +507,7 @@ describe("html", () => {
       max_quantity: 1,
       webhook_url: null,
       active: 1,
+      fields: "email",
     };
 
     test("renders export CSV button", () => {
@@ -448,7 +520,7 @@ describe("html", () => {
   describe("generateAttendeesCsv", () => {
     test("generates CSV header for empty attendees", () => {
       const csv = generateAttendeesCsv([]);
-      expect(csv).toBe("Name,Email,Quantity,Registered");
+      expect(csv).toBe("Name,Email,Phone,Quantity,Registered");
     });
 
     test("generates CSV with attendee data", () => {
@@ -461,11 +533,12 @@ describe("html", () => {
           created: "2024-01-15T10:30:00Z",
           stripe_payment_id: null,
           quantity: 2,
+          phone: "",
         },
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Quantity,Registered");
+      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered");
       expect(lines[1]).toContain("John Doe");
       expect(lines[1]).toContain("john@example.com");
       expect(lines[1]).toContain(",2,");
@@ -482,6 +555,7 @@ describe("html", () => {
           created: "2024-01-15T10:30:00Z",
           stripe_payment_id: null,
           quantity: 1,
+          phone: "",
         },
       ];
       const csv = generateAttendeesCsv(attendees);
@@ -498,6 +572,7 @@ describe("html", () => {
           created: "2024-01-15T10:30:00Z",
           stripe_payment_id: null,
           quantity: 1,
+          phone: "",
         },
       ];
       const csv = generateAttendeesCsv(attendees);
@@ -514,6 +589,7 @@ describe("html", () => {
           created: "2024-01-15T10:30:00Z",
           stripe_payment_id: null,
           quantity: 1,
+          phone: "",
         },
       ];
       const csv = generateAttendeesCsv(attendees);
@@ -530,6 +606,7 @@ describe("html", () => {
           created: "2024-01-15T10:30:00Z",
           stripe_payment_id: null,
           quantity: 1,
+          phone: "",
         },
         {
           id: 2,
@@ -539,6 +616,7 @@ describe("html", () => {
           created: "2024-01-16T11:00:00Z",
           stripe_payment_id: null,
           quantity: 3,
+          phone: "",
         },
       ];
       const csv = generateAttendeesCsv(attendees);
@@ -546,6 +624,43 @@ describe("html", () => {
       expect(lines).toHaveLength(3);
       expect(lines[1]).toContain("John Doe");
       expect(lines[2]).toContain("Jane Smith");
+    });
+
+    test("includes phone number in CSV output", () => {
+      const attendees: Attendee[] = [
+        {
+          id: 1,
+          event_id: 1,
+          name: "John Doe",
+          email: "john@example.com",
+          created: "2024-01-15T10:30:00Z",
+          stripe_payment_id: null,
+          quantity: 1,
+          phone: "+1 555 123 4567",
+        },
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered");
+      expect(lines[1]).toContain("+1 555 123 4567");
+    });
+
+    test("includes empty phone column when phone not collected", () => {
+      const attendees: Attendee[] = [
+        {
+          id: 1,
+          event_id: 1,
+          name: "John Doe",
+          email: "john@example.com",
+          created: "2024-01-15T10:30:00Z",
+          stripe_payment_id: null,
+          quantity: 1,
+          phone: "",
+        },
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[1]).toContain("john@example.com,,1,");
     });
   });
 });

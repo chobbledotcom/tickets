@@ -47,6 +47,7 @@ type SessionMetadata = {
   event_id?: string;
   name: string;
   email: string;
+  phone?: string;
   quantity?: string;
   multi?: string;
   items?: string;
@@ -81,7 +82,7 @@ const validateCheckoutSession = (
     return null;
   }
 
-  if (!metadata?.name || !metadata?.email) {
+  if (!metadata?.name) {
     return null;
   }
 
@@ -99,7 +100,8 @@ const validateCheckoutSession = (
     metadata: {
       event_id: metadata.event_id,
       name: metadata.name,
-      email: metadata.email,
+      email: metadata.email ?? "",
+      phone: metadata.phone,
       quantity: metadata.quantity,
       multi: metadata.multi,
       items: metadata.items,
@@ -114,6 +116,7 @@ const extractIntent = (
   eventId: Number.parseInt(session.metadata.event_id ?? "0", 10),
   name: session.metadata.name,
   email: session.metadata.email,
+  phone: session.metadata.phone ?? "",
   quantity: Number.parseInt(session.metadata.quantity || "1", 10),
 });
 
@@ -243,6 +246,7 @@ const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
 type MultiIntent = {
   name: string;
   email: string;
+  phone: string;
   items: MultiItem[];
 };
 
@@ -259,6 +263,7 @@ const extractMultiIntent = (
   return {
     name: metadata.name,
     email: metadata.email,
+    phone: metadata.phone ?? "",
     items,
   };
 };
@@ -327,6 +332,7 @@ const processMultiPaymentSession = async (
       intent.email,
       session.payment_intent,
       item.q,
+      intent.phone,
     );
 
     if (!result.success) {
@@ -429,6 +435,7 @@ const processPaymentSession = async (
     intent.email,
     paymentIntentId,
     intent.quantity,
+    intent.phone,
   );
 
   if (!result.success) {
@@ -573,6 +580,7 @@ const extractSessionFromEvent = (
       event_id: obj.metadata.event_id,
       name: obj.metadata.name,
       email: obj.metadata.email,
+      phone: obj.metadata.phone,
       quantity: obj.metadata.quantity,
       multi: obj.metadata.multi,
       items: obj.metadata.items,

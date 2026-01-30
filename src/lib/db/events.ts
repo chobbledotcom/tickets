@@ -5,7 +5,7 @@
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { executeByField, getDb, queryBatch, queryOne } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
-import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
+import type { Attendee, Event, EventFields, EventWithCount } from "#lib/types.ts";
 
 /** Event input fields for create/update (camelCase) */
 export type EventInput = {
@@ -17,6 +17,7 @@ export type EventInput = {
   maxQuantity?: number;
   webhookUrl?: string | null;
   active?: number;
+  fields?: EventFields;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -41,6 +42,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     max_quantity: col.withDefault(() => 1),
     webhook_url: col.encryptedNullable<string>(encrypt, decrypt),
     active: col.withDefault(() => 1),
+    fields: col.withDefault<EventFields>(() => "email"),
   },
 });
 

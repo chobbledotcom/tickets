@@ -1,7 +1,7 @@
 /**
  * Attendees table operations
  *
- * PII (name, email, stripe_payment_id) is encrypted at rest using hybrid encryption:
+ * PII (name, email, phone, stripe_payment_id) is encrypted at rest using hybrid encryption:
  * - Encryption uses the public key (no authentication needed)
  * - Decryption requires the private key (only available to authenticated sessions)
  */
@@ -34,11 +34,16 @@ const decryptAttendee = async (
   privateKey: CryptoKey,
 ): Promise<Attendee> => {
   const name = await decryptAttendeePII(row.name, privateKey);
-  const email = await decryptAttendeePII(row.email, privateKey);
+  const email = row.email
+    ? await decryptAttendeePII(row.email, privateKey)
+    : "";
+  const phone = row.phone
+    ? await decryptAttendeePII(row.phone, privateKey)
+    : "";
   const stripe_payment_id = row.stripe_payment_id
     ? await decryptAttendeePII(row.stripe_payment_id, privateKey)
     : null;
-  return { ...row, name, email, stripe_payment_id };
+  return { ...row, name, email, phone, stripe_payment_id };
 };
 
 /**
@@ -79,6 +84,7 @@ type EncryptedAttendeeData = {
   created: string;
   encryptedName: string;
   encryptedEmail: string;
+  encryptedPhone: string;
   encryptedPaymentId: string | null;
 };
 
@@ -86,6 +92,7 @@ type EncryptedAttendeeData = {
 const encryptAttendeeFields = async (
   name: string,
   email: string,
+  phone: string,
   stripePaymentId: string | null,
 ): Promise<EncryptedAttendeeData | null> => {
   const publicKeyJwk = await getPublicKey();
@@ -94,7 +101,12 @@ const encryptAttendeeFields = async (
   return {
     created: new Date().toISOString(),
     encryptedName: await encryptAttendeePII(name, publicKeyJwk),
-    encryptedEmail: await encryptAttendeePII(email, publicKeyJwk),
+    encryptedEmail: email
+      ? await encryptAttendeePII(email, publicKeyJwk)
+      : "",
+    encryptedPhone: phone
+      ? await encryptAttendeePII(phone, publicKeyJwk)
+      : "",
     encryptedPaymentId: stripePaymentId
       ? await encryptAttendeePII(stripePaymentId, publicKeyJwk)
       : null,
@@ -107,6 +119,7 @@ const buildAttendeeResult = (
   eventId: number,
   name: string,
   email: string,
+  phone: string,
   created: string,
   stripePaymentId: string | null,
   quantity: number,
@@ -115,6 +128,7 @@ const buildAttendeeResult = (
   event_id: eventId,
   name,
   email,
+  phone,
   created,
   stripe_payment_id: stripePaymentId,
   quantity,
@@ -176,16 +190,17 @@ export const attendeesApi = {
     email: string,
     paymentId: string | null = null,
     qty = 1,
+    phone = "",
   ): Promise<CreateAttendeeResult> => {
-    const enc = await encryptAttendeeFields(name, email, paymentId);
+    const enc = await encryptAttendeeFields(name, email, phone, paymentId);
     if (!enc) {
       return { success: false, reason: "encryption_error" };
     }
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, created, stripe_payment_id, quantity)
-            SELECT ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, created, stripe_payment_id, quantity)
+            SELECT ?, ?, ?, ?, ?, ?, ?
             WHERE (
               SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?
             ) + ? <= (
@@ -195,6 +210,7 @@ export const attendeesApi = {
         eventId,
         enc.encryptedName,
         enc.encryptedEmail,
+        enc.encryptedPhone,
         enc.created,
         enc.encryptedPaymentId,
         qty,
@@ -215,6 +231,7 @@ export const attendeesApi = {
         eventId,
         name,
         email,
+        phone,
         enc.created,
         paymentId,
         qty,
@@ -230,4 +247,5 @@ export const createAttendeeAtomic = (
   e: string,
   pId: string | null = null,
   q = 1,
-): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(evtId, n, e, pId, q);
+  phone = "",
+): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(evtId, n, e, pId, q, phone);
