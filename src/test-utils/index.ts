@@ -13,7 +13,7 @@ import {
 import { initDb } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { clearSetupCompleteCache, completeSetup } from "#lib/db/settings.ts";
-import type { Event } from "#lib/types.ts";
+import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 
 /**
  * Default test admin password
@@ -501,7 +501,6 @@ export const reactivateTestEvent = changeEventStatus("reactivate");
 
 export type { EventInput };
 
-import type { Attendee } from "#lib/types.ts";
 import { getAttendeesRaw } from "#lib/db/attendees.ts";
 
 /**
@@ -631,13 +630,6 @@ export const errorResponse =
 // Pass only the fields you care about; everything else gets sensible defaults.
 // ---------------------------------------------------------------------------
 
-import type {
-  Attendee,
-  Event,
-  EventWithCount,
-} from "#lib/types.ts";
-import type { Field } from "#lib/forms.tsx";
-
 /** Create a test Event with sensible defaults. Override any field via `overrides`. */
 export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   id: 1,
@@ -682,14 +674,18 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
 // Curried helpers for the common validate-then-assert pattern in form tests.
 // ---------------------------------------------------------------------------
 
-import { validateForm } from "#lib/forms.tsx";
+import { type Field, validateForm } from "#lib/forms.tsx";
+
+/** Validate form data and return the result. Shared core for assertion helpers. */
+const validateFormData = (fields: Field[], data: Record<string, string>) =>
+  validateForm(new URLSearchParams(data), fields);
 
 /** Validate form data against fields and assert the result is valid. Returns the values. */
 export const expectValid = (
   fields: Field[],
   data: Record<string, string>,
 ): Record<string, unknown> => {
-  const result = validateForm(new URLSearchParams(data), fields);
+  const result = validateFormData(fields, data);
   expect(result.valid).toBe(true);
   if (!result.valid) throw new Error("Expected valid result");
   return result.values;
@@ -699,11 +695,9 @@ export const expectValid = (
 export const expectInvalid =
   (expectedError: string) =>
   (fields: Field[], data: Record<string, string>): void => {
-    const result = validateForm(new URLSearchParams(data), fields);
+    const result = validateFormData(fields, data);
     expect(result.valid).toBe(false);
-    if (!result.valid) {
-      expect(result.error).toBe(expectedError);
-    }
+    if (!result.valid) expect(result.error).toBe(expectedError);
   };
 
 /** Validate form data against fields and assert the result is invalid (any error). */
@@ -711,8 +705,7 @@ export const expectInvalidForm = (
   fields: Field[],
   data: Record<string, string>,
 ): void => {
-  const result = validateForm(new URLSearchParams(data), fields);
-  expect(result.valid).toBe(false);
+  expect(validateFormData(fields, data).valid).toBe(false);
 };
 
 /** Base event form data — merge with overrides for specific test cases. */
