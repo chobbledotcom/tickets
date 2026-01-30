@@ -502,6 +502,8 @@ describe("server", () => {
     });
 
     test("settings page shows Stripe is not configured initially", async () => {
+      await setPaymentProvider("stripe");
+
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });

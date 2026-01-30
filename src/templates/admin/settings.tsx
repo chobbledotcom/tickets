@@ -52,6 +52,7 @@ export const adminSettingsPage = (
           <button type="submit">Save Payment Provider</button>
         </form>
 
+        {paymentProvider === "stripe" && (
         <form method="POST" action="/admin/settings/stripe">
             <h2>Stripe Settings</h2>
           <p>
@@ -63,6 +64,7 @@ export const adminSettingsPage = (
           <Raw html={renderFields(stripeKeyFields)} />
           <button type="submit">Update Stripe Key</button>
         </form>
+        )}
 
         <form method="POST" action="/admin/settings">
             <h2>Change Password</h2>
