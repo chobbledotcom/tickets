@@ -7,7 +7,7 @@
  */
 
 import { map } from "#fp";
-import { decryptAttendeePII, encryptAttendeePII } from "#lib/crypto.ts";
+import { decrypt, decryptAttendeePII, encrypt, encryptAttendeePII } from "#lib/crypto.ts";
 import { getDb, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
@@ -43,7 +43,8 @@ const decryptAttendee = async (
   const stripe_payment_id = row.stripe_payment_id
     ? await decryptAttendeePII(row.stripe_payment_id, privateKey)
     : null;
-  return { ...row, name, email, phone, stripe_payment_id };
+  const price_paid = row.price_paid ? await decrypt(row.price_paid) : null;
+  return { ...row, name, email, phone, stripe_payment_id, price_paid };
 };
 
 /**
@@ -86,6 +87,7 @@ type EncryptedAttendeeData = {
   encryptedEmail: string;
   encryptedPhone: string;
   encryptedPaymentId: string | null;
+  encryptedPricePaid: string | null;
 };
 
 /** Encrypt attendee fields, returning null if key not configured */
@@ -94,6 +96,7 @@ const encryptAttendeeFields = async (
   email: string,
   phone: string,
   stripePaymentId: string | null,
+  pricePaid: number | null,
 ): Promise<EncryptedAttendeeData | null> => {
   const publicKeyJwk = await getPublicKey();
   if (!publicKeyJwk) return null;
@@ -110,6 +113,9 @@ const encryptAttendeeFields = async (
     encryptedPaymentId: stripePaymentId
       ? await encryptAttendeePII(stripePaymentId, publicKeyJwk)
       : null,
+    encryptedPricePaid: pricePaid !== null
+      ? await encrypt(String(pricePaid))
+      : null,
   };
 };
 
@@ -123,6 +129,7 @@ const buildAttendeeResult = (
   created: string,
   stripePaymentId: string | null,
   quantity: number,
+  pricePaid: number | null,
 ): Attendee => ({
   id: Number(insertId ?? 0),
   event_id: eventId,
@@ -132,6 +139,7 @@ const buildAttendeeResult = (
   created,
   stripe_payment_id: stripePaymentId,
   quantity,
+  price_paid: pricePaid !== null ? String(pricePaid) : null,
 });
 
 /**
@@ -191,16 +199,17 @@ export const attendeesApi = {
     paymentId: string | null = null,
     qty = 1,
     phone = "",
+    pricePaid: number | null = null,
   ): Promise<CreateAttendeeResult> => {
-    const enc = await encryptAttendeeFields(name, email, phone, paymentId);
+    const enc = await encryptAttendeeFields(name, email, phone, paymentId, pricePaid);
     if (!enc) {
       return { success: false, reason: "encryption_error" };
     }
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, created, stripe_payment_id, quantity)
-            SELECT ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, created, stripe_payment_id, quantity, price_paid)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?
             ) + ? <= (
@@ -214,6 +223,7 @@ export const attendeesApi = {
         enc.created,
         enc.encryptedPaymentId,
         qty,
+        enc.encryptedPricePaid,
         eventId,
         qty,
         eventId,
@@ -235,6 +245,7 @@ export const attendeesApi = {
         enc.created,
         paymentId,
         qty,
+        pricePaid,
       ),
     };
   },
@@ -248,4 +259,5 @@ export const createAttendeeAtomic = (
   pId: string | null = null,
   q = 1,
   phone = "",
-): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(evtId, n, e, pId, q, phone);
+  price: number | null = null,
+): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(evtId, n, e, pId, q, phone, price);

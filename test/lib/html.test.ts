@@ -158,6 +158,7 @@ describe("html", () => {
           stripe_payment_id: null,
           quantity: 1,
           phone: "",
+          price_paid: null,
         },
       ];
       const html = adminEventPage(event, attendees, "localhost");
@@ -176,6 +177,7 @@ describe("html", () => {
           stripe_payment_id: null,
           quantity: 1,
           phone: "",
+          price_paid: null,
         },
       ];
       const html = adminEventPage(event, attendees, "localhost");
@@ -221,6 +223,7 @@ describe("html", () => {
           stripe_payment_id: null,
           quantity: 1,
           phone: "+1 555 123 4567",
+          price_paid: null,
         },
       ];
       const html = adminEventPage(event, attendees, "localhost");
@@ -375,6 +378,7 @@ describe("html", () => {
       created: "2024-01-01T12:00:00Z",
       stripe_payment_id: null,
       quantity: 1,
+      price_paid: null,
     };
 
     test("renders payment details", () => {
@@ -520,7 +524,7 @@ describe("html", () => {
   describe("generateAttendeesCsv", () => {
     test("generates CSV header for empty attendees", () => {
       const csv = generateAttendeesCsv([]);
-      expect(csv).toBe("Name,Email,Phone,Quantity,Registered");
+      expect(csv).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID");
     });
 
     test("generates CSV with attendee data", () => {
@@ -534,11 +538,12 @@ describe("html", () => {
           stripe_payment_id: null,
           quantity: 2,
           phone: "",
+          price_paid: null,
         },
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered");
+      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID");
       expect(lines[1]).toContain("John Doe");
       expect(lines[1]).toContain("john@example.com");
       expect(lines[1]).toContain(",2,");
@@ -556,6 +561,7 @@ describe("html", () => {
           stripe_payment_id: null,
           quantity: 1,
           phone: "",
+          price_paid: null,
         },
       ];
       const csv = generateAttendeesCsv(attendees);
@@ -573,6 +579,7 @@ describe("html", () => {
           stripe_payment_id: null,
           quantity: 1,
           phone: "",
+          price_paid: null,
         },
       ];
       const csv = generateAttendeesCsv(attendees);
@@ -590,6 +597,7 @@ describe("html", () => {
           stripe_payment_id: null,
           quantity: 1,
           phone: "",
+          price_paid: null,
         },
       ];
       const csv = generateAttendeesCsv(attendees);
@@ -607,6 +615,7 @@ describe("html", () => {
           stripe_payment_id: null,
           quantity: 1,
           phone: "",
+          price_paid: null,
         },
         {
           id: 2,
@@ -617,6 +626,7 @@ describe("html", () => {
           stripe_payment_id: null,
           quantity: 3,
           phone: "",
+          price_paid: null,
         },
       ];
       const csv = generateAttendeesCsv(attendees);
@@ -637,11 +647,12 @@ describe("html", () => {
           stripe_payment_id: null,
           quantity: 1,
           phone: "+1 555 123 4567",
+          price_paid: null,
         },
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered");
+      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID");
       expect(lines[1]).toContain("+1 555 123 4567");
     });
 
@@ -656,11 +667,85 @@ describe("html", () => {
           stripe_payment_id: null,
           quantity: 1,
           phone: "",
+          price_paid: null,
         },
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
       expect(lines[1]).toContain("john@example.com,,1,");
+    });
+
+    test("generates CSV with price and transaction ID", () => {
+      const attendees: Attendee[] = [
+        {
+          id: 1,
+          event_id: 1,
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          created: "2024-01-15T10:30:00Z",
+          stripe_payment_id: "pi_abc123",
+          quantity: 2,
+          price_paid: "2000",
+        },
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[1]).toContain("20.00");
+      expect(lines[1]).toContain("pi_abc123");
+    });
+
+    test("formats price as empty when null", () => {
+      const attendees: Attendee[] = [
+        {
+          id: 1,
+          event_id: 1,
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          created: "2024-01-15T10:30:00Z",
+          stripe_payment_id: null,
+          quantity: 1,
+          price_paid: null,
+        },
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      // Price and transaction ID should be empty
+      expect(lines[1]).toMatch(/,,$/)
+    });
+
+    test("shared transaction ID across multiple attendees", () => {
+      const attendees: Attendee[] = [
+        {
+          id: 1,
+          event_id: 1,
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          created: "2024-01-15T10:30:00Z",
+          stripe_payment_id: "pi_shared_123",
+          quantity: 1,
+          price_paid: "1000",
+        },
+        {
+          id: 2,
+          event_id: 2,
+          name: "John Doe",
+          email: "john@example.com",
+          phone: "",
+          created: "2024-01-15T10:30:00Z",
+          stripe_payment_id: "pi_shared_123",
+          quantity: 2,
+          price_paid: "3000",
+        },
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[1]).toContain("10.00");
+      expect(lines[1]).toContain("pi_shared_123");
+      expect(lines[2]).toContain("30.00");
+      expect(lines[2]).toContain("pi_shared_123");
     });
   });
 });
