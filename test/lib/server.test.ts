@@ -11,7 +11,6 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   deactivateTestEvent,
-  getCsrfTokenFromCookie,
   getSetupCsrfToken,
   getTicketCsrfToken,
   mockFormRequest,
@@ -21,6 +20,9 @@ import {
   mockTicketFormRequest,
   resetDb,
   resetTestSlugCounter,
+  expectAdminRedirect,
+  expectRedirect,
+  loginAsAdmin,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
 
@@ -51,8 +53,7 @@ describe("server", () => {
   describe("GET /", () => {
     test("redirects to admin", async () => {
       const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(302);
-      expect(response.headers.get("Location")).toBe("/admin/");
+      expectRedirect("/admin/")(response);
     });
   });
 
@@ -136,15 +137,10 @@ describe("server", () => {
     });
 
     test("shows dashboard when authenticated", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", {
-          password: TEST_ADMIN_PASSWORD,
-        }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -172,7 +168,6 @@ describe("server", () => {
     });
 
     test("rejects wrong password", async () => {
-      TEST_ADMIN_PASSWORD;
       const response = await handleRequest(
         mockFormRequest("/admin/login", { password: "wrong" }),
       );
@@ -186,8 +181,7 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest("/admin/login", { password }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
       expect(response.headers.get("set-cookie")).toContain("__Host-session=");
     });
 
@@ -261,8 +255,7 @@ describe("server", () => {
   describe("GET /admin/logout", () => {
     test("clears session and redirects", async () => {
       const response = await handleRequest(mockRequest("/admin/logout"));
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
     });
   });
@@ -270,15 +263,11 @@ describe("server", () => {
   describe("GET /admin/settings", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/settings"));
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("shows settings page when authenticated", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
       expect(response.status).toBe(200);
@@ -297,15 +286,11 @@ describe("server", () => {
           new_password_confirm: "newpassword123",
         }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -325,11 +310,7 @@ describe("server", () => {
     });
 
     test("rejects missing required fields", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -338,7 +319,7 @@ describe("server", () => {
             current_password: "",
             new_password: "",
             new_password_confirm: "",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -349,11 +330,7 @@ describe("server", () => {
     });
 
     test("rejects password shorter than 8 characters", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -362,7 +339,7 @@ describe("server", () => {
             current_password: TEST_ADMIN_PASSWORD,
             new_password: "short",
             new_password_confirm: "short",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -373,11 +350,7 @@ describe("server", () => {
     });
 
     test("rejects mismatched passwords", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -386,7 +359,7 @@ describe("server", () => {
             current_password: TEST_ADMIN_PASSWORD,
             new_password: "newpassword123",
             new_password_confirm: "differentpassword",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -397,11 +370,7 @@ describe("server", () => {
     });
 
     test("rejects incorrect current password", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -410,7 +379,7 @@ describe("server", () => {
             current_password: "wrongpassword",
             new_password: "newpassword123",
             new_password_confirm: "newpassword123",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -421,11 +390,7 @@ describe("server", () => {
     });
 
     test("changes password and invalidates session", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -434,15 +399,14 @@ describe("server", () => {
             current_password: TEST_ADMIN_PASSWORD,
             new_password: "newpassword123",
             new_password_confirm: "newpassword123",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
       );
 
       // Should redirect to admin login with session cleared
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
 
       // Verify old session is invalidated
@@ -454,8 +418,7 @@ describe("server", () => {
       const newLoginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: "newpassword123" }),
       );
-      expect(newLoginResponse.status).toBe(302);
-      expect(newLoginResponse.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(newLoginResponse);
     });
   });
 
@@ -466,15 +429,11 @@ describe("server", () => {
           stripe_secret_key: "sk_test_123",
         }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -492,18 +451,14 @@ describe("server", () => {
     });
 
     test("rejects missing stripe key", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/stripe",
           {
             stripe_secret_key: "",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -523,18 +478,14 @@ describe("server", () => {
       });
 
       try {
-        const loginResponse = await handleRequest(
-          mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-        );
-        const cookie = loginResponse.headers.get("set-cookie") || "";
-        const csrfToken = await getCsrfTokenFromCookie(cookie);
+        const { cookie, csrfToken } = await loginAsAdmin();
 
         const response = await handleRequest(
           mockFormRequest(
             "/admin/settings/stripe",
             {
               stripe_secret_key: "sk_test_new_key_123",
-              csrf_token: csrfToken || "",
+              csrf_token: csrfToken,
             },
             cookie,
           ),
@@ -551,10 +502,7 @@ describe("server", () => {
     });
 
     test("settings page shows Stripe is not configured initially", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
       expect(response.status).toBe(200);
@@ -573,11 +521,7 @@ describe("server", () => {
       });
 
       try {
-        const loginResponse = await handleRequest(
-          mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-        );
-        const cookie = loginResponse.headers.get("set-cookie") || "";
-        const csrfToken = await getCsrfTokenFromCookie(cookie);
+        const { cookie, csrfToken } = await loginAsAdmin();
 
         // Set the Stripe key
         await handleRequest(
@@ -585,7 +529,7 @@ describe("server", () => {
             "/admin/settings/stripe",
             {
               stripe_secret_key: "sk_test_configured",
-              csrf_token: csrfToken || "",
+              csrf_token: csrfToken,
             },
             cookie,
           ),
@@ -609,15 +553,11 @@ describe("server", () => {
             "The site will be fully reset and all data will be lost.",
         }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -636,18 +576,14 @@ describe("server", () => {
     });
 
     test("rejects wrong confirmation phrase", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/reset-database",
           {
             confirm_phrase: "wrong phrase",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -665,11 +601,7 @@ describe("server", () => {
         thankYouUrl: "https://example.com/thanks",
       });
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -677,23 +609,19 @@ describe("server", () => {
           {
             confirm_phrase:
               "The site will be fully reset and all data will be lost.",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
       );
 
       // Should redirect to setup page with session cleared
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/setup/");
+      expectRedirect("/setup/")(response);
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
     });
 
     test("settings page shows reset database section", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
       expect(response.status).toBe(200);
@@ -709,15 +637,11 @@ describe("server", () => {
   describe("GET /admin/sessions", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/sessions"));
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("shows sessions page when authenticated", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/sessions", { cookie });
       expect(response.status).toBe(200);
@@ -729,10 +653,7 @@ describe("server", () => {
     });
 
     test("highlights current session with mark", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/sessions", { cookie });
       const html = await response.text();
@@ -743,10 +664,7 @@ describe("server", () => {
       // Create an extra session
       await createSession("other-session", "other-csrf", Date.now() + 10000);
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/sessions", { cookie });
       const html = await response.text();
@@ -754,10 +672,7 @@ describe("server", () => {
     });
 
     test("does not show logout button when no other sessions", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/sessions", { cookie });
       const html = await response.text();
@@ -770,15 +685,11 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest("/admin/sessions", { csrf_token: "test" }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -795,16 +706,12 @@ describe("server", () => {
       await createSession("other1", "csrf1", Date.now() + 10000);
       await createSession("other2", "csrf2", Date.now() + 10000);
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/sessions",
-          { csrf_token: csrfToken || "" },
+          { csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -822,11 +729,7 @@ describe("server", () => {
     test("keeps current session active after logging out others", async () => {
       await createSession("other", "csrf-other", Date.now() + 10000);
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       // Extract the session token from cookie
       const sessionMatch = cookie.match(/__Host-session=([^;]+)/);
@@ -835,7 +738,7 @@ describe("server", () => {
       await handleRequest(
         mockFormRequest(
           "/admin/sessions",
-          { csrf_token: csrfToken || "" },
+          { csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -856,17 +759,11 @@ describe("server", () => {
           thank_you_url: "https://example.com",
         }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("creates event when authenticated", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -876,13 +773,12 @@ describe("server", () => {
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
 
       // Verify event was actually created
       const { getEvent } = await import("#lib/db/events.ts");
@@ -892,11 +788,7 @@ describe("server", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -917,12 +809,7 @@ describe("server", () => {
     });
 
     test("redirects to dashboard on validation failure", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -931,13 +818,12 @@ describe("server", () => {
             slug: "",
             max_attendees: "",
             thank_you_url: "",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("rejects duplicate slug", async () => {
@@ -948,12 +834,7 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       // Try to create another event with the same slug
       const response = await handleRequest(
@@ -964,14 +845,13 @@ describe("server", () => {
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
       );
       // Should redirect to admin with error (validation failure)
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
   });
 
@@ -994,29 +874,20 @@ describe("server", () => {
       const response = await awaitTestRequest("/admin/event/1", {
         cookie: `__Host-session=${token}`,
       });
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/event/999", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(404);
     });
 
     test("shows event details when authenticated", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const event = await createTestEvent({
         slug: "test-event",
@@ -1025,7 +896,7 @@ describe("server", () => {
       });
 
       const response = await awaitTestRequest("/admin/event/1", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1033,11 +904,7 @@ describe("server", () => {
     });
 
     test("shows Edit link on event page", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       await createTestEvent({
         maxAttendees: 100,
@@ -1045,7 +912,7 @@ describe("server", () => {
       });
 
       const response = await awaitTestRequest("/admin/event/1", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       const html = await response.text();
       expect(html).toContain("/admin/event/1/edit");
@@ -1062,29 +929,20 @@ describe("server", () => {
       const response = await handleRequest(
         mockRequest("/admin/event/1/export"),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/event/999/export", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(404);
     });
 
     test("returns CSV with correct headers when authenticated", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       await createTestEvent({
         maxAttendees: 100,
@@ -1092,7 +950,7 @@ describe("server", () => {
       });
 
       const response = await awaitTestRequest("/admin/event/1/export", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
@@ -1105,11 +963,7 @@ describe("server", () => {
     });
 
     test("returns CSV with attendee data", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const event = await createTestEvent({
         maxAttendees: 100,
@@ -1119,7 +973,7 @@ describe("server", () => {
       await createTestAttendee(event.id, event.slug, "Jane Smith", "jane@example.com");
 
       const response = await awaitTestRequest(`/admin/event/${event.id}/export`, {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       const csv = await response.text();
       expect(csv).toContain("Name,Email,Phone,Quantity,Registered");
@@ -1130,11 +984,7 @@ describe("server", () => {
     });
 
     test("sanitizes slug for filename", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       await createTestEvent({
         slug: "test-event-special",
@@ -1143,7 +993,7 @@ describe("server", () => {
       });
 
       const response = await awaitTestRequest("/admin/event/1/export", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       const disposition = response.headers.get("content-disposition");
       // Dashes are replaced with underscores in filename sanitization
@@ -1158,29 +1008,20 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(mockRequest("/admin/event/1/edit"));
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/event/999/edit", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(404);
     });
 
     test("shows edit form when authenticated", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       await createTestEvent({
         slug: "test-event",
@@ -1190,7 +1031,7 @@ describe("server", () => {
       });
 
       const response = await awaitTestRequest("/admin/event/1/edit", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1216,17 +1057,11 @@ describe("server", () => {
           thank_you_url: "https://example.com/updated",
         }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -1236,7 +1071,7 @@ describe("server", () => {
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/updated",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -1245,11 +1080,7 @@ describe("server", () => {
     });
 
     test("rejects request with invalid CSRF token", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       await createTestEvent({
         maxAttendees: 100,
@@ -1275,12 +1106,7 @@ describe("server", () => {
     });
 
     test("validates required fields", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       await createTestEvent({
         maxAttendees: 100,
@@ -1295,7 +1121,7 @@ describe("server", () => {
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -1306,12 +1132,7 @@ describe("server", () => {
     });
 
     test("rejects duplicate slug on update", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       // Create two events
       await createTestEvent({
@@ -1334,7 +1155,7 @@ describe("server", () => {
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -1345,12 +1166,7 @@ describe("server", () => {
     });
 
     test("updates event when authenticated", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const event = await createTestEvent({
         maxAttendees: 100,
@@ -1366,13 +1182,12 @@ describe("server", () => {
             max_quantity: "5",
             thank_you_url: "https://example.com/updated",
             unit_price: "2000",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/event/1");
+      expectRedirect("/admin/event/1")(response);
 
       // Verify the event was updated
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -1392,27 +1207,20 @@ describe("server", () => {
       const response = await handleRequest(
         mockRequest("/admin/event/1/deactivate"),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/event/999/deactivate", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(404);
     });
 
     test("shows deactivate confirmation page when authenticated", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const event = await createTestEvent({
         maxAttendees: 100,
@@ -1420,7 +1228,7 @@ describe("server", () => {
       });
 
       const response = await awaitTestRequest("/admin/event/1/deactivate", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1441,16 +1249,11 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest("/admin/event/1/deactivate", {}),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("deactivates event and redirects", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const event = await createTestEvent({
         maxAttendees: 100,
@@ -1460,12 +1263,11 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/deactivate",
-          { csrf_token: csrfToken || "", confirm_identifier: event.slug },
+          { csrf_token: csrfToken, confirm_identifier: event.slug },
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/event/1");
+      expectRedirect("/admin/event/1")(response);
 
       // Verify event is now inactive
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -1474,11 +1276,7 @@ describe("server", () => {
     });
 
     test("returns error when identifier does not match", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       await createTestEvent({
         slug: "test-event",
@@ -1489,7 +1287,7 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/deactivate",
-          { csrf_token: csrfToken || "", confirm_identifier: "wrong-identifier" },
+          { csrf_token: csrfToken, confirm_identifier: "wrong-identifier" },
           cookie,
         ),
       );
@@ -1508,15 +1306,11 @@ describe("server", () => {
       const response = await handleRequest(
         mockRequest("/admin/event/1/reactivate"),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("shows reactivate confirmation page when authenticated", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const event = await createTestEvent({
         maxAttendees: 100,
@@ -1526,7 +1320,7 @@ describe("server", () => {
       await deactivateTestEvent(event.id);
 
       const response = await awaitTestRequest("/admin/event/1/reactivate", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1539,11 +1333,7 @@ describe("server", () => {
 
   describe("POST /admin/event/:id/reactivate", () => {
     test("reactivates event and redirects", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const event = await createTestEvent({
         maxAttendees: 100,
@@ -1555,12 +1345,11 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/reactivate",
-          { csrf_token: csrfToken || "", confirm_identifier: event.slug },
+          { csrf_token: csrfToken, confirm_identifier: event.slug },
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/event/1");
+      expectRedirect("/admin/event/1")(response);
 
       // Verify event is now active
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -1569,11 +1358,7 @@ describe("server", () => {
     });
 
     test("returns error when name does not match", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const event = await createTestEvent({
         slug: "test-event",
@@ -1586,7 +1371,7 @@ describe("server", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/reactivate",
-          { csrf_token: csrfToken || "", confirm_identifier: "wrong-identifier" },
+          { csrf_token: csrfToken, confirm_identifier: "wrong-identifier" },
           cookie,
         ),
       );
@@ -1605,27 +1390,20 @@ describe("server", () => {
       const response = await handleRequest(
         mockRequest("/admin/event/1/delete"),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/event/999/delete", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(404);
     });
 
     test("shows delete confirmation page when authenticated", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const event = await createTestEvent({
         slug: "test-event",
@@ -1634,7 +1412,7 @@ describe("server", () => {
       });
 
       const response = await awaitTestRequest("/admin/event/1/delete", {
-        cookie: cookie || "",
+        cookie: cookie,
       });
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -1656,23 +1434,18 @@ describe("server", () => {
           confirm_identifier: event.slug,
         }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/delete",
           {
             confirm_identifier: "test-event",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -1681,10 +1454,7 @@ describe("server", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const event = await createTestEvent({
         slug: "test-event",
@@ -1708,11 +1478,7 @@ describe("server", () => {
     });
 
     test("rejects mismatched event identifier", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       await createTestEvent({
         slug: "test-event",
@@ -1725,7 +1491,7 @@ describe("server", () => {
           "/admin/event/1/delete",
           {
             confirm_identifier: "wrong-identifier",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -1736,11 +1502,7 @@ describe("server", () => {
     });
 
     test("deletes event with matching identifier (case insensitive)", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       await createTestEvent({
         slug: "test-event",
@@ -1753,13 +1515,12 @@ describe("server", () => {
           "/admin/event/1/delete",
           {
             confirm_identifier: "TEST-EVENT", // uppercase (case insensitive)
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
 
       // Verify event was deleted
       const { getEvent } = await import("#lib/db/events.ts");
@@ -1768,11 +1529,7 @@ describe("server", () => {
     });
 
     test("deletes event with matching identifier (trimmed)", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       await createTestEvent({
         slug: "test-event",
@@ -1785,21 +1542,16 @@ describe("server", () => {
           "/admin/event/1/delete",
           {
             confirm_identifier: "  test-event  ", // with spaces
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("deletes event and all attendees", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const event = await createTestEvent({
         slug: "test-event",
@@ -1814,7 +1566,7 @@ describe("server", () => {
           `/admin/event/${event.id}/delete`,
           {
             confirm_identifier: event.slug,
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -1839,18 +1591,14 @@ describe("server", () => {
       });
 
       // Login and get CSRF token
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       // Delete with verify_identifier=false - no need for confirm_identifier
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/delete?verify_identifier=false",
           {
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -1873,11 +1621,7 @@ describe("server", () => {
       });
 
       // Login and get CSRF token
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       // Use DELETE method with verify_identifier=false
       const response = await handleRequest(
@@ -1885,11 +1629,11 @@ describe("server", () => {
           method: "DELETE",
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            cookie: cookie || "",
+            cookie: cookie,
             host: "localhost",
           },
           body: new URLSearchParams({
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           }).toString(),
         }),
       );
@@ -1913,19 +1657,15 @@ describe("server", () => {
       const response = await handleRequest(
         mockRequest(`/admin/event/${event.id}/attendee/${attendee.id}/delete`),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
         "/admin/event/999/attendee/1/delete",
-        { cookie: cookie || "" },
+        { cookie: cookie },
       );
       expect(response.status).toBe(404);
     });
@@ -1945,8 +1685,7 @@ describe("server", () => {
         `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
         { cookie: `__Host-session=${token}` },
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("redirects when wrapped data key is invalid", async () => {
@@ -1964,8 +1703,7 @@ describe("server", () => {
         `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
         { cookie: `__Host-session=${token}` },
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -1974,14 +1712,11 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
         "/admin/event/1/attendee/999/delete",
-        { cookie: cookie || "" },
+        { cookie: cookie },
       );
       expect(response.status).toBe(404);
     });
@@ -1999,15 +1734,12 @@ describe("server", () => {
       });
       const attendee = await createTestAttendee(event2.id, event2.slug, "John Doe", "john@example.com");
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       // Try to delete attendee from event 2 via event 1 URL
       const response = await awaitTestRequest(
         `/admin/event/${event1.id}/attendee/${attendee.id}/delete`,
-        { cookie: cookie || "" },
+        { cookie: cookie },
       );
       expect(response.status).toBe(404);
     });
@@ -2019,14 +1751,11 @@ describe("server", () => {
       });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie");
+      const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-        { cookie: cookie || "" },
+        { cookie: cookie },
       );
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -2049,8 +1778,7 @@ describe("server", () => {
           confirm_name: "John Doe",
         }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("redirects when wrapped data key is invalid", async () => {
@@ -2071,23 +1799,18 @@ describe("server", () => {
           `__Host-session=${token}`,
         ),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/attendee/1/delete",
           {
             confirm_name: "John Doe",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -2101,18 +1824,14 @@ describe("server", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/attendee/999/delete",
           {
             confirm_name: "John Doe",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -2127,10 +1846,7 @@ describe("server", () => {
       });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -2154,18 +1870,14 @@ describe("server", () => {
       });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
           {
             confirm_name: "Wrong Name",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -2182,18 +1894,14 @@ describe("server", () => {
       });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
           {
             confirm_name: "john doe", // lowercase
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -2214,24 +1922,19 @@ describe("server", () => {
       });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
           {
             confirm_name: "  John Doe  ", // with spaces
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/event/1");
+      expectRedirect("/admin/event/1")(response);
     });
   });
 
@@ -2262,15 +1965,11 @@ describe("server", () => {
       });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const formBody = new URLSearchParams({
         confirm_name: "John Doe",
-        csrf_token: csrfToken || "",
+        csrf_token: csrfToken,
       }).toString();
 
       const response = await handleRequest(
@@ -2284,8 +1983,7 @@ describe("server", () => {
           body: formBody,
         }),
       );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/event/1");
+      expectRedirect("/admin/event/1")(response);
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
@@ -2421,10 +2119,7 @@ describe("server", () => {
         name: "John Doe",
         email: "john@example.com",
       });
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "https://example.com/thanks",
-      );
+      expectRedirect("https://example.com/thanks")(response);
     });
 
     test("rejects when event is full", async () => {
@@ -2728,11 +2423,7 @@ describe("server", () => {
   describe("logout with valid session", () => {
     test("deletes session from database", async () => {
       // Log in first
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
+      const { cookie } = await loginAsAdmin();
       const token = cookie.split("=")[1]?.split(";")[0] || "";
 
       expect(token).not.toBe("");
@@ -2751,12 +2442,7 @@ describe("server", () => {
 
   describe("POST /admin/event with unit_price", () => {
     test("creates event with unit_price when authenticated", async () => {
-      const password = TEST_ADMIN_PASSWORD;
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
-      );
-      const cookie = loginResponse.headers.get("set-cookie") || "";
-      const csrfToken = await getCsrfTokenFromCookie(cookie);
+      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -2767,7 +2453,7 @@ describe("server", () => {
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
             unit_price: "1000",
-            csrf_token: csrfToken || "",
+            csrf_token: csrfToken,
           },
           cookie,
         ),
@@ -3178,10 +2864,7 @@ describe("server", () => {
       });
 
       // Should redirect to thank you page
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "https://example.com/thanks",
-      );
+      expectRedirect("https://example.com/thanks")(response);
     });
 
     test("zero price ticket is treated as free", async () => {
@@ -3201,10 +2884,7 @@ describe("server", () => {
       });
 
       // Should redirect to thank you page (no payment required)
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "https://example.com/thanks",
-      );
+      expectRedirect("https://example.com/thanks")(response);
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
@@ -3509,14 +3189,12 @@ describe("server", () => {
 
       test("redirects home to /setup/", async () => {
         const response = await handleRequest(mockRequest("/"));
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe("/setup");
+        expectRedirect("/setup")(response);
       });
 
       test("redirects admin to /setup/", async () => {
         const response = await handleRequest(mockRequest("/admin/"));
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe("/setup");
+        expectRedirect("/setup")(response);
       });
 
       test("health check still works", async () => {
@@ -3775,8 +3453,7 @@ describe("server", () => {
       test("PUT /setup/ redirects to /setup/ (unsupported method)", async () => {
         const response = await awaitTestRequest("/setup/", { method: "PUT" });
         // PUT method falls through routeSetup (returns null), then redirects to /setup/
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe("/setup");
+        expectRedirect("/setup")(response);
       });
 
       test("setup form works with full browser flow simulation", async () => {
@@ -3912,8 +3589,7 @@ describe("server", () => {
     describe("when setup already complete", () => {
       test("GET /setup/ redirects to home", async () => {
         const response = await handleRequest(mockRequest("/setup/"));
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe("/");
+        expectRedirect("/")(response);
       });
 
       test("POST /setup/ redirects to home", async () => {
@@ -3924,8 +3600,7 @@ describe("server", () => {
             currency_code: "EUR",
           }),
         );
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe("/");
+        expectRedirect("/")(response);
       });
     });
   });

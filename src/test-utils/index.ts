@@ -13,7 +13,7 @@ import {
 import { initDb } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { clearSetupCompleteCache, completeSetup } from "#lib/db/settings.ts";
-import type { Event } from "#lib/types.ts";
+import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 
 /**
  * Default test admin password
@@ -323,13 +323,15 @@ export const testEventInput = (
 /** Cached session for test event creation */
 let testSession: { cookie: string; csrfToken: string } | null = null;
 
-/** Get or create an authenticated session for test helpers */
-const getTestSession = async (): Promise<{
+/**
+ * Perform a fresh admin login and return the cookie and CSRF token.
+ * Unlike getTestSession, this does NOT cache — each call creates a new session.
+ * Use in tests that need an isolated authenticated session.
+ */
+export const loginAsAdmin = async (): Promise<{
   cookie: string;
   csrfToken: string;
 }> => {
-  if (testSession) return testSession;
-
   const { handleRequest } = await import("#routes");
   const loginResponse = await handleRequest(
     mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
@@ -338,10 +340,19 @@ const getTestSession = async (): Promise<{
   const csrfToken = await getCsrfTokenFromCookie(cookie);
 
   if (!csrfToken) {
-    throw new Error("Failed to get CSRF token for test session");
+    throw new Error("Failed to get CSRF token for admin login");
   }
 
-  testSession = { cookie, csrfToken };
+  return { cookie, csrfToken };
+};
+
+/** Get or create an authenticated session for test helpers (cached) */
+const getTestSession = async (): Promise<{
+  cookie: string;
+  csrfToken: string;
+}> => {
+  if (testSession) return testSession;
+  testSession = await loginAsAdmin();
   return testSession;
 };
 
@@ -490,7 +501,6 @@ export const reactivateTestEvent = changeEventStatus("reactivate");
 
 export type { EventInput };
 
-import type { Attendee } from "#lib/types.ts";
 import { getAttendeesRaw } from "#lib/db/attendees.ts";
 
 /**
@@ -551,4 +561,160 @@ export const createTestAttendee = async (
  * This is used in production by getAttendees, so not a test-only export
  */
 export { getAttendeesRaw };
+
+// ---------------------------------------------------------------------------
+// FP-style curried assertion helpers
+// These are data-last / pipe-compatible helpers for common test assertions.
+// Import `expect` lazily so the module can be loaded outside test contexts.
+// ---------------------------------------------------------------------------
+
+import { expect } from "#test-compat";
+
+/** Assert a Response has the given status code. Returns the response for chaining. */
+export const expectStatus =
+  (status: number) =>
+  (response: Response): Response => {
+    expect(response.status).toBe(status);
+    return response;
+  };
+
+/** Assert a Response is a redirect (302) to the given location. */
+export const expectRedirect =
+  (location: string) =>
+  (response: Response): Response => {
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(location);
+    return response;
+  };
+
+/** Shorthand: assert redirect to /admin */
+export const expectAdminRedirect: (response: Response) => Response =
+  expectRedirect("/admin");
+
+/** Assert a result object has ok:false with the expected error string. */
+export const expectResultError =
+  (expectedError: string) =>
+  <T extends { ok: boolean; error?: string }>(result: T): T => {
+    expect(result.ok).toBe(false);
+    if (!result.ok && "error" in result) {
+      expect(result.error).toBe(expectedError);
+    }
+    return result;
+  };
+
+/** Assert a result object has ok:false and notFound:true. */
+export const expectResultNotFound = <
+  T extends { ok: boolean; notFound?: boolean },
+>(
+  result: T,
+): T => {
+  expect(result.ok).toBe(false);
+  expect("notFound" in result && result.notFound).toBe(true);
+  return result;
+};
+
+/** Response factory: creates a callback returning a Response with given status/body. */
+export const successResponse =
+  (status: number, body?: string) => (): Response =>
+    new Response(body ?? null, { status });
+
+/** Error response factory: creates a callback taking an error string. */
+export const errorResponse =
+  (status: number) =>
+  (error: string): Response =>
+    new Response(error, { status });
+
+// ---------------------------------------------------------------------------
+// Test data factories
+// Partial-override factories for common domain objects.
+// Pass only the fields you care about; everything else gets sensible defaults.
+// ---------------------------------------------------------------------------
+
+/** Create a test Event with sensible defaults. Override any field via `overrides`. */
+export const testEvent = (overrides: Partial<Event> = {}): Event => ({
+  id: 1,
+  slug: "test-event",
+  slug_index: "test-event-index",
+  max_attendees: 100,
+  thank_you_url: "https://example.com/thanks",
+  created: "2024-01-01T00:00:00Z",
+  unit_price: null,
+  max_quantity: 1,
+  webhook_url: null,
+  active: 1,
+  fields: "email",
+  ...overrides,
+});
+
+/** Create a test EventWithCount (Event + attendee_count). */
+export const testEventWithCount = (
+  overrides: Partial<EventWithCount> = {},
+): EventWithCount => ({
+  ...testEvent(overrides),
+  attendee_count: 0,
+  ...overrides,
+});
+
+/** Create a test Attendee with sensible defaults. */
+export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
+  id: 1,
+  event_id: 1,
+  name: "John Doe",
+  email: "john@example.com",
+  phone: "",
+  created: "2024-01-01T12:00:00Z",
+  payment_id: null,
+  quantity: 1,
+  price_paid: null,
+  ...overrides,
+});
+
+// ---------------------------------------------------------------------------
+// Form validation helpers
+// Curried helpers for the common validate-then-assert pattern in form tests.
+// ---------------------------------------------------------------------------
+
+import { type Field, validateForm } from "#lib/forms.tsx";
+
+/** Validate form data and return the result. Shared core for assertion helpers. */
+const validateFormData = (fields: Field[], data: Record<string, string>) =>
+  validateForm(new URLSearchParams(data), fields);
+
+/** Validate form data against fields and assert the result is valid. Returns the values. */
+export const expectValid = (
+  fields: Field[],
+  data: Record<string, string>,
+): Record<string, unknown> => {
+  const result = validateFormData(fields, data);
+  expect(result.valid).toBe(true);
+  if (!result.valid) throw new Error("Expected valid result");
+  return result.values;
+};
+
+/** Validate form data against fields and assert the result is invalid with given error. */
+export const expectInvalid =
+  (expectedError: string) =>
+  (fields: Field[], data: Record<string, string>): void => {
+    const result = validateFormData(fields, data);
+    expect(result.valid).toBe(false);
+    if (!result.valid) expect(result.error).toBe(expectedError);
+  };
+
+/** Validate form data against fields and assert the result is invalid (any error). */
+export const expectInvalidForm = (
+  fields: Field[],
+  data: Record<string, string>,
+): void => {
+  expect(validateFormData(fields, data).valid).toBe(false);
+};
+
+/** Base event form data — merge with overrides for specific test cases. */
+export const baseEventForm: Record<string, string> = {
+  slug: "my-event",
+  name: "Event",
+  description: "Desc",
+  max_attendees: "100",
+  max_quantity: "1",
+  thank_you_url: "https://example.com",
+};
 

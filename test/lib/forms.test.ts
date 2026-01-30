@@ -13,16 +13,37 @@ import {
   ticketFields,
   validatePhone,
 } from "#templates/fields.ts";
+import {
+  baseEventForm,
+  expectInvalid,
+  expectInvalidForm,
+  expectValid,
+} from "#test-utils";
+
+/** Helper: build a Field definition with minimal boilerplate. */
+const field = (
+  overrides: Partial<Field> & { name: string; label: string },
+): Field => ({
+  type: "text",
+  ...overrides,
+});
+
+/** Helper: render a field with given overrides and optional value. */
+const rendered = (
+  overrides: Partial<Field> & { name: string; label: string },
+  value?: string,
+): string => renderField(field(overrides), value);
+
+/** Helper: build event form data with overrides. */
+const eventForm = (overrides: Record<string, string> = {}): Record<string, string> => ({
+  ...baseEventForm,
+  ...overrides,
+});
 
 describe("forms", () => {
   describe("renderField", () => {
     test("renders text input with label", () => {
-      const field: Field = {
-        name: "username",
-        label: "Username",
-        type: "text",
-      };
-      const html = renderField(field);
+      const html = rendered({ name: "username", label: "Username" });
       expect(html).toContain("<label>");
       expect(html).toContain("Username");
       expect(html).toContain('type="text"');
@@ -31,101 +52,51 @@ describe("forms", () => {
     });
 
     test("renders required attribute", () => {
-      const field: Field = {
-        name: "email",
-        label: "Email",
-        type: "email",
-        required: true,
-      };
-      const html = renderField(field);
+      const html = rendered({ name: "email", label: "Email", type: "email", required: true });
       expect(html).toContain("required");
     });
 
     test("renders placeholder", () => {
-      const field: Field = {
-        name: "name",
-        label: "Name",
-        type: "text",
-        placeholder: "Enter your name",
-      };
-      const html = renderField(field);
+      const html = rendered({ name: "name", label: "Name", placeholder: "Enter your name" });
       expect(html).toContain('placeholder="Enter your name"');
     });
 
     test("renders hint text", () => {
-      const field: Field = {
-        name: "password",
-        label: "Password",
-        type: "password",
-        hint: "Minimum 8 characters",
-      };
-      const html = renderField(field);
+      const html = rendered({ name: "password", label: "Password", type: "password", hint: "Minimum 8 characters" });
       expect(html).toContain("Minimum 8 characters");
       expect(html).toContain("<small");
     });
 
     test("renders min attribute for number", () => {
-      const field: Field = {
-        name: "quantity",
-        label: "Quantity",
-        type: "number",
-        min: 1,
-      };
-      const html = renderField(field);
+      const html = rendered({ name: "quantity", label: "Quantity", type: "number", min: 1 });
       expect(html).toContain('min="1"');
     });
 
     test("renders pattern attribute", () => {
-      const field: Field = {
-        name: "code",
-        label: "Code",
-        type: "text",
-        pattern: "[A-Z]{3}",
-      };
-      const html = renderField(field);
+      const html = rendered({ name: "code", label: "Code", pattern: "[A-Z]{3}" });
       expect(html).toContain('pattern="[A-Z]{3}"');
     });
 
     test("renders textarea for textarea type", () => {
-      const field: Field = {
-        name: "description",
-        label: "Description",
-        type: "textarea",
-      };
-      const html = renderField(field);
+      const html = rendered({ name: "description", label: "Description", type: "textarea" });
       expect(html).toContain("<textarea");
       expect(html).toContain('rows="3"');
       expect(html).not.toContain("<input");
     });
 
     test("renders value when provided", () => {
-      const field: Field = {
-        name: "name",
-        label: "Name",
-        type: "text",
-      };
-      const html = renderField(field, "John Doe");
+      const html = rendered({ name: "name", label: "Name" }, "John Doe");
       expect(html).toContain('value="John Doe"');
     });
 
     test("escapes HTML in value", () => {
-      const field: Field = {
-        name: "name",
-        label: "Name",
-        type: "text",
-      };
-      const html = renderField(field, '<script>alert("xss")</script>');
+      const html = rendered({ name: "name", label: "Name" }, '<script>alert("xss")</script>');
       expect(html).toContain("&lt;script&gt;");
       expect(html).not.toContain("<script>");
     });
 
     test("renders textarea with value", () => {
-      const field: Field = {
-        name: "description",
-        label: "Description",
-        type: "textarea",
-      };
-      const html = renderField(field, "Some description");
+      const html = rendered({ name: "description", label: "Description", type: "textarea" }, "Some description");
       expect(html).toContain(">Some description</textarea>");
     });
   });
@@ -133,8 +104,8 @@ describe("forms", () => {
   describe("renderFields", () => {
     test("renders multiple fields", () => {
       const fields: Field[] = [
-        { name: "name", label: "Name", type: "text", required: true },
-        { name: "email", label: "Email", type: "email", required: true },
+        field({ name: "name", label: "Name", required: true }),
+        field({ name: "email", label: "Email", type: "email", required: true }),
       ];
       const html = renderFields(fields);
       expect(html).toContain("Name");
@@ -145,8 +116,8 @@ describe("forms", () => {
 
     test("renders fields with values", () => {
       const fields: Field[] = [
-        { name: "name", label: "Name", type: "text" },
-        { name: "count", label: "Count", type: "number" },
+        field({ name: "name", label: "Name" }),
+        field({ name: "count", label: "Count", type: "number" }),
       ];
       const values = { name: "Test", count: 42 };
       const html = renderFields(fields, values);
@@ -155,127 +126,72 @@ describe("forms", () => {
     });
 
     test("handles null values", () => {
-      const fields: Field[] = [
-        { name: "price", label: "Price", type: "number" },
-      ];
-      const values = { price: null };
-      const html = renderFields(fields, values);
+      const fields: Field[] = [field({ name: "price", label: "Price", type: "number" })];
+      const html = renderFields(fields, { price: null });
       expect(html).not.toContain('value="null"');
     });
   });
 
   describe("validateForm", () => {
+    const requiredName: Field[] = [field({ name: "name", label: "Name", required: true })];
+
     test("validates required fields", () => {
-      const fields: Field[] = [
-        { name: "name", label: "Name", type: "text", required: true },
-      ];
-      const form = new URLSearchParams({ name: "" });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Name is required");
-      }
+      expectInvalid("Name is required")(requiredName, { name: "" });
     });
 
     test("validates required field with whitespace only", () => {
-      const fields: Field[] = [
-        { name: "name", label: "Name", type: "text", required: true },
-      ];
-      const form = new URLSearchParams({ name: "   " });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(false);
+      expectInvalidForm(requiredName, { name: "   " });
     });
 
     test("passes validation when required field has value", () => {
-      const fields: Field[] = [
-        { name: "name", label: "Name", type: "text", required: true },
-      ];
-      const form = new URLSearchParams({ name: "John" });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(true);
-      if (result.valid) {
-        expect(result.values.name).toBe("John");
-      }
+      const values = expectValid(requiredName, { name: "John" });
+      expect(values.name).toBe("John");
     });
 
     test("parses number fields", () => {
-      const fields: Field[] = [
-        { name: "quantity", label: "Quantity", type: "number", required: true },
-      ];
-      const form = new URLSearchParams({ quantity: "42" });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(true);
-      if (result.valid) {
-        expect(result.values.quantity).toBe(42);
-      }
+      const fields: Field[] = [field({ name: "quantity", label: "Quantity", type: "number", required: true })];
+      const values = expectValid(fields, { quantity: "42" });
+      expect(values.quantity).toBe(42);
     });
 
     test("returns null for empty optional number", () => {
-      const fields: Field[] = [
-        { name: "price", label: "Price", type: "number" },
-      ];
-      const form = new URLSearchParams({ price: "" });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(true);
-      if (result.valid) {
-        expect(result.values.price).toBeNull();
-      }
+      const fields: Field[] = [field({ name: "price", label: "Price", type: "number" })];
+      const values = expectValid(fields, { price: "" });
+      expect(values.price).toBeNull();
     });
 
     test("returns null for empty optional text", () => {
-      const fields: Field[] = [{ name: "note", label: "Note", type: "text" }];
-      const form = new URLSearchParams({ note: "" });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(true);
-      if (result.valid) {
-        expect(result.values.note).toBeNull();
-      }
+      const fields: Field[] = [field({ name: "note", label: "Note" })];
+      const values = expectValid(fields, { note: "" });
+      expect(values.note).toBeNull();
     });
 
     test("runs custom validate function", () => {
       const fields: Field[] = [
-        {
+        field({
           name: "code",
           label: "Code",
-          type: "text",
           required: true,
-          validate: (v) =>
-            v.length !== 3 ? "Code must be 3 characters" : null,
-        },
+          validate: (v) => v.length !== 3 ? "Code must be 3 characters" : null,
+        }),
       ];
-      const form = new URLSearchParams({ code: "AB" });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Code must be 3 characters");
-      }
+      expectInvalid("Code must be 3 characters")(fields, { code: "AB" });
     });
 
     test("skips custom validate for empty optional field", () => {
       const fields: Field[] = [
-        {
+        field({
           name: "code",
           label: "Code",
-          type: "text",
-          validate: (v) =>
-            v.length !== 3 ? "Code must be 3 characters" : null,
-        },
+          validate: (v) => v.length !== 3 ? "Code must be 3 characters" : null,
+        }),
       ];
-      const form = new URLSearchParams({ code: "" });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(true);
+      expectValid(fields, { code: "" });
     });
 
     test("trims values", () => {
-      const fields: Field[] = [
-        { name: "name", label: "Name", type: "text", required: true },
-      ];
-      const form = new URLSearchParams({ name: "  John  " });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(true);
-      if (result.valid) {
-        expect(result.values.name).toBe("John");
-      }
+      const values = expectValid(requiredName, { name: "  John  " });
+      expect(values.name).toBe("John");
     });
   });
 
@@ -300,77 +216,35 @@ describe("forms", () => {
 
   describe("eventFields validation", () => {
     test("validates thank_you_url rejects javascript: protocol", () => {
-      const form = new URLSearchParams({
-        slug: "my-event",
-        name: "Event",
-        description: "Desc",
-        max_attendees: "100",
-        max_quantity: "1",
-        thank_you_url: "javascript:alert(1)",
-      });
-      const result = validateForm(form, eventFields);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("URL must use https:// or http://");
-      }
+      expectInvalid("URL must use https:// or http://")(
+        eventFields,
+        eventForm({ thank_you_url: "javascript:alert(1)" }),
+      );
     });
 
     test("validates thank_you_url rejects invalid URL", () => {
-      const form = new URLSearchParams({
-        slug: "my-event",
-        name: "Event",
-        description: "Desc",
-        max_attendees: "100",
-        max_quantity: "1",
-        thank_you_url: "not-a-valid-url",
-      });
-      const result = validateForm(form, eventFields);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Invalid URL format");
-      }
+      expectInvalid("Invalid URL format")(
+        eventFields,
+        eventForm({ thank_you_url: "not-a-valid-url" }),
+      );
     });
 
     test("validates thank_you_url accepts relative URLs", () => {
-      const form = new URLSearchParams({
-        slug: "my-event",
-        name: "Event",
-        description: "Desc",
-        max_attendees: "100",
-        max_quantity: "1",
-        thank_you_url: "/thank-you",
-      });
-      const result = validateForm(form, eventFields);
-      expect(result.valid).toBe(true);
+      expectValid(eventFields, eventForm({ thank_you_url: "/thank-you" }));
     });
 
     test("validates unit_price rejects negative values", () => {
-      const form = new URLSearchParams({
-        slug: "my-event",
-        name: "Event",
-        description: "Desc",
-        max_attendees: "100",
-        max_quantity: "1",
-        thank_you_url: "https://example.com",
-        unit_price: "-100",
-      });
-      const result = validateForm(form, eventFields);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Price must be 0 or greater");
-      }
+      expectInvalid("Price must be 0 or greater")(
+        eventFields,
+        eventForm({ unit_price: "-100" }),
+      );
     });
 
     test("validates slug format", () => {
-      const form = new URLSearchParams({
-        slug: "INVALID_SLUG",
-        name: "Event",
-        description: "Desc",
-        max_attendees: "100",
-        max_quantity: "1",
-        thank_you_url: "https://example.com",
-      });
-      const result = validateForm(form, eventFields);
+      const result = validateForm(
+        new URLSearchParams(eventForm({ slug: "INVALID_SLUG" })),
+        eventFields,
+      );
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.error).toContain("lowercase");
@@ -378,54 +252,37 @@ describe("forms", () => {
     });
 
     test("validates slug is required", () => {
-      const form = new URLSearchParams({
-        max_attendees: "100",
-        max_quantity: "1",
-        thank_you_url: "https://example.com",
-      });
-      const result = validateForm(form, eventFields);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Identifier is required");
-      }
+      const { slug: _, name: __, description: ___, ...formWithoutSlug } = baseEventForm;
+      expectInvalid("Identifier is required")(eventFields, formWithoutSlug);
     });
   });
 
   describe("ticketFields validation", () => {
     test("validates email format", () => {
-      const form = new URLSearchParams({
-        name: "John Doe",
-        email: "not-an-email",
-      });
-      const result = validateForm(form, ticketFields);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Please enter a valid email address");
-      }
+      expectInvalid("Please enter a valid email address")(
+        ticketFields,
+        { name: "John Doe", email: "not-an-email" },
+      );
     });
 
     test("accepts valid email", () => {
-      const form = new URLSearchParams({
-        name: "John Doe",
-        email: "john@example.com",
-      });
-      const result = validateForm(form, ticketFields);
-      expect(result.valid).toBe(true);
+      expectValid(ticketFields, { name: "John Doe", email: "john@example.com" });
     });
   });
 
   describe("renderField select type", () => {
+    const colorSelect: Field = {
+      name: "color",
+      label: "Color",
+      type: "select",
+      options: [
+        { value: "red", label: "Red" },
+        { value: "blue", label: "Blue" },
+      ],
+    };
+
     test("renders select element with options", () => {
-      const field: Field = {
-        name: "color",
-        label: "Color",
-        type: "select",
-        options: [
-          { value: "red", label: "Red" },
-          { value: "blue", label: "Blue" },
-        ],
-      };
-      const html = renderField(field);
+      const html = renderField(colorSelect);
       expect(html).toContain("<select");
       expect(html).toContain('name="color"');
       expect(html).toContain('value="red"');
@@ -435,22 +292,13 @@ describe("forms", () => {
     });
 
     test("renders select with selected value", () => {
-      const field: Field = {
-        name: "color",
-        label: "Color",
-        type: "select",
-        options: [
-          { value: "red", label: "Red" },
-          { value: "blue", label: "Blue" },
-        ],
-      };
-      const html = renderField(field, "blue");
+      const html = renderField(colorSelect, "blue");
       expect(html).toContain('value="blue" selected');
       expect(html).not.toContain('value="red" selected');
     });
 
     test("renders select with hint", () => {
-      const field: Field = {
+      const fieldsSelect: Field = {
         name: "fields",
         label: "Contact Fields",
         type: "select",
@@ -461,7 +309,7 @@ describe("forms", () => {
           { value: "both", label: "Email & Phone Number" },
         ],
       };
-      const html = renderField(field);
+      const html = renderField(fieldsSelect);
       expect(html).toContain("Which contact details to collect");
     });
   });
@@ -520,15 +368,13 @@ describe("forms", () => {
     });
 
     test("phone field has validation", () => {
-      const fields = getTicketFields("phone");
-      const phoneField = fields[1]!;
+      const phoneField = getTicketFields("phone")[1]!;
       expect(phoneField.validate).toBeDefined();
       expect(phoneField.required).toBe(true);
     });
 
     test("email field has validation", () => {
-      const fields = getTicketFields("email");
-      const emailField = fields[1]!;
+      const emailField = getTicketFields("email")[1]!;
       expect(emailField.validate).toBeDefined();
       expect(emailField.required).toBe(true);
     });
@@ -570,121 +416,66 @@ describe("forms", () => {
 
   describe("eventFields Contact Fields validation", () => {
     test("validates fields select rejects invalid value", () => {
-      const form = new URLSearchParams({
-        slug: "my-event",
-        max_attendees: "100",
-        max_quantity: "1",
-        fields: "invalid",
-      });
-      const result = validateForm(form, eventFields);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Contact Fields must be email, phone, or both");
-      }
+      expectInvalid("Contact Fields must be email, phone, or both")(
+        eventFields,
+        eventForm({ fields: "invalid" }),
+      );
     });
 
     test("validates fields select accepts email", () => {
-      const form = new URLSearchParams({
-        slug: "my-event",
-        max_attendees: "100",
-        max_quantity: "1",
-        fields: "email",
-      });
-      const result = validateForm(form, eventFields);
-      expect(result.valid).toBe(true);
+      expectValid(eventFields, eventForm({ fields: "email" }));
     });
 
     test("validates fields select accepts phone", () => {
-      const form = new URLSearchParams({
-        slug: "my-event",
-        max_attendees: "100",
-        max_quantity: "1",
-        fields: "phone",
-      });
-      const result = validateForm(form, eventFields);
-      expect(result.valid).toBe(true);
+      expectValid(eventFields, eventForm({ fields: "phone" }));
     });
 
     test("validates fields select accepts both", () => {
-      const form = new URLSearchParams({
-        slug: "my-event",
-        max_attendees: "100",
-        max_quantity: "1",
-        fields: "both",
-      });
-      const result = validateForm(form, eventFields);
-      expect(result.valid).toBe(true);
+      expectValid(eventFields, eventForm({ fields: "both" }));
     });
   });
 
   describe("phone ticket fields validation", () => {
     test("validates phone is required for phone-only events", () => {
-      const fields = getTicketFields("phone");
-      const form = new URLSearchParams({
-        name: "John Doe",
-        phone: "",
-      });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Your Phone Number is required");
-      }
+      expectInvalid("Your Phone Number is required")(
+        getTicketFields("phone"),
+        { name: "John Doe", phone: "" },
+      );
     });
 
     test("validates phone format for phone-only events", () => {
-      const fields = getTicketFields("phone");
-      const form = new URLSearchParams({
-        name: "John Doe",
-        phone: "abc",
-      });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Please enter a valid phone number");
-      }
+      expectInvalid("Please enter a valid phone number")(
+        getTicketFields("phone"),
+        { name: "John Doe", phone: "abc" },
+      );
     });
 
     test("accepts valid phone for phone-only events", () => {
-      const fields = getTicketFields("phone");
-      const form = new URLSearchParams({
-        name: "John Doe",
-        phone: "+1 555 123 4567",
-      });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(true);
+      expectValid(getTicketFields("phone"), { name: "John Doe", phone: "+1 555 123 4567" });
     });
 
     test("validates both email and phone for both setting", () => {
-      const fields = getTicketFields("both");
-      const form = new URLSearchParams({
+      expectValid(getTicketFields("both"), {
         name: "John Doe",
         email: "john@example.com",
         phone: "+1 555 123 4567",
       });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(true);
     });
 
     test("rejects missing phone for both setting", () => {
-      const fields = getTicketFields("both");
-      const form = new URLSearchParams({
+      expectInvalidForm(getTicketFields("both"), {
         name: "John Doe",
         email: "john@example.com",
         phone: "",
       });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(false);
     });
 
     test("rejects missing email for both setting", () => {
-      const fields = getTicketFields("both");
-      const form = new URLSearchParams({
+      expectInvalidForm(getTicketFields("both"), {
         name: "John Doe",
         email: "",
         phone: "+1 555 123 4567",
       });
-      const result = validateForm(form, fields);
-      expect(result.valid).toBe(false);
     });
   });
 });

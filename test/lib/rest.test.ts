@@ -13,8 +13,14 @@ import {
 import { defineResource, type Resource } from "#lib/rest/resource.ts";
 import {
   createTestDbWithSetup,
+  errorResponse,
+  expectAdminRedirect,
+  expectResultError,
+  expectResultNotFound,
   resetDb,
   setupTestEncryptionKey,
+  successResponse,
+  testRequest,
 } from "#test-utils";
 
 /** Test row type */
@@ -63,25 +69,6 @@ const createTestResource = (withNameField = false): Resource<TestRow, TestInput>
   return defineResource(opts);
 };
 
-/** Standard success response factory */
-const successResponse = (status: number, body?: string) =>
-  () => new Response(body ?? null, { status });
-
-/** Standard error response factory */
-const errorResponse = (status: number) =>
-  (error: string) => new Response(error, { status });
-
-/** Assert result is an error with expected message */
-const expectError = <T extends { ok: boolean; error?: string }>(
-  result: T,
-  expectedError: string,
-): void => {
-  expect(result.ok).toBe(false);
-  if (!result.ok && "error" in result) {
-    expect(result.error).toBe(expectedError);
-  }
-};
-
 /** Insert test row and return the resource for chaining */
 const insertRow = async (
   resource: Resource<TestRow, TestInput>,
@@ -107,23 +94,23 @@ const expectDeleted = (r: Resource<TestRow, TestInput>, id: number) => expectRow
 /** Shorthand for existing row check */
 const expectExists = (r: Resource<TestRow, TestInput>, id: number) => expectRowExists(r, id, true);
 
-/** Assert result is not found */
-const expectNotFound = <T extends { ok: boolean; notFound?: boolean }>(result: T): void => {
-  expect(result.ok).toBe(false);
-  expect("notFound" in result && result.notFound).toBe(true);
-};
-
-/** Assert response is a redirect to /admin */
-const expectAdminRedirect = (response: Response): void => {
-  expect(response.status).toBe(302);
-  expect(response.headers.get("location")).toBe("/admin");
-};
-
 /** Common test row data for update tests */
 const originalRowData = { name: "Original", value: 50 } as const;
 
 /** Common test row data for important item tests */
 const importantItemData = { name: "Important Item", value: 10 } as const;
+
+/** Create test_items table in the current database */
+const createTestItemsTable = async () => {
+  const { getDb } = await import("#lib/db/client.ts");
+  await getDb().execute(`
+    CREATE TABLE IF NOT EXISTS test_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      value INTEGER NOT NULL
+    )
+  `);
+};
 
 describe("rest/resource", () => {
   beforeEach(async () => {
@@ -131,15 +118,7 @@ describe("rest/resource", () => {
     const client = createClient({ url: ":memory:" });
     setDb(client);
     await initDb();
-    // Create test table
-    const db = client;
-    await db.execute(`
-      CREATE TABLE IF NOT EXISTS test_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        value INTEGER NOT NULL
-      )
-    `);
+    await createTestItemsTable();
   });
 
   afterEach(() => {
@@ -185,13 +164,13 @@ describe("rest/resource", () => {
     test("returns error for missing required field", async () => {
       const resource = createTestResource();
       const result = await resource.parseInput(new URLSearchParams({ name: "Test" }));
-      expectError(result, "Value is required");
+      expectResultError("Value is required")(result);
     });
 
     test("returns error for empty required field", async () => {
       const resource = createTestResource();
       const result = await resource.parseInput(new URLSearchParams({ name: "", value: "42" }));
-      expectError(result, "Name is required");
+      expectResultError("Name is required")(result);
     });
   });
 
@@ -236,7 +215,7 @@ describe("rest/resource", () => {
     test("returns error for invalid form data", async () => {
       const resource = createTestResource();
       const result = await resource.create(new URLSearchParams({ name: "Item" }));
-      expectError(result, "Value is required");
+      expectResultError("Value is required")(result);
     });
   });
 
@@ -249,12 +228,12 @@ describe("rest/resource", () => {
     });
 
     test("returns notFound for non-existent row", async () => {
-      expectNotFound(await createTestResource().update(999, new URLSearchParams({ name: "Updated", value: "200" })));
+      expectResultNotFound(await createTestResource().update(999, new URLSearchParams({ name: "Updated", value: "200" })));
     });
 
     test("returns error for invalid form data", async () => {
       const resource = await insertRow(createTestResource(), originalRowData);
-      expectError(await resource.update(1, new URLSearchParams({ name: "" })), "Name is required");
+      expectResultError("Name is required")(await resource.update(1, new URLSearchParams({ name: "" })));
     });
   });
 
@@ -267,7 +246,7 @@ describe("rest/resource", () => {
     });
 
     test("returns notFound for non-existent row", async () => {
-      expectNotFound(await createTestResource().delete(999));
+      expectResultNotFound(await createTestResource().delete(999));
     });
   });
 
@@ -297,15 +276,7 @@ describe("rest/resource", () => {
 describe("rest/handlers", () => {
   beforeEach(async () => {
     await createTestDbWithSetup();
-    // Create test table
-    const { getDb } = await import("#lib/db/client.ts");
-    await getDb().execute(`
-      CREATE TABLE IF NOT EXISTS test_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        value INTEGER NOT NULL
-      )
-    `);
+    await createTestItemsTable();
   });
 
   afterEach(() => {
@@ -315,40 +286,19 @@ describe("rest/handlers", () => {
   /** Create authenticated request with session and CSRF */
   const createAuthRequest = async (
     path: string,
-    method: string,
     data: Record<string, string>,
   ): Promise<Request> => {
     const csrfToken = "test-csrf-token";
     await createSession("test-session", csrfToken, Date.now() + 60000);
-
-    const body = new URLSearchParams({ ...data, csrf_token: csrfToken });
-    return new Request(`http://localhost${path}`, {
-      method,
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        cookie: "__Host-session=test-session",
-        origin: "http://localhost",
-      },
-      body: body.toString(),
-    });
+    return testRequest(path, "test-session", { data: { ...data, csrf_token: csrfToken } });
   };
 
   /** Create unauthenticated request */
   const createUnauthRequest = (
     path: string,
-    method: string,
     data: Record<string, string>,
-  ): Request => {
-    const body = new URLSearchParams(data);
-    return new Request(`http://localhost${path}`, {
-      method,
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        origin: "http://localhost",
-      },
-      body: body.toString(),
-    });
-  };
+  ): Request =>
+    testRequest(path, null, { data });
 
   describe("createHandler", () => {
     test("creates row and calls onSuccess", async () => {
@@ -359,7 +309,7 @@ describe("rest/handlers", () => {
         onError: errorResponse(400),
       });
 
-      const request = await createAuthRequest("/items", "POST", { name: "New Item", value: "42" });
+      const request = await createAuthRequest("/items", { name: "New Item", value: "42" });
       const response = await handler(request);
 
       expect(response.status).toBe(201);
@@ -376,7 +326,7 @@ describe("rest/handlers", () => {
         onError: (error) => { errorMessage = error; return new Response(error, { status: 400 }); },
       });
 
-      const request = await createAuthRequest("/items", "POST", { name: "Item" }); // missing value
+      const request = await createAuthRequest("/items", { name: "Item" }); // missing value
       const response = await handler(request);
 
       expect(response.status).toBe(400);
@@ -385,7 +335,7 @@ describe("rest/handlers", () => {
 
     test("redirects for unauthenticated request", async () => {
       const handler = createHandler(createTestResource(), { onSuccess: successResponse(201, "Created"), onError: errorResponse(400) });
-      expectAdminRedirect(await handler(createUnauthRequest("/items", "POST", { name: "Item", value: "42" })));
+      expectAdminRedirect(await handler(createUnauthRequest("/items", { name: "Item", value: "42" })));
     });
   });
 
@@ -404,7 +354,7 @@ describe("rest/handlers", () => {
         ...updateOpts(),
         onSuccess: (row) => { capturedRow = row; return new Response("Updated", { status: 200 }); },
       });
-      const response = await handler(await createAuthRequest("/items/1", "PUT", { name: "Updated", value: "99" }), 1);
+      const response = await handler(await createAuthRequest("/items/1", { name: "Updated", value: "99" }), 1);
       expect(response.status).toBe(200);
       expect((capturedRow as TestRow).name).toBe("Updated");
       expect((capturedRow as TestRow).value).toBe(99);
@@ -412,7 +362,7 @@ describe("rest/handlers", () => {
 
     test("calls onNotFound for non-existent row", async () => {
       const handler = updateHandler(createTestResource(), updateOpts());
-      const response = await handler(await createAuthRequest("/items/999", "PUT", { name: "Updated", value: "99" }), 999);
+      const response = await handler(await createAuthRequest("/items/999", { name: "Updated", value: "99" }), 999);
       expect(response.status).toBe(404);
     });
 
@@ -423,7 +373,7 @@ describe("rest/handlers", () => {
         ...updateOpts(),
         onError: (id, error) => { capturedId = id; errorMessage = error; return new Response(error, { status: 400 }); },
       });
-      const response = await handler(await createAuthRequest("/items/1", "PUT", { name: "Updated" }), 1);
+      const response = await handler(await createAuthRequest("/items/1", { name: "Updated" }), 1);
       expect(response.status).toBe(400);
       expect(capturedId).toBe(1);
       expect(errorMessage).toBe("Value is required");
@@ -431,7 +381,7 @@ describe("rest/handlers", () => {
 
     test("redirects for unauthenticated request", async () => {
       const handler = updateHandler(createTestResource(), updateOpts());
-      expectAdminRedirect(await handler(createUnauthRequest("/items/1", "PUT", { name: "Updated", value: "99" }), 1));
+      expectAdminRedirect(await handler(createUnauthRequest("/items/1", { name: "Updated", value: "99" }), 1));
     });
   });
 
@@ -451,14 +401,14 @@ describe("rest/handlers", () => {
     test("deletes row and calls onSuccess", async () => {
       const resource = await insertRow(createTestResource(), { name: "To Delete", value: 10 });
       const handler = deleteHandler(resource, deleteOpts());
-      const response = await handler(await createAuthRequest("/items/1?verify_name=false", "DELETE", {}), 1);
+      const response = await handler(await createAuthRequest("/items/1?verify_name=false", {}), 1);
       expect(response.status).toBe(204);
       await expectDeleted(resource, 1);
     });
 
     test("calls onNotFound for non-existent row", async () => {
       const handler = deleteHandler(createTestResource(), deleteOpts());
-      const response = await handler(await createAuthRequest("/items/999?verify_name=false", "DELETE", {}), 999);
+      const response = await handler(await createAuthRequest("/items/999?verify_name=false", {}), 999);
       expect(response.status).toBe(404);
     });
 
@@ -469,7 +419,7 @@ describe("rest/handlers", () => {
         ...deleteOpts(),
         onVerifyFailed: (id, _row) => { verifyFailedId = id; return new Response("Name mismatch", { status: 400 }); },
       });
-      expect((await handler(await createAuthRequest("/items/1", "DELETE", { confirm_name: "Wrong Name" }), 1)).status).toBe(400);
+      expect((await handler(await createAuthRequest("/items/1", { confirm_name: "Wrong Name" }), 1)).status).toBe(400);
       expect(verifyFailedId).toBe(1);
       await expectExists(resource, 1);
     });
@@ -481,13 +431,13 @@ describe("rest/handlers", () => {
 
     test("deletes when name verification passes", async () => {
       const { resource, handler } = await setupDeleteWithVerify();
-      expect((await handler(await createAuthRequest("/items/1", "DELETE", { confirm_name: importantItemData.name }), 1)).status).toBe(204);
+      expect((await handler(await createAuthRequest("/items/1", { confirm_name: importantItemData.name }), 1)).status).toBe(204);
       await expectDeleted(resource, 1);
     });
 
     test("skips name verification when verify_name=false", async () => {
       const { resource, handler } = await setupDeleteWithVerify();
-      expect((await handler(await createAuthRequest("/items/1?verify_name=false", "DELETE", {}), 1)).status).toBe(204);
+      expect((await handler(await createAuthRequest("/items/1?verify_name=false", {}), 1)).status).toBe(204);
       await expectDeleted(resource, 1);
     });
   });
