@@ -13,7 +13,7 @@ import {
   type MultiRegistrationItem,
   type RegistrationIntent,
 } from "#lib/payments.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { EventFields, EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import {
   csrfCookie,
@@ -27,7 +27,7 @@ import {
   requireCsrfForm,
   withActiveEventBySlug,
 } from "#routes/utils.ts";
-import { ticketFields } from "#templates/fields.ts";
+import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { reservationSuccessPage } from "#templates/payment.tsx";
 import {
   buildMultiTicketEvent,
@@ -97,6 +97,7 @@ type ReservationParams = {
   event: EventWithCount;
   name: string;
   email: string;
+  phone: string;
   quantity: number;
   token: string;
 };
@@ -143,6 +144,13 @@ const handlePaymentFlow = (
     },
   );
 
+/** Extract contact details (name, email, phone) from validated form values */
+const extractContact = (values: import("#lib/forms.tsx").FieldValues) => ({
+  name: values.name as string,
+  email: (values.email as string) || "",
+  phone: (values.phone as string) || "",
+});
+
 /** Parse and validate a quantity value from a raw string, capping at max */
 const parseQuantityValue = (raw: string, max: number, minDefault = 1): number => {
   const quantity = Number.parseInt(raw, 10);
@@ -164,20 +172,14 @@ const ticketCsrfError = (event: EventWithCount) => (token: string) =>
 /** Handle paid event registration - check availability, create Stripe session */
 const processPaidReservation = async (
   request: Request,
-  params: ReservationParams,
+  { event, token, ...contact }: ReservationParams,
 ): Promise<Response> => {
-  const { event, name, email, quantity, token } = params;
-  const available = await hasAvailableSpots(event.id, quantity);
+  const available = await hasAvailableSpots(event.id, contact.quantity);
   if (!available) {
     return ticketResponse(event, token)("Sorry, not enough spots available");
   }
 
-  const intent: RegistrationIntent = {
-    eventId: event.id,
-    name,
-    email,
-    quantity,
-  };
+  const intent: RegistrationIntent = { eventId: event.id, ...contact };
   return handlePaymentFlow(request, event, intent, token);
 };
 
@@ -196,8 +198,8 @@ const formatAtomicError = (
 const processFreeReservation = async (
   reservation: ReservationParams,
 ): Promise<Response> => {
-  const { event, name, email, quantity, token } = reservation;
-  const result = await createAttendeeAtomic(event.id, name, email, null, quantity);
+  const { event, name, email, phone, quantity, token } = reservation;
+  const result = await createAttendeeAtomic(event.id, name, email, null, quantity, phone);
 
   if (!result.success) {
     return ticketResponse(event, token)(formatAtomicError(result.reason));
@@ -225,18 +227,17 @@ const processTicketReservation = async (
   if (!csrfResult.ok) return csrfResult.response;
 
   const { form } = csrfResult;
-  const validation = validateForm(form, ticketFields);
+  const fields = getTicketFields(event.fields);
+  const validation = validateForm(form, fields);
   if (!validation.valid) {
     return ticketResponse(event, currentToken)(validation.error);
   }
 
   const quantity = parseQuantity(form, event);
-  const name = validation.values.name as string;
-  const email = validation.values.email as string;
+  const contact = extractContact(validation.values);
   const params: ReservationParams = {
     event,
-    name,
-    email,
+    ...contact,
     quantity,
     token: currentToken,
   };
@@ -405,15 +406,20 @@ const handleMultiPaymentFlow = (
     },
   );
 
+/** Determine merged fields setting for multi-ticket events */
+const getMultiTicketFieldsSetting = (events: MultiTicketEvent[]): EventFields =>
+  mergeEventFields(events.map((e) => e.event.fields));
+
 /** Handle free multi-ticket registration */
 const processMultiFreeReservation = async (
   events: MultiTicketEvent[],
   quantities: Map<number, number>,
   name: string,
   email: string,
+  phone: string,
 ): Promise<{ success: true } | { success: false; error: string }> => {
   for (const { event, qty } of eventsWithQuantity(events, quantities)) {
-    const result = await createAttendeeAtomic(event.id, name, email, null, qty);
+    const result = await createAttendeeAtomic(event.id, name, email, null, qty, phone);
     if (!result.success) {
       return { success: false, error: formatAtomicError(result.reason, event.slug) };
     }
@@ -443,16 +449,17 @@ const handleMultiTicketPost = (
 
   const { form } = csrfResult;
 
-  // Validate name/email fields
-  const validation = validateForm(form, ticketFields);
+  // Validate fields based on merged event settings
+  const fieldsSetting = getMultiTicketFieldsSetting(activeEvents);
+  const fields = getTicketFields(fieldsSetting);
+  const validation = validateForm(form, fields);
   if (!validation.valid) {
     return multiTicketResponse(slugs, activeEvents, currentToken)(
       validation.error,
     );
   }
 
-  const name = validation.values.name as string;
-  const email = validation.values.email as string;
+  const { name, email, phone } = extractContact(validation.values);
 
   // Parse quantities
   const quantities = parseMultiQuantities(form, activeEvents);
@@ -480,7 +487,7 @@ const handleMultiTicketPost = (
       );
     }
 
-    const intent: MultiRegistrationIntent = { name, email, items };
+    const intent: MultiRegistrationIntent = { name, email, phone, items };
     return handleMultiPaymentFlow(
       request,
       slugs,
@@ -496,6 +503,7 @@ const handleMultiTicketPost = (
     quantities,
     name,
     email,
+    phone,
   );
 
   if (!result.success) {

@@ -6,7 +6,13 @@ import {
   renderFields,
   validateForm,
 } from "#lib/forms.tsx";
-import { eventFields, ticketFields } from "#templates/fields.ts";
+import {
+  eventFields,
+  getTicketFields,
+  mergeEventFields,
+  ticketFields,
+  validatePhone,
+} from "#templates/fields.ts";
 
 describe("forms", () => {
   describe("renderField", () => {
@@ -405,6 +411,280 @@ describe("forms", () => {
       });
       const result = validateForm(form, ticketFields);
       expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("renderField select type", () => {
+    test("renders select element with options", () => {
+      const field: Field = {
+        name: "color",
+        label: "Color",
+        type: "select",
+        options: [
+          { value: "red", label: "Red" },
+          { value: "blue", label: "Blue" },
+        ],
+      };
+      const html = renderField(field);
+      expect(html).toContain("<select");
+      expect(html).toContain('name="color"');
+      expect(html).toContain('value="red"');
+      expect(html).toContain(">Red</option>");
+      expect(html).toContain('value="blue"');
+      expect(html).toContain(">Blue</option>");
+    });
+
+    test("renders select with selected value", () => {
+      const field: Field = {
+        name: "color",
+        label: "Color",
+        type: "select",
+        options: [
+          { value: "red", label: "Red" },
+          { value: "blue", label: "Blue" },
+        ],
+      };
+      const html = renderField(field, "blue");
+      expect(html).toContain('value="blue" selected');
+      expect(html).not.toContain('value="red" selected');
+    });
+
+    test("renders select with hint", () => {
+      const field: Field = {
+        name: "fields",
+        label: "Contact Fields",
+        type: "select",
+        hint: "Which contact details to collect",
+        options: [
+          { value: "email", label: "Email" },
+          { value: "phone", label: "Phone Number" },
+          { value: "both", label: "Email & Phone Number" },
+        ],
+      };
+      const html = renderField(field);
+      expect(html).toContain("Which contact details to collect");
+    });
+  });
+
+  describe("validatePhone", () => {
+    test("accepts valid phone with country code", () => {
+      expect(validatePhone("+1 234 567 8900")).toBeNull();
+    });
+
+    test("accepts valid phone with parentheses", () => {
+      expect(validatePhone("+1 (555) 123-4567")).toBeNull();
+    });
+
+    test("accepts valid phone with hyphens", () => {
+      expect(validatePhone("+44-20-1234-5678")).toBeNull();
+    });
+
+    test("accepts plain digit phone", () => {
+      expect(validatePhone("1234567890")).toBeNull();
+    });
+
+    test("rejects phone too short", () => {
+      expect(validatePhone("123")).not.toBeNull();
+    });
+
+    test("rejects phone with letters", () => {
+      expect(validatePhone("abc1234567")).not.toBeNull();
+    });
+
+    test("rejects empty string", () => {
+      expect(validatePhone("")).not.toBeNull();
+    });
+  });
+
+  describe("getTicketFields", () => {
+    test("returns name and email fields for email setting", () => {
+      const fields = getTicketFields("email");
+      expect(fields.length).toBe(2);
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("email");
+    });
+
+    test("returns name and phone fields for phone setting", () => {
+      const fields = getTicketFields("phone");
+      expect(fields.length).toBe(2);
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("phone");
+    });
+
+    test("returns name, email, and phone fields for both setting", () => {
+      const fields = getTicketFields("both");
+      expect(fields.length).toBe(3);
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("email");
+      expect(fields[2]!.name).toBe("phone");
+    });
+
+    test("phone field has validation", () => {
+      const fields = getTicketFields("phone");
+      const phoneField = fields[1]!;
+      expect(phoneField.validate).toBeDefined();
+      expect(phoneField.required).toBe(true);
+    });
+
+    test("email field has validation", () => {
+      const fields = getTicketFields("email");
+      const emailField = fields[1]!;
+      expect(emailField.validate).toBeDefined();
+      expect(emailField.required).toBe(true);
+    });
+  });
+
+  describe("mergeEventFields", () => {
+    test("returns email for empty array", () => {
+      expect(mergeEventFields([])).toBe("email");
+    });
+
+    test("returns email when all events use email", () => {
+      expect(mergeEventFields(["email", "email", "email"])).toBe("email");
+    });
+
+    test("returns phone when all events use phone", () => {
+      expect(mergeEventFields(["phone", "phone"])).toBe("phone");
+    });
+
+    test("returns both when all events use both", () => {
+      expect(mergeEventFields(["both", "both"])).toBe("both");
+    });
+
+    test("returns both when events differ (email + phone)", () => {
+      expect(mergeEventFields(["email", "phone"])).toBe("both");
+    });
+
+    test("returns both when events differ (email + both)", () => {
+      expect(mergeEventFields(["email", "both"])).toBe("both");
+    });
+
+    test("returns both when events differ (phone + both)", () => {
+      expect(mergeEventFields(["phone", "both"])).toBe("both");
+    });
+
+    test("returns setting for single event", () => {
+      expect(mergeEventFields(["phone"])).toBe("phone");
+    });
+  });
+
+  describe("eventFields Contact Fields validation", () => {
+    test("validates fields select rejects invalid value", () => {
+      const form = new URLSearchParams({
+        slug: "my-event",
+        max_attendees: "100",
+        max_quantity: "1",
+        fields: "invalid",
+      });
+      const result = validateForm(form, eventFields);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Contact Fields must be email, phone, or both");
+      }
+    });
+
+    test("validates fields select accepts email", () => {
+      const form = new URLSearchParams({
+        slug: "my-event",
+        max_attendees: "100",
+        max_quantity: "1",
+        fields: "email",
+      });
+      const result = validateForm(form, eventFields);
+      expect(result.valid).toBe(true);
+    });
+
+    test("validates fields select accepts phone", () => {
+      const form = new URLSearchParams({
+        slug: "my-event",
+        max_attendees: "100",
+        max_quantity: "1",
+        fields: "phone",
+      });
+      const result = validateForm(form, eventFields);
+      expect(result.valid).toBe(true);
+    });
+
+    test("validates fields select accepts both", () => {
+      const form = new URLSearchParams({
+        slug: "my-event",
+        max_attendees: "100",
+        max_quantity: "1",
+        fields: "both",
+      });
+      const result = validateForm(form, eventFields);
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("phone ticket fields validation", () => {
+    test("validates phone is required for phone-only events", () => {
+      const fields = getTicketFields("phone");
+      const form = new URLSearchParams({
+        name: "John Doe",
+        phone: "",
+      });
+      const result = validateForm(form, fields);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Your Phone Number is required");
+      }
+    });
+
+    test("validates phone format for phone-only events", () => {
+      const fields = getTicketFields("phone");
+      const form = new URLSearchParams({
+        name: "John Doe",
+        phone: "abc",
+      });
+      const result = validateForm(form, fields);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Please enter a valid phone number");
+      }
+    });
+
+    test("accepts valid phone for phone-only events", () => {
+      const fields = getTicketFields("phone");
+      const form = new URLSearchParams({
+        name: "John Doe",
+        phone: "+1 555 123 4567",
+      });
+      const result = validateForm(form, fields);
+      expect(result.valid).toBe(true);
+    });
+
+    test("validates both email and phone for both setting", () => {
+      const fields = getTicketFields("both");
+      const form = new URLSearchParams({
+        name: "John Doe",
+        email: "john@example.com",
+        phone: "+1 555 123 4567",
+      });
+      const result = validateForm(form, fields);
+      expect(result.valid).toBe(true);
+    });
+
+    test("rejects missing phone for both setting", () => {
+      const fields = getTicketFields("both");
+      const form = new URLSearchParams({
+        name: "John Doe",
+        email: "john@example.com",
+        phone: "",
+      });
+      const result = validateForm(form, fields);
+      expect(result.valid).toBe(false);
+    });
+
+    test("rejects missing email for both setting", () => {
+      const fields = getTicketFields("both");
+      const form = new URLSearchParams({
+        name: "John Doe",
+        email: "",
+        phone: "+1 555 123 4567",
+      });
+      const result = validateForm(form, fields);
+      expect(result.valid).toBe(false);
     });
   });
 });

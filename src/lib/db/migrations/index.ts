@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "payment provider abstraction v3";
+export const LATEST_UPDATE = "payment provider abstraction with phone and price_paid";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -64,7 +64,8 @@ export const initDb = async (): Promise<void> => {
       webhook_url TEXT,
       slug TEXT,
       slug_index TEXT,
-      active INTEGER NOT NULL DEFAULT 1
+      active INTEGER NOT NULL DEFAULT 1,
+      fields TEXT NOT NULL DEFAULT 'email'
     )
   `);
 
@@ -83,6 +84,7 @@ export const initDb = async (): Promise<void> => {
       created TEXT NOT NULL,
       payment_id TEXT,
       quantity INTEGER NOT NULL DEFAULT 1,
+      phone TEXT NOT NULL DEFAULT '',
       FOREIGN KEY (event_id) REFERENCES events(id)
     )
   `);
@@ -144,6 +146,9 @@ export const initDb = async (): Promise<void> => {
   await runMigration(`DROP TABLE IF EXISTS processed_payments`);
   await runMigration(`ALTER TABLE processed_payments_new RENAME TO processed_payments`);
 
+  // Migration: add price_paid column to attendees (encrypted with DB_ENCRYPTION_KEY)
+  await runMigration(`ALTER TABLE attendees ADD COLUMN price_paid TEXT`);
+
   // Create activity_log table (unencrypted, admin-only view)
   await runMigration(`
     CREATE TABLE IF NOT EXISTS activity_log (
@@ -154,6 +159,12 @@ export const initDb = async (): Promise<void> => {
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL
     )
   `);
+
+  // Migration: add fields column to events (defaults to "email" for backwards compatibility)
+  await runMigration(`ALTER TABLE events ADD COLUMN fields TEXT NOT NULL DEFAULT 'email'`);
+
+  // Migration: add phone column to attendees (nullable, hybrid encrypted like email)
+  await runMigration(`ALTER TABLE attendees ADD COLUMN phone TEXT`);
 
   // Update the version marker
   await getDb().execute({

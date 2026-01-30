@@ -389,6 +389,7 @@ export const createTestEvent = (
       slug: input.slug,
       max_attendees: String(input.maxAttendees),
       max_quantity: String(input.maxQuantity ?? 1),
+      fields: input.fields ?? "email",
       thank_you_url: input.thankYouUrl ?? "",
       unit_price: input.unitPrice != null ? String(input.unitPrice) : "",
       webhook_url: input.webhookUrl ?? "",
@@ -442,6 +443,7 @@ export const updateTestEvent = async (
       slug: updates.slug ?? existing.slug,
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
       max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
+      fields: updates.fields ?? existing.fields,
       thank_you_url: formatOptional(updates.thankYouUrl, existing.thank_you_url),
       unit_price: formatPrice(updates.unitPrice, existing.unit_price),
       webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
@@ -502,6 +504,7 @@ export const createTestAttendee = async (
   name: string,
   email: string,
   quantity = 1,
+  phone = "",
 ): Promise<Attendee> => {
   const { handleRequest } = await import("#routes");
 
@@ -521,7 +524,7 @@ export const createTestAttendee = async (
 
   // Submit the ticket form
   const response = await handleRequest(
-    mockTicketFormRequest(eventSlug, { name, email, quantity: String(quantity) }, csrfToken),
+    mockTicketFormRequest(eventSlug, { name, email, phone, quantity: String(quantity) }, csrfToken),
   );
 
   // Free events redirect to thank you page (302)

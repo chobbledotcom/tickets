@@ -52,6 +52,7 @@ const extractIntent = (
   eventId: Number.parseInt(session.metadata.event_id ?? "0", 10),
   name: session.metadata.name,
   email: session.metadata.email,
+  phone: session.metadata.phone ?? "",
   quantity: Number.parseInt(session.metadata.quantity || "1", 10),
 });
 
@@ -189,6 +190,7 @@ const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
 type MultiIntent = {
   name: string;
   email: string;
+  phone: string;
   items: MultiItem[];
 };
 
@@ -205,6 +207,7 @@ const extractMultiIntent = (
   return {
     name: metadata.name,
     email: metadata.email,
+    phone: metadata.phone ?? "",
     items,
   };
 };
@@ -267,12 +270,15 @@ const processMultiPaymentSession = async (
       );
     }
 
+    const pricePaid = event.unit_price !== null ? event.unit_price * item.q : null;
     const result = await createAttendeeAtomic(
       item.e,
       intent.name,
       intent.email,
       session.paymentReference,
       item.q,
+      intent.phone,
+      pricePaid,
     );
 
     if (!result.success) {
@@ -369,12 +375,15 @@ const processPaymentSession = async (
 
   // Phase 2: Create attendee atomically with capacity check
   const paymentReference = session.paymentReference;
+  const pricePaid = event.unit_price !== null ? event.unit_price * intent.quantity : null;
   const result = await createAttendeeAtomic(
     intent.eventId,
     intent.name,
     intent.email,
     paymentReference,
     intent.quantity,
+    intent.phone,
+    pricePaid,
   );
 
   if (!result.success) {
@@ -519,6 +528,7 @@ const extractSessionFromEvent = (
       event_id: obj.metadata.event_id,
       name: obj.metadata.name,
       email: obj.metadata.email,
+      phone: obj.metadata.phone,
       quantity: obj.metadata.quantity,
       multi: obj.metadata.multi,
       items: obj.metadata.items,

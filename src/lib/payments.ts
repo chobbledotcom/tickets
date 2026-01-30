@@ -17,6 +17,7 @@ export type RegistrationIntent = {
   eventId: number;
   name: string;
   email: string;
+  phone: string;
   quantity: number;
 };
 
@@ -32,6 +33,7 @@ export type MultiRegistrationItem = {
 export type MultiRegistrationIntent = {
   name: string;
   email: string;
+  phone: string;
   items: MultiRegistrationItem[];
 };
 
@@ -46,6 +48,7 @@ export type SessionMetadata = {
   event_id?: string;
   name: string;
   email: string;
+  phone?: string;
   quantity?: string;
   multi?: string;
   items?: string;

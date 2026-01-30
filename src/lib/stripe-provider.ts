@@ -25,32 +25,6 @@ import {
   setupWebhookEndpoint,
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
-import type {
-  RegistrationIntent as StripeRegistrationIntent,
-  MultiRegistrationIntent as StripeMultiRegistrationIntent,
-} from "#lib/stripe.ts";
-
-/** Convert provider RegistrationIntent to Stripe's format */
-const toStripeIntent = (intent: RegistrationIntent): StripeRegistrationIntent => ({
-  eventId: intent.eventId,
-  name: intent.name,
-  email: intent.email,
-  quantity: intent.quantity,
-});
-
-/** Convert provider MultiRegistrationIntent to Stripe's format */
-const toStripeMultiIntent = (
-  intent: MultiRegistrationIntent,
-): StripeMultiRegistrationIntent => ({
-  name: intent.name,
-  email: intent.email,
-  items: intent.items.map((item) => ({
-    eventId: item.eventId,
-    quantity: item.quantity,
-    unitPrice: item.unitPrice,
-    slug: item.slug,
-  })),
-});
 
 /** Convert a Stripe session response to a provider-agnostic CheckoutSessionResult */
 const toCheckoutResult = (
@@ -70,7 +44,7 @@ export const stripePaymentProvider: PaymentProvider = {
     baseUrl: string,
   ): Promise<CheckoutSessionResult> {
     return toCheckoutResult(
-      await createCheckoutSessionWithIntent(event, toStripeIntent(intent), baseUrl),
+      await createCheckoutSessionWithIntent(event, intent, baseUrl),
     );
   },
 
@@ -79,7 +53,7 @@ export const stripePaymentProvider: PaymentProvider = {
     baseUrl: string,
   ): Promise<CheckoutSessionResult> {
     return toCheckoutResult(
-      await createMultiCheckoutSession(toStripeMultiIntent(intent), baseUrl),
+      await createMultiCheckoutSession(intent, baseUrl),
     );
   },
 
@@ -114,6 +88,7 @@ export const stripePaymentProvider: PaymentProvider = {
         event_id: metadata.event_id,
         name: metadata.name,
         email: metadata.email,
+        phone: metadata.phone,
         quantity: metadata.quantity,
         multi: metadata.multi,
         items: metadata.items,
