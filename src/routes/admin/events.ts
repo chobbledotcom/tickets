@@ -20,7 +20,7 @@ import {
 } from "#lib/db/events.ts";
 import { createHandler, updateHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
+import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
 import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
   getAuthenticatedSession,
@@ -56,6 +56,7 @@ const extractEventInput = async (
     unitPrice: values.unit_price as number | null,
     maxQuantity: values.max_quantity as number,
     webhookUrl: (values.webhook_url as string) || null,
+    fields: (values.fields as EventFields) || "email",
   };
 };
 

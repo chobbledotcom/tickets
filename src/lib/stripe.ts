@@ -125,7 +125,7 @@ const buildSessionParams = async (
     mode: "payment",
     success_url: cfg.successUrl,
     cancel_url: cfg.cancelUrl,
-    customer_email: cfg.email,
+    ...(cfg.email ? { customer_email: cfg.email } : {}),
     metadata: cfg.metadata,
   };
 };
@@ -195,6 +195,7 @@ export const stripeApi: {
         name: intent.name,
         email: intent.email,
         quantity: String(intent.quantity),
+        ...(intent.phone ? { phone: intent.phone } : {}),
       },
     });
     return config
@@ -241,12 +242,13 @@ export const stripeApi: {
       mode: "payment",
       success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
-      customer_email: intent.email,
+      ...(intent.email ? { customer_email: intent.email } : {}),
       metadata: {
         multi: "1",
         name: intent.name,
         email: intent.email,
         items: itemsJson,
+        ...(intent.phone ? { phone: intent.phone } : {}),
       },
     };
 
@@ -269,6 +271,7 @@ export type RegistrationIntent = {
   eventId: number;
   name: string;
   email: string;
+  phone: string;
   quantity: number;
 };
 
@@ -284,6 +287,7 @@ export type MultiRegistrationItem = {
 export type MultiRegistrationIntent = {
   name: string;
   email: string;
+  phone: string;
   items: MultiRegistrationItem[];
 };
 

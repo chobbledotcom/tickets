@@ -3,10 +3,11 @@
  */
 
 import { map, pipe } from "#fp";
+import type { Field } from "#lib/forms.tsx";
 import { renderError, renderFields } from "#lib/forms.tsx";
-import type { EventWithCount } from "#lib/types.ts";
+import type { EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { ticketFields } from "#templates/fields.ts";
+import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 
 /** Quantity values parsed from multi-ticket form */
@@ -32,6 +33,7 @@ export const ticketPage = (
   const isFull = spotsRemaining <= 0;
   const maxPurchasable = Math.min(event.max_quantity, spotsRemaining);
   const showQuantity = maxPurchasable > 1;
+  const fields: Field[] = getTicketFields(event.fields);
 
   return String(
     <Layout title="Reserve Ticket">
@@ -42,7 +44,7 @@ export const ticketPage = (
       ) : (
           <form method="POST" action={`/ticket/${event.slug}`}>
             <input type="hidden" name="csrf_token" value={csrfToken} />
-            <Raw html={renderFields(ticketFields)} />
+            <Raw html={renderFields(fields)} />
             {showQuantity ? (
               <>
                 <label for="quantity">Number of Tickets</label>
@@ -118,6 +120,12 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
 };
 
 /**
+ * Determine the merged fields setting for a set of multi-ticket events
+ */
+const getMultiTicketFieldsSetting = (events: MultiTicketEvent[]): EventFields =>
+  mergeEventFields(events.map((e) => e.event.fields));
+
+/**
  * Multi-ticket page - register for multiple events at once
  */
 export const multiTicketPage = (
@@ -128,6 +136,8 @@ export const multiTicketPage = (
 ): string => {
   const allSoldOut = events.every((e) => e.isSoldOut);
   const formAction = `/ticket/${slugs.join("+")}`;
+  const fieldsSetting = getMultiTicketFieldsSetting(events);
+  const fields: Field[] = getTicketFields(fieldsSetting);
 
   const eventRows = pipe(
     map(renderMultiEventRow),
@@ -143,7 +153,7 @@ export const multiTicketPage = (
       ) : (
         <form method="POST" action={formAction}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
-          <Raw html={renderFields(ticketFields)} />
+          <Raw html={renderFields(fields)} />
 
           <fieldset class="multi-ticket-events">
             <legend>Select Tickets</legend>
