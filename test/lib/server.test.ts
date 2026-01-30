@@ -551,6 +551,8 @@ describe("server", () => {
     });
 
     test("settings page shows Stripe is not configured initially", async () => {
+      await setPaymentProvider("stripe");
+
       const loginResponse = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
       );
