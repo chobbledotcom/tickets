@@ -625,3 +625,102 @@ export const errorResponse =
   (error: string): Response =>
     new Response(error, { status });
 
+// ---------------------------------------------------------------------------
+// Test data factories
+// Partial-override factories for common domain objects.
+// Pass only the fields you care about; everything else gets sensible defaults.
+// ---------------------------------------------------------------------------
+
+import type {
+  Attendee,
+  Event,
+  EventWithCount,
+} from "#lib/types.ts";
+import type { Field } from "#lib/forms.tsx";
+
+/** Create a test Event with sensible defaults. Override any field via `overrides`. */
+export const testEvent = (overrides: Partial<Event> = {}): Event => ({
+  id: 1,
+  slug: "test-event",
+  slug_index: "test-event-index",
+  max_attendees: 100,
+  thank_you_url: "https://example.com/thanks",
+  created: "2024-01-01T00:00:00Z",
+  unit_price: null,
+  max_quantity: 1,
+  webhook_url: null,
+  active: 1,
+  fields: "email",
+  ...overrides,
+});
+
+/** Create a test EventWithCount (Event + attendee_count). */
+export const testEventWithCount = (
+  overrides: Partial<EventWithCount> = {},
+): EventWithCount => ({
+  ...testEvent(overrides),
+  attendee_count: 0,
+  ...overrides,
+});
+
+/** Create a test Attendee with sensible defaults. */
+export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
+  id: 1,
+  event_id: 1,
+  name: "John Doe",
+  email: "john@example.com",
+  phone: "",
+  created: "2024-01-01T12:00:00Z",
+  stripe_payment_id: null,
+  quantity: 1,
+  ...overrides,
+});
+
+// ---------------------------------------------------------------------------
+// Form validation helpers
+// Curried helpers for the common validate-then-assert pattern in form tests.
+// ---------------------------------------------------------------------------
+
+import { validateForm } from "#lib/forms.tsx";
+
+/** Validate form data against fields and assert the result is valid. Returns the values. */
+export const expectValid = (
+  fields: Field[],
+  data: Record<string, string>,
+): Record<string, unknown> => {
+  const result = validateForm(new URLSearchParams(data), fields);
+  expect(result.valid).toBe(true);
+  if (!result.valid) throw new Error("Expected valid result");
+  return result.values;
+};
+
+/** Validate form data against fields and assert the result is invalid with given error. */
+export const expectInvalid =
+  (expectedError: string) =>
+  (fields: Field[], data: Record<string, string>): void => {
+    const result = validateForm(new URLSearchParams(data), fields);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toBe(expectedError);
+    }
+  };
+
+/** Validate form data against fields and assert the result is invalid (any error). */
+export const expectInvalidForm = (
+  fields: Field[],
+  data: Record<string, string>,
+): void => {
+  const result = validateForm(new URLSearchParams(data), fields);
+  expect(result.valid).toBe(false);
+};
+
+/** Base event form data — merge with overrides for specific test cases. */
+export const baseEventForm: Record<string, string> = {
+  slug: "my-event",
+  name: "Event",
+  description: "Desc",
+  max_attendees: "100",
+  max_quantity: "1",
+  thank_you_url: "https://example.com",
+};
+
