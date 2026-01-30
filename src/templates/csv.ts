@@ -16,15 +16,17 @@ const escapeCsvValue = (value: string): string => {
 };
 
 /**
- * Generate CSV content from attendees
+ * Generate CSV content from attendees.
+ * Always includes both Email and Phone columns regardless of event settings.
  */
 export const generateAttendeesCsv = (attendees: Attendee[]): string => {
-  const header = "Name,Email,Quantity,Registered";
+  const header = "Name,Email,Phone,Quantity,Registered";
   const rows = pipe(
     map((a: Attendee) =>
       [
         escapeCsvValue(a.name),
         escapeCsvValue(a.email),
+        escapeCsvValue(a.phone),
         String(a.quantity),
         escapeCsvValue(new Date(a.created).toISOString()),
       ].join(","),

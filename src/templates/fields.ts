@@ -4,6 +4,7 @@
 
 import type { Field } from "#lib/forms.tsx";
 import { isValidSlug } from "#lib/slug.ts";
+import type { EventFields } from "#lib/types.ts";
 
 /**
  * Validate URL is safe (https or relative path, no javascript: etc.)
@@ -37,11 +38,23 @@ const validateNonNegativePrice = (value: string): string | null => {
 /**
  * Validate email format
  */
-const validateEmail = (value: string): string | null => {
+export const validateEmail = (value: string): string | null => {
   // Basic email format check - more permissive than strict RFC but catches common issues
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(value)) {
     return "Please enter a valid email address";
+  }
+  return null;
+};
+
+/**
+ * Validate phone number format
+ */
+export const validatePhone = (value: string): string | null => {
+  // Allow digits, spaces, hyphens, parentheses, plus sign
+  const phoneRegex = /^[+\d][\d\s\-()]{5,}$/;
+  if (!phoneRegex.test(value)) {
+    return "Please enter a valid phone number";
   }
   return null;
 };
@@ -62,6 +75,17 @@ const validateSlug = (value: string): string | null => {
 export const loginFields: Field[] = [
   { name: "password", label: "Password", type: "password", required: true },
 ];
+
+/** Valid event fields values */
+const VALID_EVENT_FIELDS: EventFields[] = ["email", "phone", "both"];
+
+/** Validate event fields setting */
+const validateEventFields = (value: string): string | null => {
+  if (!VALID_EVENT_FIELDS.includes(value as EventFields)) {
+    return "Contact Fields must be email, phone, or both";
+  }
+  return null;
+};
 
 /**
  * Event form field definitions (shared between create and edit)
@@ -93,6 +117,18 @@ export const eventFields: Field[] = [
     hint: "Maximum tickets a customer can buy in one transaction",
   },
   {
+    name: "fields",
+    label: "Contact Fields",
+    type: "select",
+    hint: "Which contact details to collect from attendees",
+    options: [
+      { value: "email", label: "Email" },
+      { value: "phone", label: "Phone Number" },
+      { value: "both", label: "Email & Phone Number" },
+    ],
+    validate: validateEventFields,
+  },
+  {
     name: "unit_price",
     label: "Ticket Price (in pence/cents, leave empty for free)",
     type: "number",
@@ -118,19 +154,64 @@ export const eventFields: Field[] = [
   },
 ];
 
+/** Name field shown on all ticket forms */
+const nameField: Field = {
+  name: "name",
+  label: "Your Name",
+  type: "text",
+  required: true,
+};
+
+/** Email field for ticket forms */
+const emailField: Field = {
+  name: "email",
+  label: "Your Email",
+  type: "email",
+  required: true,
+  validate: validateEmail,
+};
+
+/** Phone field for ticket forms */
+const phoneField: Field = {
+  name: "phone",
+  label: "Your Phone Number",
+  type: "text",
+  required: true,
+  validate: validatePhone,
+};
+
 /**
- * Ticket reservation form field definitions
+ * Ticket reservation form field definitions (legacy - email only)
  */
-export const ticketFields: Field[] = [
-  { name: "name", label: "Your Name", type: "text", required: true },
-  {
-    name: "email",
-    label: "Your Email",
-    type: "email",
-    required: true,
-    validate: validateEmail,
-  },
-];
+export const ticketFields: Field[] = [nameField, emailField];
+
+/**
+ * Get ticket form fields based on event fields setting.
+ * Always includes name. Adds email and/or phone based on the setting.
+ */
+export const getTicketFields = (fields: EventFields): Field[] => {
+  switch (fields) {
+    case "email":
+      return [nameField, emailField];
+    case "phone":
+      return [nameField, phoneField];
+    case "both":
+      return [nameField, emailField, phoneField];
+  }
+};
+
+/**
+ * Determine which contact fields to collect for multiple events.
+ * If all events share the same single-field setting, use that.
+ * If any differ, collect both.
+ */
+export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
+  if (fieldSettings.length === 0) return "email";
+  const first = fieldSettings[0] as EventFields;
+  const allSame = fieldSettings.every((f) => f === first);
+  if (allSame) return first;
+  return "both";
+};
 
 /**
  * Setup form field definitions

@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "consolidated schema v2";
+export const LATEST_UPDATE = "add phone and fields columns";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -64,7 +64,8 @@ export const initDb = async (): Promise<void> => {
       webhook_url TEXT,
       slug TEXT,
       slug_index TEXT,
-      active INTEGER NOT NULL DEFAULT 1
+      active INTEGER NOT NULL DEFAULT 1,
+      fields TEXT NOT NULL DEFAULT 'email'
     )
   `);
 
@@ -83,6 +84,7 @@ export const initDb = async (): Promise<void> => {
       created TEXT NOT NULL,
       stripe_payment_id TEXT,
       quantity INTEGER NOT NULL DEFAULT 1,
+      phone TEXT NOT NULL DEFAULT '',
       FOREIGN KEY (event_id) REFERENCES events(id)
     )
   `);
@@ -145,6 +147,12 @@ export const initDb = async (): Promise<void> => {
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL
     )
   `);
+
+  // Migration: add fields column to events (defaults to "email" for backwards compatibility)
+  await runMigration(`ALTER TABLE events ADD COLUMN fields TEXT NOT NULL DEFAULT 'email'`);
+
+  // Migration: add phone column to attendees (nullable, hybrid encrypted like email)
+  await runMigration(`ALTER TABLE attendees ADD COLUMN phone TEXT`);
 
   // Update the version marker
   await getDb().execute({

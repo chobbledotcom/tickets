@@ -2,6 +2,9 @@
  * Types for the ticket reservation system
  */
 
+/** Contact fields setting for an event */
+export type EventFields = "email" | "phone" | "both";
+
 export interface Event {
   id: number;
   slug: string;
@@ -13,6 +16,7 @@ export interface Event {
   max_quantity: number;
   webhook_url: string | null;
   active: number;
+  fields: EventFields;
 }
 
 export interface Attendee {
@@ -20,6 +24,7 @@ export interface Attendee {
   event_id: number;
   name: string;
   email: string;
+  phone: string;
   created: string;
   stripe_payment_id: string | null;
   quantity: number;

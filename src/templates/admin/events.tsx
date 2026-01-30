@@ -4,7 +4,7 @@
 
 import { map, pipe, reduce } from "#fp";
 import { type FieldValues, renderError, renderFields } from "#lib/forms.tsx";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
+import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { eventFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -12,11 +12,19 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
+/** Human-readable labels for fields settings */
+const FIELDS_LABELS: Record<EventFields, string> = {
+  email: "Email",
+  phone: "Phone Number",
+  both: "Email & Phone Number",
+};
+
 const AttendeeRow = ({ a, eventId }: { a: Attendee; eventId: number }): string =>
   String(
     <tr>
       <td>{a.name}</td>
-      <td>{a.email}</td>
+      <td>{a.email || ""}</td>
+      <td>{a.phone || ""}</td>
       <td>{a.quantity}</td>
       <td>{new Date(a.created).toLocaleString()}</td>
       <td>
@@ -43,7 +51,7 @@ export const adminEventPage = (
           map((a: Attendee) => AttendeeRow({ a, eventId: event.id })),
           joinStrings,
         )(attendees)
-      : '<tr><td colspan="5">No attendees yet</td></tr>';
+      : '<tr><td colspan="7">No attendees yet</td></tr>';
 
   return String(
     <Layout title={`Event: ${event.slug}`}>
@@ -78,6 +86,7 @@ export const adminEventPage = (
           <p><strong>Max Tickets Per Purchase:</strong> {event.max_quantity}</p>
           <p><strong>Tickets Sold:</strong> {event.attendee_count}</p>
           <p><strong>Spots Remaining:</strong> {event.max_attendees - event.attendee_count}</p>
+          <p><strong>Contact Fields:</strong> {FIELDS_LABELS[event.fields]}</p>
           {event.thank_you_url ? (
             <p>
               <strong>Thank You URL:</strong>{" "}
@@ -117,6 +126,7 @@ export const adminEventPage = (
             <tr>
               <th>Name</th>
               <th>Email</th>
+              <th>Phone</th>
               <th>Qty</th>
               <th>Registered</th>
               <th>Actions</th>
@@ -137,6 +147,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   slug: event.slug,
   max_attendees: event.max_attendees,
   max_quantity: event.max_quantity,
+  fields: event.fields,
   unit_price: event.unit_price,
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,

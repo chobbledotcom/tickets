@@ -18,7 +18,8 @@ export type FieldType =
   | "email"
   | "url"
   | "password"
-  | "textarea";
+  | "textarea"
+  | "select";
 
 export interface Field {
   name: string;
@@ -30,6 +31,7 @@ export interface Field {
   min?: number;
   pattern?: string;
   validate?: (value: string) => string | null;
+  options?: { value: string; label: string }[];
 }
 
 export interface FieldValues {
@@ -45,6 +47,18 @@ type FieldValidationResult =
   | { valid: false; error: string };
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
+
+/** Render select options HTML */
+const renderSelectOptions = (
+  options: { value: string; label: string }[],
+  selectedValue: string,
+): string =>
+  options
+    .map(
+      (opt) =>
+        `<option value="${escapeHtml(opt.value)}"${opt.value === selectedValue ? " selected" : ""}>${escapeHtml(opt.label)}</option>`,
+    )
+    .join("");
 
 /**
  * Render a single form field
@@ -62,6 +76,10 @@ export const renderField = (field: Field, value: string = ""): string =>
         >
           <Raw html={escapeHtml(value)} />
         </textarea>
+      ) : field.type === "select" && field.options ? (
+        <Raw
+          html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options, value)}</select>`}
+        />
       ) : (
         <input
           type={field.type}

@@ -149,11 +149,13 @@ describe("stripe", () => {
         max_quantity: 1,
         webhook_url: null,
         active: 1,
+        fields: "email" as const,
       };
       const intent = {
         eventId: 1,
         name: "John Doe",
         email: "john@example.com",
+        phone: "",
         quantity: 1,
       };
 
@@ -188,12 +190,14 @@ describe("stripe", () => {
         max_quantity: 5,
         webhook_url: null,
         active: 1,
+        fields: "email" as const,
       };
 
       const intent = {
         eventId: 1,
         name: "John Doe",
         email: "john@example.com",
+        phone: "",
         quantity: 2,
       };
 
@@ -235,11 +239,13 @@ describe("stripe", () => {
         max_quantity: 1,
         webhook_url: null,
         active: 1,
+        fields: "email" as const,
       };
       const intent = {
         eventId: 1,
         name: "John",
         email: "john@example.com",
+        phone: "",
         quantity: 1,
       };
       const result = await createCheckoutSessionWithIntent(
@@ -265,11 +271,13 @@ describe("stripe", () => {
         max_quantity: 1,
         webhook_url: null,
         active: 1,
+        fields: "email" as const,
       };
       const intent = {
         eventId: 1,
         name: "John",
         email: "john@example.com",
+        phone: "",
         quantity: 1,
       };
       const result = await createCheckoutSessionWithIntent(
