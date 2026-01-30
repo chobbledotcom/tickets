@@ -326,6 +326,7 @@ const processMultiPaymentSession = async (
       );
     }
 
+    const pricePaid = event.unit_price !== null ? event.unit_price * item.q : null;
     const result = await createAttendeeAtomic(
       item.e,
       intent.name,
@@ -333,6 +334,7 @@ const processMultiPaymentSession = async (
       session.payment_intent,
       item.q,
       intent.phone,
+      pricePaid,
     );
 
     if (!result.success) {
@@ -429,6 +431,7 @@ const processPaymentSession = async (
 
   // Phase 2: Create attendee atomically with capacity check
   const paymentIntentId = session.payment_intent;
+  const pricePaid = event.unit_price !== null ? event.unit_price * intent.quantity : null;
   const result = await createAttendeeAtomic(
     intent.eventId,
     intent.name,
@@ -436,6 +439,7 @@ const processPaymentSession = async (
     paymentIntentId,
     intent.quantity,
     intent.phone,
+    pricePaid,
   );
 
   if (!result.success) {

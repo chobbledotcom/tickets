@@ -368,7 +368,7 @@ describe("html", () => {
   describe("generateAttendeesCsv", () => {
     test("generates CSV header for empty attendees", () => {
       const csv = generateAttendeesCsv([]);
-      expect(csv).toBe("Name,Email,Phone,Quantity,Registered");
+      expect(csv).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID");
     });
 
     test("generates CSV with attendee data", () => {
@@ -377,7 +377,7 @@ describe("html", () => {
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered");
+      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID");
       expect(lines[1]).toContain("John Doe");
       expect(lines[1]).toContain("john@example.com");
       expect(lines[1]).toContain(",2,");
@@ -424,7 +424,7 @@ describe("html", () => {
       const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered");
+      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID");
       expect(lines[1]).toContain("+1 555 123 4567");
     });
 
@@ -433,6 +433,50 @@ describe("html", () => {
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
       expect(lines[1]).toContain("john@example.com,,1,");
+    });
+
+    test("generates CSV with price and transaction ID", () => {
+      const attendees = [
+        testAttendee({
+          stripe_payment_id: "pi_abc123",
+          quantity: 2,
+          price_paid: "2000",
+        }),
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[1]).toContain("20.00");
+      expect(lines[1]).toContain("pi_abc123");
+    });
+
+    test("formats price as empty when null", () => {
+      const attendees = [testAttendee()];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      // Price and transaction ID should be empty
+      expect(lines[1]).toMatch(/,,$/)
+    });
+
+    test("shared transaction ID across multiple attendees", () => {
+      const attendees = [
+        testAttendee({
+          stripe_payment_id: "pi_shared_123",
+          price_paid: "1000",
+        }),
+        testAttendee({
+          id: 2,
+          event_id: 2,
+          stripe_payment_id: "pi_shared_123",
+          quantity: 2,
+          price_paid: "3000",
+        }),
+      ];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[1]).toContain("10.00");
+      expect(lines[1]).toContain("pi_shared_123");
+      expect(lines[2]).toContain("30.00");
+      expect(lines[2]).toContain("pi_shared_123");
     });
   });
 });

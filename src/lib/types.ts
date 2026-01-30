@@ -28,6 +28,7 @@ export interface Attendee {
   created: string;
   stripe_payment_id: string | null;
   quantity: number;
+  price_paid: string | null;
 }
 
 export interface Settings {

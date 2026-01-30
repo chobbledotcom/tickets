@@ -673,6 +673,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   created: "2024-01-01T12:00:00Z",
   stripe_payment_id: null,
   quantity: 1,
+  price_paid: null,
   ...overrides,
 });
 
