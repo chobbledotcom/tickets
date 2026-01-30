@@ -82,7 +82,7 @@ const validateCheckoutSession = (
     return null;
   }
 
-  if (!metadata?.name || typeof metadata?.email !== "string") {
+  if (!metadata?.name) {
     return null;
   }
 
@@ -100,7 +100,7 @@ const validateCheckoutSession = (
     metadata: {
       event_id: metadata.event_id,
       name: metadata.name,
-      email: metadata.email,
+      email: metadata.email ?? "",
       phone: metadata.phone,
       quantity: metadata.quantity,
       multi: metadata.multi,
