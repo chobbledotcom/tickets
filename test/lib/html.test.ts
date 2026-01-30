@@ -1,5 +1,4 @@
 import { describe, expect, test } from "#test-compat";
-import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminEventPage } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
@@ -11,6 +10,7 @@ import {
   paymentSuccessPage,
 } from "#templates/payment.tsx";
 import { notFoundPage, ticketPage } from "#templates/public.tsx";
+import { testAttendee, testEvent, testEventWithCount } from "#test-utils";
 
 const TEST_CSRF_TOKEN = "test-csrf-token-abc123";
 
@@ -43,44 +43,16 @@ describe("html", () => {
     });
 
     test("renders events table", () => {
-      const events: EventWithCount[] = [
-        {
-          id: 1,
-          slug: "event-1",
-          slug_index: "event-1-index",
-          max_attendees: 100,
-          thank_you_url: "https://example.com",
-          created: "2024-01-01T00:00:00Z",
-          attendee_count: 25,
-          unit_price: null,
-          max_quantity: 1,
-          webhook_url: null,
-          active: 1,
-          fields: "email",
-        },
-      ];
+      const events = [testEventWithCount({ attendee_count: 25 })];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
-      expect(html).toContain("event-1");
+      expect(html).toContain("test-event");
       expect(html).toContain("25 / 100");
       expect(html).toContain("/admin/event/1");
     });
 
     test("displays event slug as identifier", () => {
-      const events: EventWithCount[] = [
-        {
-          id: 1,
-          slug: "my-test-event",
-          slug_index: "my-test-event-index",
-          max_attendees: 100,
-          thank_you_url: "https://example.com",
-          created: "2024-01-01T00:00:00Z",
-          attendee_count: 0,
-          unit_price: null,
-          max_quantity: 1,
-          webhook_url: null,
-          active: 1,
-          fields: "email",
-        },
+      const events = [
+        testEventWithCount({ slug: "my-test-event", slug_index: "my-test-event-index" }),
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
       expect(html).toContain("my-test-event");
@@ -102,20 +74,7 @@ describe("html", () => {
   });
 
   describe("adminEventPage", () => {
-    const event: EventWithCount = {
-      id: 1,
-      slug: "test-event",
-      slug_index: "test-event-index",
-      max_attendees: 100,
-      thank_you_url: "https://example.com/thanks",
-      created: "2024-01-01T00:00:00Z",
-      attendee_count: 2,
-      unit_price: null,
-      max_quantity: 1,
-      webhook_url: null,
-      active: 1,
-      fields: "email",
-    };
+    const event = testEventWithCount({ attendee_count: 2 });
 
     test("renders event details", () => {
       const html = adminEventPage(event, [], "localhost");
@@ -148,38 +107,14 @@ describe("html", () => {
     });
 
     test("renders attendees table", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "John Doe",
-          email: "john@example.com",
-          created: "2024-01-01T12:00:00Z",
-          payment_id: null,
-          quantity: 1,
-          phone: "",
-          price_paid: null,
-        },
-      ];
+      const attendees = [testAttendee()];
       const html = adminEventPage(event, attendees, "localhost");
       expect(html).toContain("John Doe");
       expect(html).toContain("john@example.com");
     });
 
     test("escapes attendee data", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "<script>evil()</script>",
-          email: "test@example.com",
-          created: "2024-01-01T12:00:00Z",
-          payment_id: null,
-          quantity: 1,
-          phone: "",
-          price_paid: null,
-        },
-      ];
+      const attendees = [testAttendee({ name: "<script>evil()</script>" })];
       const html = adminEventPage(event, attendees, "localhost");
       expect(html).toContain("&lt;script&gt;");
     });
@@ -196,14 +131,20 @@ describe("html", () => {
     });
 
     test("shows phone contact fields label for phone events", () => {
-      const phoneEvent = { ...event, fields: "phone" as const };
-      const html = adminEventPage(phoneEvent, [], "localhost");
+      const html = adminEventPage(
+        testEventWithCount({ attendee_count: 2, fields: "phone" }),
+        [],
+        "localhost",
+      );
       expect(html).toContain("Phone Number");
     });
 
     test("shows both contact fields label", () => {
-      const bothEvent = { ...event, fields: "both" as const };
-      const html = adminEventPage(bothEvent, [], "localhost");
+      const html = adminEventPage(
+        testEventWithCount({ attendee_count: 2, fields: "both" }),
+        [],
+        "localhost",
+      );
       expect(html).toContain("Email &amp; Phone Number");
     });
 
@@ -213,39 +154,14 @@ describe("html", () => {
     });
 
     test("shows attendee phone in table row", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "John Doe",
-          email: "john@example.com",
-          created: "2024-01-01T12:00:00Z",
-          payment_id: null,
-          quantity: 1,
-          phone: "+1 555 123 4567",
-          price_paid: null,
-        },
-      ];
+      const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const html = adminEventPage(event, attendees, "localhost");
       expect(html).toContain("+1 555 123 4567");
     });
   });
 
   describe("ticketPage", () => {
-    const event: EventWithCount = {
-      id: 1,
-      slug: "test-event",
-      slug_index: "test-event-index",
-      max_attendees: 100,
-      thank_you_url: "https://example.com/thanks",
-      created: "2024-01-01T00:00:00Z",
-      attendee_count: 50,
-      unit_price: null,
-      max_quantity: 1,
-      webhook_url: null,
-      active: 1,
-      fields: "email",
-    };
+    const event = testEventWithCount({ attendee_count: 50 });
     const csrfToken = "test-csrf-token";
 
     test("renders page title", () => {
@@ -274,10 +190,7 @@ describe("html", () => {
     });
 
     test("shows full message when no spots", () => {
-      const fullEvent: EventWithCount = {
-        ...event,
-        attendee_count: 100,
-      };
+      const fullEvent = testEventWithCount({ attendee_count: 100 });
       const html = ticketPage(fullEvent, csrfToken);
       expect(html).toContain("this event is full");
       expect(html).not.toContain(">Reserve Ticket</button>");
@@ -285,17 +198,14 @@ describe("html", () => {
 
     test("does not display event header content", () => {
       const html = ticketPage(event, csrfToken);
-      // Verify there's no h1 with event info before the form
       expect(html).not.toContain("<h1>test-event</h1>");
     });
 
     test("shows quantity selector when max_quantity > 1 and spots available", () => {
-      const multiTicketEvent: EventWithCount = {
-        ...event,
+      const multiTicketEvent = testEventWithCount({
         max_quantity: 5,
-        max_attendees: 100,
         attendee_count: 0,
-      };
+      });
       const html = ticketPage(multiTicketEvent, csrfToken);
       expect(html).toContain("Number of Tickets");
       expect(html).toContain('name="quantity"');
@@ -305,12 +215,10 @@ describe("html", () => {
     });
 
     test("limits quantity selector to remaining spots", () => {
-      const limitedEvent: EventWithCount = {
-        ...event,
+      const limitedEvent = testEventWithCount({
         max_quantity: 10,
-        max_attendees: 100,
         attendee_count: 97, // Only 3 spots remaining
-      };
+      });
       const html = ticketPage(limitedEvent, csrfToken);
       expect(html).toContain("Number of Tickets");
       expect(html).toContain('<option value="3">3</option>');
@@ -326,7 +234,7 @@ describe("html", () => {
     });
 
     test("shows phone field for phone-only events", () => {
-      const phoneEvent = { ...event, fields: "phone" as const };
+      const phoneEvent = testEventWithCount({ attendee_count: 50, fields: "phone" });
       const html = ticketPage(phoneEvent, csrfToken);
       expect(html).toContain('name="phone"');
       expect(html).toContain("Your Phone Number");
@@ -334,7 +242,7 @@ describe("html", () => {
     });
 
     test("shows both email and phone for both setting", () => {
-      const bothEvent = { ...event, fields: "both" as const };
+      const bothEvent = testEventWithCount({ attendee_count: 50, fields: "both" });
       const html = ticketPage(bothEvent, csrfToken);
       expect(html).toContain('name="email"');
       expect(html).toContain('name="phone"');
@@ -355,31 +263,8 @@ describe("html", () => {
   });
 
   describe("paymentPage", () => {
-    const event: Event = {
-      id: 1,
-      slug: "test-event",
-      slug_index: "test-event-index",
-      max_attendees: 100,
-      thank_you_url: "https://example.com/thanks",
-      created: "2024-01-01T00:00:00Z",
-      unit_price: 1000,
-      max_quantity: 1,
-      webhook_url: null,
-      active: 1,
-      fields: "email",
-    };
-
-    const attendee: Attendee = {
-      id: 1,
-      event_id: 1,
-      name: "John Doe",
-      email: "john@example.com",
-      phone: "",
-      created: "2024-01-01T12:00:00Z",
-      payment_id: null,
-      quantity: 1,
-      price_paid: null,
-    };
+    const event = testEvent({ unit_price: 1000 });
+    const attendee = testAttendee();
 
     test("renders payment details", () => {
       const html = paymentPage(
@@ -406,10 +291,7 @@ describe("html", () => {
     });
 
     test("escapes user data", () => {
-      const evilAttendee: Attendee = {
-        ...attendee,
-        name: "<script>evil()</script>",
-      };
+      const evilAttendee = testAttendee({ name: "<script>evil()</script>" });
       const html = paymentPage(
         event,
         evilAttendee,
@@ -421,19 +303,7 @@ describe("html", () => {
   });
 
   describe("paymentSuccessPage", () => {
-    const event: Event = {
-      id: 1,
-      slug: "test-event",
-      slug_index: "test-event-index",
-      max_attendees: 100,
-      thank_you_url: "https://example.com/thanks",
-      created: "2024-01-01T00:00:00Z",
-      unit_price: 1000,
-      max_quantity: 1,
-      webhook_url: null,
-      active: 1,
-      fields: "email",
-    };
+    const event = testEvent({ unit_price: 1000 });
 
     test("renders success message", () => {
       const html = paymentSuccessPage(event, "https://example.com/thanks");
@@ -449,19 +319,7 @@ describe("html", () => {
   });
 
   describe("paymentCancelPage", () => {
-    const event: Event = {
-      id: 1,
-      slug: "test-event",
-      slug_index: "test-event-index",
-      max_attendees: 100,
-      thank_you_url: "https://example.com/thanks",
-      created: "2024-01-01T00:00:00Z",
-      unit_price: 1000,
-      max_quantity: 1,
-      webhook_url: null,
-      active: 1,
-      fields: "email",
-    };
+    const event = testEvent({ unit_price: 1000 });
 
     test("renders cancel message", () => {
       const html = paymentCancelPage(event, "/ticket/test-event");
@@ -499,22 +357,8 @@ describe("html", () => {
   });
 
   describe("adminEventPage export button", () => {
-    const event: EventWithCount = {
-      id: 1,
-      slug: "test-event",
-      slug_index: "test-event-index",
-      max_attendees: 100,
-      thank_you_url: "https://example.com/thanks",
-      created: "2024-01-01T00:00:00Z",
-      attendee_count: 2,
-      unit_price: null,
-      max_quantity: 1,
-      webhook_url: null,
-      active: 1,
-      fields: "email",
-    };
-
     test("renders export CSV button", () => {
+      const event = testEventWithCount({ attendee_count: 2 });
       const html = adminEventPage(event, [], "localhost");
       expect(html).toContain("/admin/event/1/export");
       expect(html).toContain("Export CSV");
@@ -528,18 +372,8 @@ describe("html", () => {
     });
 
     test("generates CSV with attendee data", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "John Doe",
-          email: "john@example.com",
-          created: "2024-01-15T10:30:00Z",
-          payment_id: null,
-          quantity: 2,
-          phone: "",
-          price_paid: null,
-        },
+      const attendees = [
+        testAttendee({ created: "2024-01-15T10:30:00Z", quantity: 2 }),
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
@@ -551,83 +385,33 @@ describe("html", () => {
     });
 
     test("escapes values with commas", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "Doe, John",
-          email: "john@example.com",
-          created: "2024-01-15T10:30:00Z",
-          payment_id: null,
-          quantity: 1,
-          phone: "",
-          price_paid: null,
-        },
-      ];
+      const attendees = [testAttendee({ name: "Doe, John" })];
       const csv = generateAttendeesCsv(attendees);
       expect(csv).toContain('"Doe, John"');
     });
 
     test("escapes values with quotes", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: 'John "JD" Doe',
-          email: "john@example.com",
-          created: "2024-01-15T10:30:00Z",
-          payment_id: null,
-          quantity: 1,
-          phone: "",
-          price_paid: null,
-        },
-      ];
+      const attendees = [testAttendee({ name: 'John "JD" Doe' })];
       const csv = generateAttendeesCsv(attendees);
       expect(csv).toContain('"John ""JD"" Doe"');
     });
 
     test("escapes values with newlines", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "John\nDoe",
-          email: "john@example.com",
-          created: "2024-01-15T10:30:00Z",
-          payment_id: null,
-          quantity: 1,
-          phone: "",
-          price_paid: null,
-        },
-      ];
+      const attendees = [testAttendee({ name: "John\nDoe" })];
       const csv = generateAttendeesCsv(attendees);
       expect(csv).toContain('"John\nDoe"');
     });
 
     test("generates multiple rows", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "John Doe",
-          email: "john@example.com",
-          created: "2024-01-15T10:30:00Z",
-          payment_id: null,
-          quantity: 1,
-          phone: "",
-          price_paid: null,
-        },
-        {
+      const attendees = [
+        testAttendee(),
+        testAttendee({
           id: 2,
-          event_id: 1,
           name: "Jane Smith",
           email: "jane@example.com",
           created: "2024-01-16T11:00:00Z",
-          payment_id: null,
           quantity: 3,
-          phone: "",
-          price_paid: null,
-        },
+        }),
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
@@ -637,19 +421,7 @@ describe("html", () => {
     });
 
     test("includes phone number in CSV output", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "John Doe",
-          email: "john@example.com",
-          created: "2024-01-15T10:30:00Z",
-          payment_id: null,
-          quantity: 1,
-          phone: "+1 555 123 4567",
-          price_paid: null,
-        },
-      ];
+      const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
       expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID");
@@ -657,37 +429,19 @@ describe("html", () => {
     });
 
     test("includes empty phone column when phone not collected", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "John Doe",
-          email: "john@example.com",
-          created: "2024-01-15T10:30:00Z",
-          payment_id: null,
-          quantity: 1,
-          phone: "",
-          price_paid: null,
-        },
-      ];
+      const attendees = [testAttendee()];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
       expect(lines[1]).toContain("john@example.com,,1,");
     });
 
     test("generates CSV with price and transaction ID", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          created: "2024-01-15T10:30:00Z",
+      const attendees = [
+        testAttendee({
           payment_id: "pi_abc123",
           quantity: 2,
           price_paid: "2000",
-        },
+        }),
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
@@ -696,19 +450,7 @@ describe("html", () => {
     });
 
     test("formats price as empty when null", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          created: "2024-01-15T10:30:00Z",
-          payment_id: null,
-          quantity: 1,
-          price_paid: null,
-        },
-      ];
+      const attendees = [testAttendee()];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
       // Price and transaction ID should be empty
@@ -716,29 +458,18 @@ describe("html", () => {
     });
 
     test("shared transaction ID across multiple attendees", () => {
-      const attendees: Attendee[] = [
-        {
-          id: 1,
-          event_id: 1,
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          created: "2024-01-15T10:30:00Z",
+      const attendees = [
+        testAttendee({
           payment_id: "pi_shared_123",
-          quantity: 1,
           price_paid: "1000",
-        },
-        {
+        }),
+        testAttendee({
           id: 2,
           event_id: 2,
-          name: "John Doe",
-          email: "john@example.com",
-          phone: "",
-          created: "2024-01-15T10:30:00Z",
           payment_id: "pi_shared_123",
           quantity: 2,
           price_paid: "3000",
-        },
+        }),
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
