@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add phone, fields, and price_paid columns";
+export const LATEST_UPDATE = "payment provider abstraction with phone and price_paid";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -74,7 +74,7 @@ export const initDb = async (): Promise<void> => {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug_index ON events(slug_index)
   `);
 
-  // Create attendees table
+  // Create attendees table (new installs use payment_id)
   await runMigration(`
     CREATE TABLE IF NOT EXISTS attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,12 +82,15 @@ export const initDb = async (): Promise<void> => {
       name TEXT NOT NULL,
       email TEXT NOT NULL,
       created TEXT NOT NULL,
-      stripe_payment_id TEXT,
+      payment_id TEXT,
       quantity INTEGER NOT NULL DEFAULT 1,
       phone TEXT NOT NULL DEFAULT '',
       FOREIGN KEY (event_id) REFERENCES events(id)
     )
   `);
+
+  // Migration: rename stripe_payment_id -> payment_id for existing databases
+  await runMigration(`ALTER TABLE attendees RENAME COLUMN stripe_payment_id TO payment_id`);
 
   // Create sessions table
   await runMigration(`
@@ -109,30 +112,36 @@ export const initDb = async (): Promise<void> => {
   `);
 
   // Create processed_payments table for webhook idempotency
-  // Tracks Stripe session IDs to prevent duplicate attendee creation
+  // Tracks payment session IDs to prevent duplicate attendee creation
   // attendee_id is nullable: NULL means session is reserved but attendee not yet created
   await runMigration(`
     CREATE TABLE IF NOT EXISTS processed_payments (
-      stripe_session_id TEXT PRIMARY KEY,
+      payment_session_id TEXT PRIMARY KEY,
       attendee_id INTEGER,
       processed_at TEXT NOT NULL,
       FOREIGN KEY (attendee_id) REFERENCES attendees(id)
     )
   `);
 
-  // Migration: drop NOT NULL constraint on attendee_id for existing databases
-  // SQLite doesn't support ALTER COLUMN, so we recreate the table if needed
+  // Migration: rename stripe_session_id -> payment_session_id for existing databases
+  // SQLite doesn't support ALTER COLUMN RENAME before 3.25, so recreate the table
   await runMigration(`
     CREATE TABLE IF NOT EXISTS processed_payments_new (
-      stripe_session_id TEXT PRIMARY KEY,
+      payment_session_id TEXT PRIMARY KEY,
       attendee_id INTEGER,
       processed_at TEXT NOT NULL,
       FOREIGN KEY (attendee_id) REFERENCES attendees(id)
     )
   `);
   await runMigration(`
-    INSERT OR IGNORE INTO processed_payments_new
+    INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
     SELECT stripe_session_id, attendee_id, processed_at FROM processed_payments
+    WHERE typeof(stripe_session_id) = 'text'
+  `);
+  await runMigration(`
+    INSERT OR IGNORE INTO processed_payments_new (payment_session_id, attendee_id, processed_at)
+    SELECT payment_session_id, attendee_id, processed_at FROM processed_payments
+    WHERE typeof(payment_session_id) = 'text'
   `);
   await runMigration(`DROP TABLE IF EXISTS processed_payments`);
   await runMigration(`ALTER TABLE processed_payments_new RENAME TO processed_payments`);

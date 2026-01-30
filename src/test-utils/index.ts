@@ -663,7 +663,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   email: "john@example.com",
   phone: "",
   created: "2024-01-01T12:00:00Z",
-  stripe_payment_id: null,
+  payment_id: null,
   quantity: 1,
   price_paid: null,
   ...overrides,

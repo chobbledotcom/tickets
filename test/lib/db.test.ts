@@ -388,14 +388,14 @@ describe("db", () => {
       expect(decryptedBefore).not.toBeNull();
       expect(decryptedBefore?.name).toBe("Alice Before");
       expect(decryptedBefore?.email).toBe("alice@example.com");
-      expect(decryptedBefore?.stripe_payment_id).toBe("pi_before_change");
+      expect(decryptedBefore?.payment_id).toBe("pi_before_change");
 
       // Decrypt the attendee created AFTER password change
       const decryptedAfter = await getAttendee(attendeeAfter.id, privateKey);
       expect(decryptedAfter).not.toBeNull();
       expect(decryptedAfter?.name).toBe("Bob After");
       expect(decryptedAfter?.email).toBe("bob@example.com");
-      expect(decryptedAfter?.stripe_payment_id).toBe("pi_after_change");
+      expect(decryptedAfter?.payment_id).toBe("pi_after_change");
     });
   });
 
@@ -678,7 +678,7 @@ describe("db", () => {
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.attendee.name).toBe("John");
-        expect(result.attendee.stripe_payment_id).toBe("pi_test");
+        expect(result.attendee.payment_id).toBe("pi_test");
       }
     });
 
@@ -1024,7 +1024,7 @@ describe("db", () => {
       expect(toCamelCase("max_attendees")).toBe("maxAttendees");
       expect(toCamelCase("thank_you_url")).toBe("thankYouUrl");
       expect(toCamelCase("name")).toBe("name");
-      expect(toCamelCase("stripe_payment_id")).toBe("stripePaymentId");
+      expect(toCamelCase("payment_id")).toBe("paymentId");
     });
 
     test("toSnakeCase converts camelCase to snake_case", async () => {
@@ -1032,7 +1032,7 @@ describe("db", () => {
       expect(toSnakeCase("maxAttendees")).toBe("max_attendees");
       expect(toSnakeCase("thankYouUrl")).toBe("thank_you_url");
       expect(toSnakeCase("name")).toBe("name");
-      expect(toSnakeCase("stripePaymentId")).toBe("stripe_payment_id");
+      expect(toSnakeCase("paymentId")).toBe("payment_id");
     });
 
     test("buildInputKeyMap creates mapping from DB columns to input keys", async () => {

@@ -438,7 +438,7 @@ describe("html", () => {
     test("generates CSV with price and transaction ID", () => {
       const attendees = [
         testAttendee({
-          stripe_payment_id: "pi_abc123",
+          payment_id: "pi_abc123",
           quantity: 2,
           price_paid: "2000",
         }),
@@ -460,13 +460,13 @@ describe("html", () => {
     test("shared transaction ID across multiple attendees", () => {
       const attendees = [
         testAttendee({
-          stripe_payment_id: "pi_shared_123",
+          payment_id: "pi_shared_123",
           price_paid: "1000",
         }),
         testAttendee({
           id: 2,
           event_id: 2,
-          stripe_payment_id: "pi_shared_123",
+          payment_id: "pi_shared_123",
           quantity: 2,
           price_paid: "3000",
         }),

@@ -38,7 +38,7 @@ export const generateAttendeesCsv = (attendees: Attendee[]): string => {
         String(a.quantity),
         escapeCsvValue(new Date(a.created).toISOString()),
         formatPrice(a.price_paid),
-        escapeCsvValue(a.stripe_payment_id ?? ""),
+        escapeCsvValue(a.payment_id ?? ""),
       ].join(","),
     ),
     reduce((acc: string, row: string) => `${acc}\n${row}`, header),

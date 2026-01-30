@@ -1,16 +1,29 @@
 /**
  * Configuration module for ticket reservation system
  * Reads configuration from database (set during setup phase)
- * Stripe secret key is configured via admin settings (stored encrypted in DB)
+ * Payment provider and keys are configured via admin settings (stored encrypted in DB)
  */
 
 import {
   getCurrencyCodeFromDb,
+  getPaymentProviderFromDb,
   getStripeSecretKeyFromDb,
   getStripeWebhookSecretFromDb,
+  hasStripeKey,
   isSetupComplete,
 } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
+import type { PaymentProviderType } from "#lib/payments.ts";
+
+/**
+ * Get the configured payment provider type
+ * Returns null if no provider is configured
+ */
+export const getPaymentProvider = async (): Promise<PaymentProviderType | null> => {
+  const provider = await getPaymentProviderFromDb();
+  if (provider === "stripe") return "stripe";
+  return null;
+};
 
 /**
  * Get Stripe secret key from database (encrypted)
@@ -38,10 +51,13 @@ export const getStripeWebhookSecret = (): Promise<string | null> => {
 };
 
 /**
- * Check if Stripe payments are enabled
+ * Check if payments are enabled (any provider configured with valid keys)
  */
 export const isPaymentsEnabled = async (): Promise<boolean> => {
-  return (await getStripeSecretKey()) !== null;
+  const provider = await getPaymentProvider();
+  if (!provider) return false;
+  if (provider === "stripe") return hasStripeKey();
+  return false;
 };
 
 /**
