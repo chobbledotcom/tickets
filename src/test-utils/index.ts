@@ -549,3 +549,65 @@ export const createTestAttendee = async (
  */
 export { getAttendeesRaw };
 
+// ---------------------------------------------------------------------------
+// FP-style curried assertion helpers
+// These are data-last / pipe-compatible helpers for common test assertions.
+// Import `expect` lazily so the module can be loaded outside test contexts.
+// ---------------------------------------------------------------------------
+
+import { expect } from "#test-compat";
+
+/** Assert a Response has the given status code. Returns the response for chaining. */
+export const expectStatus =
+  (status: number) =>
+  (response: Response): Response => {
+    expect(response.status).toBe(status);
+    return response;
+  };
+
+/** Assert a Response is a redirect (302) to the given location. */
+export const expectRedirect =
+  (location: string) =>
+  (response: Response): Response => {
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(location);
+    return response;
+  };
+
+/** Shorthand: assert redirect to /admin */
+export const expectAdminRedirect: (response: Response) => Response =
+  expectRedirect("/admin");
+
+/** Assert a result object has ok:false with the expected error string. */
+export const expectResultError =
+  (expectedError: string) =>
+  <T extends { ok: boolean; error?: string }>(result: T): T => {
+    expect(result.ok).toBe(false);
+    if (!result.ok && "error" in result) {
+      expect(result.error).toBe(expectedError);
+    }
+    return result;
+  };
+
+/** Assert a result object has ok:false and notFound:true. */
+export const expectResultNotFound = <
+  T extends { ok: boolean; notFound?: boolean },
+>(
+  result: T,
+): T => {
+  expect(result.ok).toBe(false);
+  expect("notFound" in result && result.notFound).toBe(true);
+  return result;
+};
+
+/** Response factory: creates a callback returning a Response with given status/body. */
+export const successResponse =
+  (status: number, body?: string) => (): Response =>
+    new Response(body ?? null, { status });
+
+/** Error response factory: creates a callback taking an error string. */
+export const errorResponse =
+  (status: number) =>
+  (error: string): Response =>
+    new Response(error, { status });
+
