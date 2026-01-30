@@ -12,6 +12,13 @@ import {
 } from "#lib/config.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, type ErrorCodeType, logError } from "#lib/logger.ts";
+import type {
+  MultiRegistrationIntent,
+  RegistrationIntent,
+  WebhookEvent,
+  WebhookSetupResult,
+  WebhookVerifyResult,
+} from "#lib/payments.ts";
 import type { Event } from "#lib/types.ts";
 
 /** Lazy-load Stripe SDK only when needed */
@@ -129,11 +136,6 @@ const buildSessionParams = async (
     metadata: cfg.metadata,
   };
 };
-
-/** Result of webhook endpoint setup */
-export type WebhookSetupResult =
-  | { success: true; endpointId: string; secret: string }
-  | { success: false; error: string };
 
 /**
  * Stubbable API for testing - allows mocking in ES modules
@@ -266,30 +268,11 @@ export const stripeApi: {
   ) => Promise<WebhookSetupResult>,
 };
 
-/** Registration intent stored in Stripe session metadata */
-export type RegistrationIntent = {
-  eventId: number;
-  name: string;
-  email: string;
-  phone: string;
-  quantity: number;
-};
-
-/** Single event registration within a multi-event order */
-export type MultiRegistrationItem = {
-  eventId: number;
-  quantity: number;
-  unitPrice: number;
-  slug: string;
-};
-
-/** Multi-event registration intent stored in Stripe session metadata */
-export type MultiRegistrationIntent = {
-  name: string;
-  email: string;
-  phone: string;
-  items: MultiRegistrationItem[];
-};
+export type {
+  RegistrationIntent,
+  MultiRegistrationItem,
+  MultiRegistrationIntent,
+} from "#lib/payments.ts";
 
 /**
  * Internal implementation of webhook endpoint setup.
@@ -450,19 +433,9 @@ const secureCompare = (a: string, b: string): boolean => {
   return result === 0;
 };
 
-/** Webhook verification result */
-export type WebhookVerifyResult =
-  | { valid: true; event: StripeWebhookEvent }
-  | { valid: false; error: string };
-
-/** Stripe webhook event structure (subset we care about) */
-export type StripeWebhookEvent = {
-  id: string;
-  type: string;
-  data: {
-    object: Record<string, unknown>;
-  };
-};
+/** Stripe webhook event - alias for the provider-agnostic WebhookEvent */
+export type StripeWebhookEvent = WebhookEvent;
+export type { WebhookSetupResult, WebhookVerifyResult };
 
 /**
  * Verify Stripe webhook signature using Web Crypto API.
