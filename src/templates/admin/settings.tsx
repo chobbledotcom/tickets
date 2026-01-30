@@ -14,6 +14,7 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 export const adminSettingsPage = (
   csrfToken: string,
   stripeKeyConfigured: boolean,
+  paymentProvider: string | null,
   error?: string,
   success?: string,
 ): string =>
@@ -24,12 +25,39 @@ export const adminSettingsPage = (
       {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}
 
+        <form method="POST" action="/admin/settings/payment-provider">
+            <h2>Payment Provider</h2>
+          <p>Choose which payment provider to use for paid events.</p>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <fieldset>
+            <label>
+              <input
+                type="radio"
+                name="payment_provider"
+                value="none"
+                checked={!paymentProvider}
+              />
+              None (payments disabled)
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="payment_provider"
+                value="stripe"
+                checked={paymentProvider === "stripe"}
+              />
+              Stripe
+            </label>
+          </fieldset>
+          <button type="submit">Save Payment Provider</button>
+        </form>
+
         <form method="POST" action="/admin/settings/stripe">
             <h2>Stripe Settings</h2>
           <p>
             {stripeKeyConfigured
               ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
-              : "No Stripe key is configured. Payments are disabled."}
+              : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
           </p>
           <input type="hidden" name="csrf_token" value={csrfToken} />
           <Raw html={renderFields(stripeKeyFields)} />

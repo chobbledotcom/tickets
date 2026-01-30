@@ -28,7 +28,14 @@ export const ErrorCode = {
   AUTH_CSRF_MISMATCH: "E_AUTH_CSRF_MISMATCH",
   AUTH_RATE_LIMITED: "E_AUTH_RATE_LIMITED",
 
-  // Stripe/payment errors
+  // Payment provider errors (provider-agnostic)
+  PAYMENT_SIGNATURE: "E_PAYMENT_SIGNATURE",
+  PAYMENT_SESSION: "E_PAYMENT_SESSION",
+  PAYMENT_REFUND: "E_PAYMENT_REFUND",
+  PAYMENT_CHECKOUT: "E_PAYMENT_CHECKOUT",
+  PAYMENT_WEBHOOK_SETUP: "E_PAYMENT_WEBHOOK_SETUP",
+
+  // Stripe-specific errors (used by stripe.ts internals)
   STRIPE_SIGNATURE: "E_STRIPE_SIGNATURE",
   STRIPE_SESSION: "E_STRIPE_SESSION",
   STRIPE_REFUND: "E_STRIPE_REFUND",
@@ -136,7 +143,7 @@ export const createRequestTimer = (): (() => number) => {
 /**
  * Log categories for debug logging
  */
-export type LogCategory = "Setup" | "Webhook" | "Payment" | "Auth" | "Stripe";
+export type LogCategory = "Setup" | "Webhook" | "Payment" | "Auth" | "Stripe" | "Square";
 
 /**
  * Log a debug message with category prefix

@@ -1,20 +1,19 @@
 /**
- * Webhook routes - payment callbacks and Stripe webhooks
+ * Webhook routes - payment callbacks and provider webhooks
  *
  * Payment flow (race-condition safe with two-phase locking):
- * 1. User submits form -> Stripe session created with intent metadata (no attendee yet)
- * 2. User pays on Stripe -> redirected to /payment/success OR webhook fires
+ * 1. User submits form -> checkout session created with intent metadata (no attendee yet)
+ * 2. User pays -> redirected to /payment/success OR webhook fires
  * 3. First handler reserves session (DB lock), creates attendee, finalizes lock
  * 4. Subsequent handlers see reserved/finalized session and return existing attendee
  * 5. If capacity exceeded after payment, auto-refund and show error
  *
  * Security:
- * - Stripe webhooks are verified using HMAC-SHA256 signature
- * - Session ID alone cannot create attendees - Stripe API confirms payment status
+ * - Webhooks are verified using provider-specific signature verification
+ * - Session ID alone cannot create attendees - provider API confirms payment status
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import type Stripe from "stripe";
 import { createAttendeeAtomic, deleteAttendee } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
@@ -23,12 +22,12 @@ import {
 } from "#lib/db/processed-payments.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import {
+  getActivePaymentProvider,
   type RegistrationIntent,
-  refundPayment,
-  retrieveCheckoutSession,
-  type StripeWebhookEvent,
-  verifyWebhookSignature,
-} from "#lib/stripe.ts";
+  type SessionMetadata,
+  type ValidatedPaymentSession,
+  type WebhookEvent,
+} from "#lib/payments.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -42,74 +41,13 @@ import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 /** Parsed multi-ticket item from metadata */
 type MultiItem = { e: number; q: number };
 
-/** Common metadata structure for Stripe checkout sessions */
-type SessionMetadata = {
-  event_id?: string;
-  name: string;
-  email: string;
-  quantity?: string;
-  multi?: string;
-  items?: string;
-};
-
-/**
- * Validated Stripe checkout session with required fields for payment processing.
- * Uses strict types instead of Record<string, unknown>.
- */
-type ValidatedCheckoutSession = {
-  id: string;
-  payment_status: "paid" | "unpaid" | "no_payment_required";
-  payment_intent: string | null;
-  metadata: SessionMetadata;
-};
-
 /** Check if session is a multi-ticket session */
 const isMultiSession = (metadata: SessionMetadata): boolean =>
   metadata.multi === "1" && typeof metadata.items === "string";
 
-/**
- * Type guard to validate a Stripe checkout session has required fields.
- * Returns a strictly-typed session or null if validation fails.
- * Supports both single-event and multi-event sessions.
- */
-const validateCheckoutSession = (
-  session: Stripe.Checkout.Session,
-): ValidatedCheckoutSession | null => {
-  const { id, payment_status, payment_intent, metadata } = session;
-
-  if (typeof id !== "string" || typeof payment_status !== "string") {
-    return null;
-  }
-
-  if (!metadata?.name || !metadata?.email) {
-    return null;
-  }
-
-  // Multi-ticket sessions have items instead of event_id
-  const isMulti = isMultiSession(metadata as SessionMetadata);
-  if (!isMulti && !metadata?.event_id) {
-    return null;
-  }
-
-  return {
-    id,
-    payment_status: payment_status as ValidatedCheckoutSession["payment_status"],
-    payment_intent:
-      typeof payment_intent === "string" ? payment_intent : null,
-    metadata: {
-      event_id: metadata.event_id,
-      name: metadata.name,
-      email: metadata.email,
-      quantity: metadata.quantity,
-      multi: metadata.multi,
-      items: metadata.items,
-    },
-  };
-};
-
 /** Extract registration intent from validated session metadata (single-ticket only) */
 const extractIntent = (
-  session: ValidatedCheckoutSession,
+  session: ValidatedPaymentSession,
 ): RegistrationIntent => ({
   eventId: Number.parseInt(session.metadata.event_id ?? "0", 10),
   name: session.metadata.name,
@@ -129,8 +67,8 @@ const withSessionId =
 
 /** Validated session data - either single or multi */
 type ValidatedSession =
-  | { type: "single"; session: ValidatedCheckoutSession; intent: RegistrationIntent }
-  | { type: "multi"; session: ValidatedCheckoutSession; intent: MultiIntent };
+  | { type: "single"; session: ValidatedPaymentSession; intent: RegistrationIntent }
+  | { type: "multi"; session: ValidatedPaymentSession; intent: MultiIntent };
 
 type SessionValidation =
   | { ok: true; data: ValidatedSession }
@@ -139,23 +77,23 @@ type SessionValidation =
 const validatePaidSession = async (
   sessionId: string,
 ): Promise<SessionValidation> => {
-  const rawSession = await retrieveCheckoutSession(sessionId);
-  if (!rawSession) {
+  const provider = await getActivePaymentProvider();
+  if (!provider) {
+    return {
+      ok: false,
+      response: paymentErrorResponse("Payment provider not configured"),
+    };
+  }
+
+  const session = await provider.retrieveSession(sessionId);
+  if (!session) {
     return {
       ok: false,
       response: paymentErrorResponse("Payment session not found"),
     };
   }
 
-  const session = validateCheckoutSession(rawSession);
-  if (!session) {
-    return {
-      ok: false,
-      response: paymentErrorResponse("Invalid payment session data"),
-    };
-  }
-
-  if (session.payment_status !== "paid") {
+  if (session.paymentStatus !== "paid") {
     return {
       ok: false,
       response: paymentErrorResponse(
@@ -186,19 +124,27 @@ type PaymentResult =
   | { success: false; error: string; status?: number; refunded?: boolean };
 
 /**
- * Attempt to refund a payment intent. Returns true if refund succeeded, false otherwise.
+ * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
  * Logs an error if refund fails.
  */
-const tryRefund = async (paymentIntentId: string | null): Promise<boolean> => {
-  if (!paymentIntentId) return false;
+const tryRefund = async (paymentReference: string | null): Promise<boolean> => {
+  if (!paymentReference) return false;
 
-  const refundResult = await refundPayment(paymentIntentId);
-  const refunded = refundResult !== null;
+  const provider = await getActivePaymentProvider();
+  if (!provider) {
+    logError({
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: "No payment provider configured for refund",
+    });
+    return false;
+  }
+
+  const refunded = await provider.refundPayment(paymentReference);
 
   if (!refunded) {
     logError({
-      code: ErrorCode.STRIPE_REFUND,
-      detail: `Failed to refund payment intent ${paymentIntentId}`,
+      code: ErrorCode.PAYMENT_REFUND,
+      detail: `Failed to refund payment ${paymentReference}`,
     });
   }
 
@@ -210,11 +156,11 @@ const tryRefund = async (paymentIntentId: string | null): Promise<boolean> => {
  * Reports refund status accurately based on API result.
  */
 const refundAndFail = async (
-  session: ValidatedCheckoutSession,
+  session: ValidatedPaymentSession,
   error: string,
   status?: number,
 ): Promise<PaymentResult> => {
-  const refunded = await tryRefund(session.payment_intent);
+  const refunded = await tryRefund(session.paymentReference);
   return { success: false, error, status, refunded };
 };
 
@@ -248,7 +194,7 @@ type MultiIntent = {
 
 /** Extract multi-ticket intent from session metadata */
 const extractMultiIntent = (
-  session: ValidatedCheckoutSession,
+  session: ValidatedPaymentSession,
 ): MultiIntent | null => {
   const { metadata } = session;
   if (!metadata.items) return null;
@@ -270,7 +216,7 @@ const extractMultiIntent = (
  */
 const processMultiPaymentSession = async (
   sessionId: string,
-  session: ValidatedCheckoutSession,
+  session: ValidatedPaymentSession,
   intent: MultiIntent,
 ): Promise<PaymentResult> => {
   // Phase 1: Reserve the session
@@ -325,7 +271,7 @@ const processMultiPaymentSession = async (
       item.e,
       intent.name,
       intent.email,
-      session.payment_intent,
+      session.paymentReference,
       item.q,
     );
 
@@ -344,7 +290,7 @@ const processMultiPaymentSession = async (
       await deleteAttendee(created.attendee.id);
     }
 
-    const refunded = await tryRefund(session.payment_intent);
+    const refunded = await tryRefund(session.paymentReference);
     const errorMsg =
       failureReason === "capacity_exceeded"
         ? `Sorry, ${failedEvent.slug} sold out while you were completing payment.`
@@ -381,7 +327,7 @@ const processMultiPaymentSession = async (
  */
 const processPaymentSession = async (
   sessionId: string,
-  session: ValidatedCheckoutSession,
+  session: ValidatedPaymentSession,
   intent: RegistrationIntent,
 ): Promise<PaymentResult> => {
   // Phase 1: Try to reserve the session (claim the lock)
@@ -422,17 +368,17 @@ const processPaymentSession = async (
   }
 
   // Phase 2: Create attendee atomically with capacity check
-  const paymentIntentId = session.payment_intent;
+  const paymentReference = session.paymentReference;
   const result = await createAttendeeAtomic(
     intent.eventId,
     intent.name,
     intent.email,
-    paymentIntentId,
+    paymentReference,
     intent.quantity,
   );
 
   if (!result.success) {
-    const refunded = await tryRefund(paymentIntentId);
+    const refunded = await tryRefund(paymentReference);
     const errorMsg =
       result.reason === "capacity_exceeded"
         ? "Sorry, this event sold out while you were completing payment."
@@ -461,7 +407,7 @@ const formatPaymentError = (result: PaymentResult & { success: false }): string 
 };
 
 /**
- * Handle GET /payment/success (Stripe redirect after successful payment)
+ * Handle GET /payment/success (redirect after successful payment)
  *
  * Atomically creates attendee with capacity check. If event is full after
  * payment completed, automatically refunds and shows error.
@@ -488,19 +434,19 @@ const handlePaymentSuccess = withSessionId(async (sessionId) => {
 });
 
 /**
- * Handle GET /payment/cancel (Stripe redirect after cancelled payment)
+ * Handle GET /payment/cancel (redirect after cancelled payment)
  *
  * No attendee cleanup needed - attendee is only created after successful payment.
  */
 const handlePaymentCancel = withSessionId(async (sid) => {
-  const rawSession = await retrieveCheckoutSession(sid);
-  if (!rawSession) {
-    return paymentErrorResponse("Payment session not found");
+  const provider = await getActivePaymentProvider();
+  if (!provider) {
+    return paymentErrorResponse("Payment provider not configured");
   }
 
-  const session = validateCheckoutSession(rawSession);
+  const session = await provider.retrieveSession(sid);
   if (!session) {
-    return paymentErrorResponse("Invalid payment session data");
+    return paymentErrorResponse("Payment session not found");
   }
 
   const intent = extractIntent(session);
@@ -516,10 +462,9 @@ const handlePaymentCancel = withSessionId(async (sid) => {
 
 /**
  * =============================================================================
- * Stripe Webhook Endpoint
+ * Payment Webhook Endpoint
  * =============================================================================
- * Handles Stripe events directly from Stripe's servers.
- * Uses signature verification for security.
+ * Handles events directly from payment providers with signature verification.
  */
 
 /**
@@ -538,9 +483,10 @@ type WebhookSessionData = {
  * Supports both single-event and multi-event sessions.
  */
 const extractSessionFromEvent = (
-  event: StripeWebhookEvent,
-): ValidatedCheckoutSession | null => {
-  if (event.type !== "checkout.session.completed") {
+  event: WebhookEvent,
+  expectedEventType: string,
+): ValidatedPaymentSession | null => {
+  if (event.type !== expectedEventType) {
     return null;
   }
 
@@ -566,8 +512,8 @@ const extractSessionFromEvent = (
 
   return {
     id: obj.id,
-    payment_status: obj.payment_status as ValidatedCheckoutSession["payment_status"],
-    payment_intent:
+    paymentStatus: obj.payment_status as ValidatedPaymentSession["paymentStatus"],
+    paymentReference:
       typeof obj.payment_intent === "string" ? obj.payment_intent : null,
     metadata: {
       event_id: obj.metadata.event_id,
@@ -580,15 +526,27 @@ const extractSessionFromEvent = (
   };
 };
 
+/** Detect which provider sent the webhook based on request headers */
+const getWebhookSignatureHeader = (
+  request: Request,
+): string | null =>
+  request.headers.get("stripe-signature") ??
+  null;
+
 /**
- * Handle POST /payment/webhook (Stripe webhook endpoint)
+ * Handle POST /payment/webhook (payment provider webhook endpoint)
  *
- * Receives events directly from Stripe with signature verification.
+ * Receives events directly from the payment provider with signature verification.
  * Primary handler for payment completion - more reliable than redirects.
  */
-const handleStripeWebhook = async (request: Request): Promise<Response> => {
+const handlePaymentWebhook = async (request: Request): Promise<Response> => {
+  const provider = await getActivePaymentProvider();
+  if (!provider) {
+    return new Response("Payment provider not configured", { status: 400 });
+  }
+
   // Get signature header
-  const signature = request.headers.get("stripe-signature");
+  const signature = getWebhookSignatureHeader(request);
   if (!signature) {
     return new Response("Missing signature", { status: 400 });
   }
@@ -597,15 +555,15 @@ const handleStripeWebhook = async (request: Request): Promise<Response> => {
   const payload = await request.text();
 
   // Verify signature
-  const verification = await verifyWebhookSignature(payload, signature);
+  const verification = await provider.verifyWebhookSignature(payload, signature);
   if (!verification.valid) {
     return new Response(verification.error, { status: 400 });
   }
 
   const event = verification.event;
 
-  // Only handle checkout.session.completed events
-  if (event.type !== "checkout.session.completed") {
+  // Only handle checkout completed events
+  if (event.type !== provider.checkoutCompletedEventType) {
     // Acknowledge other events without processing
     return new Response(JSON.stringify({ received: true }), {
       status: 200,
@@ -613,13 +571,13 @@ const handleStripeWebhook = async (request: Request): Promise<Response> => {
     });
   }
 
-  const session = extractSessionFromEvent(event);
+  const session = extractSessionFromEvent(event, provider.checkoutCompletedEventType);
   if (!session) {
     return new Response("Invalid session data", { status: 400 });
   }
 
   // Verify payment is complete
-  if (session.payment_status !== "paid") {
+  if (session.paymentStatus !== "paid") {
     return new Response(JSON.stringify({ received: true, status: "pending" }), {
       status: 200,
       headers: { "content-type": "application/json" },
@@ -646,9 +604,9 @@ const handleStripeWebhook = async (request: Request): Promise<Response> => {
   }
 
   if (!result.success) {
-    // Log error but return 200 to prevent Stripe retries for business logic failures
+    // Log error but return 200 to prevent provider retries for business logic failures
     logError({
-      code: ErrorCode.STRIPE_SESSION,
+      code: ErrorCode.PAYMENT_SESSION,
       eventId: eventIdForLog,
       detail: result.error,
     });
@@ -671,7 +629,7 @@ const handleStripeWebhook = async (request: Request): Promise<Response> => {
 const paymentRoutes = defineRoutes({
   "GET /payment/success": (request) => handlePaymentSuccess(request),
   "GET /payment/cancel": (request) => handlePaymentCancel(request),
-  "POST /payment/webhook": (request) => handleStripeWebhook(request),
+  "POST /payment/webhook": (request) => handlePaymentWebhook(request),
 });
 
 /**

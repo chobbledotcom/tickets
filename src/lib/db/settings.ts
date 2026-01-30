@@ -30,6 +30,8 @@ export const CONFIG_KEYS = {
   WRAPPED_DATA_KEY: "wrapped_data_key",
   WRAPPED_PRIVATE_KEY: "wrapped_private_key",
   PUBLIC_KEY: "public_key",
+  // Payment provider selection
+  PAYMENT_PROVIDER: "payment_provider",
   // Stripe configuration (encrypted)
   STRIPE_SECRET_KEY: "stripe_secret_key",
   STRIPE_WEBHOOK_SECRET: "stripe_webhook_secret",
@@ -147,6 +149,32 @@ export const completeSetup = async (
 export const getCurrencyCodeFromDb = async (): Promise<string> => {
   const value = await getSetting(CONFIG_KEYS.CURRENCY_CODE);
   return value || "GBP";
+};
+
+/**
+ * Get the configured payment provider type
+ * Returns null if no provider is configured
+ */
+export const getPaymentProviderFromDb = (): Promise<string | null> =>
+  getSetting(CONFIG_KEYS.PAYMENT_PROVIDER);
+
+/**
+ * Set the active payment provider type
+ */
+export const setPaymentProvider = async (
+  provider: string,
+): Promise<void> => {
+  await setSetting(CONFIG_KEYS.PAYMENT_PROVIDER, provider);
+};
+
+/**
+ * Clear the active payment provider (disables payments)
+ */
+export const clearPaymentProvider = async (): Promise<void> => {
+  await getDb().execute({
+    sql: "DELETE FROM settings WHERE key = ?",
+    args: [CONFIG_KEYS.PAYMENT_PROVIDER],
+  });
 };
 
 /**
@@ -315,6 +343,9 @@ export const settingsApi = {
   unwrapDataKey,
   updateAdminPassword,
   getCurrencyCodeFromDb,
+  getPaymentProviderFromDb,
+  setPaymentProvider,
+  clearPaymentProvider,
   hasStripeKey,
   getStripeSecretKeyFromDb,
   updateStripeKey,

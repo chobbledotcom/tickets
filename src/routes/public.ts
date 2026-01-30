@@ -8,12 +8,11 @@ import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
 import { getEventsBySlugsBatch } from "#lib/db/events.ts";
 import { validateForm } from "#lib/forms.tsx";
 import {
-  createCheckoutSessionWithIntent,
-  createMultiCheckoutSession,
+  getActivePaymentProvider,
   type MultiRegistrationIntent,
   type MultiRegistrationItem,
   type RegistrationIntent,
-} from "#lib/stripe.ts";
+} from "#lib/payments.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import {
@@ -108,25 +107,41 @@ const tryCheckoutRedirect = <T>(
   errorHandler: () => T,
 ): Response | T => (sessionUrl ? redirect(sessionUrl) : errorHandler());
 
+/** Get active payment provider or return an error response */
+const withPaymentProvider = async (
+  onMissing: () => Response,
+  fn: (provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object) => Promise<Response>,
+): Promise<Response> => {
+  const provider = await getActivePaymentProvider();
+  return provider ? fn(provider) : onMissing();
+};
+
 /** Handle payment flow for single-ticket purchase */
-const handlePaymentFlow = async (
+const handlePaymentFlow = (
   request: Request,
   event: EventWithCount,
   intent: RegistrationIntent,
   csrfToken: string,
-): Promise<Response> => {
-  const session = await createCheckoutSessionWithIntent(
-    event,
-    intent,
-    getBaseUrl(request),
-  );
-  return tryCheckoutRedirect(session?.url, () =>
-    ticketResponse(event, csrfToken)(
-      "Failed to create payment session. Please try again.",
+): Promise<Response> =>
+  withPaymentProvider(
+    () => ticketResponse(event, csrfToken)(
+      "Payments are not configured. Please contact the administrator.",
       500,
     ),
+    async (provider) => {
+      const result = await provider.createCheckoutSession(
+        event,
+        intent,
+        getBaseUrl(request),
+      );
+      return tryCheckoutRedirect(result?.checkoutUrl, () =>
+        ticketResponse(event, csrfToken)(
+          "Failed to create payment session. Please try again.",
+          500,
+        ),
+      );
+    },
   );
-};
 
 /** Parse and validate a quantity value from a raw string, capping at max */
 const parseQuantityValue = (raw: string, max: number, minDefault = 1): number => {
@@ -364,21 +379,31 @@ const anyRequiresPayment = async (
 };
 
 /** Handle payment flow for multi-ticket purchase */
-const handleMultiPaymentFlow = async (
+const handleMultiPaymentFlow = (
   request: Request,
   slugs: string[],
   events: MultiTicketEvent[],
   intent: MultiRegistrationIntent,
   csrfToken: string,
-): Promise<Response> => {
-  const session = await createMultiCheckoutSession(intent, getBaseUrl(request));
-  return tryCheckoutRedirect(session?.url, () =>
-    multiTicketResponse(slugs, events, csrfToken)(
-      "Failed to create payment session. Please try again.",
+): Promise<Response> =>
+  withPaymentProvider(
+    () => multiTicketResponse(slugs, events, csrfToken)(
+      "Payments are not configured. Please contact the administrator.",
       500,
     ),
+    async (provider) => {
+      const result = await provider.createMultiCheckoutSession(
+        intent,
+        getBaseUrl(request),
+      );
+      return tryCheckoutRedirect(result?.checkoutUrl, () =>
+        multiTicketResponse(slugs, events, csrfToken)(
+          "Failed to create payment session. Please try again.",
+          500,
+        ),
+      );
+    },
   );
-};
 
 /** Handle free multi-ticket registration */
 const processMultiFreeReservation = async (

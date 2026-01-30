@@ -59,7 +59,7 @@ describe("processed-payments", () => {
 
       const result = await isSessionProcessed("cs_processed_123");
       expect(result).not.toBeNull();
-      expect(result?.stripe_session_id).toBe("cs_processed_123");
+      expect(result?.payment_session_id).toBe("cs_processed_123");
       expect(result?.attendee_id).toBe(testAttendeeId);
       expect(result?.processed_at).toBeDefined();
     });
@@ -69,7 +69,7 @@ describe("processed-payments", () => {
 
       const result = await isSessionProcessed("cs_reserved_123");
       expect(result).not.toBeNull();
-      expect(result?.stripe_session_id).toBe("cs_reserved_123");
+      expect(result?.payment_session_id).toBe("cs_reserved_123");
       expect(result?.attendee_id).toBeNull();
       expect(result?.processed_at).toBeDefined();
     });
@@ -90,7 +90,7 @@ describe("processed-payments", () => {
       const second = await reserveSession("cs_duplicate_reserve");
       expect(second.reserved).toBe(false);
       if (!second.reserved) {
-        expect(second.existing.stripe_session_id).toBe("cs_duplicate_reserve");
+        expect(second.existing.payment_session_id).toBe("cs_duplicate_reserve");
         expect(second.existing.attendee_id).toBeNull();
       }
     });
@@ -127,7 +127,7 @@ describe("processed-payments", () => {
       expect(failures.length).toBe(2);
       for (const failure of failures) {
         if (!failure.reserved) {
-          expect(failure.existing.stripe_session_id).toBe(sessionId);
+          expect(failure.existing.payment_session_id).toBe(sessionId);
         }
       }
     });

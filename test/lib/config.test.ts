@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import {
   getAllowedDomain,
   getCurrencyCode,
+  getPaymentProvider,
   getStripePublishableKey,
   getStripeSecretKey,
   isPaymentsEnabled,
   isSetupComplete,
 } from "#lib/config.ts";
-import { completeSetup, setSetting, updateStripeKey } from "#lib/db/settings.ts";
+import { completeSetup, setPaymentProvider, setSetting, updateStripeKey } from "#lib/db/settings.ts";
 import { createTestDb, resetDb } from "#test-utils";
 import process from "node:process";
 
@@ -24,6 +25,22 @@ describe("config", () => {
     resetDb();
     // Restore original env
     process.env.STRIPE_PUBLISHABLE_KEY = originalEnv.STRIPE_PUBLISHABLE_KEY;
+  });
+
+  describe("getPaymentProvider", () => {
+    test("returns null when not set", async () => {
+      expect(await getPaymentProvider()).toBeNull();
+    });
+
+    test("returns stripe when set to stripe", async () => {
+      await setPaymentProvider("stripe");
+      expect(await getPaymentProvider()).toBe("stripe");
+    });
+
+    test("returns null for unknown provider", async () => {
+      await setSetting("payment_provider", "unknown");
+      expect(await getPaymentProvider()).toBeNull();
+    });
   });
 
   describe("getStripeSecretKey", () => {
@@ -49,11 +66,22 @@ describe("config", () => {
   });
 
   describe("isPaymentsEnabled", () => {
-    test("returns false when stripe key not set", async () => {
+    test("returns false when no provider set", async () => {
       expect(await isPaymentsEnabled()).toBe(false);
     });
 
-    test("returns true when stripe key is set", async () => {
+    test("returns false when provider set but no stripe key", async () => {
+      await setPaymentProvider("stripe");
+      expect(await isPaymentsEnabled()).toBe(false);
+    });
+
+    test("returns false when stripe key set but no provider", async () => {
+      await updateStripeKey("sk_test_123");
+      expect(await isPaymentsEnabled()).toBe(false);
+    });
+
+    test("returns true when provider is stripe and key is set", async () => {
+      await setPaymentProvider("stripe");
       await updateStripeKey("sk_test_123");
       expect(await isPaymentsEnabled()).toBe(true);
     });

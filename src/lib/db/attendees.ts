@@ -1,7 +1,7 @@
 /**
  * Attendees table operations
  *
- * PII (name, email, stripe_payment_id) is encrypted at rest using hybrid encryption:
+ * PII (name, email, payment ID) is encrypted at rest using hybrid encryption:
  * - Encryption uses the public key (no authentication needed)
  * - Decryption requires the private key (only available to authenticated sessions)
  */
@@ -35,10 +35,10 @@ const decryptAttendee = async (
 ): Promise<Attendee> => {
   const name = await decryptAttendeePII(row.name, privateKey);
   const email = await decryptAttendeePII(row.email, privateKey);
-  const stripe_payment_id = row.stripe_payment_id
-    ? await decryptAttendeePII(row.stripe_payment_id, privateKey)
+  const payment_id = row.payment_id
+    ? await decryptAttendeePII(row.payment_id, privateKey)
     : null;
-  return { ...row, name, email, stripe_payment_id };
+  return { ...row, name, email, payment_id };
 };
 
 /**
@@ -86,7 +86,7 @@ type EncryptedAttendeeData = {
 const encryptAttendeeFields = async (
   name: string,
   email: string,
-  stripePaymentId: string | null,
+  paymentId: string | null,
 ): Promise<EncryptedAttendeeData | null> => {
   const publicKeyJwk = await getPublicKey();
   if (!publicKeyJwk) return null;
@@ -95,8 +95,8 @@ const encryptAttendeeFields = async (
     created: new Date().toISOString(),
     encryptedName: await encryptAttendeePII(name, publicKeyJwk),
     encryptedEmail: await encryptAttendeePII(email, publicKeyJwk),
-    encryptedPaymentId: stripePaymentId
-      ? await encryptAttendeePII(stripePaymentId, publicKeyJwk)
+    encryptedPaymentId: paymentId
+      ? await encryptAttendeePII(paymentId, publicKeyJwk)
       : null,
   };
 };
@@ -108,7 +108,7 @@ const buildAttendeeResult = (
   name: string,
   email: string,
   created: string,
-  stripePaymentId: string | null,
+  paymentId: string | null,
   quantity: number,
 ): Attendee => ({
   id: Number(insertId ?? 0),
@@ -116,7 +116,7 @@ const buildAttendeeResult = (
   name,
   email,
   created,
-  stripe_payment_id: stripePaymentId,
+  payment_id: paymentId,
   quantity,
 });
 
@@ -184,7 +184,7 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, created, stripe_payment_id, quantity)
+      sql: `INSERT INTO attendees (event_id, name, email, created, payment_id, quantity)
             SELECT ?, ?, ?, ?, ?, ?
             WHERE (
               SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?

@@ -152,7 +152,7 @@ describe("html", () => {
           name: "John Doe",
           email: "john@example.com",
           created: "2024-01-01T12:00:00Z",
-          stripe_payment_id: null,
+          payment_id: null,
           quantity: 1,
         },
       ];
@@ -169,7 +169,7 @@ describe("html", () => {
           name: "<script>evil()</script>",
           email: "test@example.com",
           created: "2024-01-01T12:00:00Z",
-          stripe_payment_id: null,
+          payment_id: null,
           quantity: 1,
         },
       ];
@@ -304,7 +304,7 @@ describe("html", () => {
       name: "John Doe",
       email: "john@example.com",
       created: "2024-01-01T12:00:00Z",
-      stripe_payment_id: null,
+      payment_id: null,
       quantity: 1,
     };
 
@@ -459,7 +459,7 @@ describe("html", () => {
           name: "John Doe",
           email: "john@example.com",
           created: "2024-01-15T10:30:00Z",
-          stripe_payment_id: null,
+          payment_id: null,
           quantity: 2,
         },
       ];
@@ -480,7 +480,7 @@ describe("html", () => {
           name: "Doe, John",
           email: "john@example.com",
           created: "2024-01-15T10:30:00Z",
-          stripe_payment_id: null,
+          payment_id: null,
           quantity: 1,
         },
       ];
@@ -496,7 +496,7 @@ describe("html", () => {
           name: 'John "JD" Doe',
           email: "john@example.com",
           created: "2024-01-15T10:30:00Z",
-          stripe_payment_id: null,
+          payment_id: null,
           quantity: 1,
         },
       ];
@@ -512,7 +512,7 @@ describe("html", () => {
           name: "John\nDoe",
           email: "john@example.com",
           created: "2024-01-15T10:30:00Z",
-          stripe_payment_id: null,
+          payment_id: null,
           quantity: 1,
         },
       ];
@@ -528,7 +528,7 @@ describe("html", () => {
           name: "John Doe",
           email: "john@example.com",
           created: "2024-01-15T10:30:00Z",
-          stripe_payment_id: null,
+          payment_id: null,
           quantity: 1,
         },
         {
@@ -537,7 +537,7 @@ describe("html", () => {
           name: "Jane Smith",
           email: "jane@example.com",
           created: "2024-01-16T11:00:00Z",
-          stripe_payment_id: null,
+          payment_id: null,
           quantity: 3,
         },
       ];

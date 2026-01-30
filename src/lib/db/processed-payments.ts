@@ -20,7 +20,7 @@ export const STALE_RESERVATION_MS = 5 * 60 * 1000;
 
 /** Processed payment record */
 export type ProcessedPayment = {
-  stripe_session_id: string;
+  payment_session_id: string;
   attendee_id: number | null;
   processed_at: string;
 };
@@ -31,14 +31,14 @@ export type ReserveSessionResult =
   | { reserved: false; existing: ProcessedPayment };
 
 /**
- * Check if a Stripe session has already been processed
+ * Check if a payment session has already been processed
  */
 export const isSessionProcessed = (
-  stripeSessionId: string,
+  sessionId: string,
 ): Promise<ProcessedPayment | null> =>
   queryOne<ProcessedPayment>(
-    "SELECT stripe_session_id, attendee_id, processed_at FROM processed_payments WHERE stripe_session_id = ?",
-    [stripeSessionId],
+    "SELECT payment_session_id, attendee_id, processed_at FROM processed_payments WHERE payment_session_id = ?",
+    [sessionId],
   );
 
 /**
@@ -53,16 +53,16 @@ export const isReservationStale = (processedAt: string): boolean => {
  * Delete a stale reservation to allow retry
  */
 export const deleteStaleReservation = async (
-  stripeSessionId: string,
+  sessionId: string,
 ): Promise<void> => {
   await getDb().execute({
-    sql: "DELETE FROM processed_payments WHERE stripe_session_id = ? AND attendee_id IS NULL",
-    args: [stripeSessionId],
+    sql: "DELETE FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
+    args: [sessionId],
   });
 };
 
 /**
- * Reserve a Stripe session for processing (first phase of two-phase lock)
+ * Reserve a payment session for processing (first phase of two-phase lock)
  * Inserts with NULL attendee_id to claim the session.
  * Returns { reserved: true } if we claimed it, or { reserved: false, existing } if already claimed.
  *
@@ -71,12 +71,12 @@ export const deleteStaleReservation = async (
  * delete the stale record to allow retry.
  */
 export const reserveSession = async (
-  stripeSessionId: string,
+  sessionId: string,
 ): Promise<ReserveSessionResult> => {
   try {
     await getDb().execute({
-      sql: "INSERT INTO processed_payments (stripe_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
-      args: [stripeSessionId, new Date().toISOString()],
+      sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+      args: [sessionId, new Date().toISOString()],
     });
     return { reserved: true };
   } catch (e) {
@@ -86,17 +86,17 @@ export const reserveSession = async (
       errorMsg.includes("PRIMARY KEY constraint")
     ) {
       // Session already claimed - get existing record
-      const existing = await isSessionProcessed(stripeSessionId);
+      const existing = await isSessionProcessed(sessionId);
       if (!existing) {
         // Race condition edge case: record existed but was deleted
         // Shouldn't happen in practice, treat as reservable
-        return reserveSession(stripeSessionId);
+        return reserveSession(sessionId);
       }
 
       // Check if reservation is stale (abandoned by crashed process)
       if (existing.attendee_id === null && isReservationStale(existing.processed_at)) {
-        await deleteStaleReservation(stripeSessionId);
-        return reserveSession(stripeSessionId);
+        await deleteStaleReservation(sessionId);
+        return reserveSession(sessionId);
       }
 
       return { reserved: false, existing };
@@ -109,12 +109,12 @@ export const reserveSession = async (
  * Finalize a reserved session with the created attendee ID (second phase)
  */
 export const finalizeSession = async (
-  stripeSessionId: string,
+  sessionId: string,
   attendeeId: number,
 ): Promise<void> => {
   await getDb().execute({
-    sql: "UPDATE processed_payments SET attendee_id = ? WHERE stripe_session_id = ?",
-    args: [attendeeId, stripeSessionId],
+    sql: "UPDATE processed_payments SET attendee_id = ? WHERE payment_session_id = ?",
+    args: [attendeeId, sessionId],
   });
 };
 
@@ -123,8 +123,8 @@ export const finalizeSession = async (
  * Used to return success for idempotent webhook retries
  */
 export const getProcessedAttendeeId = async (
-  stripeSessionId: string,
+  sessionId: string,
 ): Promise<number | null> => {
-  const result = await isSessionProcessed(stripeSessionId);
+  const result = await isSessionProcessed(sessionId);
   return result?.attendee_id ?? null;
 };

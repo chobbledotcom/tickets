@@ -21,7 +21,7 @@ export interface Attendee {
   name: string;
   email: string;
   created: string;
-  stripe_payment_id: string | null;
+  payment_id: string | null;
   quantity: number;
 }
 
