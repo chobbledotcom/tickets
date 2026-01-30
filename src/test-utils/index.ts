@@ -323,13 +323,15 @@ export const testEventInput = (
 /** Cached session for test event creation */
 let testSession: { cookie: string; csrfToken: string } | null = null;
 
-/** Get or create an authenticated session for test helpers */
-const getTestSession = async (): Promise<{
+/**
+ * Perform a fresh admin login and return the cookie and CSRF token.
+ * Unlike getTestSession, this does NOT cache — each call creates a new session.
+ * Use in tests that need an isolated authenticated session.
+ */
+export const loginAsAdmin = async (): Promise<{
   cookie: string;
   csrfToken: string;
 }> => {
-  if (testSession) return testSession;
-
   const { handleRequest } = await import("#routes");
   const loginResponse = await handleRequest(
     mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
@@ -338,10 +340,19 @@ const getTestSession = async (): Promise<{
   const csrfToken = await getCsrfTokenFromCookie(cookie);
 
   if (!csrfToken) {
-    throw new Error("Failed to get CSRF token for test session");
+    throw new Error("Failed to get CSRF token for admin login");
   }
 
-  testSession = { cookie, csrfToken };
+  return { cookie, csrfToken };
+};
+
+/** Get or create an authenticated session for test helpers (cached) */
+const getTestSession = async (): Promise<{
+  cookie: string;
+  csrfToken: string;
+}> => {
+  if (testSession) return testSession;
+  testSession = await loginAsAdmin();
   return testSession;
 };
 
