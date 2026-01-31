@@ -193,6 +193,11 @@ const main = async (): Promise<void> => {
       for (const line of uncoveredFiles) {
         console.error(line);
       }
+      console.error("\nTest quality rules:");
+      console.error("  - Only 100% coverage is acceptable");
+      console.error("  - Test outcomes not implementations");
+      console.error("  - Test-only exports are forbidden");
+      console.error("  - Tautological tests are forbidden");
       Deno.exit(1);
     }
     console.log("All files have 100% coverage");

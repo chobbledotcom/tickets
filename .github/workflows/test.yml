@@ -77,6 +77,12 @@ jobs:
             echo ""
             echo "::error::Coverage is not 100% for all files:"
             echo "$FAILED"
+            echo ""
+            echo "Test quality rules:"
+            echo "  - Only 100% coverage is acceptable"
+            echo "  - Test outcomes not implementations"
+            echo "  - Test-only exports are forbidden"
+            echo "  - Tautological tests are forbidden"
             exit 1
           fi
           echo "All files have 100% coverage"
