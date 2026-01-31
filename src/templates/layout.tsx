@@ -3,6 +3,7 @@
  */
 
 import { type Child, SafeHtml } from "#jsx/jsx-runtime.ts";
+import { CSS_PATH } from "#src/config/asset-paths.ts";
 
 export const escapeHtml = (str: string): string =>
   str
@@ -28,7 +29,7 @@ export const Layout = ({ title, children }: LayoutProps): SafeHtml =>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
           <title>{title}</title>
-          <link rel="stylesheet" href="/mvp.css" />
+          <link rel="stylesheet" href={CSS_PATH} />
         </head>
         <body>
           <main>

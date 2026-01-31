@@ -8,6 +8,9 @@ import * as esbuild from "esbuild";
 import type { Plugin } from "esbuild";
 import { minifyCss } from "./css-minify.ts";
 
+// Build timestamp for cache-busting (seconds since epoch)
+const BUILD_TS = Math.floor(Date.now() / 1000);
+
 // Read static assets at build time for inlining
 const rawCss = await Deno.readTextFile("./src/static/mvp.css");
 const minifiedCss = await minifyCss(rawCss);
@@ -24,6 +27,17 @@ const STATIC_ASSETS: Record<string, string> = {
 const inlineAssetsPlugin: Plugin = {
   name: "inline-assets",
   setup(build) {
+    // Replace asset paths module with cache-busted version
+    build.onResolve({ filter: /config\/asset-paths\.ts$/ }, (args) => ({
+      path: args.path,
+      namespace: "inline-asset-paths",
+    }));
+
+    build.onLoad({ filter: /.*/, namespace: "inline-asset-paths" }, () => ({
+      contents: `export const CSS_PATH = "/mvp.css?ts=${BUILD_TS}";`,
+      loader: "ts",
+    }));
+
     // Replace the assets module with inlined content
     build.onResolve({ filter: /routes\/assets\.ts$/ }, (args) => ({
       path: args.path,
