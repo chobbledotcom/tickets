@@ -6,16 +6,23 @@ import {
   clearPaymentProvider,
   getPaymentProviderFromDb,
   getStripeWebhookEndpointId,
+  hasSquareToken,
   hasStripeKey,
   setPaymentProvider,
   setStripeWebhookConfig,
   updateAdminPassword,
+  updateSquareAccessToken,
+  updateSquareLocationId,
+  updateSquareWebhookSignatureKey,
   updateStripeKey,
 } from "#lib/db/settings.ts";
+import {
+  getSquareWebhookSignatureKey,
+  getAllowedDomain,
+} from "#lib/config.ts";
 import { resetDatabase } from "#lib/db/migrations/index.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
-import { getAllowedDomain } from "#lib/config.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -26,19 +33,62 @@ import {
   withAuthForm,
 } from "#routes/utils.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
-import { changePasswordFields, stripeKeyFields } from "#templates/fields.ts";
+import {
+  changePasswordFields,
+  squareAccessTokenFields,
+  squareWebhookFields,
+  stripeKeyFields,
+} from "#templates/fields.ts";
+
+/** Build the webhook URL from the configured domain */
+const getWebhookUrl = (): string => {
+  const domain = getAllowedDomain();
+  return `https://${domain}/payment/webhook`;
+};
+
+/** Gather all state needed to render the settings page */
+const getSettingsPageState = async () => {
+  const stripeKeyConfigured = await hasStripeKey();
+  const paymentProvider = await getPaymentProviderFromDb();
+  const squareTokenConfigured = await hasSquareToken();
+  const squareWebhookKey = await getSquareWebhookSignatureKey();
+  const squareWebhookConfigured = squareWebhookKey !== null;
+  const webhookUrl = getWebhookUrl();
+  return {
+    stripeKeyConfigured,
+    paymentProvider,
+    squareTokenConfigured,
+    squareWebhookConfigured,
+    webhookUrl,
+  };
+};
+
+/** Render the settings page with current state */
+const renderSettingsPage = async (
+  csrfToken: string,
+  error?: string,
+  success?: string,
+) => {
+  const state = await getSettingsPageState();
+  return adminSettingsPage(
+    csrfToken,
+    state.stripeKeyConfigured,
+    state.paymentProvider,
+    error,
+    success,
+    state.squareTokenConfigured,
+    state.squareWebhookConfigured,
+    state.webhookUrl,
+  );
+};
 
 /**
  * Handle GET /admin/settings
  */
 const handleAdminSettingsGet = (request: Request): Promise<Response> =>
-  requireSessionOr(request, async (session) => {
-    const stripeKeyConfigured = await hasStripeKey();
-    const paymentProvider = await getPaymentProviderFromDb();
-    return htmlResponse(
-      adminSettingsPage(session.csrfToken, stripeKeyConfigured, paymentProvider),
-    );
-  });
+  requireSessionOr(request, async (session) =>
+    htmlResponse(await renderSettingsPage(session.csrfToken)),
+  );
 
 /**
  * Validate change password form data
@@ -78,13 +128,8 @@ const validateChangePasswordForm = (
  */
 const handleAdminSettingsPost = (request: Request): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
-    const stripeKeyConfigured = await hasStripeKey();
-    const paymentProvider = await getPaymentProviderFromDb();
-    const settingsPageWithError = (error: string, status: number) =>
-      htmlResponse(
-        adminSettingsPage(session.csrfToken, stripeKeyConfigured, paymentProvider, error),
-        status,
-      );
+    const settingsPageWithError = async (error: string, status: number) =>
+      htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
 
     const validation = validateChangePasswordForm(form);
     if (!validation.valid) {
@@ -104,7 +149,10 @@ const handleAdminSettingsPost = (request: Request): Promise<Response> =>
   });
 
 /** Valid payment provider values from the form */
-const VALID_PROVIDERS: ReadonlySet<string> = new Set<PaymentProviderType>(["stripe"]);
+const VALID_PROVIDERS: ReadonlySet<string> = new Set<PaymentProviderType>([
+  "stripe",
+  "square",
+]);
 
 /**
  * Handle POST /admin/settings/payment-provider
@@ -114,23 +162,16 @@ const VALID_PROVIDERS: ReadonlySet<string> = new Set<PaymentProviderType>(["stri
  */
 const handlePaymentProviderPost = (request: Request): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
-    const stripeKeyConfigured = await hasStripeKey();
-    const paymentProvider = await getPaymentProviderFromDb();
-    const settingsPageWithError = (error: string, status: number) =>
-      htmlResponse(
-        adminSettingsPage(session.csrfToken, stripeKeyConfigured, paymentProvider, error),
-        status,
-      );
+    const settingsPageWithError = async (error: string, status: number) =>
+      htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
 
     const provider = form.get("payment_provider") ?? "";
 
     if (provider === "none") {
       await clearPaymentProvider();
       return htmlResponse(
-        adminSettingsPage(
+        await renderSettingsPage(
           session.csrfToken,
-          stripeKeyConfigured,
-          null,
           undefined,
           "Payment provider disabled",
         ),
@@ -144,10 +185,8 @@ const handlePaymentProviderPost = (request: Request): Promise<Response> =>
     await setPaymentProvider(provider);
 
     return htmlResponse(
-      adminSettingsPage(
+      await renderSettingsPage(
         session.csrfToken,
-        stripeKeyConfigured,
-        provider,
         undefined,
         `Payment provider set to ${provider}`,
       ),
@@ -163,13 +202,8 @@ const handlePaymentProviderPost = (request: Request): Promise<Response> =>
  */
 const handleAdminStripePost = (request: Request): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
-    const stripeKeyConfigured = await hasStripeKey();
-    const paymentProvider = await getPaymentProviderFromDb();
-    const settingsPageWithError = (error: string, status: number) =>
-      htmlResponse(
-        adminSettingsPage(session.csrfToken, stripeKeyConfigured, paymentProvider, error),
-        status,
-      );
+    const settingsPageWithError = async (error: string, status: number) =>
+      htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
 
     const validation = validateForm(form, stripeKeyFields);
     if (!validation.valid) {
@@ -179,8 +213,7 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
     const stripeSecretKey = validation.values.stripe_secret_key as string;
 
     // Set up webhook endpoint automatically
-    const domain = getAllowedDomain();
-    const webhookUrl = `https://${domain}/payment/webhook`;
+    const webhookUrl = getWebhookUrl();
     const existingEndpointId = await getStripeWebhookEndpointId();
 
     const webhookResult = await setupWebhookEndpoint(
@@ -204,12 +237,72 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
     await setPaymentProvider("stripe");
 
     return htmlResponse(
-      adminSettingsPage(
+      await renderSettingsPage(
         session.csrfToken,
-        true,
-        "stripe",
         undefined,
         "Stripe key updated and webhook configured successfully",
+      ),
+    );
+  });
+
+/**
+ * Handle POST /admin/settings/square
+ *
+ * Stores the Square access token and location ID.
+ * Also sets the payment provider to "square".
+ */
+const handleAdminSquarePost = (request: Request): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const settingsPageWithError = async (error: string, status: number) =>
+      htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
+
+    const validation = validateForm(form, squareAccessTokenFields);
+    if (!validation.valid) {
+      return settingsPageWithError(validation.error, 400);
+    }
+
+    const accessToken = validation.values.square_access_token as string;
+    const locationId = validation.values.square_location_id as string;
+
+    await updateSquareAccessToken(accessToken);
+    await updateSquareLocationId(locationId);
+
+    // Auto-set payment provider to square when credentials are configured
+    await setPaymentProvider("square");
+
+    return htmlResponse(
+      await renderSettingsPage(
+        session.csrfToken,
+        undefined,
+        "Square credentials updated successfully",
+      ),
+    );
+  });
+
+/**
+ * Handle POST /admin/settings/square-webhook
+ *
+ * Stores the Square webhook signature key (manually provided by user).
+ */
+const handleAdminSquareWebhookPost = (request: Request): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const settingsPageWithError = async (error: string, status: number) =>
+      htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
+
+    const validation = validateForm(form, squareWebhookFields);
+    if (!validation.valid) {
+      return settingsPageWithError(validation.error, 400);
+    }
+
+    const signatureKey = validation.values.square_webhook_signature_key as string;
+
+    await updateSquareWebhookSignatureKey(signatureKey);
+
+    return htmlResponse(
+      await renderSettingsPage(
+        session.csrfToken,
+        undefined,
+        "Square webhook signature key updated successfully",
       ),
     );
   });
@@ -239,13 +332,8 @@ const RESET_DATABASE_PHRASE =
  */
 const handleResetDatabasePost = (request: Request): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
-    const stripeKeyConfigured = await hasStripeKey();
-    const paymentProvider = await getPaymentProviderFromDb();
-    const settingsPageWithError = (error: string, status: number) =>
-      htmlResponse(
-        adminSettingsPage(session.csrfToken, stripeKeyConfigured, paymentProvider, error),
-        status,
-      );
+    const settingsPageWithError = async (error: string, status: number) =>
+      htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
 
     const confirmPhrase = form.get("confirm_phrase") ?? "";
     if (confirmPhrase.trim() !== RESET_DATABASE_PHRASE) {
@@ -268,6 +356,9 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/payment-provider": (request) =>
     handlePaymentProviderPost(request),
   "POST /admin/settings/stripe": (request) => handleAdminStripePost(request),
+  "POST /admin/settings/square": (request) => handleAdminSquarePost(request),
+  "POST /admin/settings/square-webhook": (request) =>
+    handleAdminSquareWebhookPost(request),
   "POST /admin/settings/stripe/test": (request) => handleStripeTestPost(request),
   "POST /admin/settings/reset-database": (request) =>
     handleResetDatabasePost(request),

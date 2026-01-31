@@ -4,7 +4,12 @@
 
 import { renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { changePasswordFields, stripeKeyFields } from "#templates/fields.ts";
+import {
+  changePasswordFields,
+  squareAccessTokenFields,
+  squareWebhookFields,
+  stripeKeyFields,
+} from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -17,6 +22,9 @@ export const adminSettingsPage = (
   paymentProvider: string | null,
   error?: string,
   success?: string,
+  squareTokenConfigured?: boolean,
+  squareWebhookConfigured?: boolean,
+  webhookUrl?: string,
 ): string =>
   String(
     <Layout title="Settings">
@@ -47,6 +55,15 @@ export const adminSettingsPage = (
                 checked={paymentProvider === "stripe"}
               />
               Stripe
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="payment_provider"
+                value="square"
+                checked={paymentProvider === "square"}
+              />
+              Square
             </label>
           </fieldset>
           <button type="submit">Save Payment Provider</button>
@@ -111,6 +128,48 @@ document.getElementById('stripe-test-btn')?.addEventListener('click', async func
   btn.textContent = 'Test Connection';
 });
 </script>`} />
+        )}
+
+        {paymentProvider === "square" && (
+        <form method="POST" action="/admin/settings/square">
+            <h2>Square Settings</h2>
+          <p>
+            {squareTokenConfigured
+              ? "A Square access token is currently configured. Enter new credentials below to replace them."
+              : "No Square access token is configured. Enter your Square credentials to enable Square payments."}
+          </p>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <Raw html={renderFields(squareAccessTokenFields)} />
+          <button type="submit">Update Square Credentials</button>
+        </form>
+        )}
+
+        {paymentProvider === "square" && squareTokenConfigured && (
+        <form method="POST" action="/admin/settings/square-webhook">
+            <h2>Square Webhook</h2>
+          <article>
+            <aside>
+              <p>To receive payment notifications, set up a webhook in your Square Developer Dashboard:</p>
+              <ol>
+                <li>Go to your <strong>Square Developer Dashboard</strong> and select your application</li>
+                <li>Navigate to <strong>Webhooks</strong> in the left sidebar</li>
+                <li>Click <strong>Add Subscription</strong></li>
+                <li>Set the <strong>Notification URL</strong> to:<br /><code>{webhookUrl ?? "(configure ALLOWED_DOMAIN first)"}</code></li>
+                <li>Subscribe to the <strong>payment.updated</strong> event</li>
+                <li>Save the subscription and copy the <strong>Signature Key</strong></li>
+                <li>Paste the signature key below</li>
+              </ol>
+            </aside>
+          </article>
+          <p>
+            {squareWebhookConfigured
+              ? "A webhook signature key is currently configured. Enter a new key below to replace it."
+              : "No webhook signature key is configured. Follow the steps above to set one up."}
+          </p>
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <Raw html={renderFields(squareWebhookFields)} />
+          <button type="submit">Update Webhook Key</button>
+        </form>
         )}
 
         <form method="POST" action="/admin/settings">

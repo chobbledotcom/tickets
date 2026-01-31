@@ -536,11 +536,19 @@ const extractSessionFromEvent = (
   };
 };
 
+/** JSON response acknowledging a webhook event without processing */
+const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
+  new Response(JSON.stringify({ received: true, ...extra }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+
 /** Detect which provider sent the webhook based on request headers */
 const getWebhookSignatureHeader = (
   request: Request,
 ): string | null =>
   request.headers.get("stripe-signature") ??
+  request.headers.get("x-square-hmacsha256-signature") ??
   null;
 
 /**
@@ -575,23 +583,38 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Only handle checkout completed events
   if (event.type !== provider.checkoutCompletedEventType) {
     // Acknowledge other events without processing
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
+    return webhookAckResponse();
   }
 
-  const session = extractSessionFromEvent(event, provider.checkoutCompletedEventType);
+  // Try to extract session directly from event data (works for Stripe).
+  // For providers like Square where webhook payload is a payment object
+  // (not the order with metadata), fall back to retrieveSession.
+  let session = extractSessionFromEvent(event, provider.checkoutCompletedEventType);
+
   if (!session) {
-    return new Response("Invalid session data", { status: 400 });
+    // Attempt provider-specific retrieval using order/session ID from event data
+    const obj = event.data.object as Record<string, unknown>;
+    const sessionId = (typeof obj.order_id === "string" ? obj.order_id : null)
+      ?? (typeof obj.id === "string" ? obj.id : null);
+
+    if (!sessionId) {
+      return new Response("Invalid session data", { status: 400 });
+    }
+
+    // For Square payment.updated: check payment status before retrieving order
+    if (typeof obj.status === "string" && obj.status !== "COMPLETED") {
+      return webhookAckResponse({ status: "pending" });
+    }
+
+    session = await provider.retrieveSession(sessionId);
+    if (!session) {
+      return new Response("Invalid session data", { status: 400 });
+    }
   }
 
   // Verify payment is complete
   if (session.paymentStatus !== "paid") {
-    return new Response(JSON.stringify({ received: true, status: "pending" }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
+    return webhookAckResponse({ status: "pending" });
   }
 
   // Determine if this is a multi-ticket session and process accordingly
@@ -622,17 +645,10 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     });
   }
 
-  return new Response(
-    JSON.stringify({
-      received: true,
-      processed: result.success,
-      error: result.success ? undefined : result.error,
-    }),
-    {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    },
-  );
+  return webhookAckResponse({
+    processed: result.success,
+    error: result.success ? undefined : result.error,
+  });
 };
 
 /** Payment routes definition */
