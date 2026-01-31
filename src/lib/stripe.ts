@@ -29,6 +29,29 @@ const loadStripe = once(async () => {
 
 type StripeCache = { client: Stripe; secretKey: string };
 
+/**
+ * Extract a privacy-safe error detail from a caught error.
+ * Stripe errors expose type/code/statusCode which are safe to log.
+ * Raw message is never logged as it may contain PII or secrets.
+ */
+export const sanitizeErrorDetail = (err: unknown): string => {
+  if (!(err instanceof Error)) return "unknown";
+
+  // Stripe SDK errors have statusCode, code, and type properties
+  const stripeErr = err as {
+    statusCode?: number;
+    code?: string;
+    type?: string;
+  };
+
+  const parts: string[] = [];
+  if (stripeErr.statusCode) parts.push(`status=${stripeErr.statusCode}`);
+  if (stripeErr.code) parts.push(`code=${stripeErr.code}`);
+  if (stripeErr.type) parts.push(`type=${stripeErr.type}`);
+
+  return parts.length > 0 ? parts.join(" ") : err.name || "Error";
+};
+
 /** Safely execute async operation, returning null on error */
 const safeAsync = async <T>(
   fn: () => Promise<T>,
@@ -37,8 +60,7 @@ const safeAsync = async <T>(
   try {
     return await fn();
   } catch (err) {
-    const detail = err instanceof Error ? err.message : "unknown";
-    logError({ code: errorCode, detail });
+    logError({ code: errorCode, detail: sanitizeErrorDetail(err) });
     return null;
   }
 };
@@ -341,8 +363,8 @@ const setupWebhookEndpointImpl = async (
       secret: endpoint.secret,
     };
   } catch (err) {
+    logError({ code: ErrorCode.STRIPE_WEBHOOK_SETUP, detail: sanitizeErrorDetail(err) });
     const message = err instanceof Error ? err.message : "Unknown error";
-    logError({ code: ErrorCode.STRIPE_WEBHOOK_SETUP, detail: message });
     return { success: false, error: message };
   }
 };
