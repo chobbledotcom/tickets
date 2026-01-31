@@ -42,6 +42,9 @@ jobs:
       - name: Install dependencies
         run: deno install --allow-scripts
 
+      - name: Typecheck
+        run: deno task typecheck
+
       - name: Lint
         run: deno task lint
 
@@ -61,6 +64,18 @@ jobs:
           ALLOWED_DOMAIN: localhost
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
         run: deno task test:coverage
+
+      - name: Enforce 100% coverage
+        run: |
+          OUTPUT=$(deno coverage coverage/)
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep '^cover ' | grep -qv '100.000%'; then
+            echo ""
+            echo "::error::Coverage is not 100% for all files. Uncovered files:"
+            echo "$OUTPUT" | grep '^cover ' | grep -v '100.000%'
+            exit 1
+          fi
+          echo "All files have 100% coverage"
 
   deploy:
     needs: test
