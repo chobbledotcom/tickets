@@ -149,7 +149,7 @@ export const eventFields: Field[] = [
     label: "Webhook URL (optional)",
     type: "url",
     placeholder: "https://example.com/webhook",
-    hint: "Receives POST with attendee name and email on registration",
+    hint: "Receives POST with attendee name, email, and phone on registration",
     validate: validateSafeUrl,
   },
 ];

@@ -25,8 +25,13 @@ describe("webhook", () => {
       const webhookUrl = "https://example.com/webhook";
       const eventId = 1;
       const eventSlug = "test-event";
-      const attendeeId = 42;
-      const quantity = 2;
+      const attendee = {
+        id: 42,
+        quantity: 2,
+        name: "Jane Doe",
+        email: "jane@example.com",
+        phone: "555-1234",
+      };
       const maxAttendees = 100;
       const attendeeCount = 50;
 
@@ -34,8 +39,7 @@ describe("webhook", () => {
         webhookUrl,
         eventId,
         eventSlug,
-        attendeeId,
-        quantity,
+        attendee,
         maxAttendees,
         attendeeCount,
       );
@@ -52,8 +56,11 @@ describe("webhook", () => {
       expect(payload.event_slug).toBe(eventSlug);
       expect(payload.remaining_places).toBe(48); // 100 - 50 - 2
       expect(payload.total_places).toBe(100);
-      expect(payload.attendee.id).toBe(attendeeId);
-      expect(payload.attendee.quantity).toBe(quantity);
+      expect(payload.attendee.id).toBe(42);
+      expect(payload.attendee.quantity).toBe(2);
+      expect(payload.attendee.name).toBe("Jane Doe");
+      expect(payload.attendee.email).toBe("jane@example.com");
+      expect(payload.attendee.phone).toBe("555-1234");
       expect(payload.timestamp).toBeDefined();
     });
 
@@ -65,8 +72,7 @@ describe("webhook", () => {
         "https://example.com/webhook",
         1,
         "test-event",
-        42,
-        1,
+        { id: 42, quantity: 1, name: "Test", email: "test@test.com", phone: "555-0000" },
         100,
         50,
       );
@@ -87,6 +93,9 @@ describe("webhook", () => {
       const attendee = {
         id: 99,
         quantity: 1,
+        name: "John Smith",
+        email: "john@example.com",
+        phone: "555-9999",
       };
 
       await notifyWebhook(event, attendee);
@@ -107,6 +116,9 @@ describe("webhook", () => {
       const attendee = {
         id: 99,
         quantity: 1,
+        name: "John Smith",
+        email: "john@example.com",
+        phone: "555-9999",
       };
 
       await notifyWebhook(event, attendee);
@@ -125,6 +137,9 @@ describe("webhook", () => {
       const attendee = {
         id: 123,
         quantity: 3,
+        name: "Alice Johnson",
+        email: "alice@example.com",
+        phone: "555-5678",
       };
 
       await notifyWebhook(event, attendee);
@@ -139,6 +154,9 @@ describe("webhook", () => {
       expect(payload.total_places).toBe(200);
       expect(payload.attendee.id).toBe(123);
       expect(payload.attendee.quantity).toBe(3);
+      expect(payload.attendee.name).toBe("Alice Johnson");
+      expect(payload.attendee.email).toBe("alice@example.com");
+      expect(payload.attendee.phone).toBe("555-5678");
     });
   });
 });
