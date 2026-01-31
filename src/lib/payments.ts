@@ -11,7 +11,7 @@ import { logDebug } from "#lib/logger.ts";
 import type { Event } from "#lib/types.ts";
 
 /** Supported payment provider identifiers */
-export type PaymentProviderType = "stripe";
+export type PaymentProviderType = "stripe" | "square";
 
 /** Registration intent for a single event checkout */
 export type RegistrationIntent = {
@@ -164,6 +164,11 @@ export const getActivePaymentProvider =
     if (providerType === "stripe") {
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       return stripePaymentProvider;
+    }
+
+    if (providerType === "square") {
+      const { squarePaymentProvider } = await import("#lib/square-provider.ts");
+      return squarePaymentProvider;
     }
 
     logDebug("Payment", `Unknown payment provider type: ${providerType}`);

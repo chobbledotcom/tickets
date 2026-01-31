@@ -419,6 +419,67 @@ export const awaitTestRequest = async (
   return handleRequest(testRequest(path, tokenOrOptions));
 };
 
+/** Restorable mock — any object with a mockRestore method */
+interface Restorable {
+  mockRestore?: (() => void) | undefined;
+}
+
+/**
+ * Run a test body with mocks that are automatically restored afterward.
+ * Replaces the try/finally pattern for spy cleanup.
+ *
+ * @param setup - Returns a record of spies (or a single spy)
+ * @param body - Test body receiving the spies
+ * @param cleanup - Optional extra cleanup (e.g. resetStripeClient)
+ *
+ * @example
+ * // Single spy
+ * await withMocks(
+ *   () => spyOn(api, "method").mockResolvedValue("ok"),
+ *   async (mock) => {
+ *     const result = await doThing();
+ *     expect(mock).toHaveBeenCalled();
+ *   },
+ * );
+ *
+ * // Multiple spies
+ * await withMocks(
+ *   () => ({
+ *     retrieve: spyOn(api, "retrieve").mockResolvedValue(session),
+ *     refund: spyOn(api, "refund").mockResolvedValue({ id: "re_1" }),
+ *   }),
+ *   async ({ retrieve, refund }) => {
+ *     expect(refund).toHaveBeenCalledWith("pi_123");
+ *   },
+ * );
+ *
+ * // With extra cleanup
+ * await withMocks(
+ *   () => spyOn(api, "method").mockResolvedValue("ok"),
+ *   async (mock) => { ... },
+ *   resetStripeClient,
+ * );
+ */
+export const withMocks = async <T extends Restorable | Record<string, Restorable>>(
+  setup: () => T,
+  body: (mocks: T) => void | Promise<void>,
+  cleanup?: () => void | Promise<void>,
+): Promise<void> => {
+  const mocks = setup();
+  try {
+    await body(mocks);
+  } finally {
+    if (typeof (mocks as Restorable).mockRestore === "function") {
+      (mocks as Restorable).mockRestore!();
+    } else {
+      for (const mock of Object.values(mocks as Record<string, Restorable>)) {
+        mock.mockRestore?.();
+      }
+    }
+    await cleanup?.();
+  }
+};
+
 /** Counter for generating unique test slugs */
 const slugCounter = { value: 0 };
 

@@ -36,6 +36,10 @@ export const CONFIG_KEYS = {
   STRIPE_SECRET_KEY: "stripe_secret_key",
   STRIPE_WEBHOOK_SECRET: "stripe_webhook_secret",
   STRIPE_WEBHOOK_ENDPOINT_ID: "stripe_webhook_endpoint_id",
+  // Square configuration (encrypted)
+  SQUARE_ACCESS_TOKEN: "square_access_token",
+  SQUARE_WEBHOOK_SIGNATURE_KEY: "square_webhook_signature_key",
+  SQUARE_LOCATION_ID: "square_location_id",
 } as const;
 
 /**
@@ -326,6 +330,70 @@ export const updateAdminPassword = async (
 };
 
 /**
+ * Check if a Square access token has been configured in the database
+ */
+export const hasSquareToken = async (): Promise<boolean> => {
+  const value = await getSetting(CONFIG_KEYS.SQUARE_ACCESS_TOKEN);
+  return value !== null;
+};
+
+/**
+ * Get Square access token from database (decrypted)
+ * Returns null if not configured
+ */
+export const getSquareAccessTokenFromDb = async (): Promise<string | null> => {
+  const value = await getSetting(CONFIG_KEYS.SQUARE_ACCESS_TOKEN);
+  if (!value) return null;
+  return decrypt(value);
+};
+
+/**
+ * Update Square access token (encrypted at rest)
+ */
+export const updateSquareAccessToken = async (
+  accessToken: string,
+): Promise<void> => {
+  const encryptedToken = await encrypt(accessToken);
+  await setSetting(CONFIG_KEYS.SQUARE_ACCESS_TOKEN, encryptedToken);
+};
+
+/**
+ * Get Square webhook signature key from database (decrypted)
+ * Returns null if not configured
+ */
+export const getSquareWebhookSignatureKeyFromDb = async (): Promise<string | null> => {
+  const value = await getSetting(CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY);
+  if (!value) return null;
+  return decrypt(value);
+};
+
+/**
+ * Store Square webhook signature key (encrypted at rest)
+ */
+export const updateSquareWebhookSignatureKey = async (
+  signatureKey: string,
+): Promise<void> => {
+  const encryptedKey = await encrypt(signatureKey);
+  await setSetting(CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY, encryptedKey);
+};
+
+/**
+ * Get Square location ID from database
+ * Returns null if not configured
+ */
+export const getSquareLocationIdFromDb = (): Promise<string | null> =>
+  getSetting(CONFIG_KEYS.SQUARE_LOCATION_ID);
+
+/**
+ * Store Square location ID (plaintext - not sensitive)
+ */
+export const updateSquareLocationId = async (
+  locationId: string,
+): Promise<void> => {
+  await setSetting(CONFIG_KEYS.SQUARE_LOCATION_ID, locationId);
+};
+
+/**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
  */
@@ -352,4 +420,11 @@ export const settingsApi = {
   getStripeWebhookSecretFromDb,
   getStripeWebhookEndpointId,
   setStripeWebhookConfig,
+  hasSquareToken,
+  getSquareAccessTokenFromDb,
+  updateSquareAccessToken,
+  getSquareWebhookSignatureKeyFromDb,
+  updateSquareWebhookSignatureKey,
+  getSquareLocationIdFromDb,
+  updateSquareLocationId,
 };

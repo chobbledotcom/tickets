@@ -5,9 +5,6 @@
 import { compact } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 
-/** Cached allowed domain (read once at startup) */
-const ALLOWED_DOMAIN = getAllowedDomain();
-
 /**
  * Security headers for all responses
  */
@@ -69,7 +66,7 @@ export const isValidDomain = (request: Request): boolean => {
   if (!host) {
     return false;
   }
-  return getHostname(host) === ALLOWED_DOMAIN;
+  return getHostname(host) === getAllowedDomain();
 };
 
 /**

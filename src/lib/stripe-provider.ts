@@ -6,9 +6,12 @@
  */
 
 import type { Event } from "#lib/types.ts";
-import { logDebug } from "#lib/logger.ts";
+import {
+  extractSessionMetadata,
+  hasRequiredSessionMetadata,
+  toCheckoutResult,
+} from "#lib/payment-helpers.ts";
 import type {
-  CheckoutSessionResult,
   MultiRegistrationIntent,
   PaymentProvider,
   PaymentProviderType,
@@ -27,21 +30,6 @@ import {
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
 
-/** Convert a Stripe session response to a provider-agnostic CheckoutSessionResult */
-const toCheckoutResult = (
-  session: { id: string; url?: string | null } | null,
-): CheckoutSessionResult => {
-  if (!session) {
-    logDebug("Stripe", "toCheckoutResult: session is null");
-    return null;
-  }
-  if (!session.url) {
-    logDebug("Stripe", `toCheckoutResult: session ${session.id} has no URL`);
-    return null;
-  }
-  return { sessionId: session.id, checkoutUrl: session.url };
-};
-
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   type: "stripe" as PaymentProviderType,
@@ -52,19 +40,17 @@ export const stripePaymentProvider: PaymentProvider = {
     event: Event,
     intent: RegistrationIntent,
     baseUrl: string,
-  ): Promise<CheckoutSessionResult> {
-    return toCheckoutResult(
-      await createCheckoutSessionWithIntent(event, intent, baseUrl),
-    );
+  ) {
+    const session = await createCheckoutSessionWithIntent(event, intent, baseUrl);
+    return toCheckoutResult(session?.id, session?.url, "Stripe");
   },
 
   async createMultiCheckoutSession(
     intent: MultiRegistrationIntent,
     baseUrl: string,
-  ): Promise<CheckoutSessionResult> {
-    return toCheckoutResult(
-      await createMultiCheckoutSession(intent, baseUrl),
-    );
+  ) {
+    const session = await createMultiCheckoutSession(intent, baseUrl);
+    return toCheckoutResult(session?.id, session?.url, "Stripe");
   },
 
   async retrieveSession(
@@ -78,14 +64,7 @@ export const stripePaymentProvider: PaymentProvider = {
       return null;
     }
 
-    if (!metadata?.name || !metadata?.email) {
-      return null;
-    }
-
-    // Multi-ticket sessions have items instead of event_id
-    const isMulti =
-      metadata.multi === "1" && typeof metadata.items === "string";
-    if (!isMulti && !metadata?.event_id) {
+    if (!hasRequiredSessionMetadata(metadata)) {
       return null;
     }
 
@@ -94,15 +73,7 @@ export const stripePaymentProvider: PaymentProvider = {
       paymentStatus: payment_status as ValidatedPaymentSession["paymentStatus"],
       paymentReference:
         typeof payment_intent === "string" ? payment_intent : null,
-      metadata: {
-        event_id: metadata.event_id,
-        name: metadata.name,
-        email: metadata.email,
-        phone: metadata.phone,
-        quantity: metadata.quantity,
-        multi: metadata.multi,
-        items: metadata.items,
-      },
+      metadata: extractSessionMetadata(metadata),
     };
   },
 

@@ -278,3 +278,38 @@ export const stripeKeyFields: Field[] = [
     hint: "Enter a new key to update",
   },
 ];
+
+/**
+ * Square access token and location form field definitions
+ */
+export const squareAccessTokenFields: Field[] = [
+  {
+    name: "square_access_token",
+    label: "Square Access Token",
+    type: "password",
+    required: true,
+    placeholder: "EAAAl...",
+    hint: "Your Square application's access token",
+  },
+  {
+    name: "square_location_id",
+    label: "Location ID",
+    type: "text",
+    required: true,
+    placeholder: "L...",
+    hint: "Your Square location ID (found in Square Dashboard under Locations)",
+  },
+];
+
+/**
+ * Square webhook settings form field definitions
+ */
+export const squareWebhookFields: Field[] = [
+  {
+    name: "square_webhook_signature_key",
+    label: "Webhook Signature Key",
+    type: "password",
+    required: true,
+    hint: "The signature key from your Square webhook subscription",
+  },
+];

@@ -12,7 +12,13 @@ import {
 } from "#lib/config.ts";
 import { getStripeWebhookEndpointId } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
-import { ErrorCode, type ErrorCodeType, logDebug, logError } from "#lib/logger.ts";
+import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
+import { computeHmacSha256, hmacToHex, secureCompare } from "#lib/payment-crypto.ts";
+import {
+  buildMultiIntentMetadata,
+  buildSingleIntentMetadata,
+  createWithClient,
+} from "#lib/payment-helpers.ts";
 import type {
   MultiRegistrationIntent,
   RegistrationIntent,
@@ -53,19 +59,6 @@ export const sanitizeErrorDetail = (err: unknown): string => {
   return parts.length > 0 ? parts.join(" ") : err.name || "Error";
 };
 
-/** Safely execute async operation, returning null on error */
-const safeAsync = async <T>(
-  fn: () => Promise<T>,
-  errorCode: ErrorCodeType,
-): Promise<T | null> => {
-  try {
-    return await fn();
-  } catch (err) {
-    logError({ code: errorCode, detail: sanitizeErrorDetail(err) });
-    return null;
-  }
-};
-
 /**
  * Get Stripe client configuration for mock server (if configured)
  */
@@ -96,15 +89,6 @@ const [getCache, setCache] = lazyRef<StripeCache>(() => {
   throw new Error("Stripe cache not initialized");
 });
 
-/** Run operation with stripe client, return null if not available */
-const withClient = async <T>(
-  op: (client: Stripe) => Promise<T>,
-  errorCode: ErrorCodeType,
-): Promise<T | null> => {
-  const client = await getClientImpl();
-  return client ? safeAsync(() => op(client), errorCode) : null;
-};
-
 /** Internal getStripeClient implementation */
 const getClientImpl = async (): Promise<Stripe | null> => {
   const secretKey = await getStripeSecretKey();
@@ -128,6 +112,9 @@ const getClientImpl = async (): Promise<Stripe | null> => {
   setCache({ client, secretKey });
   return client;
 };
+
+/** Run operation with stripe client, return null if not available */
+const withClient = createWithClient(getClientImpl);
 
 /** Build checkout session params */
 type SessionConfig = {
@@ -225,13 +212,7 @@ export const stripeApi: {
       email: intent.email,
       successUrl: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
-      metadata: {
-        event_id: String(event.id),
-        name: intent.name,
-        email: intent.email,
-        quantity: String(intent.quantity),
-        ...(intent.phone ? { phone: intent.phone } : {}),
-      },
+      metadata: buildSingleIntentMetadata(event.id, intent),
     });
     if (!config) {
       logDebug("Stripe", `Session params returned null for event=${event.id} (missing unit_price?)`);
@@ -269,14 +250,6 @@ export const stripeApi: {
         quantity: item.quantity,
       }));
 
-    // Serialize items for metadata (JSON encoded)
-    const itemsJson = JSON.stringify(
-      intent.items.map((i) => ({
-        e: i.eventId,
-        q: i.quantity,
-      })),
-    );
-
     const params: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ["card"],
       line_items: lineItems,
@@ -284,13 +257,7 @@ export const stripeApi: {
       success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
       ...(intent.email ? { customer_email: intent.email } : {}),
-      metadata: {
-        multi: "1",
-        name: intent.name,
-        email: intent.email,
-        items: itemsJson,
-        ...(intent.phone ? { phone: intent.phone } : {}),
-      },
+      metadata: buildMultiIntentMetadata(intent),
     };
 
     logDebug("Stripe", "Calling Stripe API checkout.sessions.create for multi-checkout");
@@ -496,43 +463,11 @@ const parseSignatureHeader = (
   return { timestamp, signatures };
 };
 
-/** Compute HMAC-SHA256 signature using Web Crypto API */
+/** Compute HMAC-SHA256 and return hex-encoded result (Stripe format) */
 const computeSignature = async (
   payload: string,
   secret: string,
-): Promise<string> => {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(payload),
-  );
-  // Convert to hex string
-  return Array.from(new Uint8Array(signature))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-};
-
-/** Constant-time string comparison to prevent timing attacks */
-const secureCompare = (a: string, b: string): boolean => {
-  const lenA = a.length;
-  const lenB = b.length;
-  // Always compare against the longer string to avoid length-based timing leaks.
-  // If lengths differ the mismatch flag ensures we return false.
-  const len = Math.max(lenA, lenB);
-  let result = lenA ^ lenB;
-  for (let i = 0; i < len; i++) {
-    result |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  }
-  return result === 0;
-};
+): Promise<string> => hmacToHex(await computeHmacSha256(payload, secret));
 
 /** Stripe webhook event - alias for the provider-agnostic WebhookEvent */
 export type StripeWebhookEvent = WebhookEvent;
