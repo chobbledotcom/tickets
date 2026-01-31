@@ -10,6 +10,7 @@ import {
   getStripeSecretKey,
   getStripeWebhookSecret,
 } from "#lib/config.ts";
+import { getStripeWebhookEndpointId } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, type ErrorCodeType, logDebug, logError } from "#lib/logger.ts";
 import type {
@@ -190,6 +191,7 @@ export const stripeApi: {
     webhookUrl: string,
     existingEndpointId?: string | null,
   ) => Promise<WebhookSetupResult>;
+  testStripeConnection: () => Promise<StripeConnectionTestResult>;
 } = {
   /** Get or create Stripe client */
   getStripeClient: getClientImpl,
@@ -300,6 +302,60 @@ export const stripeApi: {
     return session;
   },
 
+  /** Test Stripe connection: verify API key and webhook endpoint */
+  testStripeConnection: async (): Promise<StripeConnectionTestResult> => {
+    const result: StripeConnectionTestResult = {
+      ok: false,
+      apiKey: { valid: false },
+      webhook: { configured: false },
+    };
+
+    // Step 1: Test API key by retrieving balance
+    const client = await getClientImpl();
+    if (!client) {
+      result.apiKey.error = "No Stripe secret key configured";
+      return result;
+    }
+
+    try {
+      const balance = await client.balance.retrieve();
+      const hasLiveKey = balance.livemode;
+      result.apiKey = {
+        valid: true,
+        mode: hasLiveKey ? "live" : "test",
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      result.apiKey = { valid: false, error: message };
+      return result;
+    }
+
+    // Step 2: Test webhook endpoint
+    const endpointId = await getStripeWebhookEndpointId();
+    if (!endpointId) {
+      result.webhook = { configured: false, error: "No webhook endpoint ID stored" };
+      return result;
+    }
+
+    try {
+      const endpoint = await client.webhookEndpoints.retrieve(endpointId);
+      result.webhook = {
+        configured: true,
+        endpointId: endpoint.id,
+        url: endpoint.url,
+        status: endpoint.status,
+        enabledEvents: endpoint.enabled_events,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      result.webhook = { configured: false, endpointId, error: message };
+      return result;
+    }
+
+    result.ok = result.apiKey.valid && result.webhook.configured;
+    return result;
+  },
+
   // Placeholder - will be set after setupWebhookEndpointImpl is defined
   setupWebhookEndpoint: null as unknown as (
     secretKey: string,
@@ -403,6 +459,7 @@ export const createMultiCheckoutSession = (
   i: MultiRegistrationIntent,
   b: string,
 ) => stripeApi.createMultiCheckoutSession(i, b);
+export const testStripeConnection = () => stripeApi.testStripeConnection();
 
 /**
  * =============================================================================
@@ -476,6 +533,20 @@ const secureCompare = (a: string, b: string): boolean => {
 /** Stripe webhook event - alias for the provider-agnostic WebhookEvent */
 export type StripeWebhookEvent = WebhookEvent;
 export type { WebhookSetupResult, WebhookVerifyResult };
+
+/** Result of testing the Stripe connection */
+export type StripeConnectionTestResult = {
+  ok: boolean;
+  apiKey: { valid: boolean; error?: string; mode?: string };
+  webhook: {
+    configured: boolean;
+    endpointId?: string;
+    url?: string;
+    status?: string;
+    enabledEvents?: string[];
+    error?: string;
+  };
+};
 
 /**
  * Verify Stripe webhook signature using Web Crypto API.
