@@ -71,7 +71,7 @@ export const adminSessionsPage = (
         <>
           <br />
 
-            <form method="POST" action="/admin/sessions">
+            <form method="POST" action="/admin/sessions" class="one-button">
               <input type="hidden" name="csrf_token" value={csrfToken} />
               <button type="submit" class="danger">
                 Log out of all other sessions ({otherSessionCount})
