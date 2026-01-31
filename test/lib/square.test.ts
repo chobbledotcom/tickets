@@ -12,7 +12,7 @@ import {
   updateSquareLocationId,
   updateSquareWebhookSignatureKey,
 } from "#lib/db/settings.ts";
-import { createTestDb, resetDb } from "#test-utils";
+import { createTestDb, resetDb, withMocks } from "#test-utils";
 
 describe("square", () => {
   beforeEach(async () => {
@@ -209,27 +209,27 @@ describe("square", () => {
     });
 
     test("returns false when payment has no amount info", async () => {
-      const retrieveSpy = spyOn(squareApi, "retrievePayment")
-        .mockResolvedValue({ id: "pay_123", status: "COMPLETED" });
-
-      try {
-        const result = await squareApi.refundPayment("pay_123");
-        expect(result).toBe(false);
-      } finally {
-        retrieveSpy.mockRestore?.();
-      }
+      await withMocks(
+        () =>
+          spyOn(squareApi, "retrievePayment")
+            .mockResolvedValue({ id: "pay_123", status: "COMPLETED" }),
+        async () => {
+          const result = await squareApi.refundPayment("pay_123");
+          expect(result).toBe(false);
+        },
+      );
     });
 
     test("returns false when payment retrieval returns null", async () => {
-      const retrieveSpy = spyOn(squareApi, "retrievePayment")
-        .mockResolvedValue(null);
-
-      try {
-        const result = await squareApi.refundPayment("pay_123");
-        expect(result).toBe(false);
-      } finally {
-        retrieveSpy.mockRestore?.();
-      }
+      await withMocks(
+        () =>
+          spyOn(squareApi, "retrievePayment")
+            .mockResolvedValue(null),
+        async () => {
+          const result = await squareApi.refundPayment("pay_123");
+          expect(result).toBe(false);
+        },
+      );
     });
   });
 
