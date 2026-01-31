@@ -547,6 +547,198 @@ describe("server", () => {
     });
   });
 
+  describe("POST /admin/settings/square", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/square", {
+          square_access_token: "EAAAl_test_123",
+          square_location_id: "L_test_123",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square",
+          {
+            square_access_token: "EAAAl_test_123",
+            square_location_id: "L_test_123",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
+    test("rejects missing square access token", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square",
+          {
+            square_access_token: "",
+            square_location_id: "L_test_123",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("required");
+    });
+
+    test("rejects missing location ID", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square",
+          {
+            square_access_token: "EAAAl_test_123",
+            square_location_id: "",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("required");
+    });
+
+    test("updates Square credentials successfully", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square",
+          {
+            square_access_token: "EAAAl_test_new",
+            square_location_id: "L_test_456",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Square credentials updated");
+    });
+
+    test("settings page shows Square is not configured initially", async () => {
+      await setPaymentProvider("square");
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No Square access token is configured");
+    });
+
+    test("settings page shows Square is configured after setting token", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Set the Square credentials
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square",
+          {
+            square_access_token: "EAAAl_test_configured",
+            square_location_id: "L_test_configured",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      // Check the settings page shows it's configured
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain("A Square access token is currently configured");
+    });
+  });
+
+  describe("POST /admin/settings/square-webhook", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/square-webhook", {
+          square_webhook_signature_key: "sig_key_test",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects missing webhook signature key", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square-webhook",
+          {
+            square_webhook_signature_key: "",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("required");
+    });
+
+    test("updates Square webhook key successfully", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square-webhook",
+          {
+            square_webhook_signature_key: "sig_key_new",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Square webhook signature key updated");
+    });
+  });
+
+  describe("POST /admin/settings/payment-provider (square)", () => {
+    test("sets provider to square", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/payment-provider",
+          {
+            payment_provider: "square",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Payment provider set to square");
+      expect(html).toContain('checked');
+    });
+  });
+
   describe("POST /admin/settings/reset-database", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(

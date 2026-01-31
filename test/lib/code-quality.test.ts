@@ -242,6 +242,10 @@ describe("code quality", () => {
       "lib/config.ts:getStripePublishableKey",
       // Test helper for creating signed webhook payloads
       "lib/stripe.ts:constructTestWebhookEvent",
+      // Reset cached Square client between tests
+      "lib/square.ts:resetSquareClient",
+      // Test helper for creating signed Square webhook payloads
+      "lib/square.ts:constructTestWebhookEvent",
       // Convenience wrapper for idempotency checks (production uses isSessionProcessed directly)
       "lib/db/processed-payments.ts:getProcessedAttendeeId",
       // Raw attendee fetch for testing encrypted data (production uses batched getEventWithAttendeesRaw)

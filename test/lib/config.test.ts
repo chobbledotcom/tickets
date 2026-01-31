@@ -3,12 +3,23 @@ import {
   getAllowedDomain,
   getCurrencyCode,
   getPaymentProvider,
+  getSquareAccessToken,
+  getSquareLocationId,
+  getSquareWebhookSignatureKey,
   getStripePublishableKey,
   getStripeSecretKey,
   isPaymentsEnabled,
   isSetupComplete,
 } from "#lib/config.ts";
-import { completeSetup, setPaymentProvider, setSetting, updateStripeKey } from "#lib/db/settings.ts";
+import {
+  completeSetup,
+  setPaymentProvider,
+  setSetting,
+  updateSquareAccessToken,
+  updateSquareLocationId,
+  updateSquareWebhookSignatureKey,
+  updateStripeKey,
+} from "#lib/db/settings.ts";
 import { createTestDb, resetDb } from "#test-utils";
 import process from "node:process";
 
@@ -35,6 +46,11 @@ describe("config", () => {
     test("returns stripe when set to stripe", async () => {
       await setPaymentProvider("stripe");
       expect(await getPaymentProvider()).toBe("stripe");
+    });
+
+    test("returns square when set to square", async () => {
+      await setPaymentProvider("square");
+      expect(await getPaymentProvider()).toBe("square");
     });
 
     test("returns null for unknown provider", async () => {
@@ -85,6 +101,17 @@ describe("config", () => {
       await updateStripeKey("sk_test_123");
       expect(await isPaymentsEnabled()).toBe(true);
     });
+
+    test("returns false when provider is square but no token", async () => {
+      await setPaymentProvider("square");
+      expect(await isPaymentsEnabled()).toBe(false);
+    });
+
+    test("returns true when provider is square and token is set", async () => {
+      await setPaymentProvider("square");
+      await updateSquareAccessToken("EAAAl_test_123");
+      expect(await isPaymentsEnabled()).toBe(true);
+    });
   });
 
   describe("getCurrencyCode", () => {
@@ -106,6 +133,39 @@ describe("config", () => {
     test("returns true when setup is complete", async () => {
       await completeSetup("password123", "GBP");
       expect(await isSetupComplete()).toBe(true);
+    });
+  });
+
+  describe("getSquareAccessToken", () => {
+    test("returns null when not set in database", async () => {
+      expect(await getSquareAccessToken()).toBeNull();
+    });
+
+    test("returns token when set in database", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      expect(await getSquareAccessToken()).toBe("EAAAl_test_123");
+    });
+  });
+
+  describe("getSquareWebhookSignatureKey", () => {
+    test("returns null when not set in database", async () => {
+      expect(await getSquareWebhookSignatureKey()).toBeNull();
+    });
+
+    test("returns key when set in database", async () => {
+      await updateSquareWebhookSignatureKey("sig_key_test");
+      expect(await getSquareWebhookSignatureKey()).toBe("sig_key_test");
+    });
+  });
+
+  describe("getSquareLocationId", () => {
+    test("returns null when not set in database", async () => {
+      expect(await getSquareLocationId()).toBeNull();
+    });
+
+    test("returns location ID when set in database", async () => {
+      await updateSquareLocationId("L_test_123");
+      expect(await getSquareLocationId()).toBe("L_test_123");
     });
   });
 
