@@ -5142,10 +5142,10 @@ describe("server", () => {
       const origCreate = attendeesApi.createAttendeeAtomic;
       let callCount = 0;
       const mockCreate = spyOn(attendeesApi, "createAttendeeAtomic");
-      mockCreate.mockImplementation(async (...args: Parameters<typeof origCreate>) => {
+      mockCreate.mockImplementation((...args: Parameters<typeof origCreate>) => {
         callCount++;
         if (callCount === 2) {
-          return { success: false as const, reason: "capacity_exceeded" as const };
+          return Promise.resolve({ success: false as const, reason: "capacity_exceeded" as const });
         }
         return origCreate(...args);
       });
@@ -6527,10 +6527,10 @@ describe("server", () => {
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const originalFn = attendeesApi.createAttendeeAtomic;
       let callCount = 0;
-      attendeesApi.createAttendeeAtomic = async (...args) => {
+      attendeesApi.createAttendeeAtomic = (...args) => {
         callCount++;
         if (callCount === 2) {
-          return { success: false, reason: "capacity_exceeded" };
+          return Promise.resolve({ success: false as const, reason: "capacity_exceeded" as const });
         }
         return originalFn(...args);
       };
@@ -7616,8 +7616,8 @@ describe("server", () => {
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const origHasSpots = attendeesApi.hasAvailableSpots;
       const mockSpots = spyOn(attendeesApi, "hasAvailableSpots");
-      mockSpots.mockImplementation(async (...args: Parameters<typeof origHasSpots>) => {
-        if (args[0] === event1.id) return false;
+      mockSpots.mockImplementation((...args: Parameters<typeof origHasSpots>) => {
+        if (args[0] === event1.id) return Promise.resolve(false);
         return origHasSpots(...args);
       });
 
@@ -7826,10 +7826,10 @@ describe("server", () => {
       const origGetConfigured = paymentsApi.getConfiguredProvider;
       let callCount = 0;
       const mockGetConfigured = spyOn(paymentsApi, "getConfiguredProvider");
-      mockGetConfigured.mockImplementation(async () => {
+      mockGetConfigured.mockImplementation(() => {
         callCount++;
         // First call: webhook handler needs provider; second call: tryRefund should get null
-        return callCount <= 1 ? origGetConfigured() : null;
+        return callCount <= 1 ? origGetConfigured() : Promise.resolve(null);
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -8342,7 +8342,7 @@ describe("server", () => {
       const cookie = response.headers.get("set-cookie")!;
       const tokenMatch = cookie.match(/__Host-session=([^;]+)/);
       expect(tokenMatch).not.toBeNull();
-      const session = await getSession(tokenMatch![1]);
+      const session = await getSession(tokenMatch![1]!);
       expect(session).not.toBeNull();
       expect(session!.wrapped_data_key).toBeNull();
     });
@@ -8378,7 +8378,7 @@ describe("server", () => {
       const originalFindById = eventsTable.findById.bind(eventsTable);
       const spy = spyOn(eventsTable, "findById");
       spy.mockImplementation(async (id: unknown) => {
-        const row = await originalFindById(id);
+        const row = await originalFindById(id as number);
         if (row) {
           // Delete the event from DB so getEventWithCount returns null
           const { getDb } = await import("#lib/db/client.ts");

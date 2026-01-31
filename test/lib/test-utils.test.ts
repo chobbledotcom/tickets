@@ -827,7 +827,7 @@ describe("test-compat", () => {
       }
       expect(caught).toBe(true);
       expect(mockFn.mock.results).toHaveLength(1);
-      expect(mockFn.mock.results[0].type).toBe("throw");
+      expect(mockFn.mock.results[0]!.type).toBe("throw");
     });
   });
 
@@ -849,7 +849,7 @@ describe("test-compat", () => {
     test("clears calls, results, and resets implementation to return undefined", () => {
       const mockFn = jest.fn(() => 42);
       mockFn();
-      expect(mockFn.mock.results[0].value).toBe(42);
+      expect(mockFn.mock.results[0]!.value).toBe(42);
       mockFn.mockReset();
       expect(mockFn.mock.calls).toHaveLength(0);
       expect(mockFn.mock.results).toHaveLength(0);

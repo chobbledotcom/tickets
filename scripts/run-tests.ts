@@ -164,6 +164,7 @@ const main = async (): Promise<void> => {
     console.log(covOutput);
 
     // Strip ANSI escape codes for parsing
+    // deno-lint-ignore no-control-regex
     const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
     const lines = covOutput.split("\n").map(stripAnsi);
 

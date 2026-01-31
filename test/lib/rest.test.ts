@@ -478,10 +478,10 @@ describe("rest/handlers", () => {
       const spy = spyOn(table, "findById");
       spy.mockImplementation(async (id: unknown) => {
         callCount++;
-        if (callCount === 1) return originalFindById(id);
+        if (callCount === 1) return originalFindById(id as number);
         // Second call (inside resource.delete's requireExists): delete the row first
-        await table.deleteById(id);
-        return originalFindById(id); // returns null since we just deleted it
+        await table.deleteById(id as number);
+        return originalFindById(id as number); // returns null since we just deleted it
       });
 
       const handler = deleteHandler(resource, {

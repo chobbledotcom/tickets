@@ -361,7 +361,8 @@ class ExpectChain<T> {
     }
   }
 
-  toBeInstanceOf(expected: new (...args: unknown[]) => unknown): void {
+  // deno-lint-ignore no-explicit-any
+  toBeInstanceOf(expected: new (...args: any[]) => any): void {
     if (this.isNot) {
       assertFalse(this.actual instanceof expected);
     } else {
@@ -456,7 +457,8 @@ interface MockFn {
   mockClear(): void;
   mockReset(): void;
   mockRestore?: () => void;
-  mockImplementation(fn: (...args: unknown[]) => unknown): MockFn;
+  // deno-lint-ignore no-explicit-any
+  mockImplementation(fn: (...args: any[]) => any): MockFn;
   mockReturnValue(value: unknown): MockFn;
   mockResolvedValue(value: unknown): MockFn;
   mockRejectedValue(value: unknown): MockFn;
@@ -465,7 +467,8 @@ interface MockFn {
 /**
  * Create a mock function
  */
-export const fn = (impl?: (...args: unknown[]) => unknown): MockFn => {
+// deno-lint-ignore no-explicit-any
+export const fn = (impl?: (...args: any[]) => any): MockFn => {
   let implementation = impl ?? (() => undefined);
 
   const mock: MockFn["mock"] = {

@@ -706,10 +706,6 @@ export const createTestAttendee = async (
 ): Promise<Attendee> => {
   const { handleRequest } = await import("#routes");
 
-  // Get count before to find the new attendee
-  const beforeAttendees = await getAttendeesRaw(eventId);
-  const beforeCount = beforeAttendees.length;
-
   // Get the ticket page to get a CSRF token
   const pageResponse = await handleRequest(mockRequest(`/ticket/${eventSlug}`));
   const csrfToken = getTicketCsrfToken(

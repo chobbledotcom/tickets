@@ -229,7 +229,8 @@ describe("square", () => {
           expect(result!.url).toBe("https://square.link/abc");
 
           // Verify SDK was called with correctly constructed order
-          const args = checkoutCreate.mock.calls[0][0];
+          // deno-lint-ignore no-explicit-any
+          const args = checkoutCreate.mock.calls[0]![0] as any;
           expect(args.order.locationId).toBe("L_loc_456");
           expect(args.order.lineItems).toHaveLength(1);
           expect(args.order.lineItems[0].name).toBe("Ticket: concert-2025");
@@ -296,7 +297,8 @@ describe("square", () => {
 
           await squareApi.createPaymentLink(event, intent, "http://localhost");
 
-          const args = checkoutCreate.mock.calls[0][0];
+          // deno-lint-ignore no-explicit-any
+          const args = checkoutCreate.mock.calls[0]![0] as any;
           expect(args.prePopulatedData.buyerPhoneNumber).toBeUndefined();
           expect(args.order.metadata.phone).toBeUndefined();
           expect(args.order.lineItems[0].note).toBe("Ticket");
@@ -443,7 +445,8 @@ describe("square", () => {
           expect(result!.orderId).toBe("order_multi");
           expect(result!.url).toBe("https://square.link/multi");
 
-          const args = checkoutCreate.mock.calls[0][0];
+          // deno-lint-ignore no-explicit-any
+          const args = checkoutCreate.mock.calls[0]![0] as any;
 
           // Verify multiple line items
           expect(args.order.lineItems).toHaveLength(2);
@@ -494,7 +497,7 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrieveOrder("order_missing");
           expect(result).toBeNull();
-          expect(ordersGet.mock.calls[0][0]).toEqual({ orderId: "order_missing" });
+          expect(ordersGet.mock.calls[0]![0]).toEqual({ orderId: "order_missing" });
         },
       );
     });
@@ -527,7 +530,8 @@ describe("square", () => {
             email: "john@example.com",
           });
           // Non-string values should be filtered out
-          expect(result!.metadata!["bad_null" as keyof typeof result.metadata]).toBeUndefined();
+          // deno-lint-ignore no-explicit-any
+          expect((result!.metadata as any)["bad_null"]).toBeUndefined();
         },
       );
     });
@@ -552,8 +556,8 @@ describe("square", () => {
           const result = await squareApi.retrieveOrder("order_tenders");
           expect(result).not.toBeNull();
           expect(result!.tenders).toHaveLength(2);
-          expect(result!.tenders![0].paymentId).toBe("pay_abc");
-          expect(result!.tenders![1].paymentId).toBeUndefined();
+          expect(result!.tenders![0]!.paymentId).toBe("pay_abc");
+          expect(result!.tenders![1]!.paymentId).toBeUndefined();
         },
       );
     });
@@ -598,7 +602,7 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrievePayment("pay_missing");
           expect(result).toBeNull();
-          expect(paymentsGet.mock.calls[0][0]).toEqual({ paymentId: "pay_missing" });
+          expect(paymentsGet.mock.calls[0]![0]).toEqual({ paymentId: "pay_missing" });
         },
       );
     });
@@ -698,7 +702,7 @@ describe("square", () => {
           expect(result).not.toBeNull();
           expect(result!.id).toBe("pay_wrapper");
           expect(result!.status).toBe("COMPLETED");
-          expect(paymentsGet.mock.calls[0][0]).toEqual({ paymentId: "pay_wrapper" });
+          expect(paymentsGet.mock.calls[0]![0]).toEqual({ paymentId: "pay_wrapper" });
         },
       );
     });
@@ -755,10 +759,11 @@ describe("square", () => {
           expect(result).toBe(true);
 
           // Verify payments.get was called to fetch amount
-          expect(paymentsGet.mock.calls[0][0]).toEqual({ paymentId: "pay_refund_me" });
+          expect(paymentsGet.mock.calls[0]![0]).toEqual({ paymentId: "pay_refund_me" });
 
           // Verify refund was called with correct amount and payment ID
-          const refundArgs = refundsRefundPayment.mock.calls[0][0];
+          // deno-lint-ignore no-explicit-any
+          const refundArgs = refundsRefundPayment.mock.calls[0]![0] as any;
           expect(refundArgs.paymentId).toBe("pay_refund_me");
           expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
           expect(refundArgs.amountMoney.currency).toBe("USD");

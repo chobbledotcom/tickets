@@ -942,9 +942,8 @@ describe("stripe", () => {
     test("succeeds when mocked via stripeApi", async () => {
       // Override stripeApi to test the full success path
       const origSetup = stripeApi.setupWebhookEndpoint;
-      stripeApi.setupWebhookEndpoint = async (_key, _url, _existing) => {
-        return { success: true, endpointId: "we_mocked", secret: "whsec_mocked" };
-      };
+      stripeApi.setupWebhookEndpoint = (_key, _url, _existing) =>
+        Promise.resolve({ success: true, endpointId: "we_mocked", secret: "whsec_mocked" });
 
       try {
         const result = await setupWebhookEndpoint(
@@ -963,9 +962,8 @@ describe("stripe", () => {
 
     test("returns error when API throws", async () => {
       const origSetup = stripeApi.setupWebhookEndpoint;
-      stripeApi.setupWebhookEndpoint = async (_key, _url) => {
-        return { success: false, error: "API rate limited" };
-      };
+      stripeApi.setupWebhookEndpoint = (_key, _url) =>
+        Promise.resolve({ success: false as const, error: "API rate limited" });
 
       try {
         const result = await setupWebhookEndpoint(
@@ -1075,7 +1073,7 @@ describe("stripe", () => {
     test("catches error when deleting existing endpoint ID fails", async () => {
       // Mock fetch so that ALL DELETE requests throw (Stripe SDK retries, so we must fail all)
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const method = init?.method ?? "GET";
         const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         // Fail all DELETE requests for the specific endpoint to bypass SDK retries
@@ -1103,7 +1101,7 @@ describe("stripe", () => {
     test("returns error when list endpoints throws", async () => {
       // Mock fetch so that the list call (GET) throws, exercising the outer catch
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         const method = init?.method ?? "GET";
         // The Stripe SDK sends GET for list. Intercept GET requests to webhook_endpoints
@@ -1552,9 +1550,8 @@ describe("stripe-provider", () => {
     test("delegates to stripe.ts setupWebhookEndpoint", async () => {
       // Mock stripeApi since setupWebhookEndpointImpl creates its own client
       const origSetup = stripeApi.setupWebhookEndpoint;
-      stripeApi.setupWebhookEndpoint = async (_key, _url, _existing) => {
-        return { success: true, endpointId: "we_provider_created", secret: "whsec_provider_secret" };
-      };
+      stripeApi.setupWebhookEndpoint = (_key, _url, _existing) =>
+        Promise.resolve({ success: true, endpointId: "we_provider_created", secret: "whsec_provider_secret" });
 
       try {
         const result = await stripePaymentProvider.setupWebhookEndpoint(
