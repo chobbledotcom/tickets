@@ -146,7 +146,38 @@ const main = async (): Promise<void> => {
     stripeMockProcess.kill();
   }
 
-  Deno.exit(result.code);
+  if (result.code !== 0) {
+    Deno.exit(result.code);
+  }
+
+  if (useCoverage) {
+    console.log("\nChecking coverage...");
+    const coverageDir = join(projectRoot, "coverage");
+    const covCmd = new Deno.Command(Deno.execPath(), {
+      args: ["coverage", coverageDir],
+      cwd: projectRoot,
+      stdout: "piped",
+      stderr: "inherit",
+    });
+    const covResult = await covCmd.output();
+    const covOutput = new TextDecoder().decode(covResult.stdout);
+    console.log(covOutput);
+
+    const uncoveredFiles = covOutput
+      .split("\n")
+      .filter((line) => line.startsWith("cover ") && !line.includes("100.000%"));
+
+    if (uncoveredFiles.length > 0) {
+      console.error("\nCoverage is not 100%. Uncovered files:");
+      for (const line of uncoveredFiles) {
+        console.error(line);
+      }
+      Deno.exit(1);
+    }
+    console.log("All files have 100% coverage");
+  }
+
+  Deno.exit(0);
 };
 
 main();
