@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { createClient, type InValue } from "@libsql/client";
-import { setDb } from "#lib/db/client.ts";
-import { initDb } from "#lib/db/migrations/index.ts";
+import { type InValue } from "@libsql/client";
 import { createSession } from "#lib/db/sessions.ts";
 import { col, defineTable, type Table } from "#lib/db/table.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
@@ -12,13 +10,13 @@ import {
 } from "#lib/rest/handlers.ts";
 import { defineResource, type Resource } from "#lib/rest/resource.ts";
 import {
+  createTestDb,
   createTestDbWithSetup,
   errorResponse,
   expectAdminRedirect,
   expectResultError,
   expectResultNotFound,
   resetDb,
-  setupTestEncryptionKey,
   successResponse,
   testRequest,
 } from "#test-utils";
@@ -114,10 +112,7 @@ const createTestItemsTable = async () => {
 
 describe("rest/resource", () => {
   beforeEach(async () => {
-    setupTestEncryptionKey();
-    const client = createClient({ url: ":memory:" });
-    setDb(client);
-    await initDb();
+    await createTestDb();
     await createTestItemsTable();
   });
 

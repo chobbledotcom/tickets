@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compat";
-import { createClient } from "@libsql/client";
 import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
 import {
   getAllActivityLog,
@@ -56,10 +55,11 @@ import {
 } from "#lib/db/settings.ts";
 import {
   createTestAttendee,
+  createTestDbWithSetup,
   createTestEvent,
-  resetTestSession,
+  invalidateTestDbCache,
+  resetDb,
   resetTestSlugCounter,
-  setupTestEncryptionKey,
   TEST_ADMIN_PASSWORD,
 } from "#test-utils";
 
@@ -79,17 +79,11 @@ const getTestPrivateKey = async (): Promise<CryptoKey> => {
 describe("db", () => {
   beforeEach(async () => {
     resetTestSlugCounter();
-    resetTestSession();
-    setupTestEncryptionKey();
-    const client = createClient({ url: ":memory:" });
-    setDb(client);
-    await initDb();
-    // Complete setup to have encryption keys available
-    await completeSetup(TEST_ADMIN_PASSWORD, "GBP");
+    await createTestDbWithSetup();
   });
 
   afterEach(() => {
-    setDb(null);
+    resetDb();
   });
 
   describe("getDb", () => {
@@ -157,6 +151,7 @@ describe("db", () => {
 
       // Reset the database
       await resetDatabase();
+      invalidateTestDbCache();
 
       // Verify tables are gone by checking that they don't exist
       const client = getDb();
@@ -178,6 +173,7 @@ describe("db", () => {
     test("can reinitialize database after reset", async () => {
       // Reset and reinitialize
       await resetDatabase();
+      invalidateTestDbCache();
       await initDb();
 
       // Verify we can create new data

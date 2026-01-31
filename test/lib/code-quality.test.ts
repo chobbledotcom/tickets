@@ -1,7 +1,8 @@
 import { describe, expect, test } from "#test-compat";
-import { dirname, fromFileUrl, join } from "jsr:@std/path@1";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const currentDir = dirname(fromFileUrl(import.meta.url));
+const currentDir = dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = join(currentDir, "../../src");
 const TEST_DIR = join(currentDir, "../../test");
 
@@ -211,6 +212,7 @@ describe("code quality", () => {
       "fp/index.ts", // FP utility library
       "lib/jsx/jsx-runtime.ts", // JSX compiler runtime
       "lib/jsx/jsx-dev-runtime.ts", // JSX dev runtime
+      "config/asset-paths.ts", // Build-time config consumed by .tsx templates
     ];
 
     /** Index modules that only re-export from sub-modules */

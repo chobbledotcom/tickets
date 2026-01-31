@@ -2,7 +2,7 @@
  * Test utilities for the ticket reservation system
  */
 
-import { createClient } from "@libsql/client";
+import { type Client, createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
 import { setDb } from "#lib/db/client.ts";
 import {
@@ -10,7 +10,7 @@ import {
   getEventWithCountBySlug,
   type EventInput,
 } from "#lib/db/events.ts";
-import { initDb } from "#lib/db/migrations/index.ts";
+import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { clearSetupCompleteCache, completeSetup } from "#lib/db/settings.ts";
 import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
@@ -46,39 +46,162 @@ export const clearTestEncryptionKey = (): void => {
   clearEncryptionKeyCache();
 };
 
-/**
- * Create an in-memory database for testing
- * Also sets up the test encryption key and clears caches
- */
-export const createTestDb = async (): Promise<void> => {
+// ---------------------------------------------------------------------------
+// Cached test database infrastructure
+// Avoids recreating the SQLite client, re-running migrations, and regenerating
+// RSA keys + password hashes on every single test.
+// ---------------------------------------------------------------------------
+
+/** Cached in-memory SQLite client, reused across tests */
+let cachedClient: Client | null = null;
+
+/** Snapshot of settings rows after completeSetup (avoids re-running crypto) */
+let cachedSetupSettings: Array<{ key: string; value: string }> | null = null;
+
+/** Cached admin session (avoids re-doing login + key wrapping per test) */
+let cachedAdminSession: {
+  cookie: string;
+  csrfToken: string;
+  sessionRow: { token: string; csrf_token: string; expires: number; wrapped_data_key: string | null };
+} | null = null;
+
+/** Clear all data tables and reset autoincrement counters */
+const clearDataTables = async (
+  client: Client,
+  includeSettings = false,
+): Promise<void> => {
+  // Disable FK checks so deletion order doesn't matter
+  await client.execute("PRAGMA foreign_keys = OFF");
+  // Discover all user tables dynamically (handles custom test tables like test_items)
+  const result = await client.execute(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+  );
+  for (const row of result.rows) {
+    const name = row.name as string;
+    if (!includeSettings && name === "settings") continue;
+    await client.execute(`DELETE FROM ${name}`);
+  }
+  // Reset autoincrement counters so IDs start from 1
+  try {
+    await client.execute("DELETE FROM sqlite_sequence");
+  } catch {
+    // sqlite_sequence may not exist if no AUTOINCREMENT tables have been used
+  }
+  await client.execute("PRAGMA foreign_keys = ON");
+};
+
+/** Check if the cached client's schema is still intact */
+const isSchemaIntact = async (client: Client): Promise<boolean> => {
+  try {
+    await client.execute("SELECT 1 FROM settings LIMIT 1");
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Common setup: env, caches, and reuse-or-create the client */
+const prepareTestClient = async (): Promise<{ reused: boolean }> => {
   setupTestEncryptionKey();
   clearSetupCompleteCache();
   resetSessionCache();
+
+  if (cachedClient && await isSchemaIntact(cachedClient)) {
+    setDb(cachedClient);
+    await clearDataTables(cachedClient, true);
+    return { reused: true };
+  }
+
   const client = createClient({ url: ":memory:" });
+  cachedClient = client;
   setDb(client);
   await initDb();
+  return { reused: false };
 };
 
 /**
- * Create an in-memory database with setup already completed
- * This is the common case for most tests
- * Also sets up the test encryption key
+ * Create an in-memory database for testing (without setup).
+ * Reuses the cached client and schema when possible, clearing all data.
+ */
+export const createTestDb = async (): Promise<void> => {
+  const { reused } = await prepareTestClient();
+  if (reused) {
+    await cachedClient!.execute({
+      sql: "INSERT INTO settings (key, value) VALUES ('latest_db_update', ?)",
+      args: [LATEST_UPDATE],
+    });
+  }
+};
+
+/**
+ * Create an in-memory database with setup already completed.
+ * On the first call, runs the full setup (migrations + crypto key generation).
+ * On subsequent calls, restores the cached settings snapshot instead.
  */
 export const createTestDbWithSetup = async (
   currency = "GBP",
 ): Promise<void> => {
-  await createTestDb();
+  const { reused } = await prepareTestClient();
+
+  if (reused && cachedSetupSettings) {
+    for (const row of cachedSetupSettings) {
+      await cachedClient!.execute({
+        sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
+        args: [row.key, row.value],
+      });
+    }
+    return;
+  }
+
   await completeSetup(TEST_ADMIN_PASSWORD, currency);
+
+  // Snapshot settings for reuse
+  const result = await cachedClient!.execute("SELECT key, value FROM settings");
+  cachedSetupSettings = result.rows.map((r) => ({
+    key: r.key as string,
+    value: r.value as string,
+  }));
+
+  // Perform one admin login and cache the session for reuse
+  const session = await loginAsAdmin();
+  const sessionsResult = await cachedClient!.execute(
+    "SELECT token, csrf_token, expires, wrapped_data_key FROM sessions LIMIT 1",
+  );
+  if (sessionsResult.rows.length > 0) {
+    const row = sessionsResult.rows[0]!;
+    cachedAdminSession = {
+      cookie: session.cookie,
+      csrfToken: session.csrfToken,
+      sessionRow: {
+        token: row.token as string,
+        csrf_token: row.csrf_token as string,
+        expires: row.expires as number,
+        wrapped_data_key: row.wrapped_data_key as string | null,
+      },
+    };
+  }
+  testSession = session;
 };
 
 /**
- * Reset the database connection and clear caches
+ * Reset the database connection and clear caches.
+ * Does NOT destroy the cached client — it will be reused by the next test.
  */
 export const resetDb = (): void => {
   setDb(null);
   clearSetupCompleteCache();
   resetSessionCache();
   resetTestSession();
+};
+
+/**
+ * Invalidate the cached test database client.
+ * Call this when a test intentionally destroys the schema (e.g. resetDatabase).
+ */
+export const invalidateTestDbCache = (): void => {
+  cachedClient = null;
+  cachedSetupSettings = null;
+  cachedAdminSession = null;
 };
 
 /**
@@ -413,6 +536,19 @@ const getTestSession = async (): Promise<{
   csrfToken: string;
 }> => {
   if (testSession) return testSession;
+
+  // Fast path: restore cached session directly into the DB
+  if (cachedAdminSession && cachedClient) {
+    const { getDb } = await import("#lib/db/client.ts");
+    const { sessionRow } = cachedAdminSession;
+    await getDb().execute({
+      sql: "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key) VALUES (?, ?, ?, ?)",
+      args: [sessionRow.token, sessionRow.csrf_token, sessionRow.expires, sessionRow.wrapped_data_key],
+    });
+    testSession = { cookie: cachedAdminSession.cookie, csrfToken: cachedAdminSession.csrfToken };
+    return testSession;
+  }
+
   testSession = await loginAsAdmin();
   return testSession;
 };
