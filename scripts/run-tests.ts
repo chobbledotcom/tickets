@@ -3,11 +3,12 @@
  * Test runner script that ensures stripe-mock is running before tests
  */
 
-import { dirname, fromFileUrl, join } from "jsr:@std/path@1";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const STRIPE_MOCK_VERSION = "0.188.0";
 const STRIPE_MOCK_PORT = 12111;
-const projectRoot = join(dirname(fromFileUrl(import.meta.url)), "..");
+const projectRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BIN_DIR = join(projectRoot, ".bin");
 const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 

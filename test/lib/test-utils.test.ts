@@ -29,16 +29,19 @@ describe("test-utils", () => {
   });
 
   describe("resetDb", () => {
-    test("resets database so next getDb creates fresh connection", async () => {
+    test("resets database so next createTestDb gives clean state", async () => {
       await createTestDb();
-      const { getDb, setDb } = await import("#lib/db/client.ts");
-      const firstDb = getDb();
+      const { getDb } = await import("#lib/db/client.ts");
+      // Insert data into the first DB
+      await getDb().execute(
+        "INSERT INTO events (slug, slug_index, max_attendees, created, fields) VALUES ('old', 'old', 10, '2024-01-01', 'email')",
+      );
       resetDb();
-      setDb(null);
       // After reset, we need to set up again to get a working db
       await createTestDb();
-      const secondDb = getDb();
-      expect(firstDb).not.toBe(secondDb);
+      // Data from previous test should be gone
+      const result = await getDb().execute("SELECT * FROM events");
+      expect(result.rows.length).toBe(0);
     });
   });
 
