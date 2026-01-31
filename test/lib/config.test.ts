@@ -250,4 +250,18 @@ describe("payments", () => {
     const provider = await getActivePaymentProvider();
     expect(provider).toBeNull();
   });
+
+  test("getActivePaymentProvider returns stripe provider when configured", async () => {
+    await setPaymentProvider("stripe");
+    const provider = await getActivePaymentProvider();
+    expect(provider).not.toBeNull();
+    expect(provider?.type).toBe("stripe");
+  });
+
+  test("getActivePaymentProvider returns square provider when configured", async () => {
+    await setPaymentProvider("square");
+    const provider = await getActivePaymentProvider();
+    expect(provider).not.toBeNull();
+    expect(provider?.type).toBe("square");
+  });
 });

@@ -1760,4 +1760,53 @@ describe("db", () => {
       expect(updated?.slug).toBe("updated-slug");
     });
   });
+
+  describe("table findAll", () => {
+    test("returns all rows from table", async () => {
+      await createTestEvent({ slug: "findall-1", maxAttendees: 10 });
+      await createTestEvent({ slug: "findall-2", maxAttendees: 20 });
+
+      const events = await eventsTable.findAll();
+      expect(events.length).toBeGreaterThanOrEqual(2);
+      // Verify slugs are decrypted (read transforms applied)
+      const slugs = events.map((e) => e.slug);
+      expect(slugs).toContain("findall-1");
+      expect(slugs).toContain("findall-2");
+    });
+  });
+
+  describe("table update returns null for non-existent id", () => {
+    test("update returns null when row does not exist", async () => {
+      const result = await eventsTable.update(99999, {
+        slug: "nonexistent",
+        slugIndex: "idx",
+        maxAttendees: 10,
+      });
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("getEventsBySlugsBatch returns null for non-existent slugs", () => {
+    test("returns null entries for slugs not in database", async () => {
+      const event = await createTestEvent({ slug: "batch-exists", maxAttendees: 10 });
+      const results = await getEventsBySlugsBatch([event.slug, "nonexistent-slug"]);
+      expect(results.length).toBe(2);
+      expect(results[0]?.slug).toBe("batch-exists");
+      expect(results[1]).toBeNull();
+    });
+
+    test("returns empty array for empty slug input", async () => {
+      const results = await getEventsBySlugsBatch([]);
+      expect(results).toEqual([]);
+    });
+  });
+
+  describe("decryptAttendeeOrNull", () => {
+    test("returns null when row is null", async () => {
+      const { decryptAttendeeOrNull } = await import("#lib/db/attendees.ts");
+      const privateKey = await getTestPrivateKey();
+      const result = await decryptAttendeeOrNull(null, privateKey);
+      expect(result).toBeNull();
+    });
+  });
 });
