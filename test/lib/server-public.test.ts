@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { setPaymentProvider, updateStripeKey } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -11,25 +10,12 @@ import {
   getTicketCsrfToken,
   mockFormRequest,
   mockRequest,
-  mockTicketFormRequest,
   resetDb,
   resetTestSlugCounter,
   expectRedirect,
+  setupStripe,
+  submitTicketForm,
 } from "#test-utils";
-
-/**
- * Helper to make a ticket form POST request with CSRF token
- * First GETs the page to obtain the CSRF token, then POSTs with it
- */
-const submitTicketForm = async (
-  slug: string,
-  data: Record<string, string>,
-): Promise<Response> => {
-  const getResponse = await handleRequest(mockRequest(`/ticket/${slug}`));
-  const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
-  if (!csrfToken) throw new Error("Failed to get CSRF token from ticket page");
-  return handleRequest(mockTicketFormRequest(slug, data, csrfToken));
-};
 
 describe("server (public routes)", () => {
   beforeEach(async () => {
@@ -548,8 +534,7 @@ describe("server (public routes)", () => {
     });
 
     test("redirects to checkout for multi-ticket paid events", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-paid-1",
@@ -591,8 +576,7 @@ describe("server (public routes)", () => {
     });
 
     test("shows error when no tickets selected in multi-ticket paid form", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-nosel-1",
@@ -870,8 +854,7 @@ describe("server (public routes)", () => {
     });
 
     test("multi-ticket paid checks availability and rejects sold out", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-avail-1",
@@ -951,8 +934,7 @@ describe("server (public routes)", () => {
 
   describe("routes/public.ts (withPaymentProvider onMissing path)", () => {
     test("shows payment not configured error for multi-ticket when no provider", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-noprov-1",
@@ -1049,8 +1031,7 @@ describe("server (public routes)", () => {
     });
 
     test("multi-ticket paid flow redirects to Stripe checkout", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-paid-1",
@@ -1084,8 +1065,7 @@ describe("server (public routes)", () => {
     });
 
     test("multi-ticket paid flow shows error when session creation fails", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-nourl-1",
@@ -1239,8 +1219,7 @@ describe("server (public routes)", () => {
     });
 
     test("returns error when paid multi-ticket availability check fails", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-avail-race-1",
@@ -1300,8 +1279,7 @@ describe("server (public routes)", () => {
     });
 
     test("shows payment not configured error when provider returns null for single-ticket", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -1335,8 +1313,7 @@ describe("server (public routes)", () => {
     });
 
     test("shows payment not configured error when provider returns null for multi-ticket", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-noprov-miss-1",

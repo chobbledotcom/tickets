@@ -26,10 +26,13 @@ import {
   loginAsAdmin,
   mockFormRequest,
   mockRequest,
+  mockWebhookRequest,
   randomString,
   resetDb,
   resetTestSession,
   resetTestSlugCounter,
+  setupStripe,
+  submitTicketForm,
   testRequest,
   updateTestEvent,
   wait,
@@ -295,6 +298,57 @@ describe("test-utils", () => {
 
     test("extracts csrf_token value from set-cookie header", () => {
       expect(getTicketCsrfToken("csrf_token=xyz789; Path=/")).toBe("xyz789");
+    });
+  });
+
+  describe("submitTicketForm", () => {
+    test("submits a ticket form with CSRF token handling", async () => {
+      await createTestDbWithSetup();
+      const event = await createTestEvent();
+      const response = await submitTicketForm(event.slug, {
+        name: "Test User",
+        email: "test@example.com",
+      });
+      expect(response.status).toBe(302);
+    });
+
+    test("throws when CSRF token cannot be obtained", async () => {
+      await createTestDbWithSetup();
+      // Non-existent slug returns 404 with no CSRF cookie
+      await expect(
+        submitTicketForm("non-existent-slug", { name: "Test", email: "t@t.com" }),
+      ).rejects.toThrow("Failed to get CSRF token");
+    });
+  });
+
+  describe("setupStripe", () => {
+    test("configures Stripe as payment provider", async () => {
+      await createTestDbWithSetup();
+      await setupStripe();
+      const { getPaymentProviderFromDb } = await import("#lib/db/settings.ts");
+      expect(await getPaymentProviderFromDb()).toBe("stripe");
+    });
+
+    test("accepts a custom key", async () => {
+      await createTestDbWithSetup();
+      await setupStripe("sk_test_custom");
+      const { getPaymentProviderFromDb } = await import("#lib/db/settings.ts");
+      expect(await getPaymentProviderFromDb()).toBe("stripe");
+    });
+  });
+
+  describe("mockWebhookRequest", () => {
+    test("creates a POST request to /payment/webhook", () => {
+      const req = mockWebhookRequest({ type: "test" });
+      expect(req.method).toBe("POST");
+      expect(new URL(req.url).pathname).toBe("/payment/webhook");
+      expect(req.headers.get("content-type")).toBe("application/json");
+    });
+
+    test("includes custom headers", () => {
+      const req = mockWebhookRequest({}, { "stripe-signature": "sig_123" });
+      expect(req.headers.get("stripe-signature")).toBe("sig_123");
+      expect(req.headers.get("host")).toBe("localhost");
     });
   });
 

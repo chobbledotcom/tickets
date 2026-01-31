@@ -886,6 +886,49 @@ export const expectInvalidForm = (
   expect(validateFormData(fields, data).valid).toBe(false);
 };
 
+/**
+ * Submit a ticket form with automatic CSRF token handling.
+ * GETs the ticket page first to obtain a CSRF token, then POSTs the form.
+ */
+export const submitTicketForm = async (
+  slug: string,
+  data: Record<string, string>,
+): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  const getResponse = await handleRequest(mockRequest(`/ticket/${slug}`));
+  const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+  if (!csrfToken) throw new Error("Failed to get CSRF token from ticket page");
+  return handleRequest(mockTicketFormRequest(slug, data, csrfToken));
+};
+
+/**
+ * Configure Stripe as the payment provider for tests.
+ */
+export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
+  const { updateStripeKey, setPaymentProvider } = await import(
+    "#lib/db/settings.ts"
+  );
+  await updateStripeKey(key);
+  await setPaymentProvider("stripe");
+};
+
+/**
+ * Create a mock webhook POST request.
+ */
+export const mockWebhookRequest = (
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+): Request =>
+  new Request("http://localhost/payment/webhook", {
+    method: "POST",
+    headers: {
+      host: "localhost",
+      "content-type": "application/json",
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+
 /** Base event form data — merge with overrides for specific test cases. */
 export const baseEventForm: Record<string, string> = {
   slug: "my-event",

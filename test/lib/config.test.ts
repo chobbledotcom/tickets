@@ -23,7 +23,7 @@ import {
   updateSquareWebhookSignatureKey,
   updateStripeKey,
 } from "#lib/db/settings.ts";
-import { createTestDb, resetDb, withMocks } from "#test-utils";
+import { createTestDb, resetDb, setupStripe, withMocks } from "#test-utils";
 import process from "node:process";
 
 describe("config", () => {
@@ -100,8 +100,7 @@ describe("config", () => {
     });
 
     test("returns true when provider is stripe and key is set", async () => {
-      await setPaymentProvider("stripe");
-      await updateStripeKey("sk_test_123");
+      await setupStripe("sk_test_123");
       expect(await isPaymentsEnabled()).toBe(true);
     });
 

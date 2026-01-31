@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { setPaymentProvider, updateStripeKey } from "#lib/db/settings.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -8,28 +7,14 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   deactivateTestEvent,
-  getTicketCsrfToken,
   mockRequest,
-  mockTicketFormRequest,
   resetDb,
   resetTestSlugCounter,
   expectRedirect,
+  setupStripe,
+  submitTicketForm,
   withMocks,
 } from "#test-utils";
-
-/**
- * Helper to make a ticket form POST request with CSRF token
- * First GETs the page to obtain the CSRF token, then POSTs with it
- */
-const submitTicketForm = async (
-  slug: string,
-  data: Record<string, string>,
-): Promise<Response> => {
-  const getResponse = await handleRequest(mockRequest(`/ticket/${slug}`));
-  const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
-  if (!csrfToken) throw new Error("Failed to get CSRF token from ticket page");
-  return handleRequest(mockTicketFormRequest(slug, data, csrfToken));
-};
 
 describe("server (payment flow)", () => {
   beforeEach(async () => {
@@ -59,8 +44,7 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error when session not found", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
       // When session ID doesn't exist in Stripe, retrieveCheckoutSession returns null
       const response = await handleRequest(
         mockRequest("/payment/success?session_id=cs_invalid"),
@@ -73,8 +57,7 @@ describe("server (payment flow)", () => {
     test("returns error when payment not verified", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -111,8 +94,7 @@ describe("server (payment flow)", () => {
     test("returns error for invalid session metadata", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       await withMocks(
         () => spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
@@ -139,8 +121,7 @@ describe("server (payment flow)", () => {
     test("rejects payment for inactive event and refunds", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -190,8 +171,7 @@ describe("server (payment flow)", () => {
     test("refunds payment when event is sold out at confirmation time", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // Create event with only 1 spot
       const event = await createTestEvent({
@@ -252,8 +232,7 @@ describe("server (payment flow)", () => {
     test("returns error when session not found", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       await withMocks(
         () => spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue(null),
@@ -272,8 +251,7 @@ describe("server (payment flow)", () => {
     test("returns error for invalid session metadata", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       await withMocks(
         () => spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
@@ -299,8 +277,7 @@ describe("server (payment flow)", () => {
     test("returns error when event not found", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       await withMocks(
         () => spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
@@ -330,8 +307,7 @@ describe("server (payment flow)", () => {
     test("shows cancel page with link back to ticket form", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -387,8 +363,7 @@ describe("server (payment flow)", () => {
 
     test("handles payment flow error when Stripe fails", async () => {
       // Set a fake Stripe key to enable payments (in database)
-      await updateStripeKey("sk_test_fake_key");
-      await setPaymentProvider("stripe");
+      await setupStripe("sk_test_fake_key");
 
       // Create a paid event
       const event = await createTestEvent({
@@ -410,8 +385,7 @@ describe("server (payment flow)", () => {
     });
 
     test("free ticket still works when payments enabled", async () => {
-      await updateStripeKey("sk_test_fake_key");
-      await setPaymentProvider("stripe");
+      await setupStripe("sk_test_fake_key");
 
       // Create a free event (no price)
       const event = await createTestEvent({
@@ -430,8 +404,7 @@ describe("server (payment flow)", () => {
     });
 
     test("zero price ticket is treated as free", async () => {
-      await updateStripeKey("sk_test_fake_key");
-      await setPaymentProvider("stripe");
+      await setupStripe("sk_test_fake_key");
 
       // Create event with 0 price
       const event = await createTestEvent({
@@ -450,8 +423,7 @@ describe("server (payment flow)", () => {
     });
 
     test("redirects to Stripe checkout with stripe-mock", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -475,8 +447,7 @@ describe("server (payment flow)", () => {
     test("returns error when event not found in session metadata", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       await withMocks(
         () => ({
@@ -515,8 +486,7 @@ describe("server (payment flow)", () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
 
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -561,8 +531,7 @@ describe("server (payment flow)", () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
 
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -605,8 +574,7 @@ describe("server (payment flow)", () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
 
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -646,8 +614,7 @@ describe("server (payment flow)", () => {
     });
 
     test("rejects paid event registration when sold out before payment", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // Create paid event with only 1 spot
       const event = await createTestEvent({
@@ -675,8 +642,7 @@ describe("server (payment flow)", () => {
       const { stripeApi } = await import("#lib/stripe.ts");
       const { attendeesApi } = await import("#lib/db/attendees.ts");
 
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -732,8 +698,7 @@ describe("server (payment flow)", () => {
     });
 
     test("processes multi-ticket payment success", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "success-multi-1",
@@ -785,8 +750,7 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error for invalid multi-ticket metadata", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
@@ -816,8 +780,7 @@ describe("server (payment flow)", () => {
     });
 
     test("refunds multi-ticket payment when event not found", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
@@ -854,8 +817,7 @@ describe("server (payment flow)", () => {
     });
 
     test("refunds multi-ticket payment when event is inactive", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         slug: "multi-inactive-pay",
@@ -899,8 +861,7 @@ describe("server (payment flow)", () => {
     });
 
     test("shows refund failure message when refund fails", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 1,
@@ -944,8 +905,7 @@ describe("server (payment flow)", () => {
     });
 
     test("multi-ticket payment sold out rolls back and refunds", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-rollback-1",
@@ -1004,8 +964,7 @@ describe("server (payment flow)", () => {
     });
 
     test("shows thank_you_url for single-ticket success", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -1041,8 +1000,7 @@ describe("server (payment flow)", () => {
     });
 
     test("handles duplicate session replay (already processed)", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,

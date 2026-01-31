@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { setPaymentProvider, updateStripeKey } from "#lib/db/settings.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -8,8 +7,10 @@ import {
   createTestEvent,
   deactivateTestEvent,
   mockRequest,
+  mockWebhookRequest,
   resetDb,
   resetTestSlugCounter,
+  setupStripe,
 } from "#test-utils";
 
 describe("server (webhooks)", () => {
@@ -29,15 +30,10 @@ describe("server (webhooks)", () => {
 
     test("returns 400 when no provider configured", async () => {
       const response = await handleRequest(
-        new Request("http://localhost/payment/webhook", {
-          method: "POST",
-          headers: {
-            host: "localhost",
-            "content-type": "application/json",
-            "stripe-signature": "sig_test",
-          },
-          body: JSON.stringify({ type: "checkout.session.completed" }),
-        }),
+        mockWebhookRequest(
+          { type: "checkout.session.completed" },
+          { "stripe-signature": "sig_test" },
+        ),
       );
       expect(response.status).toBe(400);
       const text = await response.text();
@@ -45,18 +41,12 @@ describe("server (webhooks)", () => {
     });
 
     test("returns 400 when signature header is missing", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const response = await handleRequest(
-        new Request("http://localhost/payment/webhook", {
-          method: "POST",
-          headers: {
-            host: "localhost",
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({ type: "checkout.session.completed" }),
-        }),
+        mockWebhookRequest(
+          { type: "checkout.session.completed" },
+        ),
       );
       expect(response.status).toBe(400);
       const text = await response.text();
@@ -64,8 +54,7 @@ describe("server (webhooks)", () => {
     });
 
     test("returns 400 when signature verification fails", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -73,15 +62,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_bad",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_bad" },
+          ),
         );
         expect(response.status).toBe(400);
         const text = await response.text();
@@ -92,8 +76,7 @@ describe("server (webhooks)", () => {
     });
 
     test("acknowledges non-checkout events", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -108,15 +91,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -127,8 +105,7 @@ describe("server (webhooks)", () => {
     });
 
     test("returns 400 for invalid session data in webhook", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -149,15 +126,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(400);
         const text = await response.text();
@@ -168,8 +140,7 @@ describe("server (webhooks)", () => {
     });
 
     test("acknowledges unpaid checkout without processing", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -201,15 +172,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -221,8 +187,7 @@ describe("server (webhooks)", () => {
     });
 
     test("processes valid single-ticket webhook and creates attendee", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -254,15 +219,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -280,8 +240,7 @@ describe("server (webhooks)", () => {
     });
 
     test("processes valid multi-ticket webhook and creates attendees", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "webhook-multi-1",
@@ -323,15 +282,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -352,8 +306,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook returns error for invalid multi-ticket items", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -380,15 +333,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(400);
         const text = await response.text();
@@ -399,8 +347,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook handles sold-out event and returns error in JSON", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 1,
@@ -440,15 +387,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         // Webhook returns 200 even for business logic failures to prevent retries
         expect(response.status).toBe(200);
@@ -486,8 +428,7 @@ describe("server (webhooks)", () => {
     });
 
     test("extractIntent defaults quantity to 1 when missing", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -526,8 +467,7 @@ describe("server (webhooks)", () => {
     });
 
     test("tryRefund returns false when paymentReference is null", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -565,8 +505,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook with non-string event_id in metadata rejects", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -593,15 +532,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(400);
         const text = await response.text();
@@ -612,8 +546,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook extracts payment_intent as paymentReference", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -645,15 +578,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -670,8 +598,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook with non-array items in multi-ticket returns null", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -698,15 +625,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(400);
         const text = await response.text();
@@ -717,8 +639,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook with missing items in multi-ticket metadata returns null", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -745,15 +666,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(400);
         const text = await response.text();
@@ -764,8 +680,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi-ticket being processed returns 409", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         slug: "multi-concurrent",
@@ -805,8 +720,7 @@ describe("server (webhooks)", () => {
     });
 
     test("single-ticket being processed returns 409", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -845,8 +759,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi-ticket pricePaid calculation uses unit_price * quantity", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         slug: "multi-price-calc",
@@ -887,8 +800,7 @@ describe("server (webhooks)", () => {
     });
 
     test("single-ticket pricePaid calculation uses unit_price * quantity", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -928,8 +840,7 @@ describe("server (webhooks)", () => {
     });
 
     test("formatPaymentError returns plain error when refunded is undefined", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // This tests the case where result.refunded is undefined
       // This happens when validatePaidSession fails (no refund attempt)
@@ -974,8 +885,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi-ticket failure error message for encryption_error", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         slug: "multi-enc-err",
@@ -1027,8 +937,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi-ticket no firstAttendee returns refund error", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // Mock empty items list (edge case where items parsed but empty after filtering)
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
@@ -1064,8 +973,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi-ticket with non-string payment_intent sets null paymentReference", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         slug: "multi-no-pi",
@@ -1098,15 +1006,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1123,8 +1026,7 @@ describe("server (webhooks)", () => {
     });
 
     test("returns success for already-processed multi-ticket session", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         slug: "multi-already-done",
@@ -1165,15 +1067,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1184,8 +1081,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook handles multi-ticket with inactive event and rollback", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-wh-active",
@@ -1232,15 +1128,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1257,8 +1148,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook handles multi-ticket sold out in second event", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-wh-avail",
@@ -1305,15 +1195,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1330,8 +1215,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook handles non-checkout event type by acknowledging", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -1350,15 +1234,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1376,8 +1255,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi-ticket webhook creates attendees for multiple events", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-wh-ok-1",
@@ -1418,15 +1296,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1437,8 +1310,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi-ticket webhook handles event not found with refund", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -1470,15 +1342,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1490,8 +1357,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi-ticket webhook handles capacity exceeded with rollback", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "multi-wh-cap-1",
@@ -1538,15 +1404,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1558,8 +1419,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook with already-processed session where event was deleted", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // Create a real event and attendee to satisfy FK constraints for finalization
       const event = await createTestEvent({
@@ -1601,15 +1461,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1620,8 +1475,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook refund returns false when payment reference is null", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         slug: "wh-noref",
@@ -1654,15 +1508,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1680,8 +1529,7 @@ describe("server (webhooks)", () => {
     });
 
     test("extractIntent defaults eventId to 0 when event_id is missing from metadata", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // Use webhook path: event type matches but metadata is incomplete,
       // so extractSessionFromEvent returns null. Fallback retrieves session
@@ -1724,15 +1572,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1746,8 +1589,7 @@ describe("server (webhooks)", () => {
     });
 
     test("tryRefund logs error when no payment provider is configured", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         slug: "wh-tryrefund-noprov",
@@ -1794,15 +1636,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1814,8 +1651,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi already-processed session with invalid firstEventId returns error", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // Create and reserve a session so it's already processed
       const attResult = await createAttendeeAtomic(
@@ -1854,15 +1690,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1873,8 +1704,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi-ticket rollback deletes already-created attendees when second event not found", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event1 = await createTestEvent({
         slug: "wh-multi-rollback-1",
@@ -1916,15 +1746,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -1941,8 +1766,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi-ticket pricePaid is null when event has no unit_price", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // Create event with no unitPrice (free event) to cover line 273 null path
       const event = await createTestEvent({
@@ -1983,8 +1807,7 @@ describe("server (webhooks)", () => {
     });
 
     test("single-ticket pricePaid is null when event has no unit_price", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // Create event with no unitPrice (free event) to cover line 378 null path
       const event = await createTestEvent({
@@ -2024,8 +1847,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook with checkout event type but no extractable session falls back with no sessionId", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // Event type matches checkoutCompletedEventType but data lacks metadata
       // so extractSessionFromEvent returns null (covers lines 498-500)
@@ -2048,15 +1870,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(400);
         const text = await response.text();
@@ -2067,8 +1884,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook with checkout event but non-COMPLETED status returns pending", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // Event type matches but metadata is invalid so extractSessionFromEvent returns null
       // data object has id (for sessionId) and status "PENDING" (covers lines 605-607)
@@ -2091,15 +1907,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -2111,8 +1922,7 @@ describe("server (webhooks)", () => {
     });
 
     test("webhook fallback uses order_id when present in event data", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       // Event with order_id instead of id triggers the order_id branch
       // in extractSessionIdFromObject
@@ -2138,15 +1948,10 @@ describe("server (webhooks)", () => {
 
       try {
         const response = await handleRequest(
-          new Request("http://localhost/payment/webhook", {
-            method: "POST",
-            headers: {
-              host: "localhost",
-              "content-type": "application/json",
-              "stripe-signature": "sig_valid",
-            },
-            body: JSON.stringify({}),
-          }),
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
         );
         // retrieveSession returns null -> "Invalid session data"
         expect(response.status).toBe(400);
@@ -2159,8 +1964,7 @@ describe("server (webhooks)", () => {
     });
 
     test("multi-ticket with no attendees created returns refund error", async () => {
-      await updateStripeKey("sk_test_mock");
-      await setPaymentProvider("stripe");
+      await setupStripe();
 
       const event = await createTestEvent({
         slug: "wh-multi-no-att",
