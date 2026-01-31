@@ -14,7 +14,7 @@ import {
 } from "#lib/db/settings.ts";
 import { resetDatabase } from "#lib/db/migrations/index.ts";
 import { validateForm } from "#lib/forms.tsx";
-import { setupWebhookEndpoint } from "#lib/stripe.ts";
+import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import { getAllowedDomain } from "#lib/config.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
@@ -215,6 +215,20 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
   });
 
 /**
+ * Handle POST /admin/settings/stripe/test
+ *
+ * Tests that the stored Stripe API key and webhook endpoint are working.
+ * Returns JSON with diagnostic information.
+ */
+const handleStripeTestPost = (request: Request): Promise<Response> =>
+  requireSessionOr(request, async () => {
+    const result = await testStripeConnection();
+    return new Response(JSON.stringify(result), {
+      headers: { "content-type": "application/json" },
+    });
+  });
+
+/**
  * Expected confirmation phrase for database reset
  */
 const RESET_DATABASE_PHRASE =
@@ -254,6 +268,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/payment-provider": (request) =>
     handlePaymentProviderPost(request),
   "POST /admin/settings/stripe": (request) => handleAdminStripePost(request),
+  "POST /admin/settings/stripe/test": (request) => handleStripeTestPost(request),
   "POST /admin/settings/reset-database": (request) =>
     handleResetDatabasePost(request),
 });
