@@ -6507,6 +6507,378 @@ describe("server", () => {
     });
   });
 
+  describe("POST multi-ticket capacity check via atomic create", () => {
+    test("shows error for free multi-ticket when atomic create fails", async () => {
+      const event1 = await createTestEvent({
+        slug: "multi-free-atomic-1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-free-atomic-2",
+        maxAttendees: 50,
+      });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      // Mock attendeesApi to fail on second event (capacity exceeded)
+      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const originalFn = attendeesApi.createAttendeeAtomic;
+      let callCount = 0;
+      attendeesApi.createAttendeeAtomic = async (...args) => {
+        callCount++;
+        if (callCount === 2) {
+          return { success: false, reason: "capacity_exceeded" };
+        }
+        return originalFn(...args);
+      };
+
+      try {
+        const response = await handleRequest(
+          mockFormRequest(path, {
+            name: "John Doe",
+            email: "john@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          }, `csrf_token=${csrfToken}`),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("no longer has enough spots");
+      } finally {
+        attendeesApi.createAttendeeAtomic = originalFn;
+      }
+    });
+  });
+
+  describe("POST /admin/event/:id/edit validation error", () => {
+    test("shows error when editing non-existent event", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/99999/edit",
+          {
+            slug: "updated-slug",
+            max_attendees: "50",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("shows edit page with error when slug is already taken", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const event1 = await createTestEvent({
+        slug: "edit-orig",
+        maxAttendees: 50,
+      });
+      await createTestEvent({
+        slug: "edit-taken",
+        maxAttendees: 50,
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event1.id}/edit`,
+          {
+            slug: "edit-taken",
+            max_attendees: "50",
+            max_quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("already in use");
+    });
+  });
+
+  describe("POST /admin/event/:id/delete with custom onDelete", () => {
+    test("deletes event and cascades to attendees", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const event = await createTestEvent({
+        slug: "cascade-delete",
+        maxAttendees: 50,
+      });
+      await createTestAttendee(event.id, event.slug, "Test User", "test@example.com");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/delete?verify_identifier=false`,
+          {
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectAdminRedirect(response);
+
+      const { getEvent: getEventFn } = await import("#lib/db/events.ts");
+      const deleted = await getEventFn(event.id);
+      expect(deleted).toBeNull();
+    });
+  });
+
+  describe("webhook multi-ticket already processed", () => {
+    afterEach(() => {
+      resetStripeClient();
+    });
+
+    test("returns success for already-processed multi-ticket session", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        slug: "multi-already-done",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      // Create attendee directly (not via public form which redirects to Stripe for paid events)
+      const result = await createAttendeeAtomic(event.id, "Already Done", "already@example.com", "pi_already_done", 1);
+      if (!result.success) throw new Error("Failed to create test attendee");
+      const attendee = result.attendee;
+
+      const { reserveSession: reserveSessionFn, finalizeSession: finalizeSessionFn } = await import("#lib/db/processed-payments.ts");
+      await reserveSessionFn("cs_multi_already_done");
+      await finalizeSessionFn("cs_multi_already_done", attendee.id);
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_already_done",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_already_done",
+              payment_status: "paid",
+              payment_intent: "pi_already_done",
+              metadata: {
+                name: "Already Done",
+                email: "already@example.com",
+                multi: "1",
+                items: JSON.stringify([{ e: event.id, q: 1 }]),
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("webhook handles multi-ticket with inactive event and rollback", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event1 = await createTestEvent({
+        slug: "multi-wh-active",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-wh-inactive",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      await deactivateTestEvent(event2.id);
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_multi_inactive_wh",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_inactive_wh",
+              payment_status: "paid",
+              payment_intent: "pi_multi_inactive_wh",
+              metadata: {
+                name: "Multi Inactive",
+                email: "inactive@example.com",
+                multi: "1",
+                items: JSON.stringify([
+                  { e: event1.id, q: 1 },
+                  { e: event2.id, q: 1 },
+                ]),
+              },
+            },
+          },
+        },
+      });
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("no longer accepting");
+
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        expect(attendees1.length).toBe(0);
+      } finally {
+        mockVerify.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("webhook handles multi-ticket sold out in second event", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event1 = await createTestEvent({
+        slug: "multi-wh-avail",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-wh-full",
+        maxAttendees: 1,
+        unitPrice: 500,
+      });
+      await createAttendeeAtomic(event2.id, "First", "first@example.com", "pi_first", 1);
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_multi_soldout_wh",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_soldout_wh",
+              payment_status: "paid",
+              payment_intent: "pi_multi_soldout_wh",
+              metadata: {
+                name: "Sold Out Multi",
+                email: "soldout@example.com",
+                multi: "1",
+                items: JSON.stringify([
+                  { e: event1.id, q: 1 },
+                  { e: event2.id, q: 1 },
+                ]),
+              },
+            },
+          },
+        },
+      });
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("sold out");
+
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        expect(attendees1.length).toBe(0);
+      } finally {
+        mockVerify.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("webhook handles non-checkout event type by acknowledging", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_other_type",
+          type: "payment_intent.succeeded",
+          data: {
+            object: {
+              id: "pi_test",
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        expect(json.processed).toBeUndefined();
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+  });
+
   describe("Domain validation", () => {
     test("allows requests with valid domain", async () => {
       const response = await handleRequest(mockRequest("/"));
