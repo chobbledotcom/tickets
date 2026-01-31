@@ -40,7 +40,7 @@ import type { Event } from "#lib/types.ts";
  * - Key max 60 characters
  * - Value max 255 characters
  */
-export const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
+const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 
 /**
  * Enforce Square metadata value length limits.

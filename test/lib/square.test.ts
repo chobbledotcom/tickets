@@ -4,7 +4,6 @@ import {
   enforceMetadataLimits,
   getSquareClient,
   resetSquareClient,
-  SQUARE_METADATA_MAX_VALUE_LENGTH,
   squareApi,
   verifyWebhookSignature,
 } from "#lib/square.ts";
@@ -88,8 +87,8 @@ describe("square", () => {
       const metadata = { event_id: "1", name: longName, email: "john@example.com", quantity: "1" };
       const result = enforceMetadataLimits(metadata);
       expect(result).not.toBeNull();
-      expect(result!.name).toBe("A".repeat(SQUARE_METADATA_MAX_VALUE_LENGTH));
-      expect(result!.name.length).toBe(SQUARE_METADATA_MAX_VALUE_LENGTH);
+      expect(result!.name).toBe("A".repeat(255));
+      expect(result!.name.length).toBe(255);
       expect(result!.event_id).toBe("1");
     });
 
@@ -106,7 +105,7 @@ describe("square", () => {
     });
 
     test("passes through metadata with exactly 255-char values", () => {
-      const exactName = "A".repeat(SQUARE_METADATA_MAX_VALUE_LENGTH);
+      const exactName = "A".repeat(255);
       const metadata = { event_id: "1", name: exactName, email: "john@example.com" };
       const result = enforceMetadataLimits(metadata);
       expect(result).toEqual(metadata);
@@ -418,7 +417,7 @@ describe("square", () => {
 
           // Verify name was truncated in metadata
           const args = checkoutCreate.mock.calls[0][0];
-          expect(args.order.metadata.name.length).toBe(SQUARE_METADATA_MAX_VALUE_LENGTH);
+          expect(args.order.metadata.name.length).toBe(255);
         },
       );
     });
