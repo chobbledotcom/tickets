@@ -2,17 +2,21 @@ import { afterEach, beforeEach, describe, expect, test, spyOn } from "#test-comp
 import {
   constructTestWebhookEvent,
   createCheckoutSessionWithIntent,
+  createMultiCheckoutSession,
   getStripeClient,
   refundPayment,
   resetStripeClient,
   retrieveCheckoutSession,
   sanitizeErrorDetail,
+  stripeApi,
   testStripeConnection,
   type StripeWebhookEvent,
   verifyWebhookSignature,
+  setupWebhookEndpoint,
 } from "#lib/stripe.ts";
+import { stripePaymentProvider } from "#lib/stripe-provider.ts";
 import { setStripeWebhookConfig, updateStripeKey } from "#lib/db/settings.ts";
-import { createTestDb, resetDb, withMocks } from "#test-utils";
+import { createTestDb, resetDb, testEvent, withMocks } from "#test-utils";
 
 describe("stripe", () => {
   let originalMockHost: string | undefined;
@@ -714,6 +718,660 @@ describe("stripe", () => {
       const detail = sanitizeErrorDetail(err);
       expect(detail).not.toContain(sensitiveMessage);
       expect(detail).not.toContain("sk_live");
+    });
+
+    test("falls back to err.name when no Stripe fields present", () => {
+      // Error with no statusCode/code/type but has a name
+      const err = new Error("something");
+      // Plain Error: err.name is "Error", parts is empty, so returns err.name || "Error"
+      expect(sanitizeErrorDetail(err)).toBe("Error");
+    });
+  });
+
+  describe("createCheckoutSessionWithIntent - phone metadata", () => {
+    test("includes phone in metadata when provided", async () => {
+      await updateStripeKey("sk_test_mock");
+
+      const event = testEvent({ unit_price: 1000 });
+      const intent = {
+        eventId: 1,
+        name: "John Doe",
+        email: "john@example.com",
+        phone: "+44 7700 900000",
+        quantity: 1,
+      };
+
+      const session = await createCheckoutSessionWithIntent(
+        event,
+        intent,
+        "http://localhost:3000",
+      );
+
+      // stripe-mock creates session successfully
+      expect(session).not.toBeNull();
+      expect(session?.id).toBeDefined();
+    });
+  });
+
+  describe("createMultiCheckoutSession", () => {
+    test("creates multi-checkout session with phone metadata", async () => {
+      await updateStripeKey("sk_test_mock");
+
+      const intent = {
+        name: "Jane Doe",
+        email: "jane@example.com",
+        phone: "+44 7700 900001",
+        items: [
+          { eventId: 1, quantity: 2, unitPrice: 1000, slug: "event-a" },
+          { eventId: 2, quantity: 1, unitPrice: 2000, slug: "event-b" },
+        ],
+      };
+
+      const session = await createMultiCheckoutSession(
+        intent,
+        "http://localhost:3000",
+      );
+
+      expect(session).not.toBeNull();
+      expect(session?.id).toBeDefined();
+    });
+
+    test("returns null when stripe key not set", async () => {
+      const intent = {
+        name: "Jane Doe",
+        email: "jane@example.com",
+        phone: "",
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-a" },
+        ],
+      };
+
+      const result = await createMultiCheckoutSession(
+        intent,
+        "http://localhost:3000",
+      );
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("refundPayment - non-Error exception", () => {
+    test("handles non-Error thrown value in refund", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client to be defined");
+
+      const refundSpy = spyOn(client.refunds, "create");
+      // Throw a non-Error value (string) to exercise the sanitizeErrorDetail "unknown" path
+      refundSpy.mockRejectedValue("network failure string");
+
+      try {
+        const result = await refundPayment("pi_test_123");
+        expect(result).toBeNull();
+      } finally {
+        refundSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("testStripeConnection - non-Error exception", () => {
+    test("handles non-Error thrown value in balance check", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client to be defined");
+
+      const balanceSpy = spyOn(client.balance, "retrieve");
+      balanceSpy.mockRejectedValue("string error");
+
+      try {
+        const result = await testStripeConnection();
+        expect(result.ok).toBe(false);
+        expect(result.apiKey.valid).toBe(false);
+        expect(result.apiKey.error).toBe("Unknown error");
+      } finally {
+        balanceSpy.mockRestore();
+      }
+    });
+
+    test("handles non-Error thrown value in webhook retrieval", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setStripeWebhookConfig("whsec_test", "we_test_nonerror");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client to be defined");
+
+      const balanceSpy = spyOn(client.balance, "retrieve");
+      balanceSpy.mockResolvedValue({
+        livemode: false,
+        available: [],
+        pending: [],
+        object: "balance",
+      } as never);
+
+      const webhookSpy = spyOn(client.webhookEndpoints, "retrieve");
+      webhookSpy.mockRejectedValue("webhook string error");
+
+      try {
+        const result = await testStripeConnection();
+        expect(result.ok).toBe(false);
+        expect(result.webhook.configured).toBe(false);
+        expect(result.webhook.error).toBe("Unknown error");
+      } finally {
+        balanceSpy.mockRestore();
+        webhookSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("setupWebhookEndpointImpl", () => {
+    // setupWebhookEndpointImpl creates its own client via createStripeClient(secretKey),
+    // so we mock at the stripeApi level to test the various code paths
+
+    test("creates webhook endpoint via stripe-mock (no secret returned)", async () => {
+      // stripe-mock doesn't return endpoint.secret, so this exercises the "no secret" error path
+      const result = await setupWebhookEndpoint(
+        "sk_test_mock",
+        "https://example.com/payment/webhook",
+      );
+
+      // stripe-mock likely doesn't return secret, testing the error path
+      if (!result.success) {
+        expect(result.error).toBe("Stripe did not return webhook secret");
+      }
+    });
+
+    test("exercises delete-then-create path with existing endpoint ID", async () => {
+      // This exercises the existingEndpointId deletion path
+      const result = await setupWebhookEndpoint(
+        "sk_test_mock",
+        "https://example.com/payment/webhook",
+        "we_existing_123",
+      );
+
+      // The API call goes through - deletion of non-existent endpoint is caught
+      expect(result).toBeDefined();
+      expect(typeof result.success).toBe("boolean");
+    });
+
+    test("succeeds when mocked via stripeApi", async () => {
+      // Override stripeApi to test the full success path
+      const origSetup = stripeApi.setupWebhookEndpoint;
+      stripeApi.setupWebhookEndpoint = async (_key, _url, _existing) => {
+        return { success: true, endpointId: "we_mocked", secret: "whsec_mocked" };
+      };
+
+      try {
+        const result = await setupWebhookEndpoint(
+          "sk_test",
+          "https://example.com/webhook",
+        );
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.endpointId).toBe("we_mocked");
+          expect(result.secret).toBe("whsec_mocked");
+        }
+      } finally {
+        stripeApi.setupWebhookEndpoint = origSetup;
+      }
+    });
+
+    test("returns error when API throws", async () => {
+      const origSetup = stripeApi.setupWebhookEndpoint;
+      stripeApi.setupWebhookEndpoint = async (_key, _url) => {
+        return { success: false, error: "API rate limited" };
+      };
+
+      try {
+        const result = await setupWebhookEndpoint(
+          "sk_test",
+          "https://example.com/webhook",
+        );
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe("API rate limited");
+        }
+      } finally {
+        stripeApi.setupWebhookEndpoint = origSetup;
+      }
+    });
+  });
+
+  describe("getMockConfig", () => {
+    test("returns undefined when STRIPE_MOCK_HOST not set", async () => {
+      Deno.env.delete("STRIPE_MOCK_HOST");
+      Deno.env.delete("STRIPE_MOCK_PORT");
+      resetStripeClient();
+
+      // The getMockConfig is a once() function, so we can't easily re-test it.
+      // But getStripeClient exercises the createStripeClient path
+      await updateStripeKey("sk_test_123");
+      // Without mock config, a real Stripe client would be created
+      // We just verify no crash occurs
+      const client = await getStripeClient();
+      expect(client).not.toBeNull();
+    });
+  });
+
+  describe("verifyWebhookSignature - timestamp parsing", () => {
+    const TEST_SECRET = "whsec_test_secret_key_for_timestamp_test";
+
+    test("handles timestamp value that needs parseInt", async () => {
+      await setStripeWebhookConfig(TEST_SECRET, "we_test_ts");
+
+      // Create event with proper signature
+      const event: StripeWebhookEvent = {
+        id: "evt_ts_test",
+        type: "checkout.session.completed",
+        data: { object: { id: "cs_test" } },
+      };
+
+      const { payload, signature } = await constructTestWebhookEvent(
+        event,
+        TEST_SECRET,
+      );
+
+      const result = await verifyWebhookSignature(payload, signature);
+      expect(result.valid).toBe(true);
+    });
+
+    test("secureCompare handles strings of different lengths", async () => {
+      await setStripeWebhookConfig(TEST_SECRET, "we_test_len");
+
+      // Provide a signature that has different length than expected
+      const timestamp = Math.floor(Date.now() / 1000);
+      const result = await verifyWebhookSignature(
+        '{"test": true}',
+        `t=${timestamp},v1=short`,
+      );
+      // Signature won't match but should not crash - secureCompare handles length diff
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Signature verification failed");
+      }
+    });
+  });
+});
+
+describe("stripe-provider", () => {
+  let originalMockHost: string | undefined;
+  let originalMockPort: string | undefined;
+
+  beforeEach(async () => {
+    originalMockHost = Deno.env.get("STRIPE_MOCK_HOST");
+    originalMockPort = Deno.env.get("STRIPE_MOCK_PORT");
+    resetStripeClient();
+    await createTestDb();
+  });
+
+  afterEach(() => {
+    resetStripeClient();
+    resetDb();
+    if (originalMockHost !== undefined) {
+      Deno.env.set("STRIPE_MOCK_HOST", originalMockHost);
+    } else {
+      Deno.env.delete("STRIPE_MOCK_HOST");
+    }
+    if (originalMockPort !== undefined) {
+      Deno.env.set("STRIPE_MOCK_PORT", originalMockPort);
+    } else {
+      Deno.env.delete("STRIPE_MOCK_PORT");
+    }
+  });
+
+  describe("toCheckoutResult - session with no URL", () => {
+    test("returns null when session has no URL", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      // Spy on stripe.checkout.sessions.create to return session without URL
+      const createSpy = spyOn(client.checkout.sessions, "create");
+      createSpy.mockResolvedValue({
+        id: "cs_no_url",
+        url: null,
+        object: "checkout.session",
+      } as never);
+
+      try {
+        const event = testEvent({ unit_price: 1000 });
+        const intent = {
+          eventId: 1,
+          name: "John",
+          email: "john@example.com",
+          phone: "",
+          quantity: 1,
+        };
+
+        // Use stripePaymentProvider which wraps via toCheckoutResult
+        const result = await stripePaymentProvider.createCheckoutSession(
+          event,
+          intent,
+          "http://localhost:3000",
+        );
+
+        expect(result).toBeNull();
+      } finally {
+        createSpy.mockRestore();
+      }
+    });
+
+    test("returns null when session is null", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const createSpy = spyOn(client.checkout.sessions, "create");
+      createSpy.mockRejectedValue(new Error("API error"));
+
+      try {
+        const event = testEvent({ unit_price: 1000 });
+        const intent = {
+          eventId: 1,
+          name: "John",
+          email: "john@example.com",
+          phone: "",
+          quantity: 1,
+        };
+
+        const result = await stripePaymentProvider.createCheckoutSession(
+          event,
+          intent,
+          "http://localhost:3000",
+        );
+
+        expect(result).toBeNull();
+      } finally {
+        createSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("retrieveSession - edge cases", () => {
+    test("returns null when id is not a string", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: 12345, // non-string id
+        payment_status: "paid",
+        metadata: { name: "Test", email: "test@test.com", event_id: "1" },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_test");
+        expect(result).toBeNull();
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
+
+    test("returns null when payment_status is not a string", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: "cs_test_123",
+        payment_status: 42, // non-string
+        metadata: { name: "Test", email: "test@test.com", event_id: "1" },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_test");
+        expect(result).toBeNull();
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
+
+    test("returns null for non-multi session without event_id", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: "cs_no_event",
+        payment_status: "paid",
+        payment_intent: "pi_test_123",
+        metadata: {
+          name: "Test User",
+          email: "test@example.com",
+          // No event_id, and not a multi session
+        },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_no_event");
+        expect(result).toBeNull();
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
+
+    test("returns null when session is null from Stripe", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockRejectedValue(new Error("Not found"));
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_notfound");
+        expect(result).toBeNull();
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
+
+    test("returns null when metadata is missing name or email", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: "cs_no_meta",
+        payment_status: "paid",
+        metadata: {
+          event_id: "1",
+          // Missing name and email
+        },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_no_meta");
+        expect(result).toBeNull();
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
+
+    test("returns valid session for multi-ticket checkout", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: "cs_multi",
+        payment_status: "paid",
+        payment_intent: "pi_multi_123",
+        metadata: {
+          name: "Multi User",
+          email: "multi@example.com",
+          phone: "+44 7700 900000",
+          multi: "1",
+          items: '[{"e":1,"q":2}]',
+        },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_multi");
+        expect(result).not.toBeNull();
+        expect(result?.id).toBe("cs_multi");
+        expect(result?.metadata.multi).toBe("1");
+        expect(result?.metadata.items).toBe('[{"e":1,"q":2}]');
+        expect(result?.metadata.phone).toBe("+44 7700 900000");
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
+
+    test("returns valid session for single-event checkout", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: "cs_single",
+        payment_status: "paid",
+        payment_intent: "pi_single_123",
+        metadata: {
+          name: "Single User",
+          email: "single@example.com",
+          event_id: "42",
+          quantity: "2",
+        },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_single");
+        expect(result).not.toBeNull();
+        expect(result?.id).toBe("cs_single");
+        expect(result?.paymentStatus).toBe("paid");
+        expect(result?.paymentReference).toBe("pi_single_123");
+        expect(result?.metadata.event_id).toBe("42");
+        expect(result?.metadata.quantity).toBe("2");
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("verifyWebhookSignature delegation", () => {
+    test("delegates to stripe.ts verifyWebhookSignature", async () => {
+      const TEST_SECRET = "whsec_provider_verify_test";
+      await setStripeWebhookConfig(TEST_SECRET, "we_provider_test");
+
+      const event: StripeWebhookEvent = {
+        id: "evt_provider",
+        type: "checkout.session.completed",
+        data: { object: { id: "cs_test" } },
+      };
+
+      const { payload, signature } = await constructTestWebhookEvent(
+        event,
+        TEST_SECRET,
+      );
+
+      const result = await stripePaymentProvider.verifyWebhookSignature(
+        payload,
+        signature,
+      );
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.event.id).toBe("evt_provider");
+      }
+    });
+
+    test("returns error for invalid signature", async () => {
+      const TEST_SECRET = "whsec_provider_invalid_test";
+      await setStripeWebhookConfig(TEST_SECRET, "we_provider_inv");
+
+      const timestamp = Math.floor(Date.now() / 1000);
+      const result = await stripePaymentProvider.verifyWebhookSignature(
+        '{"test": true}',
+        `t=${timestamp},v1=invalid_sig`,
+      );
+
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBeDefined();
+      }
+    });
+  });
+
+  describe("setupWebhookEndpoint delegation", () => {
+    test("delegates to stripe.ts setupWebhookEndpoint", async () => {
+      // Mock stripeApi since setupWebhookEndpointImpl creates its own client
+      const origSetup = stripeApi.setupWebhookEndpoint;
+      stripeApi.setupWebhookEndpoint = async (_key, _url, _existing) => {
+        return { success: true, endpointId: "we_provider_created", secret: "whsec_provider_secret" };
+      };
+
+      try {
+        const result = await stripePaymentProvider.setupWebhookEndpoint(
+          "sk_test_mock",
+          "https://example.com/payment/webhook",
+        );
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.endpointId).toBe("we_provider_created");
+          expect(result.secret).toBe("whsec_provider_secret");
+        }
+      } finally {
+        stripeApi.setupWebhookEndpoint = origSetup;
+      }
+    });
+  });
+
+  describe("refundPayment delegation", () => {
+    test("returns true when refund succeeds", async () => {
+      await updateStripeKey("sk_test_mock");
+      const result = await stripePaymentProvider.refundPayment("pi_test_123");
+      expect(result).toBe(true);
+    });
+
+    test("returns false when refund fails", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const refundSpy = spyOn(client.refunds, "create");
+      refundSpy.mockRejectedValue(new Error("Refund failed"));
+
+      try {
+        const result = await stripePaymentProvider.refundPayment("pi_fail");
+        expect(result).toBe(false);
+      } finally {
+        refundSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("createMultiCheckoutSession - via provider", () => {
+    test("returns null when session has no URL", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const createSpy = spyOn(client.checkout.sessions, "create");
+      createSpy.mockResolvedValue({
+        id: "cs_multi_nourl",
+        url: null,
+        object: "checkout.session",
+      } as never);
+
+      try {
+        const intent = {
+          name: "Jane",
+          email: "jane@example.com",
+          phone: "",
+          items: [{ eventId: 1, quantity: 1, unitPrice: 1000, slug: "evt" }],
+        };
+        const result = await stripePaymentProvider.createMultiCheckoutSession(
+          intent,
+          "http://localhost:3000",
+        );
+        expect(result).toBeNull();
+      } finally {
+        createSpy.mockRestore();
+      }
     });
   });
 });

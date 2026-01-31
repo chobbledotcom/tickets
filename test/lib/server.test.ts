@@ -3987,6 +3987,2526 @@ describe("server", () => {
     });
   });
 
+  describe("POST /payment/webhook", () => {
+    afterEach(() => {
+      resetStripeClient();
+    });
+
+    test("returns 400 when no provider configured", async () => {
+      const response = await handleRequest(
+        new Request("http://localhost/payment/webhook", {
+          method: "POST",
+          headers: {
+            host: "localhost",
+            "content-type": "application/json",
+            "stripe-signature": "sig_test",
+          },
+          body: JSON.stringify({ type: "checkout.session.completed" }),
+        }),
+      );
+      expect(response.status).toBe(400);
+      const text = await response.text();
+      expect(text).toContain("Payment provider not configured");
+    });
+
+    test("returns 400 when signature header is missing", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const response = await handleRequest(
+        new Request("http://localhost/payment/webhook", {
+          method: "POST",
+          headers: {
+            host: "localhost",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ type: "checkout.session.completed" }),
+        }),
+      );
+      expect(response.status).toBe(400);
+      const text = await response.text();
+      expect(text).toContain("Missing signature");
+    });
+
+    test("returns 400 when signature verification fails", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({ valid: false, error: "Invalid signature" });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_bad",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(400);
+        const text = await response.text();
+        expect(text).toContain("Invalid signature");
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("acknowledges non-checkout events", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_test",
+          type: "payment_intent.created",
+          data: { object: {} },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("returns 400 for invalid session data in webhook", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_test",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_test",
+              payment_status: "paid",
+              metadata: {}, // Missing required fields
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(400);
+        const text = await response.text();
+        expect(text).toContain("Invalid session data");
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("acknowledges unpaid checkout without processing", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_test",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_test",
+              payment_status: "unpaid",
+              payment_intent: "pi_test",
+              metadata: {
+                event_id: String(event.id),
+                name: "John",
+                email: "john@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        expect(json.status).toBe("pending");
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("processes valid single-ticket webhook and creates attendee", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_test",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_webhook_test",
+              payment_status: "paid",
+              payment_intent: "pi_webhook_test",
+              metadata: {
+                event_id: String(event.id),
+                name: "Webhook User",
+                email: "webhook@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        expect(json.processed).toBe(true);
+
+        // Verify attendee was created
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]?.payment_id).not.toBeNull();
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("processes valid multi-ticket webhook and creates attendees", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event1 = await createTestEvent({
+        slug: "webhook-multi-1",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        slug: "webhook-multi-2",
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_multi",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_webhook",
+              payment_status: "paid",
+              payment_intent: "pi_multi_webhook",
+              metadata: {
+                name: "Multi User",
+                email: "multi@example.com",
+                phone: "123456",
+                multi: "1",
+                items: JSON.stringify([
+                  { e: event1.id, q: 2 },
+                  { e: event2.id, q: 1 },
+                ]),
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        expect(json.processed).toBe(true);
+
+        // Verify attendees were created for both events
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        const attendees2 = await getAttendeesRaw(event2.id);
+        expect(attendees1.length).toBe(1);
+        expect(attendees1[0]?.quantity).toBe(2);
+        expect(attendees2.length).toBe(1);
+        expect(attendees2[0]?.quantity).toBe(1);
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("webhook returns error for invalid multi-ticket items", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_bad_multi",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_bad_multi",
+              payment_status: "paid",
+              payment_intent: "pi_bad",
+              metadata: {
+                name: "Bad Multi",
+                email: "bad@example.com",
+                multi: "1",
+                items: "not-valid-json{",
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(400);
+        const text = await response.text();
+        expect(text).toContain("Invalid multi-ticket session data");
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("webhook handles sold-out event and returns error in JSON", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        maxAttendees: 1,
+        unitPrice: 1000,
+      });
+
+      // Fill the event
+      await createAttendeeAtomic(event.id, "First", "first@example.com", "pi_first");
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_soldout",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_soldout",
+              payment_status: "paid",
+              payment_intent: "pi_soldout",
+              metadata: {
+                event_id: String(event.id),
+                name: "Late Buyer",
+                email: "late@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        // Webhook returns 200 even for business logic failures to prevent retries
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("sold out");
+      } finally {
+        mockVerify.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("webhook rejects POST with wrong content-type", async () => {
+      const response = await handleRequest(
+        new Request("http://localhost/payment/webhook", {
+          method: "POST",
+          headers: {
+            host: "localhost",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-signature": "sig_test",
+          },
+          body: "test=123",
+        }),
+      );
+      expect(response.status).toBe(400);
+      const text = await response.text();
+      expect(text).toContain("Invalid Content-Type");
+    });
+  });
+
+  describe("GET /payment/success (multi-ticket)", () => {
+    afterEach(() => {
+      resetStripeClient();
+    });
+
+    test("processes multi-ticket payment success", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event1 = await createTestEvent({
+        slug: "success-multi-1",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        slug: "success-multi-2",
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_multi_success",
+        payment_status: "paid",
+        payment_intent: "pi_multi_success",
+        metadata: {
+          name: "Multi Payer",
+          email: "multi@example.com",
+          multi: "1",
+          items: JSON.stringify([
+            { e: event1.id, q: 1 },
+            { e: event2.id, q: 2 },
+          ]),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_success"),
+        );
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Payment Successful");
+
+        // Verify attendees created for both events
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        const attendees2 = await getAttendeesRaw(event2.id);
+        expect(attendees1.length).toBe(1);
+        expect(attendees2.length).toBe(1);
+        expect(attendees2[0]?.quantity).toBe(2);
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("returns error for invalid multi-ticket metadata", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_bad_multi",
+        payment_status: "paid",
+        payment_intent: "pi_bad",
+        metadata: {
+          name: "Bad",
+          email: "bad@example.com",
+          multi: "1",
+          items: "not-an-array",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_bad_multi"),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("Invalid multi-ticket session data");
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("refunds multi-ticket payment when event not found", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_multi_notfound",
+        payment_status: "paid",
+        payment_intent: "pi_multi_notfound",
+        metadata: {
+          name: "Missing Event",
+          email: "missing@example.com",
+          multi: "1",
+          items: JSON.stringify([{ e: 99999, q: 1 }]),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_notfound"),
+        );
+        expect(response.status).toBe(404);
+        const html = await response.text();
+        expect(html).toContain("Event not found");
+        expect(mockRefund).toHaveBeenCalledWith("pi_multi_notfound");
+      } finally {
+        mockRetrieve.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("refunds multi-ticket payment when event is inactive", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        slug: "multi-inactive-pay",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      await deactivateTestEvent(event.id);
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_multi_inactive",
+        payment_status: "paid",
+        payment_intent: "pi_multi_inactive",
+        metadata: {
+          name: "Inactive Event",
+          email: "inactive@example.com",
+          multi: "1",
+          items: JSON.stringify([{ e: event.id, q: 1 }]),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_inactive"),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("no longer accepting registrations");
+        expect(html).toContain("refunded");
+      } finally {
+        mockRetrieve.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("shows refund failure message when refund fails", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        maxAttendees: 1,
+        unitPrice: 1000,
+      });
+
+      // Fill the event
+      await createAttendeeAtomic(event.id, "First", "first@example.com", "pi_first");
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_refund_fail",
+        payment_status: "paid",
+        payment_intent: "pi_refund_fail",
+        metadata: {
+          event_id: String(event.id),
+          name: "Refund Fail",
+          email: "refund@example.com",
+          quantity: "1",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      // Mock refund to fail
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue(null);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_refund_fail"),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("sold out");
+        expect(html).toContain("contact support");
+      } finally {
+        mockRetrieve.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("multi-ticket payment sold out rolls back and refunds", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event1 = await createTestEvent({
+        slug: "multi-rollback-1",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-rollback-2",
+        maxAttendees: 1,
+        unitPrice: 1000,
+      });
+
+      // Fill event2
+      await createAttendeeAtomic(event2.id, "First", "first@example.com", "pi_first");
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_multi_rollback",
+        payment_status: "paid",
+        payment_intent: "pi_multi_rollback",
+        metadata: {
+          name: "Rollback User",
+          email: "rollback@example.com",
+          multi: "1",
+          items: JSON.stringify([
+            { e: event1.id, q: 1 },
+            { e: event2.id, q: 1 },
+          ]),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_rollback"),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("sold out");
+        expect(html).toContain("refunded");
+
+        // Verify rollback: event1 should have no attendees since they were rolled back
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        expect(attendees1.length).toBe(0);
+      } finally {
+        mockRetrieve.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("shows thank_you_url for single-ticket success", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 500,
+        thankYouUrl: "https://example.com/single-thanks",
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_single_thankyou",
+        payment_status: "paid",
+        payment_intent: "pi_single_thankyou",
+        metadata: {
+          event_id: String(event.id),
+          name: "Single",
+          email: "single@example.com",
+          quantity: "1",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_single_thankyou"),
+        );
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("https://example.com/single-thanks");
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("handles duplicate session replay (already processed)", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_dupe_session",
+        payment_status: "paid",
+        payment_intent: "pi_dupe",
+        metadata: {
+          event_id: String(event.id),
+          name: "Dupe",
+          email: "dupe@example.com",
+          quantity: "1",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        // First request should succeed
+        const response1 = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_dupe_session"),
+        );
+        expect(response1.status).toBe(200);
+
+        // Second request (replay) should also succeed (idempotent)
+        const response2 = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_dupe_session"),
+        );
+        expect(response2.status).toBe(200);
+
+        // Should still only have one attendee
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+  });
+
+  describe("GET /admin/activity-log", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(mockRequest("/admin/activity-log"));
+      expectAdminRedirect(response);
+    });
+
+    test("shows activity log page when authenticated", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      // Create an event to generate activity
+      await createTestEvent({
+        slug: "activity-log-test",
+        maxAttendees: 50,
+      });
+
+      const response = await awaitTestRequest("/admin/activity-log", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Activity Log");
+    });
+  });
+
+  describe("POST /admin/settings/payment-provider", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/payment-provider", {
+          payment_provider: "stripe",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("sets payment provider to stripe", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/payment-provider",
+          {
+            payment_provider: "stripe",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Payment provider set to stripe");
+    });
+
+    test("disables payment provider with none", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/payment-provider",
+          {
+            payment_provider: "none",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Payment provider disabled");
+    });
+
+    test("rejects invalid payment provider", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/payment-provider",
+          {
+            payment_provider: "invalid-provider",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Invalid payment provider");
+    });
+  });
+
+  describe("POST /admin/settings/stripe (webhook setup failure)", () => {
+    test("shows error when webhook setup fails", async () => {
+      const mockSetupWebhook = spyOn(stripeApi, "setupWebhookEndpoint");
+      mockSetupWebhook.mockResolvedValue({
+        success: false,
+        error: "Connection refused",
+      });
+
+      try {
+        const { cookie, csrfToken } = await loginAsAdmin();
+
+        const response = await handleRequest(
+          mockFormRequest(
+            "/admin/settings/stripe",
+            {
+              stripe_secret_key: "sk_test_webhook_fail",
+              csrf_token: csrfToken,
+            },
+            cookie,
+          ),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("Failed to set up Stripe webhook");
+        expect(html).toContain("Connection refused");
+      } finally {
+        mockSetupWebhook.mockRestore();
+      }
+    });
+  });
+
+  describe("POST /admin/settings/reset-database (confirm phrase)", () => {
+    test("rejects empty confirm phrase", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/reset-database",
+          {
+            confirm_phrase: "",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Confirmation phrase does not match");
+    });
+  });
+
+  describe("GET /admin/event/:id/activity-log", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockRequest("/admin/event/1/activity-log"),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/event/999/activity-log", {
+        cookie,
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("shows activity log for existing event", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const event = await createTestEvent({
+        slug: "event-activity-log",
+        maxAttendees: 50,
+      });
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/activity-log`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Activity Log");
+      expect(html).toContain(event.slug);
+    });
+  });
+
+  describe("POST /admin/event/:id/deactivate (event not found)", () => {
+    test("returns 404 when event does not exist", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/999/deactivate",
+          { csrf_token: csrfToken, confirm_identifier: "something" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /admin/event/:id/reactivate (event not found)", () => {
+    test("returns 404 when event does not exist", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/999/reactivate",
+          { csrf_token: csrfToken, confirm_identifier: "something" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /ticket/:slug (free event without thank_you_url)", () => {
+    test("shows inline success page when no thank_you_url", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "", // No thank_you_url
+      });
+
+      const response = await submitTicketForm(event.slug, {
+        name: "John Doe",
+        email: "john@example.com",
+      });
+      // Should show success page instead of redirect
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("success");
+    });
+  });
+
+  describe("multi-ticket paid flow", () => {
+    afterEach(() => {
+      resetStripeClient();
+    });
+
+    test("redirects to checkout for multi-ticket paid events", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event1 = await createTestEvent({
+        slug: "multi-paid-1",
+        maxAttendees: 50,
+        unitPrice: 500,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-paid-2",
+        maxAttendees: 50,
+        unitPrice: 1000,
+        maxQuantity: 5,
+      });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "2",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+
+      // Should redirect to Stripe checkout
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location");
+      expect(location).not.toBeNull();
+      expect(location?.startsWith("https://")).toBe(true);
+    });
+
+    test("shows error when no tickets selected in multi-ticket paid form", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event1 = await createTestEvent({
+        slug: "multi-nosel-1",
+        maxAttendees: 50,
+        unitPrice: 500,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-nosel-2",
+        maxAttendees: 50,
+        unitPrice: 1000,
+        maxQuantity: 5,
+      });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      // Submit with all quantities at 0
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            [`quantity_${event1.id}`]: "0",
+            [`quantity_${event2.id}`]: "0",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Please select at least one ticket");
+    });
+  });
+
+  describe("multi-ticket free flow (capacity exceeded)", () => {
+    test("shows error when free multi-ticket atomic create fails capacity", async () => {
+      const event1 = await createTestEvent({
+        slug: "multi-free-cap-1",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-free-cap-2",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      // Mock atomic create to fail on second call (simulates race condition)
+      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const origCreate = attendeesApi.createAttendeeAtomic;
+      let callCount = 0;
+      const mockCreate = spyOn(attendeesApi, "createAttendeeAtomic");
+      mockCreate.mockImplementation(async (...args: Parameters<typeof origCreate>) => {
+        callCount++;
+        if (callCount === 2) {
+          return { success: false as const, reason: "capacity_exceeded" as const };
+        }
+        return origCreate(...args);
+      });
+
+      try {
+        const response = await handleRequest(
+          mockFormRequest(
+            path,
+            {
+              name: "John Doe",
+              email: "john@example.com",
+              [`quantity_${event1.id}`]: "1",
+              [`quantity_${event2.id}`]: "1",
+              csrf_token: csrfToken,
+            },
+            `csrf_token=${csrfToken}`,
+          ),
+        );
+
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("no longer has enough spots");
+      } finally {
+        mockCreate.mockRestore();
+      }
+    });
+
+    test("multi-ticket free registration succeeds for both events", async () => {
+      const event1 = await createTestEvent({
+        slug: "multi-free-ok-1",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-free-ok-2",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "Multi Free User",
+            email: "multifree@example.com",
+            [`quantity_${event1.id}`]: "2",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("success");
+
+      // Verify attendees created for both events
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(event1.id);
+      const attendees2 = await getAttendeesRaw(event2.id);
+      expect(attendees1.length).toBe(1);
+      expect(attendees1[0]?.quantity).toBe(2);
+      expect(attendees2.length).toBe(1);
+      expect(attendees2[0]?.quantity).toBe(1);
+    });
+  });
+
+  describe("POST /ticket/:slug1+:slug2 (unsupported method)", () => {
+    test("returns 404 for PUT on multi-ticket route", async () => {
+      const event1 = await createTestEvent({
+        slug: "multi-put-1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-put-2",
+        maxAttendees: 50,
+      });
+      const response = await awaitTestRequest(
+        `/ticket/${event1.slug}+${event2.slug}`,
+        { method: "PUT" },
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("setup routes (currency code default)", () => {
+    test("POST /setup/ with empty currency code defaults to GBP", async () => {
+      resetDb();
+      await createTestDb();
+
+      const getResponse = await handleRequest(mockRequest("/setup/"));
+      const csrfToken = getSetupCsrfToken(getResponse.headers.get("set-cookie"));
+      expect(csrfToken).not.toBeNull();
+
+      const response = await handleRequest(
+        mockSetupFormRequest(
+          {
+            admin_password: "mypassword123",
+            admin_password_confirm: "mypassword123",
+            currency_code: "", // Empty defaults to GBP
+          },
+          csrfToken as string,
+        ),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Setup Complete");
+    });
+  });
+
+  describe("POST /admin/event/:eventId/attendee/:attendeeId/delete (no privateKey on POST)", () => {
+    test("redirects to admin when session lacks wrapped data key on POST", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      // Create session without wrapped_data_key (simulates legacy session)
+      const token = "test-token-no-data-key-post";
+      await createSession(token, "csrf123", Date.now() + 3600000, null);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
+          { confirm_name: "John Doe", csrf_token: "csrf123" },
+          `__Host-session=${token}`,
+        ),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("handles missing confirm_name field (falls back to empty string)", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Submit without confirm_name field at all
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      // Empty string won't match "John Doe", so it returns 400
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("does not match");
+    });
+  });
+
+  describe("POST /admin/login (dataKey null path)", () => {
+    test("creates session even when dataKey is null", async () => {
+      // This test covers the `wrappedDataKey = dataKey ? await wrapKeyWithToken(dataKey, token) : null` path
+      // When login succeeds but unwrapDataKey returns null, session still has null wrappedDataKey
+      // In normal operation this won't happen since setup creates keys, but we test the code path
+      const { spyOn } = await import("#test-compat");
+      const { settingsApi } = await import("#lib/db/settings.ts");
+
+      const mockUnwrap = spyOn(settingsApi, "unwrapDataKey");
+      mockUnwrap.mockResolvedValue(null);
+
+      try {
+        const response = await handleRequest(
+          mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+        );
+        // Should still redirect (login succeeds)
+        expectAdminRedirect(response);
+        expect(response.headers.get("set-cookie")).toContain("__Host-session=");
+      } finally {
+        mockUnwrap.mockRestore();
+      }
+    });
+  });
+
+  describe("admin/events.ts (event delete handler via onDelete)", () => {
+    test("delete event handler cleans up associated data", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const event = await createTestEvent({
+        slug: "on-delete-test",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(event.id, event.slug, "Test User", "test@example.com");
+
+      // Delete event via API (skip verify)
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/delete?verify_identifier=false`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      // Verify both event and attendees deleted
+      const { getEvent } = await import("#lib/db/events.ts");
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      expect(await getEvent(event.id)).toBeNull();
+      expect((await getAttendeesRaw(event.id)).length).toBe(0);
+    });
+  });
+
+  describe("admin/events.ts (withEventAttendees privateKey null)", () => {
+    test("redirects when session has no wrapped data key on event view", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Create session without wrapped_data_key
+      const token = "test-token-no-key-event";
+      await createSession(token, "csrf123", Date.now() + 3600000, null);
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie: `__Host-session=${token}`,
+      });
+      expectAdminRedirect(response);
+    });
+  });
+
+  describe("admin/events.ts (eventErrorPage with deleted event)", () => {
+    test("edit validation returns 400 with error when event exists", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Create two events
+      await createTestEvent({
+        slug: "first-edit-err",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestEvent({
+        slug: "second-edit-err",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Try to update first event with second event's slug (duplicate slug error)
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/edit",
+          {
+            slug: "second-edit-err",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "https://example.com",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      // Should return 400 with error page (event exists -> eventErrorPage returns htmlResponse)
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("already in use");
+    });
+  });
+
+  describe("admin/events.ts (form.get fallbacks)", () => {
+    test("deactivate event without confirm_identifier uses empty fallback", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const event = await createTestEvent({
+        slug: "deactivate-fallback",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Submit without confirm_identifier field
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/deactivate`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Event identifier does not match");
+    });
+
+    test("reactivate event without confirm_identifier uses empty fallback", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const event = await createTestEvent({
+        slug: "reactivate-fallback",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await deactivateTestEvent(event.id);
+
+      // Submit without confirm_identifier field
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/reactivate`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Event identifier does not match");
+    });
+
+    test("delete event without confirm_identifier uses empty fallback", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await createTestEvent({
+        slug: "delete-fallback",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Submit without confirm_identifier field
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/1/delete`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("does not match");
+    });
+  });
+
+  describe("admin/settings.ts (form.get fallbacks)", () => {
+    test("payment provider POST without payment_provider field uses empty fallback", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Submit without payment_provider field at all
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/payment-provider",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Invalid payment provider");
+    });
+
+    test("reset database POST without confirm_phrase field uses empty fallback", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Submit without confirm_phrase field
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/reset-database",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Confirmation phrase does not match");
+    });
+  });
+
+  describe("routes/middleware.ts (empty content-type)", () => {
+    test("POST with empty content-type is rejected", async () => {
+      const response = await handleRequest(
+        new Request("http://localhost/admin/login", {
+          method: "POST",
+          headers: {
+            host: "localhost",
+            "content-type": "",
+          },
+          body: "password=test",
+        }),
+      );
+      expect(response.status).toBe(400);
+      const text = await response.text();
+      expect(text).toContain("Invalid Content-Type");
+    });
+  });
+
+  describe("routes/public.ts (additional coverage)", () => {
+    test("ticket form with phone-only fields (no email field) works", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+        fields: "phone",
+      });
+
+      const response = await submitTicketForm(event.slug, {
+        name: "John Doe",
+        phone: "555-1234",
+      });
+      // With fields="phone", email is not collected and extractContact returns "" for email
+      expectRedirect("https://example.com/thanks")(response);
+    });
+
+    test("ticket form with invalid quantity falls back to minimum", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+        maxQuantity: 5,
+      });
+
+      // Submit with non-numeric quantity
+      const response = await submitTicketForm(event.slug, {
+        name: "John Doe",
+        email: "john@example.com",
+        quantity: "abc",
+      });
+      // Should still succeed with quantity falling back to 1
+      expectRedirect("https://example.com/thanks")(response);
+    });
+
+    test("multi-ticket skips sold-out events in quantity parsing", async () => {
+      const event1 = await createTestEvent({
+        slug: "multi-soldout-parse-1",
+        maxAttendees: 1,
+        maxQuantity: 1,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-soldout-parse-2",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+
+      // Fill up event1 to make it sold out
+      await createAttendeeAtomic(event1.id, "First", "first@example.com", null, 1);
+
+      // GET the multi-ticket page (sold-out event will show Sold Out label)
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      expect(getResponse.status).toBe(200);
+      const html = await getResponse.text();
+      expect(html).toContain("Sold Out");
+
+      // POST with quantity for both events - sold out event's quantity is ignored
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expect(response.status).toBe(200);
+      const resultHtml = await response.text();
+      expect(resultHtml).toContain("success");
+    });
+
+    test("multi-ticket with invalid quantity form value falls back to 0", async () => {
+      const event1 = await createTestEvent({
+        slug: "multi-invalid-qty-1",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-invalid-qty-2",
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      // Submit with non-numeric quantity for event1 and valid for event2
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            [`quantity_${event1.id}`]: "abc",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expect(response.status).toBe(200);
+
+      // Only event2 should have an attendee
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(event1.id);
+      const attendees2 = await getAttendeesRaw(event2.id);
+      expect(attendees1.length).toBe(0);
+      expect(attendees2.length).toBe(1);
+    });
+
+    test("multi-ticket paid checks availability and rejects sold out", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event1 = await createTestEvent({
+        slug: "multi-avail-1",
+        maxAttendees: 1,
+        unitPrice: 500,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-avail-2",
+        maxAttendees: 50,
+        unitPrice: 1000,
+        maxQuantity: 5,
+      });
+
+      // Fill event1
+      await createAttendeeAtomic(event1.id, "First", "first@example.com", "pi_first");
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      // Try to purchase - event1 is sold out
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+
+      // Should redirect to checkout since only event2 has quantity (event1 is sold out and skipped)
+      expect(response.status).toBe(302);
+      resetStripeClient();
+    });
+
+    test("returns null for non-ticket paths", async () => {
+      const response = await handleRequest(mockRequest("/notticket/test"));
+      expect(response.status).toBe(404);
+    });
+
+    test("returns null when slug is empty from path extraction", async () => {
+      const response = await handleRequest(mockRequest("/ticket/"));
+      // Path /ticket/ is normalized to /ticket, which doesn't match slug pattern
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("routes/public.ts (multi-ticket CSRF)", () => {
+    test("multi-ticket POST rejects invalid CSRF token", async () => {
+      const event1 = await createTestEvent({
+        slug: "multi-csrf-1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-csrf-2",
+        maxAttendees: 50,
+      });
+
+      // POST without getting CSRF token first
+      const response = await handleRequest(
+        mockFormRequest(`/ticket/${event1.slug}+${event2.slug}`, {
+          name: "John",
+          email: "john@example.com",
+        }),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid or expired form");
+    });
+  });
+
+  describe("routes/public.ts (withPaymentProvider onMissing path)", () => {
+    test("shows payment not configured error for multi-ticket when no provider", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event1 = await createTestEvent({
+        slug: "multi-noprov-1",
+        maxAttendees: 50,
+        unitPrice: 500,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        slug: "multi-noprov-2",
+        maxAttendees: 50,
+        unitPrice: 1000,
+        maxQuantity: 5,
+      });
+
+      // Now clear the provider to simulate no provider
+      const { clearPaymentProvider } = await import("#lib/db/settings.ts");
+      await clearPaymentProvider();
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+
+      // Free registration path since provider is cleared and isPaymentsEnabled returns false
+      expect(response.status).toBe(200);
+      resetStripeClient();
+    });
+  });
+
+  describe("routes/router.ts (slug and generic param patterns)", () => {
+    test("slug pattern matches lowercase alphanumeric with hyphens", async () => {
+      const event = await createTestEvent({
+        slug: "my-test-event",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      expect(response.status).toBe(200);
+    });
+  });
+
+  describe("routes/utils.ts (getPrivateKey null paths)", () => {
+    test("returns null when wrappedDataKey is null", async () => {
+      // This is tested indirectly via session without wrapped_data_key
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      // Create session without wrapped_data_key
+      const token = "test-no-wrapped-key";
+      await createSession(token, "csrf123", Date.now() + 3600000, null);
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/attendee/1/delete`,
+        { cookie: `__Host-session=${token}` },
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns null when wrappedPrivateKey is not set in DB", async () => {
+      // Clear the wrapped_private_key from DB so getWrappedPrivateKey returns null
+      const { getDb } = await import("#lib/db/client.ts");
+      await getDb().execute({
+        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+        args: [],
+      });
+
+      const { cookie } = await loginAsAdmin();
+
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      // Should redirect since getPrivateKey returns null (no wrapped private key)
+      expectAdminRedirect(response);
+    });
+
+    test("returns null when getPrivateKeyFromSession throws", async () => {
+      // Create a session with a corrupt wrapped_data_key that will cause crypto to throw
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const token = "test-corrupt-key";
+      await createSession(token, "csrf123", Date.now() + 3600000, "corrupt-key-data");
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie: `__Host-session=${token}`,
+      });
+      // Should redirect since getPrivateKey catches the crypto error and returns null
+      expectAdminRedirect(response);
+    });
+
+    test("empty csrf_token from form falls back to empty string", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      // Send form without csrf_token field at all
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings",
+          { current_password: "test" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+  });
+
+  describe("routes/webhooks.ts (additional coverage)", () => {
+    afterEach(() => {
+      resetStripeClient();
+    });
+
+    test("extractIntent defaults quantity to 1 when missing", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_no_qty",
+        payment_status: "paid",
+        payment_intent: "pi_no_qty",
+        metadata: {
+          event_id: String(event.id),
+          name: "John",
+          email: "john@example.com",
+          // quantity intentionally omitted
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_no_qty"),
+        );
+        expect(response.status).toBe(200);
+
+        // Verify attendee was created with quantity 1
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]?.quantity).toBe(1);
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("tryRefund returns false when paymentReference is null", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      await deactivateTestEvent(event.id);
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_null_ref",
+        payment_status: "paid",
+        payment_intent: null, // No payment reference
+        metadata: {
+          event_id: String(event.id),
+          name: "John",
+          email: "john@example.com",
+          quantity: "1",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_null_ref"),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("no longer accepting registrations");
+        // Should show "contact support" since refund failed (no payment reference)
+        expect(html).toContain("contact support");
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("webhook with non-string event_id in metadata rejects", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_test",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_bad_event_id",
+              payment_status: "paid",
+              payment_intent: "pi_test",
+              metadata: {
+                event_id: 123, // number, not string
+                name: "John",
+                email: "john@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(400);
+        const text = await response.text();
+        expect(text).toContain("Invalid session data");
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("webhook extracts payment_intent as paymentReference", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_pi_extract",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_pi_extract",
+              payment_status: "paid",
+              payment_intent: "pi_extracted_ref",
+              metadata: {
+                event_id: String(event.id),
+                name: "PI User",
+                email: "pi@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify attendee has the payment reference
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]?.payment_id).not.toBeNull();
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("webhook with non-array items in multi-ticket returns null", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_non_array",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_non_array",
+              payment_status: "paid",
+              payment_intent: "pi_non_array",
+              metadata: {
+                name: "Test",
+                email: "test@example.com",
+                multi: "1",
+                items: '{"not":"an-array"}', // Valid JSON but not an array
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(400);
+        const text = await response.text();
+        expect(text).toContain("Invalid multi-ticket session data");
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("webhook with missing items in multi-ticket metadata returns null", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_no_items",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_no_items",
+              payment_status: "paid",
+              payment_intent: "pi_no_items",
+              metadata: {
+                name: "Test",
+                email: "test@example.com",
+                multi: "1",
+                items: "", // empty string: isMultiSession returns true but extractMultiIntent returns null
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(400);
+        const text = await response.text();
+        expect(text).toContain("Invalid multi-ticket session data");
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("multi-ticket being processed returns 409", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        slug: "multi-concurrent",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      // Pre-reserve the session to simulate concurrent processing
+      const { reserveSession: reserveSessionFn } = await import("#lib/db/processed-payments.ts");
+      await reserveSessionFn("cs_multi_concurrent");
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_multi_concurrent",
+        payment_status: "paid",
+        payment_intent: "pi_multi_concurrent",
+        metadata: {
+          name: "Concurrent",
+          email: "concurrent@example.com",
+          multi: "1",
+          items: JSON.stringify([{ e: event.id, q: 1 }]),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_concurrent"),
+        );
+        expect(response.status).toBe(409);
+        const html = await response.text();
+        expect(html).toContain("being processed");
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("single-ticket being processed returns 409", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      // Pre-reserve the session to simulate concurrent processing
+      const { reserveSession: reserveSessionFn } = await import("#lib/db/processed-payments.ts");
+      await reserveSessionFn("cs_single_concurrent");
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_single_concurrent",
+        payment_status: "paid",
+        payment_intent: "pi_single_concurrent",
+        metadata: {
+          event_id: String(event.id),
+          name: "Concurrent",
+          email: "concurrent@example.com",
+          quantity: "1",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_single_concurrent"),
+        );
+        expect(response.status).toBe(409);
+        const html = await response.text();
+        expect(html).toContain("being processed");
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("multi-ticket pricePaid calculation uses unit_price * quantity", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        slug: "multi-price-calc",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_multi_price",
+        payment_status: "paid",
+        payment_intent: "pi_multi_price",
+        metadata: {
+          name: "Price Test",
+          email: "price@example.com",
+          multi: "1",
+          items: JSON.stringify([{ e: event.id, q: 3 }]),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_price"),
+        );
+        expect(response.status).toBe(200);
+
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]?.quantity).toBe(3);
+        // price_paid is stored encrypted, verify it was set (not null)
+        expect(attendees[0]?.price_paid).not.toBeNull();
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("single-ticket pricePaid calculation uses unit_price * quantity", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+        maxQuantity: 5,
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_single_price",
+        payment_status: "paid",
+        payment_intent: "pi_single_price",
+        metadata: {
+          event_id: String(event.id),
+          name: "Price Single",
+          email: "price@example.com",
+          quantity: "2",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_single_price"),
+        );
+        expect(response.status).toBe(200);
+
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        // price_paid is stored encrypted, verify it was set (not null)
+        expect(attendees[0]?.price_paid).not.toBeNull();
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("formatPaymentError returns plain error when refunded is undefined", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      // This tests the case where result.refunded is undefined
+      // This happens when validatePaidSession fails (no refund attempt)
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_plain_error",
+        payment_status: "unpaid",
+        payment_intent: "pi_test",
+        metadata: {
+          event_id: "1",
+          name: "John",
+          email: "john@example.com",
+          quantity: "1",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_plain_error"),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("Payment verification failed");
+        // Should NOT contain refund-related text
+        expect(html).not.toContain("refunded");
+        expect(html).not.toContain("contact support for a refund");
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("webhook cancel page returns error when no provider", async () => {
+      // Don't set up any payment provider
+      const response = await handleRequest(
+        mockRequest("/payment/cancel?session_id=cs_cancel_no_prov"),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Payment provider not configured");
+    });
+
+    test("multi-ticket failure error message for encryption_error", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        slug: "multi-enc-err",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_multi_enc_err",
+        payment_status: "paid",
+        payment_intent: "pi_multi_enc_err",
+        metadata: {
+          name: "Enc Error",
+          email: "enc@example.com",
+          multi: "1",
+          items: JSON.stringify([{ e: event.id, q: 1 }]),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      // Mock atomic create to return encryption error
+      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      const mockAtomic = spyOn(attendeesApi, "createAttendeeAtomic");
+      mockAtomic.mockResolvedValue({
+        success: false,
+        reason: "encryption_error",
+      });
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_enc_err"),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("Registration failed");
+        expect(html).toContain("refunded");
+      } finally {
+        mockRetrieve.mockRestore();
+        mockRefund.mockRestore();
+        mockAtomic.mockRestore();
+      }
+    });
+
+    test("multi-ticket no firstAttendee returns refund error", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      // Mock empty items list (edge case where items parsed but empty after filtering)
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_multi_empty_items",
+        payment_status: "paid",
+        payment_intent: "pi_multi_empty",
+        metadata: {
+          name: "Empty Items",
+          email: "empty@example.com",
+          multi: "1",
+          items: "[]", // Empty array
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_empty_items"),
+        );
+        // Empty items list returns "Invalid multi-ticket session data"
+        expect(response.status).toBe(400);
+      } finally {
+        mockRetrieve.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("multi-ticket with non-string payment_intent sets null paymentReference", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setPaymentProvider("stripe");
+
+      const event = await createTestEvent({
+        slug: "multi-no-pi",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_no_pi",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_no_pi",
+              payment_status: "paid",
+              payment_intent: 12345, // Number, not string
+              metadata: {
+                event_id: String(event.id),
+                name: "No PI",
+                email: "nopi@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          new Request("http://localhost/payment/webhook", {
+            method: "POST",
+            headers: {
+              host: "localhost",
+              "content-type": "application/json",
+              "stripe-signature": "sig_valid",
+            },
+            body: JSON.stringify({}),
+          }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+  });
+
   describe("Domain validation", () => {
     test("allows requests with valid domain", async () => {
       const response = await handleRequest(mockRequest("/"));

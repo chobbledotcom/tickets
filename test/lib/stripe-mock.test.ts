@@ -163,17 +163,86 @@ describe("stripe-mock utilities", () => {
       }
     });
 
-    test("start throws when stripe-mock fails to start", () => {
-      // Use a port that will conflict or an invalid path scenario
-      // We'll test this by using a mock - but since we can't easily mock,
-      // we'll test the error path differently
+    test("start throws when stripe-mock fails to become ready", async () => {
+      // Temporarily replace STRIPE_MOCK_PATH-referenced binary with a no-op script
+      // that exits immediately, so the process starts but never listens on the port
+      const testPort = 59998;
+      const manager = new StripeMockManager(testPort);
 
-      // Create a manager and manually verify the error message format
-      const manager = new StripeMockManager(59999);
+      // Ensure nothing is running on that port
+      const beforeRunning = await isStripeMockRunning(testPort);
+      if (beforeRunning) return;
 
-      // We can't easily make downloadStripeMock fail, but we can verify
-      // the manager structure is correct
-      expect(manager.isManaged()).toBe(false);
+      // Create a fake binary that exits immediately without starting a server
+      const fakeBinDir = await Deno.makeTempDir();
+      const fakeBinPath = `${fakeBinDir}/stripe-mock`;
+      await Deno.writeTextFile(fakeBinPath, "#!/bin/sh\nexit 0\n");
+      await new Deno.Command("chmod", {
+        args: ["+x", fakeBinPath],
+        stdout: "null",
+        stderr: "null",
+      }).output();
+
+      // Temporarily rename the real binary and put our fake one in its place
+      const realPath = STRIPE_MOCK_PATH;
+      const backupPath = `${realPath}.bak`;
+      let renamed = false;
+
+      try {
+        await Deno.rename(realPath, backupPath);
+        await Deno.copyFile(fakeBinPath, realPath);
+        await new Deno.Command("chmod", {
+          args: ["+x", realPath],
+          stdout: "null",
+          stderr: "null",
+        }).output();
+        renamed = true;
+
+        await expect(manager.start()).rejects.toThrow(
+          "stripe-mock failed to start",
+        );
+      } finally {
+        if (renamed) {
+          await Deno.rename(backupPath, realPath);
+        }
+        await Deno.remove(fakeBinDir, { recursive: true });
+        try {
+          manager.stop();
+        } catch {
+          // Process may have already exited
+        }
+      }
+    });
+  });
+
+  describe("downloadStripeMock with missing binary", () => {
+    test("enters download path when binary does not exist", async () => {
+      const realPath = STRIPE_MOCK_PATH;
+      const backupPath = `${realPath}.bak-dl`;
+      let renamed = false;
+
+      try {
+        await Deno.rename(realPath, backupPath);
+        renamed = true;
+
+        // Call downloadStripeMock - it should detect file is missing and download
+        await downloadStripeMock();
+
+        // Verify the binary was downloaded
+        const stat = await Deno.stat(realPath);
+        expect(stat.isFile).toBe(true);
+      } finally {
+        // Restore the original binary
+        if (renamed) {
+          try {
+            // Remove the downloaded one if it exists
+            await Deno.remove(realPath);
+          } catch {
+            // May not exist if download failed
+          }
+          await Deno.rename(backupPath, realPath);
+        }
+      }
     });
   });
 });

@@ -3,6 +3,7 @@ import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
 import {
   getAllActivityLog,
   getEventActivityLog,
+  getEventWithActivityLog,
   logActivity,
 } from "#lib/db/activityLog.ts";
 import {
@@ -19,6 +20,9 @@ import {
   eventsTable,
   getAllEvents,
   getEvent,
+  getEventsBySlugsBatch,
+  getEventWithAttendeeRaw,
+  getEventWithAttendeesRaw,
   getEventWithCount,
 } from "#lib/db/events.ts";
 import {
@@ -27,6 +31,12 @@ import {
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
 import { initDb, LATEST_UPDATE, resetDatabase } from "#lib/db/migrations/index.ts";
+import {
+  finalizeSession as finalizePaymentSession,
+  isSessionProcessed,
+  reserveSession,
+  STALE_RESERVATION_MS,
+} from "#lib/db/processed-payments.ts";
 import {
   createSession,
   deleteAllSessions,
@@ -37,6 +47,7 @@ import {
   resetSessionCache,
 } from "#lib/db/sessions.ts";
 import {
+  clearPaymentProvider,
   CONFIG_KEYS,
   completeSetup,
   getCurrencyCodeFromDb,
@@ -47,6 +58,7 @@ import {
   getWrappedPrivateKey,
   hasStripeKey,
   isSetupComplete,
+  setPaymentProvider,
   setSetting,
   unwrapDataKey,
   updateAdminPassword,
@@ -1304,6 +1316,448 @@ describe("db", () => {
 
       const entries = await getAllActivityLog(2);
       expect(entries.length).toBe(2);
+    });
+
+    test("getEventWithActivityLog returns event and activity log together", async () => {
+      const event = await createTestEvent({
+        slug: "batch-test-event",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      await logActivity("First action", event.id);
+      await logActivity("Second action", event.id);
+
+      const result = await getEventWithActivityLog(event.id);
+      expect(result).not.toBeNull();
+      expect(result?.event.id).toBe(event.id);
+      expect(result?.event.slug).toBe("batch-test-event");
+      expect(result?.event.attendee_count).toBe(0);
+      // REST API logs "Created event" + our 2 = 3
+      expect(result?.entries.length).toBe(3);
+      expect(result?.entries[0]?.message).toBe("Second action");
+      expect(result?.entries[1]?.message).toBe("First action");
+    });
+
+    test("getEventWithActivityLog returns null for non-existent event", async () => {
+      const result = await getEventWithActivityLog(999);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe("attendees - phone decryption", () => {
+    test("decryptAttendees decrypts phone when present", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Create attendee with a non-empty phone to exercise the phone decryption branch
+      const result = await createAttendeeAtomic(
+        event.id,
+        "Phone Person",
+        "phone@example.com",
+        null,
+        1,
+        "+44 7700 900000",
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.attendee.phone).toBe("+44 7700 900000");
+      }
+
+      // Decrypt and verify phone is correctly decrypted
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendees(raw, privateKey);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]?.phone).toBe("+44 7700 900000");
+      expect(attendees[0]?.name).toBe("Phone Person");
+    });
+  });
+
+  describe("attendees - edge cases", () => {
+    test("decryptAttendees handles empty email and phone strings", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Create attendee with empty email/phone via createAttendeeAtomic
+      const result = await createAttendeeAtomic(
+        event.id,
+        "NoContact Person",
+        "", // empty email
+        null,
+        1,
+        "", // empty phone
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.attendee.email).toBe("");
+        expect(result.attendee.phone).toBe("");
+      }
+
+      // Decrypt and verify empty strings come back correctly
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendees(raw, privateKey);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]?.email).toBe("");
+      expect(attendees[0]?.phone).toBe("");
+    });
+
+    test("createAttendeeAtomic stores and returns price_paid when provided", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+        unitPrice: 2500,
+      });
+
+      const result = await createAttendeeAtomic(
+        event.id,
+        "Paying Customer",
+        "pay@example.com",
+        "pi_test_price",
+        1,
+        "",
+        2500,
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.attendee.price_paid).toBe("2500");
+      }
+
+      // Verify decrypted price_paid
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendees(raw, privateKey);
+      expect(attendees[0]?.price_paid).toBe("2500");
+    });
+  });
+
+  describe("events - batch queries", () => {
+    test("getEventWithAttendeesRaw returns event with attendees", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(event.id, event.slug, "Alice", "alice@example.com");
+
+      const result = await getEventWithAttendeesRaw(event.id);
+      expect(result).not.toBeNull();
+      expect(result?.event.id).toBe(event.id);
+      expect(result?.event.attendee_count).toBe(1);
+      expect(result?.attendeesRaw.length).toBe(1);
+    });
+
+    test("getEventWithAttendeesRaw returns null for non-existent event", async () => {
+      const result = await getEventWithAttendeesRaw(999);
+      expect(result).toBeNull();
+    });
+
+    test("getEventWithAttendeeRaw returns event with count fallback", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "Bob", "bob@example.com");
+
+      const result = await getEventWithAttendeeRaw(event.id, attendee.id);
+      expect(result).not.toBeNull();
+      expect(result?.event.id).toBe(event.id);
+      expect(result?.attendeeRaw).not.toBeNull();
+      expect(result?.event.attendee_count).toBe(1);
+    });
+
+    test("getEventWithAttendeeRaw returns null for non-existent event", async () => {
+      const result = await getEventWithAttendeeRaw(999, 1);
+      expect(result).toBeNull();
+    });
+
+    test("getEventsBySlugsBatch returns empty array for empty slugs", async () => {
+      const result = await getEventsBySlugsBatch([]);
+      expect(result).toEqual([]);
+    });
+
+    test("getEventsBySlugsBatch returns events in slug order", async () => {
+      const event1 = await createTestEvent({
+        slug: "batch-a",
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+      });
+      const event2 = await createTestEvent({
+        slug: "batch-b",
+        maxAttendees: 20,
+        thankYouUrl: "https://example.com",
+      });
+
+      const results = await getEventsBySlugsBatch(["batch-b", "batch-a"]);
+      expect(results.length).toBe(2);
+      expect(results[0]?.id).toBe(event2.id);
+      expect(results[1]?.id).toBe(event1.id);
+    });
+
+    test("getEventsBySlugsBatch returns null for missing slugs", async () => {
+      await createTestEvent({
+        slug: "exists",
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+      });
+
+      const results = await getEventsBySlugsBatch(["exists", "missing"]);
+      expect(results.length).toBe(2);
+      expect(results[0]).not.toBeNull();
+      expect(results[1]).toBeNull();
+    });
+  });
+
+  describe("login-attempts - expired lockout", () => {
+    test("isLoginRateLimited resets expired lockout and returns false", async () => {
+      // Insert a record with locked_until in the past
+      await getDb().execute({
+        sql: "INSERT INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
+        args: ["expired-ip-hash", 5, Date.now() - 60000],
+      });
+
+      // This uses the raw hashed IP - we need to test via the public API
+      // The existing test at line 993 already covers this via isLoginRateLimited
+      // But let's verify that after the expired lockout reset, new attempts work
+      const ip = "192.168.99.1";
+
+      // Lock the IP
+      for (let i = 0; i < 5; i++) {
+        await recordFailedLogin(ip);
+      }
+      expect(await isLoginRateLimited(ip)).toBe(true);
+
+      // Simulate expired lockout by manipulating the DB directly
+      await getDb().execute({
+        sql: "UPDATE login_attempts SET locked_until = ? WHERE locked_until IS NOT NULL",
+        args: [Date.now() - 1000],
+      });
+
+      // Should detect expired lockout, clear it, and return false
+      const limited = await isLoginRateLimited(ip);
+      expect(limited).toBe(false);
+
+      // Verify the record was cleared - can fail new attempts again
+      const locked = await recordFailedLogin(ip);
+      expect(locked).toBe(false);
+    });
+  });
+
+  describe("processed payments", () => {
+    test("reserveSession succeeds on first call", async () => {
+      const result = await reserveSession("sess_test_1");
+      expect(result.reserved).toBe(true);
+    });
+
+    test("reserveSession returns existing when session already reserved and finalized", async () => {
+      // Create an actual attendee so FK constraint is satisfied
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendeeResult = await createAttendeeAtomic(
+        event.id,
+        "Test",
+        "test@example.com",
+      );
+      if (!attendeeResult.success) throw new Error("Failed to create attendee");
+
+      await reserveSession("sess_dup");
+      await finalizePaymentSession("sess_dup", attendeeResult.attendee.id);
+
+      const result = await reserveSession("sess_dup");
+      expect(result.reserved).toBe(false);
+      if (!result.reserved) {
+        expect(result.existing.attendee_id).toBe(attendeeResult.attendee.id);
+      }
+    });
+
+    test("reserveSession handles UNIQUE constraint with unfinalized reservation (not stale)", async () => {
+      // Reserve but don't finalize (attendee_id is NULL)
+      await reserveSession("sess_unfinalized");
+
+      // Immediately try to reserve again - should return existing (not stale yet)
+      const result = await reserveSession("sess_unfinalized");
+      expect(result.reserved).toBe(false);
+      if (!result.reserved) {
+        expect(result.existing.attendee_id).toBeNull();
+      }
+    });
+
+    test("reserveSession retries when stale reservation detected", async () => {
+      jest.useFakeTimers();
+      const startTime = Date.now();
+      jest.setSystemTime(startTime);
+
+      // Create initial reservation
+      await reserveSession("sess_stale");
+
+      // Advance time past stale threshold
+      jest.setSystemTime(startTime + STALE_RESERVATION_MS + 1000);
+
+      // This should detect the stale reservation, delete it, and retry
+      const result = await reserveSession("sess_stale");
+      expect(result.reserved).toBe(true);
+
+      jest.useRealTimers();
+    });
+
+    test("reserveSession re-throws non-unique-constraint errors", async () => {
+      // Drop the table to cause a different error
+      await getDb().execute("DROP TABLE processed_payments");
+
+      try {
+        await reserveSession("sess_error");
+        // Should not reach here
+        expect(true).toBe(false);
+      } catch (e) {
+        expect(String(e)).not.toContain("UNIQUE constraint");
+      }
+
+      // Recreate the table for subsequent tests (without FK for simplicity)
+      await getDb().execute(`
+        CREATE TABLE IF NOT EXISTS processed_payments (
+          payment_session_id TEXT PRIMARY KEY,
+          attendee_id INTEGER,
+          processed_at TEXT NOT NULL,
+          FOREIGN KEY (attendee_id) REFERENCES attendees(id)
+        )
+      `);
+    });
+
+    test("reserveSession retries when stale reservation is detected (recursive path)", async () => {
+      jest.useFakeTimers();
+      const startTime = Date.now();
+      jest.setSystemTime(startTime);
+
+      await reserveSession("sess_race");
+
+      // Make it stale so it gets deleted on retry
+      jest.setSystemTime(startTime + STALE_RESERVATION_MS + 1000);
+
+      const result = await reserveSession("sess_race");
+      expect(result.reserved).toBe(true);
+
+      // Verify the session was re-reserved
+      const processed = await isSessionProcessed("sess_race");
+      expect(processed).not.toBeNull();
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe("settings - additional coverage", () => {
+    test("clearPaymentProvider removes payment provider setting", async () => {
+      await setPaymentProvider("stripe");
+      expect(await getSetting(CONFIG_KEYS.PAYMENT_PROVIDER)).toBe("stripe");
+
+      await clearPaymentProvider();
+      expect(await getSetting(CONFIG_KEYS.PAYMENT_PROVIDER)).toBeNull();
+    });
+
+    test("verifyAdminPassword returns null when no password hash is stored", async () => {
+      // Before completeSetup, there's no admin_password in settings
+      // createTestDbWithSetup already calls completeSetup, so delete the hash
+      await getDb().execute({
+        sql: "DELETE FROM settings WHERE key = ?",
+        args: [CONFIG_KEYS.ADMIN_PASSWORD],
+      });
+
+      const result = await verifyAdminPassword("anypassword");
+      expect(result).toBeNull();
+    });
+
+    test("unwrapDataKey returns null when no wrapped key stored", async () => {
+      await getDb().execute({
+        sql: "DELETE FROM settings WHERE key = ?",
+        args: [CONFIG_KEYS.WRAPPED_DATA_KEY],
+      });
+
+      const result = await unwrapDataKey("somehash");
+      expect(result).toBeNull();
+    });
+
+    test("updateAdminPassword returns false when dataKey unwrap fails", async () => {
+      // Set up valid password but corrupt the wrapped data key
+      await completeSetup("validpassword", "GBP");
+      await getDb().execute({
+        sql: "DELETE FROM settings WHERE key = ?",
+        args: [CONFIG_KEYS.WRAPPED_DATA_KEY],
+      });
+
+      const result = await updateAdminPassword("validpassword", "newpassword");
+      expect(result).toBe(false);
+    });
+  });
+
+  describe("table utilities - non-generated primary key", () => {
+    test("insert with non-generated primary key uses empty initial row", async () => {
+      const { col, defineTable } = await import("#lib/db/table.ts");
+
+      // Create a table where the primary key is NOT generated (user-supplied)
+      await getDb().execute(`
+        CREATE TABLE IF NOT EXISTS kv_store (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        )
+      `);
+
+      type KvRow = { key: string; value: string };
+      type KvInput = { key: string; value: string };
+      const kvTable = defineTable<KvRow, KvInput>({
+        name: "kv_store",
+        primaryKey: "key",
+        schema: {
+          key: col.simple<string>(),
+          value: col.simple<string>(),
+        },
+      });
+
+      const row = await kvTable.insert({ key: "test-key", value: "test-value" });
+      expect(row.key).toBe("test-key");
+      expect(row.value).toBe("test-value");
+
+      // Verify it was actually stored
+      const fetched = await kvTable.findById("test-key");
+      expect(fetched).not.toBeNull();
+      expect(fetched?.value).toBe("test-value");
+    });
+  });
+
+  describe("table utilities - inputKeyMap fallback", () => {
+    test("inputKeyMap maps single-word columns to themselves", async () => {
+      const { buildInputKeyMap } = await import("#lib/db/table.ts");
+      // Single-word columns like "name" should map to themselves
+      // This exercises the ?? dbCol fallback since toCamelCase("name") === "name"
+      const map = buildInputKeyMap(["name", "max_attendees"]);
+      expect(map["name"]).toBe("name");
+      expect(map["max_attendees"]).toBe("maxAttendees");
+    });
+
+    test("getProvidedColumns uses inputKeyMap fallback for single-word keys", async () => {
+      // The events table has a 'slug' column - toCamelCase("slug") === "slug"
+      // This tests the ?? dbCol path in getInputValue and getProvidedColumns
+      const event = await createTestEvent({
+        slug: "fallback-test",
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Update with only slug - exercises getInputValue with dbCol fallback
+      const updated = await eventsTable.update(event.id, {
+        slug: "updated-slug",
+        slugIndex: "updated-index",
+        maxAttendees: 10,
+        thankYouUrl: "https://example.com",
+      });
+      expect(updated?.slug).toBe("updated-slug");
     });
   });
 });

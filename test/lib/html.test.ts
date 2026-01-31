@@ -3,6 +3,9 @@ import { CSS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminEventPage } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
+import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
+import { Breadcrumb } from "#templates/admin/nav.tsx";
+import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import {
   paymentCancelPage,
@@ -10,7 +13,7 @@ import {
   paymentPage,
   paymentSuccessPage,
 } from "#templates/payment.tsx";
-import { notFoundPage, ticketPage } from "#templates/public.tsx";
+import { buildMultiTicketEvent, multiTicketPage, notFoundPage, ticketPage } from "#templates/public.tsx";
 import { testAttendee, testEvent, testEventWithCount } from "#test-utils";
 
 const TEST_CSRF_TOKEN = "test-csrf-token-abc123";
@@ -490,6 +493,128 @@ describe("html", () => {
       expect(lines[1]).toContain("pi_shared_123");
       expect(lines[2]).toContain("30.00");
       expect(lines[2]).toContain("pi_shared_123");
+    });
+
+    test("formats price as empty when price_paid is non-numeric string", () => {
+      const attendees = [testAttendee({ price_paid: "not-a-number" })];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      // NaN price_paid should result in empty price field
+      expect(lines[1]).toContain("john@example.com");
+      expect(lines[1]).toMatch(/,,$/);
+    });
+  });
+
+  describe("adminEventActivityLogPage", () => {
+    test("renders activity log entries", () => {
+      const event = testEventWithCount();
+      const entries = [
+        { id: 1, created: "2024-01-15T10:30:00Z", event_id: 1, message: "Ticket reserved" },
+        { id: 2, created: "2024-01-15T11:00:00Z", event_id: 1, message: "Payment received" },
+      ];
+      const html = adminEventActivityLogPage(event, entries);
+      expect(html).toContain("Ticket reserved");
+      expect(html).toContain("Payment received");
+      expect(html).toContain("Activity Log");
+    });
+
+    test("renders empty state when no entries", () => {
+      const event = testEventWithCount();
+      const html = adminEventActivityLogPage(event, []);
+      expect(html).toContain("No activity recorded yet");
+    });
+  });
+
+  describe("adminGlobalActivityLogPage", () => {
+    test("renders global activity log with entries", () => {
+      const entries = [
+        { id: 1, created: "2024-01-15T10:30:00Z", event_id: null, message: "System started" },
+      ];
+      const html = adminGlobalActivityLogPage(entries);
+      expect(html).toContain("System started");
+      expect(html).toContain("Activity Log");
+    });
+
+    test("renders empty state when no entries", () => {
+      const html = adminGlobalActivityLogPage([]);
+      expect(html).toContain("No activity recorded yet");
+    });
+  });
+
+  describe("adminDashboardPage inactive events", () => {
+    test("renders inactive event with reduced opacity", () => {
+      const events = [testEventWithCount({ active: 0, attendee_count: 5 })];
+      const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
+      expect(html).toContain("opacity: 0.5");
+      expect(html).toContain("Inactive");
+    });
+  });
+
+  describe("adminEventPage inactive and optional fields", () => {
+    test("shows reactivate link for inactive events", () => {
+      const event = testEventWithCount({ active: 0, attendee_count: 0 });
+      const html = adminEventPage(event, [], "localhost");
+      expect(html).toContain("/reactivate");
+      expect(html).toContain("Reactivate");
+    });
+
+    test("shows inactive status for inactive events", () => {
+      const event = testEventWithCount({ active: 0, attendee_count: 0 });
+      const html = adminEventPage(event, [], "localhost");
+      expect(html).toContain("Inactive (returns 404 on public page)");
+      expect(html).toContain('color: red');
+    });
+
+    test("shows simple success message text when no thank_you_url", () => {
+      const event = testEventWithCount({ thank_you_url: null, attendee_count: 0 });
+      const html = adminEventPage(event, [], "localhost");
+      expect(html).toContain("None (shows simple success message)");
+    });
+
+    test("shows webhook URL when present", () => {
+      const event = testEventWithCount({ webhook_url: "https://hooks.example.com/notify", attendee_count: 0 });
+      const html = adminEventPage(event, [], "localhost");
+      expect(html).toContain("Webhook URL:");
+      expect(html).toContain("https://hooks.example.com/notify");
+    });
+  });
+
+  describe("Breadcrumb", () => {
+    test("renders breadcrumb link with label", () => {
+      const html = String(Breadcrumb({ href: "/admin/", label: "Back to Events" }));
+      expect(html).toContain('href="/admin/"');
+      expect(html).toContain("Back to Events");
+      expect(html).toContain("\u2190");
+    });
+  });
+
+  describe("adminSessionsPage", () => {
+    test("renders session rows", () => {
+      const sessions = [
+        { token: "abcdefghijklmnop", csrf_token: "csrf1", expires: Date.now() + 86400000, wrapped_data_key: null },
+        { token: "qrstuvwxyz123456", csrf_token: "csrf2", expires: Date.now() + 86400000, wrapped_data_key: null },
+      ];
+      const html = adminSessionsPage(sessions, "abcdefghijklmnop", TEST_CSRF_TOKEN);
+      expect(html).toContain("abcdefgh...");
+      expect(html).toContain("qrstuvwx...");
+      expect(html).toContain("Current");
+    });
+
+    test("renders empty state when no sessions", () => {
+      const html = adminSessionsPage([], "some-token", TEST_CSRF_TOKEN);
+      expect(html).toContain("No sessions");
+    });
+  });
+
+  describe("multiTicketPage", () => {
+    test("shows all sold out message when every event is sold out", () => {
+      const events = [
+        buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "event-a", attendee_count: 100, max_attendees: 100 })),
+        buildMultiTicketEvent(testEventWithCount({ id: 2, slug: "event-b", attendee_count: 50, max_attendees: 50 })),
+      ];
+      const html = multiTicketPage(events, ["event-a", "event-b"], TEST_CSRF_TOKEN);
+      expect(html).toContain("Sorry, all events are sold out.");
+      expect(html).not.toContain("Reserve Tickets</button>");
     });
   });
 });
