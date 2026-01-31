@@ -11,6 +11,7 @@ describe("square-provider", () => {
 
   afterEach(() => {
     resetDb();
+    Deno.env.set("ALLOWED_DOMAIN", "localhost");
   });
 
   describe("type", () => {
