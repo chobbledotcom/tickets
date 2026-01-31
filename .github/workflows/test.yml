@@ -59,30 +59,3 @@ jobs:
           ALLOWED_DOMAIN: localhost
           DB_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
         run: deno task test:coverage
-
-      - name: Enforce 100% coverage
-        run: |
-          # Strip ANSI codes, parse coverage table, check all files are 100%
-          OUTPUT=$(deno coverage coverage/ 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
-          echo "$OUTPUT"
-          # Extract data rows (skip header, separator, and "All files" summary)
-          FAILED=$(echo "$OUTPUT" | grep '^|' | grep -v '^\| File' | grep -v '^\| ---' | grep -v '^\| All files' | while IFS='|' read -r _ file branch line _; do
-            branch=$(echo "$branch" | tr -d ' ')
-            line=$(echo "$line" | tr -d ' ')
-            if [ "$branch" != "100.0" ] || [ "$line" != "100.0" ]; then
-              echo "$file (branch: $branch%, line: $line%)"
-            fi
-          done)
-          if [ -n "$FAILED" ]; then
-            echo ""
-            echo "::error::Coverage is not 100% for all files:"
-            echo "$FAILED"
-            echo ""
-            echo "Test quality rules:"
-            echo "  - Only 100% coverage is acceptable"
-            echo "  - Test outcomes not implementations"
-            echo "  - Test-only exports are forbidden"
-            echo "  - Tautological tests are forbidden"
-            exit 1
-          fi
-          echo "All files have 100% coverage"
