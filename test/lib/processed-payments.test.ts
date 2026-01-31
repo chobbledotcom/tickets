@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import {
   deleteStaleReservation,
   finalizeSession,
@@ -8,6 +8,7 @@ import {
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#lib/db/processed-payments.ts";
+import { getDb } from "#lib/db/client.ts";
 import {
   createTestAttendee,
   createTestDbWithSetup,
@@ -353,6 +354,56 @@ describe("processed-payments", () => {
       expect(result.reserved).toBe(false);
       if (!result.reserved) {
         expect(result.existing.attendee_id).toBe(testAttendeeId);
+      }
+    });
+  });
+
+  describe("reserveSession race condition recovery", () => {
+    test("retries when record disappeared between UNIQUE error and SELECT", async () => {
+      // Simulate the edge case: INSERT fails with UNIQUE constraint,
+      // but the record was deleted between INSERT and SELECT.
+      // This exercises the recursive reserveSession(sessionId) call on line 93.
+      const sessionId = "cs_race_vanish";
+      let callCount = 0;
+
+      // First, manually insert the record
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: [sessionId, new Date().toISOString()],
+      });
+
+      // Spy on getDb().execute so we can simulate the race:
+      // On the first INSERT attempt after we set up the spy, it hits UNIQUE constraint.
+      // On the isSessionProcessed call, it should return null (we delete the record).
+      // Then the recursive call should succeed.
+      const origExecute = getDb().execute.bind(getDb());
+
+      // Delete the record right after it causes a UNIQUE error but before isSessionProcessed runs
+      const executeSpy = spyOn(getDb(), "execute");
+      executeSpy.mockImplementation(async (stmt: unknown) => {
+        const sql = typeof stmt === "string" ? stmt : (stmt as { sql: string }).sql;
+
+        if (sql.includes("INSERT INTO processed_payments") && callCount === 0) {
+          callCount++;
+          // Delete the record to simulate the race condition
+          await origExecute({
+            sql: "DELETE FROM processed_payments WHERE payment_session_id = ?",
+            args: [sessionId],
+          });
+          // Now throw UNIQUE constraint error (simulating the original INSERT that failed)
+          throw new Error("UNIQUE constraint failed: processed_payments.payment_session_id");
+        }
+
+        // For all other calls, use the original
+        return origExecute(stmt as Parameters<typeof origExecute>[0]);
+      });
+
+      try {
+        const result = await reserveSession(sessionId);
+        // After retry, should succeed
+        expect(result.reserved).toBe(true);
+      } finally {
+        executeSpy.mockRestore();
       }
     });
   });

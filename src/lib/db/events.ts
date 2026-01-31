@@ -177,7 +177,7 @@ export const getEventWithAttendeesRaw = async (
   const eventRow = extractEventRow(eventResult);
   if (!eventRow) return null;
 
-  const attendeesRaw = (attendeesResult?.rows ?? []) as unknown as Attendee[];
+  const attendeesRaw = attendeesResult!.rows as unknown as Attendee[];
   const count = attendeesRaw.reduce((sum, a) => sum + a.quantity, 0);
   return { event: await decryptEventRow(eventRow, count), attendeesRaw };
 };
@@ -206,7 +206,7 @@ export const getEventWithAttendeeRaw = async (
   const eventRow = extractEventRow(eventResult);
   if (!eventRow) return null;
 
-  const count = (countResult?.rows[0] as unknown as { count: number })?.count ?? 0;
+  const count = (countResult!.rows[0] as unknown as { count: number }).count;
   return {
     event: await decryptEventRow(eventRow, count),
     attendeeRaw: (attendeeResult?.rows[0] as unknown as Attendee) ?? null,

@@ -55,11 +55,16 @@ export const getStripeWebhookSecret = (): Promise<string | null> => {
   return getStripeWebhookSecretFromDb();
 };
 
+/** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
+export const configApi = {
+  getPaymentProvider,
+};
+
 /**
  * Check if payments are enabled (any provider configured with valid keys)
  */
 export const isPaymentsEnabled = async (): Promise<boolean> => {
-  const provider = await getPaymentProvider();
+  const provider = await configApi.getPaymentProvider();
   if (!provider) return false;
   if (provider === "stripe") return hasStripeKey();
   if (provider === "square") return hasSquareToken();

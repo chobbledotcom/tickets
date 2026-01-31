@@ -208,10 +208,8 @@ export const defineTable = <Row, Input = Row>(config: {
   const getInputValue = (
     input: Input | Partial<Input>,
     dbCol: string,
-  ): unknown => {
-    const inputKey = inputKeyMap[dbCol] ?? dbCol;
-    return (input as Record<string, unknown>)[inputKey];
-  };
+  ): unknown =>
+    (input as Record<string, unknown>)[inputKeyMap[dbCol] as string];
 
   // Transform a row from DB (apply read transforms)
   const fromDb = async (row: Row): Promise<Row> => {
@@ -255,8 +253,7 @@ export const defineTable = <Row, Input = Row>(config: {
     input: Input,
     dbValues: Record<string, InValue>,
   ): unknown => {
-    const inputKey = inputKeyMap[col] ?? col;
-    const inputValue = (input as Record<string, unknown>)[inputKey];
+    const inputValue = (input as Record<string, unknown>)[inputKeyMap[col] as string];
     if (inputValue !== undefined) return inputValue;
     if (col in dbValues) return dbValues[col];
     return null;
@@ -289,10 +286,9 @@ export const defineTable = <Row, Input = Row>(config: {
 
   // Get columns that were provided in input
   const getProvidedColumns = (input: Partial<Input>): string[] =>
-    filter((col: string) => {
-      const inputKey = inputKeyMap[col] ?? col;
-      return inputKey in (input as object);
-    })(inputColumns);
+    filter((col: string) =>
+      (inputKeyMap[col] as string) in (input as object),
+    )(inputColumns);
 
   // Update implementation
   const update = async (

@@ -4,6 +4,7 @@ import {
   enforceMetadataLimits,
   getSquareClient,
   resetSquareClient,
+  retrievePayment,
   squareApi,
   verifyWebhookSignature,
 } from "#lib/square.ts";
@@ -14,7 +15,7 @@ import {
   updateSquareLocationId,
   updateSquareWebhookSignatureKey,
 } from "#lib/db/settings.ts";
-import { createTestDb, resetDb, withMocks } from "#test-utils";
+import { createTestDb, resetDb, testEvent, withMocks } from "#test-utils";
 
 /** Create a mock Square SDK client with spyable methods */
 const createMockClient = () => {
@@ -59,6 +60,16 @@ describe("square", () => {
       const client = await getSquareClient();
       expect(client).not.toBeNull();
     });
+
+    test("returns cached client on second call with same token", async () => {
+      await updateSquareAccessToken("EAAAl_cache_test");
+      const client1 = await getSquareClient();
+      expect(client1).not.toBeNull();
+
+      // Second call with same token should use cached path
+      const client2 = await getSquareClient();
+      expect(client2).not.toBeNull();
+    });
   });
 
   describe("resetSquareClient", () => {
@@ -88,7 +99,7 @@ describe("square", () => {
       const result = enforceMetadataLimits(metadata);
       expect(result).not.toBeNull();
       expect(result!.name).toBe("A".repeat(255));
-      expect(result!.name.length).toBe(255);
+      expect(result!.name!.length).toBe(255);
       expect(result!.event_id).toBe("1");
     });
 
@@ -255,7 +266,8 @@ describe("square", () => {
           expect(result!.url).toBe("https://square.link/abc");
 
           // Verify SDK was called with correctly constructed order
-          const args = checkoutCreate.mock.calls[0][0];
+          // deno-lint-ignore no-explicit-any
+          const args = checkoutCreate.mock.calls[0]![0] as any;
           expect(args.order.locationId).toBe("L_loc_456");
           expect(args.order.lineItems).toHaveLength(1);
           expect(args.order.lineItems[0].name).toBe("Ticket: concert-2025");
@@ -322,7 +334,8 @@ describe("square", () => {
 
           await squareApi.createPaymentLink(event, intent, "http://localhost");
 
-          const args = checkoutCreate.mock.calls[0][0];
+          // deno-lint-ignore no-explicit-any
+          const args = checkoutCreate.mock.calls[0]![0] as any;
           expect(args.prePopulatedData.buyerPhoneNumber).toBeUndefined();
           expect(args.order.metadata.phone).toBeUndefined();
           expect(args.order.lineItems[0].note).toBe("Ticket");
@@ -416,8 +429,39 @@ describe("square", () => {
           expect(result).not.toBeNull();
 
           // Verify name was truncated in metadata
-          const args = checkoutCreate.mock.calls[0][0];
+          // deno-lint-ignore no-explicit-any
+          const args = checkoutCreate.mock.calls[0]![0] as any;
           expect(args.order.metadata.name.length).toBe(255);
+        },
+      );
+    });
+
+    test("returns null when non-truncatable metadata exceeds limit", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareLocationId("L_loc_456");
+      const { client } = createMockClient();
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const event = testEvent({
+            unit_price: 1000,
+            fields: "email" as const,
+          });
+          const intent = {
+            eventId: 1,
+            name: "John",
+            email: "a".repeat(300) + "@example.com",
+            phone: "",
+            quantity: 1,
+          };
+
+          const result = await squareApi.createPaymentLink(
+            event,
+            intent,
+            "http://localhost",
+          );
+          expect(result).toBeNull();
         },
       );
     });
@@ -458,6 +502,35 @@ describe("square", () => {
       expect(result).toBeNull();
     });
 
+    test("returns null when SDK response missing orderId", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareLocationId("L_multi_loc");
+      const { client, checkoutCreate } = createMockClient();
+      checkoutCreate.mockResolvedValue({
+        paymentLink: { url: "https://square.link/multi" },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const intent = {
+            name: "Bob Missing",
+            email: "bob@example.com",
+            phone: "",
+            items: [
+              { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1" },
+            ],
+          };
+
+          const result = await squareApi.createMultiPaymentLink(
+            intent,
+            "http://localhost",
+          );
+          expect(result).toBeNull();
+        },
+      );
+    });
+
     test("constructs correct SDK call with multiple line items", async () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_multi_loc");
@@ -488,7 +561,8 @@ describe("square", () => {
           expect(result!.orderId).toBe("order_multi");
           expect(result!.url).toBe("https://square.link/multi");
 
-          const args = checkoutCreate.mock.calls[0][0];
+          // deno-lint-ignore no-explicit-any
+          const args = checkoutCreate.mock.calls[0]![0] as any;
 
           // Verify multiple line items
           expect(args.order.lineItems).toHaveLength(2);
@@ -575,7 +649,7 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrieveOrder("order_missing");
           expect(result).toBeNull();
-          expect(ordersGet.mock.calls[0][0]).toEqual({ orderId: "order_missing" });
+          expect(ordersGet.mock.calls[0]![0]).toEqual({ orderId: "order_missing" });
         },
       );
     });
@@ -608,7 +682,8 @@ describe("square", () => {
             email: "john@example.com",
           });
           // Non-string values should be filtered out
-          expect(result!.metadata!["bad_null" as keyof typeof result.metadata]).toBeUndefined();
+          // deno-lint-ignore no-explicit-any
+          expect((result!.metadata as any)["bad_null"]).toBeUndefined();
         },
       );
     });
@@ -633,8 +708,8 @@ describe("square", () => {
           const result = await squareApi.retrieveOrder("order_tenders");
           expect(result).not.toBeNull();
           expect(result!.tenders).toHaveLength(2);
-          expect(result!.tenders![0].paymentId).toBe("pay_abc");
-          expect(result!.tenders![1].paymentId).toBeUndefined();
+          expect(result!.tenders![0]!.paymentId).toBe("pay_abc");
+          expect(result!.tenders![1]!.paymentId).toBeUndefined();
         },
       );
     });
@@ -679,7 +754,7 @@ describe("square", () => {
         async () => {
           const result = await squareApi.retrievePayment("pay_missing");
           expect(result).toBeNull();
-          expect(paymentsGet.mock.calls[0][0]).toEqual({ paymentId: "pay_missing" });
+          expect(paymentsGet.mock.calls[0]![0]).toEqual({ paymentId: "pay_missing" });
         },
       );
     });
@@ -712,6 +787,32 @@ describe("square", () => {
       );
     });
 
+    test("maps null amountMoney.amount to undefined", async () => {
+      const { client, paymentsGet } = createMockClient();
+      paymentsGet.mockResolvedValue({
+        payment: {
+          id: "pay_null_amount",
+          status: "COMPLETED",
+          orderId: "order_null_amt",
+          amountMoney: {
+            amount: null,
+            currency: "USD",
+          },
+        },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const result = await squareApi.retrievePayment("pay_null_amount");
+          expect(result).not.toBeNull();
+          expect(result!.amountMoney).not.toBeUndefined();
+          expect(result!.amountMoney!.amount).toBeUndefined();
+          expect(result!.amountMoney!.currency).toBe("USD");
+        },
+      );
+    });
+
     test("handles missing amountMoney gracefully", async () => {
       const { client, paymentsGet } = createMockClient();
       paymentsGet.mockResolvedValue({
@@ -729,6 +830,31 @@ describe("square", () => {
           const result = await squareApi.retrievePayment("pay_no_amount");
           expect(result).not.toBeNull();
           expect(result!.amountMoney).toBeUndefined();
+        },
+      );
+    });
+  });
+
+  describe("retrievePayment wrapper export", () => {
+    test("delegates to squareApi.retrievePayment", async () => {
+      const { client, paymentsGet } = createMockClient();
+      paymentsGet.mockResolvedValue({
+        payment: {
+          id: "pay_wrapper",
+          status: "COMPLETED",
+          orderId: "order_wrapper",
+          amountMoney: { amount: BigInt(1000), currency: "USD" },
+        },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const result = await retrievePayment("pay_wrapper");
+          expect(result).not.toBeNull();
+          expect(result!.id).toBe("pay_wrapper");
+          expect(result!.status).toBe("COMPLETED");
+          expect(paymentsGet.mock.calls[0]![0]).toEqual({ paymentId: "pay_wrapper" });
         },
       );
     });
@@ -785,10 +911,11 @@ describe("square", () => {
           expect(result).toBe(true);
 
           // Verify payments.get was called to fetch amount
-          expect(paymentsGet.mock.calls[0][0]).toEqual({ paymentId: "pay_refund_me" });
+          expect(paymentsGet.mock.calls[0]![0]).toEqual({ paymentId: "pay_refund_me" });
 
           // Verify refund was called with correct amount and payment ID
-          const refundArgs = refundsRefundPayment.mock.calls[0][0];
+          // deno-lint-ignore no-explicit-any
+          const refundArgs = refundsRefundPayment.mock.calls[0]![0] as any;
           expect(refundArgs.paymentId).toBe("pay_refund_me");
           expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
           expect(refundArgs.amountMoney.currency).toBe("USD");

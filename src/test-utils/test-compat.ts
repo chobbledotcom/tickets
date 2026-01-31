@@ -361,7 +361,8 @@ class ExpectChain<T> {
     }
   }
 
-  toBeInstanceOf(expected: new (...args: unknown[]) => unknown): void {
+  // deno-lint-ignore no-explicit-any
+  toBeInstanceOf(expected: new (...args: any[]) => any): void {
     if (this.isNot) {
       assertFalse(this.actual instanceof expected);
     } else {
@@ -435,11 +436,12 @@ class RejectsChain {
   }
 
   async toThrow(expected?: string | RegExp): Promise<void> {
-    await assertRejects(
-      async () => { await this.promise; },
-      Error,
-      typeof expected === "string" ? expected : undefined,
-    );
+    const fn = () => this.promise;
+    if (typeof expected === "string") {
+      await assertRejects(fn, Error, expected);
+    } else {
+      await assertRejects(fn, Error);
+    }
   }
 }
 
@@ -455,7 +457,8 @@ interface MockFn {
   mockClear(): void;
   mockReset(): void;
   mockRestore?: () => void;
-  mockImplementation(fn: (...args: unknown[]) => unknown): MockFn;
+  // deno-lint-ignore no-explicit-any
+  mockImplementation(fn: (...args: any[]) => any): MockFn;
   mockReturnValue(value: unknown): MockFn;
   mockResolvedValue(value: unknown): MockFn;
   mockRejectedValue(value: unknown): MockFn;
@@ -464,7 +467,8 @@ interface MockFn {
 /**
  * Create a mock function
  */
-export const fn = (impl?: (...args: unknown[]) => unknown): MockFn => {
+// deno-lint-ignore no-explicit-any
+export const fn = (impl?: (...args: any[]) => any): MockFn => {
   let implementation = impl ?? (() => undefined);
 
   const mock: MockFn["mock"] = {
@@ -523,16 +527,14 @@ export const fn = (impl?: (...args: unknown[]) => unknown): MockFn => {
 /**
  * Jest-like jest object
  */
-export const jest: {
+// Forward declaration - actual timer methods assigned after their definitions below
+export const jest = {
+  fn,
+} as {
   fn: typeof fn;
   useFakeTimers: () => void;
   useRealTimers: () => void;
   setSystemTime: (time: number | Date) => void;
-} = {
-  fn,
-  useFakeTimers: () => {},
-  useRealTimers: () => {},
-  setSystemTime: () => {},
 };
 
 /**

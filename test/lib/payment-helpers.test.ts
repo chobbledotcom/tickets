@@ -83,21 +83,14 @@ describe("payment-helpers", () => {
       const withClient = createWithClient(() =>
         Promise.reject(new Error("no client")),
       );
-      // getClient itself throws, but createWithClient doesn't wrap getClient in safeAsync,
-      // so this will reject. Actually let's check: getClient() is awaited directly.
-      // If getClient rejects, the outer function rejects too.
-      // So we need to handle this carefully. Let's test the actual behavior.
-      try {
-        await withClient(
+      // getClient itself throws, and createWithClient doesn't wrap getClient in safeAsync,
+      // so the rejection propagates to the caller.
+      await expect(
+        withClient(
           () => Promise.resolve("value"),
           ErrorCode.PAYMENT_CHECKOUT,
-        );
-        // If we get here, it returned something
-        expect(true).toBe(false); // should not reach
-      } catch (_e) {
-        // getClient rejection propagates
-        expect(true).toBe(true);
-      }
+        ),
+      ).rejects.toThrow("no client");
     });
   });
 

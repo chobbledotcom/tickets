@@ -37,5 +37,20 @@ describe("env", () => {
     test("returns undefined when not set in either", () => {
       expect(getEnv("TEST_ENV_VAR")).toBeUndefined();
     });
+
+    test("returns undefined when neither process.env nor Deno.env are available", () => {
+      // Temporarily remove Deno and process globals to exercise the final return undefined fallback
+      const savedDeno = globalThis.Deno;
+      const savedProcess = (globalThis as Record<string, unknown>).process;
+      try {
+        Object.defineProperty(globalThis, "Deno", { value: undefined, configurable: true, writable: true });
+        Object.defineProperty(globalThis, "process", { value: undefined, configurable: true, writable: true });
+        const result = getEnv("SOME_NONEXISTENT_VAR");
+        expect(result).toBeUndefined();
+      } finally {
+        Object.defineProperty(globalThis, "Deno", { value: savedDeno, configurable: true, writable: false });
+        (globalThis as Record<string, unknown>).process = savedProcess;
+      }
+    });
   });
 });

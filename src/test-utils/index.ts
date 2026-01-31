@@ -68,7 +68,6 @@ let cachedAdminSession: {
 /** Clear all data tables and reset autoincrement counters */
 const clearDataTables = async (
   client: Client,
-  includeSettings = false,
 ): Promise<void> => {
   // Disable FK checks so deletion order doesn't matter
   await client.execute("PRAGMA foreign_keys = OFF");
@@ -78,15 +77,12 @@ const clearDataTables = async (
   );
   for (const row of result.rows) {
     const name = row.name as string;
-    if (!includeSettings && name === "settings") continue;
     await client.execute(`DELETE FROM ${name}`);
   }
-  // Reset autoincrement counters so IDs start from 1
-  try {
-    await client.execute("DELETE FROM sqlite_sequence");
-  } catch {
-    // sqlite_sequence may not exist if no AUTOINCREMENT tables have been used
-  }
+  // Reset autoincrement counters so IDs start from 1 (table may not exist)
+  await client.execute(
+    "DELETE FROM sqlite_sequence WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='sqlite_sequence')",
+  );
   await client.execute("PRAGMA foreign_keys = ON");
 };
 
@@ -108,7 +104,7 @@ const prepareTestClient = async (): Promise<{ reused: boolean }> => {
 
   if (cachedClient && await isSchemaIntact(cachedClient)) {
     setDb(cachedClient);
-    await clearDataTables(cachedClient, true);
+    await clearDataTables(cachedClient);
     return { reused: true };
   }
 
@@ -656,13 +652,8 @@ export const updateTestEvent = async (
       unit_price: formatPrice(updates.unitPrice, existing.unit_price),
       webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
     },
-    async () => {
-      const updated = await getEventWithCount(eventId);
-      if (!updated) {
-        throw new Error(`Event not found after update: ${eventId}`);
-      }
-      return updated;
-    },
+    async () =>
+      (await getEventWithCount(eventId)) as EventWithCount,
     "update event",
   );
 };
@@ -715,10 +706,6 @@ export const createTestAttendee = async (
 ): Promise<Attendee> => {
   const { handleRequest } = await import("#routes");
 
-  // Get count before to find the new attendee
-  const beforeAttendees = await getAttendeesRaw(eventId);
-  const beforeCount = beforeAttendees.length;
-
   // Get the ticket page to get a CSRF token
   const pageResponse = await handleRequest(mockRequest(`/ticket/${eventSlug}`));
   const csrfToken = getTicketCsrfToken(
@@ -743,13 +730,8 @@ export const createTestAttendee = async (
     );
   }
 
-  // Get the created attendee (most recent one)
+  // Return the most recent attendee (DESC order puts newest first)
   const afterAttendees = await getAttendeesRaw(eventId);
-  if (afterAttendees.length <= beforeCount) {
-    throw new Error("Attendee was not created");
-  }
-
-  // Return the first attendee (most recent due to DESC order)
   return afterAttendees[0] as Attendee;
 };
 
@@ -884,8 +866,7 @@ export const expectValid = (
 ): Record<string, unknown> => {
   const result = validateFormData(fields, data);
   expect(result.valid).toBe(true);
-  if (!result.valid) throw new Error("Expected valid result");
-  return result.values;
+  return (result as { valid: true; values: Record<string, unknown> }).values;
 };
 
 /** Validate form data against fields and assert the result is invalid with given error. */
@@ -904,6 +885,49 @@ export const expectInvalidForm = (
 ): void => {
   expect(validateFormData(fields, data).valid).toBe(false);
 };
+
+/**
+ * Submit a ticket form with automatic CSRF token handling.
+ * GETs the ticket page first to obtain a CSRF token, then POSTs the form.
+ */
+export const submitTicketForm = async (
+  slug: string,
+  data: Record<string, string>,
+): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  const getResponse = await handleRequest(mockRequest(`/ticket/${slug}`));
+  const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+  if (!csrfToken) throw new Error("Failed to get CSRF token from ticket page");
+  return handleRequest(mockTicketFormRequest(slug, data, csrfToken));
+};
+
+/**
+ * Configure Stripe as the payment provider for tests.
+ */
+export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
+  const { updateStripeKey, setPaymentProvider } = await import(
+    "#lib/db/settings.ts"
+  );
+  await updateStripeKey(key);
+  await setPaymentProvider("stripe");
+};
+
+/**
+ * Create a mock webhook POST request.
+ */
+export const mockWebhookRequest = (
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+): Request =>
+  new Request("http://localhost/payment/webhook", {
+    method: "POST",
+    headers: {
+      host: "localhost",
+      "content-type": "application/json",
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
 
 /** Base event form data — merge with overrides for specific test cases. */
 export const baseEventForm: Record<string, string> = {

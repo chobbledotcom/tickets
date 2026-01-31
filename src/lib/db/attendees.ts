@@ -131,7 +131,7 @@ const buildAttendeeResult = (
   quantity: number,
   pricePaid: number | null,
 ): Attendee => ({
-  id: Number(insertId ?? 0),
+  id: Number(insertId),
   event_id: eventId,
   name,
   email,
@@ -169,18 +169,6 @@ export const getAttendee = async (
 export const deleteAttendee = (attendeeId: number): Promise<void> =>
   attendeesTable.deleteById(attendeeId);
 
-/**
- * Check if event has available spots for given quantity
- */
-export const hasAvailableSpots = async (
-  eventId: number,
-  quantity = 1,
-): Promise<boolean> => {
-  const event = await getEventWithCount(eventId);
-  if (!event) return false;
-  return event.attendee_count + quantity <= event.max_attendees;
-};
-
 /** Result of atomic attendee creation */
 export type CreateAttendeeResult =
   | { success: true; attendee: Attendee }
@@ -188,6 +176,15 @@ export type CreateAttendeeResult =
 
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
+  /** Check if an event has available spots for the requested quantity */
+  hasAvailableSpots: async (
+    eventId: number,
+    quantity = 1,
+  ): Promise<boolean> => {
+    const event = await getEventWithCount(eventId);
+    if (!event) return false;
+    return event.attendee_count + quantity <= event.max_attendees;
+  },
   /**
    * Atomically create attendee with capacity check in single SQL statement.
    * Prevents race conditions by combining check and insert.
@@ -250,6 +247,12 @@ export const attendeesApi = {
     };
   },
 };
+
+/** Wrapper for test mocking - delegates to attendeesApi at runtime */
+export const hasAvailableSpots = (
+  eventId: number,
+  quantity = 1,
+): Promise<boolean> => attendeesApi.hasAvailableSpots(eventId, quantity);
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const createAttendeeAtomic = (

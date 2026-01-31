@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import {
+  configApi,
   getAllowedDomain,
   getCurrencyCode,
   getPaymentProvider,
@@ -11,6 +12,8 @@ import {
   isPaymentsEnabled,
   isSetupComplete,
 } from "#lib/config.ts";
+import { getEnv } from "#lib/env.ts";
+import { getActivePaymentProvider, paymentsApi } from "#lib/payments.ts";
 import {
   completeSetup,
   setPaymentProvider,
@@ -20,7 +23,7 @@ import {
   updateSquareWebhookSignatureKey,
   updateStripeKey,
 } from "#lib/db/settings.ts";
-import { createTestDb, resetDb } from "#test-utils";
+import { createTestDb, resetDb, setupStripe, withMocks } from "#test-utils";
 import process from "node:process";
 
 describe("config", () => {
@@ -97,8 +100,7 @@ describe("config", () => {
     });
 
     test("returns true when provider is stripe and key is set", async () => {
-      await setPaymentProvider("stripe");
-      await updateStripeKey("sk_test_123");
+      await setupStripe("sk_test_123");
       expect(await isPaymentsEnabled()).toBe(true);
     });
 
@@ -179,5 +181,111 @@ describe("config", () => {
       Deno.env.set("ALLOWED_DOMAIN", "localhost");
       expect(getAllowedDomain()).toBe("localhost");
     });
+  });
+
+  describe("isPaymentsEnabled - non-stripe provider", () => {
+    test("returns false when provider is set to unknown value", async () => {
+      // Set provider to a non-stripe value that getPaymentProvider will return null for
+      await setSetting("payment_provider", "paypal");
+      await updateStripeKey("sk_test_123");
+      // getPaymentProvider returns null for unknown providers, so isPaymentsEnabled returns false
+      expect(await isPaymentsEnabled()).toBe(false);
+    });
+  });
+
+  describe("getStripePublishableKey - edge cases", () => {
+    test("returns null when key is whitespace only", () => {
+      process.env.STRIPE_PUBLISHABLE_KEY = "   ";
+      expect(getStripePublishableKey()).toBeNull();
+    });
+  });
+
+  describe("isPaymentsEnabled - unknown provider fallback", () => {
+    test("returns false when provider is an unrecognized value", async () => {
+      // Mock configApi.getPaymentProvider to return a value not handled by the switch
+      await withMocks(
+        () => spyOn(configApi, "getPaymentProvider").mockResolvedValue("paypal" as never),
+        async () => {
+          const result = await isPaymentsEnabled();
+          expect(result).toBe(false);
+        },
+      );
+    });
+  });
+});
+
+describe("env", () => {
+  test("getEnv returns undefined when variable is not set anywhere", () => {
+    const uniqueKey = "TOTALLY_NONEXISTENT_VAR_XYZ_123";
+    // Ensure it's not in process.env
+    delete process.env[uniqueKey];
+    // Ensure it's not in Deno.env
+    try { Deno.env.delete(uniqueKey); } catch { /* may not exist */ }
+
+    const result = getEnv(uniqueKey);
+    expect(result).toBeUndefined();
+  });
+
+  test("getEnv reads from process.env when available", () => {
+    process.env.TEST_ENV_VAR_CONFIG = "from_process";
+    const result = getEnv("TEST_ENV_VAR_CONFIG");
+    expect(result).toBe("from_process");
+    delete process.env.TEST_ENV_VAR_CONFIG;
+  });
+
+  test("getEnv falls back to Deno.env when not in process.env", () => {
+    const key = "TEST_DENO_ONLY_VAR";
+    delete process.env[key];
+    Deno.env.set(key, "from_deno");
+    const result = getEnv(key);
+    expect(result).toBe("from_deno");
+    Deno.env.delete(key);
+  });
+});
+
+describe("payments", () => {
+  beforeEach(async () => {
+    await createTestDb();
+  });
+
+  afterEach(() => {
+    resetDb();
+  });
+
+  test("getActivePaymentProvider returns null when no provider configured", async () => {
+    const provider = await getActivePaymentProvider();
+    expect(provider).toBeNull();
+  });
+
+  test("getActivePaymentProvider returns null for unknown provider type", async () => {
+    // Set a non-stripe provider type directly
+    await setSetting("payment_provider", "unknown_provider");
+    const provider = await getActivePaymentProvider();
+    expect(provider).toBeNull();
+  });
+
+  test("getActivePaymentProvider returns stripe provider when configured", async () => {
+    await setPaymentProvider("stripe");
+    const provider = await getActivePaymentProvider();
+    expect(provider).not.toBeNull();
+    expect(provider?.type).toBe("stripe");
+  });
+
+  test("getActivePaymentProvider returns square provider when configured", async () => {
+    await setPaymentProvider("square");
+    const provider = await getActivePaymentProvider();
+    expect(provider).not.toBeNull();
+    expect(provider?.type).toBe("square");
+  });
+
+  test("getActivePaymentProvider returns null for unrecognized provider type", async () => {
+    // Mock paymentsApi.getConfiguredProvider to return a value that is not stripe or square
+    await withMocks(
+      () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue("paypal" as never),
+      async () => {
+        const provider = await getActivePaymentProvider();
+        expect(provider).toBeNull();
+      },
+    );
   });
 });
