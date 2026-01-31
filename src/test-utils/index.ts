@@ -100,11 +100,8 @@ const isSchemaIntact = async (client: Client): Promise<boolean> => {
   }
 };
 
-/**
- * Create an in-memory database for testing (without setup).
- * Reuses the cached client and schema when possible, clearing all data.
- */
-export const createTestDb = async (): Promise<void> => {
+/** Common setup: env, caches, and reuse-or-create the client */
+const prepareTestClient = async (): Promise<{ reused: boolean }> => {
   setupTestEncryptionKey();
   clearSetupCompleteCache();
   resetSessionCache();
@@ -112,17 +109,28 @@ export const createTestDb = async (): Promise<void> => {
   if (cachedClient && await isSchemaIntact(cachedClient)) {
     setDb(cachedClient);
     await clearDataTables(cachedClient, true);
-    await cachedClient.execute({
-      sql: "INSERT INTO settings (key, value) VALUES ('latest_db_update', ?)",
-      args: [LATEST_UPDATE],
-    });
-    return;
+    return { reused: true };
   }
 
   const client = createClient({ url: ":memory:" });
   cachedClient = client;
   setDb(client);
   await initDb();
+  return { reused: false };
+};
+
+/**
+ * Create an in-memory database for testing (without setup).
+ * Reuses the cached client and schema when possible, clearing all data.
+ */
+export const createTestDb = async (): Promise<void> => {
+  const { reused } = await prepareTestClient();
+  if (reused) {
+    await cachedClient!.execute({
+      sql: "INSERT INTO settings (key, value) VALUES ('latest_db_update', ?)",
+      args: [LATEST_UPDATE],
+    });
+  }
 };
 
 /**
@@ -133,15 +141,11 @@ export const createTestDb = async (): Promise<void> => {
 export const createTestDbWithSetup = async (
   currency = "GBP",
 ): Promise<void> => {
-  setupTestEncryptionKey();
-  clearSetupCompleteCache();
-  resetSessionCache();
+  const { reused } = await prepareTestClient();
 
-  if (cachedClient && cachedSetupSettings && await isSchemaIntact(cachedClient)) {
-    setDb(cachedClient);
-    await clearDataTables(cachedClient, true);
+  if (reused && cachedSetupSettings) {
     for (const row of cachedSetupSettings) {
-      await cachedClient.execute({
+      await cachedClient!.execute({
         sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
         args: [row.key, row.value],
       });
@@ -149,15 +153,10 @@ export const createTestDbWithSetup = async (
     return;
   }
 
-  // First call or schema was destroyed: full initialization
-  const client = createClient({ url: ":memory:" });
-  cachedClient = client;
-  setDb(client);
-  await initDb();
   await completeSetup(TEST_ADMIN_PASSWORD, currency);
 
   // Snapshot settings for reuse
-  const result = await client.execute("SELECT key, value FROM settings");
+  const result = await cachedClient!.execute("SELECT key, value FROM settings");
   cachedSetupSettings = result.rows.map((r) => ({
     key: r.key as string,
     value: r.value as string,
@@ -165,7 +164,7 @@ export const createTestDbWithSetup = async (
 
   // Perform one admin login and cache the session for reuse
   const session = await loginAsAdmin();
-  const sessionsResult = await client.execute(
+  const sessionsResult = await cachedClient!.execute(
     "SELECT token, csrf_token, expires, wrapped_data_key FROM sessions LIMIT 1",
   );
   if (sessionsResult.rows.length > 0) {
