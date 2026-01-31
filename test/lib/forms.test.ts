@@ -216,9 +216,16 @@ describe("forms", () => {
 
   describe("eventFields validation", () => {
     test("validates thank_you_url rejects javascript: protocol", () => {
-      expectInvalid("URL must use https:// or http://")(
+      expectInvalid("URL must use https://")(
         eventFields,
         eventForm({ thank_you_url: "javascript:alert(1)" }),
+      );
+    });
+
+    test("validates thank_you_url rejects http: protocol", () => {
+      expectInvalid("URL must use https://")(
+        eventFields,
+        eventForm({ thank_you_url: "http://example.com/thank-you" }),
       );
     });
 

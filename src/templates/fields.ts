@@ -15,8 +15,8 @@ const validateSafeUrl = (value: string): string | null => {
 
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:" && url.protocol !== "http:") {
-      return "URL must use https:// or http://";
+    if (url.protocol !== "https:") {
+      return "URL must use https://";
     }
     return null;
   } catch {
