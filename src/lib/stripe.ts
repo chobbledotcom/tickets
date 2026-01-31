@@ -522,10 +522,14 @@ const computeSignature = async (
 
 /** Constant-time string comparison to prevent timing attacks */
 const secureCompare = (a: string, b: string): boolean => {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  const lenA = a.length;
+  const lenB = b.length;
+  // Always compare against the longer string to avoid length-based timing leaks.
+  // If lengths differ the mismatch flag ensures we return false.
+  const len = Math.max(lenA, lenB);
+  let result = lenA ^ lenB;
+  for (let i = 0; i < len; i++) {
+    result |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   }
   return result === 0;
 };
