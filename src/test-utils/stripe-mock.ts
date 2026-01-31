@@ -3,12 +3,13 @@
  * Extracted from setup.ts to enable proper testing
  */
 
-import { dirname, fromFileUrl, join } from "jsr:@std/path@1";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const STRIPE_MOCK_VERSION = "0.188.0";
 export const STRIPE_MOCK_PORT = 12111;
 // Go up from src/test-utils to project root
-const currentDir = dirname(fromFileUrl(import.meta.url));
+const currentDir = dirname(fileURLToPath(import.meta.url));
 export const BIN_DIR = join(currentDir, "..", "..", ".bin");
 export const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
 
