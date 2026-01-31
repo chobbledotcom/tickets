@@ -15,7 +15,7 @@ import {
   updateSquareLocationId,
   updateSquareWebhookSignatureKey,
 } from "#lib/db/settings.ts";
-import { createTestDb, resetDb, withMocks } from "#test-utils";
+import { createTestDb, resetDb, testEvent, withMocks } from "#test-utils";
 
 /** Create a mock Square SDK client with spyable methods */
 const createMockClient = () => {
@@ -99,7 +99,7 @@ describe("square", () => {
       const result = enforceMetadataLimits(metadata);
       expect(result).not.toBeNull();
       expect(result!.name).toBe("A".repeat(255));
-      expect(result!.name.length).toBe(255);
+      expect(result!.name!.length).toBe(255);
       expect(result!.event_id).toBe("1");
     });
 
@@ -429,8 +429,39 @@ describe("square", () => {
           expect(result).not.toBeNull();
 
           // Verify name was truncated in metadata
-          const args = checkoutCreate.mock.calls[0][0];
+          // deno-lint-ignore no-explicit-any
+          const args = checkoutCreate.mock.calls[0]![0] as any;
           expect(args.order.metadata.name.length).toBe(255);
+        },
+      );
+    });
+
+    test("returns null when non-truncatable metadata exceeds limit", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareLocationId("L_loc_456");
+      const { client } = createMockClient();
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const event = testEvent({
+            unit_price: 1000,
+            fields: "email" as const,
+          });
+          const intent = {
+            eventId: 1,
+            name: "John",
+            email: "a".repeat(300) + "@example.com",
+            phone: "",
+            quantity: 1,
+          };
+
+          const result = await squareApi.createPaymentLink(
+            event,
+            intent,
+            "http://localhost",
+          );
+          expect(result).toBeNull();
         },
       );
     });
