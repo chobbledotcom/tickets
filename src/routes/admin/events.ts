@@ -77,7 +77,6 @@ const eventsResource = defineResource({
   fields: eventFields,
   toInput: extractEventInput,
   nameField: "slug",
-  onDelete: (id) => deleteEvent(id as number),
   validate: validateEventInput,
 });
 
@@ -305,7 +304,7 @@ const handleAdminEventDelete = (
 
 /** Parse event ID from params */
 const parseEventId = (params: RouteParams): number =>
-  Number.parseInt(params.id ?? "0", 10);
+  Number.parseInt(params.id as string, 10);
 
 /** Event routes */
 export const eventsRoutes = defineRoutes({

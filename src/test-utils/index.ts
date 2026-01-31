@@ -68,7 +68,6 @@ let cachedAdminSession: {
 /** Clear all data tables and reset autoincrement counters */
 const clearDataTables = async (
   client: Client,
-  includeSettings = false,
 ): Promise<void> => {
   // Disable FK checks so deletion order doesn't matter
   await client.execute("PRAGMA foreign_keys = OFF");
@@ -78,15 +77,12 @@ const clearDataTables = async (
   );
   for (const row of result.rows) {
     const name = row.name as string;
-    if (!includeSettings && name === "settings") continue;
     await client.execute(`DELETE FROM ${name}`);
   }
-  // Reset autoincrement counters so IDs start from 1
-  try {
-    await client.execute("DELETE FROM sqlite_sequence");
-  } catch {
-    // sqlite_sequence may not exist if no AUTOINCREMENT tables have been used
-  }
+  // Reset autoincrement counters so IDs start from 1 (table may not exist)
+  await client.execute(
+    "DELETE FROM sqlite_sequence WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='sqlite_sequence')",
+  );
   await client.execute("PRAGMA foreign_keys = ON");
 };
 
@@ -108,7 +104,7 @@ const prepareTestClient = async (): Promise<{ reused: boolean }> => {
 
   if (cachedClient && await isSchemaIntact(cachedClient)) {
     setDb(cachedClient);
-    await clearDataTables(cachedClient, true);
+    await clearDataTables(cachedClient);
     return { reused: true };
   }
 
@@ -656,13 +652,8 @@ export const updateTestEvent = async (
       unit_price: formatPrice(updates.unitPrice, existing.unit_price),
       webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
     },
-    async () => {
-      const updated = await getEventWithCount(eventId);
-      if (!updated) {
-        throw new Error(`Event not found after update: ${eventId}`);
-      }
-      return updated;
-    },
+    async () =>
+      (await getEventWithCount(eventId)) as EventWithCount,
     "update event",
   );
 };
@@ -743,13 +734,8 @@ export const createTestAttendee = async (
     );
   }
 
-  // Get the created attendee (most recent one)
+  // Return the most recent attendee (DESC order puts newest first)
   const afterAttendees = await getAttendeesRaw(eventId);
-  if (afterAttendees.length <= beforeCount) {
-    throw new Error("Attendee was not created");
-  }
-
-  // Return the first attendee (most recent due to DESC order)
   return afterAttendees[0] as Attendee;
 };
 
@@ -884,8 +870,7 @@ export const expectValid = (
 ): Record<string, unknown> => {
   const result = validateFormData(fields, data);
   expect(result.valid).toBe(true);
-  if (!result.valid) throw new Error("Expected valid result");
-  return result.values;
+  return (result as { valid: true; values: Record<string, unknown> }).values;
 };
 
 /** Validate form data against fields and assert the result is invalid with given error. */

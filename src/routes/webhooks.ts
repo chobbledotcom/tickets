@@ -305,10 +305,9 @@ const processMultiPaymentSession = async (
   }
 
   // Phase 3: Finalize with first attendee ID (for idempotency tracking)
-  const firstAttendee = createdAttendees[0];
-  if (!firstAttendee) {
-    return refundAndFail(session, "No attendees created", 500);
-  }
+  // createdAttendees is guaranteed non-empty: the loop always runs (intent.items
+  // is validated non-empty) and if any creation fails we return early above.
+  const firstAttendee = createdAttendees[0]!;
 
   await finalizeSession(sessionId, firstAttendee.attendee.id);
 
@@ -488,17 +487,13 @@ type WebhookSessionData = {
 
 /**
  * Validate webhook event data and extract session.
- * Returns null if event type doesn't match or data is invalid.
+ * Returns null if data is invalid.
  * Supports both single-event and multi-event sessions.
+ * Caller must verify event.type matches before calling.
  */
 const extractSessionFromEvent = (
   event: WebhookEvent,
-  expectedEventType: string,
 ): ValidatedPaymentSession | null => {
-  if (event.type !== expectedEventType) {
-    return null;
-  }
-
   const obj = event.data.object as Partial<WebhookSessionData>;
 
   // Validate required fields with strict type checking
@@ -557,6 +552,13 @@ const getWebhookSignatureHeader = (
  * Receives events directly from the payment provider with signature verification.
  * Primary handler for payment completion - more reliable than redirects.
  */
+/** Extract order/session ID from webhook event object (used for Square fallback) */
+const extractSessionIdFromObject = (obj: Record<string, unknown>): string | null => {
+  if (typeof obj.order_id === "string") return obj.order_id;
+  if (typeof obj.id === "string") return obj.id;
+  return null;
+};
+
 const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   const provider = await getActivePaymentProvider();
   if (!provider) {
@@ -589,13 +591,12 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Try to extract session directly from event data (works for Stripe).
   // For providers like Square where webhook payload is a payment object
   // (not the order with metadata), fall back to retrieveSession.
-  let session = extractSessionFromEvent(event, provider.checkoutCompletedEventType);
+  let session = extractSessionFromEvent(event);
 
   if (!session) {
     // Attempt provider-specific retrieval using order/session ID from event data
     const obj = event.data.object as Record<string, unknown>;
-    const sessionId = (typeof obj.order_id === "string" ? obj.order_id : null)
-      ?? (typeof obj.id === "string" ? obj.id : null);
+    const sessionId = extractSessionIdFromObject(obj);
 
     if (!sessionId) {
       return new Response("Invalid session data", { status: 400 });

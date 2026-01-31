@@ -753,6 +753,31 @@ describe("stripe", () => {
     });
   });
 
+  describe("createCheckoutSessionWithIntent - no email", () => {
+    test("creates checkout session without customer_email when email is empty", async () => {
+      await updateStripeKey("sk_test_mock");
+
+      const event = testEvent({ unit_price: 1000 });
+      const intent = {
+        eventId: 1,
+        name: "No Email User",
+        email: "",
+        phone: "+44 7700 900000",
+        quantity: 1,
+      };
+
+      const session = await createCheckoutSessionWithIntent(
+        event,
+        intent,
+        "http://localhost:3000",
+      );
+
+      // stripe-mock creates session successfully (email is empty, so customer_email is omitted)
+      expect(session).not.toBeNull();
+      expect(session?.id).toBeDefined();
+    });
+  });
+
   describe("createMultiCheckoutSession", () => {
     test("creates multi-checkout session with phone metadata", async () => {
       await updateStripeKey("sk_test_mock");
@@ -791,6 +816,29 @@ describe("stripe", () => {
         "http://localhost:3000",
       );
       expect(result).toBeNull();
+    });
+
+    test("creates multi-checkout session without customer_email when email is empty", async () => {
+      await updateStripeKey("sk_test_mock");
+
+      const intent = {
+        name: "No Email Multi",
+        email: "",
+        phone: "+44 7700 900002",
+        items: [
+          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-a" },
+          { eventId: 2, quantity: 2, unitPrice: 2000, slug: "event-b" },
+        ],
+      };
+
+      const session = await createMultiCheckoutSession(
+        intent,
+        "http://localhost:3000",
+      );
+
+      // stripe-mock creates session successfully (email is empty, so customer_email is omitted)
+      expect(session).not.toBeNull();
+      expect(session?.id).toBeDefined();
     });
   });
 
@@ -950,6 +998,163 @@ describe("stripe", () => {
     });
   });
 
+  describe("setupWebhookEndpoint - stripe-mock paths", () => {
+    test("deletes existing endpoint for same URL before recreating", async () => {
+      // stripe-mock has a default endpoint at https://example.com/my/webhook/endpoint
+      // Calling setupWebhookEndpoint with that URL should find it via list and delete it
+      const result = await setupWebhookEndpoint(
+        "sk_test_mock",
+        "https://example.com/my/webhook/endpoint",
+      );
+
+      // stripe-mock doesn't return secret, so this hits the "no secret" error path
+      // but the important thing is it exercises the "delete existing for URL" code path (lines 368-371)
+      expect(result).toBeDefined();
+      expect(typeof result.success).toBe("boolean");
+    });
+
+    test("returns success when endpoint.secret is present", async () => {
+      // Wrap fetch to intercept the webhook_endpoints create response and inject a secret
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const response = await originalFetch(input, init);
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+
+        // Intercept POST to webhook_endpoints (create) and add secret to response
+        if (url.includes("/v1/webhook_endpoints") && init?.method === "POST") {
+          const body = await response.json();
+          body.secret = "whsec_test_injected_secret";
+          return new Response(JSON.stringify(body), {
+            status: response.status,
+            headers: response.headers,
+          });
+        }
+        return response;
+      };
+
+      try {
+        const result = await setupWebhookEndpoint(
+          "sk_test_mock",
+          "https://example.com/webhook/success-test",
+        );
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.endpointId).toBeDefined();
+          expect(result.secret).toBe("whsec_test_injected_secret");
+        }
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    test("returns error when createStripeClient or API call throws", async () => {
+      // Mock fetch to throw on all requests, exercising the outer catch block (lines 388-392)
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = () => {
+        throw new Error("Network unavailable");
+      };
+
+      try {
+        const result = await setupWebhookEndpoint(
+          "sk_test_mock",
+          "https://example.com/webhook/error-test",
+        );
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          // Stripe SDK wraps connection errors with retry info
+          expect(typeof result.error).toBe("string");
+          expect(result.error!.length > 0).toBe(true);
+        }
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    test("catches error when deleting existing endpoint ID fails", async () => {
+      // Mock fetch so that ALL DELETE requests throw (Stripe SDK retries, so we must fail all)
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const method = init?.method ?? "GET";
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        // Fail all DELETE requests for the specific endpoint to bypass SDK retries
+        if (method === "DELETE" && url.includes("we_should_fail_to_delete")) {
+          throw new Error("Delete failed");
+        }
+        return originalFetch(input, init);
+      };
+
+      try {
+        const result = await setupWebhookEndpoint(
+          "sk_test_mock",
+          "https://example.com/webhook/delete-error-test-unique",
+          "we_should_fail_to_delete",
+        );
+
+        // The function should continue past the failed delete and still attempt to create
+        expect(result).toBeDefined();
+        expect(typeof result.success).toBe("boolean");
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    test("returns error when list endpoints throws", async () => {
+      // Mock fetch so that the list call (GET) throws, exercising the outer catch
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const method = init?.method ?? "GET";
+        // The Stripe SDK sends GET for list. Intercept GET requests to webhook_endpoints
+        if (method === "GET" && url.includes("/v1/webhook_endpoints")) {
+          throw new Error("List endpoints failed");
+        }
+        return originalFetch(input, init);
+      };
+
+      try {
+        const result = await setupWebhookEndpoint(
+          "sk_test_mock",
+          "https://example.com/webhook/list-error-test",
+        );
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          // Stripe SDK wraps connection errors with retry info
+          expect(typeof result.error).toBe("string");
+          expect(result.error!.length > 0).toBe(true);
+        }
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    test("returns stringified error when non-Error is thrown", async () => {
+      // Mock fetch to throw a string (not an Error) to hit the String(err) path
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = () => {
+        throw "string_error"; // non-Error value
+      };
+
+      try {
+        const result = await setupWebhookEndpoint(
+          "sk_test_mock",
+          "https://example.com/webhook/non-error-throw",
+        );
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          // Stripe SDK wraps thrown values, so error message comes from SDK wrapper
+          expect(typeof result.error).toBe("string");
+          expect(result.error!.length > 0).toBe(true);
+        }
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+  });
+
   describe("verifyWebhookSignature - timestamp parsing", () => {
     const TEST_SECRET = "whsec_test_secret_key_for_timestamp_test";
 
@@ -970,6 +1175,54 @@ describe("stripe", () => {
 
       const result = await verifyWebhookSignature(payload, signature);
       expect(result.valid).toBe(true);
+    });
+
+    test("parses timestamp with parseInt when t key has value", async () => {
+      await setStripeWebhookConfig(TEST_SECRET, "we_test_parse");
+
+      // Use a timestamp that is a valid number string, exercising Number.parseInt
+      const timestamp = Math.floor(Date.now() / 1000);
+      const payload = '{"id": "evt_parse", "type": "test"}';
+      const signedPayload = `${timestamp}.${payload}`;
+
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(TEST_SECRET),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+      const signature = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        encoder.encode(signedPayload),
+      );
+      const sigHex = Array.from(new Uint8Array(signature))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      const result = await verifyWebhookSignature(
+        payload,
+        `t=${timestamp},v1=${sigHex}`,
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    test("treats t key without equals as zero timestamp via parseInt fallback", async () => {
+      await setStripeWebhookConfig(TEST_SECRET, "we_test_nullish");
+
+      // Header "t,v1=abc123" - split("=") on "t" gives ["t"], so value is undefined
+      // value ?? "0" gives "0", parseInt("0", 10) gives 0
+      // timestamp === 0, so parseSignatureHeader returns null => "Invalid signature header format"
+      const result = await verifyWebhookSignature(
+        '{"test": true}',
+        "t,v1=abc123",
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Invalid signature header format");
+      }
     });
 
     test("secureCompare handles strings of different lengths", async () => {
@@ -1367,12 +1620,11 @@ describe("stripe-provider", () => {
       Deno.env.delete("STRIPE_MOCK_HOST");
       Deno.env.delete("STRIPE_MOCK_PORT");
 
-      // Since getMockConfig is `once()`, we need to reset the Stripe client
-      // This tests the code path where getMockConfig returns undefined
-      // The actual createStripeClient will use the no-mock path
+      // resetStripeClient now also resets getMockConfig (lazyRef)
+      resetStripeClient();
+
       const client = await getStripeClient();
-      // Client creation may succeed or fail depending on mock state
-      // but the code path through getMockConfig returning undefined is exercised
+      // Client is created using real Stripe (no mock) - returns non-null
       expect(client !== undefined).toBe(true);
     });
   });

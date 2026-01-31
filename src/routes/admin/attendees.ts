@@ -118,8 +118,8 @@ const handleAdminAttendeeDeletePost = (
 const parseAttendeeIds = (
   params: RouteParams,
 ): { eventId: number; attendeeId: number } => ({
-  eventId: Number.parseInt(params.eventId ?? "0", 10),
-  attendeeId: Number.parseInt(params.attendeeId ?? "0", 10),
+  eventId: Number.parseInt(params.eventId as string, 10),
+  attendeeId: Number.parseInt(params.attendeeId as string, 10),
 });
 
 /** Route handler for POST/DELETE attendee delete */

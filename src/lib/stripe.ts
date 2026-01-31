@@ -62,7 +62,7 @@ export const sanitizeErrorDetail = (err: unknown): string => {
 /**
  * Get Stripe client configuration for mock server (if configured)
  */
-const getMockConfig = once((): Stripe.StripeConfig | undefined => {
+const getMockConfigImpl = (): Stripe.StripeConfig | undefined => {
   const mockHost = getEnv("STRIPE_MOCK_HOST");
   if (!mockHost) return undefined;
 
@@ -75,7 +75,9 @@ const getMockConfig = once((): Stripe.StripeConfig | undefined => {
     port: mockPort,
     protocol: "http",
   };
-});
+};
+
+const [getMockConfig, setMockConfig] = lazyRef<Stripe.StripeConfig | undefined>(getMockConfigImpl);
 
 const createStripeClient = async (secretKey: string): Promise<Stripe> => {
   const mockConfig = getMockConfig();
@@ -184,7 +186,10 @@ export const stripeApi: {
   getStripeClient: getClientImpl,
 
   /** Reset Stripe client (for testing) */
-  resetStripeClient: (): void => setCache(null),
+  resetStripeClient: (): void => {
+    setCache(null);
+    setMockConfig(null);
+  },
 
   /** Retrieve checkout session */
   retrieveCheckoutSession: (
@@ -387,8 +392,7 @@ const setupWebhookEndpointImpl = async (
     };
   } catch (err) {
     logError({ code: ErrorCode.STRIPE_WEBHOOK_SETUP, detail: sanitizeErrorDetail(err) });
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return { success: false, error: message };
+    return { success: false, error: (err as Error).message };
   }
 };
 

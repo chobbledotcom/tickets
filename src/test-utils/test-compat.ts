@@ -435,11 +435,12 @@ class RejectsChain {
   }
 
   async toThrow(expected?: string | RegExp): Promise<void> {
-    await assertRejects(
-      async () => { await this.promise; },
-      Error,
-      typeof expected === "string" ? expected : undefined,
-    );
+    const fn = () => this.promise;
+    if (typeof expected === "string") {
+      await assertRejects(fn, Error, expected);
+    } else {
+      await assertRejects(fn, Error);
+    }
   }
 }
 
@@ -523,16 +524,14 @@ export const fn = (impl?: (...args: unknown[]) => unknown): MockFn => {
 /**
  * Jest-like jest object
  */
-export const jest: {
+// Forward declaration - actual timer methods assigned after their definitions below
+export const jest = {
+  fn,
+} as {
   fn: typeof fn;
   useFakeTimers: () => void;
   useRealTimers: () => void;
   setSystemTime: (time: number | Date) => void;
-} = {
-  fn,
-  useFakeTimers: () => {},
-  useRealTimers: () => {},
-  setSystemTime: () => {},
 };
 
 /**

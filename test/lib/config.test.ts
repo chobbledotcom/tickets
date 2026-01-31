@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import {
+  configApi,
   getAllowedDomain,
   getCurrencyCode,
   getPaymentProvider,
@@ -12,7 +13,7 @@ import {
   isSetupComplete,
 } from "#lib/config.ts";
 import { getEnv } from "#lib/env.ts";
-import { getActivePaymentProvider } from "#lib/payments.ts";
+import { getActivePaymentProvider, paymentsApi } from "#lib/payments.ts";
 import {
   completeSetup,
   setPaymentProvider,
@@ -22,7 +23,7 @@ import {
   updateSquareWebhookSignatureKey,
   updateStripeKey,
 } from "#lib/db/settings.ts";
-import { createTestDb, resetDb } from "#test-utils";
+import { createTestDb, resetDb, withMocks } from "#test-utils";
 import process from "node:process";
 
 describe("config", () => {
@@ -199,6 +200,19 @@ describe("config", () => {
       expect(getStripePublishableKey()).toBeNull();
     });
   });
+
+  describe("isPaymentsEnabled - unknown provider fallback", () => {
+    test("returns false when provider is an unrecognized value", async () => {
+      // Mock configApi.getPaymentProvider to return a value not handled by the switch
+      await withMocks(
+        () => spyOn(configApi, "getPaymentProvider").mockResolvedValue("paypal" as never),
+        async () => {
+          const result = await isPaymentsEnabled();
+          expect(result).toBe(false);
+        },
+      );
+    });
+  });
 });
 
 describe("env", () => {
@@ -263,5 +277,16 @@ describe("payments", () => {
     const provider = await getActivePaymentProvider();
     expect(provider).not.toBeNull();
     expect(provider?.type).toBe("square");
+  });
+
+  test("getActivePaymentProvider returns null for unrecognized provider type", async () => {
+    // Mock paymentsApi.getConfiguredProvider to return a value that is not stripe or square
+    await withMocks(
+      () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue("paypal" as never),
+      async () => {
+        const provider = await getActivePaymentProvider();
+        expect(provider).toBeNull();
+      },
+    );
   });
 });

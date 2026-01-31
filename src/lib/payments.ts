@@ -10,6 +10,11 @@ import { getPaymentProvider as getConfiguredProvider } from "#lib/config.ts";
 import { logDebug } from "#lib/logger.ts";
 import type { Event } from "#lib/types.ts";
 
+/** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
+export const paymentsApi = {
+  getConfiguredProvider,
+};
+
 /** Supported payment provider identifiers */
 export type PaymentProviderType = "stripe" | "square";
 
@@ -153,7 +158,7 @@ export interface PaymentProvider {
  */
 export const getActivePaymentProvider =
   async (): Promise<PaymentProvider | null> => {
-    const providerType = await getConfiguredProvider();
+    const providerType = await paymentsApi.getConfiguredProvider();
     if (!providerType) {
       logDebug("Payment", "No payment provider configured in settings");
       return null;

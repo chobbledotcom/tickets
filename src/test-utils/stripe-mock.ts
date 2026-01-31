@@ -5,6 +5,7 @@
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assert } from "@std/assert";
 
 export const STRIPE_MOCK_VERSION = "0.188.0";
 export const STRIPE_MOCK_PORT = 12111;
@@ -12,6 +13,16 @@ export const STRIPE_MOCK_PORT = 12111;
 const currentDir = dirname(fileURLToPath(import.meta.url));
 export const BIN_DIR = join(currentDir, "..", "..", ".bin");
 export const STRIPE_MOCK_PATH = join(BIN_DIR, "stripe-mock");
+
+/** Platform and architecture maps for download URL */
+const platformMap: Record<string, string> = { darwin: "darwin" };
+const archMap: Record<string, string> = { aarch64: "arm64" };
+
+/** Get platform identifier for stripe-mock download URL */
+export const getPlatform = (): string => platformMap[Deno.build.os] ?? "linux";
+
+/** Get architecture identifier for stripe-mock download URL */
+export const getArch = (): string => archMap[Deno.build.arch] ?? "amd64";
 
 /**
  * Download stripe-mock binary if not present
@@ -27,8 +38,8 @@ export const downloadStripeMock = async (): Promise<void> => {
 
   await Deno.mkdir(BIN_DIR, { recursive: true });
 
-  const platform = Deno.build.os === "darwin" ? "darwin" : "linux";
-  const arch = Deno.build.arch === "aarch64" ? "arm64" : "amd64";
+  const platform = getPlatform();
+  const arch = getArch();
 
   const url = `https://github.com/stripe/stripe-mock/releases/download/v${STRIPE_MOCK_VERSION}/stripe-mock_${STRIPE_MOCK_VERSION}_${platform}_${arch}.tar.gz`;
 
@@ -39,9 +50,7 @@ export const downloadStripeMock = async (): Promise<void> => {
     stderr: "null",
   });
   const curlResult = await curlCmd.output();
-  if (!curlResult.success) {
-    throw new Error("Failed to download stripe-mock with curl");
-  }
+  assert(curlResult.success, "Failed to download stripe-mock with curl");
 
   const tarPath = join(BIN_DIR, "stripe-mock.tar.gz");
   await Deno.writeFile(tarPath, curlResult.stdout);

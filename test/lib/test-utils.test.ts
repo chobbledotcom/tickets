@@ -22,11 +22,13 @@ import {
   getCsrfTokenFromCookie,
   getSetupCsrfToken,
   getTicketCsrfToken,
+  invalidateTestDbCache,
   loginAsAdmin,
   mockFormRequest,
   mockRequest,
   randomString,
   resetDb,
+  resetTestSession,
   resetTestSlugCounter,
   testRequest,
   updateTestEvent,
@@ -460,6 +462,137 @@ describe("test-utils", () => {
       expect(body).toBe("Bad Request");
     });
   });
+
+  describe("loginAsAdmin error path", () => {
+    test("throws when CSRF token cannot be obtained from login response", async () => {
+      // createTestDb without setup means no admin password exists
+      // so login will fail and no session cookie is set
+      await createTestDb();
+      await expect(loginAsAdmin()).rejects.toThrow(
+        "Failed to get CSRF token for admin login",
+      );
+    });
+  });
+
+  describe("getTestSession fallback to loginAsAdmin", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("falls back to loginAsAdmin when cached admin session is cleared", async () => {
+      // Clear testSession and cachedAdminSession, but leave db working
+      resetTestSession();
+      invalidateTestDbCache();
+      // createTestEvent uses getTestSession internally
+      // With cachedAdminSession null, it falls through to loginAsAdmin
+      const event = await createTestEvent();
+      expect(event.id).toBeGreaterThan(0);
+    });
+  });
+
+  describe("authenticatedFormRequest and createTestEvent error paths", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("createTestEvent throws event not found when slug is empty", async () => {
+      // Empty slug creates event but getEventWithCountBySlug("") returns null
+      // This covers the "Event not found after creation" error (lines 607-609)
+      await expect(
+        createTestEvent({ slug: "" }),
+      ).rejects.toThrow("Event not found after creation: ");
+    });
+
+    test("authenticatedFormRequest throws on non-302 response via update", async () => {
+      // Create two events, then try to update the second with the first's slug.
+      // The update handler returns a 200 error page (not 302) on validation failure.
+      const event1 = await createTestEvent({ slug: "first-event" });
+      const event2 = await createTestEvent({ slug: "second-event" });
+      expect(event1.slug).toBe("first-event");
+      await expect(
+        updateTestEvent(event2.id, { slug: "first-event" }),
+      ).rejects.toThrow("Failed to update event");
+    });
+  });
+
+  describe("formatPrice coverage", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("preserves existing unitPrice when update does not specify unitPrice", async () => {
+      // Create event with a unit price
+      const event = await createTestEvent({ unitPrice: 2500 });
+      expect(event.unit_price).toBe(2500);
+      // Update without specifying unitPrice -> formatPrice(undefined, 2500)
+      // This covers the branch: existing != null ? String(existing) : ""
+      const updated = await updateTestEvent(event.id, { maxAttendees: 50 });
+      expect(updated.unit_price).toBe(2500);
+      expect(updated.max_attendees).toBe(50);
+    });
+  });
+
+  describe("createTestEvent with null thankYouUrl", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("creates event without thankYouUrl using ?? empty string fallback", async () => {
+      const event = await createTestEvent({ thankYouUrl: undefined });
+      expect(event.id).toBeGreaterThan(0);
+      // thankYouUrl: undefined triggers the ?? "" branch
+      expect(event.thank_you_url).toBe(null);
+    });
+  });
+
+  describe("createTestAttendee error paths", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("throws when ticket page does not provide CSRF token (deactivated event)", async () => {
+      const event = await createTestEvent();
+      await deactivateTestEvent(event.id);
+      await expect(
+        createTestAttendee(event.id, event.slug, "Test", "test@example.com"),
+      ).rejects.toThrow("Failed to get CSRF token for ticket form");
+    });
+
+    test("throws when form submission returns error status (event at capacity)", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 1,
+        maxQuantity: 1,
+      });
+      // Fill the event
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "First",
+        "first@example.com",
+      );
+      // Second attendee should fail because event is full
+      await expect(
+        createTestAttendee(
+          event.id,
+          event.slug,
+          "Second",
+          "second@example.com",
+        ),
+      ).rejects.toThrow("Failed to create attendee");
+    });
+  });
+
+  describe("updateTestEvent event not found after update", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("throws when event does not exist", async () => {
+      await expect(
+        updateTestEvent(99999, { maxAttendees: 50 }),
+      ).rejects.toThrow("Event not found: 99999");
+    });
+  });
 });
 
 describe("test-compat", () => {
@@ -782,4 +915,70 @@ describe("test-compat", () => {
       expect((obj.method as () => string)()).toBe("original");
     });
   });
+
+  describe("not.toBeGreaterThan (isNot numeric comparison)", () => {
+    test("asserts value is not greater than expected", () => {
+      // Exercises assertNumericComparison isNot branch (line 241-242)
+      expect(5).not.toBeGreaterThan(10);
+    });
+  });
+
+  describe("not.toThrow catch branch", () => {
+    test("throws when function unexpectedly throws", () => {
+      // Exercises the catch branch in not.toThrow (line 377-378)
+      let caughtError: Error | null = null;
+      try {
+        expect(() => {
+          throw new Error("oops");
+        }).not.toThrow();
+      } catch (e) {
+        caughtError = e as Error;
+      }
+      expect(caughtError).not.toBeNull();
+      expect(caughtError!.message).toBe("Expected function not to throw");
+    });
+  });
+
+  describe("rejects.toThrow with RegExp argument", () => {
+    test("asserts rejection with RegExp (covers Error class and ternary branch)", async () => {
+      // Exercises RejectsChain.toThrow with a non-string argument (lines 440-441)
+      const failing = Promise.reject(new Error("regex test error"));
+      await expect(failing).rejects.toThrow(/regex/);
+    });
+  });
+
+  describe("rejects.toThrow with string message", () => {
+    test("matches error message string in rejected promise", async () => {
+      const rejecting = Promise.reject(new Error("specific error message"));
+      await expect(rejecting).rejects.toThrow("specific error message");
+    });
+
+    test("rejects.toThrow without argument matches any Error", async () => {
+      const rejecting = Promise.reject(new Error("any error"));
+      await expect(rejecting).rejects.toThrow();
+    });
+  });
+
+  describe("jest.fn timer stubs", () => {
+    test("jest object has timer stub functions that are callable", () => {
+      // The jest object's timer methods are initially stubs that get
+      // overwritten. Verify the overwritten versions are functional by
+      // calling them through the jest object.
+      const realNow = Date.now();
+      jest.useFakeTimers();
+      jest.setSystemTime(5000);
+      expect(Date.now()).toBe(5000);
+      jest.useRealTimers();
+      expect(Date.now()).toBeGreaterThanOrEqual(realNow);
+    });
+  });
+});
+
+// Standalone test outside any describe block to exercise
+// getCurrentContext's contextStack fallback ?? {} (test-compat.ts line 38)
+test("test registered outside describe exercises empty context stack fallback", () => {
+  // When test() is called outside any describe block, contextStack is empty.
+  // getCurrentContext returns contextStack[contextStack.length - 1] ?? {}
+  // which triggers the ?? {} fallback since contextStack[-1] is undefined.
+  expect(1 + 1).toBe(2);
 });

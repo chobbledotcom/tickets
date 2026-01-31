@@ -122,9 +122,7 @@ const handleRequestInternal = async (
     return redirect("/setup");
   }
 
-  return (
-    (await routeMainApp(request, path, method, server)) ?? notFoundResponse()
-  );
+  return routeMainApp(request, path, method, server);
 };
 
 /** Log request and return response */

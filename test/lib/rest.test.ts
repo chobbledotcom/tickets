@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import { type InValue } from "@libsql/client";
 import { createSession } from "#lib/db/sessions.ts";
 import { col, defineTable, type Table } from "#lib/db/table.ts";
@@ -462,24 +462,26 @@ describe("rest/handlers", () => {
       expect(response.status).toBe(204);
     });
 
-    test("dispatchDelete calls onNotFound when result has notFound", async () => {
-      // Create a resource where the row can be deleted between findById and delete
+    test("dispatchDelete calls onNotFound when row disappears between findById and delete", async () => {
+      // Simulate a race condition: row exists for deleteHandler's findById,
+      // but is gone when resource.delete's internal requireExists runs
       const table = createTestTable();
+      const resource = defineResource({ table, fields: testFields, toInput });
 
-      // Insert a row so findById succeeds in deleteHandler
+      // Insert a row so the first findById in deleteHandler succeeds
       await table.insert({ name: "Vanishing Item", value: 10 });
 
-      // Create a resource with onDelete that simulates a concurrent deletion
-      // The row exists for findById but delete returns notFound
-      const resource = defineResource({
-        table,
-        fields: testFields,
-        toInput,
-        onDelete: async (id) => {
-          // Delete the row here, then the resource.delete will still return { ok: true }
-          // because onDelete doesn't return a result - it's void
-          await table.deleteById(id);
-        },
+      // Spy on findById: first call returns the row, second call returns null
+      // (simulating a concurrent deletion between the two checks)
+      const originalFindById = table.findById.bind(table);
+      let callCount = 0;
+      const spy = spyOn(table, "findById");
+      spy.mockImplementation(async (id: unknown) => {
+        callCount++;
+        if (callCount === 1) return originalFindById(id);
+        // Second call (inside resource.delete's requireExists): delete the row first
+        await table.deleteById(id);
+        return originalFindById(id); // returns null since we just deleted it
       });
 
       const handler = deleteHandler(resource, {
@@ -489,8 +491,9 @@ describe("rest/handlers", () => {
 
       const request = await createAuthRequest("/items/1?verify_name=false", {});
       const response = await handler(request, 1);
-      // dispatchDelete gets { ok: true } from resource.delete, so calls onSuccess
-      expect(response.status).toBe(204);
+      // resource.delete returns { ok: false, notFound: true }, so dispatchDelete calls onNotFound
+      expect(response.status).toBe(404);
+      spy.mockRestore();
     });
 
     test("uses empty string fallback when confirm_name is not provided", async () => {
@@ -550,6 +553,29 @@ describe("rest/resource - additional coverage", () => {
       // Verify row was actually deleted
       const row = await table.findById(1);
       expect(row).toBeNull();
+    });
+  });
+
+  describe("update returns notFound when row disappears between existence check and update", () => {
+    test("toUpdateResult returns notFound when table.update returns null", async () => {
+      const table = createTestTable();
+      const resource = defineResource({ table, fields: testFields, toInput });
+
+      // Insert a row so requireExists passes
+      await table.insert({ name: "Vanishing", value: 42 });
+
+      // Spy on table.update to return null (simulating row deleted between checks)
+      const updateSpy = spyOn(table, "update");
+      updateSpy.mockResolvedValue(null as unknown as TestRow);
+
+      try {
+        const form = new URLSearchParams({ name: "Updated", value: "99" });
+        const result = await resource.update(1, form);
+        // toUpdateResult receives null, returns { ok: false, notFound: true }
+        expectResultNotFound(result);
+      } finally {
+        updateSpy.mockRestore();
+      }
     });
   });
 

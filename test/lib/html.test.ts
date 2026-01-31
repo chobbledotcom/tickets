@@ -6,6 +6,7 @@ import { adminLoginPage } from "#templates/admin/login.tsx";
 import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
+import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import {
   paymentCancelPage,
@@ -173,6 +174,14 @@ describe("html", () => {
       const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const html = adminEventPage(event, attendees, "localhost");
       expect(html).toContain("+1 555 123 4567");
+    });
+
+    test("renders empty string for attendee without email", () => {
+      const attendees = [testAttendee({ email: "" })];
+      const html = adminEventPage(event, attendees, "localhost");
+      expect(html).toContain("John Doe");
+      // The email cell should be empty (email || "" renders "")
+      expect(html).toContain("<td></td>");
     });
   });
 
@@ -615,6 +624,52 @@ describe("html", () => {
       const html = multiTicketPage(events, ["event-a", "event-b"], TEST_CSRF_TOKEN);
       expect(html).toContain("Sorry, all events are sold out.");
       expect(html).not.toContain("Reserve Tickets</button>");
+    });
+  });
+
+  describe("adminSettingsPage", () => {
+    test("shows square webhook configured message when key is set", () => {
+      const html = adminSettingsPage(
+        TEST_CSRF_TOKEN,
+        false, // stripeKeyConfigured
+        "square", // paymentProvider
+        undefined, // error
+        undefined, // success
+        true, // squareTokenConfigured
+        true, // squareWebhookConfigured
+        "https://example.com/payment/webhook",
+      );
+      expect(html).toContain("A webhook signature key is currently configured");
+      expect(html).toContain("Enter a new key below to replace it");
+    });
+
+    test("shows fallback text when webhookUrl is not provided", () => {
+      const html = adminSettingsPage(
+        TEST_CSRF_TOKEN,
+        false, // stripeKeyConfigured
+        "square", // paymentProvider
+        undefined, // error
+        undefined, // success
+        true, // squareTokenConfigured
+        false, // squareWebhookConfigured
+        undefined, // webhookUrl is undefined
+      );
+      expect(html).toContain("(configure ALLOWED_DOMAIN first)");
+    });
+
+    test("shows square webhook not configured message when key is not set", () => {
+      const html = adminSettingsPage(
+        TEST_CSRF_TOKEN,
+        false,
+        "square",
+        undefined,
+        undefined,
+        true,
+        false, // squareWebhookConfigured = false
+        "https://example.com/payment/webhook",
+      );
+      expect(html).toContain("No webhook signature key is configured");
+      expect(html).toContain("Follow the steps above to set one up");
     });
   });
 });

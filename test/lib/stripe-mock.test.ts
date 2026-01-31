@@ -3,6 +3,8 @@ import { describe, expect, test } from "#test-compat";
 import {
   BIN_DIR,
   downloadStripeMock,
+  getArch,
+  getPlatform,
   isStripeMockRunning,
   STRIPE_MOCK_PATH,
   STRIPE_MOCK_PORT,
@@ -243,6 +245,20 @@ describe("stripe-mock utilities", () => {
           await Deno.rename(backupPath, realPath);
         }
       }
+    });
+  });
+
+  describe("getPlatform", () => {
+    test("returns a valid platform string", () => {
+      const platform = getPlatform();
+      expect(["darwin", "linux"].includes(platform)).toBe(true);
+    });
+  });
+
+  describe("getArch", () => {
+    test("returns a valid architecture string", () => {
+      const arch = getArch();
+      expect(["arm64", "amd64"].includes(arch)).toBe(true);
     });
   });
 });

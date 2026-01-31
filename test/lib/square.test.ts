@@ -3,6 +3,7 @@ import {
   constructTestWebhookEvent,
   getSquareClient,
   resetSquareClient,
+  retrievePayment,
   squareApi,
   verifyWebhookSignature,
 } from "#lib/square.ts";
@@ -57,6 +58,16 @@ describe("square", () => {
       await updateSquareAccessToken("EAAAl_test_123");
       const client = await getSquareClient();
       expect(client).not.toBeNull();
+    });
+
+    test("returns cached client on second call with same token", async () => {
+      await updateSquareAccessToken("EAAAl_cache_test");
+      const client1 = await getSquareClient();
+      expect(client1).not.toBeNull();
+
+      // Second call with same token should use cached path
+      const client2 = await getSquareClient();
+      expect(client2).not.toBeNull();
     });
   });
 
@@ -373,6 +384,35 @@ describe("square", () => {
       expect(result).toBeNull();
     });
 
+    test("returns null when SDK response missing orderId", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareLocationId("L_multi_loc");
+      const { client, checkoutCreate } = createMockClient();
+      checkoutCreate.mockResolvedValue({
+        paymentLink: { url: "https://square.link/multi" },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const intent = {
+            name: "Bob Missing",
+            email: "bob@example.com",
+            phone: "",
+            items: [
+              { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1" },
+            ],
+          };
+
+          const result = await squareApi.createMultiPaymentLink(
+            intent,
+            "http://localhost",
+          );
+          expect(result).toBeNull();
+        },
+      );
+    });
+
     test("constructs correct SDK call with multiple line items", async () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_multi_loc");
@@ -591,6 +631,32 @@ describe("square", () => {
       );
     });
 
+    test("maps null amountMoney.amount to undefined", async () => {
+      const { client, paymentsGet } = createMockClient();
+      paymentsGet.mockResolvedValue({
+        payment: {
+          id: "pay_null_amount",
+          status: "COMPLETED",
+          orderId: "order_null_amt",
+          amountMoney: {
+            amount: null,
+            currency: "USD",
+          },
+        },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const result = await squareApi.retrievePayment("pay_null_amount");
+          expect(result).not.toBeNull();
+          expect(result!.amountMoney).not.toBeUndefined();
+          expect(result!.amountMoney!.amount).toBeUndefined();
+          expect(result!.amountMoney!.currency).toBe("USD");
+        },
+      );
+    });
+
     test("handles missing amountMoney gracefully", async () => {
       const { client, paymentsGet } = createMockClient();
       paymentsGet.mockResolvedValue({
@@ -608,6 +674,31 @@ describe("square", () => {
           const result = await squareApi.retrievePayment("pay_no_amount");
           expect(result).not.toBeNull();
           expect(result!.amountMoney).toBeUndefined();
+        },
+      );
+    });
+  });
+
+  describe("retrievePayment wrapper export", () => {
+    test("delegates to squareApi.retrievePayment", async () => {
+      const { client, paymentsGet } = createMockClient();
+      paymentsGet.mockResolvedValue({
+        payment: {
+          id: "pay_wrapper",
+          status: "COMPLETED",
+          orderId: "order_wrapper",
+          amountMoney: { amount: BigInt(1000), currency: "USD" },
+        },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const result = await retrievePayment("pay_wrapper");
+          expect(result).not.toBeNull();
+          expect(result!.id).toBe("pay_wrapper");
+          expect(result!.status).toBe("COMPLETED");
+          expect(paymentsGet.mock.calls[0][0]).toEqual({ paymentId: "pay_wrapper" });
         },
       );
     });
