@@ -5,5 +5,7 @@ tickets.db
 dist/
 .bin/
 coverage/
+cov_profile/
+coverage_data/
 .jscpd-report/
 bunny-script.ts
