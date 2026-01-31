@@ -24,6 +24,7 @@ import {
   buildSingleIntentMetadata,
   createWithClient,
 } from "#lib/payment-helpers.ts";
+
 import { computeHmacSha256, hmacToBase64, secureCompare } from "#lib/payment-crypto.ts";
 import type {
   MultiRegistrationIntent,
@@ -32,6 +33,41 @@ import type {
   WebhookVerifyResult,
 } from "#lib/payments.ts";
 import type { Event } from "#lib/types.ts";
+
+/**
+ * Square order metadata constraints (from Square API docs):
+ * - Max 10 entries per metadata field
+ * - Key max 60 characters
+ * - Value max 255 characters
+ */
+export const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
+
+/**
+ * Enforce Square metadata value length limits.
+ * Truncates `name` (display-only, safe to shorten).
+ * Returns null if any non-truncatable value (like `items` JSON) exceeds the limit,
+ * since truncating structured data would cause downstream parse failures.
+ */
+export const enforceMetadataLimits = (
+  metadata: Record<string, string>,
+): Record<string, string> | null => {
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value.length <= SQUARE_METADATA_MAX_VALUE_LENGTH) continue;
+    if (key === "name") continue; // handled below
+    logError({
+      code: ErrorCode.SQUARE_CHECKOUT,
+      detail: `Metadata value for "${key}" exceeds ${SQUARE_METADATA_MAX_VALUE_LENGTH} chars (${value.length})`,
+    });
+    return null;
+  }
+
+  const name = metadata.name;
+  if (name && name.length > SQUARE_METADATA_MAX_VALUE_LENGTH) {
+    return { ...metadata, name: name.slice(0, SQUARE_METADATA_MAX_VALUE_LENGTH) };
+  }
+
+  return metadata;
+};
 
 /** Lazy-load Square SDK only when needed */
 const loadSquare = once(async () => {
@@ -218,6 +254,9 @@ export const squareApi: {
 
     logDebug("Square", `Creating payment link for event=${event.id} qty=${intent.quantity}`);
 
+    const metadata = enforceMetadataLimits(buildSingleIntentMetadata(event.id, intent));
+    if (!metadata) return null;
+
     const result = await createPaymentLinkImpl({
       ...config,
       lineItems: [
@@ -228,7 +267,7 @@ export const squareApi: {
           basePriceMoney: { amount: BigInt(event.unit_price!), currency: config.currency },
         },
       ],
-      metadata: buildSingleIntentMetadata(event.id, intent),
+      metadata,
       baseUrl,
       email: intent.email,
       phone: intent.phone || undefined,
@@ -249,6 +288,9 @@ export const squareApi: {
 
     logDebug("Square", `Creating multi payment link for ${intent.items.length} events`);
 
+    const metadata = enforceMetadataLimits(buildMultiIntentMetadata(intent));
+    if (!metadata) return null;
+
     const lineItems = map((item: MultiRegistrationIntent["items"][number]) => ({
       name: `Ticket: ${item.slug}`,
       quantity: String(item.quantity),
@@ -259,7 +301,7 @@ export const squareApi: {
     const result = await createPaymentLinkImpl({
       ...config,
       lineItems,
-      metadata: buildMultiIntentMetadata(intent),
+      metadata,
       baseUrl,
       email: intent.email,
       phone: intent.phone || undefined,

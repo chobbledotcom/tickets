@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, jest, test, spyOn } from "#test-compat";
 import {
   constructTestWebhookEvent,
+  enforceMetadataLimits,
   getSquareClient,
   resetSquareClient,
+  SQUARE_METADATA_MAX_VALUE_LENGTH,
   squareApi,
   verifyWebhookSignature,
 } from "#lib/square.ts";
@@ -72,6 +74,42 @@ describe("square", () => {
 
       const client2 = await getSquareClient();
       expect(client2).toBeNull();
+    });
+  });
+
+  describe("enforceMetadataLimits", () => {
+    test("returns metadata unchanged when all values within limit", () => {
+      const metadata = { event_id: "1", name: "John", email: "john@example.com", quantity: "2" };
+      expect(enforceMetadataLimits(metadata)).toEqual(metadata);
+    });
+
+    test("truncates name to 255 characters", () => {
+      const longName = "A".repeat(300);
+      const metadata = { event_id: "1", name: longName, email: "john@example.com", quantity: "1" };
+      const result = enforceMetadataLimits(metadata);
+      expect(result).not.toBeNull();
+      expect(result!.name).toBe("A".repeat(SQUARE_METADATA_MAX_VALUE_LENGTH));
+      expect(result!.name.length).toBe(SQUARE_METADATA_MAX_VALUE_LENGTH);
+      expect(result!.event_id).toBe("1");
+    });
+
+    test("returns null when non-truncatable value exceeds limit", () => {
+      const longItems = "[" + "{e:1,q:1},".repeat(50) + "]";
+      const metadata = { multi: "1", name: "John", email: "john@example.com", items: longItems };
+      expect(enforceMetadataLimits(metadata)).toBeNull();
+    });
+
+    test("returns null when email exceeds limit", () => {
+      const longEmail = "a".repeat(300) + "@example.com";
+      const metadata = { event_id: "1", name: "John", email: longEmail, quantity: "1" };
+      expect(enforceMetadataLimits(metadata)).toBeNull();
+    });
+
+    test("passes through metadata with exactly 255-char values", () => {
+      const exactName = "A".repeat(SQUARE_METADATA_MAX_VALUE_LENGTH);
+      const metadata = { event_id: "1", name: exactName, email: "john@example.com" };
+      const result = enforceMetadataLimits(metadata);
+      expect(result).toEqual(metadata);
     });
   });
 
@@ -336,6 +374,54 @@ describe("square", () => {
         },
       );
     });
+
+    test("returns null when name exceeds metadata limit but truncates gracefully", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareLocationId("L_loc_456");
+      const { client, checkoutCreate } = createMockClient();
+      checkoutCreate.mockResolvedValue({
+        paymentLink: { orderId: "order_long_name", url: "https://square.link/long" },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const event = {
+            id: 1,
+            slug: "test-event",
+            slug_index: "test-event-index",
+            name: "Test",
+            description: "Desc",
+            created: new Date().toISOString(),
+            max_attendees: 50,
+            thank_you_url: "https://example.com",
+            unit_price: 1000,
+            max_quantity: 1,
+            webhook_url: null,
+            active: 1,
+            fields: "email" as const,
+          };
+          const intent = {
+            eventId: 1,
+            name: "A".repeat(300),
+            email: "john@example.com",
+            phone: "",
+            quantity: 1,
+          };
+
+          const result = await squareApi.createPaymentLink(
+            event,
+            intent,
+            "http://localhost",
+          );
+          expect(result).not.toBeNull();
+
+          // Verify name was truncated in metadata
+          const args = checkoutCreate.mock.calls[0][0];
+          expect(args.order.metadata.name.length).toBe(SQUARE_METADATA_MAX_VALUE_LENGTH);
+        },
+      );
+    });
   });
 
   describe("createMultiPaymentLink", () => {
@@ -434,6 +520,42 @@ describe("square", () => {
           );
           expect(args.prePopulatedData.buyerEmail).toBe("alice@example.com");
           expect(args.prePopulatedData.buyerPhoneNumber).toBe("555-1111");
+        },
+      );
+    });
+
+    test("returns null when items metadata exceeds Square limit", async () => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareLocationId("L_multi_loc");
+      const { client, checkoutCreate } = createMockClient();
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          // Generate enough items to exceed 255-char serialized metadata
+          const items = Array.from({ length: 30 }, (_, i) => ({
+            eventId: i + 1,
+            quantity: 1,
+            unitPrice: 1000,
+            slug: `event-${i + 1}`,
+          }));
+
+          const intent = {
+            name: "Alice",
+            email: "alice@example.com",
+            phone: "",
+            items,
+          };
+
+          const result = await squareApi.createMultiPaymentLink(
+            intent,
+            "https://tickets.example.com",
+          );
+
+          // Should return null because items JSON exceeds 255 chars
+          expect(result).toBeNull();
+          // SDK should never have been called
+          expect(checkoutCreate).not.toHaveBeenCalled();
         },
       );
     });
