@@ -75,7 +75,7 @@ const getClientImpl = async () => {
 };
 
 /** Run operation with Square client, return null if not available */
-const withClient = createWithClient(getClientImpl);
+const withClient = createWithClient(() => squareApi.getSquareClient());
 
 /** Get the configured location ID */
 const getLocationId = async (): Promise<string | null> => {
