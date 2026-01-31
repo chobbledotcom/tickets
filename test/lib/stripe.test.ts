@@ -1014,7 +1014,8 @@ describe("stripe", () => {
     test("returns success when endpoint.secret is present", async () => {
       // Wrap fetch to intercept the webhook_endpoints create response and inject a secret
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const fetchSpy = spyOn(globalThis, "fetch");
+      fetchSpy.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const response = await originalFetch(input, init);
         const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 
@@ -1028,7 +1029,7 @@ describe("stripe", () => {
           });
         }
         return response;
-      };
+      });
 
       try {
         const result = await setupWebhookEndpoint(
@@ -1042,16 +1043,16 @@ describe("stripe", () => {
           expect(result.secret).toBe("whsec_test_injected_secret");
         }
       } finally {
-        globalThis.fetch = originalFetch;
+        fetchSpy.mockRestore();
       }
     });
 
     test("returns error when createStripeClient or API call throws", async () => {
       // Mock fetch to throw on all requests, exercising the outer catch block (lines 388-392)
-      const originalFetch = globalThis.fetch;
-      globalThis.fetch = () => {
+      const fetchSpy = spyOn(globalThis, "fetch");
+      fetchSpy.mockImplementation(() => {
         throw new Error("Network unavailable");
-      };
+      });
 
       try {
         const result = await setupWebhookEndpoint(
@@ -1066,14 +1067,15 @@ describe("stripe", () => {
           expect(result.error!.length > 0).toBe(true);
         }
       } finally {
-        globalThis.fetch = originalFetch;
+        fetchSpy.mockRestore();
       }
     });
 
     test("catches error when deleting existing endpoint ID fails", async () => {
       // Mock fetch so that ALL DELETE requests throw (Stripe SDK retries, so we must fail all)
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const fetchSpy = spyOn(globalThis, "fetch");
+      fetchSpy.mockImplementation((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const method = init?.method ?? "GET";
         const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         // Fail all DELETE requests for the specific endpoint to bypass SDK retries
@@ -1081,7 +1083,7 @@ describe("stripe", () => {
           throw new Error("Delete failed");
         }
         return originalFetch(input, init);
-      };
+      });
 
       try {
         const result = await setupWebhookEndpoint(
@@ -1094,14 +1096,15 @@ describe("stripe", () => {
         expect(result).toBeDefined();
         expect(typeof result.success).toBe("boolean");
       } finally {
-        globalThis.fetch = originalFetch;
+        fetchSpy.mockRestore();
       }
     });
 
     test("returns error when list endpoints throws", async () => {
       // Mock fetch so that the list call (GET) throws, exercising the outer catch
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const fetchSpy = spyOn(globalThis, "fetch");
+      fetchSpy.mockImplementation((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
         const method = init?.method ?? "GET";
         // The Stripe SDK sends GET for list. Intercept GET requests to webhook_endpoints
@@ -1109,7 +1112,7 @@ describe("stripe", () => {
           throw new Error("List endpoints failed");
         }
         return originalFetch(input, init);
-      };
+      });
 
       try {
         const result = await setupWebhookEndpoint(
@@ -1124,16 +1127,16 @@ describe("stripe", () => {
           expect(result.error!.length > 0).toBe(true);
         }
       } finally {
-        globalThis.fetch = originalFetch;
+        fetchSpy.mockRestore();
       }
     });
 
     test("returns stringified error when non-Error is thrown", async () => {
       // Mock fetch to throw a string (not an Error) to hit the String(err) path
-      const originalFetch = globalThis.fetch;
-      globalThis.fetch = () => {
+      const fetchSpy = spyOn(globalThis, "fetch");
+      fetchSpy.mockImplementation(() => {
         throw "string_error"; // non-Error value
-      };
+      });
 
       try {
         const result = await setupWebhookEndpoint(
@@ -1148,7 +1151,7 @@ describe("stripe", () => {
           expect(result.error!.length > 0).toBe(true);
         }
       } finally {
-        globalThis.fetch = originalFetch;
+        fetchSpy.mockRestore();
       }
     });
   });

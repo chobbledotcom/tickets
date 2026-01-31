@@ -546,12 +546,6 @@ const getWebhookSignatureHeader = (
   request.headers.get("x-square-hmacsha256-signature") ??
   null;
 
-/**
- * Handle POST /payment/webhook (payment provider webhook endpoint)
- *
- * Receives events directly from the payment provider with signature verification.
- * Primary handler for payment completion - more reliable than redirects.
- */
 /** Extract order/session ID from webhook event object (used for Square fallback) */
 const extractSessionIdFromObject = (obj: Record<string, unknown>): string | null => {
   if (typeof obj.order_id === "string") return obj.order_id;
@@ -559,6 +553,12 @@ const extractSessionIdFromObject = (obj: Record<string, unknown>): string | null
   return null;
 };
 
+/**
+ * Handle POST /payment/webhook (payment provider webhook endpoint)
+ *
+ * Receives events directly from the payment provider with signature verification.
+ * Primary handler for payment completion - more reliable than redirects.
+ */
 const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   const provider = await getActivePaymentProvider();
   if (!provider) {

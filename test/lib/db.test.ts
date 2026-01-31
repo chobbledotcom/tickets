@@ -1615,9 +1615,9 @@ describe("db", () => {
 
       try {
         await reserveSession("sess_error");
-        // Should not reach here
-        expect(true).toBe(false);
+        throw new Error("should not reach here");
       } catch (e) {
+        expect(String(e)).not.toContain("should not reach here");
         expect(String(e)).not.toContain("UNIQUE constraint");
       }
 
