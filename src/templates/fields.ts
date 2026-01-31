@@ -15,8 +15,8 @@ const validateSafeUrl = (value: string): string | null => {
 
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:" && url.protocol !== "http:") {
-      return "URL must use https:// or http://";
+    if (url.protocol !== "https:") {
+      return "URL must use https://";
     }
     return null;
   } catch {
@@ -149,7 +149,7 @@ export const eventFields: Field[] = [
     label: "Webhook URL (optional)",
     type: "url",
     placeholder: "https://example.com/webhook",
-    hint: "Receives POST with attendee name and email on registration",
+    hint: "Receives POST with attendee name, email, and phone on registration",
     validate: validateSafeUrl,
   },
 ];

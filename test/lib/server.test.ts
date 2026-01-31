@@ -511,6 +511,7 @@ describe("server", () => {
       const html = await response.text();
       expect(html).toContain("No Stripe key is configured");
       expect(html).toContain("Enter your Stripe secret key to enable Stripe payments");
+      expect(html).not.toContain("stripe-test-btn");
     });
 
     test("settings page shows Stripe is configured after setting key", async () => {
@@ -537,12 +538,118 @@ describe("server", () => {
           ),
         );
 
-        // Check the settings page shows it's configured
+        // Check the settings page shows it's configured and has test button
         const response = await awaitTestRequest("/admin/settings", { cookie });
         const html = await response.text();
         expect(html).toContain("A Stripe secret key is currently configured");
+        expect(html).toContain("stripe-test-btn");
+        expect(html).toContain("Test Connection");
       } finally {
         mockSetupWebhook.mockRestore();
+      }
+    });
+  });
+
+  describe("POST /admin/settings/stripe/test", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/stripe/test", {}),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe/test",
+          { csrf_token: "invalid-csrf-token" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
+    test("returns JSON result when API key is not configured", async () => {
+      const mockTest = spyOn(stripeApi, "testStripeConnection");
+      mockTest.mockResolvedValue({
+        ok: false,
+        apiKey: { valid: false, error: "No Stripe secret key configured" },
+        webhook: { configured: false },
+      });
+
+      try {
+        const { cookie, csrfToken } = await loginAsAdmin();
+        const response = await handleRequest(
+          mockFormRequest("/admin/settings/stripe/test", { csrf_token: csrfToken }, cookie),
+        );
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toBe("application/json");
+        const json = await response.json();
+        expect(json.ok).toBe(false);
+        expect(json.apiKey.valid).toBe(false);
+        expect(json.apiKey.error).toContain("No Stripe secret key configured");
+      } finally {
+        mockTest.mockRestore();
+      }
+    });
+
+    test("returns success when API key and webhook are valid", async () => {
+      const mockTest = spyOn(stripeApi, "testStripeConnection");
+      mockTest.mockResolvedValue({
+        ok: true,
+        apiKey: { valid: true, mode: "test" },
+        webhook: {
+          configured: true,
+          endpointId: "we_test_123",
+          url: "https://example.com/payment/webhook",
+          status: "enabled",
+          enabledEvents: ["checkout.session.completed"],
+        },
+      });
+
+      try {
+        const { cookie, csrfToken } = await loginAsAdmin();
+        const response = await handleRequest(
+          mockFormRequest("/admin/settings/stripe/test", { csrf_token: csrfToken }, cookie),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.ok).toBe(true);
+        expect(json.apiKey.valid).toBe(true);
+        expect(json.apiKey.mode).toBe("test");
+        expect(json.webhook.configured).toBe(true);
+        expect(json.webhook.url).toBe("https://example.com/payment/webhook");
+        expect(json.webhook.status).toBe("enabled");
+        expect(json.webhook.enabledEvents).toContain("checkout.session.completed");
+      } finally {
+        mockTest.mockRestore();
+      }
+    });
+
+    test("returns partial failure when API key valid but webhook missing", async () => {
+      const mockTest = spyOn(stripeApi, "testStripeConnection");
+      mockTest.mockResolvedValue({
+        ok: false,
+        apiKey: { valid: true, mode: "test" },
+        webhook: { configured: false, error: "No webhook endpoint ID stored" },
+      });
+
+      try {
+        const { cookie, csrfToken } = await loginAsAdmin();
+        const response = await handleRequest(
+          mockFormRequest("/admin/settings/stripe/test", { csrf_token: csrfToken }, cookie),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.ok).toBe(false);
+        expect(json.apiKey.valid).toBe(true);
+        expect(json.webhook.configured).toBe(false);
+        expect(json.webhook.error).toContain("No webhook endpoint ID stored");
+      } finally {
+        mockTest.mockRestore();
       }
     });
   });
@@ -3837,7 +3944,7 @@ describe("server", () => {
 
     describe("Content-Security-Policy", () => {
       const baseCsp =
-        "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; form-action 'self'";
+        "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; form-action 'self' https://checkout.stripe.com";
 
       test("non-embeddable pages have frame-ancestors 'none' and security restrictions", async () => {
         const response = await handleRequest(mockRequest("/"));

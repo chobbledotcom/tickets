@@ -2,8 +2,7 @@ name: Test
 
 on:
   pull_request:
-  push:
-    branches: [main]
+  merge_group:
 
 env:
   STRIPE_MOCK_VERSION: "0.188.0"

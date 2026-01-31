@@ -1,9 +1,6 @@
 /**
  * Webhook notification module
  * Sends attendee registration data to configured webhook URLs
- *
- * Note: For security, PII (name, email) is not sent in webhook payloads.
- * External systems should query the API with authentication if they need PII.
  */
 
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -19,6 +16,9 @@ export type WebhookPayload = {
   attendee: {
     id: number;
     quantity: number;
+    name: string;
+    email: string;
+    phone: string;
   };
   timestamp: string;
 };
@@ -33,7 +33,13 @@ type WebhookEvent = {
 };
 
 /** Attendee data needed for webhook notifications */
-type WebhookAttendee = { id: number; quantity: number };
+type WebhookAttendee = {
+  id: number;
+  quantity: number;
+  name: string;
+  email: string;
+  phone: string;
+};
 
 /**
  * Send a webhook notification for a new attendee registration
@@ -43,8 +49,7 @@ export const sendRegistrationWebhook = async (
   webhookUrl: string,
   eventId: number,
   eventSlug: string,
-  attendeeId: number,
-  quantity: number,
+  attendee: WebhookAttendee,
   maxAttendees: number,
   attendeeCount: number,
 ): Promise<void> => {
@@ -52,11 +57,14 @@ export const sendRegistrationWebhook = async (
     event_type: "attendee.registered",
     event_id: eventId,
     event_slug: eventSlug,
-    remaining_places: maxAttendees - attendeeCount - quantity,
+    remaining_places: maxAttendees - attendeeCount - attendee.quantity,
     total_places: maxAttendees,
     attendee: {
-      id: attendeeId,
-      quantity,
+      id: attendee.id,
+      quantity: attendee.quantity,
+      name: attendee.name,
+      email: attendee.email,
+      phone: attendee.phone,
     },
     timestamp: new Date().toISOString(),
   };
@@ -71,7 +79,7 @@ export const sendRegistrationWebhook = async (
     });
   } catch {
     // Webhook failures should not block registration
-    logError({ code: ErrorCode.WEBHOOK_SEND, eventId, attendeeId });
+    logError({ code: ErrorCode.WEBHOOK_SEND, eventId, attendeeId: attendee.id });
   }
 };
 
@@ -89,8 +97,7 @@ export const notifyWebhook = async (
     event.webhook_url,
     event.id,
     event.slug,
-    attendee.id,
-    attendee.quantity,
+    attendee,
     event.max_attendees,
     event.attendee_count,
   );

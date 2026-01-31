@@ -22,7 +22,7 @@ import {
 } from "#lib/config.ts";
 import { resetDatabase } from "#lib/db/migrations/index.ts";
 import { validateForm } from "#lib/forms.tsx";
-import { setupWebhookEndpoint } from "#lib/stripe.ts";
+import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -308,6 +308,20 @@ const handleAdminSquareWebhookPost = (request: Request): Promise<Response> =>
   });
 
 /**
+ * Handle POST /admin/settings/stripe/test
+ *
+ * Tests that the stored Stripe API key and webhook endpoint are working.
+ * Returns JSON with diagnostic information.
+ */
+const handleStripeTestPost = (request: Request): Promise<Response> =>
+  withAuthForm(request, async () => {
+    const result = await testStripeConnection();
+    return new Response(JSON.stringify(result), {
+      headers: { "content-type": "application/json" },
+    });
+  });
+
+/**
  * Expected confirmation phrase for database reset
  */
 const RESET_DATABASE_PHRASE =
@@ -345,6 +359,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/square": (request) => handleAdminSquarePost(request),
   "POST /admin/settings/square-webhook": (request) =>
     handleAdminSquareWebhookPost(request),
+  "POST /admin/settings/stripe/test": (request) => handleStripeTestPost(request),
   "POST /admin/settings/reset-database": (request) =>
     handleResetDatabasePost(request),
 });

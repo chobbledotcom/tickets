@@ -6,6 +6,8 @@ import {
   refundPayment,
   resetStripeClient,
   retrieveCheckoutSession,
+  sanitizeErrorDetail,
+  testStripeConnection,
   type StripeWebhookEvent,
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
@@ -519,6 +521,128 @@ describe("stripe", () => {
     });
   });
 
+  describe("testStripeConnection", () => {
+    test("returns error when no API key configured", async () => {
+      const result = await testStripeConnection();
+      expect(result.ok).toBe(false);
+      expect(result.apiKey.valid).toBe(false);
+      expect(result.apiKey.error).toContain("No Stripe secret key configured");
+    });
+
+    test("returns error when balance.retrieve fails", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client to be defined");
+
+      const balanceSpy = spyOn(client.balance, "retrieve");
+      balanceSpy.mockRejectedValue(new Error("Invalid API Key provided"));
+
+      try {
+        const result = await testStripeConnection();
+        expect(result.ok).toBe(false);
+        expect(result.apiKey.valid).toBe(false);
+        expect(result.apiKey.error).toContain("Invalid API Key provided");
+      } finally {
+        balanceSpy.mockRestore();
+      }
+    });
+
+    test("returns test mode when API key is valid and webhook not configured", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client to be defined");
+
+      const balanceSpy = spyOn(client.balance, "retrieve");
+      balanceSpy.mockResolvedValue({ livemode: false, available: [], pending: [], object: "balance" } as never);
+
+      try {
+        const result = await testStripeConnection();
+        expect(result.ok).toBe(false);
+        expect(result.apiKey.valid).toBe(true);
+        expect(result.apiKey.mode).toBe("test");
+        expect(result.webhook.configured).toBe(false);
+        expect(result.webhook.error).toContain("No webhook endpoint ID stored");
+      } finally {
+        balanceSpy.mockRestore();
+      }
+    });
+
+    test("returns live mode for live key", async () => {
+      await updateStripeKey("sk_live_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client to be defined");
+
+      const balanceSpy = spyOn(client.balance, "retrieve");
+      balanceSpy.mockResolvedValue({ livemode: true, available: [], pending: [], object: "balance" } as never);
+
+      try {
+        const result = await testStripeConnection();
+        expect(result.apiKey.valid).toBe(true);
+        expect(result.apiKey.mode).toBe("live");
+      } finally {
+        balanceSpy.mockRestore();
+      }
+    });
+
+    test("returns webhook error when endpoint retrieval fails", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setStripeWebhookConfig("whsec_test", "we_test_missing");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client to be defined");
+
+      const balanceSpy = spyOn(client.balance, "retrieve");
+      balanceSpy.mockResolvedValue({ livemode: false, available: [], pending: [], object: "balance" } as never);
+
+      const webhookSpy = spyOn(client.webhookEndpoints, "retrieve");
+      webhookSpy.mockRejectedValue(new Error("No such webhook endpoint: we_test_missing"));
+
+      try {
+        const result = await testStripeConnection();
+        expect(result.ok).toBe(false);
+        expect(result.apiKey.valid).toBe(true);
+        expect(result.webhook.configured).toBe(false);
+        expect(result.webhook.error).toContain("No such webhook endpoint");
+      } finally {
+        balanceSpy.mockRestore();
+        webhookSpy.mockRestore();
+      }
+    });
+
+    test("returns full success when API key and webhook are both valid", async () => {
+      await updateStripeKey("sk_test_mock");
+      await setStripeWebhookConfig("whsec_test", "we_test_valid");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client to be defined");
+
+      const balanceSpy = spyOn(client.balance, "retrieve");
+      balanceSpy.mockResolvedValue({ livemode: false, available: [], pending: [], object: "balance" } as never);
+
+      const webhookSpy = spyOn(client.webhookEndpoints, "retrieve");
+      webhookSpy.mockResolvedValue({
+        id: "we_test_valid",
+        url: "https://example.com/payment/webhook",
+        status: "enabled",
+        enabled_events: ["checkout.session.completed"],
+        object: "webhook_endpoint",
+      } as never);
+
+      try {
+        const result = await testStripeConnection();
+        expect(result.ok).toBe(true);
+        expect(result.apiKey.valid).toBe(true);
+        expect(result.apiKey.mode).toBe("test");
+        expect(result.webhook.configured).toBe(true);
+        expect(result.webhook.endpointId).toBe("we_test_valid");
+        expect(result.webhook.url).toBe("https://example.com/payment/webhook");
+        expect(result.webhook.status).toBe("enabled");
+        expect(result.webhook.enabledEvents).toContain("checkout.session.completed");
+      } finally {
+        balanceSpy.mockRestore();
+        webhookSpy.mockRestore();
+      }
+    });
+  });
+
   describe("constructTestWebhookEvent", () => {
     test("creates valid payload and signature pair", async () => {
       const secret = "whsec_test_construction";
@@ -550,6 +674,61 @@ describe("stripe", () => {
       await setStripeWebhookConfig(secret, "we_test_construction");
       const result = await verifyWebhookSignature(payload, signature);
       expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("sanitizeErrorDetail", () => {
+    test("returns 'unknown' for non-Error values", () => {
+      expect(sanitizeErrorDetail("string error")).toBe("unknown");
+      expect(sanitizeErrorDetail(null)).toBe("unknown");
+      expect(sanitizeErrorDetail(42)).toBe("unknown");
+      expect(sanitizeErrorDetail(undefined)).toBe("unknown");
+    });
+
+    test("returns error name for plain Error without Stripe fields", () => {
+      expect(sanitizeErrorDetail(new Error("sensitive message"))).toBe("Error");
+    });
+
+    test("returns error name for typed errors without Stripe fields", () => {
+      expect(sanitizeErrorDetail(new TypeError("bad type"))).toBe("TypeError");
+    });
+
+    test("extracts Stripe statusCode, code, and type", () => {
+      const err = new Error("Invalid API Key provided: sk_test_****1234");
+      Object.assign(err, {
+        statusCode: 401,
+        code: "api_key_invalid",
+        type: "StripeAuthenticationError",
+      });
+      expect(sanitizeErrorDetail(err)).toBe(
+        "status=401 code=api_key_invalid type=StripeAuthenticationError",
+      );
+    });
+
+    test("extracts partial Stripe fields", () => {
+      const err = new Error("Resource not found");
+      Object.assign(err, { statusCode: 404 });
+      expect(sanitizeErrorDetail(err)).toBe("status=404");
+    });
+
+    test("extracts code and type without statusCode", () => {
+      const err = new Error("Connection failed");
+      Object.assign(err, {
+        code: "ECONNREFUSED",
+        type: "StripeConnectionError",
+      });
+      expect(sanitizeErrorDetail(err)).toBe(
+        "code=ECONNREFUSED type=StripeConnectionError",
+      );
+    });
+
+    test("never includes the raw error message in output", () => {
+      const sensitiveMessage = "Invalid API Key provided: sk_live_realkey123";
+      const err = new Error(sensitiveMessage);
+      Object.assign(err, { statusCode: 401, type: "StripeAuthenticationError" });
+      const detail = sanitizeErrorDetail(err);
+      expect(detail).not.toContain(sensitiveMessage);
+      expect(detail).not.toContain("sk_live");
     });
   });
 });
