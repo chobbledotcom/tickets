@@ -221,7 +221,7 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
  * Returns JSON with diagnostic information.
  */
 const handleStripeTestPost = (request: Request): Promise<Response> =>
-  requireSessionOr(request, async () => {
+  withAuthForm(request, async () => {
     const result = await testStripeConnection();
     return new Response(JSON.stringify(result), {
       headers: { "content-type": "application/json" },

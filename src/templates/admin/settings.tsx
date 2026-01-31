@@ -80,7 +80,8 @@ document.getElementById('stripe-test-btn')?.addEventListener('click', async func
   resultDiv.style.display = 'none';
   resultDiv.className = '';
   try {
-    var res = await fetch('/admin/settings/stripe/test', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: '' });
+    var csrfToken = btn.closest('form').querySelector('input[name="csrf_token"]').value;
+    var res = await fetch('/admin/settings/stripe/test', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'csrf_token=' + encodeURIComponent(csrfToken) });
     var data = await res.json();
     var lines = [];
     if (data.apiKey.valid) {

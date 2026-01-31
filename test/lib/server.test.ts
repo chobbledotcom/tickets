@@ -558,6 +558,20 @@ describe("server", () => {
       expectAdminRedirect(response);
     });
 
+    test("rejects invalid CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe/test",
+          { csrf_token: "invalid-csrf-token" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
     test("returns JSON result when API key is not configured", async () => {
       const mockTest = spyOn(stripeApi, "testStripeConnection");
       mockTest.mockResolvedValue({
@@ -567,9 +581,9 @@ describe("server", () => {
       });
 
       try {
-        const { cookie } = await loginAsAdmin();
+        const { cookie, csrfToken } = await loginAsAdmin();
         const response = await handleRequest(
-          mockFormRequest("/admin/settings/stripe/test", {}, cookie),
+          mockFormRequest("/admin/settings/stripe/test", { csrf_token: csrfToken }, cookie),
         );
         expect(response.status).toBe(200);
         expect(response.headers.get("content-type")).toBe("application/json");
@@ -597,9 +611,9 @@ describe("server", () => {
       });
 
       try {
-        const { cookie } = await loginAsAdmin();
+        const { cookie, csrfToken } = await loginAsAdmin();
         const response = await handleRequest(
-          mockFormRequest("/admin/settings/stripe/test", {}, cookie),
+          mockFormRequest("/admin/settings/stripe/test", { csrf_token: csrfToken }, cookie),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
@@ -624,9 +638,9 @@ describe("server", () => {
       });
 
       try {
-        const { cookie } = await loginAsAdmin();
+        const { cookie, csrfToken } = await loginAsAdmin();
         const response = await handleRequest(
-          mockFormRequest("/admin/settings/stripe/test", {}, cookie),
+          mockFormRequest("/admin/settings/stripe/test", { csrf_token: csrfToken }, cookie),
         );
         expect(response.status).toBe(200);
         const json = await response.json();
