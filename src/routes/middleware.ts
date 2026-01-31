@@ -29,7 +29,7 @@ const buildCspHeader = (embeddable: boolean): string =>
     "default-src 'self'",
     "style-src 'self' 'unsafe-inline'", // Allow inline styles
     "script-src 'self' 'unsafe-inline'", // Allow inline scripts
-    "form-action 'self'", // Restrict form submissions to self
+    "form-action 'self' https://checkout.stripe.com", // Restrict form submissions to self + Stripe checkout redirect
   ]).join("; ");
 
 /**

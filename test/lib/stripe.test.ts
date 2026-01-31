@@ -6,6 +6,7 @@ import {
   refundPayment,
   resetStripeClient,
   retrieveCheckoutSession,
+  sanitizeErrorDetail,
   testStripeConnection,
   type StripeWebhookEvent,
   verifyWebhookSignature,
@@ -673,6 +674,61 @@ describe("stripe", () => {
       await setStripeWebhookConfig(secret, "we_test_construction");
       const result = await verifyWebhookSignature(payload, signature);
       expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("sanitizeErrorDetail", () => {
+    test("returns 'unknown' for non-Error values", () => {
+      expect(sanitizeErrorDetail("string error")).toBe("unknown");
+      expect(sanitizeErrorDetail(null)).toBe("unknown");
+      expect(sanitizeErrorDetail(42)).toBe("unknown");
+      expect(sanitizeErrorDetail(undefined)).toBe("unknown");
+    });
+
+    test("returns error name for plain Error without Stripe fields", () => {
+      expect(sanitizeErrorDetail(new Error("sensitive message"))).toBe("Error");
+    });
+
+    test("returns error name for typed errors without Stripe fields", () => {
+      expect(sanitizeErrorDetail(new TypeError("bad type"))).toBe("TypeError");
+    });
+
+    test("extracts Stripe statusCode, code, and type", () => {
+      const err = new Error("Invalid API Key provided: sk_test_****1234");
+      Object.assign(err, {
+        statusCode: 401,
+        code: "api_key_invalid",
+        type: "StripeAuthenticationError",
+      });
+      expect(sanitizeErrorDetail(err)).toBe(
+        "status=401 code=api_key_invalid type=StripeAuthenticationError",
+      );
+    });
+
+    test("extracts partial Stripe fields", () => {
+      const err = new Error("Resource not found");
+      Object.assign(err, { statusCode: 404 });
+      expect(sanitizeErrorDetail(err)).toBe("status=404");
+    });
+
+    test("extracts code and type without statusCode", () => {
+      const err = new Error("Connection failed");
+      Object.assign(err, {
+        code: "ECONNREFUSED",
+        type: "StripeConnectionError",
+      });
+      expect(sanitizeErrorDetail(err)).toBe(
+        "code=ECONNREFUSED type=StripeConnectionError",
+      );
+    });
+
+    test("never includes the raw error message in output", () => {
+      const sensitiveMessage = "Invalid API Key provided: sk_live_realkey123";
+      const err = new Error(sensitiveMessage);
+      Object.assign(err, { statusCode: 401, type: "StripeAuthenticationError" });
+      const detail = sanitizeErrorDetail(err);
+      expect(detail).not.toContain(sensitiveMessage);
+      expect(detail).not.toContain("sk_live");
     });
   });
 });
