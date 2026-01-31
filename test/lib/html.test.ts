@@ -1,4 +1,5 @@
 import { describe, expect, test } from "#test-compat";
+import { CSS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminEventPage } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
@@ -13,6 +14,18 @@ import { notFoundPage, ticketPage } from "#templates/public.tsx";
 import { testAttendee, testEvent, testEventWithCount } from "#test-utils";
 
 const TEST_CSRF_TOKEN = "test-csrf-token-abc123";
+
+describe("asset-paths", () => {
+  test("CSS_PATH defaults to /mvp.css in dev", () => {
+    expect(CSS_PATH).toBe("/mvp.css");
+  });
+
+  test("pages include CSS_PATH in stylesheet link", () => {
+    const html = adminLoginPage();
+    expect(html).toContain(`href="${CSS_PATH}"`);
+    expect(html).toContain('rel="stylesheet"');
+  });
+});
 
 describe("html", () => {
   describe("adminLoginPage", () => {

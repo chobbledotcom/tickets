@@ -212,6 +212,7 @@ describe("code quality", () => {
       "fp/index.ts", // FP utility library
       "lib/jsx/jsx-runtime.ts", // JSX compiler runtime
       "lib/jsx/jsx-dev-runtime.ts", // JSX dev runtime
+      "config/asset-paths.ts", // Build-time config consumed by .tsx templates
     ];
 
     /** Index modules that only re-export from sub-modules */
