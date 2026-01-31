@@ -163,12 +163,33 @@ const main = async (): Promise<void> => {
     const covOutput = new TextDecoder().decode(covResult.stdout);
     console.log(covOutput);
 
-    const uncoveredFiles = covOutput
-      .split("\n")
-      .filter((line) => line.startsWith("cover ") && !line.includes("100.000%"));
+    // Strip ANSI escape codes for parsing
+    const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
+    const lines = covOutput.split("\n").map(stripAnsi);
+
+    // Parse table rows: | filename | branch % | line % |
+    const fileRows = lines.filter((line) => {
+      const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+      if (cells.length !== 3) return false;
+      // Skip header and separator rows
+      if (cells[0] === "File" || cells[0]!.startsWith("---")) return false;
+      return true;
+    });
+
+    if (fileRows.length === 0) {
+      console.error("No coverage data found");
+      Deno.exit(1);
+    }
+
+    const uncoveredFiles = fileRows.filter((line) => {
+      const cells = line.split("|").map((c) => c.trim()).filter(Boolean);
+      const branch = parseFloat(cells[1]!);
+      const linePct = parseFloat(cells[2]!);
+      return branch < 100 || linePct < 100;
+    });
 
     if (uncoveredFiles.length > 0) {
-      console.error("\nCoverage is not 100%. Uncovered files:");
+      console.error("\nCoverage is not 100%. Files below 100%:");
       for (const line of uncoveredFiles) {
         console.error(line);
       }

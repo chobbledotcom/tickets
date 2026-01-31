@@ -67,12 +67,21 @@ jobs:
 
       - name: Enforce 100% coverage
         run: |
-          OUTPUT=$(deno coverage coverage/)
+          # Strip ANSI codes, parse coverage table, check all files are 100%
+          OUTPUT=$(deno coverage coverage/ 2>&1 | sed 's/\x1b\[[0-9;]*m//g')
           echo "$OUTPUT"
-          if echo "$OUTPUT" | grep '^cover ' | grep -qv '100.000%'; then
+          # Extract data rows (skip header, separator, and "All files" summary)
+          FAILED=$(echo "$OUTPUT" | grep '^|' | grep -v '^\| File' | grep -v '^\| ---' | grep -v '^\| All files' | while IFS='|' read -r _ file branch line _; do
+            branch=$(echo "$branch" | tr -d ' ')
+            line=$(echo "$line" | tr -d ' ')
+            if [ "$branch" != "100.0" ] || [ "$line" != "100.0" ]; then
+              echo "$file (branch: $branch%, line: $line%)"
+            fi
+          done)
+          if [ -n "$FAILED" ]; then
             echo ""
-            echo "::error::Coverage is not 100% for all files. Uncovered files:"
-            echo "$OUTPUT" | grep '^cover ' | grep -v '100.000%'
+            echo "::error::Coverage is not 100% for all files:"
+            echo "$FAILED"
             exit 1
           fi
           echo "All files have 100% coverage"
