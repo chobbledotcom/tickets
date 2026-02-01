@@ -131,7 +131,7 @@ const withEventAttendees = async (
  */
 const handleCreateEvent = createHandler(eventsResource, {
   onSuccess: async (row) => {
-    await logActivity(`Created event '${row.name}'`, row.id);
+    await logActivity("Event created", row.id);
     return redirect("/admin");
   },
   onError: () => redirect("/admin"),
@@ -209,7 +209,7 @@ const handleAdminEventExport = (request: Request, eventId: number) =>
   withEventAttendees(request, eventId, async (event, attendees) => {
     const csv = generateAttendeesCsv(attendees);
     const filename = `${event.name.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
-    await logActivity(`Exported CSV for '${event.name}'`, event.id);
+    await logActivity("CSV exported", event.id);
     return new Response(csv, {
       headers: {
         "content-type": "text/csv; charset=utf-8",
@@ -246,7 +246,7 @@ const handleAdminEventDeactivatePost = (
     }
 
     await eventsTable.update(eventId, { active: 0 });
-    await logActivity(`Deactivated event '${event.name}'`, eventId);
+    await logActivity("Event deactivated", eventId);
     return redirect(`/admin/event/${eventId}`);
   });
 
@@ -272,7 +272,7 @@ const handleAdminEventReactivatePost = (
     }
 
     await eventsTable.update(eventId, { active: 1 });
-    await logActivity(`Reactivated event '${event.name}'`, eventId);
+    await logActivity("Event reactivated", eventId);
     return redirect(`/admin/event/${eventId}`);
   });
 
@@ -327,10 +327,9 @@ const handleAdminEventDelete = (
     }
 
     const attendeeCount = event.attendee_count;
-    const eventName = event.name;
     await deleteEvent(eventId);
     await logActivity(
-      `Deleted event '${eventName}' and ${attendeeCount} attendee(s)`,
+      `Event deleted (${attendeeCount} attendee(s) removed)`,
     );
     return redirect("/admin");
   });

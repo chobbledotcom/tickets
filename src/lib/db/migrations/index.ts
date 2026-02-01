@@ -166,8 +166,9 @@ export const initDb = async (): Promise<void> => {
   // Migration: add phone column to attendees (nullable, hybrid encrypted like email)
   await runMigration(`ALTER TABLE attendees ADD COLUMN phone TEXT`);
 
-  // Migration: add name column to events (encrypted, for display purposes)
+  // Migration: add name column to events (encrypted, defaults to existing slug for backfill)
   await runMigration(`ALTER TABLE events ADD COLUMN name TEXT NOT NULL DEFAULT ''`);
+  await runMigration(`UPDATE events SET name = slug WHERE name = ''`);
 
   // Update the version marker
   await getDb().execute({

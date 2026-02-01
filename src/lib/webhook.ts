@@ -65,12 +65,8 @@ export const buildWebhookPayload = (
 ): WebhookPayload => {
   const first = entries[0]!;
   const totalPricePaid = entries.reduce((sum, { attendee, event }) => {
-    if (attendee.price_paid !== null && attendee.price_paid !== undefined) {
-      return sum + Number.parseInt(String(attendee.price_paid), 10);
-    }
-    if (event.unit_price !== null) {
-      return sum + event.unit_price * attendee.quantity;
-    }
+    if (attendee.price_paid) return sum + Number.parseInt(attendee.price_paid, 10);
+    if (event.unit_price) return sum + event.unit_price * attendee.quantity;
     return sum;
   }, 0);
 
@@ -138,7 +134,7 @@ export const logAndNotifyRegistration = async (
   attendee: WebhookAttendee,
   currency: string,
 ): Promise<void> => {
-  await logActivity(`Added an attendee to event '${event.name}'`, event.id);
+  await logActivity("Attendee registered", event.id);
   await sendRegistrationWebhooks([{ event, attendee }], currency);
 };
 
@@ -150,7 +146,7 @@ export const logAndNotifyMultiRegistration = async (
   currency: string,
 ): Promise<void> => {
   for (const { event } of entries) {
-    await logActivity(`Added an attendee to event '${event.name}'`, event.id);
+    await logActivity("Attendee registered", event.id);
   }
   await sendRegistrationWebhooks(entries, currency);
 };
