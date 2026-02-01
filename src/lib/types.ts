@@ -7,6 +7,7 @@ export type EventFields = "email" | "phone" | "both";
 
 export interface Event {
   id: number;
+  name: string;
   slug: string;
   slug_index: string;
   created: string;

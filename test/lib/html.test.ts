@@ -62,24 +62,24 @@ describe("html", () => {
     test("renders events table", () => {
       const events = [testEventWithCount({ attendee_count: 25 })];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
-      expect(html).toContain("test-event");
+      expect(html).toContain("Test Event");
       expect(html).toContain("25 / 100");
       expect(html).toContain("/admin/event/1");
     });
 
-    test("displays event slug as identifier", () => {
+    test("displays event name", () => {
       const events = [
-        testEventWithCount({ slug: "my-test-event", slug_index: "my-test-event-index" }),
+        testEventWithCount({ name: "My Test Event" }),
       ];
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
-      expect(html).toContain("my-test-event");
-      expect(html).toContain("Identifier");
+      expect(html).toContain("My Test Event");
+      expect(html).toContain("Event Name");
     });
 
     test("renders create event form", () => {
       const html = adminDashboardPage([], TEST_CSRF_TOKEN);
       expect(html).toContain("Create New Event");
-      expect(html).toContain('name="slug"');
+      expect(html).toContain('name="name"');
       expect(html).toContain('name="max_attendees"');
       expect(html).toContain('name="thank_you_url"');
     });
@@ -95,7 +95,7 @@ describe("html", () => {
 
     test("renders event details", () => {
       const html = adminEventPage(event, [], "localhost");
-      expect(html).toContain("test-event");
+      expect(html).toContain("Test Event");
       expect(html).toContain("100");
       expect(html).toContain("https://example.com/thanks");
     });
@@ -107,13 +107,13 @@ describe("html", () => {
 
     test("shows ticket URL", () => {
       const html = adminEventPage(event, [], "localhost");
-      expect(html).toContain("/ticket/test-event");
+      expect(html).toContain("/ticket/ab12c");
     });
 
     test("shows embed code with allowed domain", () => {
       const html = adminEventPage(event, [], "example.com");
       expect(html).toContain("Embed Code:");
-      expect(html).toContain("https://example.com/ticket/test-event");
+      expect(html).toContain("https://example.com/ticket/ab12c");
       expect(html).toContain("loading=");
       expect(html).toContain("readonly");
     });
@@ -191,12 +191,12 @@ describe("html", () => {
 
     test("renders page title", () => {
       const html = ticketPage(event, csrfToken);
-      expect(html).toContain("Reserve Ticket");
+      expect(html).toContain("Test Event");
     });
 
     test("renders registration form when spots available", () => {
       const html = ticketPage(event, csrfToken);
-      expect(html).toContain('action="/ticket/test-event"');
+      expect(html).toContain('action="/ticket/ab12c"');
       expect(html).toContain('name="name"');
       expect(html).toContain('name="email"');
       expect(html).toContain("Reserve Ticket");
@@ -221,9 +221,9 @@ describe("html", () => {
       expect(html).not.toContain(">Reserve Ticket</button>");
     });
 
-    test("does not display event header content", () => {
+    test("displays event name as header", () => {
       const html = ticketPage(event, csrfToken);
-      expect(html).not.toContain("<h1>test-event</h1>");
+      expect(html).toContain("<h1>Test Event</h1>");
     });
 
     test("shows quantity selector when max_quantity > 1 and spots available", () => {
@@ -347,9 +347,9 @@ describe("html", () => {
     const event = testEvent({ unit_price: 1000 });
 
     test("renders cancel message", () => {
-      const html = paymentCancelPage(event, "/ticket/test-event");
+      const html = paymentCancelPage(event, "/ticket/ab12c");
       expect(html).toContain("Payment Cancelled");
-      expect(html).toContain("/ticket/test-event");
+      expect(html).toContain("/ticket/ab12c");
       expect(html).toContain("Try again");
     });
   });
@@ -618,10 +618,10 @@ describe("html", () => {
   describe("multiTicketPage", () => {
     test("shows all sold out message when every event is sold out", () => {
       const events = [
-        buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "event-a", attendee_count: 100, max_attendees: 100 })),
-        buildMultiTicketEvent(testEventWithCount({ id: 2, slug: "event-b", attendee_count: 50, max_attendees: 50 })),
+        buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 100, max_attendees: 100 })),
+        buildMultiTicketEvent(testEventWithCount({ id: 2, slug: "cd34e", name: "Event B", attendee_count: 50, max_attendees: 50 })),
       ];
-      const html = multiTicketPage(events, ["event-a", "event-b"], TEST_CSRF_TOKEN);
+      const html = multiTicketPage(events, ["ab12c", "cd34e"], TEST_CSRF_TOKEN);
       expect(html).toContain("Sorry, all events are sold out.");
       expect(html).not.toContain("Reserve Tickets</button>");
     });

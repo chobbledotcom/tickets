@@ -12,7 +12,6 @@ import type {
   CreateResult,
   DeleteResult,
   Resource,
-  UpdateResult,
 } from "#lib/rest/resource.ts";
 import {
   type AuthFormResult,
@@ -33,14 +32,6 @@ type OnError = (
   form: URLSearchParams,
 ) => MaybeAsync<Response>;
 
-/** Callback for validation errors with ID (update) */
-type OnErrorWithId = (
-  id: InValue,
-  error: string,
-  session: AuthSession,
-  form: URLSearchParams,
-) => MaybeAsync<Response>;
-
 /** Callback for row success */
 type OnRowSuccess<R> = (row: R, session: AuthSession) => MaybeAsync<Response>;
 
@@ -48,13 +39,6 @@ type OnRowSuccess<R> = (row: R, session: AuthSession) => MaybeAsync<Response>;
 export interface CreateHandlerOptions<R> {
   onSuccess: OnRowSuccess<R>;
   onError: OnError;
-}
-
-/** Options for update handler */
-export interface UpdateHandlerOptions<R> {
-  onSuccess: OnRowSuccess<R>;
-  onError: OnErrorWithId;
-  onNotFound: () => MaybeAsync<Response>;
 }
 
 /** Options for delete handler */
@@ -103,18 +87,6 @@ const dispatchDelete = <R>(
     ? opts.onSuccess(session)
     : opts.onNotFound();
 
-/** Dispatch update result */
-const dispatchUpdate = <R>(
-  id: InValue,
-  result: UpdateResult<R>,
-  auth: AuthOk,
-  opts: UpdateHandlerOptions<R>,
-): MaybeAsync<Response> => {
-  if (result.ok) return opts.onSuccess(result.row, auth.session);
-  if ("notFound" in result) return opts.onNotFound();
-  return opts.onError(id, result.error, auth.session, auth.form);
-};
-
 /** Create POST handler */
 export const createHandler =
   <R, I>(resource: Resource<R, I>, opts: CreateHandlerOptions<R>) =>
@@ -124,15 +96,6 @@ export const createHandler =
       ? dispatchCreate(await resource.create(a.form), a, opts)
       : a.response;
   };
-
-/** Create PUT/PATCH handler for updates */
-export const updateHandler = <R, I>(
-  resource: Resource<R, I>,
-  opts: UpdateHandlerOptions<R>,
-): IdHandler =>
-  authHandler(async (_req, id, auth) =>
-    dispatchUpdate(id, await resource.update(id, auth.form), auth, opts),
-  );
 
 /** Check name verification param */
 const needsVerify = (req: Request): boolean =>

@@ -701,12 +701,12 @@ describe("server (payment flow)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "success-multi-1",
+        name: "Success Multi 1",
         maxAttendees: 50,
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        slug: "success-multi-2",
+        name: "Success Multi 2",
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -820,7 +820,7 @@ describe("server (payment flow)", () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        slug: "multi-inactive-pay",
+        name: "Multi Inactive Pay",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -908,12 +908,12 @@ describe("server (payment flow)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-rollback-1",
+        name: "Multi Rollback 1",
         maxAttendees: 50,
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        slug: "multi-rollback-2",
+        name: "Multi Rollback 2",
         maxAttendees: 1,
         unitPrice: 1000,
       });

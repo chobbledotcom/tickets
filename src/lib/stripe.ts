@@ -141,7 +141,7 @@ const buildSessionParams = async (
         price_data: {
           currency,
           product_data: {
-            name: `Ticket: ${cfg.event.slug}`,
+            name: `Ticket: ${cfg.event.name}`,
             description: label,
           },
           unit_amount: cfg.event.unit_price,
@@ -246,7 +246,7 @@ export const stripeApi: {
         price_data: {
           currency,
           product_data: {
-            name: `Ticket: ${item.slug}`,
+            name: `Ticket: ${item.name}`,
             description:
               item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
           },

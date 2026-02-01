@@ -174,7 +174,7 @@ describe("server (misc)", () => {
   describe("routes/router.ts (slug and generic param patterns)", () => {
     test("slug pattern matches lowercase alphanumeric with hyphens", async () => {
       const event = await createTestEvent({
-        slug: "my-test-event",
+        name: "My Test Event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -318,7 +318,7 @@ describe("server (misc)", () => {
   describe("routes/router.ts (param patterns)", () => {
     test("matches slug pattern with lowercase alphanumeric and hyphens", async () => {
       const event = await createTestEvent({
-        slug: "my-test-event",
+        name: "My Test Event",
         maxAttendees: 50,
       });
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));

@@ -2,7 +2,6 @@
  * Admin event management routes
  */
 
-import type { InValue } from "@libsql/client";
 import { getAllowedDomain } from "#lib/config.ts";
 import {
   getEventWithActivityLog,
@@ -18,8 +17,9 @@ import {
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
-import { createHandler, updateHandler } from "#lib/rest/handlers.ts";
+import { createHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
+import { generateSlug } from "#lib/slug.ts";
 import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
 import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
@@ -28,6 +28,7 @@ import {
   htmlResponse,
   notFoundResponse,
   redirect,
+  requireAuthForm,
   requireSessionOr,
   withAuthForm,
   withEvent,
@@ -43,14 +44,26 @@ import {
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields } from "#templates/fields.ts";
 
+/** Generate a unique slug, retrying on collision */
+const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: string; slugIndex: string }> => {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const slug = generateSlug();
+    const slugIndex = await computeSlugIndex(slug);
+    const taken = await isSlugTaken(slug, excludeEventId);
+    if (!taken) return { slug, slugIndex };
+  }
+  throw new Error("Failed to generate unique slug after 10 attempts");
+};
+
 /** Extract event input from validated form (async to compute slugIndex) */
 const extractEventInput = async (
   values: Record<string, unknown>,
 ): Promise<EventInput> => {
-  const slug = values.slug as string;
+  const { slug, slugIndex } = await generateUniqueSlug();
   return {
+    name: values.name as string,
     slug,
-    slugIndex: await computeSlugIndex(slug),
+    slugIndex,
     maxAttendees: values.max_attendees as number,
     thankYouUrl: values.thank_you_url as string,
     unitPrice: values.unit_price as number | null,
@@ -60,24 +73,26 @@ const extractEventInput = async (
   };
 };
 
-/** Validate slug uniqueness */
-const validateEventInput = async (
-  input: EventInput,
-  id?: InValue,
-): Promise<string | null> => {
-  const taken = await isSlugTaken(input.slug, id as number | undefined);
-  return taken
-    ? "This slug is already in use. Please choose a different one."
-    : null;
-};
+/** Extract event input for update (preserves existing slug) */
+const extractEventUpdateInput = (existingSlug: string, existingSlugIndex: string) =>
+  (values: Record<string, unknown>): EventInput => ({
+    name: values.name as string,
+    slug: existingSlug,
+    slugIndex: existingSlugIndex,
+    maxAttendees: values.max_attendees as number,
+    thankYouUrl: values.thank_you_url as string,
+    unitPrice: values.unit_price as number | null,
+    maxQuantity: values.max_quantity as number,
+    webhookUrl: (values.webhook_url as string) || null,
+    fields: (values.fields as EventFields) || "email",
+  });
 
-/** Events resource for REST operations */
+/** Events resource for REST create operations */
 const eventsResource = defineResource({
   table: eventsTable,
   fields: eventFields,
   toInput: extractEventInput,
-  nameField: "slug",
-  validate: validateEventInput,
+  nameField: "name",
 });
 
 /**
@@ -115,7 +130,7 @@ const withEventAttendees = async (
  */
 const handleCreateEvent = createHandler(eventsResource, {
   onSuccess: async (row) => {
-    await logActivity(`Created event '${row.slug}'`, row.id);
+    await logActivity("Event created", row.id);
     return redirect("/admin");
   },
   onError: () => redirect("/admin"),
@@ -162,12 +177,29 @@ const eventErrorPage = async (
 const handleAdminEventEditGet = withEventPage(adminEventEditPage);
 
 /** Handle POST /admin/event/:id/edit */
-const handleAdminEventEditPost = updateHandler(eventsResource, {
-  onSuccess: (row) => redirect(`/admin/event/${row.id}`),
-  onError: (id, error, session) =>
-    eventErrorPage(id as number, adminEventEditPage, session.csrfToken, error),
-  onNotFound: notFoundResponse,
-});
+const handleAdminEventEditPost = async (
+  request: Request,
+  eventId: number,
+): Promise<Response> => {
+  const auth = await requireAuthForm(request);
+  if (!auth.ok) return auth.response;
+
+  const existing = await getEventWithCount(eventId);
+  if (!existing) return notFoundResponse();
+
+  // Build a resource that preserves the existing slug
+  const updateResource = defineResource({
+    table: eventsTable,
+    fields: eventFields,
+    toInput: extractEventUpdateInput(existing.slug, existing.slug_index),
+    nameField: "name",
+  });
+
+  const result = await updateResource.update(eventId, auth.form);
+  if (result.ok) return redirect(`/admin/event/${result.row.id}`);
+  if ("notFound" in result) return notFoundResponse();
+  return eventErrorPage(eventId, adminEventEditPage, auth.session.csrfToken, result.error);
+};
 
 /**
  * Handle GET /admin/event/:id/export (CSV export)
@@ -175,8 +207,8 @@ const handleAdminEventEditPost = updateHandler(eventsResource, {
 const handleAdminEventExport = (request: Request, eventId: number) =>
   withEventAttendees(request, eventId, async (event, attendees) => {
     const csv = generateAttendeesCsv(attendees);
-    const filename = `${event.slug.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
-    await logActivity(`Exported CSV for '${event.slug}'`, event.id);
+    const filename = `${event.name.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
+    await logActivity("CSV exported", event.id);
     return new Response(csv, {
       headers: {
         "content-type": "text/csv; charset=utf-8",
@@ -203,17 +235,17 @@ const handleAdminEventDeactivatePost = (
     }
 
     const confirmIdentifier = form.get("confirm_identifier") ?? "";
-    if (!verifyIdentifier(event.slug, confirmIdentifier)) {
+    if (!verifyIdentifier(event.name, confirmIdentifier)) {
       return eventErrorPage(
         eventId,
         adminDeactivateEventPage,
         session.csrfToken,
-        "Event identifier does not match. Please type the exact identifier to confirm.",
+        "Event name does not match. Please type the exact name to confirm.",
       );
     }
 
     await eventsTable.update(eventId, { active: 0 });
-    await logActivity(`Deactivated event '${event.slug}'`, eventId);
+    await logActivity("Event deactivated", eventId);
     return redirect(`/admin/event/${eventId}`);
   });
 
@@ -229,17 +261,17 @@ const handleAdminEventReactivatePost = (
     }
 
     const confirmIdentifier = form.get("confirm_identifier") ?? "";
-    if (!verifyIdentifier(event.slug, confirmIdentifier)) {
+    if (!verifyIdentifier(event.name, confirmIdentifier)) {
       return eventErrorPage(
         eventId,
         adminReactivateEventPage,
         session.csrfToken,
-        "Event identifier does not match. Please type the exact identifier to confirm.",
+        "Event name does not match. Please type the exact name to confirm.",
       );
     }
 
     await eventsTable.update(eventId, { active: 1 });
-    await logActivity(`Reactivated event '${event.slug}'`, eventId);
+    await logActivity("Event reactivated", eventId);
     return redirect(`/admin/event/${eventId}`);
   });
 
@@ -283,21 +315,20 @@ const handleAdminEventDelete = (
 
     if (needsVerify(request)) {
       const confirmIdentifier = form.get("confirm_identifier") ?? "";
-      if (!verifyIdentifier(event.slug, confirmIdentifier)) {
+      if (!verifyIdentifier(event.name, confirmIdentifier)) {
         return eventErrorPage(
           eventId,
           adminDeleteEventPage,
           session.csrfToken,
-          "Identifier does not match. Please type the exact identifier to confirm deletion.",
+          "Event name does not match. Please type the exact name to confirm deletion.",
         );
       }
     }
 
     const attendeeCount = event.attendee_count;
-    const eventSlug = event.slug;
     await deleteEvent(eventId);
     await logActivity(
-      `Deleted event '${eventSlug}' and ${attendeeCount} attendee(s)`,
+      `Event deleted (${attendeeCount} attendee(s) removed)`,
     );
     return redirect("/admin");
   });

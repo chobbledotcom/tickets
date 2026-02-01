@@ -96,15 +96,15 @@ describe("payment-helpers", () => {
 
   describe("serializeMultiItems", () => {
     test("serializes single item to compact JSON", () => {
-      const items = [{ eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt" }];
+      const items = [{ eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt", name: "Evt" }];
       const result = serializeMultiItems(items);
       expect(result).toBe(JSON.stringify([{ e: 1, q: 2 }]));
     });
 
     test("serializes multiple items preserving order", () => {
       const items = [
-        { eventId: 10, quantity: 1, unitPrice: 500, slug: "a" },
-        { eventId: 20, quantity: 3, unitPrice: 700, slug: "b" },
+        { eventId: 10, quantity: 1, unitPrice: 500, slug: "a", name: "A" },
+        { eventId: 20, quantity: 3, unitPrice: 700, slug: "b", name: "B" },
       ];
       const result = serializeMultiItems(items);
       const parsed = JSON.parse(result);
@@ -121,7 +121,7 @@ describe("payment-helpers", () => {
 
     test("omits unitPrice and slug from serialized output", () => {
       const items = [
-        { eventId: 5, quantity: 1, unitPrice: 9999, slug: "secret-slug" },
+        { eventId: 5, quantity: 1, unitPrice: 9999, slug: "secret-slug", name: "Secret Event" },
       ];
       const result = serializeMultiItems(items);
       expect(result).not.toContain("unitPrice");
@@ -194,8 +194,8 @@ describe("payment-helpers", () => {
         email: "alice@example.com",
         phone: "",
         items: [
-          { eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt-1" },
-          { eventId: 2, quantity: 1, unitPrice: 500, slug: "evt-2" },
+          { eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt-1", name: "Evt 1" },
+          { eventId: 2, quantity: 1, unitPrice: 500, slug: "evt-2", name: "Evt 2" },
         ],
       };
       const result = buildMultiIntentMetadata(intent);
@@ -214,7 +214,7 @@ describe("payment-helpers", () => {
         name: "Bob",
         email: "bob@example.com",
         phone: "+1234567890",
-        items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e" }],
+        items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
       const result = buildMultiIntentMetadata(intent);
       expect(result.phone).toBe("+1234567890");
@@ -225,7 +225,7 @@ describe("payment-helpers", () => {
         name: "Bob",
         email: "bob@example.com",
         phone: "",
-        items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e" }],
+        items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
       const result = buildMultiIntentMetadata(intent);
       expect("phone" in result).toBe(false);

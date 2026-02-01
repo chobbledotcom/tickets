@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import type { InStatement } from "@libsql/client";
+import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
@@ -30,7 +32,7 @@ describe("server (admin events)", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
         mockFormRequest("/admin/event", {
-          slug: "test-event",
+          name: "Test Event",
           max_attendees: "100",
           max_quantity: "1",
           thank_you_url: "https://example.com",
@@ -46,7 +48,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event",
           {
-            slug: "new-event",
+            name: "New Event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
@@ -61,7 +63,7 @@ describe("server (admin events)", () => {
       const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event).not.toBeNull();
-      expect(event?.slug).toBe("new-event");
+      expect(event?.name).toBe("New Event");
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -71,7 +73,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event",
           {
-            slug: "new-event",
+            name: "New Event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
@@ -92,7 +94,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event",
           {
-            slug: "",
+            name: "",
             max_attendees: "",
             thank_you_url: "",
             csrf_token: csrfToken,
@@ -104,21 +106,21 @@ describe("server (admin events)", () => {
     });
 
     test("rejects duplicate slug", async () => {
-      // First, create an event with a specific slug
+      // First, create an event with a specific name
       await createTestEvent({
-        slug: "duplicate-slug",
+        name: "Duplicate Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
-      // Try to create another event with the same slug
+      // Try to create another event with the same name (generates same slug)
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event",
           {
-            slug: "duplicate-slug",
+            name: "Duplicate Event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com",
@@ -167,7 +169,7 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
 
       const event = await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -177,7 +179,7 @@ describe("server (admin events)", () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain(event.slug);
+      expect(html).toContain(event.name);
     });
 
     test("shows Edit link on event page", async () => {
@@ -264,7 +266,7 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
 
       await createTestEvent({
-        slug: "test-event-special",
+        name: "Test Event Special",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -273,8 +275,8 @@ describe("server (admin events)", () => {
         cookie: cookie,
       });
       const disposition = response.headers.get("content-disposition");
-      // Dashes are replaced with underscores in filename sanitization
-      expect(disposition).toContain("test_event_special");
+      // Non-alphanumeric characters are replaced with underscores in filename sanitization
+      expect(disposition).toContain("Test_Event_Special");
     });
   });
 
@@ -301,7 +303,7 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
 
       await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
         unitPrice: 1500,
@@ -313,7 +315,7 @@ describe("server (admin events)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Edit:");
-      expect(html).toContain('value="test-event"');
+      expect(html).toContain('value="Test Event"');
       expect(html).toContain('value="100"');
       expect(html).toContain('value="1500"');
       expect(html).toContain('value="https://example.com/thanks"');
@@ -328,7 +330,7 @@ describe("server (admin events)", () => {
       });
       const response = await handleRequest(
         mockFormRequest("/admin/event/1/edit", {
-          slug: "updated-event",
+          name: "Updated Event",
           max_attendees: "50",
           max_quantity: "1",
           thank_you_url: "https://example.com/updated",
@@ -344,7 +346,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event/999/edit",
           {
-            slug: "updated-event",
+            name: "Updated Event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/updated",
@@ -368,7 +370,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            slug: "updated-event",
+            name: "Updated Event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/updated",
@@ -394,7 +396,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            slug: "",
+            name: "",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com",
@@ -405,41 +407,7 @@ describe("server (admin events)", () => {
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("Identifier is required");
-    });
-
-    test("rejects duplicate slug on update", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      // Create two events
-      await createTestEvent({
-        slug: "first-event",
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      await createTestEvent({
-        slug: "second-event",
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-
-      // Try to update first event to use second event's slug
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/1/edit",
-          {
-            slug: "second-event",
-            max_attendees: "50",
-            max_quantity: "1",
-            thank_you_url: "https://example.com",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("already in use");
+      expect(html).toContain("Event Name is required");
     });
 
     test("updates event when authenticated", async () => {
@@ -454,7 +422,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            slug: event.slug,
+            name: event.name,
             max_attendees: "200",
             max_quantity: "5",
             thank_you_url: "https://example.com/updated",
@@ -512,8 +480,8 @@ describe("server (admin events)", () => {
       expect(html).toContain("Deactivate Event");
       expect(html).toContain("Return a 404");
       expect(html).toContain('name="confirm_identifier"');
-      expect(html).toContain("type its identifier");
-      expect(html).toContain(event.slug);
+      expect(html).toContain("type its name");
+      expect(html).toContain(event.name);
     });
   });
 
@@ -540,7 +508,7 @@ describe("server (admin events)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/deactivate",
-          { csrf_token: csrfToken, confirm_identifier: event.slug },
+          { csrf_token: csrfToken, confirm_identifier: event.name },
           cookie,
         ),
       );
@@ -556,7 +524,7 @@ describe("server (admin events)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -570,7 +538,7 @@ describe("server (admin events)", () => {
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("Event identifier does not match");
+      expect(html).toContain("Event name does not match");
     });
   });
 
@@ -604,7 +572,7 @@ describe("server (admin events)", () => {
       expect(html).toContain("Reactivate Event");
       expect(html).toContain("available for registrations");
       expect(html).toContain('name="confirm_identifier"');
-      expect(html).toContain("type its identifier");
+      expect(html).toContain("type its name");
     });
   });
 
@@ -622,7 +590,7 @@ describe("server (admin events)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/reactivate",
-          { csrf_token: csrfToken, confirm_identifier: event.slug },
+          { csrf_token: csrfToken, confirm_identifier: event.name },
           cookie,
         ),
       );
@@ -638,7 +606,7 @@ describe("server (admin events)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const event = await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -654,7 +622,7 @@ describe("server (admin events)", () => {
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("Event identifier does not match");
+      expect(html).toContain("Event name does not match");
     });
   });
 
@@ -683,7 +651,7 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
 
       const event = await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -694,21 +662,21 @@ describe("server (admin events)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Delete Event");
-      expect(html).toContain(event.slug);
-      expect(html).toContain("type its identifier");
+      expect(html).toContain(event.name);
+      expect(html).toContain("type its name");
     });
   });
 
   describe("POST /admin/event/:id/delete", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(
         mockFormRequest("/admin/event/1/delete", {
-          confirm_identifier: event.slug,
+          confirm_identifier: event.name,
         }),
       );
       expectAdminRedirect(response);
@@ -721,7 +689,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event/999/delete",
           {
-            confirm_identifier: "test-event",
+            confirm_identifier: "Test Event",
             csrf_token: csrfToken,
           },
           cookie,
@@ -734,7 +702,7 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
 
       const event = await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -743,7 +711,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event/1/delete",
           {
-            confirm_identifier: event.slug,
+            confirm_identifier: event.name,
             csrf_token: "invalid-token",
           },
           cookie,
@@ -758,7 +726,7 @@ describe("server (admin events)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -782,7 +750,7 @@ describe("server (admin events)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -791,7 +759,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event/1/delete",
           {
-            confirm_identifier: "TEST-EVENT", // uppercase (case insensitive)
+            confirm_identifier: "TEST EVENT", // uppercase (case insensitive)
             csrf_token: csrfToken,
           },
           cookie,
@@ -809,7 +777,7 @@ describe("server (admin events)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -818,7 +786,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event/1/delete",
           {
-            confirm_identifier: "  test-event  ", // with spaces
+            confirm_identifier: "  Test Event  ", // with spaces
             csrf_token: csrfToken,
           },
           cookie,
@@ -831,7 +799,7 @@ describe("server (admin events)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const event = await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -842,7 +810,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           `/admin/event/${event.id}/delete`,
           {
-            confirm_identifier: event.slug,
+            confirm_identifier: event.name,
             csrf_token: csrfToken,
           },
           cookie,
@@ -862,7 +830,7 @@ describe("server (admin events)", () => {
 
     test("skips identifier verification when verify_identifier=false (for API users)", async () => {
       await createTestEvent({
-        slug: "api-event",
+        name: "API Event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -892,7 +860,7 @@ describe("server (admin events)", () => {
   describe("DELETE /admin/event/:id/delete", () => {
     test("deletes event using DELETE method", async () => {
       await createTestEvent({
-        slug: "delete-method-test",
+        name: "Delete Method Test",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -931,7 +899,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event",
           {
-            slug: "paid-event",
+            name: "Paid Event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
@@ -956,7 +924,7 @@ describe("server (admin events)", () => {
 
       // Create an event to generate activity
       await createTestEvent({
-        slug: "activity-log-test",
+        name: "Activity Log Test",
         maxAttendees: 50,
       });
 
@@ -988,7 +956,7 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
 
       const event = await createTestEvent({
-        slug: "event-activity-log",
+        name: "Event Activity Log",
         maxAttendees: 50,
       });
 
@@ -999,7 +967,7 @@ describe("server (admin events)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Activity Log");
-      expect(html).toContain(event.slug);
+      expect(html).toContain(event.name);
     });
   });
 
@@ -1038,7 +1006,7 @@ describe("server (admin events)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const event = await createTestEvent({
-        slug: "on-delete-test",
+        name: "On Delete Test",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1084,24 +1052,18 @@ describe("server (admin events)", () => {
     test("edit validation returns 400 with error when event exists", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
-      // Create two events
       await createTestEvent({
-        slug: "first-edit-err",
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      await createTestEvent({
-        slug: "second-edit-err",
+        name: "First Edit Err",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      // Try to update first event with second event's slug (duplicate slug error)
+      // Submit with empty name to trigger validation error
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/edit",
           {
-            slug: "second-edit-err",
+            name: "",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com",
@@ -1113,7 +1075,7 @@ describe("server (admin events)", () => {
       // Should return 400 with error page (event exists -> eventErrorPage returns htmlResponse)
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("already in use");
+      expect(html).toContain("Event Name is required");
     });
   });
 
@@ -1122,7 +1084,7 @@ describe("server (admin events)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const event = await createTestEvent({
-        slug: "deactivate-fallback",
+        name: "Deactivate Fallback",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1137,14 +1099,14 @@ describe("server (admin events)", () => {
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("Event identifier does not match");
+      expect(html).toContain("Event name does not match");
     });
 
     test("reactivate event without confirm_identifier uses empty fallback", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const event = await createTestEvent({
-        slug: "reactivate-fallback",
+        name: "Reactivate Fallback",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1160,14 +1122,14 @@ describe("server (admin events)", () => {
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("Event identifier does not match");
+      expect(html).toContain("Event name does not match");
     });
 
     test("delete event without confirm_identifier uses empty fallback", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await createTestEvent({
-        slug: "delete-fallback",
+        name: "Delete Fallback",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1193,7 +1155,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           "/admin/event/99999/edit",
           {
-            slug: "updated-slug",
+            name: "Updated Name",
             max_attendees: "50",
             csrf_token: csrfToken,
           },
@@ -1203,14 +1165,10 @@ describe("server (admin events)", () => {
       expect(response.status).toBe(404);
     });
 
-    test("shows edit page with error when slug is already taken", async () => {
+    test("shows edit page with error when name is empty", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
       const event1 = await createTestEvent({
-        slug: "edit-orig",
-        maxAttendees: 50,
-      });
-      await createTestEvent({
-        slug: "edit-taken",
+        name: "Edit Orig",
         maxAttendees: 50,
       });
 
@@ -1218,7 +1176,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           `/admin/event/${event1.id}/edit`,
           {
-            slug: "edit-taken",
+            name: "",
             max_attendees: "50",
             max_quantity: "1",
             csrf_token: csrfToken,
@@ -1228,7 +1186,7 @@ describe("server (admin events)", () => {
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("already in use");
+      expect(html).toContain("Event Name is required");
     });
   });
 
@@ -1236,7 +1194,7 @@ describe("server (admin events)", () => {
     test("deletes event and cascades to attendees", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
       const event = await createTestEvent({
-        slug: "cascade-delete",
+        name: "Cascade Delete",
         maxAttendees: 50,
       });
       await createTestAttendee(event.id, event.slug, "Test User", "test@example.com");
@@ -1259,14 +1217,10 @@ describe("server (admin events)", () => {
   });
 
   describe("routes/admin/events.ts (event error page)", () => {
-    test("shows edit error page for existing event with duplicate slug", async () => {
+    test("shows edit error page for existing event with validation error", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
       const event1 = await createTestEvent({
-        slug: "event-err-1",
-        maxAttendees: 50,
-      });
-      await createTestEvent({
-        slug: "event-err-2",
+        name: "Event Err 1",
         maxAttendees: 50,
       });
 
@@ -1274,7 +1228,7 @@ describe("server (admin events)", () => {
         mockFormRequest(
           `/admin/event/${event1.id}/edit`,
           {
-            slug: "event-err-2",
+            name: "",
             max_attendees: "50",
             max_quantity: "1",
             csrf_token: csrfToken,
@@ -1284,13 +1238,13 @@ describe("server (admin events)", () => {
       );
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("already in use");
+      expect(html).toContain("Event Name is required");
     });
 
     test("event delete cascades to attendees using custom onDelete", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
       const event = await createTestEvent({
-        slug: "cascade-del-test",
+        name: "Cascade Del Test",
         maxAttendees: 50,
       });
       await createTestAttendee(event.id, event.slug, "Del User", "del@example.com");
@@ -1315,13 +1269,8 @@ describe("server (admin events)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
       const { eventsTable } = await import("#lib/db/events.ts");
 
-      // Create two events so we can have a slug conflict
       const event1 = await createTestEvent({
-        slug: "event-for-delete-err",
-        maxAttendees: 50,
-      });
-      await createTestEvent({
-        slug: "event-err-conflict",
+        name: "Event For Delete Err",
         maxAttendees: 50,
       });
 
@@ -1340,12 +1289,12 @@ describe("server (admin events)", () => {
       });
 
       try {
-        // Send an update with a duplicate slug to trigger validation error
+        // Send an update with empty name to trigger validation error
         const response = await handleRequest(
           mockFormRequest(
             `/admin/event/${event1.id}/edit`,
             {
-              slug: "event-err-conflict",
+              name: "",
               max_attendees: "50",
               max_quantity: "1",
               csrf_token: csrfToken,
@@ -1353,7 +1302,7 @@ describe("server (admin events)", () => {
             cookie,
           ),
         );
-        // requireExists sees the row (first findById). Validation fails (duplicate slug).
+        // requireExists sees the row (first findById). Validation fails (empty name).
         // eventErrorPage calls getEventWithCount, but event was deleted, so returns 404.
         expect(response.status).toBe(404);
       } finally {
@@ -1365,18 +1314,94 @@ describe("server (admin events)", () => {
   describe("admin event onDelete handler", () => {
     test("deleting an event triggers the onDelete handler which calls deleteEvent", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({ slug: "delete-ondelete-test", maxAttendees: 10 });
+      const event = await createTestEvent({ name: "Delete OnDelete Test", maxAttendees: 10 });
       // Add an attendee so delete covers more paths
       await createTestAttendee(event.id, event.slug, "User A", "a@test.com");
 
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/delete`,
-          { csrf_token: csrfToken, confirm_identifier: event.slug },
+          { csrf_token: csrfToken, confirm_identifier: event.name },
           cookie,
         ),
       );
       expect(response.status).toBe(302);
+    });
+  });
+
+  describe("slug collision on create", () => {
+    test("throws when all slug generation attempts collide", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Spy on db.execute to make isSlugTaken always return true
+      const db = getDb();
+      const originalExecute = db.execute.bind(db);
+      const spy = spyOn(db, "execute");
+      spy.mockImplementation((query: InStatement) => {
+        const sql = typeof query === "string" ? query : query.sql;
+        // Intercept the isSlugTaken query
+        if (sql.includes("SELECT 1 FROM events WHERE slug_index")) {
+          return Promise.resolve({ rows: [{ "1": 1 }], columns: ["1"], rowsAffected: 0, lastInsertRowid: 0n });
+        }
+        return originalExecute(query);
+      });
+
+      try {
+        await expect(
+          handleRequest(
+            mockFormRequest(
+              "/admin/event",
+              {
+                name: "Collision Event",
+                max_attendees: "50",
+                max_quantity: "1",
+                thank_you_url: "https://example.com",
+                csrf_token: csrfToken,
+              },
+              cookie,
+            ),
+          ),
+        ).rejects.toThrow("Failed to generate unique slug after 10 attempts");
+      } finally {
+        spy.mockRestore();
+      }
+    });
+  });
+
+  describe("edit event notFound race condition", () => {
+    test("returns 404 when event is deleted during edit update", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const event = await createTestEvent({
+        name: "Race Condition Event",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      // handleAdminEventEditPost calls getEventWithCount (raw SQL), then
+      // updateResource.update which calls requireExists -> table.findById.
+      // We spy on findById to return null, simulating the event being deleted
+      // between the initial check and the update.
+      const { eventsTable: table } = await import("#lib/db/events.ts");
+      const spy = spyOn(table, "findById");
+      spy.mockImplementation(() => Promise.resolve(null));
+
+      try {
+        const response = await handleRequest(
+          mockFormRequest(
+            `/admin/event/${event.id}/edit`,
+            {
+              name: "Updated Name",
+              max_attendees: "50",
+              max_quantity: "1",
+              csrf_token: csrfToken,
+            },
+            cookie,
+          ),
+        );
+        expect(response.status).toBe(404);
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 

@@ -3,7 +3,6 @@
  */
 
 import type { Field } from "#lib/forms.tsx";
-import { isValidSlug } from "#lib/slug.ts";
 import type { EventFields } from "#lib/types.ts";
 
 /**
@@ -60,16 +59,6 @@ export const validatePhone = (value: string): string | null => {
 };
 
 /**
- * Validate slug format
- */
-const validateSlug = (value: string): string | null => {
-  if (!isValidSlug(value)) {
-    return "Slug must be lowercase letters, numbers, and hyphens only (e.g. my-event-2024)";
-  }
-  return null;
-};
-
-/**
  * Login form field definitions
  */
 export const loginFields: Field[] = [
@@ -92,14 +81,12 @@ const validateEventFields = (value: string): string | null => {
  */
 export const eventFields: Field[] = [
   {
-    name: "slug",
-    label: "Identifier",
+    name: "name",
+    label: "Event Name",
     type: "text",
     required: true,
-    pattern: "[a-z0-9]+(-[a-z0-9]+)*",
-    placeholder: "my-event-2024",
-    hint: "Used in public ticket URL: /ticket/your-identifier",
-    validate: validateSlug,
+    placeholder: "Village Quiz Night",
+    hint: "Displayed to attendees on the ticket page",
   },
   {
     name: "max_attendees",

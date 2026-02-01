@@ -3,7 +3,7 @@
  */
 
 import { compact, filter, map, pipe, reduce } from "#fp";
-import { isPaymentsEnabled } from "#lib/config.ts";
+import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
 import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
 import { getEventsBySlugsBatch } from "#lib/db/events.ts";
 import { validateForm } from "#lib/forms.tsx";
@@ -15,7 +15,7 @@ import {
 } from "#lib/payments.ts";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
 import { logDebug } from "#lib/logger.ts";
-import { logAndNotifyRegistration } from "#lib/webhook.ts";
+import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import {
   csrfCookie,
   generateSecureToken,
@@ -204,11 +204,11 @@ const processPaidReservation = async (
 /** Format error message for failed attendee creation */
 const formatAtomicError = (
   reason: "capacity_exceeded" | "encryption_error",
-  eventSlug?: string,
+  eventName?: string,
 ): string =>
   reason === "capacity_exceeded"
-    ? eventSlug
-      ? `Sorry, ${eventSlug} no longer has enough spots available`
+    ? eventName
+      ? `Sorry, ${eventName} no longer has enough spots available`
       : "Sorry, not enough spots available"
     : "Registration failed. Please try again.";
 
@@ -223,7 +223,7 @@ const processFreeReservation = async (
     return ticketResponse(event, token)(formatAtomicError(result.reason));
   }
 
-  await logAndNotifyRegistration(event, result.attendee);
+  await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
   return event.thank_you_url
     ? redirect(event.thank_you_url)
     : htmlResponse(reservationSuccessPage());
@@ -385,6 +385,7 @@ const buildMultiRegistrationItems = (
       quantity: quantities.get(event.id) as number,
       unitPrice: event.unit_price ?? 0,
       slug: event.slug,
+      name: event.name,
     })),
   )(events) as MultiRegistrationItem[];
 
@@ -424,13 +425,15 @@ const processMultiFreeReservation = async (
   email: string,
   phone: string,
 ): Promise<{ success: true } | { success: false; error: string }> => {
+  const entries: Array<{ event: MultiTicketEvent["event"]; attendee: { id: number; quantity: number; name: string; email: string; phone: string } }> = [];
   for (const { event, qty } of eventsWithQuantity(events, quantities)) {
     const result = await createAttendeeAtomic(event.id, name, email, null, qty, phone);
     if (!result.success) {
-      return { success: false, error: formatAtomicError(result.reason, event.slug) };
+      return { success: false, error: formatAtomicError(result.reason, event.name) };
     }
-    await logAndNotifyRegistration(event, result.attendee);
+    entries.push({ event, attendee: result.attendee });
   }
+  await logAndNotifyMultiRegistration(entries, await getCurrencyCode());
   return { success: true };
 };
 

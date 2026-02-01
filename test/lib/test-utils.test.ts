@@ -18,7 +18,7 @@ import {
   deactivateTestEvent,
   errorResponse,
   expectStatus,
-  generateTestSlug,
+  generateTestEventName,
   getCsrfTokenFromCookie,
   getSetupCsrfToken,
   getTicketCsrfToken,
@@ -206,18 +206,18 @@ describe("test-utils", () => {
     });
   });
 
-  describe("generateTestSlug", () => {
-    test("generates incrementing slugs", () => {
+  describe("generateTestEventName", () => {
+    test("generates incrementing names", () => {
       resetTestSlugCounter();
-      expect(generateTestSlug()).toBe("test-event-1");
-      expect(generateTestSlug()).toBe("test-event-2");
-      expect(generateTestSlug()).toBe("test-event-3");
+      expect(generateTestEventName()).toBe("Test Event 1");
+      expect(generateTestEventName()).toBe("Test Event 2");
+      expect(generateTestEventName()).toBe("Test Event 3");
     });
 
     test("resetTestSlugCounter resets counter to 0", () => {
-      generateTestSlug(); // Trigger lazy init if needed
+      generateTestEventName(); // Trigger lazy init if needed
       resetTestSlugCounter();
-      expect(generateTestSlug()).toBe("test-event-1");
+      expect(generateTestEventName()).toBe("Test Event 1");
     });
   });
 
@@ -375,7 +375,7 @@ describe("test-utils", () => {
         thankYouUrl: "https://custom.example.com/done",
       });
       expect(event.thank_you_url).toBe("https://custom.example.com/done");
-      expect(event.slug).toContain("test-event");
+      expect(event.slug).toBeTruthy();
     });
 
     test("creates an event with default settings", async () => {
@@ -549,22 +549,20 @@ describe("test-utils", () => {
       await createTestDbWithSetup();
     });
 
-    test("createTestEvent throws event not found when slug is empty", async () => {
-      // Empty slug creates event but getEventWithCountBySlug("") returns null
-      // This covers the "Event not found after creation" error (lines 607-609)
+    test("createTestEvent throws event not found when name is empty", async () => {
+      // Empty name creates event but it cannot be found after creation
+      // This covers the "Event not found after creation" error path
       await expect(
-        createTestEvent({ slug: "" }),
+        createTestEvent({ name: "" }),
       ).rejects.toThrow("Event not found after creation: ");
     });
 
     test("authenticatedFormRequest throws on non-302 response via update", async () => {
-      // Create two events, then try to update the second with the first's slug.
+      // Update with empty name triggers validation failure.
       // The update handler returns a 200 error page (not 302) on validation failure.
-      const event1 = await createTestEvent({ slug: "first-event" });
-      const event2 = await createTestEvent({ slug: "second-event" });
-      expect(event1.slug).toBe("first-event");
+      const event = await createTestEvent();
       await expect(
-        updateTestEvent(event2.id, { slug: "first-event" }),
+        updateTestEvent(event.id, { name: "" }),
       ).rejects.toThrow("Failed to update event");
     });
   });

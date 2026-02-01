@@ -270,7 +270,7 @@ describe("square", () => {
           const args = checkoutCreate.mock.calls[0]![0] as any;
           expect(args.order.locationId).toBe("L_loc_456");
           expect(args.order.lineItems).toHaveLength(1);
-          expect(args.order.lineItems[0].name).toBe("Ticket: concert-2025");
+          expect(args.order.lineItems[0].name).toBe("Ticket: Concert");
           expect(args.order.lineItems[0].quantity).toBe("3");
           expect(args.order.lineItems[0].basePriceMoney.amount).toBe(BigInt(2500));
           expect(args.order.lineItems[0].note).toBe("3 Tickets");
@@ -474,8 +474,8 @@ describe("square", () => {
         email: "john@example.com",
         phone: "",
         items: [
-          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1" },
-          { eventId: 2, quantity: 2, unitPrice: 500, slug: "event-2" },
+          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
+          { eventId: 2, quantity: 2, unitPrice: 500, slug: "event-2", name: "Event 2" },
         ],
       };
       const result = await squareApi.createMultiPaymentLink(
@@ -492,7 +492,7 @@ describe("square", () => {
         email: "john@example.com",
         phone: "",
         items: [
-          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1" },
+          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
         ],
       };
       const result = await squareApi.createMultiPaymentLink(
@@ -518,7 +518,7 @@ describe("square", () => {
             email: "bob@example.com",
             phone: "",
             items: [
-              { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1" },
+              { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
             ],
           };
 
@@ -547,8 +547,8 @@ describe("square", () => {
             email: "alice@example.com",
             phone: "555-1111",
             items: [
-              { eventId: 10, quantity: 2, unitPrice: 1500, slug: "workshop-a" },
-              { eventId: 20, quantity: 1, unitPrice: 3000, slug: "gala-dinner" },
+              { eventId: 10, quantity: 2, unitPrice: 1500, slug: "workshop-a", name: "Workshop A" },
+              { eventId: 20, quantity: 1, unitPrice: 3000, slug: "gala-dinner", name: "Gala Dinner" },
             ],
           };
 
@@ -566,12 +566,12 @@ describe("square", () => {
 
           // Verify multiple line items
           expect(args.order.lineItems).toHaveLength(2);
-          expect(args.order.lineItems[0].name).toBe("Ticket: workshop-a");
+          expect(args.order.lineItems[0].name).toBe("Ticket: Workshop A");
           expect(args.order.lineItems[0].quantity).toBe("2");
           expect(args.order.lineItems[0].basePriceMoney.amount).toBe(BigInt(1500));
           expect(args.order.lineItems[0].note).toBe("2 Tickets");
 
-          expect(args.order.lineItems[1].name).toBe("Ticket: gala-dinner");
+          expect(args.order.lineItems[1].name).toBe("Ticket: Gala Dinner");
           expect(args.order.lineItems[1].quantity).toBe("1");
           expect(args.order.lineItems[1].basePriceMoney.amount).toBe(BigInt(3000));
           expect(args.order.lineItems[1].note).toBe("Ticket");
@@ -611,6 +611,7 @@ describe("square", () => {
             quantity: 1,
             unitPrice: 1000,
             slug: `event-${i + 1}`,
+            name: `Event ${i + 1}`,
           }));
 
           const intent = {
@@ -1305,7 +1306,7 @@ describe("square", () => {
             email: "john@example.com",
             phone: "",
             items: [
-              { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1" },
+              { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
             ],
           };
 

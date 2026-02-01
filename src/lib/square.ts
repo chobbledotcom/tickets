@@ -261,7 +261,7 @@ export const squareApi: {
       ...config,
       lineItems: [
         {
-          name: `Ticket: ${event.slug}`,
+          name: `Ticket: ${event.name}`,
           quantity: String(intent.quantity),
           note: intent.quantity > 1 ? `${intent.quantity} Tickets` : "Ticket",
           basePriceMoney: { amount: BigInt(event.unit_price!), currency: config.currency },
@@ -292,7 +292,7 @@ export const squareApi: {
     if (!metadata) return null;
 
     const lineItems = map((item: MultiRegistrationIntent["items"][number]) => ({
-      name: `Ticket: ${item.slug}`,
+      name: `Ticket: ${item.name}`,
       quantity: String(item.quantity),
       note: item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
       basePriceMoney: { amount: BigInt(item.unitPrice), currency: config.currency },

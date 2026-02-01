@@ -36,7 +36,7 @@ export const adminEventActivityLogPage = (
   entries: ActivityLogEntry[],
 ): string =>
   String(
-    <Layout title={`Activity Log: ${event.slug}`}>
+    <Layout title={`Activity Log: ${event.name}`}>
       <AdminNav />
         <h2>Activity Log</h2>
         <table>

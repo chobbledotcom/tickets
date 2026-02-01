@@ -7,7 +7,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "payment provider abstraction with phone and price_paid";
+export const LATEST_UPDATE = "add event name and auto-generated slugs";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -165,6 +165,10 @@ export const initDb = async (): Promise<void> => {
 
   // Migration: add phone column to attendees (nullable, hybrid encrypted like email)
   await runMigration(`ALTER TABLE attendees ADD COLUMN phone TEXT`);
+
+  // Migration: add name column to events (encrypted, defaults to existing slug for backfill)
+  await runMigration(`ALTER TABLE events ADD COLUMN name TEXT NOT NULL DEFAULT ''`);
+  await runMigration(`UPDATE events SET name = slug WHERE name = ''`);
 
   // Update the version marker
   await getDb().execute({
