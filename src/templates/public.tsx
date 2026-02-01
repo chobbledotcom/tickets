@@ -36,7 +36,8 @@ export const ticketPage = (
   const fields: Field[] = getTicketFields(event.fields);
 
   return String(
-    <Layout title="Reserve Ticket">
+    <Layout title={event.name}>
+      <h1>{event.name}</h1>
       <Raw html={renderError(error)} />
 
       {isFull ? (
@@ -99,7 +100,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
   if (isSoldOut) {
     return `
       <div class="multi-ticket-row sold-out">
-        <label>${event.slug}</label>
+        <label>${event.name}</label>
         <span class="sold-out-label">Sold Out</span>
       </div>
     `;
@@ -111,7 +112,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
 
   return `
     <div class="multi-ticket-row">
-      <label for="${fieldName}">${event.slug}</label>
+      <label for="${fieldName}">${event.name}</label>
       <select name="${fieldName}" id="${fieldName}">
         ${options}
       </select>

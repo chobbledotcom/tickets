@@ -54,10 +54,10 @@ export const adminEventPage = (
       : '<tr><td colspan="7">No attendees yet</td></tr>';
 
   return String(
-    <Layout title={`Event: ${event.slug}`}>
+    <Layout title={`Event: ${event.name}`}>
       <AdminNav />
 
-        <h1>{event.slug}</h1>
+        <h1>{event.name}</h1>
         <nav>
           <ul>
             <li><a href={`/admin/event/${event.id}/edit`}>Edit</a></li>
@@ -144,7 +144,7 @@ export const adminEventPage = (
  * Convert event to form field values
  */
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
-  slug: event.slug,
+  name: event.name,
   max_attendees: event.max_attendees,
   max_quantity: event.max_quantity,
   fields: event.fields,
@@ -162,7 +162,7 @@ export const adminEventEditPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Edit: ${event.slug}`}>
+    <Layout title={`Edit: ${event.name}`}>
       <AdminNav />
         <Raw html={renderError(error)} />
         <form method="POST" action={`/admin/event/${event.id}/edit`}>
@@ -182,7 +182,7 @@ export const adminDeleteEventPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Delete: ${event.slug}`}>
+    <Layout title={`Delete: ${event.name}`}>
       <AdminNav />
         {error && <div class="error">{error}</div>}
 
@@ -192,16 +192,16 @@ export const adminDeleteEventPage = (
           </aside>
         </article>
 
-        <p>To delete this event, type its identifier "{event.slug}" into the box below:</p>
+        <p>To delete this event, type its name "{event.name}" into the box below:</p>
 
         <form method="POST" action={`/admin/event/${event.id}/delete`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
-          <label for="confirm_identifier">Event identifier</label>
+          <label for="confirm_identifier">Event name</label>
           <input
             type="text"
             id="confirm_identifier"
             name="confirm_identifier"
-            placeholder={event.slug}
+            placeholder={event.name}
             autocomplete="off"
             required
           />
@@ -221,7 +221,7 @@ export const adminDeactivateEventPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Deactivate: ${event.slug}`}>
+    <Layout title={`Deactivate: ${event.name}`}>
       <AdminNav />
         {error && <div class="error">{error}</div>}
 
@@ -237,16 +237,16 @@ export const adminDeactivateEventPage = (
           </aside>
         </article>
 
-        <p>To deactivate this event, type its identifier "{event.slug}" into the box below:</p>
+        <p>To deactivate this event, type its name "{event.name}" into the box below:</p>
 
         <form method="POST" action={`/admin/event/${event.id}/deactivate`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
-          <label for="confirm_identifier">Event identifier</label>
+          <label for="confirm_identifier">Event name</label>
           <input
             type="text"
             id="confirm_identifier"
             name="confirm_identifier"
-            placeholder={event.slug}
+            placeholder={event.name}
             autocomplete="off"
             required
           />
@@ -266,7 +266,7 @@ export const adminReactivateEventPage = (
   error?: string,
 ): string =>
   String(
-    <Layout title={`Reactivate: ${event.slug}`}>
+    <Layout title={`Reactivate: ${event.name}`}>
       <AdminNav />
         {error && <div class="error">{error}</div>}
 
@@ -277,16 +277,16 @@ export const adminReactivateEventPage = (
           </aside>
         </article>
 
-        <p>To reactivate this event, type its identifier "{event.slug}" into the box below:</p>
+        <p>To reactivate this event, type its name "{event.name}" into the box below:</p>
 
         <form method="POST" action={`/admin/event/${event.id}/reactivate`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
-          <label for="confirm_identifier">Event identifier</label>
+          <label for="confirm_identifier">Event name</label>
           <input
             type="text"
             id="confirm_identifier"
             name="confirm_identifier"
-            placeholder={event.slug}
+            placeholder={event.name}
             autocomplete="off"
             required
           />

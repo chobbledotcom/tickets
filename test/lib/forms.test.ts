@@ -247,20 +247,9 @@ describe("forms", () => {
       );
     });
 
-    test("validates slug format", () => {
-      const result = validateForm(
-        new URLSearchParams(eventForm({ slug: "INVALID_SLUG" })),
-        eventFields,
-      );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toContain("lowercase");
-      }
-    });
-
-    test("validates slug is required", () => {
-      const { slug: _, name: __, description: ___, ...formWithoutSlug } = baseEventForm;
-      expectInvalid("Identifier is required")(eventFields, formWithoutSlug);
+    test("validates name is required", () => {
+      const { name: _, ...formWithoutName } = baseEventForm;
+      expectInvalid("Event Name is required")(eventFields, formWithoutName);
     });
   });
 

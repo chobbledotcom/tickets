@@ -106,8 +106,13 @@ describe("server (public routes)", () => {
   });
 
   describe("GET /ticket/:slug", () => {
-    test("returns 404 for non-existent event", async () => {
+    test("returns 404 for invalid slug format", async () => {
       const response = await handleRequest(mockRequest("/ticket/non-existent"));
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 for valid slug format that does not exist", async () => {
+      const response = await handleRequest(mockRequest("/ticket/ab99c"));
       expect(response.status).toBe(404);
     });
 
@@ -142,10 +147,19 @@ describe("server (public routes)", () => {
   });
 
   describe("POST /ticket/:slug", () => {
-    test("returns 404 for non-existent event", async () => {
-      // Event lookup happens before CSRF validation, so we can test without CSRF
+    test("returns 404 for non-existent event with invalid slug", async () => {
       const response = await handleRequest(
         mockFormRequest("/ticket/non-existent", {
+          name: "John",
+          email: "john@example.com",
+        }),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 for non-existent event with valid slug format", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/ticket/ab99c", {
           name: "John",
           email: "john@example.com",
         }),
@@ -276,11 +290,11 @@ describe("server (public routes)", () => {
 
     test("shows multi-ticket page for multiple existing events", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-event-1",
+        name: "Multi Event 1",
         maxAttendees: 50,
       });
       const event2 = await createTestEvent({
-        slug: "multi-event-2",
+        name: "Multi Event 2",
         maxAttendees: 100,
       });
       const response = await handleRequest(
@@ -289,18 +303,18 @@ describe("server (public routes)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Reserve Tickets");
-      expect(html).toContain(event1.slug);
-      expect(html).toContain(event2.slug);
+      expect(html).toContain("Multi Event 1");
+      expect(html).toContain("Multi Event 2");
       expect(html).toContain("Select Tickets");
     });
 
     test("shows sold-out label for full events", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-available",
+        name: "Multi Available",
         maxAttendees: 50,
       });
       const event2 = await createTestEvent({
-        slug: "multi-full",
+        name: "Multi Full",
         maxAttendees: 1,
       });
       // Fill up event2
@@ -316,11 +330,11 @@ describe("server (public routes)", () => {
 
     test("filters out inactive events", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-active",
+        name: "Multi Active",
         maxAttendees: 50,
       });
       const event2 = await createTestEvent({
-        slug: "multi-inactive",
+        name: "Multi Inactive",
         maxAttendees: 50,
       });
       await deactivateTestEvent(event2.id);
@@ -338,11 +352,11 @@ describe("server (public routes)", () => {
 
     test("returns 404 when all events are inactive", async () => {
       const event1 = await createTestEvent({
-        slug: "all-inactive-1",
+        name: "All Inactive 1",
         maxAttendees: 50,
       });
       const event2 = await createTestEvent({
-        slug: "all-inactive-2",
+        name: "All Inactive 2",
         maxAttendees: 50,
       });
       await deactivateTestEvent(event1.id);
@@ -383,11 +397,11 @@ describe("server (public routes)", () => {
 
     test("validates name is required", async () => {
       const event1 = await createTestEvent({
-        slug: "post-multi-1",
+        name: "Post Multi 1",
         maxAttendees: 50,
       });
       const event2 = await createTestEvent({
-        slug: "post-multi-2",
+        name: "Post Multi 2",
         maxAttendees: 50,
       });
       const response = await submitMultiTicketForm([event1.slug, event2.slug], {
@@ -402,11 +416,11 @@ describe("server (public routes)", () => {
 
     test("requires at least one ticket selected", async () => {
       const event1 = await createTestEvent({
-        slug: "post-multi-empty-1",
+        name: "Post Multi Empty 1",
         maxAttendees: 50,
       });
       const event2 = await createTestEvent({
-        slug: "post-multi-empty-2",
+        name: "Post Multi Empty 2",
         maxAttendees: 50,
       });
       const response = await submitMultiTicketForm([event1.slug, event2.slug], {
@@ -422,12 +436,12 @@ describe("server (public routes)", () => {
 
     test("creates attendees for selected free events", async () => {
       const event1 = await createTestEvent({
-        slug: "post-multi-free-1",
+        name: "Post Multi Free 1",
         maxAttendees: 50,
         maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        slug: "post-multi-free-2",
+        name: "Post Multi Free 2",
         maxAttendees: 50,
         maxQuantity: 5,
       });
@@ -453,11 +467,11 @@ describe("server (public routes)", () => {
 
     test("only registers for events with quantity > 0", async () => {
       const event1 = await createTestEvent({
-        slug: "post-multi-partial-1",
+        name: "Post Multi Partial 1",
         maxAttendees: 50,
       });
       const event2 = await createTestEvent({
-        slug: "post-multi-partial-2",
+        name: "Post Multi Partial 2",
         maxAttendees: 50,
       });
       const response = await submitMultiTicketForm([event1.slug, event2.slug], {
@@ -478,12 +492,12 @@ describe("server (public routes)", () => {
 
     test("caps quantity at max purchasable", async () => {
       const event1 = await createTestEvent({
-        slug: "post-multi-cap-1",
+        name: "Post Multi Cap 1",
         maxAttendees: 3,
         maxQuantity: 2,
       });
       const event2 = await createTestEvent({
-        slug: "post-multi-cap-2",
+        name: "Post Multi Cap 2",
         maxAttendees: 50,
         maxQuantity: 5,
       });
@@ -537,13 +551,13 @@ describe("server (public routes)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-paid-1",
+        name: "Multi Paid 1",
         maxAttendees: 50,
         unitPrice: 500,
         maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        slug: "multi-paid-2",
+        name: "Multi Paid 2",
         maxAttendees: 50,
         unitPrice: 1000,
         maxQuantity: 5,
@@ -579,13 +593,13 @@ describe("server (public routes)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-nosel-1",
+        name: "Multi Nosel 1",
         maxAttendees: 50,
         unitPrice: 500,
         maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        slug: "multi-nosel-2",
+        name: "Multi Nosel 2",
         maxAttendees: 50,
         unitPrice: 1000,
         maxQuantity: 5,
@@ -620,12 +634,12 @@ describe("server (public routes)", () => {
   describe("multi-ticket free flow (capacity exceeded)", () => {
     test("shows error when free multi-ticket atomic create fails capacity", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-free-cap-1",
+        name: "Multi Free Cap 1",
         maxAttendees: 50,
         maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        slug: "multi-free-cap-2",
+        name: "Multi Free Cap 2",
         maxAttendees: 50,
         maxQuantity: 5,
       });
@@ -673,12 +687,12 @@ describe("server (public routes)", () => {
 
     test("multi-ticket free registration succeeds for both events", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-free-ok-1",
+        name: "Multi Free Ok 1",
         maxAttendees: 50,
         maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        slug: "multi-free-ok-2",
+        name: "Multi Free Ok 2",
         maxAttendees: 50,
         maxQuantity: 5,
       });
@@ -720,11 +734,11 @@ describe("server (public routes)", () => {
   describe("POST /ticket/:slug1+:slug2 (unsupported method)", () => {
     test("returns 404 for PUT on multi-ticket route", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-put-1",
+        name: "Multi Put 1",
         maxAttendees: 50,
       });
       const event2 = await createTestEvent({
-        slug: "multi-put-2",
+        name: "Multi Put 2",
         maxAttendees: 50,
       });
       const response = await awaitTestRequest(
@@ -770,12 +784,12 @@ describe("server (public routes)", () => {
 
     test("multi-ticket skips sold-out events in quantity parsing", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-soldout-parse-1",
+        name: "Multi Soldout Parse 1",
         maxAttendees: 1,
         maxQuantity: 1,
       });
       const event2 = await createTestEvent({
-        slug: "multi-soldout-parse-2",
+        name: "Multi Soldout Parse 2",
         maxAttendees: 50,
         maxQuantity: 5,
       });
@@ -814,12 +828,12 @@ describe("server (public routes)", () => {
 
     test("multi-ticket with invalid quantity form value falls back to 0", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-invalid-qty-1",
+        name: "Multi Invalid Qty 1",
         maxAttendees: 50,
         maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        slug: "multi-invalid-qty-2",
+        name: "Multi Invalid Qty 2",
         maxAttendees: 50,
         maxQuantity: 5,
       });
@@ -857,13 +871,13 @@ describe("server (public routes)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-avail-1",
+        name: "Multi Avail 1",
         maxAttendees: 1,
         unitPrice: 500,
         maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        slug: "multi-avail-2",
+        name: "Multi Avail 2",
         maxAttendees: 50,
         unitPrice: 1000,
         maxQuantity: 5,
@@ -911,11 +925,11 @@ describe("server (public routes)", () => {
   describe("routes/public.ts (multi-ticket CSRF)", () => {
     test("multi-ticket POST rejects invalid CSRF token", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-csrf-1",
+        name: "Multi Csrf 1",
         maxAttendees: 50,
       });
       const event2 = await createTestEvent({
-        slug: "multi-csrf-2",
+        name: "Multi Csrf 2",
         maxAttendees: 50,
       });
 
@@ -937,13 +951,13 @@ describe("server (public routes)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-noprov-1",
+        name: "Multi Noprov 1",
         maxAttendees: 50,
         unitPrice: 500,
         maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        slug: "multi-noprov-2",
+        name: "Multi Noprov 2",
         maxAttendees: 50,
         unitPrice: 1000,
         maxQuantity: 5,
@@ -981,11 +995,11 @@ describe("server (public routes)", () => {
   describe("POST multi-ticket capacity check via atomic create", () => {
     test("shows error for free multi-ticket when atomic create fails", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-free-atomic-1",
+        name: "Multi Free Atomic 1",
         maxAttendees: 50,
       });
       const event2 = await createTestEvent({
-        slug: "multi-free-atomic-2",
+        name: "Multi Free Atomic 2",
         maxAttendees: 50,
       });
 
@@ -1034,12 +1048,12 @@ describe("server (public routes)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-paid-1",
+        name: "Multi Paid Flow 1",
         maxAttendees: 50,
         unitPrice: 1000,
       });
       const event2 = await createTestEvent({
-        slug: "multi-paid-2",
+        name: "Multi Paid Flow 2",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -1068,12 +1082,12 @@ describe("server (public routes)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-nourl-1",
+        name: "Multi Nourl 1",
         maxAttendees: 50,
         unitPrice: 1000,
       });
       const event2 = await createTestEvent({
-        slug: "multi-nourl-2",
+        name: "Multi Nourl 2",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -1108,11 +1122,11 @@ describe("server (public routes)", () => {
 
     test("multi-ticket skips sold-out events in quantity parsing", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-soldout-1",
+        name: "Multi Soldout 1",
         maxAttendees: 1,
       });
       const event2 = await createTestEvent({
-        slug: "multi-soldout-2",
+        name: "Multi Soldout 2",
         maxAttendees: 50,
       });
 
@@ -1172,12 +1186,12 @@ describe("server (public routes)", () => {
   describe("routes/public.ts (multi-ticket quantity field missing from form)", () => {
     test("defaults to 0 when quantity field is absent from multi-ticket form", async () => {
       const event1 = await createTestEvent({
-        slug: "multi-nofield-1",
+        name: "Multi Nofield 1",
         maxAttendees: 50,
         maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        slug: "multi-nofield-2",
+        name: "Multi Nofield 2",
         maxAttendees: 50,
         maxQuantity: 5,
       });
@@ -1222,13 +1236,13 @@ describe("server (public routes)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-avail-race-1",
+        name: "Multi Avail Race 1",
         maxAttendees: 50,
         unitPrice: 500,
         maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        slug: "multi-avail-race-2",
+        name: "Multi Avail Race 2",
         maxAttendees: 50,
         unitPrice: 1000,
         maxQuantity: 5,
@@ -1316,13 +1330,13 @@ describe("server (public routes)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-noprov-miss-1",
+        name: "Multi Noprov Miss 1",
         maxAttendees: 50,
         unitPrice: 500,
         maxQuantity: 5,
       });
       const event2 = await createTestEvent({
-        slug: "multi-noprov-miss-2",
+        name: "Multi Noprov Miss 2",
         maxAttendees: 50,
         unitPrice: 1000,
         maxQuantity: 5,

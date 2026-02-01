@@ -787,8 +787,8 @@ describe("stripe", () => {
         email: "jane@example.com",
         phone: "+44 7700 900001",
         items: [
-          { eventId: 1, quantity: 2, unitPrice: 1000, slug: "event-a" },
-          { eventId: 2, quantity: 1, unitPrice: 2000, slug: "event-b" },
+          { eventId: 1, quantity: 2, unitPrice: 1000, slug: "event-a", name: "Event A" },
+          { eventId: 2, quantity: 1, unitPrice: 2000, slug: "event-b", name: "Event B" },
         ],
       };
 
@@ -807,7 +807,7 @@ describe("stripe", () => {
         email: "jane@example.com",
         phone: "",
         items: [
-          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-a" },
+          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-a", name: "Event A" },
         ],
       };
 
@@ -826,8 +826,8 @@ describe("stripe", () => {
         email: "",
         phone: "+44 7700 900002",
         items: [
-          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-a" },
-          { eventId: 2, quantity: 2, unitPrice: 2000, slug: "event-b" },
+          { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-a", name: "Event A" },
+          { eventId: 2, quantity: 2, unitPrice: 2000, slug: "event-b", name: "Event B" },
         ],
       };
 
@@ -1647,7 +1647,7 @@ describe("stripe-provider", () => {
           name: "Jane",
           email: "jane@example.com",
           phone: "",
-          items: [{ eventId: 1, quantity: 1, unitPrice: 1000, slug: "evt" }],
+          items: [{ eventId: 1, quantity: 1, unitPrice: 1000, slug: "evt", name: "Evt" }],
         };
         const result = await stripePaymentProvider.createMultiCheckoutSession(
           intent,

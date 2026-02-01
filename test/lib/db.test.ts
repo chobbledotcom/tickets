@@ -24,6 +24,7 @@ import {
   getEventWithAttendeeRaw,
   getEventWithAttendeesRaw,
   getEventWithCount,
+  isSlugTaken,
 } from "#lib/db/events.ts";
 import {
   clearLoginAttempts,
@@ -155,7 +156,7 @@ describe("db", () => {
     test("drops all tables", async () => {
       // Create some data first
       await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -191,13 +192,13 @@ describe("db", () => {
       // Verify we can create new data
       await completeSetup(TEST_ADMIN_PASSWORD, "USD");
       const event = await createTestEvent({
-        slug: "new-event",
+        name: "New Event",
         maxAttendees: 25,
         thankYouUrl: "https://example.com",
       });
 
       expect(event.id).toBe(1);
-      expect(event.slug).toBe("new-event");
+      expect(event.name).toBe("New Event");
     });
   });
 
@@ -349,7 +350,7 @@ describe("db", () => {
 
       // Create an event via REST API
       const event = await createTestEvent({
-        slug: "password-test-event",
+        name: "Password Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
       });
@@ -410,13 +411,14 @@ describe("db", () => {
   describe("events", () => {
     test("createEvent creates event with correct properties", async () => {
       const event = await createTestEvent({
-        slug: "my-test-event",
+        name: "My Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
       });
 
       expect(event.id).toBe(1);
-      expect(event.slug).toBe("my-test-event");
+      expect(event.name).toBe("My Test Event");
+      expect(event.slug).toBeDefined();
       expect(event.max_attendees).toBe(100);
       expect(event.thank_you_url).toBe("https://example.com/thanks");
       expect(event.created).toBeDefined();
@@ -440,12 +442,12 @@ describe("db", () => {
 
     test("getAllEvents returns events with attendee count", async () => {
       await createTestEvent({
-        slug: "event-1",
+        name: "Event One",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       await createTestEvent({
-        slug: "event-2",
+        name: "Event Two",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -463,14 +465,14 @@ describe("db", () => {
 
     test("getEvent returns event by id", async () => {
       const created = await createTestEvent({
-        slug: "fetch-test",
+        name: "Fetch Test",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       const fetched = await getEvent(created.id);
 
       expect(fetched).not.toBeNull();
-      expect(fetched?.slug).toBe("fetch-test");
+      expect(fetched?.name).toBe("Fetch Test");
     });
 
     test("getEventWithCount returns null for missing event", async () => {
@@ -491,20 +493,22 @@ describe("db", () => {
 
     test("eventsTable.update updates event properties", async () => {
       const created = await createTestEvent({
-        slug: "original-event",
+        name: "Original Event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com/original",
       });
 
       const updated = await eventsTable.update(created.id, {
-        slug: "updated-event",
+        name: "Updated Event",
+        slug: created.slug,
+        slugIndex: created.slug_index,
         maxAttendees: 100,
         thankYouUrl: "https://example.com/updated",
         unitPrice: 1500,
       });
 
       expect(updated).not.toBeNull();
-      expect(updated?.slug).toBe("updated-event");
+      expect(updated?.name).toBe("Updated Event");
       expect(updated?.max_attendees).toBe(100);
       expect(updated?.thank_you_url).toBe("https://example.com/updated");
       expect(updated?.unit_price).toBe(1500);
@@ -512,7 +516,9 @@ describe("db", () => {
 
     test("eventsTable.update returns null for non-existent event", async () => {
       const result = await eventsTable.update(999, {
+        name: "Non Existent",
         slug: "non-existent",
+        slugIndex: "non-existent",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -527,7 +533,9 @@ describe("db", () => {
       });
 
       const updated = await eventsTable.update(created.id, {
+        name: created.name,
         slug: created.slug,
+        slugIndex: created.slug_index,
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
         unitPrice: null,
@@ -574,6 +582,22 @@ describe("db", () => {
 
       const fetched = await getEvent(event.id);
       expect(fetched).toBeNull();
+    });
+
+    test("isSlugTaken with excludeEventId excludes that event", async () => {
+      const event = await createTestEvent({
+        name: "Slug Taken Test",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Slug is taken when checking without exclusion
+      const taken = await isSlugTaken(event.slug);
+      expect(taken).toBe(true);
+
+      // Slug is not taken when excluding the event that owns it
+      const notTaken = await isSlugTaken(event.slug, event.id);
+      expect(notTaken).toBe(false);
     });
   });
 
@@ -1118,12 +1142,12 @@ describe("db", () => {
 
       // Create some test events directly
       await createTestEvent({
-        slug: "event-1",
+        name: "Event One",
         maxAttendees: 10,
         thankYouUrl: "https://example.com",
       });
       await createTestEvent({
-        slug: "event-2",
+        name: "Event Two",
         maxAttendees: 20,
         thankYouUrl: "https://example.com",
       });
@@ -1243,12 +1267,12 @@ describe("db", () => {
 
     test("getEventActivityLog returns entries for specific event", async () => {
       const event1 = await createTestEvent({
-        slug: "event-1",
+        name: "Event One",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
       const event2 = await createTestEvent({
-        slug: "event-2",
+        name: "Event Two",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -1285,7 +1309,7 @@ describe("db", () => {
 
     test("getAllActivityLog returns all entries", async () => {
       const event = await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -1320,7 +1344,7 @@ describe("db", () => {
 
     test("getEventWithActivityLog returns event and activity log together", async () => {
       const event = await createTestEvent({
-        slug: "batch-test-event",
+        name: "Batch Test Event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
@@ -1331,7 +1355,7 @@ describe("db", () => {
       const result = await getEventWithActivityLog(event.id);
       expect(result).not.toBeNull();
       expect(result?.event.id).toBe(event.id);
-      expect(result?.event.slug).toBe("batch-test-event");
+      expect(result?.event.name).toBe("Batch Test Event");
       expect(result?.event.attendee_count).toBe(0);
       // REST API logs "Created event" + our 2 = 3
       expect(result?.entries.length).toBe(3);
@@ -1485,30 +1509,30 @@ describe("db", () => {
 
     test("getEventsBySlugsBatch returns events in slug order", async () => {
       const event1 = await createTestEvent({
-        slug: "batch-a",
+        name: "Batch A",
         maxAttendees: 10,
         thankYouUrl: "https://example.com",
       });
       const event2 = await createTestEvent({
-        slug: "batch-b",
+        name: "Batch B",
         maxAttendees: 20,
         thankYouUrl: "https://example.com",
       });
 
-      const results = await getEventsBySlugsBatch(["batch-b", "batch-a"]);
+      const results = await getEventsBySlugsBatch([event2.slug, event1.slug]);
       expect(results.length).toBe(2);
       expect(results[0]?.id).toBe(event2.id);
       expect(results[1]?.id).toBe(event1.id);
     });
 
     test("getEventsBySlugsBatch returns null for missing slugs", async () => {
-      await createTestEvent({
-        slug: "exists",
+      const event = await createTestEvent({
+        name: "Exists",
         maxAttendees: 10,
         thankYouUrl: "https://example.com",
       });
 
-      const results = await getEventsBySlugsBatch(["exists", "missing"]);
+      const results = await getEventsBySlugsBatch([event.slug, "missing"]);
       expect(results.length).toBe(2);
       expect(results[0]).not.toBeNull();
       expect(results[1]).toBeNull();
@@ -1745,39 +1769,41 @@ describe("db", () => {
       // The events table has a 'slug' column - toCamelCase("slug") === "slug"
       // This tests the ?? dbCol path in getInputValue and getProvidedColumns
       const event = await createTestEvent({
-        slug: "fallback-test",
+        name: "Fallback Test",
         maxAttendees: 10,
         thankYouUrl: "https://example.com",
       });
 
       // Update with only slug - exercises getInputValue with dbCol fallback
       const updated = await eventsTable.update(event.id, {
+        name: "Updated Name",
         slug: "updated-slug",
         slugIndex: "updated-index",
         maxAttendees: 10,
         thankYouUrl: "https://example.com",
       });
-      expect(updated?.slug).toBe("updated-slug");
+      expect(updated?.name).toBe("Updated Name");
     });
   });
 
   describe("table findAll", () => {
     test("returns all rows from table", async () => {
-      await createTestEvent({ slug: "findall-1", maxAttendees: 10 });
-      await createTestEvent({ slug: "findall-2", maxAttendees: 20 });
+      await createTestEvent({ name: "FindAll One", maxAttendees: 10 });
+      await createTestEvent({ name: "FindAll Two", maxAttendees: 20 });
 
       const events = await eventsTable.findAll();
       expect(events.length).toBeGreaterThanOrEqual(2);
-      // Verify slugs are decrypted (read transforms applied)
-      const slugs = events.map((e) => e.slug);
-      expect(slugs).toContain("findall-1");
-      expect(slugs).toContain("findall-2");
+      // Verify names are decrypted (read transforms applied)
+      const names = events.map((e) => e.name);
+      expect(names).toContain("FindAll One");
+      expect(names).toContain("FindAll Two");
     });
   });
 
   describe("table update returns null for non-existent id", () => {
     test("update returns null when row does not exist", async () => {
       const result = await eventsTable.update(99999, {
+        name: "Nonexistent",
         slug: "nonexistent",
         slugIndex: "idx",
         maxAttendees: 10,
@@ -1788,10 +1814,10 @@ describe("db", () => {
 
   describe("getEventsBySlugsBatch returns null for non-existent slugs", () => {
     test("returns null entries for slugs not in database", async () => {
-      const event = await createTestEvent({ slug: "batch-exists", maxAttendees: 10 });
+      const event = await createTestEvent({ name: "Batch Exists", maxAttendees: 10 });
       const results = await getEventsBySlugsBatch([event.slug, "nonexistent-slug"]);
       expect(results.length).toBe(2);
-      expect(results[0]?.slug).toBe("batch-exists");
+      expect(results[0]?.name).toBe("Batch Exists");
       expect(results[1]).toBeNull();
     });
 

@@ -1,9 +1,36 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import {
-  notifyWebhook,
-  sendRegistrationWebhook,
+  buildWebhookPayload,
+  type RegistrationEntry,
+  sendRegistrationWebhooks,
+  sendWebhook,
+  type WebhookAttendee,
+  type WebhookEvent,
   type WebhookPayload,
 } from "#lib/webhook.ts";
+import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
+
+/** Helper to build a WebhookEvent with sensible defaults */
+const makeEvent = (overrides: Partial<WebhookEvent> = {}): WebhookEvent => ({
+  id: 1,
+  name: "Test Event",
+  slug: "test-event",
+  webhook_url: "https://example.com/webhook",
+  max_attendees: 100,
+  attendee_count: 10,
+  unit_price: null,
+  ...overrides,
+});
+
+/** Helper to build a WebhookAttendee with sensible defaults */
+const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee => ({
+  id: 42,
+  quantity: 1,
+  name: "Jane Doe",
+  email: "jane@example.com",
+  phone: "555-1234",
+  ...overrides,
+});
 
 describe("webhook", () => {
   // deno-lint-ignore no-explicit-any
@@ -20,143 +47,305 @@ describe("webhook", () => {
     globalThis.fetch = originalFetch;
   });
 
-  describe("sendRegistrationWebhook", () => {
-    test("sends POST request with correct payload", async () => {
-      const webhookUrl = "https://example.com/webhook";
-      const eventId = 1;
-      const eventSlug = "test-event";
-      const attendee = {
-        id: 42,
-        quantity: 2,
-        name: "Jane Doe",
-        email: "jane@example.com",
-        phone: "555-1234",
-      };
-      const maxAttendees = 100;
-      const attendeeCount = 50;
+  describe("buildWebhookPayload", () => {
+    test("builds payload for a single free event", () => {
+      const entries: RegistrationEntry[] = [
+        { event: makeEvent(), attendee: makeAttendee() },
+      ];
 
-      await sendRegistrationWebhook(
-        webhookUrl,
-        eventId,
-        eventSlug,
-        attendee,
-        maxAttendees,
-        attendeeCount,
+      const payload = buildWebhookPayload(entries, "GBP");
+
+      expect(payload.event_type).toBe("registration.completed");
+      expect(payload.name).toBe("Jane Doe");
+      expect(payload.email).toBe("jane@example.com");
+      expect(payload.phone).toBe("555-1234");
+      expect(payload.price_paid).toBeNull();
+      expect(payload.currency).toBe("GBP");
+      expect(payload.payment_id).toBeNull();
+      expect(payload.tickets).toHaveLength(1);
+      expect(payload.tickets[0]!.event_name).toBe("Test Event");
+      expect(payload.tickets[0]!.event_slug).toBe("test-event");
+      expect(payload.tickets[0]!.unit_price).toBeNull();
+      expect(payload.tickets[0]!.quantity).toBe(1);
+      expect(payload.timestamp).toBeDefined();
+    });
+
+    test("builds payload for a single paid event with price_paid on attendee", () => {
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ unit_price: 500 }),
+          attendee: makeAttendee({
+            quantity: 2,
+            price_paid: "1000",
+            payment_id: "pi_abc123",
+          }),
+        },
+      ];
+
+      const payload = buildWebhookPayload(entries, "USD");
+
+      expect(payload.price_paid).toBe(1000);
+      expect(payload.payment_id).toBe("pi_abc123");
+      expect(payload.currency).toBe("USD");
+      expect(payload.tickets[0]!.unit_price).toBe(500);
+      expect(payload.tickets[0]!.quantity).toBe(2);
+    });
+
+    test("builds payload for multi-event entries", () => {
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ id: 1, name: "Event A", slug: "event-a", unit_price: 300 }),
+          attendee: makeAttendee({ price_paid: "300", payment_id: "pi_multi" }),
+        },
+        {
+          event: makeEvent({ id: 2, name: "Event B", slug: "event-b", unit_price: 700 }),
+          attendee: makeAttendee({ quantity: 2, price_paid: "1400", payment_id: "pi_multi" }),
+        },
+      ];
+
+      const payload = buildWebhookPayload(entries, "EUR");
+
+      expect(payload.name).toBe("Jane Doe");
+      expect(payload.price_paid).toBe(1700);
+      expect(payload.payment_id).toBe("pi_multi");
+      expect(payload.tickets).toHaveLength(2);
+      expect(payload.tickets[0]!.event_name).toBe("Event A");
+      expect(payload.tickets[0]!.unit_price).toBe(300);
+      expect(payload.tickets[1]!.event_name).toBe("Event B");
+      expect(payload.tickets[1]!.unit_price).toBe(700);
+      expect(payload.tickets[1]!.quantity).toBe(2);
+    });
+
+    test("computes price from unit_price when attendee has no price_paid", () => {
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ unit_price: 500 }),
+          attendee: makeAttendee({ quantity: 3 }),
+        },
+      ];
+
+      const payload = buildWebhookPayload(entries, "GBP");
+
+      expect(payload.price_paid).toBe(1500);
+    });
+  });
+
+  describe("sendWebhook", () => {
+    test("sends POST request with correct payload", async () => {
+      const payload: WebhookPayload = buildWebhookPayload(
+        [{ event: makeEvent(), attendee: makeAttendee() }],
+        "GBP",
       );
+
+      await sendWebhook("https://example.com/webhook", payload);
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [url, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-      expect(url).toBe(webhookUrl);
+      expect(url).toBe("https://example.com/webhook");
       expect(options.method).toBe("POST");
       expect(options.headers).toEqual({ "Content-Type": "application/json" });
 
-      const payload = JSON.parse(options.body as string) as WebhookPayload;
-      expect(payload.event_type).toBe("attendee.registered");
-      expect(payload.event_id).toBe(eventId);
-      expect(payload.event_slug).toBe(eventSlug);
-      expect(payload.remaining_places).toBe(48); // 100 - 50 - 2
-      expect(payload.total_places).toBe(100);
-      expect(payload.attendee.id).toBe(42);
-      expect(payload.attendee.quantity).toBe(2);
-      expect(payload.attendee.name).toBe("Jane Doe");
-      expect(payload.attendee.email).toBe("jane@example.com");
-      expect(payload.attendee.phone).toBe("555-1234");
-      expect(payload.timestamp).toBeDefined();
+      const body = JSON.parse(options.body as string) as WebhookPayload;
+      expect(body.event_type).toBe("registration.completed");
+      expect(body.name).toBe("Jane Doe");
+      expect(body.tickets).toHaveLength(1);
     });
 
     test("does not throw on fetch error", async () => {
       fetchSpy.mockRejectedValue(new Error("Network error"));
 
-      // Should not throw
-      await sendRegistrationWebhook(
-        "https://example.com/webhook",
-        1,
-        "test-event",
-        { id: 42, quantity: 1, name: "Test", email: "test@test.com", phone: "555-0000" },
-        100,
-        50,
+      const payload = buildWebhookPayload(
+        [{ event: makeEvent(), attendee: makeAttendee() }],
+        "GBP",
       );
+
+      // Should not throw
+      await sendWebhook("https://example.com/webhook", payload);
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe("notifyWebhook", () => {
-    test("sends webhook when webhook_url is configured", async () => {
-      const event = {
-        id: 1,
-        slug: "test-event",
-        webhook_url: "https://example.com/hook",
-        max_attendees: 100,
-        attendee_count: 10,
-      };
-      const attendee = {
-        id: 99,
-        quantity: 1,
-        name: "John Smith",
-        email: "john@example.com",
-        phone: "555-9999",
-      };
+  describe("sendRegistrationWebhooks", () => {
+    test("sends to all unique webhook URLs", async () => {
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ id: 1, webhook_url: "https://hook-a.com" }),
+          attendee: makeAttendee(),
+        },
+        {
+          event: makeEvent({ id: 2, webhook_url: "https://hook-b.com" }),
+          attendee: makeAttendee(),
+        },
+      ];
 
-      await notifyWebhook(event, attendee);
+      await sendRegistrationWebhooks(entries, "GBP");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      const urls = fetchSpy.mock.calls.map(
+        (call: [string, RequestInit]) => call[0],
+      );
+      expect(urls).toContain("https://hook-a.com");
+      expect(urls).toContain("https://hook-b.com");
+    });
+
+    test("deduplicates identical webhook URLs", async () => {
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ id: 1, webhook_url: "https://same-hook.com" }),
+          attendee: makeAttendee(),
+        },
+        {
+          event: makeEvent({ id: 2, webhook_url: "https://same-hook.com" }),
+          attendee: makeAttendee(),
+        },
+      ];
+
+      await sendRegistrationWebhooks(entries, "GBP");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test("skips entries with null webhook URLs", async () => {
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ id: 1, webhook_url: null }),
+          attendee: makeAttendee(),
+        },
+        {
+          event: makeEvent({ id: 2, webhook_url: "https://hook.com" }),
+          attendee: makeAttendee(),
+        },
+      ];
+
+      await sendRegistrationWebhooks(entries, "GBP");
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
-      expect(url).toBe("https://example.com/hook");
+      expect(url).toBe("https://hook.com");
     });
 
-    test("does nothing when webhook_url is null", async () => {
-      const event = {
-        id: 1,
-        slug: "test-event",
-        webhook_url: null,
-        max_attendees: 100,
-        attendee_count: 10,
-      };
-      const attendee = {
-        id: 99,
-        quantity: 1,
-        name: "John Smith",
-        email: "john@example.com",
-        phone: "555-9999",
-      };
+    test("does nothing when all webhook URLs are null", async () => {
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ webhook_url: null }),
+          attendee: makeAttendee(),
+        },
+      ];
 
-      await notifyWebhook(event, attendee);
+      await sendRegistrationWebhooks(entries, "GBP");
 
       expect(fetchSpy).not.toHaveBeenCalled();
     });
+  });
 
-    test("passes correct attendee data to webhook", async () => {
-      const event = {
-        id: 42,
-        slug: "big-conference",
-        webhook_url: "https://webhook.site/test",
-        max_attendees: 200,
-        attendee_count: 50,
-      };
-      const attendee = {
-        id: 123,
-        quantity: 3,
-        name: "Alice Johnson",
-        email: "alice@example.com",
-        phone: "555-5678",
-      };
+  describe("logAndNotifyRegistration", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
 
-      await notifyWebhook(event, attendee);
+    afterEach(() => {
+      resetDb();
+    });
+
+    test("sends webhook when event has webhook_url", async () => {
+      const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
+      const dbEvent = await createTestEvent({ webhookUrl: "https://example.com/hook" });
+      const event = makeEvent({
+        id: dbEvent.id,
+        name: dbEvent.name,
+        slug: dbEvent.slug,
+        webhook_url: "https://example.com/hook",
+      });
+      const attendee = makeAttendee();
+
+      await logAndNotifyRegistration(event, attendee, "GBP");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [url, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://example.com/hook");
+      const body = JSON.parse(options.body as string) as WebhookPayload;
+      expect(body.event_type).toBe("registration.completed");
+      expect(body.name).toBe("Jane Doe");
+    });
+
+    test("does not send webhook when event has no webhook_url", async () => {
+      const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
+      const dbEvent = await createTestEvent();
+      const event = makeEvent({
+        id: dbEvent.id,
+        name: dbEvent.name,
+        slug: dbEvent.slug,
+        webhook_url: null,
+      });
+      const attendee = makeAttendee();
+
+      await logAndNotifyRegistration(event, attendee, "GBP");
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("logAndNotifyMultiRegistration", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    afterEach(() => {
+      resetDb();
+    });
+
+    test("sends webhooks for multi-event registration", async () => {
+      const { logAndNotifyMultiRegistration } = await import("#lib/webhook.ts");
+      const dbEventA = await createTestEvent({ webhookUrl: "https://hook.com" });
+      const dbEventB = await createTestEvent({ webhookUrl: "https://hook.com" });
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({
+            id: dbEventA.id,
+            name: dbEventA.name,
+            slug: dbEventA.slug,
+            webhook_url: "https://hook.com",
+          }),
+          attendee: makeAttendee(),
+        },
+        {
+          event: makeEvent({
+            id: dbEventB.id,
+            name: dbEventB.name,
+            slug: dbEventB.slug,
+            webhook_url: "https://hook.com",
+          }),
+          attendee: makeAttendee(),
+        },
+      ];
+
+      await logAndNotifyMultiRegistration(entries, "GBP");
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-      const payload = JSON.parse(options.body as string) as WebhookPayload;
+      const body = JSON.parse(options.body as string) as WebhookPayload;
+      expect(body.tickets).toHaveLength(2);
+    });
 
-      expect(payload.event_id).toBe(42);
-      expect(payload.event_slug).toBe("big-conference");
-      expect(payload.remaining_places).toBe(147); // 200 - 50 - 3
-      expect(payload.total_places).toBe(200);
-      expect(payload.attendee.id).toBe(123);
-      expect(payload.attendee.quantity).toBe(3);
-      expect(payload.attendee.name).toBe("Alice Johnson");
-      expect(payload.attendee.email).toBe("alice@example.com");
-      expect(payload.attendee.phone).toBe("555-5678");
+    test("does not send webhook when no events have webhook URLs", async () => {
+      const { logAndNotifyMultiRegistration } = await import("#lib/webhook.ts");
+      const dbEventA = await createTestEvent();
+      const dbEventB = await createTestEvent();
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ id: dbEventA.id, webhook_url: null }),
+          attendee: makeAttendee(),
+        },
+        {
+          event: makeEvent({ id: dbEventB.id, webhook_url: null }),
+          attendee: makeAttendee(),
+        },
+      ];
+
+      await logAndNotifyMultiRegistration(entries, "USD");
+
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
   });
 });

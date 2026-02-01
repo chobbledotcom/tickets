@@ -652,7 +652,7 @@ describe("server (admin settings)", () => {
     test("resets database and redirects to setup on correct phrase", async () => {
       // Create some data first
       await createTestEvent({
-        slug: "test-event",
+        name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
       });

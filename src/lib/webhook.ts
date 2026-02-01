@@ -1,116 +1,156 @@
 /**
  * Webhook notification module
- * Sends attendee registration data to configured webhook URLs
+ * Sends consolidated registration data to configured webhook URLs
  */
 
+import { compact, unique } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 
-/** Payload sent to webhook endpoints */
-export type WebhookPayload = {
-  event_type: "attendee.registered";
-  event_id: number;
+/** Single ticket in the webhook payload */
+export type WebhookTicket = {
+  event_name: string;
   event_slug: string;
-  remaining_places: number;
-  total_places: number;
-  attendee: {
-    id: number;
-    quantity: number;
-    name: string;
-    email: string;
-    phone: string;
-  };
+  unit_price: number | null;
+  quantity: number;
+};
+
+/** Consolidated payload sent to webhook endpoints */
+export type WebhookPayload = {
+  event_type: "registration.completed";
+  name: string;
+  email: string;
+  phone: string;
+  price_paid: number | null;
+  currency: string;
+  payment_id: string | null;
+  tickets: WebhookTicket[];
   timestamp: string;
 };
 
 /** Event data needed for webhook notifications */
-type WebhookEvent = {
+export type WebhookEvent = {
   id: number;
+  name: string;
   slug: string;
   webhook_url: string | null;
   max_attendees: number;
   attendee_count: number;
+  unit_price: number | null;
 };
 
 /** Attendee data needed for webhook notifications */
-type WebhookAttendee = {
+export type WebhookAttendee = {
   id: number;
   quantity: number;
   name: string;
   email: string;
   phone: string;
+  payment_id?: string | null;
+  price_paid?: string | null;
+};
+
+/** Registration entry: event + attendee pair */
+export type RegistrationEntry = {
+  event: WebhookEvent;
+  attendee: WebhookAttendee;
 };
 
 /**
- * Send a webhook notification for a new attendee registration
- * Fires and forgets - errors are logged but don't block registration
+ * Build a consolidated webhook payload from registration entries
  */
-export const sendRegistrationWebhook = async (
-  webhookUrl: string,
-  eventId: number,
-  eventSlug: string,
-  attendee: WebhookAttendee,
-  maxAttendees: number,
-  attendeeCount: number,
-): Promise<void> => {
-  const payload: WebhookPayload = {
-    event_type: "attendee.registered",
-    event_id: eventId,
-    event_slug: eventSlug,
-    remaining_places: maxAttendees - attendeeCount - attendee.quantity,
-    total_places: maxAttendees,
-    attendee: {
-      id: attendee.id,
+export const buildWebhookPayload = (
+  entries: RegistrationEntry[],
+  currency: string,
+): WebhookPayload => {
+  const first = entries[0]!;
+  const totalPricePaid = entries.reduce((sum, { attendee, event }) => {
+    if (attendee.price_paid !== null && attendee.price_paid !== undefined) {
+      return sum + Number.parseInt(String(attendee.price_paid), 10);
+    }
+    if (event.unit_price !== null) {
+      return sum + event.unit_price * attendee.quantity;
+    }
+    return sum;
+  }, 0);
+
+  const hasPaidEvent = entries.some(({ event }) => event.unit_price !== null);
+
+  return {
+    event_type: "registration.completed",
+    name: first.attendee.name,
+    email: first.attendee.email,
+    phone: first.attendee.phone,
+    price_paid: hasPaidEvent ? totalPricePaid : null,
+    currency,
+    payment_id: first.attendee.payment_id ?? null,
+    tickets: entries.map(({ event, attendee }) => ({
+      event_name: event.name,
+      event_slug: event.slug,
+      unit_price: event.unit_price,
       quantity: attendee.quantity,
-      name: attendee.name,
-      email: attendee.email,
-      phone: attendee.phone,
-    },
+    })),
     timestamp: new Date().toISOString(),
   };
+};
 
+/**
+ * Send a webhook payload to a URL
+ * Fires and forgets - errors are logged but don't block registration
+ */
+export const sendWebhook = async (
+  webhookUrl: string,
+  payload: WebhookPayload,
+): Promise<void> => {
   try {
     await fetch(webhookUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
   } catch {
-    // Webhook failures should not block registration
-    logError({ code: ErrorCode.WEBHOOK_SEND, eventId, attendeeId: attendee.id });
+    logError({ code: ErrorCode.WEBHOOK_SEND });
   }
 };
 
 /**
- * Notify webhook if configured for the event
- * Safe to call even if no webhook is configured
+ * Send consolidated webhook to all unique webhook URLs for the given entries
  */
-export const notifyWebhook = async (
-  event: WebhookEvent,
-  attendee: WebhookAttendee,
+export const sendRegistrationWebhooks = async (
+  entries: RegistrationEntry[],
+  currency: string,
 ): Promise<void> => {
-  if (!event.webhook_url) return;
+  const webhookUrls = unique(compact(entries.map((e) => e.event.webhook_url)));
+  if (webhookUrls.length === 0) return;
 
-  await sendRegistrationWebhook(
-    event.webhook_url,
-    event.id,
-    event.slug,
-    attendee,
-    event.max_attendees,
-    event.attendee_count,
-  );
+  const payload = buildWebhookPayload(entries, currency);
+  for (const url of webhookUrls) {
+    await sendWebhook(url, payload);
+  }
 };
 
 /**
- * Log attendee registration and notify webhook
- * Combines activity logging and webhook notification for successful registrations
+ * Log attendee registration and send consolidated webhook
+ * Used for single-event registrations
  */
 export const logAndNotifyRegistration = async (
   event: WebhookEvent,
   attendee: WebhookAttendee,
+  currency: string,
 ): Promise<void> => {
-  await logActivity(`Added an attendee to event '${event.slug}'`, event.id);
-  await notifyWebhook(event, attendee);
+  await logActivity(`Added an attendee to event '${event.name}'`, event.id);
+  await sendRegistrationWebhooks([{ event, attendee }], currency);
+};
+
+/**
+ * Log and send consolidated webhook for multi-event registrations
+ */
+export const logAndNotifyMultiRegistration = async (
+  entries: RegistrationEntry[],
+  currency: string,
+): Promise<void> => {
+  for (const { event } of entries) {
+    await logActivity(`Added an attendee to event '${event.name}'`, event.id);
+  }
+  await sendRegistrationWebhooks(entries, currency);
 };

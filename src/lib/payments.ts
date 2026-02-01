@@ -33,6 +33,7 @@ export type MultiRegistrationItem = {
   quantity: number;
   unitPrice: number;
   slug: string;
+  name: string;
 };
 
 /** Registration intent for multi-event checkout */

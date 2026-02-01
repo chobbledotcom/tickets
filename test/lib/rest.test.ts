@@ -212,6 +212,30 @@ describe("rest/resource", () => {
       const result = await resource.create(new URLSearchParams({ name: "Item" }));
       expectResultError("Value is required")(result);
     });
+
+    test("returns error when custom validate rejects on create", async () => {
+      const table = createTestTable();
+      const resource = defineResource({
+        table,
+        fields: testFields,
+        toInput,
+        validate: async () => "Name already taken",
+      });
+      const result = await resource.create(new URLSearchParams({ name: "Dup", value: "1" }));
+      expectResultError("Name already taken")(result);
+    });
+
+    test("succeeds when custom validate passes on create", async () => {
+      const table = createTestTable();
+      const resource = defineResource({
+        table,
+        fields: testFields,
+        toInput,
+        validate: async () => null,
+      });
+      const result = await resource.create(new URLSearchParams({ name: "Ok", value: "1" }));
+      expect(result.ok).toBe(true);
+    });
   });
 
   describe("update", () => {

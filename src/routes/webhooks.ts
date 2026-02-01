@@ -29,7 +29,8 @@ import {
   type WebhookEvent,
 } from "#lib/payments.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
-import { logAndNotifyRegistration } from "#lib/webhook.ts";
+import { getCurrencyCode } from "#lib/config.ts";
+import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   getSearchParam,
@@ -299,7 +300,7 @@ const processMultiPaymentSession = async (
     const refunded = await tryRefund(session.paymentReference);
     const errorMsg =
       failureReason === "capacity_exceeded"
-        ? `Sorry, ${failedEvent.slug} sold out while you were completing payment.`
+        ? `Sorry, ${failedEvent.name} sold out while you were completing payment.`
         : "Registration failed.";
     return { success: false, error: errorMsg, refunded };
   }
@@ -311,10 +312,8 @@ const processMultiPaymentSession = async (
 
   await finalizeSession(sessionId, firstAttendee.attendee.id);
 
-  // Log and notify for all created attendees
-  for (const { event, attendee } of createdAttendees) {
-    await logAndNotifyRegistration(event, attendee);
-  }
+  // Log and send consolidated webhook for all created attendees
+  await logAndNotifyMultiRegistration(createdAttendees, await getCurrencyCode());
 
   return {
     success: true,
@@ -397,7 +396,7 @@ const processPaymentSession = async (
   // Phase 3: Finalize the session with the attendee ID
   await finalizeSession(sessionId, result.attendee.id);
 
-  await logAndNotifyRegistration(event, result.attendee);
+  await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
   return { success: true, attendee: result.attendee, event };
 };
 

@@ -10,6 +10,7 @@ import {
   unwrapKeyWithToken,
 } from "#lib/crypto.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
+import { isValidSlug } from "#lib/slug.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
@@ -276,11 +277,13 @@ export const withEvent = async (
 ): Promise<Response> => unwrapResult(await fetchEventOr404(eventId), handler);
 
 /**
- * Fetch event by slug or return 404 response
+ * Fetch event by slug or return 404 response.
+ * Validates slug format before DB lookup to avoid unnecessary queries.
  */
 export const fetchEventBySlugOr404 = async (
   slug: string,
 ): Promise<Result<EventWithCount>> => {
+  if (!isValidSlug(slug)) return err(notFoundResponse());
   const event = await getEventWithCountBySlug(slug);
   return event ? ok(event) : err(notFoundResponse());
 };

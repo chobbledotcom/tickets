@@ -243,12 +243,12 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "webhook-multi-1",
+        name: "Webhook Multi 1",
         maxAttendees: 50,
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        slug: "webhook-multi-2",
+        name: "Webhook Multi 2",
         maxAttendees: 50,
         unitPrice: 1000,
       });
@@ -683,7 +683,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        slug: "multi-concurrent",
+        name: "Multi Concurrent",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -762,7 +762,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        slug: "multi-price-calc",
+        name: "Multi Price Calc",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -888,7 +888,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        slug: "multi-enc-err",
+        name: "Multi Enc Err",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -976,7 +976,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        slug: "multi-no-pi",
+        name: "Multi No PI",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -1029,7 +1029,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        slug: "multi-already-done",
+        name: "Multi Already Done",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -1084,12 +1084,12 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-wh-active",
+        name: "Multi WH Active",
         maxAttendees: 50,
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        slug: "multi-wh-inactive",
+        name: "Multi WH Inactive",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -1151,12 +1151,12 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-wh-avail",
+        name: "Multi WH Avail",
         maxAttendees: 50,
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        slug: "multi-wh-full",
+        name: "Multi WH Full",
         maxAttendees: 1,
         unitPrice: 500,
       });
@@ -1258,12 +1258,12 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-wh-ok-1",
+        name: "Multi WH OK 1",
         maxAttendees: 50,
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        slug: "multi-wh-ok-2",
+        name: "Multi WH OK 2",
         maxAttendees: 50,
         unitPrice: 300,
       });
@@ -1360,12 +1360,12 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "multi-wh-cap-1",
+        name: "Multi WH Cap 1",
         maxAttendees: 50,
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
-        slug: "multi-wh-cap-2",
+        name: "Multi WH Cap 2",
         maxAttendees: 1,
         unitPrice: 300,
       });
@@ -1423,7 +1423,7 @@ describe("server (webhooks)", () => {
 
       // Create a real event and attendee to satisfy FK constraints for finalization
       const event = await createTestEvent({
-        slug: "wh-del-evt",
+        name: "WH Del Evt",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -1478,7 +1478,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        slug: "wh-noref",
+        name: "WH Noref",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -1592,7 +1592,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        slug: "wh-tryrefund-noprov",
+        name: "WH Tryrefund Noprov",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -1655,7 +1655,7 @@ describe("server (webhooks)", () => {
 
       // Create and reserve a session so it's already processed
       const attResult = await createAttendeeAtomic(
-        (await createTestEvent({ slug: "wh-multi-inv-eid", maxAttendees: 50 })).id,
+        (await createTestEvent({ name: "WH Multi Inv EID", maxAttendees: 50 })).id,
         "Test", "test@example.com", null, 1,
       );
       if (!attResult.success) throw new Error("Failed to create attendee");
@@ -1707,7 +1707,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
-        slug: "wh-multi-rollback-1",
+        name: "WH Multi Rollback 1",
         maxAttendees: 50,
         unitPrice: 500,
       });
@@ -1770,7 +1770,7 @@ describe("server (webhooks)", () => {
 
       // Create event with no unitPrice (free event) to cover line 273 null path
       const event = await createTestEvent({
-        slug: "wh-multi-free",
+        name: "WH Multi Free",
         maxAttendees: 50,
       });
 
@@ -1811,7 +1811,7 @@ describe("server (webhooks)", () => {
 
       // Create event with no unitPrice (free event) to cover line 378 null path
       const event = await createTestEvent({
-        slug: "wh-single-free",
+        name: "WH Single Free",
         maxAttendees: 50,
       });
 
@@ -1967,7 +1967,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const event = await createTestEvent({
-        slug: "wh-multi-no-att",
+        name: "WH Multi No Att",
         maxAttendees: 50,
         unitPrice: 500,
       });

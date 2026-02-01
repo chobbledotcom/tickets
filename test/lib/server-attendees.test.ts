@@ -102,12 +102,12 @@ describe("server (admin attendees)", () => {
 
     test("returns 404 when attendee belongs to different event", async () => {
       const event1 = await createTestEvent({
-        slug: "event-1",
+        name: "Event 1",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       const event2 = await createTestEvent({
-        slug: "event-2",
+        name: "Event 2",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -421,7 +421,7 @@ describe("server (admin attendees)", () => {
     test("returns 404 for non-existent attendee on delete page", async () => {
       const { cookie } = await loginAsAdmin();
       const event = await createTestEvent({
-        slug: "att-del-404",
+        name: "Att Del 404",
         maxAttendees: 50,
       });
 
@@ -441,7 +441,7 @@ describe("server (admin attendees)", () => {
     test("exercises parseAttendeeIds via POST route with valid params", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
       const event = await createTestEvent({
-        slug: "parse-ids-test",
+        name: "Parse Ids Test",
         maxAttendees: 50,
       });
       const attendee = await createTestAttendee(event.id, event.slug, "Test User", "test@example.com");
