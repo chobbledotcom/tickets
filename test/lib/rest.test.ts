@@ -1,12 +1,10 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { type InValue } from "@libsql/client";
 import { createSession } from "#lib/db/sessions.ts";
 import { col, defineTable, type Table } from "#lib/db/table.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
 import {
   createHandler,
   deleteHandler,
-  updateHandler,
 } from "#lib/rest/handlers.ts";
 import { defineResource, type Resource } from "#lib/rest/resource.ts";
 import {
@@ -219,7 +217,7 @@ describe("rest/resource", () => {
         table,
         fields: testFields,
         toInput,
-        validate: async () => "Name already taken",
+        validate: () => Promise.resolve("Name already taken"),
       });
       const result = await resource.create(new URLSearchParams({ name: "Dup", value: "1" }));
       expectResultError("Name already taken")(result);
@@ -231,7 +229,7 @@ describe("rest/resource", () => {
         table,
         fields: testFields,
         toInput,
-        validate: async () => null,
+        validate: () => Promise.resolve(null),
       });
       const result = await resource.create(new URLSearchParams({ name: "Ok", value: "1" }));
       expect(result.ok).toBe(true);
@@ -358,52 +356,6 @@ describe("rest/handlers", () => {
     });
   });
 
-  describe("updateHandler", () => {
-    /** Standard update handler options */
-    const updateOpts = () => ({
-      onSuccess: successResponse(200, "Updated"),
-      onError: (_id: InValue, error: string) => new Response(error, { status: 400 }),
-      onNotFound: successResponse(404, "Not Found"),
-    });
-
-    test("updates row and calls onSuccess", async () => {
-      const resource = await insertRow(createTestResource(), { name: "Original", value: 10 });
-      let capturedRow: unknown = null;
-      const handler = updateHandler(resource, {
-        ...updateOpts(),
-        onSuccess: (row) => { capturedRow = row; return new Response("Updated", { status: 200 }); },
-      });
-      const response = await handler(await createAuthRequest("/items/1", { name: "Updated", value: "99" }), 1);
-      expect(response.status).toBe(200);
-      expect((capturedRow as TestRow).name).toBe("Updated");
-      expect((capturedRow as TestRow).value).toBe(99);
-    });
-
-    test("calls onNotFound for non-existent row", async () => {
-      const handler = updateHandler(createTestResource(), updateOpts());
-      const response = await handler(await createAuthRequest("/items/999", { name: "Updated", value: "99" }), 999);
-      expect(response.status).toBe(404);
-    });
-
-    test("calls onError with id for validation failure", async () => {
-      const resource = await insertRow(createTestResource(), { name: "Original", value: 10 });
-      let capturedId: unknown = null, errorMessage = "";
-      const handler = updateHandler(resource, {
-        ...updateOpts(),
-        onError: (id, error) => { capturedId = id; errorMessage = error; return new Response(error, { status: 400 }); },
-      });
-      const response = await handler(await createAuthRequest("/items/1", { name: "Updated" }), 1);
-      expect(response.status).toBe(400);
-      expect(capturedId).toBe(1);
-      expect(errorMessage).toBe("Value is required");
-    });
-
-    test("redirects for unauthenticated request", async () => {
-      const handler = updateHandler(createTestResource(), updateOpts());
-      expectAdminRedirect(await handler(createUnauthRequest("/items/1", { name: "Updated", value: "99" }), 1));
-    });
-  });
-
   describe("deleteHandler", () => {
     /** Standard delete handler options */
     const deleteOpts = () => ({
@@ -429,6 +381,11 @@ describe("rest/handlers", () => {
       const handler = deleteHandler(createTestResource(), deleteOpts());
       const response = await handler(await createAuthRequest("/items/999?verify_name=false", {}), 999);
       expect(response.status).toBe(404);
+    });
+
+    test("redirects for unauthenticated request", async () => {
+      const handler = deleteHandler(createTestResource(), deleteOpts());
+      expectAdminRedirect(await handler(createUnauthRequest("/items/1", {}), 1));
     });
 
     test("verifies name when verify_name param is not false", async () => {

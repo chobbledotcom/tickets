@@ -2,7 +2,6 @@
  * Admin event management routes
  */
 
-import type { InValue } from "@libsql/client";
 import { getAllowedDomain } from "#lib/config.ts";
 import {
   getEventWithActivityLog,
@@ -18,7 +17,7 @@ import {
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
-import { createHandler, updateHandler } from "#lib/rest/handlers.ts";
+import { createHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug } from "#lib/slug.ts";
 import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
@@ -76,7 +75,7 @@ const extractEventInput = async (
 
 /** Extract event input for update (preserves existing slug) */
 const extractEventUpdateInput = (existingSlug: string, existingSlugIndex: string) =>
-  async (values: Record<string, unknown>): Promise<EventInput> => ({
+  (values: Record<string, unknown>): EventInput => ({
     name: values.name as string,
     slug: existingSlug,
     slugIndex: existingSlugIndex,

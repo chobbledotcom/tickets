@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import type { InStatement } from "@libsql/client";
 import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
@@ -1336,13 +1337,13 @@ describe("server (admin events)", () => {
       const db = getDb();
       const originalExecute = db.execute.bind(db);
       const spy = spyOn(db, "execute");
-      spy.mockImplementation(async (query: unknown) => {
-        const q = query as { sql: string; args?: unknown[] };
+      spy.mockImplementation((query: InStatement) => {
+        const sql = typeof query === "string" ? query : query.sql;
         // Intercept the isSlugTaken query
-        if (q.sql?.includes("SELECT 1 FROM events WHERE slug_index")) {
-          return { rows: [{ "1": 1 }], columns: ["1"], rowsAffected: 0, lastInsertRowid: 0n };
+        if (sql.includes("SELECT 1 FROM events WHERE slug_index")) {
+          return Promise.resolve({ rows: [{ "1": 1 }], columns: ["1"], rowsAffected: 0, lastInsertRowid: 0n });
         }
-        return originalExecute(q);
+        return originalExecute(query);
       });
 
       try {
@@ -1382,7 +1383,7 @@ describe("server (admin events)", () => {
       // between the initial check and the update.
       const { eventsTable: table } = await import("#lib/db/events.ts");
       const spy = spyOn(table, "findById");
-      spy.mockImplementation(async () => null);
+      spy.mockImplementation(() => Promise.resolve(null));
 
       try {
         const response = await handleRequest(
