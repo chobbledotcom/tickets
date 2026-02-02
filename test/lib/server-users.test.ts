@@ -12,12 +12,6 @@ import {
   verifyUserPassword,
 } from "#lib/db/users.ts";
 import { encrypt, hashPassword } from "#lib/crypto.ts";
-import {
-  isLegacyAdmin,
-  migrateLegacyAdmin,
-  setSetting,
-  verifyLegacyPassword,
-} from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -387,100 +381,6 @@ describe("server (multi-user admin)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("username");
-    });
-  });
-
-  describe("legacy admin migration", () => {
-    test("isLegacyAdmin returns false when no admin_password in settings", async () => {
-      const result = await isLegacyAdmin();
-      expect(result).toBe(false);
-    });
-
-    test("isLegacyAdmin returns true when admin_password exists and no users", async () => {
-      // Delete all users and add legacy password to settings
-      await getDb().execute("DELETE FROM users");
-      const hash = await hashPassword("legacypass");
-      await setSetting("admin_password", hash);
-
-      const result = await isLegacyAdmin();
-      expect(result).toBe(true);
-    });
-
-    test("isLegacyAdmin returns false when users exist even with admin_password", async () => {
-      // Add legacy password but keep the user
-      const hash = await hashPassword("legacypass");
-      await setSetting("admin_password", hash);
-
-      const result = await isLegacyAdmin();
-      expect(result).toBe(false);
-    });
-
-    test("verifyLegacyPassword returns hash for correct password", async () => {
-      await getDb().execute("DELETE FROM users");
-      const hash = await hashPassword("legacypass");
-      await setSetting("admin_password", hash);
-
-      const result = await verifyLegacyPassword("legacypass");
-      expect(result).toBeTruthy();
-    });
-
-    test("verifyLegacyPassword returns null for wrong password", async () => {
-      await getDb().execute("DELETE FROM users");
-      const hash = await hashPassword("legacypass");
-      await setSetting("admin_password", hash);
-
-      const result = await verifyLegacyPassword("wrongpass");
-      expect(result).toBeNull();
-    });
-
-    test("migrateLegacyAdmin creates user and removes settings entries", async () => {
-      // Set up legacy state
-      await getDb().execute("DELETE FROM users");
-      const hash = await hashPassword("legacypass");
-      await setSetting("admin_password", hash);
-      // Need wrapped_data_key in settings for migration
-      await setSetting("wrapped_data_key", "wk:test:key");
-
-      await migrateLegacyAdmin("legacyuser", hash);
-
-      // User should be created
-      const user = await getUserByUsername("legacyuser");
-      expect(user).not.toBeNull();
-      const level = await decryptAdminLevel(user!);
-      expect(level).toBe("owner");
-
-      // Legacy settings should be removed
-      const { getSetting } = await import("#lib/db/settings.ts");
-      expect(await getSetting("admin_password")).toBeNull();
-      expect(await getSetting("wrapped_data_key")).toBeNull();
-    });
-
-    test("legacy login migrates to multi-user", async () => {
-      // Set up legacy state: password in settings, no users
-      await getDb().execute("DELETE FROM users");
-      await getDb().execute("DELETE FROM sessions");
-      const hash = await hashPassword("legacypass");
-      await setSetting("admin_password", hash);
-      // migrateLegacyAdmin needs wrapped_data_key in settings
-      await setSetting("wrapped_data_key", "wk:test:wrapped_key");
-
-      // Login with legacy credentials
-      await handleRequest(
-        mockFormRequest("/admin/login", {
-          username: "newadmin",
-          password: "legacypass",
-        }),
-      );
-
-      // After migration, user should exist
-      const user = await getUserByUsername("newadmin");
-      expect(user).not.toBeNull();
-      const level = await decryptAdminLevel(user!);
-      expect(level).toBe("owner");
-
-      // Check legacy settings were cleaned up
-      const { getSetting } = await import("#lib/db/settings.ts");
-      expect(await getSetting("admin_password")).toBeNull();
     });
   });
 
@@ -1085,57 +985,6 @@ describe("server (multi-user admin)", () => {
     });
   });
 
-  describe("legacy settings functions", () => {
-    test("verifyLegacyPassword returns null when no admin_password in settings", async () => {
-      // No admin_password exists in settings (normal post-migration state)
-      const result = await verifyLegacyPassword("anypassword");
-      expect(result).toBeNull();
-    });
-  });
-
-  describe("legacy login flow edge cases", () => {
-    test("legacy login with wrong password returns 401", async () => {
-      await getDb().execute("DELETE FROM users");
-      await getDb().execute("DELETE FROM sessions");
-      const hash = await hashPassword("legacypass");
-      await setSetting("admin_password", hash);
-      await setSetting("wrapped_data_key", "wk:test:key");
-
-      const response = await handleRequest(
-        mockFormRequest("/admin/login", {
-          username: "admin",
-          password: "wrongpassword",
-        }),
-      );
-      expect(response.status).toBe(401);
-      const html = await response.text();
-      expect(html).toContain("Invalid credentials");
-    });
-
-    test("legacy login returns error when migration fails (no wrapped_data_key in settings)", async () => {
-      await getDb().execute("DELETE FROM users");
-      await getDb().execute("DELETE FROM sessions");
-      const hash = await hashPassword("legacypass");
-      await setSetting("admin_password", hash);
-      // Do NOT set wrapped_data_key
-
-      let response: Response | undefined;
-      try {
-        response = await handleRequest(
-          mockFormRequest("/admin/login", {
-            username: "admin",
-            password: "legacypass",
-          }),
-        );
-      } catch {
-        // migrateLegacyAdmin throws when wrapped_data_key is missing
-        return;
-      }
-      // If it doesn't throw, it should return an error status
-      expect(response!.status).toBeGreaterThanOrEqual(400);
-    });
-  });
-
   describe("settings page edge cases", () => {
     test("password change fails when user has no data key", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
@@ -1482,40 +1331,6 @@ describe("server (multi-user admin)", () => {
       expect(response.status).toBe(500);
       const html = await response.text();
       expect(html).toContain("Failed to update password");
-    });
-  });
-
-  describe("legacy login full success path", () => {
-    test("legacy login creates session and redirects to admin", async () => {
-      // Set up legacy admin with properly generated data key
-      await getDb().execute("DELETE FROM users");
-      await getDb().execute("DELETE FROM sessions");
-      const { hashPassword: hp, deriveKEK: dk, wrapKey: wk, generateDataKey: gdk } = await import("#lib/crypto.ts");
-      const hash = await hp("legacypass");
-      const kek = await dk(hash);
-      const dataKey = await gdk();
-      const wrapped = await wk(dataKey, kek);
-
-      await setSetting("admin_password", hash);
-      await setSetting("wrapped_data_key", wrapped);
-
-      const response = await handleRequest(
-        mockFormRequest("/admin/login", {
-          username: "legacyadmin",
-          password: "legacypass",
-        }),
-      );
-
-      // Should redirect to /admin with session cookie
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
-      expect(response.headers.get("set-cookie")).toContain("__Host-session=");
-
-      // User should now exist
-      const user = await getUserByUsername("legacyadmin");
-      expect(user).not.toBeNull();
-      const level = await decryptAdminLevel(user!);
-      expect(level).toBe("owner");
     });
   });
 

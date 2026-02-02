@@ -12,7 +12,6 @@ import {
   generateKeyPair,
   hashPassword,
   unwrapKey,
-  verifyPassword,
   wrapKey,
 } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
@@ -24,11 +23,9 @@ import type { Settings } from "#lib/types.ts";
  * Setting keys for configuration
  */
 export const CONFIG_KEYS = {
-  ADMIN_PASSWORD: "admin_password",
   CURRENCY_CODE: "currency_code",
   SETUP_COMPLETE: "setup_complete",
   // Encryption key hierarchy
-  WRAPPED_DATA_KEY: "wrapped_data_key",
   WRAPPED_PRIVATE_KEY: "wrapped_private_key",
   PUBLIC_KEY: "public_key",
   // Payment provider selection
@@ -244,27 +241,6 @@ export const setStripeWebhookConfig = async (
 };
 
 /**
- * Get admin password hash from database
- * Returns null if setup hasn't been completed
- */
-export const getAdminPasswordHash = (): Promise<string | null> => {
-  return getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-};
-
-/**
- * Verify admin password using constant-time comparison
- * Returns the password hash if valid (needed for KEK derivation)
- */
-export const verifyAdminPassword = async (
-  password: string,
-): Promise<string | null> => {
-  const storedHash = await getAdminPasswordHash();
-  if (storedHash === null) return null;
-  const isValid = await verifyPassword(password, storedHash);
-  return isValid ? storedHash : null;
-};
-
-/**
  * Get the public key for encrypting attendee PII
  * Always available (it's meant to be public)
  */
@@ -273,31 +249,10 @@ export const getPublicKey = (): Promise<string | null> => {
 };
 
 /**
- * Get the wrapped DATA_KEY (needs KEK to unwrap)
- */
-export const getWrappedDataKey = (): Promise<string | null> => {
-  return getSetting(CONFIG_KEYS.WRAPPED_DATA_KEY);
-};
-
-/**
  * Get the wrapped private key (needs DATA_KEY to decrypt)
  */
 export const getWrappedPrivateKey = (): Promise<string | null> => {
   return getSetting(CONFIG_KEYS.WRAPPED_PRIVATE_KEY);
-};
-
-/**
- * Unwrap the DATA_KEY using a password hash
- * Used during login to get the DATA_KEY for session storage
- */
-export const unwrapDataKey = async (
-  passwordHash: string,
-): Promise<CryptoKey | null> => {
-  const wrappedDataKey = await getWrappedDataKey();
-  if (!wrappedDataKey) return null;
-
-  const kek = await deriveKEK(passwordHash);
-  return unwrapKey(wrappedDataKey, kek);
 };
 
 /**
@@ -334,84 +289,6 @@ export const updateUserPassword = async (
   });
 
   // Invalidate all sessions (force re-login with new password)
-  await deleteAllSessions();
-
-  return true;
-};
-
-/**
- * Legacy: Check if the old single-admin settings still exist
- * Returns true if admin_password_hash is in settings but no users exist
- */
-export const isLegacyAdmin = async (): Promise<boolean> => {
-  const passwordHash = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-  if (!passwordHash) return false;
-
-  const { getUserCount } = await import("#lib/db/users.ts");
-  const userCount = await getUserCount();
-  return userCount === 0;
-};
-
-/**
- * Legacy: Verify admin password from settings (pre-migration)
- */
-export const verifyLegacyPassword = async (
-  password: string,
-): Promise<string | null> => {
-  const storedHash = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-  if (!storedHash) return null;
-  const isValid = await verifyPassword(password, storedHash);
-  return isValid ? storedHash : null;
-};
-
-/**
- * Legacy: Migrate single-admin to multi-user
- * Creates a user row from settings data and removes the old settings
- */
-export const migrateLegacyAdmin = async (
-  username: string,
-  passwordHash: string,
-): Promise<void> => {
-  const wrappedDataKey = await getSetting(CONFIG_KEYS.WRAPPED_DATA_KEY);
-  if (!wrappedDataKey) {
-    throw new Error("Cannot migrate: wrapped_data_key not found in settings");
-  }
-
-  const { createUser: createUserRow } = await import("#lib/db/users.ts");
-  await createUserRow(username, passwordHash, wrappedDataKey, "owner");
-
-  // Remove legacy settings
-  await getDb().execute({
-    sql: "DELETE FROM settings WHERE key = ?",
-    args: [CONFIG_KEYS.ADMIN_PASSWORD],
-  });
-  await getDb().execute({
-    sql: "DELETE FROM settings WHERE key = ?",
-    args: [CONFIG_KEYS.WRAPPED_DATA_KEY],
-  });
-};
-
-/**
- * @deprecated Use verifyUserPassword from users.ts instead
- * Kept for backward compatibility during migration
- */
-export const updateAdminPassword = async (
-  oldPassword: string,
-  newPassword: string,
-): Promise<boolean> => {
-  // This is now only used for legacy admin password change
-  const oldHash = await verifyAdminPassword(oldPassword);
-  if (!oldHash) return false;
-
-  const dataKey = await unwrapDataKey(oldHash);
-  if (!dataKey) return false;
-
-  const newHash = await hashPassword(newPassword);
-  const newKek = await deriveKEK(newHash);
-  const newWrappedDataKey = await wrapKey(dataKey, newKek);
-
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, newHash);
-  await setSetting(CONFIG_KEYS.WRAPPED_DATA_KEY, newWrappedDataKey);
   await deleteAllSessions();
 
   return true;
@@ -491,17 +368,9 @@ export const settingsApi = {
   setSetting,
   isSetupComplete,
   clearSetupCompleteCache,
-  getAdminPasswordHash,
-  verifyAdminPassword,
   getPublicKey,
-  getWrappedDataKey,
   getWrappedPrivateKey,
-  unwrapDataKey,
-  updateAdminPassword,
   updateUserPassword,
-  isLegacyAdmin,
-  verifyLegacyPassword,
-  migrateLegacyAdmin,
   getCurrencyCodeFromDb,
   getPaymentProviderFromDb,
   setPaymentProvider,

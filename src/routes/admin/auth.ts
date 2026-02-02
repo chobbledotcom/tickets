@@ -9,11 +9,6 @@ import {
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
 import { createSession, deleteSession } from "#lib/db/sessions.ts";
-import {
-  isLegacyAdmin,
-  migrateLegacyAdmin,
-  verifyLegacyPassword,
-} from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { loginResponse } from "#routes/admin/dashboard.ts";
@@ -80,12 +75,7 @@ const handleAdminLogin = async (
   const username = validation.values.username as string;
   const password = validation.values.password as string;
 
-  // Check for legacy admin migration (single-admin installs without users table data)
-  if (await isLegacyAdmin()) {
-    return handleLegacyLogin(username, password, clientIp);
-  }
-
-  // Normal multi-user login: look up user by username
+  // Look up user by username
   const user = await getUserByUsername(username);
   if (!user) {
     await recordFailedLogin(clientIp);
@@ -117,43 +107,6 @@ const handleAdminLogin = async (
     dataKey = await unwrapKey(user.wrapped_data_key, kek);
   } catch {
     // KEK mismatch - this shouldn't happen if password verification passed
-    return loginResponse("Invalid credentials", 401);
-  }
-
-  return createLoginSession(dataKey, user.id);
-};
-
-/**
- * Handle login for legacy single-admin installs
- * Verifies password against settings, creates user row, migrates data
- */
-const handleLegacyLogin = async (
-  username: string,
-  password: string,
-  clientIp: string,
-): Promise<Response> => {
-  // Verify password against legacy settings
-  const passwordHash = await verifyLegacyPassword(password);
-  if (!passwordHash) {
-    await recordFailedLogin(clientIp);
-    return loginResponse("Invalid credentials", 401);
-  }
-
-  // Clear failed attempts on successful login
-  await clearLoginAttempts(clientIp);
-
-  // Migrate: create user row from legacy settings
-  await migrateLegacyAdmin(username, passwordHash);
-
-  // Now log in normally - look up the newly created user (guaranteed by migration)
-  const user = (await getUserByUsername(username))!;
-
-  // Unwrap DATA_KEY using password-derived KEK
-  const kek = await deriveKEK(passwordHash);
-  let dataKey: CryptoKey;
-  try {
-    dataKey = await unwrapKey(user.wrapped_data_key!, kek);
-  } catch {
     return loginResponse("Invalid credentials", 401);
   }
 

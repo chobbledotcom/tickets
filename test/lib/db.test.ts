@@ -63,10 +63,7 @@ import {
   isSetupComplete,
   setPaymentProvider,
   setSetting,
-  updateAdminPassword,
-  unwrapDataKey,
   updateStripeKey,
-  verifyAdminPassword,
 } from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import { deriveKEK, unwrapKey } from "#lib/crypto.ts";
@@ -253,10 +250,8 @@ describe("db", () => {
     });
 
     test("CONFIG_KEYS contains expected keys", () => {
-      expect(CONFIG_KEYS.ADMIN_PASSWORD).toBe("admin_password");
       expect(CONFIG_KEYS.CURRENCY_CODE).toBe("currency_code");
       expect(CONFIG_KEYS.SETUP_COMPLETE).toBe("setup_complete");
-      expect(CONFIG_KEYS.WRAPPED_DATA_KEY).toBe("wrapped_data_key");
       expect(CONFIG_KEYS.WRAPPED_PRIVATE_KEY).toBe("wrapped_private_key");
       expect(CONFIG_KEYS.PUBLIC_KEY).toBe("public_key");
       expect(CONFIG_KEYS.STRIPE_SECRET_KEY).toBe("stripe_secret_key");
@@ -319,12 +314,6 @@ describe("db", () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
       const result = await verifyUserPassword(user!, "wrong");
-      expect(result).toBeNull();
-    });
-
-    test("verifyAdminPassword returns null when no password set", async () => {
-      // Don't set any password - legacy verifyAdminPassword checks settings table
-      const result = await verifyAdminPassword("anypassword");
       expect(result).toBeNull();
     });
 
@@ -1751,84 +1740,6 @@ describe("db", () => {
 
       await clearPaymentProvider();
       expect(await getSetting(CONFIG_KEYS.PAYMENT_PROVIDER)).toBeNull();
-    });
-
-    test("verifyAdminPassword returns null when no password hash is stored", async () => {
-      // Legacy verifyAdminPassword reads from settings, which no longer has passwords
-      const result = await verifyAdminPassword("anypassword");
-      expect(result).toBeNull();
-    });
-
-    test("unwrapDataKey returns null when no wrapped key stored", async () => {
-      // Legacy unwrapDataKey reads from settings, which no longer has wrapped keys
-      const result = await unwrapDataKey("somehash");
-      expect(result).toBeNull();
-    });
-
-    test("verifyAdminPassword verifies correct password from settings", async () => {
-      // Set up legacy admin password in settings
-      const { hashPassword } = await import("#lib/crypto.ts");
-      const hash = await hashPassword("legacypass");
-      await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hash);
-
-      const result = await verifyAdminPassword("legacypass");
-      expect(result).toBe(hash);
-
-      // Wrong password returns null
-      const wrong = await verifyAdminPassword("wrongpass");
-      expect(wrong).toBeNull();
-    });
-
-    test("unwrapDataKey unwraps a valid wrapped data key", async () => {
-      // Set up a wrapped data key in settings
-      const { hashPassword, deriveKEK: dk, wrapKey, generateDataKey } = await import("#lib/crypto.ts");
-      const hash = await hashPassword("testpass");
-      const kek = await dk(hash);
-      const dataKey = await generateDataKey();
-      const wrapped = await wrapKey(dataKey, kek);
-      await setSetting(CONFIG_KEYS.WRAPPED_DATA_KEY, wrapped);
-
-      const result = await unwrapDataKey(hash);
-      expect(result).not.toBeNull();
-    });
-
-    test("updateAdminPassword changes legacy admin password", async () => {
-      // Set up legacy admin state
-      const { hashPassword, deriveKEK: dk, wrapKey, generateDataKey } = await import("#lib/crypto.ts");
-      const oldHash = await hashPassword("oldpass");
-      const kek = await dk(oldHash);
-      const dataKey = await generateDataKey();
-      const wrapped = await wrapKey(dataKey, kek);
-
-      await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, oldHash);
-      await setSetting(CONFIG_KEYS.WRAPPED_DATA_KEY, wrapped);
-
-      const result = await updateAdminPassword("oldpass", "newpassword123");
-      expect(result).toBe(true);
-
-      // Old password should no longer work
-      const oldResult = await verifyAdminPassword("oldpass");
-      expect(oldResult).toBeNull();
-
-      // New password should work
-      const newResult = await verifyAdminPassword("newpassword123");
-      expect(newResult).not.toBeNull();
-    });
-
-    test("updateAdminPassword returns false for wrong old password", async () => {
-      const result = await updateAdminPassword("wrongpass", "newpass");
-      expect(result).toBe(false);
-    });
-
-    test("updateAdminPassword returns false when unwrapDataKey fails", async () => {
-      // Set admin password but no wrapped_data_key
-      const { hashPassword } = await import("#lib/crypto.ts");
-      const hash = await hashPassword("testpass");
-      await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hash);
-      // Don't set wrapped_data_key - unwrapDataKey will return null
-
-      const result = await updateAdminPassword("testpass", "newpassword");
-      expect(result).toBe(false);
     });
 
     test("updateUserPassword returns false when dataKey unwrap fails", async () => {

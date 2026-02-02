@@ -124,14 +124,6 @@ export const getAllUsers = async (): Promise<User[]> => {
 };
 
 /**
- * Get the count of users
- */
-export const getUserCount = async (): Promise<number> => {
-  const result = await getDb().execute("SELECT COUNT(*) as count FROM users");
-  return (result.rows[0] as unknown as { count: number }).count;
-};
-
-/**
  * Verify a user's password (decrypt stored hash, then verify)
  * Returns the decrypted password hash if valid (needed for KEK derivation)
  */
@@ -284,7 +276,6 @@ export const usersApi = {
   getUserById,
   isUsernameTaken,
   getAllUsers,
-  getUserCount,
   verifyUserPassword,
   decryptAdminLevel,
   decryptUsername,
