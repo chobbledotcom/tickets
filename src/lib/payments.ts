@@ -172,11 +172,6 @@ export const getActivePaymentProvider =
       return stripePaymentProvider;
     }
 
-    if (providerType === "square") {
-      const { squarePaymentProvider } = await import("#lib/square-provider.ts");
-      return squarePaymentProvider;
-    }
-
-    logDebug("Payment", `Unknown payment provider type: ${providerType}`);
-    return null;
+    const { squarePaymentProvider } = await import("#lib/square-provider.ts");
+    return squarePaymentProvider;
   };

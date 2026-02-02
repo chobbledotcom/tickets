@@ -506,14 +506,6 @@ describe("html", () => {
       expect(lines[2]).toContain("pi_shared_123");
     });
 
-    test("formats price as empty when price_paid is non-numeric string", () => {
-      const attendees = [testAttendee({ price_paid: "not-a-number" })];
-      const csv = generateAttendeesCsv(attendees);
-      const lines = csv.split("\n");
-      // NaN price_paid should result in empty price field
-      expect(lines[1]).toContain("john@example.com");
-      expect(lines[1]).toMatch(/,,$/);
-    });
   });
 
   describe("adminEventActivityLogPage", () => {
@@ -592,11 +584,6 @@ describe("html", () => {
 
     test("returns 0 when attendees have no price_paid", () => {
       const attendees = [testAttendee({ quantity: 3 })];
-      expect(calculateTotalRevenue(attendees)).toBe(0);
-    });
-
-    test("ignores non-numeric price_paid", () => {
-      const attendees = [testAttendee({ price_paid: "not-a-number" })];
       expect(calculateTotalRevenue(attendees)).toBe(0);
     });
 

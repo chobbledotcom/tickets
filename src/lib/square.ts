@@ -354,12 +354,10 @@ export const squareApi: {
           id: payment.id,
           status: payment.status,
           orderId: payment.orderId,
-          amountMoney: payment.amountMoney
-            ? {
-                amount: payment.amountMoney.amount ?? undefined,
-                currency: payment.amountMoney.currency as string | undefined,
-              }
-            : undefined,
+          amountMoney: {
+            amount: payment.amountMoney?.amount as bigint | undefined,
+            currency: payment.amountMoney?.currency as string | undefined,
+          },
         };
       },
       ErrorCode.SQUARE_SESSION,

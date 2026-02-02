@@ -56,7 +56,7 @@ export const sanitizeErrorDetail = (err: unknown): string => {
   if (stripeErr.code) parts.push(`code=${stripeErr.code}`);
   if (stripeErr.type) parts.push(`type=${stripeErr.type}`);
 
-  return parts.length > 0 ? parts.join(" ") : err.name || "Error";
+  return parts.length > 0 ? parts.join(" ") : err.name;
 };
 
 /**

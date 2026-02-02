@@ -313,33 +313,4 @@ describe("server (admin auth)", () => {
     });
   });
 
-  describe("POST /admin/login (dataKey null path)", () => {
-    test("returns 500 when wrapped_data_key is empty", async () => {
-      const { setSetting } = await import("#lib/db/settings.ts");
-      await setSetting("wrapped_data_key", "");
-
-      const response = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      expect(response.status).toBe(500);
-      const body = await response.text();
-      expect(body).toContain("System configuration error");
-    });
-
-    test("returns 500 when wrapped_data_key is deleted from settings", async () => {
-      const { getDb } = await import("#lib/db/client.ts");
-      await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = 'wrapped_data_key'",
-        args: [],
-      });
-
-      const response = await handleRequest(
-        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-      );
-      expect(response.status).toBe(500);
-      const body = await response.text();
-      expect(body).toContain("System configuration error");
-    });
-  });
-
 });

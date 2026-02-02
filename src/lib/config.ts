@@ -65,7 +65,6 @@ export const configApi = {
  */
 export const isPaymentsEnabled = async (): Promise<boolean> => {
   const provider = await configApi.getPaymentProvider();
-  if (!provider) return false;
   if (provider === "stripe") return hasStripeKey();
   if (provider === "square") return hasSquareToken();
   return false;

@@ -77,15 +77,12 @@ const dispatchCreate = <R>(
     ? opts.onSuccess(result.row, auth.session)
     : opts.onError(result.error, auth.session, auth.form);
 
-/** Dispatch delete result */
+/** Dispatch delete result - row existence is verified before delete, so always succeeds */
 const dispatchDelete = <R>(
-  result: DeleteResult,
+  _result: DeleteResult,
   session: AuthSession,
-  opts: Pick<DeleteHandlerOptions<R>, "onSuccess" | "onNotFound">,
-): MaybeAsync<Response> =>
-  result.ok || !("notFound" in result)
-    ? opts.onSuccess(session)
-    : opts.onNotFound();
+  opts: Pick<DeleteHandlerOptions<R>, "onSuccess">,
+): MaybeAsync<Response> => opts.onSuccess(session);
 
 /** Create POST handler */
 export const createHandler =

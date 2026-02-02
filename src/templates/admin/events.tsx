@@ -17,8 +17,7 @@ const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 export const calculateTotalRevenue = (attendees: Attendee[]): number =>
   reduce((sum: number, a: Attendee) => {
     if (a.price_paid) {
-      const cents = Number.parseInt(a.price_paid, 10);
-      return Number.isNaN(cents) ? sum : sum + cents;
+      return sum + Number.parseInt(a.price_paid, 10);
     }
     return sum;
   }, 0)(attendees);

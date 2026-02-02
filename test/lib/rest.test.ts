@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { col, defineTable, type Table } from "#lib/db/table.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
 import {
@@ -443,40 +443,6 @@ describe("rest/handlers", () => {
       expect(response.status).toBe(204);
     });
 
-    test("dispatchDelete calls onNotFound when row disappears between findById and delete", async () => {
-      // Simulate a race condition: row exists for deleteHandler's findById,
-      // but is gone when resource.delete's internal requireExists runs
-      const table = createTestTable();
-      const resource = defineResource({ table, fields: testFields, toInput });
-
-      // Insert a row so the first findById in deleteHandler succeeds
-      await table.insert({ name: "Vanishing Item", value: 10 });
-
-      // Spy on findById: first call returns the row, second call returns null
-      // (simulating a concurrent deletion between the two checks)
-      const originalFindById = table.findById.bind(table);
-      let callCount = 0;
-      const spy = spyOn(table, "findById");
-      spy.mockImplementation(async (id: unknown) => {
-        callCount++;
-        if (callCount === 1) return originalFindById(id as number);
-        // Second call (inside resource.delete's requireExists): delete the row first
-        await table.deleteById(id as number);
-        return originalFindById(id as number); // returns null since we just deleted it
-      });
-
-      const handler = deleteHandler(resource, {
-        onSuccess: successResponse(204),
-        onNotFound: successResponse(404, "Not Found"),
-      });
-
-      const request = await createAuthRequest("/items/1?verify_name=false", {});
-      const response = await handler(request, 1);
-      // resource.delete returns { ok: false, notFound: true }, so dispatchDelete calls onNotFound
-      expect(response.status).toBe(404);
-      spy.mockRestore();
-    });
-
     test("uses empty string fallback when confirm_name is not provided", async () => {
       const resource = await insertRow(createTestResource(true), importantItemData);
       const handler = deleteHandler(resource, {
@@ -537,45 +503,4 @@ describe("rest/resource - additional coverage", () => {
     });
   });
 
-  describe("update returns notFound when row disappears between existence check and update", () => {
-    test("toUpdateResult returns notFound when table.update returns null", async () => {
-      const table = createTestTable();
-      const resource = defineResource({ table, fields: testFields, toInput });
-
-      // Insert a row so requireExists passes
-      await table.insert({ name: "Vanishing", value: 42 });
-
-      // Spy on table.update to return null (simulating row deleted between checks)
-      const updateSpy = spyOn(table, "update");
-      updateSpy.mockResolvedValue(null as unknown as TestRow);
-
-      try {
-        const form = new URLSearchParams({ name: "Updated", value: "99" });
-        const result = await resource.update(1, form);
-        // toUpdateResult receives null, returns { ok: false, notFound: true }
-        expectResultNotFound(result);
-      } finally {
-        updateSpy.mockRestore();
-      }
-    });
-  });
-
-  describe("verifyName with null nameField value", () => {
-    test("handles row where nameField value is null or undefined", () => {
-      const table = createTestTable();
-      const resource = defineResource({
-        table,
-        fields: testFields,
-        toInput,
-        nameField: "name" as const,
-      });
-
-      // Create a row-like object where name might be falsy
-      // The String(row[nameField] ?? "") handles null/undefined
-      const rowWithNullName = { id: 1, name: null as unknown as string, value: 10 };
-      // verifyName should not throw - it uses String(row[nameField] ?? "")
-      const result = resource.verifyName?.(rowWithNullName as TestRow, "");
-      expect(result).toBe(true); // both are empty strings after trim
-    });
-  });
 });

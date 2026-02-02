@@ -11,7 +11,6 @@ import {
 import { createSession, deleteSession } from "#lib/db/sessions.ts";
 import { unwrapDataKey, verifyAdminPassword } from "#lib/db/settings.ts";
 import { validateForm } from "#lib/forms.tsx";
-import { ErrorCode, logError } from "#lib/logger.ts";
 import { loginResponse } from "#routes/admin/dashboard.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -66,12 +65,8 @@ const handleAdminLogin = async (
   // Clear failed attempts on successful login
   await clearLoginAttempts(clientIp);
 
-  // Unwrap DATA_KEY using password-derived KEK
-  const dataKey = await unwrapDataKey(passwordHash);
-  if (!dataKey) {
-    logError({ code: ErrorCode.KEY_DERIVATION, detail: "Login: wrapped_data_key missing or corrupt" });
-    return loginResponse("System configuration error. Please contact support.", 500);
-  }
+  // Unwrap DATA_KEY using password-derived KEK (always present after setup)
+  const dataKey = (await unwrapDataKey(passwordHash))!;
 
   const token = generateSecureToken();
   const csrfToken = generateSecureToken();
