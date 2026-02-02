@@ -5,7 +5,7 @@
 import { filter, map, pipe, reduce } from "#fp";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
-import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
+import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
@@ -29,12 +29,10 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
 /** Format cents as a decimal string (e.g. 1000 -> "10.00") */
 const formatRevenue = (cents: number): string => (cents / 100).toFixed(2);
 
-/** Human-readable labels for fields settings */
-const FIELDS_LABELS: Record<EventFields, string> = {
-  email: "Email",
-  phone: "Phone Number",
-  both: "Email & Phone Number",
-};
+/** Check if event is within 10% of capacity */
+export const nearCapacity = (event: EventWithCount): boolean =>
+  event.attendee_count >= event.max_attendees * 0.9;
+
 
 const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter }): string => {
   const isCheckedIn = a.checked_in === "true";
@@ -134,60 +132,82 @@ export const adminEventPage = (
           </ul>
         </nav>
 
+        {event.active !== 1 && (
+          <div class="error">This event is deactivated and cannot be booked</div>
+        )}
+
         <article>
           <h2>Event Details</h2>
-          <p>
-            <strong>Status:</strong>{" "}
-            {event.active === 1 ? (
-              <span style="color: green;">Active</span>
-            ) : (
-              <span style="color: red;">Inactive (returns 404 on public page)</span>
-            )}
-          </p>
-          <p><strong>Max Attendees:</strong> {event.max_attendees}</p>
-          <p><strong>Max Tickets Per Purchase:</strong> {event.max_quantity}</p>
-          <p><strong>Tickets Sold:</strong> {event.attendee_count}</p>
-          <p><strong>Spots Remaining:</strong> {event.max_attendees - event.attendee_count}</p>
-          {event.unit_price !== null && (
-            <p><strong>Total Revenue:</strong> {formatRevenue(calculateTotalRevenue(attendees))}</p>
-          )}
-          <p><strong>Contact Fields:</strong> {FIELDS_LABELS[event.fields]}</p>
-          {event.closes_at ? (
-            <p><strong>Registration Closes:</strong> {event.closes_at} (UTC) <small><em>({formatCountdown(event.closes_at)})</em></small></p>
-          ) : (
-            <p><strong>Registration Closes:</strong> <em>No deadline</em></p>
-          )}
-          {event.thank_you_url ? (
-            <p>
-              <strong>Thank You URL:</strong>{" "}
-              <a href={event.thank_you_url}>{event.thank_you_url}</a>
-            </p>
-          ) : (
-            <p>
-              <strong>Thank You URL:</strong>{" "}
-              <em>None (shows simple success message)</em>
-            </p>
-          )}
-          <p>
-            <strong>Ticket URL:</strong>{" "}
-            <a href={`/ticket/${event.slug}`}>/ticket/{event.slug}</a>
-          </p>
-          {event.webhook_url && (
-            <p>
-              <strong>Webhook URL:</strong>{" "}
-              <a href={event.webhook_url}>{event.webhook_url}</a>
-            </p>
-          )}
-          <p>
-            <label for={`embed-code-${event.id}`}><strong>Embed Code:</strong></label>
-            <input
-              type="text"
-              id={`embed-code-${event.id}`}
-              value={embedCode}
-              readonly
-              onclick="this.select()"
-            />
-          </p>
+          <table>
+            <tbody>
+              <tr>
+                <th>Attendees</th>
+                <td>
+                  <span class={nearCapacity(event) ? "danger-text" : ""}>
+                    {event.attendee_count} / {event.max_attendees} &mdash; {event.max_attendees - event.attendee_count} remain
+                  </span>
+                </td>
+              </tr>
+              {event.unit_price !== null && (
+                <tr>
+                  <th>Total Revenue</th>
+                  <td>{formatRevenue(calculateTotalRevenue(attendees))}</td>
+                </tr>
+              )}
+              <tr>
+                <th>Registration Closes</th>
+                <td>
+                  {event.closes_at ? (
+                    <span>{event.closes_at} (UTC) <small><em>({formatCountdown(event.closes_at)})</em></small></span>
+                  ) : (
+                    <em>No deadline</em>
+                  )}
+                </td>
+              </tr>
+              <tr>
+                <th><label for={`thank-you-url-${event.id}`}>Thank You URL</label></th>
+                <td>
+                  {event.thank_you_url ? (
+                    <input
+                      type="text"
+                      id={`thank-you-url-${event.id}`}
+                      value={event.thank_you_url}
+                      readonly
+                      onclick="this.select()"
+                    />
+                  ) : (
+                    <em>None (shows simple success message)</em>
+                  )}
+                </td>
+              </tr>
+              {event.webhook_url && (
+                <tr>
+                  <th><label for={`webhook-url-${event.id}`}>Webhook URL</label></th>
+                  <td>
+                    <input
+                      type="text"
+                      id={`webhook-url-${event.id}`}
+                      value={event.webhook_url}
+                      readonly
+                      onclick="this.select()"
+                    />
+                  </td>
+                </tr>
+              )}
+              <tr>
+                <th><label for={`embed-code-${event.id}`}>Embed Code</label></th>
+                <td>
+                  <input
+                    type="text"
+                    id={`embed-code-${event.id}`}
+                    value={embedCode}
+                    readonly
+                    onclick="this.select()"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </article>
 
         <h2>Attendees</h2>
