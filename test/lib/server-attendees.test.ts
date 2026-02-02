@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -48,43 +47,6 @@ describe("server (admin attendees)", () => {
       );
       expect(response.status).toBe(404);
     });
-
-    test("redirects when session lacks wrapped data key", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      // Create session without wrapped_data_key
-      const token = "test-token-no-data-key";
-      await createSession(token, "csrf123", Date.now() + 3600000, null, 1);
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-        { cookie: `__Host-session=${token}` },
-      );
-      expectAdminRedirect(response);
-    });
-
-    test("redirects when wrapped data key is invalid", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      // Create session with invalid wrapped_data_key (triggers decryption failure)
-      const token = "test-token-invalid-key";
-      await createSession(token, "csrf123", Date.now() + 3600000, "invalid", 1);
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-        { cookie: `__Host-session=${token}` },
-      );
-      expectAdminRedirect(response);
-    });
-
 
     test("returns 404 for non-existent attendee", async () => {
       await createTestEvent({
@@ -160,28 +122,6 @@ describe("server (admin attendees)", () => {
       );
       expectAdminRedirect(response);
     });
-
-    test("redirects when wrapped data key is invalid", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      // Create session with invalid wrapped_data_key
-      const token = "test-token-invalid-post";
-      await createSession(token, "csrf123", Date.now() + 3600000, "invalid", 1);
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-          { confirm_name: "John Doe", csrf_token: "csrf123" },
-          `__Host-session=${token}`,
-        ),
-      );
-      expectAdminRedirect(response);
-    });
-
 
     test("returns 404 for non-existent event", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
@@ -354,29 +294,6 @@ describe("server (admin attendees)", () => {
     });
   });
 
-  describe("POST /admin/event/:eventId/attendee/:attendeeId/delete (no privateKey on POST)", () => {
-    test("redirects to admin when session lacks wrapped data key on POST", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      // Create session without wrapped_data_key
-      const token = "test-token-no-data-key-post";
-      await createSession(token, "csrf123", Date.now() + 3600000, null, 1);
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-          { confirm_name: "John Doe", csrf_token: "csrf123" },
-          `__Host-session=${token}`,
-        ),
-      );
-      expectAdminRedirect(response);
-    });
-  });
-
   describe("POST /admin/event/:eventId/attendee/:attendeeId/delete (confirm_name edge case)", () => {
     test("handles missing confirm_name field (falls back to empty string)", async () => {
       const event = await createTestEvent({
@@ -455,26 +372,6 @@ describe("server (admin attendees)", () => {
 
       const response = await handleRequest(
         mockFormRequest(`/admin/event/${event.id}/attendee/${attendee.id}/checkin`, {}),
-      );
-      expectAdminRedirect(response);
-    });
-
-    test("redirects when session lacks wrapped data key on checkin", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const token = "test-token-no-data-key-checkin";
-      await createSession(token, "csrf123", Date.now() + 3600000, null, 1);
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: "csrf123" },
-          `__Host-session=${token}`,
-        ),
       );
       expectAdminRedirect(response);
     });

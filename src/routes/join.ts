@@ -13,12 +13,11 @@ import { validateForm } from "#lib/forms.tsx";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import type { RouteParams } from "#routes/router.ts";
 import {
+  csrfCookie,
   generateSecureToken,
   htmlResponse,
   htmlResponseWithCookie,
-  parseCookies,
-  parseFormData,
-  validateCsrfToken,
+  requireCsrfForm,
 } from "#routes/utils.ts";
 import { joinFields } from "#templates/fields.ts";
 import {
@@ -27,9 +26,8 @@ import {
   joinPage,
 } from "#templates/join.tsx";
 
-/** CSRF cookie for join form */
-const joinCsrfCookie = (token: string, code: string): string =>
-  `join_csrf=${token}; HttpOnly; Secure; SameSite=Strict; Path=/join/${code}; Max-Age=3600`;
+/** CSRF cookie name for join forms */
+const JOIN_CSRF_COOKIE = "join_csrf";
 
 /** Validate invite code and return user, or an error response */
 const validateInvite = async (code: string): Promise<
@@ -70,7 +68,7 @@ const withValidInvite = async (
 const handleJoinGet = (_request: Request, params: RouteParams): Promise<Response> =>
   withValidInvite(params, (code, _user, username) => {
     const csrfToken = generateSecureToken();
-    return htmlResponseWithCookie(joinCsrfCookie(csrfToken, code))(
+    return htmlResponseWithCookie(csrfCookie(csrfToken, `/join/${code}`, JOIN_CSRF_COOKIE))(
       joinPage(code, username, undefined, csrfToken),
     );
   });
@@ -80,19 +78,19 @@ const handleJoinGet = (_request: Request, params: RouteParams): Promise<Response
  */
 const handleJoinPost = (request: Request, params: RouteParams): Promise<Response> =>
   withValidInvite(params, async (code, user, username) => {
-    // Validate CSRF
-    const cookies = parseCookies(request);
-    const cookieCsrf = cookies.get("join_csrf") ?? "";
-    const form = await parseFormData(request);
-    const formCsrf = form.get("csrf_token") ?? "";
+    const csrf = await requireCsrfForm(
+      request,
+      (newToken) =>
+        htmlResponseWithCookie(csrfCookie(newToken, `/join/${code}`, JOIN_CSRF_COOKIE))(
+          joinPage(code, username, "Invalid or expired form. Please try again.", newToken),
+          403,
+        ),
+      JOIN_CSRF_COOKIE,
+    );
+    if (!csrf.ok) return csrf.response;
 
-    if (!cookieCsrf || !formCsrf || !validateCsrfToken(cookieCsrf, formCsrf)) {
-      const newCsrfToken = generateSecureToken();
-      return htmlResponseWithCookie(joinCsrfCookie(newCsrfToken, code))(
-        joinPage(code, username, "Invalid or expired form. Please try again.", newCsrfToken),
-        403,
-      );
-    }
+    const { form } = csrf;
+    const formCsrf = form.get("csrf_token")!;
 
     // Validate password fields
     const validation = validateForm(form, joinFields);

@@ -59,11 +59,6 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
   const passwordConfirm = values.admin_password_confirm as string;
   const currency = ((values.currency_code as string) || "GBP").toUpperCase();
 
-  logDebug(
-    "Setup",
-    `Form values: username=${username} passwordLength=${password?.length} confirmLength=${passwordConfirm?.length} currency=${currency}`,
-  );
-
   // Check Data Controller Agreement acceptance
   const acceptAgreement = form.get("accept_agreement");
   if (acceptAgreement !== "yes") {

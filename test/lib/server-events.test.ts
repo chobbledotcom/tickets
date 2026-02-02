@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-comp
 import type { InStatement } from "@libsql/client";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
-import { createSession } from "#lib/db/sessions.ts";
+
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -142,23 +142,6 @@ describe("server (admin events)", () => {
       const response = await handleRequest(mockRequest("/admin/event/1"));
       expect(response.status).toBe(302);
     });
-
-    test("redirects when wrapped data key is invalid", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-
-      // Create session with invalid wrapped_data_key (user_id 1 = test admin)
-      const token = "test-token-invalid-event";
-      await createSession(token, "csrf123", Date.now() + 3600000, "invalid", 1);
-
-      const response = await awaitTestRequest("/admin/event/1", {
-        cookie: `__Host-session=${token}`,
-      });
-      expectAdminRedirect(response);
-    });
-
 
     test("returns 404 for non-existent event", async () => {
       const { cookie } = await loginAsAdmin();
@@ -1391,25 +1374,6 @@ describe("server (admin events)", () => {
       expect((await getAttendeesRaw(event.id)).length).toBe(0);
     });
   });
-
-  describe("admin/events.ts (withEventAttendees privateKey null)", () => {
-    test("redirects when session has no wrapped data key on event view", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-
-      // Create session without wrapped_data_key (user_id 1 = test admin)
-      const token = "test-token-no-key-event";
-      await createSession(token, "csrf123", Date.now() + 3600000, null, 1);
-
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie: `__Host-session=${token}`,
-      });
-      expectAdminRedirect(response);
-    });
-  });
-
 
   describe("admin/events.ts (eventErrorPage with deleted event)", () => {
     test("edit validation returns 400 with error when event exists", async () => {

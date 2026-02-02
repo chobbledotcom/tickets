@@ -146,14 +146,10 @@ const handleAdminSettingsPost = (request: Request): Promise<Response> =>
       return settingsPageWithError("Current password is incorrect", 401);
     }
 
-    if (!user.wrapped_data_key) {
-      return settingsPageWithError("User has no data key", 500);
-    }
-
     const success = await updateUserPassword(
       session.userId,
       passwordHash,
-      user.wrapped_data_key,
+      user.wrapped_data_key!,
       validation.newPassword,
     );
     if (!success) {

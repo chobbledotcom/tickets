@@ -30,6 +30,7 @@ export const Layout = ({ title, children }: LayoutProps): SafeHtml =>
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
           <title>{title}</title>
           <link rel="stylesheet" href={CSS_PATH} />
+          <style>{".inline{display:inline}"}</style>
         </head>
         <body>
           <main>

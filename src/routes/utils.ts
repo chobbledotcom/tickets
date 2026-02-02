@@ -357,12 +357,12 @@ export type CsrfFormResult =
   | { ok: true; form: URLSearchParams }
   | { ok: false; response: Response };
 
-/** Cookie name for public form CSRF tokens */
-const CSRF_COOKIE_NAME = "csrf_token";
+/** Default cookie name for public form CSRF tokens */
+const DEFAULT_CSRF_COOKIE = "csrf_token";
 
 /** Generate CSRF cookie string */
-export const csrfCookie = (token: string, path: string): string =>
-  `${CSRF_COOKIE_NAME}=${token}; HttpOnly; Secure; SameSite=Strict; Path=${path}; Max-Age=3600`;
+export const csrfCookie = (token: string, path: string, cookieName = DEFAULT_CSRF_COOKIE): string =>
+  `${cookieName}=${token}; HttpOnly; Secure; SameSite=Strict; Path=${path}; Max-Age=3600`;
 
 /**
  * Parse form with CSRF validation (double-submit cookie pattern)
@@ -371,9 +371,10 @@ export const csrfCookie = (token: string, path: string): string =>
 export const requireCsrfForm = async (
   request: Request,
   onInvalid: (newToken: string) => Response,
+  cookieName = DEFAULT_CSRF_COOKIE,
 ): Promise<CsrfFormResult> => {
   const cookies = parseCookies(request);
-  const cookieCsrf = cookies.get(CSRF_COOKIE_NAME) || "";
+  const cookieCsrf = cookies.get(cookieName) || "";
   const form = await parseFormData(request);
   const formCsrf = form.get("csrf_token") || "";
 

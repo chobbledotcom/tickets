@@ -64,6 +64,7 @@ export const adminUsersPage = (
             <th>Role</th>
             <th>Status</th>
             <th>Actions</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -74,13 +75,15 @@ export const adminUsersPage = (
               <td>{userStatus(user)}</td>
               <td>
                 {user.hasPassword && !user.hasDataKey && (
-                  <form method="POST" action={`/admin/users/${user.id}/activate`} style="display:inline">
+                  <form class="inline" method="POST" action={`/admin/users/${user.id}/activate`}>
                     <input type="hidden" name="csrf_token" value={csrfToken} />
                     <button type="submit">Activate</button>
                   </form>
                 )}
+              </td>
+              <td>
                 {user.adminLevel !== "owner" && (
-                  <form method="POST" action={`/admin/users/${user.id}/delete`} style="display:inline;margin-left:0.5rem">
+                  <form class="inline" method="POST" action={`/admin/users/${user.id}/delete`}>
                     <input type="hidden" name="csrf_token" value={csrfToken} />
                     <button type="submit">Delete</button>
                   </form>

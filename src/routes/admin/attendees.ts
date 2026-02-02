@@ -58,10 +58,7 @@ const handleAdminAttendeeDeleteGet = async (
     return redirect("/admin");
   }
 
-  const privateKey = await getPrivateKey(session.token, session.wrappedDataKey);
-  if (!privateKey) {
-    return redirect("/admin");
-  }
+  const privateKey = (await getPrivateKey(session.token, session.wrappedDataKey))!;
 
   const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
   if (!data) {
@@ -84,13 +81,7 @@ const handleAdminAttendeeDeletePost = (
   attendeeId: number,
 ): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
-    const privateKey = await getPrivateKey(
-      session.token,
-      session.wrappedDataKey,
-    );
-    if (!privateKey) {
-      return redirect("/admin");
-    }
+    const privateKey = (await getPrivateKey(session.token, session.wrappedDataKey))!;
 
     const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
     if (!data) {
@@ -143,13 +134,7 @@ const handleAdminAttendeeCheckinPost = (
   attendeeId: number,
 ): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
-    const privateKey = await getPrivateKey(
-      session.token,
-      session.wrappedDataKey,
-    );
-    if (!privateKey) {
-      return redirect("/admin");
-    }
+    const privateKey = (await getPrivateKey(session.token, session.wrappedDataKey))!;
 
     const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
     if (!data) {

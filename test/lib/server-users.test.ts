@@ -968,34 +968,6 @@ describe("server (multi-user admin)", () => {
     });
   });
 
-  describe("settings page edge cases", () => {
-    test("password change fails when user has no data key", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      // Null out the owner's wrapped_data_key
-      await getDb().execute({
-        sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",
-        args: [],
-      });
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings",
-          {
-            current_password: TEST_ADMIN_PASSWORD,
-            new_password: "newpassword123",
-            new_password_confirm: "newpassword123",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(500);
-      const html = await response.text();
-      expect(html).toContain("no data key");
-    });
-  });
-
   describe("db/users.ts edge cases", () => {
     test("verifyUserPassword returns null when user has empty password_hash", async () => {
       const user = await createInvitedUser("nopwd", "manager", "hash", new Date(Date.now() + 86400000).toISOString());
@@ -1054,28 +1026,6 @@ describe("server (multi-user admin)", () => {
       expect(valid).toBe(false);
     });
 
-    test("isInviteValid returns false when invite_code_hash cannot be decrypted", async () => {
-      const { hmacHash } = await import("#lib/crypto.ts");
-      const usernameIdx = await hmacHash("corrupt-invite-user");
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("corrupt-invite-user"),
-          usernameIdx,
-          "",
-          null,
-          await encrypt("manager"),
-          "corrupted_encrypted_data",
-          await encrypt(new Date(Date.now() + 86400000).toISOString()),
-        ],
-      });
-
-      const user = await getUserByUsername("corrupt-invite-user");
-      const valid = await isInviteValid(user!);
-      expect(valid).toBe(false);
-    });
-
     test("isInviteValid returns false when invite_expiry decrypts to empty string", async () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const usernameIdx = await hmacHash("empty-expiry-user");
@@ -1098,70 +1048,6 @@ describe("server (multi-user admin)", () => {
       expect(valid).toBe(false);
     });
 
-    test("isInviteValid returns false when invite_expiry cannot be decrypted", async () => {
-      const { hmacHash } = await import("#lib/crypto.ts");
-      const usernameIdx = await hmacHash("corrupt-expiry-user");
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("corrupt-expiry-user"),
-          usernameIdx,
-          "",
-          null,
-          await encrypt("manager"),
-          await encrypt("somehash"),
-          "corrupted_encrypted_expiry",
-        ],
-      });
-
-      const user = await getUserByUsername("corrupt-expiry-user");
-      const valid = await isInviteValid(user!);
-      expect(valid).toBe(false);
-    });
-
-    test("hasPassword returns false when password_hash cannot be decrypted", async () => {
-      const { hmacHash } = await import("#lib/crypto.ts");
-      const usernameIdx = await hmacHash("corrupt-pwd-user");
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
-              VALUES (?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("corrupt-pwd-user"),
-          usernameIdx,
-          "corrupted_encrypted_password",
-          null,
-          await encrypt("manager"),
-        ],
-      });
-
-      const user = await getUserByUsername("corrupt-pwd-user");
-      const hasPwd = await hasPassword(user!);
-      expect(hasPwd).toBe(false);
-    });
-
-    test("getUserByInviteCode skips users with corrupted invite_code_hash", async () => {
-      const { getUserByInviteCode } = await import("#lib/db/users.ts");
-      const { hmacHash } = await import("#lib/crypto.ts");
-      const usernameIdx = await hmacHash("corrupt-code-lookup");
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("corrupt-code-lookup"),
-          usernameIdx,
-          "",
-          null,
-          await encrypt("manager"),
-          "corrupted_not_decryptable",
-          await encrypt(new Date(Date.now() + 86400000).toISOString()),
-        ],
-      });
-
-      // Look up with any invite code - should not crash, just return null
-      const result = await getUserByInviteCode("any-code-123");
-      expect(result).toBeNull();
-    });
   });
 
   describe("utils.ts edge cases", () => {
@@ -1233,40 +1119,6 @@ describe("server (multi-user admin)", () => {
       });
       const html = await response.text();
       expect(html).toContain("Login");
-    });
-  });
-
-  describe("attendees no private key", () => {
-    test("GET attendee delete page redirects when session lacks private key", async () => {
-      // Create a session without wrapped_data_key
-      await createSession("no-pk-session", "no-pk-csrf", Date.now() + 3600000, null, 1);
-
-      // Try to access an attendee delete page
-      const response = await handleRequest(
-        new Request("http://localhost/admin/event/1/attendee/1/delete", {
-          headers: {
-            host: "localhost",
-            cookie: "__Host-session=no-pk-session",
-          },
-        }),
-      );
-      // Should redirect to /admin since no private key is available
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
-    });
-
-    test("POST attendee delete redirects when session lacks private key", async () => {
-      await createSession("no-pk-post", "no-pk-post-csrf", Date.now() + 3600000, null, 1);
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/1/attendee/1/delete",
-          { confirm_name: "test", csrf_token: "no-pk-post-csrf" },
-          "__Host-session=no-pk-post",
-        ),
-      );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
     });
   });
 

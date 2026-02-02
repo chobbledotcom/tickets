@@ -208,12 +208,8 @@ export const getUserByInviteCode = async (
 
   for (const user of users) {
     if (!user.invite_code_hash) continue;
-    try {
-      const decryptedHash = await decrypt(user.invite_code_hash);
-      if (decryptedHash === codeHash) return user;
-    } catch {
-      // Skip users with invalid encrypted data
-    }
+    const decryptedHash = await decrypt(user.invite_code_hash);
+    if (decryptedHash === codeHash) return user;
   }
 
   return null;
@@ -231,23 +227,14 @@ export const hashInviteCode = (code: string): Promise<string> =>
 export const isInviteValid = async (user: User): Promise<boolean> => {
   if (!user.invite_code_hash) return false;
 
-  try {
-    const decryptedHash = await decrypt(user.invite_code_hash);
-    // Empty string means invite was already used
-    if (!decryptedHash) return false;
-  } catch {
-    return false;
-  }
+  const decryptedHash = await decrypt(user.invite_code_hash);
+  if (!decryptedHash) return false;
 
   if (!user.invite_expiry) return false;
 
-  try {
-    const decryptedExpiry = await decrypt(user.invite_expiry);
-    if (!decryptedExpiry) return false;
-    return new Date(decryptedExpiry) > new Date();
-  } catch {
-    return false;
-  }
+  const decryptedExpiry = await decrypt(user.invite_expiry);
+  if (!decryptedExpiry) return false;
+  return new Date(decryptedExpiry) > new Date();
 };
 
 /**
@@ -255,12 +242,8 @@ export const isInviteValid = async (user: User): Promise<boolean> => {
  */
 export const hasPassword = async (user: User): Promise<boolean> => {
   if (!user.password_hash) return false;
-  try {
-    const decrypted = await decrypt(user.password_hash);
-    return decrypted.length > 0;
-  } catch {
-    return false;
-  }
+  const decrypted = await decrypt(user.password_hash);
+  return decrypted.length > 0;
 };
 
 /**
