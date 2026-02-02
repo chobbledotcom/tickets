@@ -352,6 +352,20 @@ describe("server (admin auth)", () => {
     });
   });
 
+  describe("login timing delay", () => {
+    test("applies random delay when TEST_SKIP_LOGIN_DELAY is not set", async () => {
+      Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
+      const start = Date.now();
+      const response = await handleRequest(
+        mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
+      );
+      const elapsed = Date.now() - start;
+      expectAdminRedirect(response);
+      expect(elapsed).toBeGreaterThanOrEqual(100);
+      Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1");
+    });
+  });
+
   describe("routes/admin/auth.ts (login with null wrappedDataKey)", () => {
     test("login returns 403 when user has null wrappedDataKey", async () => {
       // Null out user's wrapped_data_key

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, jest, spyOn, test } from "#test-compat";
 import type { InStatement } from "@libsql/client";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
@@ -1864,8 +1864,11 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown shows days and hours", () => {
-      const future = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000).toISOString();
-      expect(formatCountdown(future)).toContain("3 days and 5 hours from now");
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date("2025-01-01T00:00:00Z"));
+      const future = new Date("2025-01-04T05:00:00Z").toISOString();
+      expect(formatCountdown(future)).toBe("3 days and 5 hours from now");
+      jest.useRealTimers();
     });
 
     test("formatCountdown shows only days when no remaining hours", () => {
