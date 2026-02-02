@@ -600,7 +600,7 @@ describe("html", () => {
         testAttendee({ price_paid: "1000" }),
         testAttendee({ id: 2, price_paid: "2000" }),
       ];
-      const html = adminEventPage(event, attendees, "localhost");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("Total Revenue:");
       expect(html).toContain("30.00");
     });
@@ -608,13 +608,13 @@ describe("html", () => {
     test("does not show total revenue for free events", () => {
       const event = testEventWithCount({ unit_price: null, attendee_count: 1 });
       const attendees = [testAttendee()];
-      const html = adminEventPage(event, attendees, "localhost");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
       expect(html).not.toContain("Total Revenue:");
     });
 
     test("shows 0.00 revenue for paid event with no attendees", () => {
       const event = testEventWithCount({ unit_price: 1000, attendee_count: 0 });
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("Total Revenue:");
       expect(html).toContain("0.00");
     });

@@ -125,10 +125,6 @@ const withEventAttendees = async (
   }
 
   const privateKey = await getPrivateKey(session.token, session.wrappedDataKey);
-  if (!privateKey) {
-    // Session exists but can't derive private key - need to re-login
-    return redirect("/admin");
-  }
 
   // Fetch event and attendees in single DB round-trip
   const result = await getEventWithAttendeesRaw(eventId);

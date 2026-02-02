@@ -74,11 +74,7 @@ export const parseCookies = (request: Request): Map<string, string> => {
  */
 export const getAuthenticatedSession = async (
   request: Request,
-): Promise<{
-  token: string;
-  csrfToken: string;
-  wrappedDataKey: string | null;
-} | null> => {
+): Promise<AuthSession | null> => {
   const cookies = parseCookies(request);
   const token = cookies.get("__Host-session");
   if (!token) return null;
@@ -91,20 +87,29 @@ export const getAuthenticatedSession = async (
     return null;
   }
 
+  // Reject sessions without wrapped_data_key - this should never happen
+  // after setup, but protects against corrupt DB state
+  if (!session.wrapped_data_key) {
+    logError({
+      code: ErrorCode.KEY_DERIVATION,
+      detail: "Session missing wrapped_data_key",
+    });
+    await deleteSession(token);
+    return null;
+  }
+
   // Validate wrapped_data_key can be unwrapped with current DB_ENCRYPTION_KEY
   // This catches sessions created before a key rotation
-  if (session.wrapped_data_key) {
-    try {
-      await unwrapKeyWithToken(session.wrapped_data_key, token);
-    } catch {
-      // Key unwrapping failed - likely due to DB_ENCRYPTION_KEY rotation
-      logError({
-        code: ErrorCode.KEY_DERIVATION,
-        detail: "Session has invalid wrapped_data_key, likely due to DB_ENCRYPTION_KEY rotation. User must re-login.",
-      });
-      await deleteSession(token);
-      return null;
-    }
+  try {
+    await unwrapKeyWithToken(session.wrapped_data_key, token);
+  } catch {
+    // Key unwrapping failed - likely due to DB_ENCRYPTION_KEY rotation
+    logError({
+      code: ErrorCode.KEY_DERIVATION,
+      detail: "Session has invalid wrapped_data_key, likely due to DB_ENCRYPTION_KEY rotation. User must re-login.",
+    });
+    await deleteSession(token);
+    return null;
   }
 
   return {
@@ -116,26 +121,13 @@ export const getAuthenticatedSession = async (
 
 /**
  * Get private key for decrypting attendee PII from an authenticated session
- * Returns null if session doesn't have wrapped_data_key (legacy sessions)
  */
 export const getPrivateKey = async (
   token: string,
-  wrappedDataKey: string | null,
-): Promise<CryptoKey | null> => {
-  if (!wrappedDataKey) return null;
-
-  const wrappedPrivateKey = await getWrappedPrivateKey();
-  if (!wrappedPrivateKey) return null;
-
-  try {
-    return await getPrivateKeyFromSession(
-      token,
-      wrappedDataKey,
-      wrappedPrivateKey,
-    );
-  } catch {
-    return null;
-  }
+  wrappedDataKey: string,
+): Promise<CryptoKey> => {
+  const wrappedPrivateKey = (await getWrappedPrivateKey())!;
+  return getPrivateKeyFromSession(token, wrappedDataKey, wrappedPrivateKey);
 };
 
 /**
@@ -310,7 +302,7 @@ export const withActiveEventBySlug = (
 export type AuthSession = {
   token: string;
   csrfToken: string;
-  wrappedDataKey: string | null;
+  wrappedDataKey: string;
 };
 
 /**

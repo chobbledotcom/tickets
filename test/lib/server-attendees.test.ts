@@ -49,14 +49,14 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(404);
     });
 
-    test("redirects when session lacks wrapped data key", async () => {
+    test("rejects session without wrapped data key", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      // Create session without wrapped_data_key (simulates legacy session)
+      // Create session without wrapped_data_key - rejected at auth layer
       const token = "test-token-no-data-key";
       await createSession(token, "csrf123", Date.now() + 3600000, null);
 
@@ -372,14 +372,14 @@ describe("server (admin attendees)", () => {
   });
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/delete (no privateKey on POST)", () => {
-    test("redirects to admin when session lacks wrapped data key on POST", async () => {
+    test("rejects POST when session lacks wrapped data key", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      // Create session without wrapped_data_key (simulates legacy session)
+      // Create session without wrapped_data_key - rejected at auth layer
       const token = "test-token-no-data-key-post";
       await createSession(token, "csrf123", Date.now() + 3600000, null);
 
@@ -579,13 +579,14 @@ describe("server (admin attendees)", () => {
       expect(location).toContain("checkin_status=out");
     });
 
-    test("redirects when session lacks wrapped data key", async () => {
+    test("rejects session without wrapped data key on checkin", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
+      // Create session without wrapped_data_key - rejected at auth layer
       const token = "test-token-no-key-checkin";
       await createSession(token, "csrf123", Date.now() + 3600000, null);
 

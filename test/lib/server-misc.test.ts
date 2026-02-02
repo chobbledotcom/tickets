@@ -184,15 +184,14 @@ describe("server (misc)", () => {
   });
 
   describe("routes/utils.ts (getPrivateKey null paths)", () => {
-    test("returns null when wrappedDataKey is null", async () => {
-      // This is tested indirectly via session without wrapped_data_key
+    test("rejects session when wrappedDataKey is null", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      // Create session without wrapped_data_key
+      // Create session without wrapped_data_key - rejected at auth layer
       const token = "test-no-wrapped-key";
       await createSession(token, "csrf123", Date.now() + 3600000, null);
 
@@ -203,42 +202,19 @@ describe("server (misc)", () => {
       expectAdminRedirect(response);
     });
 
-    test("returns null when wrappedPrivateKey is not set in DB", async () => {
-      // Clear the wrapped_private_key from DB so getWrappedPrivateKey returns null
-      const { getDb } = await import("#lib/db/client.ts");
-      await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
-        args: [],
-      });
-
-      const { cookie } = await loginAsAdmin();
-
+    test("rejects session with corrupt wrapped_data_key", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
-      });
-      // Should redirect since getPrivateKey returns null (no wrapped private key)
-      expectAdminRedirect(response);
-    });
-
-    test("returns null when getPrivateKeyFromSession throws", async () => {
-      // Create a session with a corrupt wrapped_data_key that will cause crypto to throw
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-
+      // Session with corrupt wrapped_data_key is rejected at auth layer
       const token = "test-corrupt-key";
       await createSession(token, "csrf123", Date.now() + 3600000, "corrupt-key-data");
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie: `__Host-session=${token}`,
       });
-      // Should redirect since getPrivateKey catches the crypto error and returns null
       expectAdminRedirect(response);
     });
 
@@ -328,15 +304,6 @@ describe("server (misc)", () => {
     test("returns 404 for unknown route pattern", async () => {
       const response = await handleRequest(mockRequest("/unknown-path-xyz"));
       expect(response.status).toBe(404);
-    });
-  });
-
-  describe("routes/utils.ts (getPrivateKey error handling)", () => {
-    test("getPrivateKey returns null when getPrivateKeyFromSession throws", async () => {
-      const { getPrivateKey } = await import("#routes/utils.ts");
-      // Pass an invalid wrappedDataKey to trigger the catch block
-      const result = await getPrivateKey("invalid-token", "not-a-valid-wrapped-key");
-      expect(result).toBeNull();
     });
   });
 

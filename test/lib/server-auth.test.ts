@@ -314,70 +314,31 @@ describe("server (admin auth)", () => {
   });
 
   describe("POST /admin/login (dataKey null path)", () => {
-    test("creates session even when dataKey is null", async () => {
-      // This test covers the `wrappedDataKey = dataKey ? await wrapKeyWithToken(dataKey, token) : null` path
-      // When login succeeds but unwrapDataKey returns null, session still has null wrappedDataKey
-      // In normal operation this won't happen since setup creates keys, but we test the code path
-      const { spyOn } = await import("#test-compat");
-      const { settingsApi } = await import("#lib/db/settings.ts");
-
-      const mockUnwrap = spyOn(settingsApi, "unwrapDataKey");
-      mockUnwrap.mockResolvedValue(null);
-
-      try {
-        const response = await handleRequest(
-          mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
-        );
-        // Should still redirect (login succeeds)
-        expectAdminRedirect(response);
-        expect(response.headers.get("set-cookie")).toContain("__Host-session=");
-      } finally {
-        mockUnwrap.mockRestore();
-      }
-    });
-  });
-
-  describe("routes/admin/auth.ts (wrappedDataKey null path)", () => {
-    test("login succeeds even when wrapped data key is missing", async () => {
-      // Remove the wrapped_data_key from settings to trigger null path
+    test("returns 500 when wrapped_data_key is empty", async () => {
       const { setSetting } = await import("#lib/db/settings.ts");
       await setSetting("wrapped_data_key", "");
 
       const response = await handleRequest(
-        mockFormRequest("/admin/login", {
-          password: TEST_ADMIN_PASSWORD,
-        }),
+        mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
       );
-      // Login should still succeed - session is created with null wrapped data key
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expect(response.status).toBe(500);
+      const body = await response.text();
+      expect(body).toContain("System configuration error");
     });
-  });
 
-  describe("routes/admin/auth.ts (login with null wrappedDataKey)", () => {
-    test("login succeeds but session has null wrappedDataKey when data key is missing", async () => {
-      // Delete the wrapped_data_key from settings to make unwrapDataKey return null
+    test("returns 500 when wrapped_data_key is deleted from settings", async () => {
       const { getDb } = await import("#lib/db/client.ts");
       await getDb().execute({
         sql: "DELETE FROM settings WHERE key = 'wrapped_data_key'",
         args: [],
       });
 
-      // Login should still succeed (password verification works, data key is just null)
       const response = await handleRequest(
         mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
       );
-      // Should redirect to /admin (successful login)
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
-
-      // Verify session was created with null wrapped_data_key
-      const cookie = response.headers.get("set-cookie")!;
-      const tokenMatch = cookie.match(/__Host-session=([^;]+)/);
-      expect(tokenMatch).not.toBeNull();
-      const session = await getSession(tokenMatch![1]!);
-      expect(session).not.toBeNull();
-      expect(session!.wrapped_data_key).toBeNull();
+      expect(response.status).toBe(500);
+      const body = await response.text();
+      expect(body).toContain("System configuration error");
     });
   });
 

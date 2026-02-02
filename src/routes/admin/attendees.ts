@@ -9,7 +9,6 @@ import {
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
 import { getEventWithAttendeeRaw } from "#lib/db/events.ts";
-import { logError } from "#lib/logger.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import {
   defineRoutes,
@@ -60,9 +59,6 @@ const handleAdminAttendeeDeleteGet = async (
   }
 
   const privateKey = await getPrivateKey(session.token, session.wrappedDataKey);
-  if (!privateKey) {
-    return redirect("/admin");
-  }
 
   const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
   if (!data) {
@@ -89,9 +85,6 @@ const handleAdminAttendeeDeletePost = (
       session.token,
       session.wrappedDataKey,
     );
-    if (!privateKey) {
-      return redirect("/admin");
-    }
 
     const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
     if (!data) {
@@ -141,10 +134,6 @@ const handleAdminAttendeeCheckinPost = (
       session.token,
       session.wrappedDataKey,
     );
-    if (!privateKey) {
-      logError({ code: "E_KEY_DERIVATION", detail: "checkin: no private key" });
-      return redirect("/admin");
-    }
 
     const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
     if (!data) {

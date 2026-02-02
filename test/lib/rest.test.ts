@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { createSession } from "#lib/db/sessions.ts";
 import { col, defineTable, type Table } from "#lib/db/table.ts";
 import type { Field, FieldValues } from "#lib/forms.tsx";
 import {
@@ -14,6 +13,7 @@ import {
   expectAdminRedirect,
   expectResultError,
   expectResultNotFound,
+  loginAsAdmin,
   resetDb,
   successResponse,
   testRequest,
@@ -305,9 +305,9 @@ describe("rest/handlers", () => {
     path: string,
     data: Record<string, string>,
   ): Promise<Request> => {
-    const csrfToken = "test-csrf-token";
-    await createSession("test-session", csrfToken, Date.now() + 60000);
-    return testRequest(path, "test-session", { data: { ...data, csrf_token: csrfToken } });
+    const { cookie, csrfToken } = await loginAsAdmin();
+    const sessionToken = cookie.match(/__Host-session=([^;]+)/)?.[1] ?? "";
+    return testRequest(path, sessionToken, { data: { ...data, csrf_token: csrfToken } });
   };
 
   /** Create unauthenticated request */
