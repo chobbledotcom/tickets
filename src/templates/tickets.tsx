@@ -1,26 +1,24 @@
 /**
- * Ticket view page template - displays attendee ticket information
+ * Ticket view page template - displays attendee ticket information with QR code
  */
 
 import { map, pipe } from "#fp";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import type { TokenEntry } from "#routes/token-utils.ts";
 import { Layout } from "#templates/layout.tsx";
 
-/** Ticket entry: attendee paired with their event */
-export type TicketEntry = {
-  attendee: Attendee;
-  event: EventWithCount;
-};
+/** Re-export for backwards compatibility */
+export type { TokenEntry as TicketEntry };
 
 /** Render a single ticket row */
-const renderTicketRow = ({ event, attendee }: TicketEntry): string =>
+const renderTicketRow = ({ event, attendee }: TokenEntry): string =>
   `<tr><td>${event.name}</td><td>${attendee.quantity}</td></tr>`;
 
 /**
- * Ticket view page - shows event name and quantity per ticket
+ * Ticket view page - shows event name + quantity per ticket, with inline QR code
+ * The QR code encodes the /checkin/... URL for admin scanning
  */
-export const ticketViewPage = (entries: TicketEntry[]): string => {
+export const ticketViewPage = (entries: TokenEntry[], qrSvg: string): string => {
   const rows = pipe(
     map(renderTicketRow),
     (r: string[]) => r.join(""),
@@ -29,6 +27,9 @@ export const ticketViewPage = (entries: TicketEntry[]): string => {
   return String(
     <Layout title="Your Tickets">
       <h1>Your Tickets</h1>
+      <div style="text-align:center;margin:1em 0">
+        <Raw html={qrSvg} />
+      </div>
       <table>
         <thead>
           <tr>
