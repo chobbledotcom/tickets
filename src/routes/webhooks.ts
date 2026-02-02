@@ -33,6 +33,7 @@ import { getCurrencyCode } from "#lib/config.ts";
 import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
+  formatCreationError,
   getSearchParam,
   htmlResponse,
   isRegistrationClosed,
@@ -167,6 +168,70 @@ const refundAndFail = async (
   return { success: false, error, status, refunded };
 };
 
+/** Rollback created attendees (multi-ticket failure recovery) */
+const rollbackAttendees = async (
+  attendees: { attendee: Attendee }[],
+): Promise<void> => {
+  for (const { attendee } of attendees) {
+    await deleteAttendee(attendee.id);
+  }
+};
+
+/** Validate event is eligible for post-payment registration */
+type EventValidation =
+  | { ok: true; event: EventWithCount }
+  | { ok: false; error: string; status?: number };
+
+const validateEventForPayment = async (
+  eventId: number,
+  includeEventName = false,
+): Promise<EventValidation> => {
+  const event = await getEventWithCount(eventId);
+  if (!event) return { ok: false, error: "Event not found", status: 404 };
+  const name = includeEventName ? event.name : undefined;
+  if (event.active !== 1) {
+    return {
+      ok: false,
+      error: name
+        ? `${name} is no longer accepting registrations.`
+        : "This event is no longer accepting registrations.",
+    };
+  }
+  if (isRegistrationClosed(event)) {
+    return {
+      ok: false,
+      error: name
+        ? `Sorry, registration for ${name} closed while you were completing payment.`
+        : "Sorry, registration closed while you were completing payment.",
+    };
+  }
+  return { ok: true, event };
+};
+
+/** Validate event and compute price for post-payment attendee creation */
+type EventPriceValidation =
+  | { ok: true; event: EventWithCount; pricePaid: number | null }
+  | { ok: false; error: string; status?: number };
+
+const validateAndPrice = async (
+  eventId: number,
+  quantity: number,
+  includeEventName = false,
+): Promise<EventPriceValidation> => {
+  const validation = await validateEventForPayment(eventId, includeEventName);
+  if (!validation.ok) return validation;
+  const { event } = validation;
+  const pricePaid = event.unit_price !== null ? event.unit_price * quantity : null;
+  return { ok: true, event, pricePaid };
+};
+
+/** Format error for post-payment attendee creation failure */
+const formatPostPaymentError = formatCreationError(
+  "Sorry, this event sold out while you were completing payment.",
+  (name) => `Sorry, ${name} sold out while you were completing payment.`,
+  "Registration failed.",
+);
+
 /** Return success result for an already-processed session */
 const alreadyProcessedResult = async (
   eventId: number,
@@ -242,44 +307,19 @@ const processMultiPaymentSession = async (
     };
   }
 
-  // Phase 2: Create attendees for all events
+  // Phase 2: Validate events and create attendees atomically
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   let failedEvent: EventWithCount | null = null;
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
   for (const item of intent.items) {
-    const event = await getEventWithCount(item.e);
-    if (!event) {
-      // Event not found - rollback and refund
-      for (const created of createdAttendees) {
-        await deleteAttendee(created.attendee.id);
-      }
-      return refundAndFail(session, "Event not found", 404);
+    const vp = await validateAndPrice(item.e, item.q, true);
+    if (!vp.ok) {
+      await rollbackAttendees(createdAttendees);
+      return refundAndFail(session, vp.error, vp.status);
     }
 
-    if (event.active !== 1) {
-      // Event no longer active - rollback and refund
-      for (const created of createdAttendees) {
-        await deleteAttendee(created.attendee.id);
-      }
-      return refundAndFail(
-        session,
-        `${event.slug} is no longer accepting registrations.`,
-      );
-    }
-
-    if (isRegistrationClosed(event)) {
-      // Registration closed - rollback and refund
-      for (const created of createdAttendees) {
-        await deleteAttendee(created.attendee.id);
-      }
-      return refundAndFail(
-        session,
-        `Sorry, registration for ${event.name} closed while you were completing payment.`,
-      );
-    }
-
-    const pricePaid = event.unit_price !== null ? event.unit_price * item.q : null;
+    const { event, pricePaid } = vp;
     const result = await createAttendeeAtomic(
       item.e,
       intent.name,
@@ -301,16 +341,11 @@ const processMultiPaymentSession = async (
 
   // If any creation failed, rollback all created attendees and refund
   if (failedEvent && failureReason) {
-    for (const created of createdAttendees) {
-      await deleteAttendee(created.attendee.id);
-    }
-
-    const refunded = await tryRefund(session.paymentReference);
-    const errorMsg =
-      failureReason === "capacity_exceeded"
-        ? `Sorry, ${failedEvent.name} sold out while you were completing payment.`
-        : "Registration failed.";
-    return { success: false, error: errorMsg, refunded };
+    await rollbackAttendees(createdAttendees);
+    return refundAndFail(
+      session,
+      formatPostPaymentError(failureReason, failedEvent.name),
+    );
   }
 
   // Phase 3: Finalize with first attendee ID (for idempotency tracking)
@@ -365,48 +400,23 @@ const processPaymentSession = async (
 
   // We have the lock - proceed with attendee creation
 
-  // Check if event exists
-  const event = await getEventWithCount(intent.eventId);
-  if (!event) {
-    return refundAndFail(session, "Event not found", 404);
-  }
+  // Phase 2: Validate event and create attendee atomically with capacity check
+  const vp = await validateAndPrice(intent.eventId, intent.quantity);
+  if (!vp.ok) return refundAndFail(session, vp.error, vp.status);
 
-  // Check if event is active
-  if (event.active !== 1) {
-    return refundAndFail(
-      session,
-      "This event is no longer accepting registrations.",
-    );
-  }
-
-  // Check if registration has closed
-  if (isRegistrationClosed(event)) {
-    return refundAndFail(
-      session,
-      "Sorry, registration closed while you were completing payment.",
-    );
-  }
-
-  // Phase 2: Create attendee atomically with capacity check
-  const paymentReference = session.paymentReference;
-  const pricePaid = event.unit_price !== null ? event.unit_price * intent.quantity : null;
+  const { event, pricePaid } = vp;
   const result = await createAttendeeAtomic(
     intent.eventId,
     intent.name,
     intent.email,
-    paymentReference,
+    session.paymentReference,
     intent.quantity,
     intent.phone,
     pricePaid,
   );
 
   if (!result.success) {
-    const refunded = await tryRefund(paymentReference);
-    const errorMsg =
-      result.reason === "capacity_exceeded"
-        ? "Sorry, this event sold out while you were completing payment."
-        : "Registration failed.";
-    return { success: false, error: errorMsg, refunded };
+    return refundAndFail(session, formatPostPaymentError(result.reason));
   }
 
   // Phase 3: Finalize the session with the attendee ID

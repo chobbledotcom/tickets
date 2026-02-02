@@ -570,6 +570,10 @@ table tr:nth-child(even) {
   background-color: var(--color-accent);
 }
 
+table input {
+  margin: 0;
+}
+
 /* Quotes */
 blockquote {
   display: block;
@@ -679,8 +683,16 @@ fieldset.agreement {
   font-weight: bold;
 }
 
+.danger-text {
+  color: #cc0000;
+  font-weight: bold;
+}
+
 @media (prefers-color-scheme: dark) {
   :root[color-mode="user"] .password-warning {
+    color: #ff4444;
+  }
+  :root[color-mode="user"] .danger-text {
     color: #ff4444;
   }
 }

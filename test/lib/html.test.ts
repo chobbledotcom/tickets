@@ -1,7 +1,7 @@
 import { describe, expect, test } from "#test-compat";
 import { CSS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
-import { adminEventPage, calculateTotalRevenue } from "#templates/admin/events.tsx";
+import { adminEventPage, calculateTotalRevenue, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
@@ -93,26 +93,29 @@ describe("html", () => {
   describe("adminEventPage", () => {
     const event = testEventWithCount({ attendee_count: 2 });
 
-    test("renders event details", () => {
+    test("renders event name", () => {
       const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("Test Event");
-      expect(html).toContain("100");
-      expect(html).toContain("https://example.com/thanks");
     });
 
-    test("shows spots remaining", () => {
+    test("shows attendees row with count and remaining", () => {
       const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
-      expect(html).toContain("98"); // 100 - 2
+      expect(html).toContain("Attendees");
+      expect(html).toContain("2 / 100");
+      expect(html).toContain("98 remain");
     });
 
-    test("shows ticket URL", () => {
+    test("shows thank you URL in copyable input", () => {
       const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
-      expect(html).toContain("/ticket/ab12c");
+      expect(html).toContain("Thank You URL");
+      expect(html).toContain('value="https://example.com/thanks"');
+      expect(html).toContain("readonly");
+      expect(html).toContain("this.select()");
     });
 
     test("shows embed code with allowed domain", () => {
       const html = adminEventPage(event, [], "example.com", TEST_CSRF_TOKEN);
-      expect(html).toContain("Embed Code:");
+      expect(html).toContain("Embed Code");
       expect(html).toContain("https://example.com/ticket/ab12c");
       expect(html).toContain("loading=");
       expect(html).toContain("readonly");
@@ -141,32 +144,6 @@ describe("html", () => {
       expect(html).toContain("/admin/");
     });
 
-    test("shows contact fields label", () => {
-      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
-      expect(html).toContain("Contact Fields");
-      expect(html).toContain("Email");
-    });
-
-    test("shows phone contact fields label for phone events", () => {
-      const html = adminEventPage(
-        testEventWithCount({ attendee_count: 2, fields: "phone" }),
-        [],
-        "localhost",
-        TEST_CSRF_TOKEN,
-      );
-      expect(html).toContain("Phone Number");
-    });
-
-    test("shows both contact fields label", () => {
-      const html = adminEventPage(
-        testEventWithCount({ attendee_count: 2, fields: "both" }),
-        [],
-        "localhost",
-        TEST_CSRF_TOKEN,
-      );
-      expect(html).toContain("Email &amp; Phone Number");
-    });
-
     test("shows phone column in attendee table", () => {
       const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("<th>Phone</th>");
@@ -182,8 +159,31 @@ describe("html", () => {
       const attendees = [testAttendee({ email: "" })];
       const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("John Doe");
-      // The email cell should be empty (email || "" renders "")
       expect(html).toContain("<td></td>");
+    });
+
+    test("shows danger-text class when near capacity", () => {
+      const nearFullEvent = testEventWithCount({ attendee_count: 91, max_attendees: 100 });
+      const html = adminEventPage(nearFullEvent, [], "localhost", TEST_CSRF_TOKEN);
+      expect(html).toContain('class="danger-text"');
+      expect(html).toContain("9 remain");
+    });
+
+    test("does not show danger-text class when not near capacity", () => {
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
+      expect(html).not.toContain('class="danger-text"');
+    });
+
+    test("shows deactivated alert for inactive events", () => {
+      const inactive = testEventWithCount({ active: 0, attendee_count: 0 });
+      const html = adminEventPage(inactive, [], "localhost", TEST_CSRF_TOKEN);
+      expect(html).toContain('class="error"');
+      expect(html).toContain("This event is deactivated and cannot be booked");
+    });
+
+    test("does not show deactivated alert for active events", () => {
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
+      expect(html).not.toContain("This event is deactivated and cannot be booked");
     });
   });
 
@@ -693,7 +693,7 @@ describe("html", () => {
         testAttendee({ id: 2, price_paid: "2000" }),
       ];
       const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
-      expect(html).toContain("Total Revenue:");
+      expect(html).toContain("Total Revenue");
       expect(html).toContain("30.00");
     });
 
@@ -701,30 +701,23 @@ describe("html", () => {
       const event = testEventWithCount({ unit_price: null, attendee_count: 1 });
       const attendees = [testAttendee()];
       const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
-      expect(html).not.toContain("Total Revenue:");
+      expect(html).not.toContain("Total Revenue");
     });
 
     test("shows 0.00 revenue for paid event with no attendees", () => {
       const event = testEventWithCount({ unit_price: 1000, attendee_count: 0 });
       const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
-      expect(html).toContain("Total Revenue:");
+      expect(html).toContain("Total Revenue");
       expect(html).toContain("0.00");
     });
   });
 
-  describe("adminEventPage inactive and optional fields", () => {
+  describe("adminEventPage optional fields", () => {
     test("shows reactivate link for inactive events", () => {
       const event = testEventWithCount({ active: 0, attendee_count: 0 });
       const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("/reactivate");
       expect(html).toContain("Reactivate");
-    });
-
-    test("shows inactive status for inactive events", () => {
-      const event = testEventWithCount({ active: 0, attendee_count: 0 });
-      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
-      expect(html).toContain("Inactive (returns 404 on public page)");
-      expect(html).toContain('color: red');
     });
 
     test("shows simple success message text when no thank_you_url", () => {
@@ -733,11 +726,34 @@ describe("html", () => {
       expect(html).toContain("None (shows simple success message)");
     });
 
-    test("shows webhook URL when present", () => {
+    test("shows webhook URL in copyable input when present", () => {
       const event = testEventWithCount({ webhook_url: "https://hooks.example.com/notify", attendee_count: 0 });
       const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
-      expect(html).toContain("Webhook URL:");
-      expect(html).toContain("https://hooks.example.com/notify");
+      expect(html).toContain("Webhook URL");
+      expect(html).toContain('value="https://hooks.example.com/notify"');
+      expect(html).toContain("readonly");
+    });
+  });
+
+  describe("nearCapacity", () => {
+    test("returns true when at 90% capacity", () => {
+      const event = testEventWithCount({ attendee_count: 90, max_attendees: 100 });
+      expect(nearCapacity(event)).toBe(true);
+    });
+
+    test("returns true when over 90% capacity", () => {
+      const event = testEventWithCount({ attendee_count: 95, max_attendees: 100 });
+      expect(nearCapacity(event)).toBe(true);
+    });
+
+    test("returns false when under 90% capacity", () => {
+      const event = testEventWithCount({ attendee_count: 89, max_attendees: 100 });
+      expect(nearCapacity(event)).toBe(false);
+    });
+
+    test("returns true when fully sold out", () => {
+      const event = testEventWithCount({ attendee_count: 100, max_attendees: 100 });
+      expect(nearCapacity(event)).toBe(true);
     });
   });
 
