@@ -10,7 +10,9 @@ import type { Attendee } from "#lib/types.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
 import {
   getAuthenticatedSession,
+  getSearchParam,
   htmlResponse,
+  redirect,
   withAuthForm,
 } from "#routes/utils.ts";
 import { createTokenRoute, lookupAttendees, resolveEntries } from "#routes/token-utils.ts";
@@ -52,18 +54,22 @@ const handleCheckinGet = async (
   const session = await getAuthenticatedSession(request);
   if (!session) return htmlResponse(checkinPublicPage());
 
-  const updated = await setCheckedInAll(lookup.attendees, true);
-  return renderAdminView(updated, session.csrfToken, tokens);
+  // When view=true (redirected from check-out POST), show current state without auto-check-in
+  const viewOnly = getSearchParam(request, "view") === "true";
+  const attendees = viewOnly
+    ? lookup.attendees
+    : await setCheckedInAll(lookup.attendees, true);
+  return renderAdminView(attendees, session.csrfToken, tokens);
 };
 
 /** Handle POST /checkin/:tokens (check-out) */
 const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response> =>
-  withAuthForm(request, async (session) => {
+  withAuthForm(request, async (_session) => {
     const lookup = await lookupAttendees(tokens);
     if (!lookup.ok) return lookup.response;
 
-    const updated = await setCheckedInAll(lookup.attendees, false);
-    return renderAdminView(updated, session.csrfToken, tokens);
+    await setCheckedInAll(lookup.attendees, false);
+    return redirect(`/checkin/${tokens.join("+")}?view=true`);
   });
 
 /** Route check-in requests */

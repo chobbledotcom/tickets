@@ -173,6 +173,12 @@ export const redirect = (url: string, cookie?: string): Response => {
 };
 
 /**
+ * Create redirect response with a success message as query parameter (PRG pattern)
+ */
+export const redirectWithSuccess = (basePath: string, message: string): Response =>
+  redirect(`${basePath}?success=${encodeURIComponent(message)}`);
+
+/**
  * Parse form data from request
  */
 export const parseFormData = async (

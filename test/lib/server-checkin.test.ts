@@ -129,9 +129,14 @@ describe("check-in (/checkin/:tokens)", () => {
           session.cookie,
         ),
       );
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`/checkin/${token}?view=true`);
 
-      const body = await response.text();
+      // Follow redirect and verify checked-out state
+      const viewResponse = await awaitTestRequest(`/checkin/${token}?view=true`, {
+        cookie: session.cookie,
+      });
+      const body = await viewResponse.text();
       expect(body).toContain("No");
     });
 

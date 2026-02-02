@@ -559,9 +559,7 @@ describe("server (public routes)", () => {
         [`quantity_${event1.id}`]: "2",
         [`quantity_${event2.id}`]: "1",
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("success");
+      expectRedirect("/ticket/reserved")(response);
 
       // Verify attendees were created
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -588,7 +586,7 @@ describe("server (public routes)", () => {
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "0",
       });
-      expect(response.status).toBe(200);
+      expectRedirect("/ticket/reserved")(response);
 
       // Verify only event1 has an attendee
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -615,7 +613,7 @@ describe("server (public routes)", () => {
         [`quantity_${event1.id}`]: "10", // Request more than max
         [`quantity_${event2.id}`]: "0",
       });
-      expect(response.status).toBe(200);
+      expectRedirect("/ticket/reserved")(response);
 
       // Verify quantity was capped
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -632,6 +630,15 @@ describe("server (public routes)", () => {
     });
   });
 
+  describe("GET /ticket/reserved", () => {
+    test("shows reservation success page", async () => {
+      const response = await handleRequest(mockRequest("/ticket/reserved"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("success");
+    });
+  });
+
   describe("POST /ticket/:slug (free event without thank_you_url)", () => {
     test("shows inline success page when no thank_you_url", async () => {
       const event = await createTestEvent({
@@ -643,10 +650,8 @@ describe("server (public routes)", () => {
         name: "John Doe",
         email: "john@example.com",
       });
-      // Should show success page instead of redirect
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("success");
+      // Should redirect to success page
+      expectRedirect("/ticket/reserved")(response);
     });
   });
 
@@ -824,9 +829,7 @@ describe("server (public routes)", () => {
         ),
       );
 
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("success");
+      expectRedirect("/ticket/reserved")(response);
 
       // Verify attendees created for both events
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -929,9 +932,7 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expect(response.status).toBe(200);
-      const resultHtml = await response.text();
-      expect(resultHtml).toContain("success");
+      expectRedirect("/ticket/reserved")(response);
     });
 
     test("multi-ticket with invalid quantity form value falls back to 0", async () => {
@@ -965,7 +966,7 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expect(response.status).toBe(200);
+      expectRedirect("/ticket/reserved")(response);
 
       // Only event2 should have an attendee
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1095,7 +1096,7 @@ describe("server (public routes)", () => {
       );
 
       // Free registration path since provider is cleared and isPaymentsEnabled returns false
-      expect(response.status).toBe(200);
+      expectRedirect("/ticket/reserved")(response);
       resetStripeClient();
     });
   });
@@ -1257,9 +1258,7 @@ describe("server (public routes)", () => {
         }, `csrf_token=${csrfToken}`),
       );
       // Should succeed for event2 only
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("success");
+      expectRedirect("/ticket/reserved")(response);
     });
   });
 
@@ -1322,9 +1321,7 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("success");
+      expectRedirect("/ticket/reserved")(response);
 
       // Verify only event2 got an attendee
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");

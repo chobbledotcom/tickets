@@ -228,9 +228,7 @@ const processFreeReservation = async (
   }
 
   await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
-  return event.thank_you_url
-    ? redirect(event.thank_you_url)
-    : htmlResponse(reservationSuccessPage());
+  return redirect(event.thank_you_url || "/ticket/reserved");
 };
 
 /**
@@ -542,7 +540,7 @@ const handleMultiTicketPost = (
     return multiTicketResponse(slugs, activeEvents, currentToken)(result.error);
   }
 
-  return htmlResponse(reservationSuccessPage());
+  return redirect("/ticket/reserved");
   });
 
 /** Slug pattern for extracting slug from path */
@@ -554,12 +552,21 @@ const extractSlugFromPath = (path: string): string | null => {
   return match?.[1] ?? null;
 };
 
+/** Handle GET /ticket/reserved - reservation success page */
+const handleReservedGet = (): Response =>
+  htmlResponse(reservationSuccessPage());
+
 /** Route ticket requests - handles both single and multi-ticket */
 export const routeTicket = (
   request: Request,
   path: string,
   method: string,
 ): Promise<Response | null> => {
+  // Handle /ticket/reserved before slug matching
+  if (path === "/ticket/reserved" && method === "GET") {
+    return Promise.resolve(handleReservedGet());
+  }
+
   const slug = extractSlugFromPath(path);
   if (!slug) return Promise.resolve(null);
 

@@ -30,8 +30,10 @@ import type { AdminSession } from "#lib/types.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  getSearchParam,
   htmlResponse,
   redirect,
+  redirectWithSuccess,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
@@ -89,9 +91,12 @@ const renderSettingsPage = async (
  * Handle GET /admin/settings - owner only
  */
 const handleAdminSettingsGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, async (session) =>
-    htmlResponse(await renderSettingsPage(session)),
-  );
+  requireOwnerOr(request, async (session) => {
+    const success = getSearchParam(request, "success");
+    return htmlResponse(
+      await renderSettingsPage(session, undefined, success ?? undefined),
+    );
+  });
 
 /**
  * Validate change password form data
@@ -178,13 +183,7 @@ const handlePaymentProviderPost = (request: Request): Promise<Response> =>
 
     if (provider === "none") {
       await clearPaymentProvider();
-      return htmlResponse(
-        await renderSettingsPage(
-          session,
-          undefined,
-          "Payment provider disabled",
-        ),
-      );
+      return redirectWithSuccess("/admin/settings", "Payment provider disabled");
     }
 
     if (!VALID_PROVIDERS.has(provider)) {
@@ -193,13 +192,7 @@ const handlePaymentProviderPost = (request: Request): Promise<Response> =>
 
     await setPaymentProvider(provider);
 
-    return htmlResponse(
-      await renderSettingsPage(
-        session,
-        undefined,
-        `Payment provider set to ${provider}`,
-      ),
-    );
+    return redirectWithSuccess("/admin/settings", `Payment provider set to ${provider}`);
   });
 
 /**
@@ -241,12 +234,9 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
     // Auto-set payment provider to stripe when key is configured
     await setPaymentProvider("stripe");
 
-    return htmlResponse(
-      await renderSettingsPage(
-        session,
-        undefined,
-        "Stripe key updated and webhook configured successfully",
-      ),
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Stripe key updated and webhook configured successfully",
     );
   });
 
@@ -272,13 +262,7 @@ const handleAdminSquarePost = (request: Request): Promise<Response> =>
     // Auto-set payment provider to square when credentials are configured
     await setPaymentProvider("square");
 
-    return htmlResponse(
-      await renderSettingsPage(
-        session,
-        undefined,
-        "Square credentials updated successfully",
-      ),
-    );
+    return redirectWithSuccess("/admin/settings", "Square credentials updated successfully");
   });
 
 /**
@@ -298,12 +282,9 @@ const handleAdminSquareWebhookPost = (request: Request): Promise<Response> =>
 
     await updateSquareWebhookSignatureKey(signatureKey);
 
-    return htmlResponse(
-      await renderSettingsPage(
-        session,
-        undefined,
-        "Square webhook signature key updated successfully",
-      ),
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Square webhook signature key updated successfully",
     );
   });
 
