@@ -585,7 +585,7 @@ describe("html", () => {
     test("bolds Checked In when filter is in", () => {
       const event = testEventWithCount({ attendee_count: 1 });
       const attendees = [testAttendee()];
-      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "in");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, undefined, null, "in");
       expect(html).toContain("<strong>Checked In</strong>");
       expect(html).toContain(`href="/admin/event/${event.id}#attendees"`);
     });
@@ -593,7 +593,7 @@ describe("html", () => {
     test("bolds Checked Out when filter is out", () => {
       const event = testEventWithCount({ attendee_count: 1 });
       const attendees = [testAttendee()];
-      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "out");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, undefined, null, "out");
       expect(html).toContain("<strong>Checked Out</strong>");
     });
 
@@ -603,7 +603,7 @@ describe("html", () => {
         testAttendee({ id: 1, name: "Checked In User", checked_in: "true" }),
         testAttendee({ id: 2, name: "Not Checked In User", checked_in: "false" }),
       ];
-      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "in");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, undefined, null, "in");
       expect(html).toContain("Checked In User");
       expect(html).not.toContain("Not Checked In User");
     });
@@ -614,7 +614,7 @@ describe("html", () => {
         testAttendee({ id: 1, name: "Alice InPerson", checked_in: "true" }),
         testAttendee({ id: 2, name: "Bob Remote", checked_in: "false" }),
       ];
-      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "out");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, undefined, null, "out");
       expect(html).not.toContain("Alice InPerson");
       expect(html).toContain("Bob Remote");
     });
@@ -625,7 +625,7 @@ describe("html", () => {
         testAttendee({ id: 1, name: "Checked In User", checked_in: "true" }),
         testAttendee({ id: 2, name: "Not Checked In User", checked_in: "false" }),
       ];
-      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "all");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, undefined, null, "all");
       expect(html).toContain("Checked In User");
       expect(html).toContain("Not Checked In User");
     });
@@ -633,7 +633,7 @@ describe("html", () => {
     test("includes return_filter hidden field in checkin form", () => {
       const event = testEventWithCount({ attendee_count: 1 });
       const attendees = [testAttendee({ checked_in: "true" })];
-      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "in");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, undefined, null, "in");
       expect(html).toContain('name="return_filter"');
       expect(html).toContain('value="in"');
     });
@@ -814,14 +814,14 @@ describe("html", () => {
         { token: "abcdefghijklmnop", csrf_token: "csrf1", expires: Date.now() + 86400000, wrapped_data_key: null, user_id: 1 },
         { token: "qrstuvwxyz123456", csrf_token: "csrf2", expires: Date.now() + 86400000, wrapped_data_key: null, user_id: 2 },
       ];
-      const html = adminSessionsPage(sessions, "abcdefghijklmnop", TEST_CSRF_TOKEN);
+      const html = adminSessionsPage(sessions, "abcdefghijklmnop", TEST_CSRF_TOKEN, "owner");
       expect(html).toContain("abcdefgh...");
       expect(html).toContain("qrstuvwx...");
       expect(html).toContain("Current");
     });
 
     test("renders empty state when no sessions", () => {
-      const html = adminSessionsPage([], "some-token", TEST_CSRF_TOKEN);
+      const html = adminSessionsPage([], "some-token", TEST_CSRF_TOKEN, "owner");
       expect(html).toContain("No sessions");
     });
   });
@@ -844,6 +844,7 @@ describe("html", () => {
         TEST_CSRF_TOKEN,
         false, // stripeKeyConfigured
         "square", // paymentProvider
+        "owner", // adminLevel
         undefined, // error
         undefined, // success
         true, // squareTokenConfigured
@@ -859,6 +860,7 @@ describe("html", () => {
         TEST_CSRF_TOKEN,
         false, // stripeKeyConfigured
         "square", // paymentProvider
+        "owner", // adminLevel
         undefined, // error
         undefined, // success
         true, // squareTokenConfigured
@@ -873,6 +875,7 @@ describe("html", () => {
         TEST_CSRF_TOKEN,
         false,
         "square",
+        "owner", // adminLevel
         undefined,
         undefined,
         true,

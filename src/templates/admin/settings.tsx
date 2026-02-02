@@ -4,6 +4,7 @@
 
 import { renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import type { AdminLevel } from "#lib/types.ts";
 import {
   changePasswordFields,
   squareAccessTokenFields,
@@ -20,6 +21,7 @@ export const adminSettingsPage = (
   csrfToken: string,
   stripeKeyConfigured: boolean,
   paymentProvider: string | null,
+  adminLevel: AdminLevel,
   error?: string,
   success?: string,
   squareTokenConfigured?: boolean,
@@ -28,7 +30,7 @@ export const adminSettingsPage = (
 ): string =>
   String(
     <Layout title="Settings">
-      <AdminNav />
+      <AdminNav adminLevel={adminLevel} />
 
       {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}

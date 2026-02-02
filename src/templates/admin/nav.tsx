@@ -9,7 +9,7 @@ interface AdminNavProps {
 }
 
 /**
- * Main admin navigation - shown at top of all admin pages
+ * Universal admin navigation - shown at top of all admin pages
  * Users, Settings, and Sessions links only shown to owners
  */
 export const AdminNav = ({ adminLevel }: AdminNavProps = {}): JSX.Element => (

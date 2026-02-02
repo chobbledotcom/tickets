@@ -66,7 +66,7 @@ const handleAdminAttendeeDeleteGet = async (
   }
 
   return htmlResponse(
-    adminDeleteAttendeePage(data.event, data.attendee, session.csrfToken),
+    adminDeleteAttendeePage(data.event, data.attendee, session.csrfToken, session.adminLevel),
   );
 };
 
@@ -95,6 +95,7 @@ const handleAdminAttendeeDeletePost = (
           data.event,
           data.attendee,
           session.csrfToken,
+          session.adminLevel,
           "Attendee name does not match. Please type the exact name to confirm deletion.",
         ),
         400,

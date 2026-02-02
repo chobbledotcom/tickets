@@ -5,7 +5,7 @@
 import { filter, map, pipe, reduce } from "#fp";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
+import type { AdminLevel, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
@@ -93,6 +93,7 @@ export const adminEventPage = (
   attendees: Attendee[],
   allowedDomain: string,
   csrfToken: string,
+  adminLevel?: AdminLevel,
   checkinMessage?: CheckinMessage,
   activeFilter: AttendeeFilter = "all",
 ): string => {
@@ -115,7 +116,7 @@ export const adminEventPage = (
 
   return String(
     <Layout title={`Event: ${event.name}`}>
-      <AdminNav />
+      <AdminNav adminLevel={adminLevel} />
 
         <h1>{event.name}</h1>
         <nav>
@@ -283,13 +284,14 @@ const eventFieldsWithAutofocus: Field[] = pipe(
 export const adminDuplicateEventPage = (
   event: EventWithCount,
   csrfToken: string,
+  adminLevel?: AdminLevel,
 ): string => {
   const values = eventToFieldValues(event);
   values.name = "";
 
   return String(
     <Layout title={`Duplicate: ${event.name}`}>
-      <AdminNav />
+      <AdminNav adminLevel={adminLevel} />
         <h2>Duplicate Event</h2>
         <p>Creating a new event based on <strong>{event.name}</strong>.</p>
         <form method="POST" action="/admin/event">
@@ -307,11 +309,12 @@ export const adminDuplicateEventPage = (
 export const adminEventEditPage = (
   event: EventWithCount,
   csrfToken: string,
+  adminLevel?: AdminLevel,
   error?: string,
 ): string =>
   String(
     <Layout title={`Edit: ${event.name}`}>
-      <AdminNav />
+      <AdminNav adminLevel={adminLevel} />
         <Raw html={renderError(error)} />
         <form method="POST" action={`/admin/event/${event.id}/edit`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
@@ -328,11 +331,12 @@ export const adminEventEditPage = (
 export const adminDeleteEventPage = (
   event: EventWithCount,
   csrfToken: string,
+  adminLevel?: AdminLevel,
   error?: string,
 ): string =>
   String(
     <Layout title={`Delete: ${event.name}`}>
-      <AdminNav />
+      <AdminNav adminLevel={adminLevel} />
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -367,11 +371,12 @@ export const adminDeleteEventPage = (
 export const adminDeactivateEventPage = (
   event: EventWithCount,
   csrfToken: string,
+  adminLevel?: AdminLevel,
   error?: string,
 ): string =>
   String(
     <Layout title={`Deactivate: ${event.name}`}>
-      <AdminNav />
+      <AdminNav adminLevel={adminLevel} />
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -412,11 +417,12 @@ export const adminDeactivateEventPage = (
 export const adminReactivateEventPage = (
   event: EventWithCount,
   csrfToken: string,
+  adminLevel?: AdminLevel,
   error?: string,
 ): string =>
   String(
     <Layout title={`Reactivate: ${event.name}`}>
-      <AdminNav />
+      <AdminNav adminLevel={adminLevel} />
         {error && <div class="error">{error}</div>}
 
         <article>

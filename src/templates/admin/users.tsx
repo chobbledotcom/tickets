@@ -4,6 +4,7 @@
 
 import { renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import type { AdminLevel } from "#lib/types.ts";
 import { inviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -30,13 +31,14 @@ const userStatus = (user: DisplayUser): string => {
 export const adminUsersPage = (
   users: DisplayUser[],
   csrfToken: string,
+  adminLevel: AdminLevel,
   inviteLink?: string,
   error?: string,
   success?: string,
 ): string =>
   String(
     <Layout title="Users">
-      <AdminNav />
+      <AdminNav adminLevel={adminLevel} />
       <h1>Users</h1>
       <Raw html={renderError(error)} />
       {success && <div class="success">{success}</div>}

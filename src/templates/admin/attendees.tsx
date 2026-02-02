@@ -2,7 +2,7 @@
  * Admin attendee page templates
  */
 
-import type { Attendee, EventWithCount } from "#lib/types.ts";
+import type { AdminLevel, Attendee, EventWithCount } from "#lib/types.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -13,11 +13,12 @@ export const adminDeleteAttendeePage = (
   event: EventWithCount,
   attendee: Attendee,
   csrfToken: string,
+  adminLevel?: AdminLevel,
   error?: string,
 ): string =>
   String(
     <Layout title={`Delete Attendee: ${attendee.name}`}>
-      <AdminNav />
+      <AdminNav adminLevel={adminLevel} />
         {error && <div class="error">{error}</div>}
 
         <article>

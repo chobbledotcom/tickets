@@ -3,7 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
-import type { Session } from "#lib/types.ts";
+import type { AdminLevel, Session } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -32,6 +32,7 @@ export const adminSessionsPage = (
   sessions: Session[],
   currentToken: string,
   csrfToken: string,
+  adminLevel: AdminLevel,
   success?: string,
 ): string => {
   const sessionRows =
@@ -50,7 +51,7 @@ export const adminSessionsPage = (
 
   return String(
     <Layout title="Sessions">
-      <AdminNav />
+      <AdminNav adminLevel={adminLevel} />
 
       {success && <div class="success">{success}</div>}
 
