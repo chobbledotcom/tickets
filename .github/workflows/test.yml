@@ -8,6 +8,24 @@ env:
   STRIPE_MOCK_VERSION: "0.188.0"
 
 jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install dependencies
+        run: deno install --allow-scripts
+
+      - name: Typecheck
+        run: deno task typecheck
+
   test:
     runs-on: ubuntu-latest
 
@@ -36,9 +54,6 @@ jobs:
 
       - name: Install dependencies
         run: deno install --allow-scripts
-
-      - name: Typecheck
-        run: deno task typecheck
 
       - name: Lint
         run: deno task lint
