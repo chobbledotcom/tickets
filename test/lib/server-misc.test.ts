@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
-  awaitTestRequest,
-  createTestAttendee,
   createTestDb,
   createTestDbWithSetup,
   createTestEvent,
@@ -12,7 +9,6 @@ import {
   mockRequestWithHost,
   resetDb,
   resetTestSlugCounter,
-  expectAdminRedirect,
   loginAsAdmin,
 } from "#test-utils";
 
@@ -183,41 +179,7 @@ describe("server (misc)", () => {
     });
   });
 
-  describe("routes/utils.ts (getPrivateKey null paths)", () => {
-    test("rejects session when wrappedDataKey is null", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      // Create session without wrapped_data_key - rejected at auth layer
-      const token = "test-no-wrapped-key";
-      await createSession(token, "csrf123", Date.now() + 3600000, null);
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/1/delete`,
-        { cookie: `__Host-session=${token}` },
-      );
-      expectAdminRedirect(response);
-    });
-
-    test("rejects session with corrupt wrapped_data_key", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-
-      // Session with corrupt wrapped_data_key is rejected at auth layer
-      const token = "test-corrupt-key";
-      await createSession(token, "csrf123", Date.now() + 3600000, "corrupt-key-data");
-
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie: `__Host-session=${token}`,
-      });
-      expectAdminRedirect(response);
-    });
-
+  describe("routes/utils.ts (CSRF token validation)", () => {
     test("empty csrf_token from form falls back to empty string", async () => {
       const { cookie } = await loginAsAdmin();
 

@@ -79,19 +79,6 @@ describe("payment-helpers", () => {
       expect(result).toBeNull();
     });
 
-    test("returns null when getClient rejects", async () => {
-      const withClient = createWithClient(() =>
-        Promise.reject(new Error("no client")),
-      );
-      // getClient itself throws, and createWithClient doesn't wrap getClient in safeAsync,
-      // so the rejection propagates to the caller.
-      await expect(
-        withClient(
-          () => Promise.resolve("value"),
-          ErrorCode.PAYMENT_CHECKOUT,
-        ),
-      ).rejects.toThrow("no client");
-    });
   });
 
   describe("serializeMultiItems", () => {

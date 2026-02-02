@@ -18,9 +18,7 @@ const escapeCsvValue = (value: string): string => {
 /** Format price in cents as decimal string (e.g. 1000 -> "10.00") */
 const formatPrice = (pricePaid: string | null): string => {
   if (pricePaid === null) return "";
-  const cents = Number.parseInt(pricePaid, 10);
-  if (Number.isNaN(cents)) return "";
-  return (cents / 100).toFixed(2);
+  return (Number.parseInt(pricePaid, 10) / 100).toFixed(2);
 };
 
 /**

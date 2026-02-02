@@ -87,21 +87,10 @@ export const getAuthenticatedSession = async (
     return null;
   }
 
-  // Reject sessions without wrapped_data_key - this should never happen
-  // after setup, but protects against corrupt DB state
-  if (!session.wrapped_data_key) {
-    logError({
-      code: ErrorCode.KEY_DERIVATION,
-      detail: "Session missing wrapped_data_key",
-    });
-    await deleteSession(token);
-    return null;
-  }
-
   // Validate wrapped_data_key can be unwrapped with current DB_ENCRYPTION_KEY
   // This catches sessions created before a key rotation
   try {
-    await unwrapKeyWithToken(session.wrapped_data_key, token);
+    await unwrapKeyWithToken(session.wrapped_data_key!, token);
   } catch {
     // Key unwrapping failed - likely due to DB_ENCRYPTION_KEY rotation
     logError({
@@ -115,7 +104,7 @@ export const getAuthenticatedSession = async (
   return {
     token,
     csrfToken: session.csrf_token,
-    wrappedDataKey: session.wrapped_data_key,
+    wrappedDataKey: session.wrapped_data_key!,
   };
 };
 

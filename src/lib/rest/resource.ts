@@ -185,7 +185,7 @@ export const defineResource = <Row, Input>(
 
   const verifyName = nameField
     ? (row: Row, confirmName: string): boolean => {
-        const name = String(row[nameField] ?? "");
+        const name = String(row[nameField]);
         return name.trim().toLowerCase() === confirmName.trim().toLowerCase();
       }
     : undefined;

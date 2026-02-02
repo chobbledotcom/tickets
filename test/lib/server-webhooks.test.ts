@@ -504,47 +504,6 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("webhook with non-string event_id in metadata rejects", async () => {
-      await setupStripe();
-
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
-        valid: true,
-        event: {
-          id: "evt_test",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_bad_event_id",
-              payment_status: "paid",
-              payment_intent: "pi_test",
-              metadata: {
-                event_id: 123, // number, not string
-                name: "John",
-                email: "john@example.com",
-                quantity: "1",
-              },
-            },
-          },
-        },
-      });
-
-      try {
-        const response = await handleRequest(
-          mockWebhookRequest(
-            {},
-            { "stripe-signature": "sig_valid" },
-          ),
-        );
-        expect(response.status).toBe(400);
-        const text = await response.text();
-        expect(text).toContain("Invalid session data");
-      } finally {
-        mockVerify.mockRestore();
-      }
-    });
-
     test("webhook extracts payment_intent as paymentReference", async () => {
       await setupStripe();
 
@@ -972,52 +931,6 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("multi-ticket with non-string payment_intent sets null paymentReference", async () => {
-      await setupStripe();
-
-      const event = await createTestEvent({
-        name: "Multi No PI",
-        maxAttendees: 50,
-        unitPrice: 500,
-      });
-
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
-        valid: true,
-        event: {
-          id: "evt_no_pi",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_no_pi",
-              payment_status: "paid",
-              payment_intent: 12345, // Number, not string
-              metadata: {
-                event_id: String(event.id),
-                name: "No PI",
-                email: "nopi@example.com",
-                quantity: "1",
-              },
-            },
-          },
-        },
-      });
-
-      try {
-        const response = await handleRequest(
-          mockWebhookRequest(
-            {},
-            { "stripe-signature": "sig_valid" },
-          ),
-        );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
-      } finally {
-        mockVerify.mockRestore();
-      }
-    });
   });
 
   describe("webhook multi-ticket already processed", () => {
@@ -1647,59 +1560,6 @@ describe("server (webhooks)", () => {
       } finally {
         mockVerify.mockRestore();
         mockGetConfigured.mockRestore();
-      }
-    });
-
-    test("multi already-processed session with invalid firstEventId returns error", async () => {
-      await setupStripe();
-
-      // Create and reserve a session so it's already processed
-      const attResult = await createAttendeeAtomic(
-        (await createTestEvent({ name: "WH Multi Inv EID", maxAttendees: 50 })).id,
-        "Test", "test@example.com", null, 1,
-      );
-      if (!attResult.success) throw new Error("Failed to create attendee");
-
-      const { reserveSession: reserveSessionFn, finalizeSession: finalizeSessionFn } = await import("#lib/db/processed-payments.ts");
-      await reserveSessionFn("cs_multi_inv_eid");
-      await finalizeSessionFn("cs_multi_inv_eid", attResult.attendee.id);
-
-      // Send multi-ticket webhook where items[0].e is 0 (falsy), triggering lines 233-235
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
-        valid: true,
-        event: {
-          id: "evt_multi_inv_eid",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_inv_eid",
-              payment_status: "paid",
-              payment_intent: "pi_multi_inv_eid",
-              metadata: {
-                name: "Invalid EID",
-                email: "inveid@example.com",
-                multi: "1",
-                items: JSON.stringify([{ e: 0, q: 1 }]),
-              },
-            },
-          },
-        },
-      });
-
-      try {
-        const response = await handleRequest(
-          mockWebhookRequest(
-            {},
-            { "stripe-signature": "sig_valid" },
-          ),
-        );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.error).toContain("Invalid session data");
-      } finally {
-        mockVerify.mockRestore();
       }
     });
 

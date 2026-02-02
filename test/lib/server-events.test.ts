@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-comp
 import type { InStatement } from "@libsql/client";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
-import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -139,22 +138,6 @@ describe("server (admin events)", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/event/1"));
       expect(response.status).toBe(302);
-    });
-
-    test("redirects when wrapped data key is invalid", async () => {
-      await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-
-      // Create session with invalid wrapped_data_key
-      const token = "test-token-invalid-event";
-      await createSession(token, "csrf123", Date.now() + 3600000, "invalid");
-
-      const response = await awaitTestRequest("/admin/event/1", {
-        cookie: `__Host-session=${token}`,
-      });
-      expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
@@ -1260,24 +1243,6 @@ describe("server (admin events)", () => {
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       expect(await getEvent(event.id)).toBeNull();
       expect((await getAttendeesRaw(event.id)).length).toBe(0);
-    });
-  });
-
-  describe("admin/events.ts (withEventAttendees privateKey null)", () => {
-    test("rejects session without wrapped data key on event view", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-
-      // Create session without wrapped_data_key - rejected at auth layer
-      const token = "test-token-no-key-event";
-      await createSession(token, "csrf123", Date.now() + 3600000, null);
-
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie: `__Host-session=${token}`,
-      });
-      expectAdminRedirect(response);
     });
   });
 

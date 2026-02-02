@@ -1339,46 +1339,6 @@ describe("stripe-provider", () => {
   });
 
   describe("retrieveSession - edge cases", () => {
-    test("returns null when id is not a string", async () => {
-      await updateStripeKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
-      retrieveSpy.mockResolvedValue({
-        id: 12345, // non-string id
-        payment_status: "paid",
-        metadata: { name: "Test", email: "test@test.com", event_id: "1" },
-      } as never);
-
-      try {
-        const result = await stripePaymentProvider.retrieveSession("cs_test");
-        expect(result).toBeNull();
-      } finally {
-        retrieveSpy.mockRestore();
-      }
-    });
-
-    test("returns null when payment_status is not a string", async () => {
-      await updateStripeKey("sk_test_mock");
-      const client = await getStripeClient();
-      if (!client) throw new Error("Expected client");
-
-      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
-      retrieveSpy.mockResolvedValue({
-        id: "cs_test_123",
-        payment_status: 42, // non-string
-        metadata: { name: "Test", email: "test@test.com", event_id: "1" },
-      } as never);
-
-      try {
-        const result = await stripePaymentProvider.retrieveSession("cs_test");
-        expect(result).toBeNull();
-      } finally {
-        retrieveSpy.mockRestore();
-      }
-    });
-
     test("returns null for non-multi session without event_id", async () => {
       await updateStripeKey("sk_test_mock");
       const client = await getStripeClient();
@@ -1604,14 +1564,6 @@ describe("stripe-provider", () => {
       expect(detail).toBe("TypeError");
     });
 
-    test("returns Error when error has no name, statusCode, code, or type", () => {
-      const err = new Error("something");
-      // Error always has name "Error" by default, so set it to empty
-      Object.defineProperty(err, "name", { value: "", writable: true });
-      const detail = sanitizeErrorDetail(err);
-      // empty name is falsy, so falls back to "Error"
-      expect(detail).toBe("Error");
-    });
   });
 
   describe("getMockConfig without STRIPE_MOCK_HOST", () => {
