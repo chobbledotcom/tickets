@@ -4,7 +4,7 @@
 
 import { encrypt, encryptAttendeePII, hmacHash } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
-import { getPublicKey, getSetting } from "#lib/db/settings.ts";
+import { getPublicKey, getSetting, setSetting } from "#lib/db/settings.ts";
 
 /**
  * The latest database update identifier - update this when changing schema
@@ -252,6 +252,15 @@ export const initDb = async (): Promise<void> => {
           encryptedAdminLevel,
         ],
       });
+    }
+
+    // Fallback: if setup is complete but no users exist and no admin_password to migrate,
+    // reset setup_complete to force re-setup so the user can create a new admin account
+    if (!existingPasswordHash && hasNoUsers) {
+      const setupComplete = await getSetting("setup_complete");
+      if (setupComplete === "true") {
+        await setSetting("setup_complete", "false");
+      }
     }
   }
 

@@ -2129,5 +2129,38 @@ describe("db", () => {
       const rows = await getDb().execute("SELECT COUNT(*) as count FROM users");
       expect((rows.rows[0] as unknown as { count: number }).count).toBe(0);
     });
+
+    test("resets setup_complete when no users and no admin_password to migrate", async () => {
+      // Simulate broken state: setup complete but no users and no admin_password
+      await getDb().execute("DELETE FROM users");
+      await setSetting("setup_complete", "true");
+      // Ensure no admin_password setting exists
+      await getDb().execute("DELETE FROM settings WHERE key = 'admin_password'");
+
+      // Force re-migration
+      await getDb().execute(
+        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
+      );
+      await initDb();
+
+      // Verify setup_complete was reset to allow re-setup
+      const setupComplete = await getSetting("setup_complete");
+      expect(setupComplete).toBe("false");
+    });
+
+    test("does not reset setup_complete when users exist", async () => {
+      // Setup is complete and users exist - should not reset
+      await setSetting("setup_complete", "true");
+
+      // Force re-migration
+      await getDb().execute(
+        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
+      );
+      await initDb();
+
+      // Verify setup_complete is still true
+      const setupComplete = await getSetting("setup_complete");
+      expect(setupComplete).toBe("true");
+    });
   });
 });
