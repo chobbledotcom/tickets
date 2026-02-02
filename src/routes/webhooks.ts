@@ -230,11 +230,7 @@ const processMultiPaymentSession = async (
     const { existing } = reservation;
 
     if (existing.attendee_id !== null) {
-      const firstEventId = intent.items[0]?.e;
-      if (!firstEventId) {
-        return { success: false, error: "Invalid session data", status: 400 };
-      }
-      return alreadyProcessedResult(firstEventId, existing.attendee_id);
+      return alreadyProcessedResult(intent.items[0]!.e, existing.attendee_id);
     }
 
     // Still being processed by another request
@@ -503,13 +499,6 @@ const extractSessionFromEvent = (
     typeof obj.metadata.name !== "string" ||
     typeof obj.metadata.email !== "string"
   ) {
-    return null;
-  }
-
-  // Multi-ticket sessions have items instead of event_id
-  const isMulti =
-    obj.metadata.multi === "1" && typeof obj.metadata.items === "string";
-  if (!isMulti && typeof obj.metadata.event_id !== "string") {
     return null;
   }
 

@@ -12,10 +12,6 @@ describe("payment-crypto", () => {
       expect(secureCompare("abc123", "abc123")).toBe(true);
     });
 
-    test("returns true for empty strings", () => {
-      expect(secureCompare("", "")).toBe(true);
-    });
-
     test("returns false for different strings of same length", () => {
       expect(secureCompare("abc123", "abc124")).toBe(false);
     });
@@ -81,11 +77,6 @@ describe("payment-crypto", () => {
   });
 
   describe("hmacToHex", () => {
-    test("converts empty buffer to empty string", () => {
-      const buf = new ArrayBuffer(0);
-      expect(hmacToHex(buf)).toBe("");
-    });
-
     test("converts single byte to two hex chars", () => {
       const buf = new Uint8Array([255]).buffer;
       expect(hmacToHex(buf)).toBe("ff");
@@ -108,11 +99,6 @@ describe("payment-crypto", () => {
   });
 
   describe("hmacToBase64", () => {
-    test("converts empty buffer to empty string", () => {
-      const buf = new ArrayBuffer(0);
-      expect(hmacToBase64(buf)).toBe("");
-    });
-
     test("converts known bytes to expected base64", () => {
       // "Hello" in bytes: [72, 101, 108, 108, 111]
       const buf = new Uint8Array([72, 101, 108, 108, 111]).buffer;

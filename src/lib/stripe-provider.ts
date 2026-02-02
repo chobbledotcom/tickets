@@ -60,9 +60,6 @@ export const stripePaymentProvider: PaymentProvider = {
     if (!session) return null;
 
     const { id, payment_status, payment_intent, metadata } = session;
-    if (typeof id !== "string" || typeof payment_status !== "string") {
-      return null;
-    }
 
     if (!hasRequiredSessionMetadata(metadata)) {
       return null;

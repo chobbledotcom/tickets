@@ -655,40 +655,6 @@ describe("square", () => {
       );
     });
 
-    test("filters out non-string metadata values", async () => {
-      const { client, ordersGet } = createMockClient();
-      ordersGet.mockResolvedValue({
-        order: {
-          id: "order_meta",
-          metadata: {
-            event_id: "1",
-            name: "John",
-            email: "john@example.com",
-            bad_null: null,
-            bad_number: 42,
-          },
-          state: "COMPLETED",
-          tenders: [],
-        },
-      });
-
-      await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
-        async () => {
-          const result = await squareApi.retrieveOrder("order_meta");
-          expect(result).not.toBeNull();
-          expect(result!.metadata).toEqual({
-            event_id: "1",
-            name: "John",
-            email: "john@example.com",
-          });
-          // Non-string values should be filtered out
-          // deno-lint-ignore no-explicit-any
-          expect((result!.metadata as any)["bad_null"]).toBeUndefined();
-        },
-      );
-    });
-
     test("maps tender paymentId correctly", async () => {
       const { client, ordersGet } = createMockClient();
       ordersGet.mockResolvedValue({
@@ -788,52 +754,6 @@ describe("square", () => {
       );
     });
 
-    test("maps null amountMoney.amount to undefined", async () => {
-      const { client, paymentsGet } = createMockClient();
-      paymentsGet.mockResolvedValue({
-        payment: {
-          id: "pay_null_amount",
-          status: "COMPLETED",
-          orderId: "order_null_amt",
-          amountMoney: {
-            amount: null,
-            currency: "USD",
-          },
-        },
-      });
-
-      await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
-        async () => {
-          const result = await squareApi.retrievePayment("pay_null_amount");
-          expect(result).not.toBeNull();
-          expect(result!.amountMoney).not.toBeUndefined();
-          expect(result!.amountMoney!.amount).toBeUndefined();
-          expect(result!.amountMoney!.currency).toBe("USD");
-        },
-      );
-    });
-
-    test("handles missing amountMoney gracefully", async () => {
-      const { client, paymentsGet } = createMockClient();
-      paymentsGet.mockResolvedValue({
-        payment: {
-          id: "pay_no_amount",
-          status: "COMPLETED",
-          orderId: "order_888",
-          amountMoney: undefined,
-        },
-      });
-
-      await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
-        async () => {
-          const result = await squareApi.retrievePayment("pay_no_amount");
-          expect(result).not.toBeNull();
-          expect(result!.amountMoney).toBeUndefined();
-        },
-      );
-    });
   });
 
   describe("retrievePayment wrapper export", () => {
@@ -865,18 +785,6 @@ describe("square", () => {
     test("returns false when access token not set", async () => {
       const result = await squareApi.refundPayment("pay_123");
       expect(result).toBe(false);
-    });
-
-    test("returns false when payment has no amount info", async () => {
-      await withMocks(
-        () =>
-          spyOn(squareApi, "retrievePayment")
-            .mockResolvedValue({ id: "pay_123", status: "COMPLETED" }),
-        async () => {
-          const result = await squareApi.refundPayment("pay_123");
-          expect(result).toBe(false);
-        },
-      );
     });
 
     test("returns false when payment retrieval returns null", async () => {

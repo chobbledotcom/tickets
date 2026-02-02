@@ -21,9 +21,6 @@ export function getEnv(key: string): string | undefined {
   }
 
   // Fall back to Deno.env for local development
-  if (typeof Deno !== "undefined" && Deno.env) {
-    return Deno.env.get(key);
-  }
-
-  return undefined;
+  // In Bunny Edge production, process.env is always available (handled above)
+  return Deno!.env.get(key);
 }
