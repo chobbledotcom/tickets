@@ -4,7 +4,7 @@
 
 import { map, pipe, reduce } from "#fp";
 import type { ActivityLogEntry } from "#lib/db/activityLog.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -34,10 +34,11 @@ const activityLogRows = (entries: ActivityLogEntry[]): string =>
 export const adminEventActivityLogPage = (
   event: EventWithCount,
   entries: ActivityLogEntry[],
+  session?: AdminSession,
 ): string =>
   String(
     <Layout title={`Log: ${event.name}`}>
-      <AdminNav />
+      <AdminNav session={session} />
         <h2>Log</h2>
         <table>
           <thead>
@@ -59,10 +60,11 @@ export const adminEventActivityLogPage = (
 export const adminGlobalActivityLogPage = (
   entries: ActivityLogEntry[],
   truncated = false,
+  session?: AdminSession,
 ): string =>
   String(
     <Layout title="Log">
-      <AdminNav />
+      <AdminNav session={session} />
         <h2>Log</h2>
         <table>
           <thead>

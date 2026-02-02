@@ -3,7 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
-import type { Session } from "#lib/types.ts";
+import type { AdminSession, Session } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -31,7 +31,7 @@ const SessionRow = ({
 export const adminSessionsPage = (
   sessions: Session[],
   currentToken: string,
-  csrfToken: string,
+  adminSession: AdminSession,
   success?: string,
 ): string => {
   const sessionRows =
@@ -50,7 +50,7 @@ export const adminSessionsPage = (
 
   return String(
     <Layout title="Sessions">
-      <AdminNav />
+      <AdminNav session={adminSession} />
 
       {success && <div class="success">{success}</div>}
 
@@ -72,7 +72,7 @@ export const adminSessionsPage = (
           <br />
 
             <form method="POST" action="/admin/sessions" class="one-button">
-              <input type="hidden" name="csrf_token" value={csrfToken} />
+              <input type="hidden" name="csrf_token" value={adminSession.csrfToken} />
               <button type="submit" class="danger">
                 Log out of all other sessions ({otherSessionCount})
               </button>

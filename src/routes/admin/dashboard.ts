@@ -21,7 +21,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) =>
-      htmlResponse(adminDashboardPage(await getAllEvents(), session.csrfToken, session.adminLevel)),
+      htmlResponse(adminDashboardPage(await getAllEvents(), session)),
     () => loginResponse(),
   );
 
@@ -32,11 +32,11 @@ const LOG_DISPLAY_LIMIT = 200;
  * Handle GET /admin/log
  */
 const handleAdminLog = (request: Request): Promise<Response> =>
-  requireSessionOr(request, async () => {
+  requireSessionOr(request, async (session) => {
     const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
     const truncated = entries.length > LOG_DISPLAY_LIMIT;
     const displayEntries = truncated ? entries.slice(0, LOG_DISPLAY_LIMIT) : entries;
-    return htmlResponse(adminGlobalActivityLogPage(displayEntries, truncated));
+    return htmlResponse(adminGlobalActivityLogPage(displayEntries, truncated, session));
   });
 
 /** Dashboard routes */

@@ -51,6 +51,12 @@ export interface Session {
 /** Admin role levels */
 export type AdminLevel = "owner" | "manager";
 
+/** Session data needed by admin page templates */
+export type AdminSession = {
+  readonly csrfToken: string;
+  readonly adminLevel: AdminLevel;
+};
+
 export interface User {
   id: number;
   username_hash: string; // encrypted at rest, decrypted to display

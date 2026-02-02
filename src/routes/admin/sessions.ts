@@ -17,7 +17,7 @@ const handleAdminSessionsGet = (request: Request): Promise<Response> =>
     // Hash the token for comparison with stored hashed tokens
     const tokenHash = await hashSessionToken(session.token);
     return htmlResponse(
-      adminSessionsPage(sessions, tokenHash, session.csrfToken),
+      adminSessionsPage(sessions, tokenHash, session),
     );
   });
 
@@ -34,7 +34,7 @@ const handleAdminSessionsPost = (request: Request): Promise<Response> =>
       adminSessionsPage(
         sessions,
         tokenHash,
-        session.csrfToken,
+        session,
         "Logged out of all other sessions",
       ),
     );

@@ -5,7 +5,7 @@
 import { filter, map, pipe, reduce } from "#fp";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
@@ -92,7 +92,7 @@ export const adminEventPage = (
   event: EventWithCount,
   attendees: Attendee[],
   allowedDomain: string,
-  csrfToken: string,
+  session: AdminSession,
   checkinMessage?: CheckinMessage,
   activeFilter: AttendeeFilter = "all",
 ): string => {
@@ -103,7 +103,7 @@ export const adminEventPage = (
   const attendeeRows =
     filteredAttendees.length > 0
       ? pipe(
-          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken, activeFilter })),
+          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken: session.csrfToken, activeFilter })),
           joinStrings,
         )(filteredAttendees)
       : '<tr><td colspan="7">No attendees yet</td></tr>';
@@ -115,7 +115,7 @@ export const adminEventPage = (
 
   return String(
     <Layout title={`Event: ${event.name}`}>
-      <AdminNav />
+      <AdminNav session={session} />
 
         <h1>{event.name}</h1>
         <nav>
@@ -282,18 +282,18 @@ const eventFieldsWithAutofocus: Field[] = pipe(
  */
 export const adminDuplicateEventPage = (
   event: EventWithCount,
-  csrfToken: string,
+  session: AdminSession,
 ): string => {
   const values = eventToFieldValues(event);
   values.name = "";
 
   return String(
     <Layout title={`Duplicate: ${event.name}`}>
-      <AdminNav />
+      <AdminNav session={session} />
         <h2>Duplicate Event</h2>
         <p>Creating a new event based on <strong>{event.name}</strong>.</p>
         <form method="POST" action="/admin/event">
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(eventFieldsWithAutofocus, values)} />
           <button type="submit">Create Event</button>
         </form>
@@ -306,15 +306,15 @@ export const adminDuplicateEventPage = (
  */
 export const adminEventEditPage = (
   event: EventWithCount,
-  csrfToken: string,
+  session: AdminSession,
   error?: string,
 ): string =>
   String(
     <Layout title={`Edit: ${event.name}`}>
-      <AdminNav />
+      <AdminNav session={session} />
         <Raw html={renderError(error)} />
         <form method="POST" action={`/admin/event/${event.id}/edit`}>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
           <Raw html={renderField(slugField, String(event.slug))} />
           <button type="submit">Save Changes</button>
@@ -327,12 +327,12 @@ export const adminEventEditPage = (
  */
 export const adminDeleteEventPage = (
   event: EventWithCount,
-  csrfToken: string,
+  session: AdminSession,
   error?: string,
 ): string =>
   String(
     <Layout title={`Delete: ${event.name}`}>
-      <AdminNav />
+      <AdminNav session={session} />
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -344,7 +344,7 @@ export const adminDeleteEventPage = (
         <p>To delete this event, type its name "{event.name}" into the box below:</p>
 
         <form method="POST" action={`/admin/event/${event.id}/delete`}>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="confirm_identifier">Event name</label>
           <input
             type="text"
@@ -366,12 +366,12 @@ export const adminDeleteEventPage = (
  */
 export const adminDeactivateEventPage = (
   event: EventWithCount,
-  csrfToken: string,
+  session: AdminSession,
   error?: string,
 ): string =>
   String(
     <Layout title={`Deactivate: ${event.name}`}>
-      <AdminNav />
+      <AdminNav session={session} />
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -389,7 +389,7 @@ export const adminDeactivateEventPage = (
         <p>To deactivate this event, type its name "{event.name}" into the box below:</p>
 
         <form method="POST" action={`/admin/event/${event.id}/deactivate`}>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="confirm_identifier">Event name</label>
           <input
             type="text"
@@ -411,12 +411,12 @@ export const adminDeactivateEventPage = (
  */
 export const adminReactivateEventPage = (
   event: EventWithCount,
-  csrfToken: string,
+  session: AdminSession,
   error?: string,
 ): string =>
   String(
     <Layout title={`Reactivate: ${event.name}`}>
-      <AdminNav />
+      <AdminNav session={session} />
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -429,7 +429,7 @@ export const adminReactivateEventPage = (
         <p>To reactivate this event, type its name "{event.name}" into the box below:</p>
 
         <form method="POST" action={`/admin/event/${event.id}/reactivate`}>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="confirm_identifier">Event name</label>
           <input
             type="text"
