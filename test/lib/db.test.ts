@@ -2021,7 +2021,7 @@ describe("db", () => {
       expect(decrypted).toBe("");
     });
 
-    test("skips already-encrypted closes_at values", async () => {
+    test("leaves already-encrypted closes_at values unchanged", async () => {
       const { encrypt, decrypt } = await import("#lib/crypto.ts");
       const encrypted = await encrypt("2099-06-15T14:30:00.000Z");
       const slugIdx = await computeSlugIndex("test-mig-2");
@@ -2043,73 +2043,6 @@ describe("db", () => {
       const raw = rows.rows[0]?.closes_at as string | null;
       const decrypted = await decrypt(raw as string);
       expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
-    });
-
-    test("backfills plain text empty string to encrypted empty string", async () => {
-      const slugIdx = await computeSlugIndex("test-mig-3");
-      await getDb().execute({
-        sql: `INSERT INTO events (name, slug, slug_index, max_attendees, created, closes_at) VALUES (?, ?, ?, ?, ?, ?)`,
-        args: ["empty-name", "empty-slug", slugIdx, 100, new Date().toISOString(), ""],
-      });
-
-      await getDb().execute(
-        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
-      );
-      await initDb();
-
-      const rows = await getDb().execute(
-        `SELECT closes_at FROM events WHERE slug_index = ?`,
-        [slugIdx],
-      );
-      const raw = rows.rows[0]?.closes_at as string | null;
-      const { decrypt } = await import("#lib/crypto.ts");
-      const decrypted = await decrypt(raw as string);
-      expect(decrypted).toBe("");
-    });
-
-    test("backfills plain text full ISO datetime to encrypted", async () => {
-      const slugIdx = await computeSlugIndex("test-mig-4");
-      await getDb().execute({
-        sql: `INSERT INTO events (name, slug, slug_index, max_attendees, created, closes_at) VALUES (?, ?, ?, ?, ?, ?)`,
-        args: ["iso-name", "iso-slug", slugIdx, 100, new Date().toISOString(), "2099-03-01T10:00:00.000Z"],
-      });
-
-      await getDb().execute(
-        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
-      );
-      await initDb();
-
-      const rows = await getDb().execute(
-        `SELECT closes_at FROM events WHERE slug_index = ?`,
-        [slugIdx],
-      );
-      const raw = rows.rows[0]?.closes_at as string | null;
-      const { decrypt } = await import("#lib/crypto.ts");
-      const decrypted = await decrypt(raw as string);
-      expect(decrypted).toBe("2099-03-01T10:00:00.000Z");
-    });
-
-    test("backfills plain text short datetime to encrypted normalized ISO", async () => {
-      const slugIdx = await computeSlugIndex("test-mig-5");
-      await getDb().execute({
-        sql: `INSERT INTO events (name, slug, slug_index, max_attendees, created, closes_at) VALUES (?, ?, ?, ?, ?, ?)`,
-        args: ["plain-name", "plain-slug", slugIdx, 100, new Date().toISOString(), "2099-03-01T10:00"],
-      });
-
-      await getDb().execute(
-        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
-      );
-      await initDb();
-
-      // Verify it's now encrypted and normalized
-      const rows = await getDb().execute(
-        `SELECT closes_at FROM events WHERE slug_index = ?`,
-        [slugIdx],
-      );
-      const raw = rows.rows[0]?.closes_at as string | null;
-      const { decrypt } = await import("#lib/crypto.ts");
-      const decrypted = await decrypt(raw as string);
-      expect(decrypted).toBe("2099-03-01T10:00:00.000Z");
     });
   });
 });

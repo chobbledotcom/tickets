@@ -195,37 +195,15 @@ export const initDb = async (): Promise<void> => {
   // Migration: add closes_at column to events (encrypted, empty string = no deadline)
   await runMigration(`ALTER TABLE events ADD COLUMN closes_at TEXT`);
 
-  // Backfill: encrypt closes_at values for existing events
-  // NULL → encrypted(""), plain datetime → encrypted(normalized ISO)
+  // Backfill: encrypt NULL closes_at to encrypted empty string for existing events
   {
-    const encryptClosesAt = async (id: number, plain: string): Promise<void> => {
-      const encrypted = await encrypt(plain);
+    const rows = await getDb().execute(`SELECT id FROM events WHERE closes_at IS NULL`);
+    const encrypted = await encrypt("");
+    for (const row of rows.rows) {
       await getDb().execute({
         sql: `UPDATE events SET closes_at = ? WHERE id = ?`,
-        args: [encrypted, id],
+        args: [encrypted, row.id as number],
       });
-    };
-
-    const rows = await getDb().execute(`SELECT id, closes_at FROM events`);
-    for (const row of rows.rows) {
-      const id = row.id as number;
-      const raw = row.closes_at as string | null;
-      if (raw === null) {
-        await encryptClosesAt(id, "");
-      } else {
-        // Check if already encrypted by attempting decrypt
-        try {
-          await decrypt(raw);
-        } catch {
-          // Plain text datetime — normalize to full UTC ISO and encrypt
-          if (raw === "") {
-            await encryptClosesAt(id, "");
-          } else {
-            const n = raw.length === 16 ? `${raw}:00.000Z` : raw;
-            await encryptClosesAt(id, new Date(n).toISOString());
-          }
-        }
-      }
     }
   }
 
