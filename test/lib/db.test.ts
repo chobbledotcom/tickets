@@ -2065,4 +2065,69 @@ describe("db", () => {
       expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
     });
   });
+
+  describe("multi-user admin migration", () => {
+    test("migrates existing admin_password from settings to users table", async () => {
+      const { hashPassword, decrypt } = await import("#lib/crypto.ts");
+
+      // Simulate pre-migration state: admin credentials in settings, no users
+      const passwordHash = await hashPassword("existingpassword");
+      await setSetting("admin_password", passwordHash);
+      await setSetting("wrapped_data_key", "test-wrapped-key");
+      await getDb().execute("DELETE FROM users");
+
+      // Force re-migration
+      await getDb().execute(
+        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
+      );
+      await initDb();
+
+      // Verify an owner user was created
+      const rows = await getDb().execute("SELECT * FROM users");
+      expect(rows.rows.length).toBe(1);
+
+      const user = rows.rows[0] as unknown as { password_hash: string; wrapped_data_key: string; admin_level: string };
+      const decryptedLevel = await decrypt(user.admin_level);
+      expect(decryptedLevel).toBe("owner");
+      expect(user.wrapped_data_key).toBe("test-wrapped-key");
+
+      // Verify the password hash was encrypted (not stored raw)
+      const decryptedHash = await decrypt(user.password_hash);
+      expect(decryptedHash).toBe(passwordHash);
+    });
+
+    test("skips migration when users already exist", async () => {
+      // createTestDbWithSetup already created a user
+      await setSetting("admin_password", "old-hash");
+      await setSetting("wrapped_data_key", "old-key");
+
+      const beforeCount = await getDb().execute("SELECT COUNT(*) as count FROM users");
+      const countBefore = (beforeCount.rows[0] as unknown as { count: number }).count;
+
+      // Force re-migration
+      await getDb().execute(
+        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
+      );
+      await initDb();
+
+      // Verify no additional user was created
+      const afterCount = await getDb().execute("SELECT COUNT(*) as count FROM users");
+      expect((afterCount.rows[0] as unknown as { count: number }).count).toBe(countBefore);
+    });
+
+    test("skips migration when no admin_password in settings", async () => {
+      // Remove all users and ensure no admin_password setting exists
+      await getDb().execute("DELETE FROM users");
+
+      // Force re-migration
+      await getDb().execute(
+        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
+      );
+      await initDb();
+
+      // Verify no user was created
+      const rows = await getDb().execute("SELECT COUNT(*) as count FROM users");
+      expect((rows.rows[0] as unknown as { count: number }).count).toBe(0);
+    });
+  });
 });

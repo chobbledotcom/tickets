@@ -2,9 +2,9 @@
  * Database migrations
  */
 
-import { encrypt, encryptAttendeePII } from "#lib/crypto.ts";
+import { encrypt, encryptAttendeePII, hmacHash } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
-import { getPublicKey } from "#lib/db/settings.ts";
+import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 
 /**
  * The latest database update identifier - update this when changing schema
@@ -225,6 +225,35 @@ export const initDb = async (): Promise<void> => {
   await runMigration(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_index ON users(username_index)`,
   );
+
+  // Migration: migrate existing single-admin credentials to users table
+  // For pre-multi-user installations, admin_password and wrapped_data_key are in settings
+  {
+    const existingPasswordHash = await getSetting("admin_password");
+    const existingWrappedDataKey = await getSetting("wrapped_data_key");
+    const userCount = await getDb().execute("SELECT COUNT(*) as count FROM users");
+    const hasNoUsers = (userCount.rows[0] as unknown as { count: number }).count === 0;
+
+    if (existingPasswordHash && hasNoUsers) {
+      const username = "admin";
+      const usernameIndex = await hmacHash(username);
+      const encryptedUsername = await encrypt(username);
+      const encryptedPasswordHash = await encrypt(existingPasswordHash);
+      const encryptedAdminLevel = await encrypt("owner");
+
+      await getDb().execute({
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+              VALUES (?, ?, ?, ?, ?)`,
+        args: [
+          encryptedUsername,
+          usernameIndex,
+          encryptedPasswordHash,
+          existingWrappedDataKey,
+          encryptedAdminLevel,
+        ],
+      });
+    }
+  }
 
   // Migration: add user_id column to sessions (nullable for migration compatibility)
   await runMigration(`ALTER TABLE sessions ADD COLUMN user_id INTEGER`);
