@@ -190,7 +190,7 @@ const parseQuantity = (form: URLSearchParams, event: EventWithCount): number =>
 
 /** CSRF error response for ticket page */
 const ticketCsrfError = (event: EventWithCount) => (token: string) =>
-  ticketResponseWithCookie(event, false)(token)(
+  ticketResponseWithCookie(event, false, false)(token)(
     "Invalid or expired form. Please try again.",
     403,
   );
