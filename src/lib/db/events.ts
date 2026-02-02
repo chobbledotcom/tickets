@@ -22,10 +22,6 @@ export type EventInput = {
   fields?: EventFields;
 };
 
-/** Decrypt strings, treating unencrypted empty string as "" (migration default) */
-const decryptOrEmpty = (v: string): Promise<string> =>
-  v === "" ? Promise.resolve("") : decrypt(v);
-
 /** Compute slug index from slug for blind index lookup */
 export const computeSlugIndex = (slug: string): Promise<string> =>
   hmacHash(slug);
@@ -40,7 +36,7 @@ export const eventsTable = defineTable<Event, EventInput>({
   schema: {
     id: col.generated<number>(),
     name: col.encrypted<string>(encrypt, decrypt),
-    description: { default: () => "", write: encrypt, read: decryptOrEmpty },
+    description: { default: () => "", write: encrypt, read: decrypt },
     slug: col.encrypted<string>(encrypt, decrypt),
     slug_index: col.simple<string>(),
     created: col.withDefault(() => new Date().toISOString()),

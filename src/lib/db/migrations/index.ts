@@ -2,6 +2,7 @@
  * Database migrations
  */
 
+import { encrypt } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
 
 /**
@@ -170,8 +171,13 @@ export const initDb = async (): Promise<void> => {
   await runMigration(`ALTER TABLE events ADD COLUMN name TEXT NOT NULL DEFAULT ''`);
   await runMigration(`UPDATE events SET name = slug WHERE name = ''`);
 
-  // Migration: add description column to events (encrypted, defaults to empty string)
+  // Migration: add description column to events (encrypted empty string for existing rows)
   await runMigration(`ALTER TABLE events ADD COLUMN description TEXT NOT NULL DEFAULT ''`);
+  const encryptedEmpty = await encrypt("");
+  await getDb().execute({
+    sql: `UPDATE events SET description = ? WHERE description = ''`,
+    args: [encryptedEmpty],
+  });
 
   // Update the version marker
   await getDb().execute({
