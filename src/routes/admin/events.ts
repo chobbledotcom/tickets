@@ -19,7 +19,7 @@ import {
 } from "#lib/db/events.ts";
 import { createHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
-import { generateSlug, normalizeSlug, validateSlug } from "#lib/slug.ts";
+import { generateSlug, normalizeSlug } from "#lib/slug.ts";
 import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
 import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
