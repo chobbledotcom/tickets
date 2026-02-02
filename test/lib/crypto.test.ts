@@ -10,6 +10,7 @@ import {
   generateDataKey,
   generateKeyPair,
   generateSecureToken,
+  generateTicketToken,
   hashPassword,
   hashSessionToken,
   hmacHash,
@@ -91,6 +92,24 @@ describe("generateSecureToken", () => {
     // 256/6 = ~43 chars (without padding)
     const token = generateSecureToken();
     expect(token.length).toBe(43);
+  });
+});
+
+describe("generateTicketToken", () => {
+  it("returns a base64url string of 11 characters", () => {
+    // 8 bytes = 64 bits, base64url encodes 6 bits per char
+    // ceil(64/6) = 11 chars (without padding)
+    const token = generateTicketToken();
+    expect(token).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(token.length).toBe(11);
+  });
+
+  it("generates unique tokens", () => {
+    const tokens = new Set<string>();
+    for (let i = 0; i < 100; i++) {
+      tokens.add(generateTicketToken());
+    }
+    expect(tokens.size).toBe(100);
   });
 });
 

@@ -7,8 +7,8 @@
  */
 
 import { map } from "#fp";
-import { decrypt, decryptAttendeePII, encrypt, encryptAttendeePII } from "#lib/crypto.ts";
-import { getDb, queryOne } from "#lib/db/client.ts";
+import { decrypt, decryptAttendeePII, encrypt, encryptAttendeePII, generateTicketToken } from "#lib/crypto.ts";
+import { getDb, inPlaceholders, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
 import { col, defineTable } from "#lib/db/table.ts";
@@ -135,6 +135,7 @@ const buildAttendeeResult = (
   paymentId: string | null,
   quantity: number,
   pricePaid: number | null,
+  ticketToken: string,
 ): Attendee => ({
   id: Number(insertId),
   event_id: eventId,
@@ -146,6 +147,7 @@ const buildAttendeeResult = (
   quantity,
   price_paid: pricePaid !== null ? String(pricePaid) : null,
   checked_in: "false",
+  ticket_token: ticketToken,
 });
 
 /**
@@ -209,10 +211,12 @@ export const attendeesApi = {
       return { success: false, reason: "encryption_error" };
     }
 
+    const ticketToken = generateTicketToken();
+
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid, checked_in)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid, checked_in, ticket_token)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?
             ) + ? <= (
@@ -228,6 +232,7 @@ export const attendeesApi = {
         qty,
         enc.encryptedPricePaid,
         enc.encryptedCheckedIn,
+        ticketToken,
         eventId,
         qty,
         eventId,
@@ -250,6 +255,7 @@ export const attendeesApi = {
         paymentId,
         qty,
         pricePaid,
+        ticketToken,
       ),
     };
   },
@@ -271,6 +277,22 @@ export const createAttendeeAtomic = (
   phone = "",
   price: number | null = null,
 ): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(evtId, n, e, pId, q, phone, price);
+
+/**
+ * Get attendees by ticket tokens (plaintext, no decryption needed for token lookup)
+ * Returns attendees in the same order as the input tokens.
+ */
+export const getAttendeesByTokens = async (
+  tokens: string[],
+): Promise<(Attendee | null)[]> => {
+  const result = await getDb().execute({
+    sql: `SELECT * FROM attendees WHERE ticket_token IN (${inPlaceholders(tokens)})`,
+    args: tokens,
+  });
+  const rows = result.rows as unknown as Attendee[];
+  const byToken = new Map(map((r: Attendee) => [r.ticket_token, r] as const)(rows));
+  return map((t: string) => byToken.get(t) ?? null)(tokens);
+};
 
 /**
  * Update an attendee's checked_in status (encrypted)

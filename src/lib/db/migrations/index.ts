@@ -2,14 +2,14 @@
  * Database migrations
  */
 
-import { encrypt, encryptAttendeePII, hmacHash } from "#lib/crypto.ts";
+import { encrypt, encryptAttendeePII, generateTicketToken, hmacHash } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
 import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "migrate admin user";
+export const LATEST_UPDATE = "add ticket_token";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -260,6 +260,25 @@ export const initDb = async (): Promise<void> => {
 
   // Clear sessions without user_id (pre-migration sessions)
   await runMigration(`DELETE FROM sessions WHERE user_id IS NULL`);
+
+  // Migration: add ticket_token column to attendees (unique, for public ticket URLs)
+  await runMigration(`ALTER TABLE attendees ADD COLUMN ticket_token TEXT NOT NULL DEFAULT ''`);
+
+  // Backfill existing attendees with random tokens
+  {
+    const rows = await getDb().execute(`SELECT id FROM attendees WHERE ticket_token = ''`);
+    for (const row of rows.rows) {
+      await getDb().execute({
+        sql: `UPDATE attendees SET ticket_token = ? WHERE id = ?`,
+        args: [generateTicketToken(), row.id as number],
+      });
+    }
+  }
+
+  // Create unique index on ticket_token for fast lookups
+  await runMigration(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_attendees_ticket_token ON attendees(ticket_token)`,
+  );
 
   // Update the version marker
   await getDb().execute({

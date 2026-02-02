@@ -52,6 +52,12 @@ const loadJoinRoutes = once(async () => {
   return routeJoin;
 });
 
+/** Lazy-load ticket view routes */
+const loadTicketViewRoutes = once(async () => {
+  const { routeTicketView } = await import("#routes/tickets.ts");
+  return routeTicketView;
+});
+
 // Re-export middleware functions for testing
 export {
   getSecurityHeaders,
@@ -91,6 +97,7 @@ const routeTicketPath = createLazyRoute(
 );
 const routePaymentPath = createLazyRoute("/payment", loadPaymentRoutes);
 const routeJoinPath = createLazyRoute("/join", loadJoinRoutes);
+const routeTicketViewPath = createLazyRoute("/t", loadTicketViewRoutes);
 
 /**
  * Route main application requests (after setup is complete)
@@ -100,6 +107,7 @@ const routeMainApp: RouterFn = async (request, path, method, server) =>
   (await routeHome(request, path, method, server)) ??
   (await routeAdminPath(request, path, method, server)) ??
   (await routeTicketPath(request, path, method, server)) ??
+  (await routeTicketViewPath(request, path, method, server)) ??
   (await routePaymentPath(request, path, method, server)) ??
   (await routeJoinPath(request, path, method, server)) ??
   notFoundResponse();

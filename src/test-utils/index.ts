@@ -888,6 +888,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   quantity: 1,
   price_paid: null,
   checked_in: "false",
+  ticket_token: "test-token-1",
   ...overrides,
 });
 

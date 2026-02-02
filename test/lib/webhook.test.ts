@@ -29,6 +29,7 @@ const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee
   name: "Jane Doe",
   email: "jane@example.com",
   phone: "555-1234",
+  ticket_token: "test-token-42",
   ...overrides,
 });
 
@@ -62,6 +63,7 @@ describe("webhook", () => {
       expect(payload.price_paid).toBeNull();
       expect(payload.currency).toBe("GBP");
       expect(payload.payment_id).toBeNull();
+      expect(payload.ticket_url).toBe("https://localhost/t/test-token-42");
       expect(payload.tickets).toHaveLength(1);
       expect(payload.tickets[0]!.event_name).toBe("Test Event");
       expect(payload.tickets[0]!.event_slug).toBe("test-event");
@@ -95,11 +97,11 @@ describe("webhook", () => {
       const entries: RegistrationEntry[] = [
         {
           event: makeEvent({ id: 1, name: "Event A", slug: "event-a", unit_price: 300 }),
-          attendee: makeAttendee({ price_paid: "300", payment_id: "pi_multi" }),
+          attendee: makeAttendee({ ticket_token: "tok-a", price_paid: "300", payment_id: "pi_multi" }),
         },
         {
           event: makeEvent({ id: 2, name: "Event B", slug: "event-b", unit_price: 700 }),
-          attendee: makeAttendee({ quantity: 2, price_paid: "1400", payment_id: "pi_multi" }),
+          attendee: makeAttendee({ ticket_token: "tok-b", quantity: 2, price_paid: "1400", payment_id: "pi_multi" }),
         },
       ];
 
@@ -108,6 +110,7 @@ describe("webhook", () => {
       expect(payload.name).toBe("Jane Doe");
       expect(payload.price_paid).toBe(1700);
       expect(payload.payment_id).toBe("pi_multi");
+      expect(payload.ticket_url).toBe("https://localhost/t/tok-a+tok-b");
       expect(payload.tickets).toHaveLength(2);
       expect(payload.tickets[0]!.event_name).toBe("Event A");
       expect(payload.tickets[0]!.unit_price).toBe(300);

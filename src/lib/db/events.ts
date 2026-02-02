@@ -3,7 +3,7 @@
  */
 
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
-import { executeByField, getDb, queryBatch, queryOne } from "#lib/db/client.ts";
+import { executeByField, getDb, inPlaceholders, queryBatch, queryOne } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 import type { Attendee, Event, EventFields, EventWithCount } from "#lib/types.ts";
 
@@ -251,12 +251,11 @@ export const getEventsBySlugsBatch = async (
   const slugIndices = await Promise.all(slugs.map(computeSlugIndex));
 
   // Build a single query with IN clause for all slug indices
-  const placeholders = slugIndices.map(() => "?").join(", ");
   const result = await getDb().execute({
     sql: `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
           FROM events e
           LEFT JOIN attendees a ON e.id = a.event_id
-          WHERE e.slug_index IN (${placeholders})
+          WHERE e.slug_index IN (${inPlaceholders(slugIndices)})
           GROUP BY e.id`,
     args: slugIndices,
   });
