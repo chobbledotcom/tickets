@@ -43,7 +43,7 @@ describe("check-in (/checkin/:tokens)", () => {
   });
 
   describe("GET /checkin/:tokens (authenticated admin)", () => {
-    test("auto-checks-in attendee and shows admin view", async () => {
+    test("shows current status without auto-checking-in", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com");
       const attendees = await getAttendeesRaw(event.id);
@@ -56,12 +56,28 @@ describe("check-in (/checkin/:tokens)", () => {
       expect(response.status).toBe(200);
 
       const body = await response.text();
-      expect(body).toContain("Check-in Complete");
-      expect(body).toContain("Yes");
-      expect(body).toContain("Check Out");
+      expect(body).toContain("No");
+      expect(body).toContain("Check in");
+      expect(body).not.toContain('class="success"');
     });
 
-    test("auto-checks-in multiple attendees", async () => {
+    test("shows attendee contact details in admin view", async () => {
+      const event = await createTestEvent({ maxAttendees: 10, fields: "both" });
+      await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com", 1, "555-1234");
+      const attendees = await getAttendeesRaw(event.id);
+      const token = attendees[0]!.ticket_token;
+
+      const session = await loginAsAdmin();
+      const response = await awaitTestRequest(`/checkin/${token}`, {
+        cookie: session.cookie,
+      });
+      const body = await response.text();
+      expect(body).toContain("Bob");
+      expect(body).toContain("bob@test.com");
+      expect(body).toContain("555-1234");
+    });
+
+    test("shows multiple attendees from different events", async () => {
       const eventA = await createTestEvent({ maxAttendees: 10 });
       const eventB = await createTestEvent({ maxAttendees: 10 });
       await createTestAttendee(eventA.id, eventA.slug, "Carol", "carol@test.com");
@@ -104,28 +120,72 @@ describe("check-in (/checkin/:tokens)", () => {
       expect(body).toContain(event.name);
       expect(body).toContain("3");
     });
-  });
 
-  describe("POST /checkin/:tokens (check-out)", () => {
-    test("checks out attendees when admin posts with valid CSRF", async () => {
+    test("shows green check-in button when not checked in", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");
       const attendees = await getAttendeesRaw(event.id);
       const token = attendees[0]!.ticket_token;
 
       const session = await loginAsAdmin();
-
-      // First check in
-      await awaitTestRequest(`/checkin/${token}`, {
+      const response = await awaitTestRequest(`/checkin/${token}`, {
         cookie: session.cookie,
       });
+      const body = await response.text();
+      expect(body).toContain('class="checkin"');
+      expect(body).toContain('value="true"');
+    });
+  });
 
-      // Then check out via POST
+  describe("POST /checkin/:tokens", () => {
+    test("checks in attendee with check_in=true and shows success", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");
+      const attendees = await getAttendeesRaw(event.id);
+      const token = attendees[0]!.ticket_token;
+
+      const session = await loginAsAdmin();
       const { handleRequest } = await import("#routes");
       const response = await handleRequest(
         mockFormRequest(
           `/checkin/${token}`,
-          { csrf_token: session.csrfToken },
+          { csrf_token: session.csrfToken, check_in: "true" },
+          session.cookie,
+        ),
+      );
+      expect(response.status).toBe(200);
+
+      const body = await response.text();
+      expect(body).toContain("Yes");
+      expect(body).toContain('class="success"');
+      expect(body).toContain("Checked in");
+      expect(body).toContain('class="checkout"');
+      expect(body).toContain('value="false"');
+    });
+
+    test("checks out attendee with check_in=false and shows success", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");
+      const attendees = await getAttendeesRaw(event.id);
+      const token = attendees[0]!.ticket_token;
+
+      const session = await loginAsAdmin();
+      const { handleRequest } = await import("#routes");
+
+      // First check in
+      await handleRequest(
+        mockFormRequest(
+          `/checkin/${token}`,
+          { csrf_token: session.csrfToken, check_in: "true" },
+          session.cookie,
+        ),
+      );
+
+      // Then check out
+      const response = await handleRequest(
+        mockFormRequest(
+          `/checkin/${token}`,
+          { csrf_token: session.csrfToken, check_in: "false" },
           session.cookie,
         ),
       );
@@ -134,9 +194,36 @@ describe("check-in (/checkin/:tokens)", () => {
       const body = await response.text();
       expect(body).toContain("No");
       expect(body).toContain("Checked out");
-      expect(body).toContain("color: red");
-      expect(body).toContain("Check In");
-      expect(body).not.toContain("Check-in Complete");
+    });
+
+    test("duplicate check-in does not undo previous check-in", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");
+      const attendees = await getAttendeesRaw(event.id);
+      const token = attendees[0]!.ticket_token;
+
+      const session = await loginAsAdmin();
+      const { handleRequest } = await import("#routes");
+
+      // Check in twice (simulates two tabs)
+      await handleRequest(
+        mockFormRequest(
+          `/checkin/${token}`,
+          { csrf_token: session.csrfToken, check_in: "true" },
+          session.cookie,
+        ),
+      );
+      const response = await handleRequest(
+        mockFormRequest(
+          `/checkin/${token}`,
+          { csrf_token: session.csrfToken, check_in: "true" },
+          session.cookie,
+        ),
+      );
+      expect(response.status).toBe(200);
+
+      const body = await response.text();
+      expect(body).toContain("Yes");
     });
 
     test("redirects to admin for unauthenticated POST", async () => {
