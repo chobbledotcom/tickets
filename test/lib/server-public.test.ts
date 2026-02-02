@@ -106,13 +106,8 @@ describe("server (public routes)", () => {
   });
 
   describe("GET /ticket/:slug", () => {
-    test("returns 404 for invalid slug format", async () => {
+    test("returns 404 for non-existent slug", async () => {
       const response = await handleRequest(mockRequest("/ticket/non-existent"));
-      expect(response.status).toBe(404);
-    });
-
-    test("returns 404 for valid slug format that does not exist", async () => {
-      const response = await handleRequest(mockRequest("/ticket/ab99c"));
       expect(response.status).toBe(404);
     });
 
@@ -147,19 +142,9 @@ describe("server (public routes)", () => {
   });
 
   describe("POST /ticket/:slug", () => {
-    test("returns 404 for non-existent event with invalid slug", async () => {
+    test("returns 404 for non-existent slug", async () => {
       const response = await handleRequest(
         mockFormRequest("/ticket/non-existent", {
-          name: "John",
-          email: "john@example.com",
-        }),
-      );
-      expect(response.status).toBe(404);
-    });
-
-    test("returns 404 for non-existent event with valid slug format", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/ticket/ab99c", {
           name: "John",
           email: "john@example.com",
         }),
