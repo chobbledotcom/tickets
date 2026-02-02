@@ -29,6 +29,7 @@ export const ticketPage = (
   csrfToken: string,
   error?: string,
   isClosed = false,
+  iframe = false,
 ): string => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isFull = spotsRemaining <= 0;
@@ -37,12 +38,16 @@ export const ticketPage = (
   const fields: Field[] = getTicketFields(event.fields);
 
   return String(
-    <Layout title={event.name}>
-      <h1>{event.name}</h1>
-      {event.description && (
-        <div style="font-size: 0.9em; margin: 0.5rem 0 1rem;">
-          <Raw html={event.description} />
-        </div>
+    <Layout title={event.name} bodyClass={iframe ? "iframe" : undefined}>
+      {!iframe && (
+        <>
+          <h1>{event.name}</h1>
+          {event.description && (
+            <div style="font-size: 0.9em; margin: 0.5rem 0 1rem;">
+              <Raw html={event.description} />
+            </div>
+          )}
+        </>
       )}
       <Raw html={renderError(error)} />
 

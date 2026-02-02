@@ -743,3 +743,21 @@ form.checkin-form button.checkout {
 .checkin-message-out {
   color: red;
 }
+
+.inline {
+  display: inline;
+}
+
+/* Iframe embed mode */
+body.iframe main {
+  padding: 0;
+}
+
+body.iframe form {
+  margin-bottom: 0;
+}
+
+/* Remove button margins inside forms */
+form > button {
+  margin: 0;
+}

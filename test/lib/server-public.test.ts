@@ -168,6 +168,39 @@ describe("server (public routes)", () => {
       const html = await response.text();
       expect(html).toContain("<h1>Not Found</h1>");
     });
+
+    test("hides header and description in iframe mode", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+        description: "A <b>great</b> event",
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}?iframe=true`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('class="iframe"');
+      expect(html).not.toContain("<h1>");
+      expect(html).not.toContain("A <b>great</b> event");
+      expect(html).toContain("Reserve Ticket");
+    });
+
+    test("shows header and description without iframe param", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+        description: "A <b>great</b> event",
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).not.toContain('class="iframe"');
+      expect(html).toContain("<h1>");
+      expect(html).toContain("A <b>great</b> event");
+    });
   });
 
   describe("POST /ticket/:slug", () => {

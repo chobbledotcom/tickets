@@ -97,7 +97,8 @@ export const adminEventPage = (
   activeFilter: AttendeeFilter = "all",
 ): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
-  const embedCode = `<iframe src="${ticketUrl}" loading="lazy" style="border: none; width: 100%; height: 10rem">Loading..</iframe>`;
+  const iframeHeight = event.fields === "both" ? "24rem" : "18rem";
+  const embedCode = `<iframe src="${ticketUrl}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
   const filteredAttendees = filterAttendees(attendees, activeFilter);
   const attendeeRows =
     filteredAttendees.length > 0
