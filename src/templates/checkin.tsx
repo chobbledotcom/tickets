@@ -17,12 +17,13 @@ const renderCheckinRow = ({ event, attendee }: TokenEntry): string =>
   `<tr><td>${event.name}</td><td>${attendee.quantity}</td><td>${attendee.checked_in === "true" ? "Yes" : "No"}</td></tr>`;
 
 /**
- * Admin check-in page - shows attendee details with check-out option
+ * Admin check-in page - shows attendee details with check-in/check-out status
  */
 export const checkinAdminPage = (
   entries: TokenEntry[],
   csrfToken: string,
   checkinPath: string,
+  checkedIn: boolean,
 ): string => {
   const rows = pipe(
     map(renderCheckinRow),
@@ -31,7 +32,9 @@ export const checkinAdminPage = (
 
   return String(
     <Layout title="Check-in">
-      <h1>Check-in Complete</h1>
+      {checkedIn
+        ? <h1>Check-in Complete</h1>
+        : <h1 style="color: red;">Checked out</h1>}
       <table>
         <thead>
           <tr>
@@ -46,7 +49,7 @@ export const checkinAdminPage = (
       </table>
       <form method="POST" action={checkinPath}>
         <input type="hidden" name="csrf_token" value={csrfToken} />
-        <button type="submit">Check Out</button>
+        <button type="submit">{checkedIn ? "Check Out" : "Check In"}</button>
       </form>
     </Layout>
   );

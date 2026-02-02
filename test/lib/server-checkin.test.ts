@@ -133,6 +133,10 @@ describe("check-in (/checkin/:tokens)", () => {
 
       const body = await response.text();
       expect(body).toContain("No");
+      expect(body).toContain("Checked out");
+      expect(body).toContain("color: red");
+      expect(body).toContain("Check In");
+      expect(body).not.toContain("Check-in Complete");
     });
 
     test("redirects to admin for unauthenticated POST", async () => {

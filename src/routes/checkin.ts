@@ -36,9 +36,10 @@ const renderAdminView = async (
   attendees: Attendee[],
   csrfToken: string,
   tokens: string[],
+  checkedIn: boolean,
 ): Promise<Response> => {
   const entries = await resolveEntries(attendees);
-  return htmlResponse(checkinAdminPage(entries, csrfToken, `/checkin/${tokens.join("+")}`));
+  return htmlResponse(checkinAdminPage(entries, csrfToken, `/checkin/${tokens.join("+")}`, checkedIn));
 };
 
 /** Handle GET /checkin/:tokens */
@@ -53,7 +54,7 @@ const handleCheckinGet = async (
   if (!session) return htmlResponse(checkinPublicPage());
 
   const updated = await setCheckedInAll(lookup.attendees, true);
-  return renderAdminView(updated, session.csrfToken, tokens);
+  return renderAdminView(updated, session.csrfToken, tokens, true);
 };
 
 /** Handle POST /checkin/:tokens (check-out) */
@@ -63,7 +64,7 @@ const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response
     if (!lookup.ok) return lookup.response;
 
     const updated = await setCheckedInAll(lookup.attendees, false);
-    return renderAdminView(updated, session.csrfToken, tokens);
+    return renderAdminView(updated, session.csrfToken, tokens, false);
   });
 
 /** Route check-in requests */
