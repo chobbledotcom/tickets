@@ -13,6 +13,7 @@ import {
   getAttendee,
   getAttendeesRaw,
   hasAvailableSpots,
+  updateCheckedIn,
 } from "#lib/db/attendees.ts";
 import { getDb, setDb } from "#lib/db/client.ts";
 import {
@@ -68,6 +69,7 @@ import {
 } from "#lib/db/settings.ts";
 import {
   createTestAttendee,
+  createTestDb,
   createTestDbWithSetup,
   createTestEvent,
   invalidateTestDbCache,
@@ -1850,6 +1852,66 @@ describe("db", () => {
       const privateKey = await getTestPrivateKey();
       const result = await decryptAttendeeOrNull(null, privateKey);
       expect(result).toBeNull();
+    });
+  });
+
+  describe("checked_in decryption", () => {
+    test("decrypts checked_in as false when column is empty (pre-migration attendees)", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "Legacy User", "legacy@example.com");
+
+      // Simulate pre-migration attendee by clearing the checked_in column
+      await getDb().execute({
+        sql: "UPDATE attendees SET checked_in = '' WHERE id = ?",
+        args: [attendee.id],
+      });
+
+      const privateKey = await getTestPrivateKey();
+      const rows = await getAttendeesRaw(event.id);
+      const decrypted = await decryptAttendees(rows, privateKey);
+      expect(decrypted[0]?.checked_in).toBe("false");
+    });
+  });
+
+  describe("updateCheckedIn", () => {
+    test("returns false when public key is not available", async () => {
+      // Use createTestDb (no setup = no keys)
+      await createTestDb();
+      const result = await updateCheckedIn(1, true);
+      expect(result).toBe(false);
+    });
+
+    test("returns false when attendee does not exist", async () => {
+      const result = await updateCheckedIn(99999, true);
+      expect(result).toBe(false);
+    });
+
+    test("updates checked_in to true for existing attendee", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "Check User", "check@example.com");
+
+      const result = await updateCheckedIn(attendee.id, true);
+      expect(result).toBe(true);
+
+      // Verify the value was encrypted and can be decrypted
+      const privateKey = await getTestPrivateKey();
+      const rows = await getAttendeesRaw(event.id);
+      const decrypted = await decryptAttendees(rows, privateKey);
+      expect(decrypted[0]?.checked_in).toBe("true");
+    });
+
+    test("updates checked_in back to false", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "Check User", "check@example.com");
+
+      await updateCheckedIn(attendee.id, true);
+      const result = await updateCheckedIn(attendee.id, false);
+      expect(result).toBe(true);
+
+      const privateKey = await getTestPrivateKey();
+      const rows = await getAttendeesRaw(event.id);
+      const decrypted = await decryptAttendees(rows, privateKey);
+      expect(decrypted[0]?.checked_in).toBe("false");
     });
   });
 });

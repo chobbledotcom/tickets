@@ -3,7 +3,11 @@
  */
 
 import { logActivity } from "#lib/db/activityLog.ts";
-import { decryptAttendeeOrNull, deleteAttendee } from "#lib/db/attendees.ts";
+import {
+  decryptAttendeeOrNull,
+  deleteAttendee,
+  updateCheckedIn,
+} from "#lib/db/attendees.ts";
 import { getEventWithAttendeeRaw } from "#lib/db/events.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import {
@@ -125,6 +129,44 @@ const attendeeDeleteHandler: RouteHandlerFn = (request, params) => {
   return handleAdminAttendeeDeletePost(request, ids.eventId, ids.attendeeId);
 };
 
+/** Handle POST /admin/event/:eventId/attendee/:attendeeId/checkin (toggle check-in) */
+const handleAdminAttendeeCheckinPost = (
+  request: Request,
+  eventId: number,
+  attendeeId: number,
+): Promise<Response> =>
+  withAuthForm(request, async (session) => {
+    const privateKey = await getPrivateKey(
+      session.token,
+      session.wrappedDataKey,
+    );
+    if (!privateKey) {
+      return redirect("/admin");
+    }
+
+    const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
+    if (!data) {
+      return notFoundResponse();
+    }
+
+    const wasCheckedIn = data.attendee.checked_in === "true";
+    const nowCheckedIn = !wasCheckedIn;
+
+    const updated = await updateCheckedIn(attendeeId, nowCheckedIn);
+    if (!updated) {
+      return redirect(`/admin/event/${eventId}`);
+    }
+
+    const action = nowCheckedIn ? "checked in" : "checked out";
+    await logActivity(`Attendee ${action}`, eventId);
+
+    const name = encodeURIComponent(data.attendee.name);
+    const status = nowCheckedIn ? "in" : "out";
+    return redirect(
+      `/admin/event/${eventId}?checkin_name=${name}&checkin_status=${status}#message`,
+    );
+  });
+
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
   "GET /admin/event/:eventId/attendee/:attendeeId/delete": (
@@ -138,4 +180,11 @@ export const attendeesRoutes = defineRoutes({
     attendeeDeleteHandler,
   "DELETE /admin/event/:eventId/attendee/:attendeeId/delete":
     attendeeDeleteHandler,
+  "POST /admin/event/:eventId/attendee/:attendeeId/checkin": (
+    request,
+    params,
+  ) => {
+    const ids = parseAttendeeIds(params);
+    return handleAdminAttendeeCheckinPost(request, ids.eventId, ids.attendeeId);
+  },
 });

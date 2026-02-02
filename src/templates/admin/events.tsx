@@ -33,7 +33,28 @@ const FIELDS_LABELS: Record<EventFields, string> = {
   both: "Email & Phone Number",
 };
 
-const AttendeeRow = ({ a, eventId }: { a: Attendee; eventId: number }): string =>
+const CheckinButton = ({ a, eventId, csrfToken }: { a: Attendee; eventId: number; csrfToken: string }): string => {
+  const isCheckedIn = a.checked_in === "true";
+  const label = isCheckedIn ? "Check out" : "Check in";
+  const color = isCheckedIn ? "red" : "green";
+  return String(
+    <form
+      method="POST"
+      action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
+      style="display:inline;margin:0;padding:0;border:0;background:none"
+    >
+      <input type="hidden" name="csrf_token" value={csrfToken} />
+      <button
+        type="submit"
+        style={`background:none;border:none;padding:0;margin:0;font:inherit;cursor:pointer;color:${color};text-decoration:underline;box-shadow:none;min-height:0`}
+      >
+        {label}
+      </button>
+    </form>
+  );
+};
+
+const AttendeeRow = ({ a, eventId, csrfToken }: { a: Attendee; eventId: number; csrfToken: string }): string =>
   String(
     <tr>
       <td>{a.name}</td>
@@ -42,6 +63,8 @@ const AttendeeRow = ({ a, eventId }: { a: Attendee; eventId: number }): string =
       <td>{a.quantity}</td>
       <td>{new Date(a.created).toLocaleString()}</td>
       <td>
+        <Raw html={CheckinButton({ a, eventId, csrfToken })} />
+        {" "}
         <a href={`/admin/event/${eventId}/attendee/${a.id}/delete`} class="danger">
           Delete
         </a>
@@ -49,23 +72,28 @@ const AttendeeRow = ({ a, eventId }: { a: Attendee; eventId: number }): string =
     </tr>
   );
 
-/**
- * Admin event detail page
- */
+/** Check-in message to display after toggling */
+export type CheckinMessage = { name: string; status: string } | null;
+
 export const adminEventPage = (
   event: EventWithCount,
   attendees: Attendee[],
   allowedDomain: string,
+  csrfToken: string,
+  checkinMessage?: CheckinMessage,
 ): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const embedCode = `<iframe src="${ticketUrl}" loading="lazy" style="border: none; width: 100%; height: 10rem">Loading..</iframe>`;
   const attendeeRows =
     attendees.length > 0
       ? pipe(
-          map((a: Attendee) => AttendeeRow({ a, eventId: event.id })),
+          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken })),
           joinStrings,
         )(attendees)
       : '<tr><td colspan="7">No attendees yet</td></tr>';
+
+  const checkedInLabel = checkinMessage?.status === "in" ? "in" : "out";
+  const checkedInColor = checkinMessage?.status === "in" ? "green" : "red";
 
   return String(
     <Layout title={`Event: ${event.name}`}>
@@ -139,6 +167,11 @@ export const adminEventPage = (
         </article>
 
         <h2>Attendees</h2>
+        {checkinMessage && (
+          <p id="message" style={`color: ${checkedInColor}`}>
+            Checked {checkinMessage.name} {checkedInLabel}
+          </p>
+        )}
         <table>
           <thead>
             <tr>

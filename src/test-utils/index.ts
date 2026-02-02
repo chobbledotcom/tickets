@@ -853,6 +853,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   payment_id: null,
   quantity: 1,
   price_paid: null,
+  checked_in: "false",
   ...overrides,
 });
 

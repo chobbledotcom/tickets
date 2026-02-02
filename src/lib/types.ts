@@ -31,6 +31,7 @@ export interface Attendee {
   payment_id: string | null;
   quantity: number;
   price_paid: string | null;
+  checked_in: string;
 }
 
 export interface Settings {

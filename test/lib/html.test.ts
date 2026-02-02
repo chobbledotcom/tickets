@@ -94,24 +94,24 @@ describe("html", () => {
     const event = testEventWithCount({ attendee_count: 2 });
 
     test("renders event details", () => {
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("Test Event");
       expect(html).toContain("100");
       expect(html).toContain("https://example.com/thanks");
     });
 
     test("shows spots remaining", () => {
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("98"); // 100 - 2
     });
 
     test("shows ticket URL", () => {
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("/ticket/ab12c");
     });
 
     test("shows embed code with allowed domain", () => {
-      const html = adminEventPage(event, [], "example.com");
+      const html = adminEventPage(event, [], "example.com", TEST_CSRF_TOKEN);
       expect(html).toContain("Embed Code:");
       expect(html).toContain("https://example.com/ticket/ab12c");
       expect(html).toContain("loading=");
@@ -119,30 +119,30 @@ describe("html", () => {
     });
 
     test("renders empty attendees state", () => {
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("No attendees yet");
     });
 
     test("renders attendees table", () => {
       const attendees = [testAttendee()];
-      const html = adminEventPage(event, attendees, "localhost");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("John Doe");
       expect(html).toContain("john@example.com");
     });
 
     test("escapes attendee data", () => {
       const attendees = [testAttendee({ name: "<script>evil()</script>" })];
-      const html = adminEventPage(event, attendees, "localhost");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("&lt;script&gt;");
     });
 
     test("includes back link", () => {
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("/admin/");
     });
 
     test("shows contact fields label", () => {
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("Contact Fields");
       expect(html).toContain("Email");
     });
@@ -152,6 +152,7 @@ describe("html", () => {
         testEventWithCount({ attendee_count: 2, fields: "phone" }),
         [],
         "localhost",
+        TEST_CSRF_TOKEN,
       );
       expect(html).toContain("Phone Number");
     });
@@ -161,24 +162,25 @@ describe("html", () => {
         testEventWithCount({ attendee_count: 2, fields: "both" }),
         [],
         "localhost",
+        TEST_CSRF_TOKEN,
       );
       expect(html).toContain("Email &amp; Phone Number");
     });
 
     test("shows phone column in attendee table", () => {
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("<th>Phone</th>");
     });
 
     test("shows attendee phone in table row", () => {
       const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
-      const html = adminEventPage(event, attendees, "localhost");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("+1 555 123 4567");
     });
 
     test("renders empty string for attendee without email", () => {
       const attendees = [testAttendee({ email: "" })];
-      const html = adminEventPage(event, attendees, "localhost");
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("John Doe");
       // The email cell should be empty (email || "" renders "")
       expect(html).toContain("<td></td>");
@@ -384,7 +386,7 @@ describe("html", () => {
   describe("adminEventPage export button", () => {
     test("renders export CSV button", () => {
       const event = testEventWithCount({ attendee_count: 2 });
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("/admin/event/1/export");
       expect(html).toContain("Export CSV");
     });
@@ -621,27 +623,27 @@ describe("html", () => {
   describe("adminEventPage inactive and optional fields", () => {
     test("shows reactivate link for inactive events", () => {
       const event = testEventWithCount({ active: 0, attendee_count: 0 });
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("/reactivate");
       expect(html).toContain("Reactivate");
     });
 
     test("shows inactive status for inactive events", () => {
       const event = testEventWithCount({ active: 0, attendee_count: 0 });
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("Inactive (returns 404 on public page)");
       expect(html).toContain('color: red');
     });
 
     test("shows simple success message text when no thank_you_url", () => {
       const event = testEventWithCount({ thank_you_url: null, attendee_count: 0 });
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("None (shows simple success message)");
     });
 
     test("shows webhook URL when present", () => {
       const event = testEventWithCount({ webhook_url: "https://hooks.example.com/notify", attendee_count: 0 });
-      const html = adminEventPage(event, [], "localhost");
+      const html = adminEventPage(event, [], "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("Webhook URL:");
       expect(html).toContain("https://hooks.example.com/notify");
     });
