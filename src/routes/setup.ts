@@ -164,11 +164,23 @@ const handleSetupPost = async (
       validation.currency,
     );
     logDebug("Setup", "Setup completed successfully!");
-    return htmlResponse(setupCompletePage());
+    return redirect("/setup/complete");
   } catch (error) {
     logError({ code: ErrorCode.DB_QUERY, detail: "setup completion" });
     throw error;
   }
+};
+
+/**
+ * Handle GET /setup/complete - setup success page
+ */
+const handleSetupComplete = async (
+  isSetupComplete: () => Promise<boolean>,
+): Promise<Response> => {
+  if (!(await isSetupComplete())) {
+    return redirect("/setup/");
+  }
+  return htmlResponse(setupCompletePage());
 };
 
 /**
@@ -179,6 +191,7 @@ export const createSetupRouter = (
   isSetupComplete: () => Promise<boolean>,
 ): ReturnType<typeof createRouter> => {
   const setupRoutes = defineRoutes({
+    "GET /setup/complete": () => handleSetupComplete(isSetupComplete),
     "GET /setup": () => handleSetupGet(isSetupComplete),
     "POST /setup": (request) => handleSetupPost(request, isSetupComplete),
   });

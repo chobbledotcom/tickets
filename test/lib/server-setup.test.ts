@@ -85,9 +85,7 @@ describe("server (setup)", () => {
             csrfToken as string,
           ),
         );
-        expect(response.status).toBe(200);
-        const html = await response.text();
-        expect(html).toContain("Setup Complete");
+        expectRedirect("/setup/complete")(response);
       });
 
       test("POST /setup/ without CSRF token rejects request", async () => {
@@ -263,9 +261,7 @@ describe("server (setup)", () => {
             csrfToken as string,
           ),
         );
-        expect(response.status).toBe(200);
-        const html = await response.text();
-        expect(html).toContain("Setup Complete");
+        expectRedirect("/setup/complete")(response);
       });
 
       test("POST /setup/ throws error when completeSetup fails", async () => {
@@ -352,9 +348,7 @@ describe("server (setup)", () => {
         );
 
         // This should succeed - the full flow should work
-        expect(postResponse.status).toBe(200);
-        const html = await postResponse.text();
-        expect(html).toContain("Setup Complete");
+        expectRedirect("/setup/complete")(postResponse);
       });
 
       test("setup cookie path allows both /setup and /setup/", async () => {
@@ -407,9 +401,7 @@ describe("server (setup)", () => {
           }),
         );
 
-        expect(postResponse.status).toBe(200);
-        const html = await postResponse.text();
-        expect(html).toContain("Setup Complete");
+        expectRedirect("/setup/complete")(postResponse);
       });
 
       test("CSRF token in cookie matches token in HTML form field", async () => {
@@ -438,6 +430,11 @@ describe("server (setup)", () => {
         // They must be identical
         expect(formToken).toBe(cookieToken as string);
       });
+
+      test("GET /setup/complete redirects to setup when not yet complete", async () => {
+        const response = await handleRequest(mockRequest("/setup/complete"));
+        expectRedirect("/setup/")(response);
+      });
     });
 
     describe("when setup already complete", () => {
@@ -455,6 +452,13 @@ describe("server (setup)", () => {
           }),
         );
         expectRedirect("/")(response);
+      });
+
+      test("GET /setup/complete shows success page when setup is done", async () => {
+        const response = await handleRequest(mockRequest("/setup/complete"));
+        expect(response.status).toBe(200);
+        const html = await response.text();
+        expect(html).toContain("Setup Complete");
       });
     });
   });
@@ -479,9 +483,7 @@ describe("server (setup)", () => {
           csrfToken as string,
         ),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Setup Complete");
+      expectRedirect("/setup/complete")(response);
     });
   });
 

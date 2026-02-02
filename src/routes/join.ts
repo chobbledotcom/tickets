@@ -17,6 +17,7 @@ import {
   generateSecureToken,
   htmlResponse,
   htmlResponseWithCookie,
+  redirect,
   requireCsrfForm,
 } from "#routes/utils.ts";
 import { joinFields } from "#templates/fields.ts";
@@ -118,11 +119,18 @@ const handleJoinPost = (request: Request, params: RouteParams): Promise<Response
     // Set the password and clear the invite code
     await setUserPassword(user.id, password);
 
-    return htmlResponse(joinCompletePage());
+    return redirect("/join/complete");
   });
+
+/**
+ * Handle GET /join/complete - password set confirmation page
+ */
+const handleJoinComplete = (): Response =>
+  htmlResponse(joinCompletePage());
 
 /** Join routes */
 const joinRoutes = defineRoutes({
+  "GET /join/complete": () => handleJoinComplete(),
   "GET /join/:code": (request, params) => handleJoinGet(request, params),
   "POST /join/:code": (request, params) => handleJoinPost(request, params),
 });

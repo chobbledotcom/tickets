@@ -42,6 +42,19 @@ describe("server (admin settings)", () => {
       expect(html).toContain("Settings");
       expect(html).toContain("Change Password");
     });
+
+    test("displays success message from query param", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        "/admin/settings?success=Test+success+message",
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Test success message");
+      expect(html).toContain('class="success"');
+    });
   });
 
   describe("POST /admin/settings", () => {
@@ -256,11 +269,11 @@ describe("server (admin settings)", () => {
             ),
           );
 
-          expect(response.status).toBe(200);
-          const html = await response.text();
-          expect(html).toContain("Stripe key updated");
-          expect(html).toContain("webhook configured");
-          expect(html).toContain("A Stripe secret key is currently configured");
+          expect(response.status).toBe(302);
+          const location = response.headers.get("location")!;
+          expect(location).toContain("/admin/settings?success=");
+          expect(decodeURIComponent(location)).toContain("Stripe key updated");
+          expect(decodeURIComponent(location)).toContain("webhook configured");
         },
       );
     });
@@ -492,9 +505,9 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Square credentials updated");
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Square credentials updated");
     });
 
     test("settings page shows Square is not configured initially", async () => {
@@ -573,9 +586,9 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Square webhook signature key updated");
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Square webhook signature key updated");
     });
   });
 
@@ -594,10 +607,9 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Payment provider set to square");
-      expect(html).toContain('checked');
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Payment provider set to square");
     });
   });
 
@@ -713,9 +725,9 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Payment provider set to stripe");
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Payment provider set to stripe");
     });
 
     test("disables payment provider with none", async () => {
@@ -731,9 +743,9 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Payment provider disabled");
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Payment provider disabled");
     });
 
     test("rejects invalid payment provider", async () => {
