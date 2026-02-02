@@ -190,7 +190,6 @@ describe("check-in (/checkin/:tokens)", () => {
         ),
       );
       expect(response.status).toBe(200);
-
       const body = await response.text();
       expect(body).toContain("No");
       expect(body).toContain("Checked out");

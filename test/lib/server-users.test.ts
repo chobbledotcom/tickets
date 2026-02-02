@@ -17,6 +17,7 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   expectAdminRedirect,
+  expectRedirect,
   loginAsAdmin,
   mockFormRequest,
   mockRequest,
@@ -25,6 +26,15 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils";
+
+/** Extract invite code from a redirect response (POST /admin/users now redirects) */
+const getInviteCodeFromRedirect = (response: Response): string => {
+  const location = response.headers.get("location")!;
+  const url = new URL(location, "http://localhost");
+  const inviteLink = url.searchParams.get("invite")!;
+  const codeMatch = inviteLink.match(/\/join\/([A-Za-z0-9_-]+)/);
+  return codeMatch![1]!;
+};
 
 describe("server (multi-user admin)", () => {
   beforeEach(async () => {
@@ -234,6 +244,32 @@ describe("server (multi-user admin)", () => {
     });
   });
 
+  describe("GET /admin/users (with query params)", () => {
+    test("displays invite link from query param", async () => {
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest(
+        "/admin/users?invite=" + encodeURIComponent("https://localhost/join/abc123"),
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("https://localhost/join/abc123");
+      expect(html).toContain("Invite link");
+    });
+
+    test("displays success message from query param", async () => {
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest(
+        "/admin/users?success=User+deleted+successfully",
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("User deleted successfully");
+      expect(html).toContain('class="success"');
+    });
+  });
+
   describe("POST /admin/users (invite)", () => {
     test("redirects when not authenticated", async () => {
       const response = await handleRequest(
@@ -252,10 +288,9 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("/join/");
-      expect(html).toContain("newmanager");
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("/join/");
 
       // Verify user was created in the database
       const users = await getAllUsers();
@@ -317,10 +352,9 @@ describe("server (multi-user admin)", () => {
           cookie,
         ),
       );
-      // Delete returns 200 with success message (re-renders users page)
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("deleted");
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("deleted");
 
       const usersAfter = await getAllUsers();
       expect(usersAfter.length).toBe(1);
@@ -401,13 +435,7 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      expect(inviteResponse.status).toBe(200);
-      const inviteHtml = await inviteResponse.text();
-
-      // Extract invite code from the response
-      const codeMatch = inviteHtml.match(/\/join\/([A-Za-z0-9_-]+)/);
-      expect(codeMatch).not.toBeNull();
-      const inviteCode = codeMatch![1];
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
 
       // Visit the join page
       const joinResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
@@ -415,6 +443,13 @@ describe("server (multi-user admin)", () => {
       const joinHtml = await joinResponse.text();
       expect(joinHtml).toContain("joiner");
       expect(joinHtml).toContain("password");
+    });
+
+    test("GET /join/complete shows confirmation page", async () => {
+      const response = await handleRequest(mockRequest("/join/complete"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Password Set");
     });
 
     test("POST /join/:code sets password for invited user", async () => {
@@ -428,10 +463,7 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      const inviteHtml = await inviteResponse.text();
-      const codeMatch = inviteHtml.match(/\/join\/([A-Za-z0-9_-]+)/);
-      expect(codeMatch).not.toBeNull();
-      const inviteCode = codeMatch![1];
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
 
       // Visit join page to get CSRF token
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
@@ -453,9 +485,7 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      expect(joinPostResponse.status).toBe(200);
-      const resultHtml = await joinPostResponse.text();
-      expect(resultHtml).toContain("Password Set");
+      expectRedirect("/join/complete")(joinPostResponse);
 
       // Verify user now has a password
       const user = await getUserByUsername("joiner2");
@@ -475,9 +505,7 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      const inviteHtml = await inviteResponse.text();
-      const codeMatch = inviteHtml.match(/\/join\/([A-Za-z0-9_-]+)/);
-      const inviteCode = codeMatch![1];
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
 
       // Get CSRF
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
@@ -514,9 +542,7 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      const inviteHtml = await inviteResponse.text();
-      const codeMatch = inviteHtml.match(/\/join\/([A-Za-z0-9_-]+)/);
-      const inviteCode = codeMatch![1];
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
 
       // Get CSRF
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
@@ -610,9 +636,7 @@ describe("server (multi-user admin)", () => {
           cookie,
         ),
       );
-      const inviteHtml = await inviteResponse.text();
-      const codeMatch = inviteHtml.match(/\/join\/([A-Za-z0-9_-]+)/);
-      const inviteCode = codeMatch![1];
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
 
       // Set password via join flow
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
@@ -636,9 +660,9 @@ describe("server (multi-user admin)", () => {
           cookie,
         ),
       );
-      expect(activateResponse.status).toBe(200);
-      const html = await activateResponse.text();
-      expect(html).toContain("activated successfully");
+      expect(activateResponse.status).toBe(302);
+      const location = activateResponse.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("activated successfully");
     });
 
     test("returns 404 for nonexistent user", async () => {
@@ -710,9 +734,7 @@ describe("server (multi-user admin)", () => {
           cookie,
         ),
       );
-      const inviteHtml = await inviteResponse.text();
-      const codeMatch = inviteHtml.match(/\/join\/([A-Za-z0-9_-]+)/);
-      const inviteCode = codeMatch![1];
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
 
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
       const joinCookieHeader = joinGetResponse.headers.get("set-cookie") || "";
@@ -812,9 +834,7 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      const inviteHtml = await inviteResponse.text();
-      const codeMatch = inviteHtml.match(/\/join\/([A-Za-z0-9_-]+)/);
-      const inviteCode = codeMatch![1];
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
 
       // POST with wrong CSRF
       const response = await handleRequest(
@@ -839,9 +859,7 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      const inviteHtml = await inviteResponse.text();
-      const codeMatch = inviteHtml.match(/\/join\/([A-Za-z0-9_-]+)/);
-      const inviteCode = codeMatch![1];
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
 
       // POST without CSRF cookie
       const response = await handleRequest(
@@ -863,9 +881,7 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      const inviteHtml = await inviteResponse.text();
-      const codeMatch = inviteHtml.match(/\/join\/([A-Za-z0-9_-]+)/);
-      const inviteCode = codeMatch![1];
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
 
       // POST without csrf_token field in form
       const body = "password=newpassword123&password_confirm=newpassword123";
@@ -893,9 +909,7 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      const inviteHtml = await inviteResponse.text();
-      const codeMatch = inviteHtml.match(/\/join\/([A-Za-z0-9_-]+)/);
-      const inviteCode = codeMatch![1];
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
 
       // Get valid CSRF
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
@@ -943,9 +957,7 @@ describe("server (multi-user admin)", () => {
           cookie,
         ),
       );
-      const inviteHtml = await inviteResponse.text();
-      const codeMatch = inviteHtml.match(/\/join\/([A-Za-z0-9_-]+)/);
-      const inviteCode = codeMatch![1];
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
 
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
       const joinCookieHeader = joinGetResponse.headers.get("set-cookie") || "";
