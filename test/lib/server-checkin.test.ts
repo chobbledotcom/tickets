@@ -57,7 +57,7 @@ describe("check-in (/checkin/:tokens)", () => {
 
       const body = await response.text();
       expect(body).toContain("No");
-      expect(body).toContain("Check in");
+      expect(body).toContain("Check In All");
       expect(body).not.toContain('class="success"');
     });
 
@@ -121,7 +121,7 @@ describe("check-in (/checkin/:tokens)", () => {
       expect(body).toContain("3");
     });
 
-    test("shows green check-in button when not checked in", async () => {
+    test("shows green bulk check-in button when not checked in", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");
       const attendees = await getAttendeesRaw(event.id);
@@ -132,7 +132,8 @@ describe("check-in (/checkin/:tokens)", () => {
         cookie: session.cookie,
       });
       const body = await response.text();
-      expect(body).toContain('class="checkin"');
+      expect(body).toContain('class="bulk-checkin"');
+      expect(body).toContain("Check In All");
       expect(body).toContain('value="true"');
     });
   });
@@ -159,7 +160,8 @@ describe("check-in (/checkin/:tokens)", () => {
       expect(body).toContain("Yes");
       expect(body).toContain('class="success"');
       expect(body).toContain("Checked in");
-      expect(body).toContain('class="checkout"');
+      expect(body).toContain('class="bulk-checkout"');
+      expect(body).toContain("Check Out All");
       expect(body).toContain('value="false"');
     });
 

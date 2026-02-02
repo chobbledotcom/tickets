@@ -706,33 +706,35 @@ fieldset.agreement {
   }
 }
 
-/* Check-in form (inline, unstyled to look like a text link) */
-form.checkin-form {
-  display: inline;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-}
-
-form.checkin-form button {
-  background: none;
+/* Bulk check-in / check-out button */
+button.bulk-checkin,
+button.bulk-checkout {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  margin-bottom: 1rem;
   border: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
+  border-radius: var(--border-radius);
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: bold;
   cursor: pointer;
-  text-decoration: underline;
-  box-shadow: none;
-  min-height: 0;
 }
 
-form.checkin-form button.checkin {
-  color: green;
+button.bulk-checkin {
+  background: #22863a;
 }
 
-form.checkin-form button.checkout {
-  color: red;
+button.bulk-checkin:hover {
+  background: #1a6e2e;
+}
+
+button.bulk-checkout {
+  background: #d73a49;
+}
+
+button.bulk-checkout:hover {
+  background: #b52a37;
 }
 
 /* Check-in success/failure messages */
