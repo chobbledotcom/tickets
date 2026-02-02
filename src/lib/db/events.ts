@@ -10,6 +10,7 @@ import type { Attendee, Event, EventFields, EventWithCount } from "#lib/types.ts
 /** Event input fields for create/update (camelCase) */
 export type EventInput = {
   name: string;
+  description?: string;
   slug: string;
   slugIndex: string;
   maxAttendees: number;
@@ -35,6 +36,7 @@ export const eventsTable = defineTable<Event, EventInput>({
   schema: {
     id: col.generated<number>(),
     name: col.encrypted<string>(encrypt, decrypt),
+    description: { default: () => "", write: encrypt, read: decrypt },
     slug: col.encrypted<string>(encrypt, decrypt),
     slug_index: col.simple<string>(),
     created: col.withDefault(() => new Date().toISOString()),

@@ -63,6 +63,7 @@ const extractEventInput = async (
   const { slug, slugIndex } = await generateUniqueSlug();
   return {
     name: values.name as string,
+    description: (values.description as string) || "",
     slug,
     slugIndex,
     maxAttendees: values.max_attendees as number,
@@ -82,6 +83,7 @@ const extractEventUpdateInput = async (
   const slugIndex = await computeSlugIndex(slug);
   return {
     name: values.name as string,
+    description: (values.description as string) || "",
     slug,
     slugIndex,
     maxAttendees: values.max_attendees as number,

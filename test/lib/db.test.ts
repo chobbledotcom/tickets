@@ -435,6 +435,23 @@ describe("db", () => {
       expect(event.unit_price).toBe(1000);
     });
 
+    test("createEvent stores and retrieves description", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        description: "A test description",
+      });
+
+      expect(event.description).toBe("A test description");
+    });
+
+    test("createEvent defaults description to empty string", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+      });
+
+      expect(event.description).toBe("");
+    });
+
     test("getAllEvents returns empty array when no events", async () => {
       const events = await getAllEvents();
       expect(events).toEqual([]);

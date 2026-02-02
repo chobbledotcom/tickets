@@ -125,6 +125,34 @@ describe("server (public routes)", () => {
       expect(html).toContain(`action="/ticket/${event.slug}"`);
     });
 
+    test("shows description when event has one", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+        description: "A <b>great</b> event",
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("A <b>great</b> event");
+      expect(html).toContain("font-size: 0.9em");
+    });
+
+    test("does not show description div when description is empty", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).not.toContain("font-size: 0.9em");
+    });
+
     test("returns 404 for inactive event", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -293,6 +321,44 @@ describe("server (public routes)", () => {
       expect(html).toContain("Select Tickets");
     });
 
+    test("shows description beneath each event in multi-ticket page", async () => {
+      const event1 = await createTestEvent({
+        name: "Multi Desc 1",
+        maxAttendees: 50,
+        description: "First event info",
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Desc 2",
+        maxAttendees: 100,
+        description: "Second event info",
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("First event info");
+      expect(html).toContain("Second event info");
+    });
+
+    test("omits description div in multi-ticket when description is empty", async () => {
+      const event1 = await createTestEvent({
+        name: "Multi No Desc",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi No Desc 2",
+        maxAttendees: 100,
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Multi No Desc");
+      expect(html).not.toContain("margin: 0.25rem 0 0.5rem");
+    });
+
     test("shows sold-out label for full events", async () => {
       const event1 = await createTestEvent({
         name: "Multi Available",
@@ -310,6 +376,29 @@ describe("server (public routes)", () => {
       );
       expect(response.status).toBe(200);
       const html = await response.text();
+      expect(html).toContain("Sold Out");
+    });
+
+    test("shows description for sold-out event in multi-ticket page", async () => {
+      const event1 = await createTestEvent({
+        name: "Multi Avail Desc",
+        maxAttendees: 50,
+        description: "Available desc",
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Full Desc",
+        maxAttendees: 1,
+        description: "Sold out desc",
+      });
+      await createAttendeeAtomic(event2.id, "Jane", "jane@example.com", null, 1);
+
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Available desc");
+      expect(html).toContain("Sold out desc");
       expect(html).toContain("Sold Out");
     });
 

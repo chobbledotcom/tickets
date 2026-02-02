@@ -2,12 +2,13 @@
  * Database migrations
  */
 
+import { encrypt } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
 
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add event name and auto-generated slugs";
+export const LATEST_UPDATE = "add event description";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -169,6 +170,14 @@ export const initDb = async (): Promise<void> => {
   // Migration: add name column to events (encrypted, defaults to existing slug for backfill)
   await runMigration(`ALTER TABLE events ADD COLUMN name TEXT NOT NULL DEFAULT ''`);
   await runMigration(`UPDATE events SET name = slug WHERE name = ''`);
+
+  // Migration: add description column to events (encrypted empty string for existing rows)
+  await runMigration(`ALTER TABLE events ADD COLUMN description TEXT NOT NULL DEFAULT ''`);
+  const encryptedEmpty = await encrypt("");
+  await getDb().execute({
+    sql: `UPDATE events SET description = ? WHERE description = ''`,
+    args: [encryptedEmpty],
+  });
 
   // Update the version marker
   await getDb().execute({

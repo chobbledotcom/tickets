@@ -250,6 +250,24 @@ describe("forms", () => {
       const { name: _, ...formWithoutName } = baseEventForm;
       expectInvalid("Event Name is required")(eventFields, formWithoutName);
     });
+
+    test("validates description rejects values exceeding max length", () => {
+      const longDescription = "a".repeat(129);
+      expectInvalid(
+        "Description must be 128 characters or fewer",
+      )(eventFields, eventForm({ description: longDescription }));
+    });
+
+    test("validates description accepts values within max length", () => {
+      expectValid(
+        eventFields,
+        eventForm({ description: "a".repeat(128) }),
+      );
+    });
+
+    test("validates description accepts empty value", () => {
+      expectValid(eventFields, eventForm({ description: "" }));
+    });
   });
 
   describe("ticketFields validation", () => {

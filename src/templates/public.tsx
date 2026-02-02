@@ -38,6 +38,11 @@ export const ticketPage = (
   return String(
     <Layout title={event.name}>
       <h1>{event.name}</h1>
+      {event.description && (
+        <div style="font-size: 0.9em; margin: 0.5rem 0 1rem;">
+          <Raw html={event.description} />
+        </div>
+      )}
       <Raw html={renderError(error)} />
 
       {isFull ? (
@@ -92,6 +97,12 @@ export const buildMultiTicketEvent = (
   return { event, isSoldOut, maxPurchasable };
 };
 
+/** Render description HTML for multi-ticket event row */
+const renderMultiEventDescription = (description: string): string =>
+  description
+    ? `<div style="font-size: 0.9em; margin: 0.25rem 0 0.5rem;">${description}</div>`
+    : "";
+
 /** Render quantity selector for a single event in multi-ticket form */
 const renderMultiEventRow = (info: MultiTicketEvent): string => {
   const { event, isSoldOut, maxPurchasable } = info;
@@ -101,6 +112,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
     return `
       <div class="multi-ticket-row sold-out">
         <label>${event.name}</label>
+        ${renderMultiEventDescription(event.description)}
         <span class="sold-out-label">Sold Out</span>
       </div>
     `;
@@ -113,6 +125,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
   return `
     <div class="multi-ticket-row">
       <label for="${fieldName}">${event.name}</label>
+      ${renderMultiEventDescription(event.description)}
       <select name="${fieldName}" id="${fieldName}">
         ${options}
       </select>
