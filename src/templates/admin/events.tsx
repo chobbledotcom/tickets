@@ -210,18 +210,18 @@ export const adminEventPage = (
           </table>
         </article>
 
-        <h2>Attendees</h2>
+        <h2 id="attendees">Attendees</h2>
         {checkinMessage && (
           <p id="message" class={checkedInClass}>
             Checked {checkinMessage.name} {checkedInLabel}
           </p>
         )}
         <p>
-          <Raw html={FilterLink({ href: basePath, label: "All", active: activeFilter === "all" })} />
+          <Raw html={FilterLink({ href: `${basePath}#attendees`, label: "All", active: activeFilter === "all" })} />
           {" / "}
-          <Raw html={FilterLink({ href: `${basePath}/in`, label: "Checked In", active: activeFilter === "in" })} />
+          <Raw html={FilterLink({ href: `${basePath}/in#attendees`, label: "Checked In", active: activeFilter === "in" })} />
           {" / "}
-          <Raw html={FilterLink({ href: `${basePath}/out`, label: "Checked Out", active: activeFilter === "out" })} />
+          <Raw html={FilterLink({ href: `${basePath}/out#attendees`, label: "Checked Out", active: activeFilter === "out" })} />
         </p>
         <table>
           <thead>
