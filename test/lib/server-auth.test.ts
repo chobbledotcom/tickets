@@ -52,6 +52,13 @@ describe("server (admin auth)", () => {
     });
   });
 
+  describe("GET /admin/login", () => {
+    test("redirects to /admin", async () => {
+      const response = await handleRequest(mockRequest("/admin/login"));
+      expectAdminRedirect(response);
+    });
+  });
+
   describe("POST /admin/login", () => {
     test("validates required password field", async () => {
       const response = await handleRequest(
