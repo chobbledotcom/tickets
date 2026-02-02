@@ -613,6 +613,15 @@ blockquote footer {
   border-radius: 10px;
 }
 
+/* Article spacing and heading adjustments */
+article + article {
+  margin-top: 2rem;
+}
+
+article > h2:first-child {
+  margin-top: 0;
+}
+
 /* App-specific additions */
 .error {
   background: #ffeeee;
