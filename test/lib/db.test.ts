@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compat";
-import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
+import { decryptWithKey, encrypt, importPrivateKey } from "#lib/crypto.ts";
 import {
   getAllActivityLog,
   getEventActivityLog,
@@ -450,6 +450,24 @@ describe("db", () => {
       });
 
       expect(event.description).toBe("");
+    });
+
+    test("reads empty description from migrated row with unencrypted empty string", async () => {
+      // Simulate a row created before the description column was added:
+      // the migration sets description to '' (unencrypted empty string)
+      const db = getDb();
+      const encName = await encrypt("Migrated Event");
+      const encSlug = await encrypt("migrated-event");
+      await db.execute({
+        sql: `INSERT INTO events (name, description, slug, slug_index, created, max_attendees, max_quantity, active, fields)
+              VALUES (?, '', ?, 'migrated-idx', '2024-01-01T00:00:00Z', 50, 1, 1, 'email')`,
+        args: [encName, encSlug],
+      });
+
+      const event = await getEvent(1);
+      expect(event).not.toBeNull();
+      expect(event?.description).toBe("");
+      expect(event?.name).toBe("Migrated Event");
     });
 
     test("getAllEvents returns empty array when no events", async () => {
