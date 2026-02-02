@@ -89,15 +89,13 @@ export const getAuthenticatedSession = async (
     return null;
   }
 
-  // Require user_id on session (sessions without user_id are invalid after migration)
-  if (session.user_id == null) {
-    await deleteSession(token);
-    return null;
-  }
-
   // Load user and decrypt admin level
   const user = await getUserById(session.user_id);
   if (!user) {
+    logError({
+      code: ErrorCode.AUTH_INVALID_SESSION,
+      detail: "Session references non-existent user, invalidating",
+    });
     await deleteSession(token);
     return null;
   }
@@ -106,6 +104,11 @@ export const getAuthenticatedSession = async (
   try {
     adminLevel = await decryptAdminLevel(user) as AdminLevel;
   } catch {
+    // Decryption failed - likely DB_ENCRYPTION_KEY was rotated
+    logError({
+      code: ErrorCode.KEY_DERIVATION,
+      detail: "Failed to decrypt admin level, likely due to DB_ENCRYPTION_KEY rotation",
+    });
     await deleteSession(token);
     return null;
   }

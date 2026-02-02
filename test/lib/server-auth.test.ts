@@ -183,7 +183,7 @@ describe("server (admin auth)", () => {
 
     test("shows logout button when other sessions exist", async () => {
       // Create an extra session
-      await createSession("other-session", "other-csrf", Date.now() + 10000);
+      await createSession("other-session", "other-csrf", Date.now() + 10000, null, 1);
 
       const { cookie } = await loginAsAdmin();
 
@@ -224,8 +224,8 @@ describe("server (admin auth)", () => {
 
     test("logs out other sessions and shows success message", async () => {
       // Create other sessions before login
-      await createSession("other1", "csrf1", Date.now() + 10000);
-      await createSession("other2", "csrf2", Date.now() + 10000);
+      await createSession("other1", "csrf1", Date.now() + 10000, null, 1);
+      await createSession("other2", "csrf2", Date.now() + 10000, null, 1);
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -248,7 +248,7 @@ describe("server (admin auth)", () => {
     });
 
     test("keeps current session active after logging out others", async () => {
-      await createSession("other", "csrf-other", Date.now() + 10000);
+      await createSession("other", "csrf-other", Date.now() + 10000, null, 1);
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -280,7 +280,7 @@ describe("server (admin auth)", () => {
 
     test("expired session is deleted and shows login page", async () => {
       // Add an expired session directly to the database
-      await createSession("expired-token", "csrf-expired", Date.now() - 1000);
+      await createSession("expired-token", "csrf-expired", Date.now() - 1000, null, 1);
 
       const response = await awaitTestRequest("/admin/", "expired-token");
       expect(response.status).toBe(200);

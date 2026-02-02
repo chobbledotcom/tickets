@@ -66,8 +66,8 @@ export const createSession = async (
   token: string,
   csrfToken: string,
   expires: number,
-  wrappedDataKey: string | null = null,
-  userId: number | null = null,
+  wrappedDataKey: string | null,
+  userId: number,
 ): Promise<void> => {
   const tokenHash = await hashSessionToken(token);
   await getDb().execute({

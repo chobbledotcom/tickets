@@ -221,8 +221,7 @@ export const initDb = async (): Promise<void> => {
       wrapped_data_key TEXT,
       admin_level TEXT NOT NULL,
       invite_code_hash TEXT,
-      invite_expiry TEXT,
-      created TEXT NOT NULL
+      invite_expiry TEXT
     )
   `);
 
@@ -234,8 +233,8 @@ export const initDb = async (): Promise<void> => {
   // Migration: add user_id column to sessions (nullable for migration compatibility)
   await runMigration(`ALTER TABLE sessions ADD COLUMN user_id INTEGER`);
 
-  // Clear existing sessions to force re-login after multi-user migration
-  await runMigration(`DELETE FROM sessions`);
+  // Clear sessions without user_id (pre-migration sessions)
+  await runMigration(`DELETE FROM sessions WHERE user_id IS NULL`);
 
   // Update the version marker
   await getDb().execute({

@@ -165,7 +165,7 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createSession("test-token", "test-csrf", Date.now() + 1000);
+      await createSession("test-token", "test-csrf", Date.now() + 1000, null, 1);
 
       // Reset the database
       await resetDatabase();
@@ -877,7 +877,7 @@ describe("db", () => {
   describe("sessions", () => {
     test("createSession and getSession work together", async () => {
       const expires = Date.now() + 1000;
-      await createSession("test-token", "test-csrf-token", expires);
+      await createSession("test-token", "test-csrf-token", expires, null, 1);
 
       const session = await getSession("test-token");
       expect(session).not.toBeNull();
@@ -892,7 +892,7 @@ describe("db", () => {
     });
 
     test("deleteSession removes session", async () => {
-      await createSession("delete-me", "csrf-delete", Date.now() + 1000);
+      await createSession("delete-me", "csrf-delete", Date.now() + 1000, null, 1);
       await deleteSession("delete-me");
 
       const session = await getSession("delete-me");
@@ -900,9 +900,9 @@ describe("db", () => {
     });
 
     test("deleteAllSessions removes all sessions", async () => {
-      await createSession("session1", "csrf1", Date.now() + 10000);
-      await createSession("session2", "csrf2", Date.now() + 10000);
-      await createSession("session3", "csrf3", Date.now() + 10000);
+      await createSession("session1", "csrf1", Date.now() + 10000, null, 1);
+      await createSession("session2", "csrf2", Date.now() + 10000, null, 1);
+      await createSession("session3", "csrf3", Date.now() + 10000, null, 1);
 
       await deleteAllSessions();
 
@@ -917,9 +917,9 @@ describe("db", () => {
 
     test("getAllSessions returns all sessions ordered by expiration descending", async () => {
       const now = Date.now();
-      await createSession("session1", "csrf1", now + 1000);
-      await createSession("session2", "csrf2", now + 3000);
-      await createSession("session3", "csrf3", now + 2000);
+      await createSession("session1", "csrf1", now + 1000, null, 1);
+      await createSession("session2", "csrf2", now + 3000, null, 1);
+      await createSession("session3", "csrf3", now + 2000, null, 1);
 
       const sessions = await getAllSessions();
 
@@ -936,9 +936,9 @@ describe("db", () => {
     });
 
     test("deleteOtherSessions removes all sessions except current", async () => {
-      await createSession("current", "csrf-current", Date.now() + 10000);
-      await createSession("other1", "csrf-other1", Date.now() + 10000);
-      await createSession("other2", "csrf-other2", Date.now() + 10000);
+      await createSession("current", "csrf-current", Date.now() + 10000, null, 1);
+      await createSession("other1", "csrf-other1", Date.now() + 10000, null, 1);
+      await createSession("other2", "csrf-other2", Date.now() + 10000, null, 1);
 
       await deleteOtherSessions("current");
 
@@ -952,7 +952,7 @@ describe("db", () => {
     });
 
     test("deleteOtherSessions with no other sessions keeps current", async () => {
-      await createSession("only-session", "csrf", Date.now() + 10000);
+      await createSession("only-session", "csrf", Date.now() + 10000, null, 1);
 
       await deleteOtherSessions("only-session");
 
@@ -967,7 +967,7 @@ describe("db", () => {
       jest.setSystemTime(startTime);
 
       // Create and cache a session
-      await createSession("ttl-test", "csrf-ttl", startTime + 60000);
+      await createSession("ttl-test", "csrf-ttl", startTime + 60000, null, 1);
       const firstCall = await getSession("ttl-test");
       expect(firstCall).not.toBeNull();
 
@@ -1002,8 +1002,8 @@ describe("db", () => {
       expect(user).not.toBeNull();
 
       // Create some sessions
-      await createSession("session1", "csrf1", Date.now() + 10000);
-      await createSession("session2", "csrf2", Date.now() + 10000);
+      await createSession("session1", "csrf1", Date.now() + 10000, null, 1);
+      await createSession("session2", "csrf2", Date.now() + 10000, null, 1);
 
       // Verify initial password works
       const initialHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);

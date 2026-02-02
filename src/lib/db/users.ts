@@ -27,14 +27,13 @@ const insertUser = async (opts: {
   const usernameIndex = await hmacHash(opts.username.toLowerCase());
   const encryptedUsername = await encrypt(opts.username.toLowerCase());
   const encryptedAdminLevel = await encrypt(opts.adminLevel);
-  const encryptedCreated = await encrypt(new Date().toISOString());
   const encryptedPasswordHash = opts.passwordHash ? await encrypt(opts.passwordHash) : "";
   const encryptedInviteCode = opts.inviteCodeHash ? await encrypt(opts.inviteCodeHash) : null;
   const encryptedInviteExpiry = opts.inviteExpiry ? await encrypt(opts.inviteExpiry) : null;
 
   const result = await getDb().execute({
-    sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, created)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
     args: [
       encryptedUsername,
       usernameIndex,
@@ -43,7 +42,6 @@ const insertUser = async (opts: {
       encryptedAdminLevel,
       encryptedInviteCode,
       encryptedInviteExpiry,
-      encryptedCreated,
     ],
   });
 
@@ -57,7 +55,6 @@ const insertUser = async (opts: {
     admin_level: encryptedAdminLevel,
     invite_code_hash: encryptedInviteCode,
     invite_expiry: encryptedInviteExpiry,
-    created: encryptedCreated,
   };
 };
 
@@ -91,7 +88,7 @@ export const getUserByUsername = async (
 ): Promise<User | null> => {
   const usernameIndex = await hmacHash(username.toLowerCase());
   return queryOne<User>(
-    "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, created FROM users WHERE username_index = ?",
+    "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users WHERE username_index = ?",
     [usernameIndex],
   );
 };
@@ -101,7 +98,7 @@ export const getUserByUsername = async (
  */
 export const getUserById = (id: number): Promise<User | null> =>
   queryOne<User>(
-    "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, created FROM users WHERE id = ?",
+    "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users WHERE id = ?",
     [id],
   );
 
@@ -118,7 +115,7 @@ export const isUsernameTaken = async (username: string): Promise<boolean> => {
  */
 export const getAllUsers = async (): Promise<User[]> => {
   const result = await getDb().execute(
-    "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, created FROM users ORDER BY id ASC",
+    "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC",
   );
   return result.rows as unknown as User[];
 };

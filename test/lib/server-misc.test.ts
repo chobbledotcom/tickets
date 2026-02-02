@@ -1,15 +1,19 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
+  awaitTestRequest,
+  createTestAttendee,
   createTestDb,
   createTestDbWithSetup,
   createTestEvent,
+  expectAdminRedirect,
+  loginAsAdmin,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
   resetDb,
   resetTestSlugCounter,
-  loginAsAdmin,
 } from "#test-utils";
 
 describe("server (misc)", () => {
@@ -176,6 +180,66 @@ describe("server (misc)", () => {
       });
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       expect(response.status).toBe(200);
+    });
+  });
+
+  describe("routes/utils.ts (getPrivateKey null paths)", () => {
+    test("returns null when wrappedDataKey is null", async () => {
+      // This is tested indirectly via session without wrapped_data_key
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      // Create session without wrapped_data_key
+      const token = "test-no-wrapped-key";
+      await createSession(token, "csrf123", Date.now() + 3600000, null, 1);
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/attendee/1/delete`,
+        { cookie: `__Host-session=${token}` },
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns null when wrappedPrivateKey is not set in DB", async () => {
+      // Clear the wrapped_private_key from DB so getWrappedPrivateKey returns null
+      const { getDb } = await import("#lib/db/client.ts");
+      await getDb().execute({
+        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+        args: [],
+      });
+
+      const { cookie } = await loginAsAdmin();
+
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      // Should redirect since getPrivateKey returns null (no wrapped private key)
+      expectAdminRedirect(response);
+    });
+
+    test("returns null when getPrivateKeyFromSession throws", async () => {
+      // Create a session with a corrupt wrapped_data_key that will cause crypto to throw
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const token = "test-corrupt-key";
+      await createSession(token, "csrf123", Date.now() + 3600000, "corrupt-key-data", 1);
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie: `__Host-session=${token}`,
+      });
+      // Should redirect since getPrivateKey catches the crypto error and returns null
+      expectAdminRedirect(response);
     });
   });
 

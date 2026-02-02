@@ -45,7 +45,7 @@ export interface Session {
   csrf_token: string;
   expires: number;
   wrapped_data_key: string | null;
-  user_id: number | null;
+  user_id: number;
 }
 
 /** Admin role levels */
@@ -60,7 +60,6 @@ export interface User {
   admin_level: string; // encrypted "owner" or "manager"
   invite_code_hash: string | null; // encrypted SHA-256 of invite token, null after password set
   invite_expiry: string | null; // encrypted ISO 8601, null after password set
-  created: string; // encrypted ISO 8601
 }
 
 export interface EventWithCount extends Event {

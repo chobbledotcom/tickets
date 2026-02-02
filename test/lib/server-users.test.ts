@@ -136,8 +136,8 @@ describe("server (multi-user admin)", () => {
       const hash = await hashPassword("managerpass");
       const encHash = await encrypt(hash);
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, created)
-              VALUES (?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+              VALUES (?, ?, ?, ?, ?)`,
         args: [
           await encrypt("manager"),
           "manager-idx-unique",
@@ -145,7 +145,6 @@ describe("server (multi-user admin)", () => {
           // Give the manager a wrapped_data_key so login works
           (await getUserByUsername(TEST_ADMIN_USERNAME))!.wrapped_data_key,
           await encrypt("manager"),
-          await encrypt(new Date().toISOString()),
         ],
       });
 
@@ -196,15 +195,14 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const managerIdx = await hmacHash("dashmanager");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, created)
-              VALUES (?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+              VALUES (?, ?, ?, ?, ?)`,
         args: [
           await encrypt("dashmanager"),
           managerIdx,
           "",
           null,
           await encrypt("manager"),
-          await encrypt(new Date().toISOString()),
         ],
       });
 
@@ -545,20 +543,6 @@ describe("server (multi-user admin)", () => {
     });
   });
 
-  describe("session user_id enforcement", () => {
-    test("sessions without user_id are rejected", async () => {
-      // Create a session without user_id (pre-migration session)
-      await createSession("old-session", "old-csrf", Date.now() + 3600000);
-
-      const response = await awaitTestRequest("/admin/", {
-        cookie: "__Host-session=old-session",
-      });
-      // Should redirect to login (session invalidated)
-      const html = await response.text();
-      expect(html).toContain("Login");
-    });
-  });
-
   describe("navigation", () => {
     test("owner sees all nav links", async () => {
       const { cookie } = await loginAsAdmin();
@@ -574,15 +558,14 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const managerIdx = await hmacHash("navmanager");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, created)
-              VALUES (?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+              VALUES (?, ?, ?, ?, ?)`,
         args: [
           await encrypt("navmanager"),
           managerIdx,
           "",
           null,
           await encrypt("manager"),
-          await encrypt(new Date().toISOString()),
         ],
       });
 
@@ -1053,8 +1036,8 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const usernameIdx = await hmacHash("no-expiry-user");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, created)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           await encrypt("no-expiry-user"),
           usernameIdx,
@@ -1063,7 +1046,6 @@ describe("server (multi-user admin)", () => {
           await encrypt("manager"),
           await encrypt("somehash"),
           null,
-          await encrypt(new Date().toISOString()),
         ],
       });
 
@@ -1076,8 +1058,8 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const usernameIdx = await hmacHash("corrupt-invite-user");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, created)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           await encrypt("corrupt-invite-user"),
           usernameIdx,
@@ -1086,7 +1068,6 @@ describe("server (multi-user admin)", () => {
           await encrypt("manager"),
           "corrupted_encrypted_data",
           await encrypt(new Date(Date.now() + 86400000).toISOString()),
-          await encrypt(new Date().toISOString()),
         ],
       });
 
@@ -1099,8 +1080,8 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const usernameIdx = await hmacHash("empty-expiry-user");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, created)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           await encrypt("empty-expiry-user"),
           usernameIdx,
@@ -1109,7 +1090,6 @@ describe("server (multi-user admin)", () => {
           await encrypt("manager"),
           await encrypt("somehash"),
           await encrypt(""),
-          await encrypt(new Date().toISOString()),
         ],
       });
 
@@ -1122,8 +1102,8 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const usernameIdx = await hmacHash("corrupt-expiry-user");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, created)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           await encrypt("corrupt-expiry-user"),
           usernameIdx,
@@ -1132,7 +1112,6 @@ describe("server (multi-user admin)", () => {
           await encrypt("manager"),
           await encrypt("somehash"),
           "corrupted_encrypted_expiry",
-          await encrypt(new Date().toISOString()),
         ],
       });
 
@@ -1145,15 +1124,14 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const usernameIdx = await hmacHash("corrupt-pwd-user");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, created)
-              VALUES (?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+              VALUES (?, ?, ?, ?, ?)`,
         args: [
           await encrypt("corrupt-pwd-user"),
           usernameIdx,
           "corrupted_encrypted_password",
           null,
           await encrypt("manager"),
-          await encrypt(new Date().toISOString()),
         ],
       });
 
@@ -1167,8 +1145,8 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const usernameIdx = await hmacHash("corrupt-code-lookup");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, created)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [
           await encrypt("corrupt-code-lookup"),
           usernameIdx,
@@ -1177,7 +1155,6 @@ describe("server (multi-user admin)", () => {
           await encrypt("manager"),
           "corrupted_not_decryptable",
           await encrypt(new Date(Date.now() + 86400000).toISOString()),
-          await encrypt(new Date().toISOString()),
         ],
       });
 
@@ -1205,15 +1182,14 @@ describe("server (multi-user admin)", () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const managerIdx = await hmacHash("formmanager");
       await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, created)
-              VALUES (?, ?, ?, ?, ?, ?)`,
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+              VALUES (?, ?, ?, ?, ?)`,
         args: [
           await encrypt("formmanager"),
           managerIdx,
           "",
           null,
           await encrypt("manager"),
-          await encrypt(new Date().toISOString()),
         ],
       });
 

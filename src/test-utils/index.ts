@@ -158,8 +158,8 @@ export const createTestDbWithSetup = async (
     if (cachedSetupUsers) {
       for (const row of cachedSetupUsers) {
         await cachedClient!.execute({
-          sql: "INSERT INTO users (id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          args: [row.id, row.username_hash, row.username_index, row.password_hash, row.wrapped_data_key, row.admin_level, row.invite_code_hash, row.invite_expiry, row.created],
+          sql: "INSERT INTO users (id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          args: [row.id, row.username_hash, row.username_index, row.password_hash, row.wrapped_data_key, row.admin_level, row.invite_code_hash, row.invite_expiry],
         });
       }
     }
