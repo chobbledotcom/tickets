@@ -165,6 +165,12 @@ export const adminEventPage = (
                 </td>
               </tr>
               <tr>
+                <th>Public URL</th>
+                <td>
+                  <a href={ticketUrl}>{`${allowedDomain}/ticket/${event.slug}`}</a>
+                </td>
+              </tr>
+              <tr>
                 <th><label for={`thank-you-url-${event.id}`}>Thank You URL</label></th>
                 <td>
                   {event.thank_you_url ? (
@@ -210,35 +216,37 @@ export const adminEventPage = (
           </table>
         </article>
 
-        <h2 id="attendees">Attendees</h2>
-        {checkinMessage && (
-          <p id="message" class={checkedInClass}>
-            Checked {checkinMessage.name} {checkedInLabel}
+        <article>
+          <h2 id="attendees">Attendees</h2>
+          {checkinMessage && (
+            <p id="message" class={checkedInClass}>
+              Checked {checkinMessage.name} {checkedInLabel}
+            </p>
+          )}
+          <p>
+            <Raw html={FilterLink({ href: `${basePath}#attendees`, label: "All", active: activeFilter === "all" })} />
+            {" / "}
+            <Raw html={FilterLink({ href: `${basePath}/in#attendees`, label: "Checked In", active: activeFilter === "in" })} />
+            {" / "}
+            <Raw html={FilterLink({ href: `${basePath}/out#attendees`, label: "Checked Out", active: activeFilter === "out" })} />
           </p>
-        )}
-        <p>
-          <Raw html={FilterLink({ href: `${basePath}#attendees`, label: "All", active: activeFilter === "all" })} />
-          {" / "}
-          <Raw html={FilterLink({ href: `${basePath}/in#attendees`, label: "Checked In", active: activeFilter === "in" })} />
-          {" / "}
-          <Raw html={FilterLink({ href: `${basePath}/out#attendees`, label: "Checked Out", active: activeFilter === "out" })} />
-        </p>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>Qty</th>
-              <th>Registered</th>
-              <th></th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={attendeeRows} />
-          </tbody>
-        </table>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Qty</th>
+                <th>Registered</th>
+                <th></th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <Raw html={attendeeRows} />
+            </tbody>
+          </table>
+        </article>
     </Layout>
   );
 };
