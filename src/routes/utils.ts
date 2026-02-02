@@ -291,6 +291,18 @@ export const withActiveEventBySlug = (
 export const isRegistrationClosed = (event: { closes_at: string | null }): boolean =>
   event.closes_at !== null && new Date(event.closes_at).getTime() < Date.now();
 
+/** Create a formatter for attendee creation failures (capacity_exceeded / encryption_error) */
+export const formatCreationError =
+  (
+    capacityMsg: string,
+    capacityMsgWithName: (name: string) => string,
+    fallbackMsg: string,
+  ) =>
+  (reason: "capacity_exceeded" | "encryption_error", eventName?: string): string =>
+    reason === "capacity_exceeded"
+      ? eventName ? capacityMsgWithName(eventName) : capacityMsg
+      : fallbackMsg;
+
 /** Format a countdown from now to a future closes_at date, e.g. "3 days and 5 hours from now" */
 export const formatCountdown = (closesAt: string): string => {
   const diffMs = new Date(closesAt).getTime() - Date.now();
