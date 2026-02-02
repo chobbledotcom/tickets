@@ -524,7 +524,7 @@ describe("html", () => {
       const html = adminEventActivityLogPage(event, entries);
       expect(html).toContain("Ticket reserved");
       expect(html).toContain("Payment received");
-      expect(html).toContain("Activity Log");
+      expect(html).toContain("Log");
     });
 
     test("renders empty state when no entries", () => {
@@ -541,12 +541,28 @@ describe("html", () => {
       ];
       const html = adminGlobalActivityLogPage(entries);
       expect(html).toContain("System started");
-      expect(html).toContain("Activity Log");
+      expect(html).toContain("Log");
     });
 
     test("renders empty state when no entries", () => {
       const html = adminGlobalActivityLogPage([]);
       expect(html).toContain("No activity recorded yet");
+    });
+
+    test("shows truncation message when truncated", () => {
+      const entries = [
+        { id: 1, created: "2024-01-15T10:30:00Z", event_id: null, message: "Action" },
+      ];
+      const html = adminGlobalActivityLogPage(entries, true);
+      expect(html).toContain("Showing the most recent 200 entries");
+    });
+
+    test("does not show truncation message when not truncated", () => {
+      const entries = [
+        { id: 1, created: "2024-01-15T10:30:00Z", event_id: null, message: "Action" },
+      ];
+      const html = adminGlobalActivityLogPage(entries, false);
+      expect(html).not.toContain("Showing the most recent 200 entries");
     });
   });
 

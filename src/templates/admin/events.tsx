@@ -76,7 +76,7 @@ export const adminEventPage = (
           <ul>
             <li><a href={`/admin/event/${event.id}/edit`}>Edit</a></li>
             <li><a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a></li>
-            <li><a href={`/admin/event/${event.id}/activity-log`}>Activity Log</a></li>
+            <li><a href={`/admin/event/${event.id}/log`}>Log</a></li>
             <li><a href={`/admin/event/${event.id}/export`}>Export CSV</a></li>
             {event.active === 1 ? (
               <li><a href={`/admin/event/${event.id}/deactivate`} class="danger">Deactivate</a></li>

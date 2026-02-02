@@ -10,6 +10,7 @@ export const AdminNav = (): JSX.Element => (
     <ul>
       <li><a href="/admin/">Events</a></li>
       <li><a href="/admin/settings">Settings</a></li>
+      <li><a href="/admin/log">Log</a></li>
       <li><a href="/admin/sessions">Sessions</a></li>
       <li><a href="/admin/logout">Logout</a></li>
     </ul>

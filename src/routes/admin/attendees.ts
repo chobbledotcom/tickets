@@ -107,7 +107,7 @@ const handleAdminAttendeeDeletePost = (
     }
 
     await deleteAttendee(attendeeId);
-    await logActivity("Attendee deleted", eventId);
+    await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
     return redirect(`/admin/event/${eventId}`);
   });
 

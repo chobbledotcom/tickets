@@ -1299,7 +1299,7 @@ describe("db", () => {
       await logActivity("Action for event 2", event2.id);
 
       const event1Log = await getEventActivityLog(event1.id);
-      // REST API also logs "Created event", so we have 3 entries for event 1
+      // REST API also logs event creation, so we have 3 entries for event 1
       expect(event1Log.length).toBe(3);
       expect(event1Log[0]?.message).toBe("Another action for event 1");
       expect(event1Log[1]?.message).toBe("Action for event 1");
@@ -1335,7 +1335,7 @@ describe("db", () => {
       await logActivity("Event action", event.id);
 
       const entries = await getAllActivityLog();
-      // REST API logs "Created event", so we have 3 entries total
+      // REST API logs event creation, so we have 3 entries total
       expect(entries.length).toBe(3);
     });
 
@@ -1374,7 +1374,7 @@ describe("db", () => {
       expect(result?.event.id).toBe(event.id);
       expect(result?.event.name).toBe("Batch Test Event");
       expect(result?.event.attendee_count).toBe(0);
-      // REST API logs "Created event" + our 2 = 3
+      // REST API logs event creation + our 2 = 3
       expect(result?.entries.length).toBe(3);
       expect(result?.entries[0]?.message).toBe("Second action");
       expect(result?.entries[1]?.message).toBe("First action");
