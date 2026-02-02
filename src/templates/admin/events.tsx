@@ -42,7 +42,7 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; e
     <form
       method="POST"
       action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
-      class="checkin-form"
+      class="checkin-form inline"
     >
       <input type="hidden" name="csrf_token" value={csrfToken} />
       <input type="hidden" name="return_filter" value={activeFilter} />
