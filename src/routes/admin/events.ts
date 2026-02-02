@@ -19,7 +19,7 @@ import {
 } from "#lib/db/events.ts";
 import { createHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
-import { generateSlug } from "#lib/slug.ts";
+import { generateSlug, normalizeSlug, validateSlug } from "#lib/slug.ts";
 import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
 import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
@@ -42,7 +42,7 @@ import {
   adminReactivateEventPage,
 } from "#templates/admin/events.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
-import { eventFields } from "#templates/fields.ts";
+import { eventFields, slugField } from "#templates/fields.ts";
 
 /** Generate a unique slug, retrying on collision */
 const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: string; slugIndex: string }> => {
@@ -73,19 +73,24 @@ const extractEventInput = async (
   };
 };
 
-/** Extract event input for update (preserves existing slug) */
-const extractEventUpdateInput = (existingSlug: string, existingSlugIndex: string) =>
-  (values: Record<string, unknown>): EventInput => ({
+/** Extract event input for update (reads slug from form, normalizes it) */
+const extractEventUpdateInput = async (
+  values: Record<string, unknown>,
+): Promise<EventInput> => {
+  const slug = normalizeSlug(values.slug as string);
+  const slugIndex = await computeSlugIndex(slug);
+  return {
     name: values.name as string,
-    slug: existingSlug,
-    slugIndex: existingSlugIndex,
+    slug,
+    slugIndex,
     maxAttendees: values.max_attendees as number,
     thankYouUrl: values.thank_you_url as string,
     unitPrice: values.unit_price as number | null,
     maxQuantity: values.max_quantity as number,
     webhookUrl: (values.webhook_url as string) || null,
     fields: (values.fields as EventFields) || "email",
-  });
+  };
+};
 
 /** Events resource for REST create operations */
 const eventsResource = defineResource({
@@ -187,12 +192,16 @@ const handleAdminEventEditPost = async (
   const existing = await getEventWithCount(eventId);
   if (!existing) return notFoundResponse();
 
-  // Build a resource that preserves the existing slug
+  // Build a resource that includes the slug field and validates uniqueness
   const updateResource = defineResource({
     table: eventsTable,
-    fields: eventFields,
-    toInput: extractEventUpdateInput(existing.slug, existing.slug_index),
+    fields: [...eventFields, slugField],
+    toInput: extractEventUpdateInput,
     nameField: "name",
+    validate: async (input, id) => {
+      const taken = await isSlugTaken(input.slug, id as number);
+      return taken ? "Slug is already in use by another event" : null;
+    },
   });
 
   const result = await updateResource.update(eventId, auth.form);
