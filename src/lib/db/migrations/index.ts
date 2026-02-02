@@ -9,11 +9,7 @@ import { getPublicKey } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-<<<<<<< HEAD
-export const LATEST_UPDATE = "encrypt event closes_at column";
-=======
 export const LATEST_UPDATE = "add multi-user admin";
->>>>>>> 8dbab2f (Add multi-user admin access with role-based permissions)
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)

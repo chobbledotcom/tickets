@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -454,6 +455,26 @@ describe("server (admin attendees)", () => {
 
       const response = await handleRequest(
         mockFormRequest(`/admin/event/${event.id}/attendee/${attendee.id}/checkin`, {}),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("redirects when session lacks wrapped data key on checkin", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const token = "test-token-no-data-key-checkin";
+      await createSession(token, "csrf123", Date.now() + 3600000, null, 1);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: "csrf123" },
+          `__Host-session=${token}`,
+        ),
       );
       expectAdminRedirect(response);
     });
