@@ -36,9 +36,9 @@ export const adminEventActivityLogPage = (
   entries: ActivityLogEntry[],
 ): string =>
   String(
-    <Layout title={`Activity Log: ${event.name}`}>
+    <Layout title={`Log: ${event.name}`}>
       <AdminNav />
-        <h2>Activity Log</h2>
+        <h2>Log</h2>
         <table>
           <thead>
             <tr>
@@ -58,11 +58,12 @@ export const adminEventActivityLogPage = (
  */
 export const adminGlobalActivityLogPage = (
   entries: ActivityLogEntry[],
+  truncated = false,
 ): string =>
   String(
-    <Layout title="Activity Log">
+    <Layout title="Log">
       <AdminNav />
-        <h2>Activity Log</h2>
+        <h2>Log</h2>
         <table>
           <thead>
             <tr>
@@ -74,5 +75,6 @@ export const adminGlobalActivityLogPage = (
             <Raw html={activityLogRows(entries)} />
           </tbody>
         </table>
+        {truncated && <p>Showing the most recent 200 entries.</p>}
     </Layout>
   );

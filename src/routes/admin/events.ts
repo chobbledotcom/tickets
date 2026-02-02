@@ -138,7 +138,7 @@ const withEventAttendees = async (
  */
 const handleCreateEvent = createHandler(eventsResource, {
   onSuccess: async (row) => {
-    await logActivity("Event created", row.id);
+    await logActivity(`Event '${row.name}' created`, row.id);
     return redirect("/admin");
   },
   onError: () => redirect("/admin"),
@@ -223,7 +223,7 @@ const handleAdminEventExport = (request: Request, eventId: number) =>
   withEventAttendees(request, eventId, async (event, attendees) => {
     const csv = generateAttendeesCsv(attendees);
     const filename = `${event.name.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
-    await logActivity("CSV exported", event.id);
+    await logActivity(`CSV exported for '${event.name}'`, event.id);
     return new Response(csv, {
       headers: {
         "content-type": "text/csv; charset=utf-8",
@@ -260,7 +260,7 @@ const handleAdminEventDeactivatePost = (
     }
 
     await eventsTable.update(eventId, { active: 0 });
-    await logActivity("Event deactivated", eventId);
+    await logActivity(`Event '${event.name}' deactivated`, eventId);
     return redirect(`/admin/event/${eventId}`);
   });
 
@@ -286,7 +286,7 @@ const handleAdminEventReactivatePost = (
     }
 
     await eventsTable.update(eventId, { active: 1 });
-    await logActivity("Event reactivated", eventId);
+    await logActivity(`Event '${event.name}' reactivated`, eventId);
     return redirect(`/admin/event/${eventId}`);
   });
 
@@ -294,10 +294,10 @@ const handleAdminEventReactivatePost = (
 const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
 
 /**
- * Handle GET /admin/event/:id/activity-log
+ * Handle GET /admin/event/:id/log
  * Uses batched query to fetch event + activity log in a single DB round-trip.
  */
-const handleAdminEventActivityLog = (
+const handleAdminEventLog = (
   request: Request,
   eventId: number,
 ): Promise<Response> =>
@@ -343,7 +343,7 @@ const handleAdminEventDelete = (
     const attendeeCount = event.attendee_count;
     await deleteEvent(eventId);
     await logActivity(
-      `Event deleted (${attendeeCount} attendee(s) removed)`,
+      `Event '${event.name}' deleted (${attendeeCount} attendee(s) removed)`,
     );
     return redirect("/admin");
   });
@@ -365,8 +365,8 @@ export const eventsRoutes = defineRoutes({
     handleAdminEventEditPost(request, parseEventId(params)),
   "GET /admin/event/:id/export": (request, params) =>
     handleAdminEventExport(request, parseEventId(params)),
-  "GET /admin/event/:id/activity-log": (request, params) =>
-    handleAdminEventActivityLog(request, parseEventId(params)),
+  "GET /admin/event/:id/log": (request, params) =>
+    handleAdminEventLog(request, parseEventId(params)),
   "GET /admin/event/:id/deactivate": (request, params) =>
     handleAdminEventDeactivateGet(request, parseEventId(params)),
   "POST /admin/event/:id/deactivate": (request, params) =>

@@ -133,7 +133,7 @@ export const logAndNotifyRegistration = async (
   attendee: WebhookAttendee,
   currency: string,
 ): Promise<void> => {
-  await logActivity("Attendee registered", event.id);
+  await logActivity(`Attendee registered for '${event.name}'`, event.id);
   await sendRegistrationWebhooks([{ event, attendee }], currency);
 };
 
@@ -145,7 +145,7 @@ export const logAndNotifyMultiRegistration = async (
   currency: string,
 ): Promise<void> => {
   for (const { event } of entries) {
-    await logActivity("Attendee registered", event.id);
+    await logActivity(`Attendee registered for '${event.name}'`, event.id);
   }
   await sendRegistrationWebhooks(entries, currency);
 };

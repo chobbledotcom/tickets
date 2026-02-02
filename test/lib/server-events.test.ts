@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import type { InStatement } from "@libsql/client";
+import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
@@ -1132,32 +1133,45 @@ describe("server (admin events)", () => {
     });
   });
 
-  describe("GET /admin/activity-log", () => {
+  describe("GET /admin/log", () => {
     test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(mockRequest("/admin/activity-log"));
+      const response = await handleRequest(mockRequest("/admin/log"));
       expectAdminRedirect(response);
     });
 
-    test("shows activity log page when authenticated", async () => {
+    test("shows log page when authenticated", async () => {
       const { cookie } = await loginAsAdmin();
 
       // Create an event to generate activity
       await createTestEvent({
-        name: "Activity Log Test",
+        name: "Log Test",
         maxAttendees: 50,
       });
 
-      const response = await awaitTestRequest("/admin/activity-log", { cookie });
+      const response = await awaitTestRequest("/admin/log", { cookie });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Activity Log");
+      expect(html).toContain("Log");
+    });
+
+    test("shows truncation message when more than 200 entries", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      // Create 201 log entries to trigger truncation
+      for (let i = 0; i < 201; i++) {
+        await logActivity(`Action ${i}`);
+      }
+
+      const response = await awaitTestRequest("/admin/log", { cookie });
+      const html = await response.text();
+      expect(html).toContain("Showing the most recent 200 entries");
     });
   });
 
-  describe("GET /admin/event/:id/activity-log", () => {
+  describe("GET /admin/event/:id/log", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockRequest("/admin/event/1/activity-log"),
+        mockRequest("/admin/event/1/log"),
       );
       expectAdminRedirect(response);
     });
@@ -1165,27 +1179,27 @@ describe("server (admin events)", () => {
     test("returns 404 for non-existent event", async () => {
       const { cookie } = await loginAsAdmin();
 
-      const response = await awaitTestRequest("/admin/event/999/activity-log", {
+      const response = await awaitTestRequest("/admin/event/999/log", {
         cookie,
       });
       expect(response.status).toBe(404);
     });
 
-    test("shows activity log for existing event", async () => {
+    test("shows log for existing event", async () => {
       const { cookie } = await loginAsAdmin();
 
       const event = await createTestEvent({
-        name: "Event Activity Log",
+        name: "Event Log",
         maxAttendees: 50,
       });
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}/activity-log`,
+        `/admin/event/${event.id}/log`,
         { cookie },
       );
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Activity Log");
+      expect(html).toContain("Log");
       expect(html).toContain(event.name);
     });
   });

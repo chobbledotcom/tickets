@@ -25,16 +25,22 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     () => loginResponse(),
   );
 
+/** Maximum number of log entries to display */
+const LOG_DISPLAY_LIMIT = 200;
+
 /**
- * Handle GET /admin/activity-log
+ * Handle GET /admin/log
  */
-const handleAdminActivityLog = (request: Request): Promise<Response> =>
-  requireSessionOr(request, async () =>
-    htmlResponse(adminGlobalActivityLogPage(await getAllActivityLog())),
-  );
+const handleAdminLog = (request: Request): Promise<Response> =>
+  requireSessionOr(request, async () => {
+    const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
+    const truncated = entries.length > LOG_DISPLAY_LIMIT;
+    const displayEntries = truncated ? entries.slice(0, LOG_DISPLAY_LIMIT) : entries;
+    return htmlResponse(adminGlobalActivityLogPage(displayEntries, truncated));
+  });
 
 /** Dashboard routes */
 export const dashboardRoutes = defineRoutes({
   "GET /admin": (request) => handleAdminGet(request),
-  "GET /admin/activity-log": (request) => handleAdminActivityLog(request),
+  "GET /admin/log": (request) => handleAdminLog(request),
 });
