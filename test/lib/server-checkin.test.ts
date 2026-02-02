@@ -121,6 +121,20 @@ describe("check-in (/checkin/:tokens)", () => {
       expect(body).toContain("3");
     });
 
+    test("links event name to admin event page", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      await createTestAttendee(event.id, event.slug, "Fay", "fay@test.com");
+      const attendees = await getAttendeesRaw(event.id);
+      const token = attendees[0]!.ticket_token;
+
+      const session = await loginAsAdmin();
+      const response = await awaitTestRequest(`/checkin/${token}`, {
+        cookie: session.cookie,
+      });
+      const body = await response.text();
+      expect(body).toContain(`href="/admin/event/${event.id}"`);
+    });
+
     test("shows green bulk check-in button when not checked in", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");

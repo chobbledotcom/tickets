@@ -17,7 +17,7 @@ const renderCheckinRow = ({ event, attendee }: TokenEntry): string => {
   const isCheckedIn = attendee.checked_in === "true";
   return String(
     <tr>
-      <td>{event.name}</td>
+      <td><a href={`/admin/event/${event.id}`}>{event.name}</a></td>
       <td>{attendee.name}</td>
       <td>{attendee.email || ""}</td>
       <td>{attendee.phone || ""}</td>
