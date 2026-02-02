@@ -199,6 +199,74 @@ describe("server (admin events)", () => {
     });
   });
 
+  describe("GET /admin/event/:id/duplicate", () => {
+    test("redirects to login when not authenticated", async () => {
+      await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await handleRequest(
+        mockRequest("/admin/event/1/duplicate"),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/event/999/duplicate", {
+        cookie: cookie,
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("shows duplicate form pre-filled with event settings but no name", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      await createTestEvent({
+        name: "Original Event",
+        maxAttendees: 75,
+        thankYouUrl: "https://example.com/thanks",
+        unitPrice: 2000,
+        webhookUrl: "https://example.com/webhook",
+      });
+
+      const response = await awaitTestRequest("/admin/event/1/duplicate", {
+        cookie: cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Duplicate Event");
+      expect(html).toContain("Original Event");
+      expect(html).toContain('value="75"');
+      expect(html).toContain('value="2000"');
+      expect(html).toContain('value="https://example.com/thanks"');
+      expect(html).toContain('value="https://example.com/webhook"');
+      // Name field should be empty (not pre-filled)
+      expect(html).not.toContain('value="Original Event"');
+      // Form posts to create endpoint
+      expect(html).toContain('action="/admin/event"');
+      // Name field has autofocus
+      expect(html).toContain("autofocus");
+    });
+
+    test("shows Duplicate link on event detail page", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await awaitTestRequest("/admin/event/1", {
+        cookie: cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("/admin/event/1/duplicate");
+      expect(html).toContain(">Duplicate<");
+    });
+  });
+
   describe("GET /admin/event/:id/export", () => {
     test("redirects to login when not authenticated", async () => {
       await createTestEvent({

@@ -3,6 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
 import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -61,6 +62,7 @@ export const adminEventPage = (
         <nav>
           <ul>
             <li><a href={`/admin/event/${event.id}/edit`}>Edit</a></li>
+            <li><a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a></li>
             <li><a href={`/admin/event/${event.id}/activity-log`}>Activity Log</a></li>
             <li><a href={`/admin/event/${event.id}/export`}>Export CSV</a></li>
             {event.active === 1 ? (
@@ -153,6 +155,35 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
 });
+
+/** Event fields with autofocus on the name field */
+const eventFieldsWithAutofocus: Field[] = pipe(
+  map((f: Field): Field => f.name === "name" ? { ...f, autofocus: true } : f),
+)(eventFields);
+
+/**
+ * Admin duplicate event page - create form pre-filled with existing event settings
+ */
+export const adminDuplicateEventPage = (
+  event: EventWithCount,
+  csrfToken: string,
+): string => {
+  const values = eventToFieldValues(event);
+  values.name = "";
+
+  return String(
+    <Layout title={`Duplicate: ${event.name}`}>
+      <AdminNav />
+        <h2>Duplicate Event</h2>
+        <p>Creating a new event based on <strong>{event.name}</strong>.</p>
+        <form method="POST" action="/admin/event">
+          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <Raw html={renderFields(eventFieldsWithAutofocus, values)} />
+          <button type="submit">Create Event</button>
+        </form>
+    </Layout>
+  );
+};
 
 /**
  * Admin event edit page
