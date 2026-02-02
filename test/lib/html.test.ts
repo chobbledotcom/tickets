@@ -536,8 +536,8 @@ describe("html", () => {
       const attendees = [testAttendee()];
       const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
       expect(html).toContain("<strong>All</strong>");
-      expect(html).toContain(`href="/admin/event/${event.id}/in"`);
-      expect(html).toContain(`href="/admin/event/${event.id}/out"`);
+      expect(html).toContain(`href="/admin/event/${event.id}/in#attendees"`);
+      expect(html).toContain(`href="/admin/event/${event.id}/out#attendees"`);
     });
 
     test("bolds Checked In when filter is in", () => {
@@ -545,7 +545,7 @@ describe("html", () => {
       const attendees = [testAttendee()];
       const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "in");
       expect(html).toContain("<strong>Checked In</strong>");
-      expect(html).toContain(`href="/admin/event/${event.id}"`);
+      expect(html).toContain(`href="/admin/event/${event.id}#attendees"`);
     });
 
     test("bolds Checked Out when filter is out", () => {
