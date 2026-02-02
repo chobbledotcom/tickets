@@ -77,6 +77,15 @@ const validateEventFields = (value: string): string | null => {
   return null;
 };
 
+/** Max length for event description */
+const MAX_DESCRIPTION_LENGTH = 128;
+
+/** Validate description length */
+const validateDescription = (value: string): string | null =>
+  value.length > MAX_DESCRIPTION_LENGTH
+    ? `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`
+    : null;
+
 /**
  * Event form field definitions (shared between create and edit)
  */
@@ -88,6 +97,14 @@ export const eventFields: Field[] = [
     required: true,
     placeholder: "Village Quiz Night",
     hint: "Displayed to attendees on the ticket page",
+  },
+  {
+    name: "description",
+    label: "Description (optional)",
+    type: "text",
+    placeholder: "A short description of the event",
+    hint: "Shown on the ticket page. HTML is allowed. Max 128 characters.",
+    validate: validateDescription,
   },
   {
     name: "max_attendees",

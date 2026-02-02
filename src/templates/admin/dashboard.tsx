@@ -18,6 +18,7 @@ const EventRow = ({ e }: { e: EventWithCount }): string => {
   return String(
     <tr style={rowStyle || undefined}>
       <td><a href={`/admin/event/${e.id}`}>{e.name}</a></td>
+      <td>{e.description}</td>
       <td>{isInactive ? "Inactive" : "Active"}</td>
       <td>{e.attendee_count} / {e.max_attendees}</td>
       <td>{new Date(e.created).toLocaleDateString()}</td>
@@ -35,7 +36,7 @@ export const adminDashboardPage = (
   const eventRows =
     events.length > 0
       ? pipe(map((e: EventWithCount) => EventRow({ e })), joinStrings)(events)
-      : '<tr><td colspan="4">No events yet</td></tr>';
+      : '<tr><td colspan="5">No events yet</td></tr>';
 
   return String(
     <Layout title="Events">
@@ -45,6 +46,7 @@ export const adminDashboardPage = (
           <thead>
             <tr>
               <th>Event Name</th>
+              <th>Description</th>
               <th>Status</th>
               <th>Attendees</th>
               <th>Created</th>

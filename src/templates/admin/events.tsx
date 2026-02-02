@@ -145,6 +145,7 @@ export const adminEventPage = (
  */
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,
+  description: event.description,
   slug: event.slug,
   max_attendees: event.max_attendees,
   max_quantity: event.max_quantity,
