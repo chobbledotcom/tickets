@@ -102,4 +102,16 @@ describe("ticket view (/t/:tokens)", () => {
     expect(attendees[1]!.ticket_token).not.toBe("");
     expect(attendees[0]!.ticket_token).not.toBe(attendees[1]!.ticket_token);
   });
+
+  test("includes inline SVG QR code in ticket view", async () => {
+    const event = await createTestEvent({ maxAttendees: 10 });
+    await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");
+    const attendees = await getAttendeesRaw(event.id);
+    const token = attendees[0]!.ticket_token;
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    const body = await response.text();
+    expect(body).toContain("<svg");
+    expect(body).toContain("</svg>");
+  });
 });

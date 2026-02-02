@@ -9,7 +9,7 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-16
 
     steps:
       - name: Checkout repository
