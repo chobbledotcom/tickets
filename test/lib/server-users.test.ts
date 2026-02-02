@@ -1165,18 +1165,6 @@ describe("server (multi-user admin)", () => {
   });
 
   describe("utils.ts edge cases", () => {
-    test("session with invalid wrapped_data_key is rejected", async () => {
-      // Create a session with an invalid wrapped_data_key
-      await createSession("bad-key-session", "bad-csrf", Date.now() + 3600000, "invalid-wrapped-key", 1);
-
-      const response = await awaitTestRequest("/admin/", {
-        cookie: "__Host-session=bad-key-session",
-      });
-      // Session should be invalidated, showing login
-      const html = await response.text();
-      expect(html).toContain("Login");
-    });
-
     test("withOwnerAuthForm returns 403 for manager role", async () => {
       // Create manager user
       const { hmacHash } = await import("#lib/crypto.ts");

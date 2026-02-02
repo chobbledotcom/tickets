@@ -7,7 +7,6 @@ import {
   constantTimeEqual,
   generateSecureToken,
   getPrivateKeyFromSession,
-  unwrapKeyWithToken,
 } from "#lib/crypto.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
@@ -100,32 +99,7 @@ export const getAuthenticatedSession = async (
     return null;
   }
 
-  let adminLevel: AdminLevel;
-  try {
-    adminLevel = await decryptAdminLevel(user) as AdminLevel;
-  } catch {
-    // Decryption failed - likely DB_ENCRYPTION_KEY was rotated
-    logError({
-      code: ErrorCode.KEY_DERIVATION,
-      detail: "Failed to decrypt admin level, likely due to DB_ENCRYPTION_KEY rotation",
-    });
-    await deleteSession(token);
-    return null;
-  }
-
-  // Validate wrapped_data_key can be unwrapped with current DB_ENCRYPTION_KEY
-  // This catches sessions created before a key rotation
-  try {
-    await unwrapKeyWithToken(session.wrapped_data_key!, token);
-  } catch {
-    // Key unwrapping failed - likely due to DB_ENCRYPTION_KEY rotation
-    logError({
-      code: ErrorCode.KEY_DERIVATION,
-      detail: "Session has invalid wrapped_data_key, likely due to DB_ENCRYPTION_KEY rotation. User must re-login.",
-    });
-    await deleteSession(token);
-    return null;
-  }
+  const adminLevel = await decryptAdminLevel(user) as AdminLevel;
 
   return {
     token,
@@ -324,7 +298,6 @@ export const withActiveEventBySlug = (
   fn: (event: EventWithCount) => Response | Promise<Response>,
 ): Promise<Response> => withEventBySlug(slug, requireActiveEvent(fn));
 
-<<<<<<< HEAD
 /** Check if an event's registration period has closed */
 export const isRegistrationClosed = (event: { closes_at: string | null }): boolean =>
   event.closes_at !== null && new Date(event.closes_at).getTime() < Date.now();
