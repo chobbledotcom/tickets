@@ -570,6 +570,10 @@ table tr:nth-child(even) {
   background-color: var(--color-accent);
 }
 
+table input {
+  margin: 0;
+}
+
 /* Quotes */
 blockquote {
   display: block;
