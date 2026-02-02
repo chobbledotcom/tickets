@@ -165,6 +165,12 @@ export const adminEventPage = (
                 </td>
               </tr>
               <tr>
+                <th>Public URL</th>
+                <td>
+                  <a href={ticketUrl}>{`${allowedDomain}/ticket/${event.slug}`}</a>
+                </td>
+              </tr>
+              <tr>
                 <th><label for={`thank-you-url-${event.id}`}>Thank You URL</label></th>
                 <td>
                   {event.thank_you_url ? (

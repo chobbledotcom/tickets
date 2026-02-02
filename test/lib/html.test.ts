@@ -113,6 +113,13 @@ describe("html", () => {
       expect(html).toContain("this.select()");
     });
 
+    test("shows public URL with allowed domain", () => {
+      const html = adminEventPage(event, [], "example.com", TEST_CSRF_TOKEN);
+      expect(html).toContain("Public URL");
+      expect(html).toContain('href="https://example.com/ticket/ab12c"');
+      expect(html).toContain("example.com/ticket/ab12c");
+    });
+
     test("shows embed code with allowed domain", () => {
       const html = adminEventPage(event, [], "example.com", TEST_CSRF_TOKEN);
       expect(html).toContain("Embed Code");
