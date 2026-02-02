@@ -7,6 +7,7 @@ import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
 import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { formatCountdown } from "#routes/utils.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -131,7 +132,7 @@ export const adminEventPage = (
           )}
           <p><strong>Contact Fields:</strong> {FIELDS_LABELS[event.fields]}</p>
           {event.closes_at ? (
-            <p><strong>Registration Closes:</strong> {new Date(event.closes_at).toLocaleString()} (UTC)</p>
+            <p><strong>Registration Closes:</strong> {event.closes_at} (UTC) <small><em>({formatCountdown(event.closes_at)})</em></small></p>
           ) : (
             <p><strong>Registration Closes:</strong> <em>No deadline</em></p>
           )}
@@ -194,10 +195,7 @@ export const adminEventPage = (
   );
 };
 
-/**
- * Convert event to form field values
- */
-/** Format closes_at for datetime-local input (YYYY-MM-DDTHH:MM) */
+/** Format closes_at ISO string for datetime-local input (YYYY-MM-DDTHH:MM) */
 const formatClosesAt = (closesAt: string | null): string | null => {
   if (!closesAt) return null;
   // datetime-local expects YYYY-MM-DDTHH:MM format

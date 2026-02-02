@@ -9,7 +9,7 @@ import { getPublicKey } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add event closes_at timestamp";
+export const LATEST_UPDATE = "encrypt event closes_at column";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -192,8 +192,42 @@ export const initDb = async (): Promise<void> => {
     });
   }
 
-  // Migration: add closes_at column to events (nullable ISO timestamp for registration deadline)
+  // Migration: add closes_at column to events (encrypted, empty string = no deadline)
   await runMigration(`ALTER TABLE events ADD COLUMN closes_at TEXT`);
+
+  // Backfill: encrypt closes_at values for existing events
+  // NULL → encrypted(""), plain datetime → encrypted(normalized ISO)
+  {
+    const encryptClosesAt = async (id: number, plain: string): Promise<void> => {
+      const encrypted = await encrypt(plain);
+      await getDb().execute({
+        sql: `UPDATE events SET closes_at = ? WHERE id = ?`,
+        args: [encrypted, id],
+      });
+    };
+
+    const rows = await getDb().execute(`SELECT id, closes_at FROM events`);
+    for (const row of rows.rows) {
+      const id = row.id as number;
+      const raw = row.closes_at as string | null;
+      if (raw === null) {
+        await encryptClosesAt(id, "");
+      } else {
+        // Check if already encrypted by attempting decrypt
+        try {
+          await decrypt(raw);
+        } catch {
+          // Plain text datetime — normalize to full UTC ISO and encrypt
+          if (raw === "") {
+            await encryptClosesAt(id, "");
+          } else {
+            const n = raw.length === 16 ? `${raw}:00.000Z` : raw;
+            await encryptClosesAt(id, new Date(n).toISOString());
+          }
+        }
+      }
+    }
+  }
 
   // Update the version marker
   await getDb().execute({

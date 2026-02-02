@@ -658,7 +658,7 @@ export const updateTestEvent = async (
       thank_you_url: formatOptional(updates.thankYouUrl, existing.thank_you_url),
       unit_price: formatPrice(updates.unitPrice, existing.unit_price),
       webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
-      closes_at: updates.closesAt !== undefined ? (updates.closesAt ?? "") : (existing.closes_at ?? ""),
+      closes_at: updates.closesAt !== undefined ? (updates.closesAt ?? "") : (existing.closes_at?.slice(0, 16) ?? ""),
     },
     async () =>
       (await getEventWithCount(eventId)) as EventWithCount,

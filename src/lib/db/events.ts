@@ -20,12 +20,30 @@ export type EventInput = {
   webhookUrl?: string | null;
   active?: number;
   fields?: EventFields;
-  closesAt?: string | null;
+  closesAt?: string;
 };
 
 /** Compute slug index from slug for blind index lookup */
 export const computeSlugIndex = (slug: string): Promise<string> =>
   hmacHash(slug);
+
+/** Normalize and encrypt a closes_at value for DB storage */
+export const writeClosesAt = async (v: string | null): Promise<string | null> => {
+  const str = (v as string) ?? "";
+  if (str === "") return await encrypt("") as unknown as string;
+  // Normalize datetime-local "YYYY-MM-DDTHH:MM" to full UTC ISO string
+  const normalized = str.length === 16 ? `${str}:00.000Z` : str;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) throw new Error(`Invalid closes_at: ${str}`);
+  return await encrypt(date.toISOString()) as unknown as string;
+};
+
+/** Decrypt and validate a closes_at value from DB storage */
+const readClosesAt = async (v: string | null): Promise<string | null> => {
+  const str = await decrypt(v as string);
+  if (str === "") return null;
+  return new Date(str).toISOString();
+};
 
 /**
  * Events table definition
@@ -48,7 +66,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     webhook_url: col.encryptedNullable<string>(encrypt, decrypt),
     active: col.withDefault(() => 1),
     fields: col.withDefault<EventFields>(() => "email"),
-    closes_at: col.simple<string | null>(),
+    closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
   },
 });
 

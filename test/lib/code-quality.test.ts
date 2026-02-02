@@ -320,6 +320,20 @@ describe("code quality", () => {
       return usageCount > 0;
     };
 
+    /** Get all .tsx files in a directory recursively */
+    const getAllTsxFiles = async (dir: string): Promise<string[]> => {
+      const files: string[] = [];
+      for await (const entry of Deno.readDir(dir)) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory) {
+          files.push(...(await getAllTsxFiles(fullPath)));
+        } else if (entry.name.endsWith(".tsx")) {
+          files.push(fullPath);
+        }
+      }
+      return files;
+    };
+
     const isUsedInProductionCode = async (
       symbolName: string,
       sourceFile: string,
@@ -336,6 +350,7 @@ describe("code quality", () => {
         `import\\s*\\{[^}]*\\b${symbolName}\\b[^}]*\\}`,
       );
 
+      // Check .ts files
       for (const file of srcFiles) {
         if (file === sourceFile) continue;
 
@@ -343,6 +358,15 @@ describe("code quality", () => {
         // Skip test utilities - imports there don't count as production usage
         if (TEST_UTILITY_PATHS.includes(relativePath)) continue;
 
+        const content = await Deno.readTextFile(file);
+        if (importPattern.test(content)) {
+          return true;
+        }
+      }
+
+      // Also check .tsx files as importers
+      const tsxFiles = await getAllTsxFiles(SRC_DIR);
+      for (const file of tsxFiles) {
         const content = await Deno.readTextFile(file);
         if (importPattern.test(content)) {
           return true;

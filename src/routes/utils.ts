@@ -291,6 +291,20 @@ export const withActiveEventBySlug = (
 export const isRegistrationClosed = (event: { closes_at: string | null }): boolean =>
   event.closes_at !== null && new Date(event.closes_at).getTime() < Date.now();
 
+/** Format a countdown from now to a future closes_at date, e.g. "3 days and 5 hours from now" */
+export const formatCountdown = (closesAt: string): string => {
+  const diffMs = new Date(closesAt).getTime() - Date.now();
+  if (diffMs <= 0) return "closed";
+  const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const pl = (n: number, unit: string) => `${n} ${unit}${n !== 1 ? "s" : ""}`;
+  if (days > 0 && hours > 0) return `${pl(days, "day")} and ${pl(hours, "hour")} from now`;
+  if (days > 0) return `${pl(days, "day")} from now`;
+  if (hours > 0) return `${pl(hours, "hour")} from now`;
+  return `${pl(Math.max(1, Math.floor(diffMs / (1000 * 60))), "minute")} from now`;
+};
+
 /** Session with CSRF token and wrapped data key for private key derivation */
 export type AuthSession = {
   token: string;

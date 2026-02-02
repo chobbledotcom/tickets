@@ -87,10 +87,12 @@ const validateDescription = (value: string): string | null =>
     : null;
 
 /**
- * Validate closes_at is a valid date if provided
+ * Validate closes_at is a valid date if provided.
+ * Normalizes datetime-local format to UTC ISO before parsing.
  */
 const validateClosesAt = (value: string): string | null => {
-  const date = new Date(value);
+  const normalized = value.length === 16 ? `${value}:00.000Z` : value;
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) {
     return "Please enter a valid date and time";
   }
