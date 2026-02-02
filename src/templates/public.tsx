@@ -28,6 +28,7 @@ export const ticketPage = (
   event: EventWithCount,
   csrfToken: string,
   error?: string,
+  isClosed = false,
 ): string => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isFull = spotsRemaining <= 0;
@@ -45,7 +46,9 @@ export const ticketPage = (
       )}
       <Raw html={renderError(error)} />
 
-      {isFull ? (
+      {isClosed ? (
+          <div class="error">Registration closed.</div>
+      ) : isFull ? (
           <div class="error">Sorry, this event is full.</div>
       ) : (
           <form method="POST" action={`/ticket/${event.slug}`}>
@@ -82,19 +85,21 @@ export const notFoundPage = (): string =>
 export type MultiTicketEvent = {
   event: EventWithCount;
   isSoldOut: boolean;
+  isClosed: boolean;
   maxPurchasable: number;
 };
 
 /** Build multi-ticket event info from event */
 export const buildMultiTicketEvent = (
   event: EventWithCount,
+  closed = false,
 ): MultiTicketEvent => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isSoldOut = spotsRemaining <= 0;
-  const maxPurchasable = isSoldOut
+  const maxPurchasable = isSoldOut || closed
     ? 0
     : Math.min(event.max_quantity, spotsRemaining);
-  return { event, isSoldOut, maxPurchasable };
+  return { event, isSoldOut, isClosed: closed, maxPurchasable };
 };
 
 /** Render description HTML for multi-ticket event row */
@@ -105,8 +110,17 @@ const renderMultiEventDescription = (description: string): string =>
 
 /** Render quantity selector for a single event in multi-ticket form */
 const renderMultiEventRow = (info: MultiTicketEvent): string => {
-  const { event, isSoldOut, maxPurchasable } = info;
+  const { event, isSoldOut, isClosed, maxPurchasable } = info;
   const fieldName = `quantity_${event.id}`;
+
+  if (isClosed) {
+    return `
+      <div class="multi-ticket-row sold-out">
+        <label>${event.name}</label>
+        <span class="sold-out-label">Registration Closed</span>
+      </div>
+    `;
+  }
 
   if (isSoldOut) {
     return `
@@ -148,7 +162,8 @@ export const multiTicketPage = (
   csrfToken: string,
   error?: string,
 ): string => {
-  const allSoldOut = events.every((e) => e.isSoldOut);
+  const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
+  const allClosed = events.every((e) => e.isClosed);
   const formAction = `/ticket/${slugs.join("+")}`;
   const fieldsSetting = getMultiTicketFieldsSetting(events);
   const fields: Field[] = getTicketFields(fieldsSetting);
@@ -162,8 +177,8 @@ export const multiTicketPage = (
     <Layout title="Reserve Tickets">
       <Raw html={renderError(error)} />
 
-      {allSoldOut ? (
-        <div class="error">Sorry, all events are sold out.</div>
+      {allUnavailable ? (
+        <div class="error">{allClosed ? "Registration closed." : "Sorry, all events are sold out."}</div>
       ) : (
         <form method="POST" action={formAction}>
           <input type="hidden" name="csrf_token" value={csrfToken} />

@@ -87,6 +87,17 @@ const validateDescription = (value: string): string | null =>
     : null;
 
 /**
+ * Validate closes_at is a valid date if provided
+ */
+const validateClosesAt = (value: string): string | null => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Please enter a valid date and time";
+  }
+  return null;
+};
+
+/**
  * Event form field definitions (shared between create and edit)
  */
 export const eventFields: Field[] = [
@@ -140,6 +151,13 @@ export const eventFields: Field[] = [
     min: 0,
     placeholder: "e.g. 1000 for 10.00",
     validate: validateNonNegativePrice,
+  },
+  {
+    name: "closes_at",
+    label: "Registration Closes At (optional)",
+    type: "datetime-local",
+    hint: "Leave blank for no deadline. Times are in UTC.",
+    validate: validateClosesAt,
   },
   {
     name: "thank_you_url",

@@ -287,6 +287,10 @@ export const withActiveEventBySlug = (
   fn: (event: EventWithCount) => Response | Promise<Response>,
 ): Promise<Response> => withEventBySlug(slug, requireActiveEvent(fn));
 
+/** Check if an event's registration period has closed */
+export const isRegistrationClosed = (event: { closes_at: string | null }): boolean =>
+  event.closes_at !== null && new Date(event.closes_at).getTime() < Date.now();
+
 /** Session with CSRF token and wrapped data key for private key derivation */
 export type AuthSession = {
   token: string;

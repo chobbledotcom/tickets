@@ -22,6 +22,7 @@ import {
   getBaseUrl,
   htmlResponse,
   htmlResponseWithCookie,
+  isRegistrationClosed,
   notFoundResponse,
   parseCookies,
   redirect,
@@ -61,8 +62,8 @@ const ticketCsrfPath = (slug: string): string => `/ticket/${slug}`;
 
 /** Ticket response with CSRF cookie */
 const ticketResponseWithCookie = makeCsrfResponseBuilder(
-  (event: EventWithCount) => ticketCsrfPath(event.slug),
-  (token, error, event) => ticketPage(event, token, error),
+  (event: EventWithCount, _isClosed: boolean) => ticketCsrfPath(event.slug),
+  (token, error, event, isClosed) => ticketPage(event, token, error, isClosed),
 );
 
 /** Ticket response without cookie - for validation errors after CSRF passed */
@@ -77,7 +78,8 @@ const ticketResponse =
 export const handleTicketGet = (slug: string): Promise<Response> =>
   withActiveEventBySlug(slug, (event) => {
     const token = generateSecureToken();
-    return ticketResponseWithCookie(event)(token)();
+    const closed = isRegistrationClosed(event);
+    return ticketResponseWithCookie(event, closed)(token)();
   });
 
 /**
@@ -182,7 +184,7 @@ const parseQuantity = (form: URLSearchParams, event: EventWithCount): number =>
 
 /** CSRF error response for ticket page */
 const ticketCsrfError = (event: EventWithCount) => (token: string) =>
-  ticketResponseWithCookie(event)(token)(
+  ticketResponseWithCookie(event, false)(token)(
     "Invalid or expired form. Please try again.",
     403,
   );
@@ -234,6 +236,10 @@ const processFreeReservation = async (
  * - For paid events: creates Stripe session with intent, attendee created after payment
  * - For free events: atomically creates attendee with capacity check
  */
+/** Registration closed message for form submissions */
+const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
+  "Sorry, registration closed while you were submitting.";
+
 const processTicketReservation = async (
   request: Request,
   event: EventWithCount,
@@ -243,6 +249,11 @@ const processTicketReservation = async (
 
   const csrfResult = await requireCsrfForm(request, ticketCsrfError(event));
   if (!csrfResult.ok) return csrfResult.response;
+
+  // Check if registration has closed since the form was loaded
+  if (isRegistrationClosed(event)) {
+    return ticketResponse(event, currentToken)(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
+  }
 
   const { form } = csrfResult;
   const fields = getTicketFields(event.fields);
@@ -290,7 +301,7 @@ const getActiveMultiEvents = (
 ): MultiTicketEvent[] =>
   pipe(
     filter((e: EventWithCount) => e.active === 1),
-    map(buildMultiTicketEvent),
+    map((e: EventWithCount) => buildMultiTicketEvent(e, isRegistrationClosed(e))),
   )(compact(events));
 
 /** CSRF path for multi-ticket form */
@@ -333,8 +344,8 @@ const parseMultiQuantities = (
 ): Map<number, number> => {
   const quantities = new Map<number, number>();
 
-  for (const { event, isSoldOut, maxPurchasable } of events) {
-    if (isSoldOut) continue;
+  for (const { event, isSoldOut, isClosed, maxPurchasable } of events) {
+    if (isSoldOut || isClosed) continue;
 
     const raw = form.get(`quantity_${event.id}`) || "0";
     const quantity = parseQuantityValue(raw, maxPurchasable, 0);
@@ -469,6 +480,16 @@ const handleMultiTicketPost = (
   }
 
   const { name, email, phone } = extractContact(validation.values);
+
+  // Check if any event the user selected is now closed
+  for (const { event, isClosed } of activeEvents) {
+    const selectedQty = Number.parseInt(form.get(`quantity_${event.id}`) || "0", 10);
+    if (isClosed && selectedQty > 0) {
+      return multiTicketResponse(slugs, activeEvents, currentToken)(
+        REGISTRATION_CLOSED_SUBMIT_MESSAGE,
+      );
+    }
+  }
 
   // Parse quantities
   const quantities = parseMultiQuantities(form, activeEvents);

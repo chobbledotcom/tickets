@@ -35,6 +35,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   getSearchParam,
   htmlResponse,
+  isRegistrationClosed,
   paymentErrorResponse,
 } from "#routes/utils.ts";
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
@@ -267,6 +268,17 @@ const processMultiPaymentSession = async (
       );
     }
 
+    if (isRegistrationClosed(event)) {
+      // Registration closed - rollback and refund
+      for (const created of createdAttendees) {
+        await deleteAttendee(created.attendee.id);
+      }
+      return refundAndFail(
+        session,
+        `Sorry, registration for ${event.name} closed while you were completing payment.`,
+      );
+    }
+
     const pricePaid = event.unit_price !== null ? event.unit_price * item.q : null;
     const result = await createAttendeeAtomic(
       item.e,
@@ -364,6 +376,14 @@ const processPaymentSession = async (
     return refundAndFail(
       session,
       "This event is no longer accepting registrations.",
+    );
+  }
+
+  // Check if registration has closed
+  if (isRegistrationClosed(event)) {
+    return refundAndFail(
+      session,
+      "Sorry, registration closed while you were completing payment.",
     );
   }
 

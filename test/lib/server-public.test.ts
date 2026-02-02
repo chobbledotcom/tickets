@@ -15,6 +15,7 @@ import {
   expectRedirect,
   setupStripe,
   submitTicketForm,
+  updateTestEvent,
 } from "#test-utils";
 
 describe("server (public routes)", () => {
@@ -1448,6 +1449,143 @@ describe("server (public routes)", () => {
       } finally {
         mockConfigured.mockRestore();
       }
+    });
+  });
+
+  describe("closes_at (single ticket)", () => {
+    test("shows 'Registration closed.' when closes_at is in the past", async () => {
+      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
+      const event = await createTestEvent({ closesAt: pastDate });
+
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Registration closed.");
+      expect(html).not.toContain("Reserve Ticket");
+    });
+
+    test("shows form when closes_at is in the future", async () => {
+      const futureDate = new Date(Date.now() + 3600000).toISOString().slice(0, 16);
+      const event = await createTestEvent({ closesAt: futureDate });
+
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).not.toContain("Registration closed.");
+      expect(html).toContain("Reserve Ticket");
+    });
+
+    test("shows form when closes_at is null", async () => {
+      const event = await createTestEvent();
+
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).not.toContain("Registration closed.");
+      expect(html).toContain("Reserve Ticket");
+    });
+
+    test("shows 'registration closed while you were submitting' on POST when closes_at is past", async () => {
+      // Create event with future closes_at so we can get CSRF token
+      const futureDate = new Date(Date.now() + 3600000).toISOString().slice(0, 16);
+      const event = await createTestEvent({ closesAt: futureDate });
+
+      // Get CSRF token from the ticket page
+      const getResponse = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("No CSRF token");
+
+      // Now set closes_at to past
+      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
+      await updateTestEvent(event.id, { closesAt: pastDate });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/ticket/${event.slug}`,
+          {
+            name: "Test User",
+            email: "test@example.com",
+            quantity: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Sorry, registration closed while you were submitting.");
+    });
+  });
+
+  describe("closes_at (multi-ticket)", () => {
+    test("shows 'Registration closed.' when all events are closed", async () => {
+      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
+      const event1 = await createTestEvent({ closesAt: pastDate });
+      const event2 = await createTestEvent({ closesAt: pastDate });
+
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Registration closed.");
+    });
+
+    test("shows 'Registration Closed' label for individual closed event in multi-ticket", async () => {
+      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
+      const event1 = await createTestEvent({ closesAt: pastDate });
+      const event2 = await createTestEvent();
+
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Registration Closed");
+      expect(html).toContain(event2.name); // open event shows form
+    });
+
+    test("shows error on POST when event closes during submission", async () => {
+      // Create two events, one will close during submission
+      const futureDate = new Date(Date.now() + 3600000).toISOString().slice(0, 16);
+      const event1 = await createTestEvent({ closesAt: futureDate });
+      const event2 = await createTestEvent();
+
+      // Get CSRF token
+      const getResponse = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("No CSRF token");
+
+      // Close event1
+      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
+      await updateTestEvent(event1.id, { closesAt: pastDate });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/ticket/${event1.slug}+${event2.slug}`,
+          {
+            name: "Test User",
+            email: "test@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Sorry, registration closed while you were submitting.");
     });
   });
 

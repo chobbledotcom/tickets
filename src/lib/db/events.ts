@@ -20,6 +20,7 @@ export type EventInput = {
   webhookUrl?: string | null;
   active?: number;
   fields?: EventFields;
+  closesAt?: string | null;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -47,6 +48,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     webhook_url: col.encryptedNullable<string>(encrypt, decrypt),
     active: col.withDefault(() => 1),
     fields: col.withDefault<EventFields>(() => "email"),
+    closes_at: col.simple<string | null>(),
   },
 });
 

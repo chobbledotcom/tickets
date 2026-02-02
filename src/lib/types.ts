@@ -19,6 +19,7 @@ export interface Event {
   webhook_url: string | null;
   active: number;
   fields: EventFields;
+  closes_at: string | null;
 }
 
 export interface Attendee {

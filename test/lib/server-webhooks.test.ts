@@ -1876,4 +1876,170 @@ describe("server (webhooks)", () => {
     });
   });
 
+  describe("closes_at in payment processing", () => {
+    afterEach(() => {
+      resetStripeClient();
+    });
+
+    test("refunds and shows error when event registration has closed (single ticket)", async () => {
+      await setupStripe();
+
+      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+        closesAt: pastDate,
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_closed",
+        payment_status: "paid",
+        payment_intent: "pi_closed",
+        metadata: {
+          event_id: String(event.id),
+          name: "John",
+          email: "john@example.com",
+          quantity: "1",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_closed"),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("registration closed");
+        expect(html).toContain("refunded");
+      } finally {
+        mockRetrieve.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("webhook refunds when event registration has closed (single ticket)", async () => {
+      await setupStripe();
+
+      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+        closesAt: pastDate,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_closed",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_closed_wh",
+              payment_status: "paid",
+              payment_intent: "pi_closed_wh",
+              metadata: {
+                event_id: String(event.id),
+                name: "Jane",
+                email: "jane@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_closed" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_closed" }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.error).toContain("registration closed");
+      } finally {
+        mockVerify.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("webhook refunds when multi-ticket event registration has closed", async () => {
+      await setupStripe();
+
+      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
+      const event1 = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      // event2 is closed
+      const event2 = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 500,
+        closesAt: pastDate,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_multi_closed",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_closed",
+              payment_status: "paid",
+              payment_intent: "pi_multi_closed",
+              metadata: {
+                name: "Jane",
+                email: "jane@example.com",
+                multi: "1",
+                items: JSON.stringify([
+                  { e: event1.id, q: 1 },
+                  { e: event2.id, q: 1 },
+                ]),
+              },
+            },
+          },
+        },
+      });
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_multi_closed" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_multi_closed" }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.error).toContain("registration for");
+        expect(json.error).toContain("closed");
+
+        // Verify event1 attendee was rolled back
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        expect(attendees1.length).toBe(0);
+      } finally {
+        mockVerify.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+  });
+
 });

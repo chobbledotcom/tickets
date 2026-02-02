@@ -16,6 +16,7 @@ import {
   expectAdminRedirect,
   expectRedirect,
   loginAsAdmin,
+  updateTestEvent,
 } from "#test-utils";
 
 describe("server (admin events)", () => {
@@ -1601,6 +1602,105 @@ describe("server (admin events)", () => {
       } finally {
         spy.mockRestore();
       }
+    });
+  });
+
+  describe("closes_at field", () => {
+    test("creates event with closes_at timestamp", async () => {
+      const closesAt = "2099-06-15T14:30";
+      const event = await createTestEvent({ closesAt });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.closes_at).toBe(closesAt);
+    });
+
+    test("creates event without closes_at (defaults to null)", async () => {
+      const event = await createTestEvent();
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.closes_at).toBeNull();
+    });
+
+    test("updates event closes_at", async () => {
+      const event = await createTestEvent();
+      const closesAt = "2099-12-31T23:59";
+      await updateTestEvent(event.id, { closesAt });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.closes_at).toBe(closesAt);
+    });
+
+    test("clears closes_at by setting to empty string", async () => {
+      const event = await createTestEvent({ closesAt: "2099-06-15T14:30" });
+      await updateTestEvent(event.id, { closesAt: null });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.closes_at).toBeNull();
+    });
+
+    test("admin event detail page shows closes_at when set", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({ closesAt: "2099-06-15T14:30" });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Registration Closes");
+      expect(html).not.toContain("No deadline");
+    });
+
+    test("admin event detail page shows 'No deadline' when closes_at is null", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No deadline");
+    });
+
+    test("admin event edit page shows closes_at in form", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({ closesAt: "2099-06-15T14:30" });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('value="2099-06-15T14:30"');
+      expect(html).toContain("Registration Closes At");
+    });
+
+    test("rejects invalid closes_at format", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const event = await createTestEvent();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: event.name,
+            slug: event.slug,
+            max_attendees: "100",
+            max_quantity: "1",
+            closes_at: "not-a-date",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Please enter a valid date and time");
     });
   });
 
