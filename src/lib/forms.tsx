@@ -30,6 +30,7 @@ export interface Field {
   hint?: string;
   min?: number;
   pattern?: string;
+  autofocus?: boolean;
   validate?: (value: string) => string | null;
   options?: { value: string; label: string }[];
 }
@@ -89,6 +90,7 @@ export const renderField = (field: Field, value: string = ""): string =>
           placeholder={field.placeholder}
           min={field.min}
           pattern={field.pattern}
+          autofocus={field.autofocus}
         />
       )}
       {field.hint && (

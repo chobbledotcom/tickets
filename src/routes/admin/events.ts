@@ -37,6 +37,7 @@ import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
   adminDeactivateEventPage,
   adminDeleteEventPage,
+  adminDuplicateEventPage,
   adminEventEditPage,
   adminEventPage,
   adminReactivateEventPage,
@@ -177,6 +178,9 @@ const eventErrorPage = async (
     ? htmlResponse(renderPage(event, csrfToken, error), 400)
     : notFoundResponse();
 };
+
+/** Handle GET /admin/event/:id/duplicate */
+const handleAdminEventDuplicateGet = withEventPage(adminDuplicateEventPage);
 
 /** Handle GET /admin/event/:id/edit */
 const handleAdminEventEditGet = withEventPage(adminEventEditPage);
@@ -351,6 +355,8 @@ export const eventsRoutes = defineRoutes({
   "POST /admin/event": (request) => handleCreateEvent(request),
   "GET /admin/event/:id": (request, params) =>
     handleAdminEventGet(request, parseEventId(params)),
+  "GET /admin/event/:id/duplicate": (request, params) =>
+    handleAdminEventDuplicateGet(request, parseEventId(params)),
   "GET /admin/event/:id/edit": (request, params) =>
     handleAdminEventEditGet(request, parseEventId(params)),
   "POST /admin/event/:id/edit": (request, params) =>
