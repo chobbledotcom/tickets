@@ -74,13 +74,8 @@ const ticketResponse =
     htmlResponse(ticketPage(event, token, error), status);
 
 /** Check if request URL has ?iframe=true */
-const isIframeRequest = (url: string): boolean => {
-  try {
-    return new URL(url).searchParams.get("iframe") === "true";
-  } catch {
-    return false;
-  }
-};
+const isIframeRequest = (url: string): boolean =>
+  new URL(url).searchParams.get("iframe") === "true";
 
 /**
  * Handle GET /ticket/:slug
