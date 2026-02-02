@@ -13,15 +13,8 @@ import { Layout } from "#templates/layout.tsx";
 export type { TokenEntry as CheckinEntry };
 
 /** Render a single attendee detail row (admin view) */
-const renderCheckinRow = (
-  { event, attendee }: TokenEntry,
-  csrfToken: string,
-  checkinPath: string,
-): string => {
+const renderCheckinRow = ({ event, attendee }: TokenEntry): string => {
   const isCheckedIn = attendee.checked_in === "true";
-  const buttonLabel = isCheckedIn ? "Check out" : "Check in";
-  const buttonClass = isCheckedIn ? "checkout" : "checkin";
-  const nextValue = isCheckedIn ? "false" : "true";
   return String(
     <tr>
       <td>{event.name}</td>
@@ -30,13 +23,6 @@ const renderCheckinRow = (
       <td>{attendee.phone || ""}</td>
       <td>{attendee.quantity}</td>
       <td>{isCheckedIn ? "Yes" : "No"}</td>
-      <td>
-        <form method="POST" action={checkinPath} class="checkin-form">
-          <input type="hidden" name="csrf_token" value={csrfToken} />
-          <input type="hidden" name="check_in" value={nextValue} />
-          <button type="submit" class={buttonClass}>{buttonLabel}</button>
-        </form>
-      </td>
     </tr>,
   );
 };
@@ -51,14 +37,24 @@ export const checkinAdminPage = (
   message: string | null,
 ): string => {
   const rows = pipe(
-    map((e: TokenEntry) => renderCheckinRow(e, csrfToken, checkinPath)),
+    map((e: TokenEntry) => renderCheckinRow(e)),
     (r: string[]) => r.join(""),
   )(entries);
+
+  const allCheckedIn = entries.every((e) => e.attendee.checked_in === "true");
+  const buttonLabel = allCheckedIn ? "Check Out All" : "Check In All";
+  const buttonClass = allCheckedIn ? "bulk-checkout" : "bulk-checkin";
+  const nextValue = allCheckedIn ? "false" : "true";
 
   return String(
     <Layout title="Check-in">
       <h1>Check-in</h1>
       {message && <p class="success">{message}</p>}
+      <form method="POST" action={checkinPath}>
+        <input type="hidden" name="csrf_token" value={csrfToken} />
+        <input type="hidden" name="check_in" value={nextValue} />
+        <button type="submit" class={buttonClass}>{buttonLabel}</button>
+      </form>
       <table>
         <thead>
           <tr>
@@ -68,7 +64,6 @@ export const checkinAdminPage = (
             <th>Phone</th>
             <th>Quantity</th>
             <th>Checked In</th>
-            <th></th>
           </tr>
         </thead>
         <tbody>
