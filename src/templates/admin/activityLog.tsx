@@ -40,17 +40,19 @@ export const adminEventActivityLogPage = (
     <Layout title={`Log: ${event.name}`}>
       <AdminNav session={session} />
         <h2>Log</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Activity</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={activityLogRows(entries)} />
-          </tbody>
-        </table>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Activity</th>
+              </tr>
+            </thead>
+            <tbody>
+              <Raw html={activityLogRows(entries)} />
+            </tbody>
+          </table>
+        </div>
     </Layout>
   );
 
@@ -66,17 +68,19 @@ export const adminGlobalActivityLogPage = (
     <Layout title="Log">
       <AdminNav session={session} />
         <h2>Log</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Activity</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={activityLogRows(entries)} />
-          </tbody>
-        </table>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Activity</th>
+              </tr>
+            </thead>
+            <tbody>
+              <Raw html={activityLogRows(entries)} />
+            </tbody>
+          </table>
+        </div>
         {truncated && <p>Showing the most recent 200 entries.</p>}
     </Layout>
   );

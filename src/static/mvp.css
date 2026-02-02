@@ -525,13 +525,17 @@ dialog hr {
 }
 
 /* Tables */
+.table-scroll {
+  margin: 2rem 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 table {
   border: 1px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
   border-spacing: 0;
-  margin: 2rem 0;
   max-width: 100%;
-  overflow-x: auto;
   padding: 0;
   white-space: nowrap;
   width: 100%;

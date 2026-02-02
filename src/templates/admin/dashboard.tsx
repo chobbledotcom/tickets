@@ -42,7 +42,8 @@ export const adminDashboardPage = (
     <Layout title="Events">
       <AdminNav session={session} />
 
-      <table>
+      <div class="table-scroll">
+        <table>
           <thead>
             <tr>
               <th>Event Name</th>
@@ -56,6 +57,7 @@ export const adminDashboardPage = (
             <Raw html={eventRows} />
           </tbody>
         </table>
+      </div>
 
       <br />
 

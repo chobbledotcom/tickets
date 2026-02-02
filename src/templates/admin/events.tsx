@@ -140,6 +140,7 @@ export const adminEventPage = (
 
         <article>
           <h2>Event Details</h2>
+          <div class="table-scroll">
           <table>
             <tbody>
               <tr>
@@ -216,6 +217,7 @@ export const adminEventPage = (
               </tr>
             </tbody>
           </table>
+          </div>
         </article>
 
         <article>
@@ -232,23 +234,25 @@ export const adminEventPage = (
             {" / "}
             <Raw html={FilterLink({ href: `${basePath}/out#attendees`, label: "Checked Out", active: activeFilter === "out" })} />
           </p>
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Qty</th>
-                <th>Ticket</th>
-                <th>Registered</th>
-                <th></th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <Raw html={attendeeRows} />
-            </tbody>
-          </table>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Qty</th>
+                  <th>Ticket</th>
+                  <th>Registered</th>
+                  <th></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <Raw html={attendeeRows} />
+              </tbody>
+            </table>
+          </div>
         </article>
     </Layout>
   );
