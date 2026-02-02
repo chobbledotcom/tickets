@@ -55,21 +55,23 @@ export const checkinAdminPage = (
         <input type="hidden" name="check_in" value={nextValue} />
         <button type="submit" class={buttonClass}>{buttonLabel}</button>
       </form>
-      <table>
-        <thead>
-          <tr>
-            <th>Event</th>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Phone</th>
-            <th>Quantity</th>
-            <th>Checked In</th>
-          </tr>
-        </thead>
-        <tbody>
-          <Raw html={rows} />
-        </tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Quantity</th>
+              <th>Checked In</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={rows} />
+          </tbody>
+        </table>
+      </div>
     </Layout>
   );
 };
