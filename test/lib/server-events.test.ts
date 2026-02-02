@@ -1889,8 +1889,15 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown singular forms", () => {
-      const future = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString();
-      expect(formatCountdown(future)).toBe("1 day and 1 hour from now");
+      const now = Date.now();
+      const spy = spyOn(Date, "now");
+      spy.mockReturnValue(now);
+      try {
+        const future = new Date(now + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString();
+        expect(formatCountdown(future)).toBe("1 day and 1 hour from now");
+      } finally {
+        spy.mockRestore();
+      }
     });
 
     test("rejects invalid closes_at format", async () => {
