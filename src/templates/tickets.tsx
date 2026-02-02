@@ -30,17 +30,19 @@ export const ticketViewPage = (entries: TokenEntry[], qrSvg: string): string => 
       <div style="text-align:center;margin:1em 0">
         <Raw html={qrSvg} />
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Event</th>
-            <th>Quantity</th>
-          </tr>
-        </thead>
-        <tbody>
-          <Raw html={rows} />
-        </tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Quantity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={rows} />
+          </tbody>
+        </table>
+      </div>
     </Layout>
   );
 };
