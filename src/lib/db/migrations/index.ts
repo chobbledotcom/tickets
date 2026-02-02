@@ -2,8 +2,9 @@
  * Database migrations
  */
 
-import { encrypt } from "#lib/crypto.ts";
+import { encrypt, encryptAttendeePII } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
+import { getPublicKey } from "#lib/db/settings.ts";
 
 /**
  * The latest database update identifier - update this when changing schema
@@ -181,6 +182,15 @@ export const initDb = async (): Promise<void> => {
 
   // Migration: add checked_in column to attendees (hybrid encrypted, defaults to encrypted "false")
   await runMigration(`ALTER TABLE attendees ADD COLUMN checked_in TEXT NOT NULL DEFAULT ''`);
+  // Backfill existing attendees with encrypted "false" if public key is available
+  const publicKey = await getPublicKey();
+  if (publicKey) {
+    const encryptedFalse = await encryptAttendeePII("false", publicKey);
+    await getDb().execute({
+      sql: `UPDATE attendees SET checked_in = ? WHERE checked_in = ''`,
+      args: [encryptedFalse],
+    });
+  }
 
   // Update the version marker
   await getDb().execute({

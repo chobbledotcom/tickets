@@ -1880,4 +1880,55 @@ describe("db", () => {
       expect(decrypted[0]?.checked_in).toBe("false");
     });
   });
+
+  describe("decryptAttendees with empty checked_in", () => {
+    test("treats empty checked_in as false for pre-migration attendees", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      await createTestAttendee(event.id, event.slug, "Old User", "old@example.com");
+
+      // Simulate pre-migration state: set checked_in to empty string directly
+      await getDb().execute({
+        sql: "UPDATE attendees SET checked_in = '' WHERE event_id = ?",
+        args: [event.id],
+      });
+
+      const privateKey = await getTestPrivateKey();
+      const rows = await getAttendeesRaw(event.id);
+      expect(rows[0]?.checked_in).toBe("");
+
+      const decrypted = await decryptAttendees(rows, privateKey);
+      expect(decrypted[0]?.checked_in).toBe("false");
+    });
+  });
+
+  describe("initDb checked_in backfill", () => {
+    test("backfills empty checked_in with encrypted false during migration", async () => {
+      // Create an attendee, then simulate pre-migration state
+      const event = await createTestEvent({ maxAttendees: 100 });
+      await createTestAttendee(event.id, event.slug, "Backfill User", "backfill@example.com");
+
+      // Set checked_in to empty string to simulate pre-migration data
+      await getDb().execute({
+        sql: "UPDATE attendees SET checked_in = '' WHERE event_id = ?",
+        args: [event.id],
+      });
+
+      // Clear the version marker so initDb re-runs migrations
+      await getDb().execute(
+        "DELETE FROM settings WHERE key = 'latest_db_update'",
+      );
+
+      // Re-run migrations - should backfill checked_in
+      await initDb();
+
+      // Verify the backfill encrypted the value (no longer empty)
+      const rows = await getAttendeesRaw(event.id);
+      expect(rows[0]?.checked_in).not.toBe("");
+
+      // Verify it decrypts to "false"
+      const privateKey = await getTestPrivateKey();
+      const decrypted = await decryptAttendees(rows, privateKey);
+      expect(decrypted[0]?.checked_in).toBe("false");
+    });
+  });
 });
