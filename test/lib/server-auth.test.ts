@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compat";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
@@ -349,6 +349,20 @@ describe("server (admin auth)", () => {
       );
       // Should fail - KEK can't unwrap corrupted key
       expect(response.status).toBe(401);
+    });
+  });
+
+  describe("login timing delay", () => {
+    test("applies random delay when TEST_SKIP_LOGIN_DELAY is not set", async () => {
+      Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
+      const start = Date.now();
+      const response = await handleRequest(
+        mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
+      );
+      const elapsed = Date.now() - start;
+      expectAdminRedirect(response);
+      expect(elapsed).toBeGreaterThanOrEqual(100);
+      Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1");
     });
   });
 

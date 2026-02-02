@@ -38,6 +38,8 @@ export const TEST_ENCRYPTION_KEY =
 export const setupTestEncryptionKey = (): void => {
   Deno.env.set("DB_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY);
   Deno.env.set("TEST_PBKDF2_ITERATIONS", "1"); // Enable fast password hashing for tests
+  Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1"); // Skip timing-attack delay in tests
+  Deno.env.set("TEST_RSA_KEY_SIZE", "1024"); // Use smaller RSA keys for faster test setup
   clearEncryptionKeyCache();
 };
 
@@ -47,6 +49,8 @@ export const setupTestEncryptionKey = (): void => {
 export const clearTestEncryptionKey = (): void => {
   Deno.env.delete("DB_ENCRYPTION_KEY");
   Deno.env.delete("TEST_PBKDF2_ITERATIONS");
+  Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
+  Deno.env.delete("TEST_RSA_KEY_SIZE");
   clearEncryptionKeyCache();
 };
 

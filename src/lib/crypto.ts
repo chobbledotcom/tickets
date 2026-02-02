@@ -620,7 +620,7 @@ export const generateKeyPair = async (): Promise<{
   const keyPair = await crypto.subtle.generateKey(
     {
       name: "RSA-OAEP",
-      modulusLength: 2048,
+      modulusLength: getEnv("TEST_RSA_KEY_SIZE") ? Number(getEnv("TEST_RSA_KEY_SIZE")) : 2048,
       publicExponent: new Uint8Array([1, 0, 1]),
       hash: "SHA-256",
     },

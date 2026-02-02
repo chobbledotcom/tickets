@@ -23,10 +23,13 @@ import {
   withSession,
 } from "#routes/utils.ts";
 import { loginFields } from "#templates/fields.ts";
+import { getEnv } from "#lib/env.ts";
 
 /** Random delay between 100-200ms to prevent timing attacks */
 const randomDelay = (): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 100));
+  getEnv("TEST_SKIP_LOGIN_DELAY")
+    ? Promise.resolve()
+    : new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 100));
 
 /** Create a session with a wrapped DATA_KEY and redirect to /admin */
 const createLoginSession = async (
