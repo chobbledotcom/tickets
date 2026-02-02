@@ -41,6 +41,7 @@ import {
   adminEventEditPage,
   adminEventPage,
   adminReactivateEventPage,
+  type AttendeeFilter,
 } from "#templates/admin/events.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
@@ -159,9 +160,9 @@ const getCheckinMessage = (request: Request): { name: string; status: string } |
 };
 
 /**
- * Handle GET /admin/event/:id
+ * Handle GET /admin/event/:id (with optional filter)
  */
-const handleAdminEventGet = (request: Request, eventId: number) =>
+const handleAdminEventGet = (request: Request, eventId: number, activeFilter: AttendeeFilter = "all") =>
   withEventAttendees(request, eventId, ({ event, attendees, csrfToken }) =>
     htmlResponse(
       adminEventPage(
@@ -170,6 +171,7 @@ const handleAdminEventGet = (request: Request, eventId: number) =>
         getAllowedDomain(),
         csrfToken,
         getCheckinMessage(request),
+        activeFilter,
       ),
     ),
   );
@@ -377,6 +379,10 @@ const parseEventId = (params: RouteParams): number =>
 /** Event routes */
 export const eventsRoutes = defineRoutes({
   "POST /admin/event": (request) => handleCreateEvent(request),
+  "GET /admin/event/:id/in": (request, params) =>
+    handleAdminEventGet(request, parseEventId(params), "in"),
+  "GET /admin/event/:id/out": (request, params) =>
+    handleAdminEventGet(request, parseEventId(params), "out"),
   "GET /admin/event/:id": (request, params) =>
     handleAdminEventGet(request, parseEventId(params)),
   "GET /admin/event/:id/duplicate": (request, params) =>

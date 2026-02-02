@@ -450,6 +450,83 @@ describe("server (admin attendees)", () => {
       expect(location).toContain("#message");
     });
 
+    test("redirects to filtered page when return_filter is set", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: csrfToken, return_filter: "in" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain(`/admin/event/${event.id}/in?`);
+      expect(location).toContain("checkin_status=in");
+    });
+
+    test("redirects to out filtered page when return_filter is out", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Check in first
+      await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      // Check out with return_filter=out
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: csrfToken, return_filter: "out" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain(`/admin/event/${event.id}/out?`);
+      expect(location).toContain("checkin_status=out");
+    });
+
+    test("redirects to unfiltered page when return_filter is all", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: csrfToken, return_filter: "all" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain(`/admin/event/${event.id}?`);
+      expect(location).not.toContain("/in?");
+      expect(location).not.toContain("/out?");
+    });
+
     test("checks out an already checked-in attendee", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,

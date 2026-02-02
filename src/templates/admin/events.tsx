@@ -2,7 +2,7 @@
  * Admin event page templates - detail, edit, delete
  */
 
-import { map, pipe, reduce } from "#fp";
+import { filter, map, pipe, reduce } from "#fp";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
 import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
@@ -10,6 +10,9 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+
+/** Attendee filter type */
+export type AttendeeFilter = "all" | "in" | "out";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -32,7 +35,7 @@ const FIELDS_LABELS: Record<EventFields, string> = {
   both: "Email & Phone Number",
 };
 
-const CheckinButton = ({ a, eventId, csrfToken }: { a: Attendee; eventId: number; csrfToken: string }): string => {
+const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter }): string => {
   const isCheckedIn = a.checked_in === "true";
   const label = isCheckedIn ? "Check out" : "Check in";
   const buttonClass = isCheckedIn ? "checkout" : "checkin";
@@ -43,6 +46,7 @@ const CheckinButton = ({ a, eventId, csrfToken }: { a: Attendee; eventId: number
       class="checkin-form"
     >
       <input type="hidden" name="csrf_token" value={csrfToken} />
+      <input type="hidden" name="return_filter" value={activeFilter} />
       <button type="submit" class={buttonClass}>
         {label}
       </button>
@@ -50,7 +54,7 @@ const CheckinButton = ({ a, eventId, csrfToken }: { a: Attendee; eventId: number
   );
 };
 
-const AttendeeRow = ({ a, eventId, csrfToken }: { a: Attendee; eventId: number; csrfToken: string }): string =>
+const AttendeeRow = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter }): string =>
   String(
     <tr>
       <td>{a.name}</td>
@@ -59,7 +63,7 @@ const AttendeeRow = ({ a, eventId, csrfToken }: { a: Attendee; eventId: number; 
       <td>{a.quantity}</td>
       <td>{new Date(a.created).toLocaleString()}</td>
       <td>
-        <Raw html={CheckinButton({ a, eventId, csrfToken })} />
+        <Raw html={CheckinButton({ a, eventId, csrfToken, activeFilter })} />
       </td>
       <td>
         <a href={`/admin/event/${eventId}/attendee/${a.id}/delete`} class="danger">
@@ -72,25 +76,42 @@ const AttendeeRow = ({ a, eventId, csrfToken }: { a: Attendee; eventId: number; 
 /** Check-in message to display after toggling */
 export type CheckinMessage = { name: string; status: string } | null;
 
+/** Filter attendees by check-in status */
+const filterAttendees = (attendees: Attendee[], activeFilter: AttendeeFilter): Attendee[] => {
+  if (activeFilter === "in") return filter((a: Attendee) => a.checked_in === "true")(attendees);
+  if (activeFilter === "out") return filter((a: Attendee) => a.checked_in !== "true")(attendees);
+  return attendees;
+};
+
+/** Render a filter link, bold if active */
+const FilterLink = ({ href, label, active }: { href: string; label: string; active: boolean }): string =>
+  active
+    ? String(<strong>{label}</strong>)
+    : String(<a href={href}>{label}</a>);
+
 export const adminEventPage = (
   event: EventWithCount,
   attendees: Attendee[],
   allowedDomain: string,
   csrfToken: string,
   checkinMessage?: CheckinMessage,
+  activeFilter: AttendeeFilter = "all",
 ): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const embedCode = `<iframe src="${ticketUrl}" loading="lazy" style="border: none; width: 100%; height: 10rem">Loading..</iframe>`;
+  const filteredAttendees = filterAttendees(attendees, activeFilter);
   const attendeeRows =
-    attendees.length > 0
+    filteredAttendees.length > 0
       ? pipe(
-          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken })),
+          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken, activeFilter })),
           joinStrings,
-        )(attendees)
+        )(filteredAttendees)
       : '<tr><td colspan="7">No attendees yet</td></tr>';
 
   const checkedInLabel = checkinMessage?.status === "in" ? "in" : "out";
   const checkedInClass = checkinMessage?.status === "in" ? "checkin-message-in" : "checkin-message-out";
+
+  const basePath = `/admin/event/${event.id}`;
 
   return String(
     <Layout title={`Event: ${event.name}`}>
@@ -169,6 +190,13 @@ export const adminEventPage = (
             Checked {checkinMessage.name} {checkedInLabel}
           </p>
         )}
+        <p>
+          <Raw html={FilterLink({ href: basePath, label: "All", active: activeFilter === "all" })} />
+          {" / "}
+          <Raw html={FilterLink({ href: `${basePath}/in`, label: "Checked In", active: activeFilter === "in" })} />
+          {" / "}
+          <Raw html={FilterLink({ href: `${basePath}/out`, label: "Checked Out", active: activeFilter === "out" })} />
+        </p>
         <table>
           <thead>
             <tr>
