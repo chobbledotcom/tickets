@@ -33,6 +33,7 @@ export interface Attendee {
   quantity: number;
   price_paid: string | null;
   checked_in: string;
+  ticket_token: string;
 }
 
 export interface Settings {

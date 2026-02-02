@@ -79,6 +79,11 @@ export const generateSecureToken = (): string => {
 };
 
 /**
+ * Generate an 8-byte base64url ticket token for public ticket URLs
+ */
+export const generateTicketToken = (): string => toBase64Url(getRandomBytes(8));
+
+/**
  * Encryption format version prefix
  * Format: enc:1:$base64iv:$base64ciphertext
  */

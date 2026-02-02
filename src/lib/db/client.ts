@@ -57,3 +57,7 @@ export const executeByField = async (
 export const queryBatch = (
   statements: Array<{ sql: string; args: InValue[] }>,
 ): Promise<ResultSet[]> => getDb().batch(statements, "read");
+
+/** Build SQL placeholders for an IN clause, e.g. "?, ?, ?" */
+export const inPlaceholders = (values: readonly unknown[]): string =>
+  values.map(() => "?").join(", ");

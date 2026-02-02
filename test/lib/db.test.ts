@@ -11,6 +11,7 @@ import {
   decryptAttendees,
   deleteAttendee,
   getAttendee,
+  getAttendeesByTokens,
   getAttendeesRaw,
   hasAvailableSpots,
   updateCheckedIn,
@@ -1593,6 +1594,23 @@ describe("db", () => {
       expect(results[0]).not.toBeNull();
       expect(results[1]).toBeNull();
     });
+
+    test("getAttendeesByTokens returns attendees in token order", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const a1 = await createTestAttendee(event.id, event.slug, "Tok1", "tok1@example.com");
+      const a2 = await createTestAttendee(event.id, event.slug, "Tok2", "tok2@example.com");
+
+      const results = await getAttendeesByTokens([a2.ticket_token, a1.ticket_token]);
+      expect(results.length).toBe(2);
+      expect(results[0]?.id).toBe(a2.id);
+      expect(results[1]?.id).toBe(a1.id);
+    });
+
+    test("getAttendeesByTokens returns null for missing tokens", async () => {
+      const results = await getAttendeesByTokens(["nonexistent"]);
+      expect(results.length).toBe(1);
+      expect(results[0]).toBeNull();
+    });
   });
 
   describe("login-attempts - expired lockout", () => {
@@ -1951,6 +1969,32 @@ describe("db", () => {
       const privateKey = await getTestPrivateKey();
       const decrypted = await decryptAttendees(rows, privateKey);
       expect(decrypted[0]?.checked_in).toBe("false");
+    });
+  });
+
+  describe("initDb ticket_token backfill", () => {
+    test("backfills empty ticket_token with random tokens during migration", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      await createTestAttendee(event.id, event.slug, "Token User", "token@example.com");
+
+      // Set ticket_token to empty string to simulate pre-migration data
+      await getDb().execute({
+        sql: "UPDATE attendees SET ticket_token = '' WHERE event_id = ?",
+        args: [event.id],
+      });
+
+      // Clear the version marker so initDb re-runs migrations
+      await getDb().execute(
+        "DELETE FROM settings WHERE key = 'latest_db_update'",
+      );
+
+      // Re-run migrations - should backfill ticket_token
+      await initDb();
+
+      // Verify the backfill populated a non-empty token
+      const rows = await getAttendeesRaw(event.id);
+      expect(rows[0]?.ticket_token).not.toBe("");
+      expect(rows[0]?.ticket_token.length).toBeGreaterThan(0);
     });
   });
 

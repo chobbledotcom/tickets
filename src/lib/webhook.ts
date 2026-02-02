@@ -3,7 +3,8 @@
  * Sends consolidated registration data to configured webhook URLs
  */
 
-import { compact, unique } from "#fp";
+import { compact, map, unique } from "#fp";
+import { getAllowedDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 
@@ -24,6 +25,7 @@ export type WebhookPayload = {
   price_paid: number | null;
   currency: string;
   payment_id: string | null;
+  ticket_url: string;
   tickets: WebhookTicket[];
   timestamp: string;
 };
@@ -48,12 +50,19 @@ export type WebhookAttendee = {
   phone: string;
   payment_id?: string | null;
   price_paid?: string | null;
+  ticket_token: string;
 };
 
 /** Registration entry: event + attendee pair */
 export type RegistrationEntry = {
   event: WebhookEvent;
   attendee: WebhookAttendee;
+};
+
+/** Build the combined ticket URL from attendee tokens */
+const buildTicketUrl = (entries: RegistrationEntry[]): string => {
+  const tokens = map(({ attendee }: RegistrationEntry) => attendee.ticket_token)(entries);
+  return `https://${getAllowedDomain()}/t/${tokens.join("+")}`;
 };
 
 /**
@@ -79,6 +88,7 @@ export const buildWebhookPayload = (
     price_paid: hasPaidEvent ? totalPricePaid : null,
     currency,
     payment_id: first.attendee.payment_id ?? null,
+    ticket_url: buildTicketUrl(entries),
     tickets: entries.map(({ event, attendee }) => ({
       event_name: event.name,
       event_slug: event.slug,
