@@ -53,13 +53,14 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; e
   );
 };
 
-const AttendeeRow = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter }): string =>
+const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter; allowedDomain: string }): string =>
   String(
     <tr>
       <td>{a.name}</td>
       <td>{a.email || ""}</td>
       <td>{a.phone || ""}</td>
       <td>{a.quantity}</td>
+      <td><a href={`https://${allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
       <td>{new Date(a.created).toLocaleString()}</td>
       <td>
         <Raw html={CheckinButton({ a, eventId, csrfToken, activeFilter })} />
@@ -103,10 +104,10 @@ export const adminEventPage = (
   const attendeeRows =
     filteredAttendees.length > 0
       ? pipe(
-          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken: session.csrfToken, activeFilter })),
+          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken: session.csrfToken, activeFilter, allowedDomain })),
           joinStrings,
         )(filteredAttendees)
-      : '<tr><td colspan="7">No attendees yet</td></tr>';
+      : '<tr><td colspan="8">No attendees yet</td></tr>';
 
   const checkedInLabel = checkinMessage?.status === "in" ? "in" : "out";
   const checkedInClass = checkinMessage?.status === "in" ? "checkin-message-in" : "checkin-message-out";
@@ -238,6 +239,7 @@ export const adminEventPage = (
                 <th>Email</th>
                 <th>Phone</th>
                 <th>Qty</th>
+                <th>Ticket</th>
                 <th>Registered</th>
                 <th></th>
                 <th></th>

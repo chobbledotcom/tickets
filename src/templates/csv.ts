@@ -3,6 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { getAllowedDomain } from "#lib/config.ts";
 import type { Attendee } from "#lib/types.ts";
 
 /**
@@ -30,7 +31,8 @@ const formatCheckedIn = (checkedIn: string): string =>
  * Always includes both Email and Phone columns regardless of event settings.
  */
 export const generateAttendeesCsv = (attendees: Attendee[]): string => {
-  const header = "Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In";
+  const domain = getAllowedDomain();
+  const header = "Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL";
   const rows = pipe(
     map((a: Attendee) =>
       [
@@ -42,6 +44,8 @@ export const generateAttendeesCsv = (attendees: Attendee[]): string => {
         formatPrice(a.price_paid),
         escapeCsvValue(a.payment_id ?? ""),
         formatCheckedIn(a.checked_in),
+        escapeCsvValue(a.ticket_token),
+        escapeCsvValue(`https://${domain}/t/${a.ticket_token}`),
       ].join(","),
     ),
     reduce((acc: string, row: string) => `${acc}\n${row}`, header),
