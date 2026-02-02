@@ -64,9 +64,8 @@ export const buildWebhookPayload = (
   currency: string,
 ): WebhookPayload => {
   const first = entries[0]!;
-  const totalPricePaid = entries.reduce((sum, { attendee, event }) => {
+  const totalPricePaid = entries.reduce((sum, { attendee }) => {
     if (attendee.price_paid) return sum + Number.parseInt(attendee.price_paid, 10);
-    if (event.unit_price) return sum + event.unit_price * attendee.quantity;
     return sum;
   }, 0);
 
