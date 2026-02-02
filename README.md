@@ -1,56 +1,56 @@
 # Tickets
 
-A minimal ticket reservation system built with Deno and libsql, deployable to Bunny Edge.
+A minimal ticket reservation system built with Deno and libsql, deployable to Bunny Edge Scripting.
 
 ## Features
 
-- Event management with attendee limits
-- Ticket reservation with email collection
-- Optional Stripe payment integration
-- Admin dashboard with password protection
-- Edge-ready deployment to Bunny CDN
-- Web-based initial setup (no environment variables for config)
+- **Event management** — capacity limits, registration deadlines, configurable fields (email, phone, or both)
+- **Free and paid tickets** — Stripe and Square support with a pluggable provider architecture
+- **Multi-event booking** — register for multiple events in a single checkout
+- **Encryption at rest** — all PII encrypted with AES-256-GCM and hybrid RSA-OAEP
+- **Admin dashboard** — attendee management, CSV export, check-in tracking, activity log, session management
+- **Edge deployment** — builds to a single file for Bunny CDN edge scripting
+- **Web-based setup** — admin password, currency, and payment providers configured via browser
 
 ## Quick Start
 
 ```bash
-# Install dependencies
-deno install --allow-scripts
+# Install Deno, cache dependencies, and run all checks
+./setup.sh
 
-# Run locally (requires DB_URL)
-DB_URL=libsql://your-db.turso.io DB_TOKEN=your-token deno task start
+# Run locally
+DB_URL=libsql://your-db.turso.io DB_TOKEN=your-token \
+  DB_ENCRYPTION_KEY=your-base64-key ALLOWED_DOMAIN=localhost \
+  deno task start
 
-# Run tests (stripe-mock is started automatically)
+# Run tests (stripe-mock is downloaded and started automatically)
 deno task test
 ```
 
 ## Initial Setup
 
-On first launch, the application will redirect to `/setup/` where you can configure:
+On first launch, the app redirects to `/setup/` to configure:
 
-- **Admin Password** - Required for accessing the admin dashboard
-- **Stripe Secret Key** - Optional, enables paid tickets when set
-- **Currency Code** - Currency for payments (default: GBP)
+- **Admin password** — required for the admin dashboard
+- **Currency code** — currency for payments (default: GBP)
 
-These settings are stored securely in the database, not in environment variables.
+Payment providers (Stripe/Square) are configured later in the admin settings page at `/admin/settings`.
+
+All configuration is stored encrypted in the database.
 
 ## Environment Variables
 
-Only database connection settings use environment variables:
-
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DB_URL` | Yes | LibSQL database URL (e.g., `libsql://your-db.turso.io`) |
+| `DB_URL` | Yes | libsql database URL |
 | `DB_TOKEN` | Yes* | Database auth token (*required for remote databases) |
+| `DB_ENCRYPTION_KEY` | Yes | 32-byte base64-encoded encryption key |
+| `ALLOWED_DOMAIN` | Yes | Domain for security validation |
 | `PORT` | No | Server port for local development (default: `3000`) |
-
-All other configuration (admin password, Stripe keys, currency) is set through the web-based setup page and stored in the database.
 
 ## Deployment
 
 ### GitHub Secrets
-
-Add these secrets to your GitHub repository for deployment:
 
 | Secret | Description |
 |--------|-------------|
@@ -59,52 +59,26 @@ Add these secrets to your GitHub repository for deployment:
 
 ### Bunny Native Secrets
 
-Configure these environment variables in the Bunny Edge Scripting dashboard:
+Configure `DB_URL`, `DB_TOKEN`, `DB_ENCRYPTION_KEY`, and `ALLOWED_DOMAIN` in the Bunny Edge Scripting dashboard.
 
-| Variable | Description |
-|----------|-------------|
-| `DB_URL` | LibSQL database URL |
-| `DB_TOKEN` | Database auth token |
-| `DB_ENCRYPTION_KEY` | 32-byte base64-encoded encryption key |
-| `ALLOWED_DOMAIN` | Domain for security validation |
-
-### Build Process
+### Build & Deploy
 
 ```bash
-# Build for edge deployment
 deno task build:edge
 ```
 
-### First Deployment
-
-After deploying to Bunny Edge, visit your site URL. You'll be automatically redirected to the setup page to configure your admin password and payment settings.
+After deploying, visit your site URL to complete setup via the browser.
 
 ## Development
 
 ```bash
-# Run linter
-deno task lint
-
-# Format code
-deno task fmt
-
-# Type check
-deno task typecheck
-
-# Run all pre-commit checks
-deno task precommit
-```
-
-## Testing
-
-The test runner automatically downloads and starts stripe-mock:
-
-```bash
-# Run tests
-deno task test
-
-# Run tests with coverage
-deno task test:coverage
+deno task start          # Run server locally
+deno task test           # Run tests
+deno task test:coverage  # Run tests with coverage report
+deno task lint           # Lint
+deno task fmt            # Format
+deno task typecheck      # Type check
+deno task precommit      # All checks (typecheck, lint, cpd, test:coverage)
 ```
 
 ## License
