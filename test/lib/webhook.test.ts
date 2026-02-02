@@ -116,7 +116,7 @@ describe("webhook", () => {
       expect(payload.tickets[1]!.quantity).toBe(2);
     });
 
-    test("computes price from unit_price when attendee has no price_paid", () => {
+    test("returns 0 price_paid when attendee has no price_paid on paid event", () => {
       const entries: RegistrationEntry[] = [
         {
           event: makeEvent({ unit_price: 500 }),
@@ -126,7 +126,7 @@ describe("webhook", () => {
 
       const payload = buildWebhookPayload(entries, "GBP");
 
-      expect(payload.price_paid).toBe(1500);
+      expect(payload.price_paid).toBe(0);
     });
   });
 

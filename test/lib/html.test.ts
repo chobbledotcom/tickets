@@ -561,7 +561,7 @@ describe("html", () => {
 
   describe("calculateTotalRevenue", () => {
     test("returns 0 for empty attendees", () => {
-      expect(calculateTotalRevenue([], 1000)).toBe(0);
+      expect(calculateTotalRevenue([])).toBe(0);
     });
 
     test("sums price_paid from attendees", () => {
@@ -569,33 +569,25 @@ describe("html", () => {
         testAttendee({ price_paid: "1000" }),
         testAttendee({ id: 2, price_paid: "2000" }),
       ];
-      expect(calculateTotalRevenue(attendees, 1000)).toBe(3000);
+      expect(calculateTotalRevenue(attendees)).toBe(3000);
     });
 
-    test("falls back to unit_price * quantity when price_paid is null", () => {
-      const attendees = [
-        testAttendee({ quantity: 2 }),
-        testAttendee({ id: 2, quantity: 3 }),
-      ];
-      expect(calculateTotalRevenue(attendees, 500)).toBe(2500);
-    });
-
-    test("mixes price_paid and unit_price fallback", () => {
-      const attendees = [
-        testAttendee({ price_paid: "1500" }),
-        testAttendee({ id: 2, quantity: 2 }),
-      ];
-      expect(calculateTotalRevenue(attendees, 500)).toBe(2500);
-    });
-
-    test("returns 0 when no unit_price and no price_paid", () => {
+    test("returns 0 when attendees have no price_paid", () => {
       const attendees = [testAttendee({ quantity: 3 })];
-      expect(calculateTotalRevenue(attendees, null)).toBe(0);
+      expect(calculateTotalRevenue(attendees)).toBe(0);
     });
 
     test("ignores non-numeric price_paid", () => {
       const attendees = [testAttendee({ price_paid: "not-a-number" })];
-      expect(calculateTotalRevenue(attendees, 1000)).toBe(0);
+      expect(calculateTotalRevenue(attendees)).toBe(0);
+    });
+
+    test("skips attendees without price_paid when summing", () => {
+      const attendees = [
+        testAttendee({ price_paid: "1500" }),
+        testAttendee({ id: 2, quantity: 2 }),
+      ];
+      expect(calculateTotalRevenue(attendees)).toBe(1500);
     });
   });
 

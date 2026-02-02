@@ -12,17 +12,13 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
-/** Calculate total revenue in cents from attendees, falling back to unit_price * quantity */
-export const calculateTotalRevenue = (
-  attendees: Attendee[],
-  unitPrice: number | null,
-): number =>
+/** Calculate total revenue in cents from attendees */
+export const calculateTotalRevenue = (attendees: Attendee[]): number =>
   reduce((sum: number, a: Attendee) => {
     if (a.price_paid) {
       const cents = Number.parseInt(a.price_paid, 10);
       return Number.isNaN(cents) ? sum : sum + cents;
     }
-    if (unitPrice) return sum + unitPrice * a.quantity;
     return sum;
   }, 0)(attendees);
 
@@ -104,7 +100,7 @@ export const adminEventPage = (
           <p><strong>Tickets Sold:</strong> {event.attendee_count}</p>
           <p><strong>Spots Remaining:</strong> {event.max_attendees - event.attendee_count}</p>
           {event.unit_price !== null && (
-            <p><strong>Total Revenue:</strong> {formatRevenue(calculateTotalRevenue(attendees, event.unit_price))}</p>
+            <p><strong>Total Revenue:</strong> {formatRevenue(calculateTotalRevenue(attendees))}</p>
           )}
           <p><strong>Contact Fields:</strong> {FIELDS_LABELS[event.fields]}</p>
           {event.thank_you_url ? (
