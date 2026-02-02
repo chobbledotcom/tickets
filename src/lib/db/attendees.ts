@@ -44,7 +44,9 @@ const decryptAttendee = async (
     ? await decryptAttendeePII(row.payment_id, privateKey)
     : null;
   const price_paid = row.price_paid ? await decrypt(row.price_paid) : null;
-  const checked_in = await decryptAttendeePII(row.checked_in, privateKey);
+  const checked_in = row.checked_in
+    ? await decryptAttendeePII(row.checked_in, privateKey)
+    : "false";
   return { ...row, name, email, phone, payment_id, price_paid, checked_in };
 };
 
