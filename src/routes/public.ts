@@ -18,6 +18,7 @@ import { logDebug } from "#lib/logger.ts";
 import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import {
   csrfCookie,
+  formatCreationError,
   generateSecureToken,
   getBaseUrl,
   htmlResponse,
@@ -204,15 +205,11 @@ const processPaidReservation = async (
 };
 
 /** Format error message for failed attendee creation */
-const formatAtomicError = (
-  reason: "capacity_exceeded" | "encryption_error",
-  eventName?: string,
-): string =>
-  reason === "capacity_exceeded"
-    ? eventName
-      ? `Sorry, ${eventName} no longer has enough spots available`
-      : "Sorry, not enough spots available"
-    : "Registration failed. Please try again.";
+const formatAtomicError = formatCreationError(
+  "Sorry, not enough spots available",
+  (name) => `Sorry, ${name} no longer has enough spots available`,
+  "Registration failed. Please try again.",
+);
 
 /** Handle free event registration - atomic create with capacity check */
 const processFreeReservation = async (
