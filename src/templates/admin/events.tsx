@@ -7,6 +7,7 @@ import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
 import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { formatCountdown } from "#routes/utils.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -130,6 +131,11 @@ export const adminEventPage = (
             <p><strong>Total Revenue:</strong> {formatRevenue(calculateTotalRevenue(attendees))}</p>
           )}
           <p><strong>Contact Fields:</strong> {FIELDS_LABELS[event.fields]}</p>
+          {event.closes_at ? (
+            <p><strong>Registration Closes:</strong> {event.closes_at} (UTC) <small><em>({formatCountdown(event.closes_at)})</em></small></p>
+          ) : (
+            <p><strong>Registration Closes:</strong> <em>No deadline</em></p>
+          )}
           {event.thank_you_url ? (
             <p>
               <strong>Thank You URL:</strong>{" "}
@@ -189,9 +195,13 @@ export const adminEventPage = (
   );
 };
 
-/**
- * Convert event to form field values
- */
+/** Format closes_at ISO string for datetime-local input (YYYY-MM-DDTHH:MM) */
+const formatClosesAt = (closesAt: string | null): string | null => {
+  if (!closesAt) return null;
+  // datetime-local expects YYYY-MM-DDTHH:MM format
+  return closesAt.slice(0, 16);
+};
+
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,
   description: event.description,
@@ -200,6 +210,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   max_quantity: event.max_quantity,
   fields: event.fields,
   unit_price: event.unit_price,
+  closes_at: formatClosesAt(event.closes_at),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
 });

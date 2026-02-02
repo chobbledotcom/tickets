@@ -155,6 +155,7 @@ describe("stripe", () => {
         webhook_url: null,
         active: 1,
         fields: "email" as const,
+        closes_at: null,
       };
       const intent = {
         eventId: 1,
@@ -196,6 +197,7 @@ describe("stripe", () => {
         webhook_url: null,
         active: 1,
         fields: "email" as const,
+        closes_at: null,
       };
 
       const intent = {
@@ -245,6 +247,7 @@ describe("stripe", () => {
         webhook_url: null,
         active: 1,
         fields: "email" as const,
+        closes_at: null,
       };
       const intent = {
         eventId: 1,
@@ -277,6 +280,7 @@ describe("stripe", () => {
         webhook_url: null,
         active: 1,
         fields: "email" as const,
+        closes_at: null,
       };
       const intent = {
         eventId: 1,

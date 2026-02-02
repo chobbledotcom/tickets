@@ -72,6 +72,7 @@ const extractEventInput = async (
     maxQuantity: values.max_quantity as number,
     webhookUrl: (values.webhook_url as string) || null,
     fields: (values.fields as EventFields) || "email",
+    closesAt: (values.closes_at as string) || "",
   };
 };
 
@@ -92,6 +93,7 @@ const extractEventUpdateInput = async (
     maxQuantity: values.max_quantity as number,
     webhookUrl: (values.webhook_url as string) || null,
     fields: (values.fields as EventFields) || "email",
+    closesAt: (values.closes_at as string) || "",
   };
 };
 

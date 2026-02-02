@@ -17,6 +17,7 @@ import {
 } from "#lib/db/attendees.ts";
 import { getDb, setDb } from "#lib/db/client.ts";
 import {
+  computeSlugIndex,
   deleteEvent,
   eventsTable,
   getAllEvents,
@@ -26,6 +27,7 @@ import {
   getEventWithAttendeesRaw,
   getEventWithCount,
   isSlugTaken,
+  writeClosesAt,
 } from "#lib/db/events.ts";
 import {
   clearLoginAttempts,
@@ -1929,6 +1931,118 @@ describe("db", () => {
       const privateKey = await getTestPrivateKey();
       const decrypted = await decryptAttendees(rows, privateKey);
       expect(decrypted[0]?.checked_in).toBe("false");
+    });
+  });
+
+  describe("writeClosesAt", () => {
+    test("encrypts empty string for no deadline", async () => {
+      const { decrypt } = await import("#lib/crypto.ts");
+      const result = await writeClosesAt("");
+      expect(typeof result).toBe("string");
+      expect(result).not.toBe("");
+      const decrypted = await decrypt(result as unknown as string);
+      expect(decrypted).toBe("");
+    });
+
+    test("encrypts null as empty string", async () => {
+      const { decrypt } = await import("#lib/crypto.ts");
+      const result = await writeClosesAt(null);
+      const decrypted = await decrypt(result as unknown as string);
+      expect(decrypted).toBe("");
+    });
+
+    test("normalizes datetime-local format to full ISO", async () => {
+      const { decrypt } = await import("#lib/crypto.ts");
+      const result = await writeClosesAt("2099-06-15T14:30");
+      const decrypted = await decrypt(result as unknown as string);
+      expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
+    });
+
+    test("handles already-normalized ISO string", async () => {
+      const { decrypt } = await import("#lib/crypto.ts");
+      const result = await writeClosesAt("2099-06-15T14:30:00.000Z");
+      const decrypted = await decrypt(result as unknown as string);
+      expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
+    });
+
+    test("throws on invalid datetime string", async () => {
+      await expect(writeClosesAt("not-a-date")).rejects.toThrow("Invalid closes_at");
+    });
+  });
+
+  describe("closes_at read transform", () => {
+    test("returns null for no-deadline event", async () => {
+      const event = await eventsTable.insert({
+        name: "test", slug: "test-read-1",
+        slugIndex: await computeSlugIndex("test-read-1"),
+        maxAttendees: 100, closesAt: "",
+      });
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.closes_at).toBeNull();
+    });
+
+    test("returns normalized ISO string for valid datetime", async () => {
+      const event = await eventsTable.insert({
+        name: "test", slug: "test-read-2",
+        slugIndex: await computeSlugIndex("test-read-2"),
+        maxAttendees: 100, closesAt: "2099-12-31T23:59",
+      });
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.closes_at).toBe("2099-12-31T23:59:00.000Z");
+    });
+
+
+  });
+
+  describe("closes_at migration backfill", () => {
+    test("backfills NULL closes_at to encrypted empty string", async () => {
+      const slugIdx = await computeSlugIndex("test-mig-1");
+      await getDb().execute({
+        sql: `INSERT INTO events (name, slug, slug_index, max_attendees, created, closes_at) VALUES (?, ?, ?, ?, ?, NULL)`,
+        args: ["raw-name", "raw-slug", slugIdx, 100, new Date().toISOString()],
+      });
+
+      // Update the version marker to force re-migration
+      await getDb().execute(
+        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
+      );
+      await initDb();
+
+      // Verify the event now has encrypted closes_at (not NULL)
+      const rows = await getDb().execute(
+        `SELECT closes_at FROM events WHERE slug_index = ?`,
+        [slugIdx],
+      );
+      const raw = rows.rows[0]?.closes_at as string | null;
+      expect(raw).not.toBeNull();
+      // Verify it decrypts to empty string (no deadline)
+      const { decrypt } = await import("#lib/crypto.ts");
+      const decrypted = await decrypt(raw as string);
+      expect(decrypted).toBe("");
+    });
+
+    test("leaves already-encrypted closes_at values unchanged", async () => {
+      const { encrypt, decrypt } = await import("#lib/crypto.ts");
+      const encrypted = await encrypt("2099-06-15T14:30:00.000Z");
+      const slugIdx = await computeSlugIndex("test-mig-2");
+      await getDb().execute({
+        sql: `INSERT INTO events (name, slug, slug_index, max_attendees, created, closes_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        args: ["enc-name", "enc-slug", slugIdx, 100, new Date().toISOString(), encrypted],
+      });
+
+      await getDb().execute(
+        "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
+      );
+      await initDb();
+
+      // Verify it still decrypts correctly (not double-encrypted)
+      const rows = await getDb().execute(
+        `SELECT closes_at FROM events WHERE slug_index = ?`,
+        [slugIdx],
+      );
+      const raw = rows.rows[0]?.closes_at as string | null;
+      const decrypted = await decrypt(raw as string);
+      expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
     });
   });
 });

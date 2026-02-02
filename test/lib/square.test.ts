@@ -139,6 +139,7 @@ describe("square", () => {
         webhook_url: null,
         active: 1,
         fields: "email" as const,
+        closes_at: null,
       };
       const intent = {
         eventId: 1,
@@ -172,6 +173,7 @@ describe("square", () => {
         webhook_url: null,
         active: 1,
         fields: "email" as const,
+        closes_at: null,
       };
       const intent = {
         eventId: 1,
@@ -205,6 +207,7 @@ describe("square", () => {
         webhook_url: null,
         active: 1,
         fields: "email" as const,
+        closes_at: null,
       };
       const intent = {
         eventId: 1,
@@ -246,6 +249,7 @@ describe("square", () => {
             webhook_url: null,
             active: 1,
             fields: "email" as const,
+            closes_at: null,
           };
           const intent = {
             eventId: 7,
@@ -323,6 +327,7 @@ describe("square", () => {
             webhook_url: null,
             active: 1,
             fields: "email" as const,
+            closes_at: null,
           };
           const intent = {
             eventId: 1,
@@ -368,6 +373,7 @@ describe("square", () => {
             webhook_url: null,
             active: 1,
             fields: "email" as const,
+            closes_at: null,
           };
           const intent = {
             eventId: 1,
@@ -412,6 +418,7 @@ describe("square", () => {
             webhook_url: null,
             active: 1,
             fields: "email" as const,
+            closes_at: null,
           };
           const intent = {
             eventId: 1,
@@ -1177,6 +1184,7 @@ describe("square", () => {
             webhook_url: null,
             active: 1,
             fields: "email" as const,
+            closes_at: null,
           };
           const intent = {
             eventId: 1,

@@ -582,6 +582,14 @@ describe("test-utils", () => {
       expect(updated.unit_price).toBe(2500);
       expect(updated.max_attendees).toBe(50);
     });
+
+    test("preserves existing closesAt when update does not specify closesAt", async () => {
+      const event = await createTestEvent({ closesAt: "2099-06-15T14:30" });
+      expect(event.closes_at).toBe("2099-06-15T14:30:00.000Z");
+      const updated = await updateTestEvent(event.id, { maxAttendees: 50 });
+      expect(updated.closes_at).toBe("2099-06-15T14:30:00.000Z");
+      expect(updated.max_attendees).toBe(50);
+    });
   });
 
   describe("createTestEvent with null thankYouUrl", () => {

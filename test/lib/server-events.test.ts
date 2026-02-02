@@ -16,7 +16,9 @@ import {
   expectAdminRedirect,
   expectRedirect,
   loginAsAdmin,
+  updateTestEvent,
 } from "#test-utils";
+import { formatCountdown } from "#routes/utils.ts";
 
 describe("server (admin events)", () => {
   beforeEach(async () => {
@@ -1601,6 +1603,190 @@ describe("server (admin events)", () => {
       } finally {
         spy.mockRestore();
       }
+    });
+  });
+
+  describe("closes_at field", () => {
+    test("creates event with closes_at timestamp", async () => {
+      const closesAt = "2099-06-15T14:30";
+      const event = await createTestEvent({ closesAt });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.closes_at).toBe("2099-06-15T14:30:00.000Z");
+    });
+
+    test("creates event without closes_at (defaults to null)", async () => {
+      const event = await createTestEvent();
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.closes_at).toBeNull();
+    });
+
+    test("updates event closes_at", async () => {
+      const event = await createTestEvent();
+      const closesAt = "2099-12-31T23:59";
+      await updateTestEvent(event.id, { closesAt });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.closes_at).toBe("2099-12-31T23:59:00.000Z");
+    });
+
+    test("clears closes_at by setting to empty string", async () => {
+      const event = await createTestEvent({ closesAt: "2099-06-15T14:30" });
+      await updateTestEvent(event.id, { closesAt: "" });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.closes_at).toBeNull();
+    });
+
+    test("admin event detail page shows closes_at with countdown when set", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({ closesAt: "2099-06-15T14:30" });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Registration Closes");
+      expect(html).not.toContain("No deadline");
+      expect(html).toContain("from now");
+    });
+
+    test("admin event detail page shows 'No deadline' when closes_at is null", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No deadline");
+    });
+
+    test("admin event edit page shows closes_at in form", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({ closesAt: "2099-06-15T14:30" });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('value="2099-06-15T14:30"');
+      expect(html).toContain("Registration Closes At");
+    });
+
+    test("admin event detail page shows 'closed' countdown for past closes_at", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({ closesAt: "2024-01-01T00:00" });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("(closed)");
+    });
+
+    test("admin event detail page shows days-only countdown", async () => {
+      const { cookie } = await loginAsAdmin();
+      const future = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000);
+      const closesAt = future.toISOString().slice(0, 16);
+      const event = await createTestEvent({ closesAt });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("days from now");
+    });
+
+    test("admin event detail page shows hours-only countdown", async () => {
+      const { cookie } = await loginAsAdmin();
+      const future = new Date(Date.now() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000);
+      const closesAt = future.toISOString().slice(0, 16);
+      const event = await createTestEvent({ closesAt });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("hours from now");
+    });
+
+    test("admin event detail page shows minutes-only countdown", async () => {
+      const { cookie } = await loginAsAdmin();
+      const future = new Date(Date.now() + 30 * 60 * 1000);
+      const closesAt = future.toISOString().slice(0, 16);
+      const event = await createTestEvent({ closesAt });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("minute");
+    });
+
+    test("formatCountdown shows days and hours", () => {
+      const future = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000).toISOString();
+      expect(formatCountdown(future)).toContain("3 days and 5 hours from now");
+    });
+
+    test("formatCountdown shows only days when no remaining hours", () => {
+      const future = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
+      expect(formatCountdown(future)).toBe("2 days from now");
+    });
+
+    test("formatCountdown shows only hours", () => {
+      const future = new Date(Date.now() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
+      expect(formatCountdown(future)).toBe("5 hours from now");
+    });
+
+    test("formatCountdown shows minutes when less than an hour", () => {
+      const result = formatCountdown(new Date(Date.now() + 30 * 60 * 1000).toISOString());
+      expect(result).toContain("minute");
+      expect(result).toContain("from now");
+    });
+
+    test("formatCountdown shows closed for past dates", () => {
+      expect(formatCountdown("2024-01-01T00:00:00.000Z")).toBe("closed");
+    });
+
+    test("formatCountdown singular forms", () => {
+      const future = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString();
+      expect(formatCountdown(future)).toBe("1 day and 1 hour from now");
+    });
+
+    test("rejects invalid closes_at format", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const event = await createTestEvent();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: event.name,
+            slug: event.slug,
+            max_attendees: "100",
+            max_quantity: "1",
+            closes_at: "not-a-date",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Please enter a valid date and time");
     });
   });
 

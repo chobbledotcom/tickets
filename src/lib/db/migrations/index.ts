@@ -9,7 +9,7 @@ import { getPublicKey } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add attendee checked_in column";
+export const LATEST_UPDATE = "encrypt event closes_at column";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -190,6 +190,21 @@ export const initDb = async (): Promise<void> => {
       sql: `UPDATE attendees SET checked_in = ? WHERE checked_in = ''`,
       args: [encryptedFalse],
     });
+  }
+
+  // Migration: add closes_at column to events (encrypted, empty string = no deadline)
+  await runMigration(`ALTER TABLE events ADD COLUMN closes_at TEXT`);
+
+  // Backfill: encrypt NULL closes_at to encrypted empty string for existing events
+  {
+    const rows = await getDb().execute(`SELECT id FROM events WHERE closes_at IS NULL`);
+    const encrypted = await encrypt("");
+    for (const row of rows.rows) {
+      await getDb().execute({
+        sql: `UPDATE events SET closes_at = ? WHERE id = ?`,
+        args: [encrypted, row.id as number],
+      });
+    }
   }
 
   // Update the version marker

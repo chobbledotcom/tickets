@@ -598,6 +598,7 @@ export const createTestEvent = (
       thank_you_url: input.thankYouUrl ?? "",
       unit_price: input.unitPrice != null ? String(input.unitPrice) : "",
       webhook_url: input.webhookUrl ?? "",
+      closes_at: input.closesAt ?? "",
     },
     async () => {
       // Get the most recently created event
@@ -633,6 +634,13 @@ const formatOptional = (
 ): string =>
   update !== undefined ? update ?? "" : existing ?? "";
 
+/** Format closes_at for form submission (truncate existing ISO to datetime-local) */
+const formatClosesAt = (
+  update: string | undefined,
+  existing: string | null,
+): string =>
+  update !== undefined ? update : (existing?.slice(0, 16) ?? "");
+
 /**
  * Update an event via the REST API
  */
@@ -657,6 +665,7 @@ export const updateTestEvent = async (
       thank_you_url: formatOptional(updates.thankYouUrl, existing.thank_you_url),
       unit_price: formatPrice(updates.unitPrice, existing.unit_price),
       webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
+      closes_at: formatClosesAt(updates.closesAt, existing.closes_at),
     },
     async () =>
       (await getEventWithCount(eventId)) as EventWithCount,
@@ -828,6 +837,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   unit_price: null,
   max_quantity: 1,
   webhook_url: null,
+  closes_at: null,
   active: 1,
   fields: "email",
   ...overrides,

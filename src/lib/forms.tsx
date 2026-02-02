@@ -19,7 +19,8 @@ export type FieldType =
   | "url"
   | "password"
   | "textarea"
-  | "select";
+  | "select"
+  | "datetime-local";
 
 export interface Field {
   name: string;
