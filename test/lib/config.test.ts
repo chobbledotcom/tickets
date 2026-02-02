@@ -132,7 +132,7 @@ describe("config", () => {
     });
 
     test("returns true when setup is complete", async () => {
-      await completeSetup("password123", "GBP");
+      await completeSetup("testadmin", "password123", "GBP");
       expect(await isSetupComplete()).toBe(true);
     });
   });

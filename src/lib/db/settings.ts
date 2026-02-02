@@ -12,22 +12,20 @@ import {
   generateKeyPair,
   hashPassword,
   unwrapKey,
-  verifyPassword,
   wrapKey,
 } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
 import { deleteAllSessions } from "#lib/db/sessions.ts";
+import { createUser } from "#lib/db/users.ts";
 import type { Settings } from "#lib/types.ts";
 
 /**
  * Setting keys for configuration
  */
 export const CONFIG_KEYS = {
-  ADMIN_PASSWORD: "admin_password",
   CURRENCY_CODE: "currency_code",
   SETUP_COMPLETE: "setup_complete",
   // Encryption key hierarchy
-  WRAPPED_DATA_KEY: "wrapped_data_key",
   WRAPPED_PRIVATE_KEY: "wrapped_private_key",
   PUBLIC_KEY: "public_key",
   // Payment provider selection
@@ -114,14 +112,15 @@ export const clearSetupCompleteCache = (): void => {
  * - DATA_KEY: random symmetric key for encrypting private key
  * - RSA key pair: public key encrypts attendee PII, private key decrypts
  * - KEK: derived from password hash + DB_ENCRYPTION_KEY, wraps DATA_KEY
+ * Creates the first owner user row instead of storing credentials in settings.
  */
 export const completeSetup = async (
+  username: string,
   adminPassword: string,
   currencyCode: string,
 ): Promise<void> => {
   // Hash the password
   const hashedPassword = await hashPassword(adminPassword);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
 
   // Generate DATA_KEY (random symmetric key)
   const dataKey = await generateDataKey();
@@ -134,7 +133,9 @@ export const completeSetup = async (
 
   // Wrap DATA_KEY with KEK
   const wrappedDataKey = await wrapKey(dataKey, kek);
-  await setSetting(CONFIG_KEYS.WRAPPED_DATA_KEY, wrappedDataKey);
+
+  // Create the owner user row with wrapped data key
+  await createUser(username, hashedPassword, wrappedDataKey, "owner");
 
   // Encrypt private key with DATA_KEY
   const encryptedPrivateKey = await encryptWithKey(privateKey, dataKey);
@@ -240,39 +241,11 @@ export const setStripeWebhookConfig = async (
 };
 
 /**
- * Get admin password hash from database
- * Returns null if setup hasn't been completed
- */
-export const getAdminPasswordHash = (): Promise<string | null> => {
-  return getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
-};
-
-/**
- * Verify admin password using constant-time comparison
- * Returns the password hash if valid (needed for KEK derivation)
- */
-export const verifyAdminPassword = async (
-  password: string,
-): Promise<string | null> => {
-  const storedHash = await getAdminPasswordHash();
-  if (storedHash === null) return null;
-  const isValid = await verifyPassword(password, storedHash);
-  return isValid ? storedHash : null;
-};
-
-/**
  * Get the public key for encrypting attendee PII
  * Always available (it's meant to be public)
  */
 export const getPublicKey = (): Promise<string | null> => {
   return getSetting(CONFIG_KEYS.PUBLIC_KEY);
-};
-
-/**
- * Get the wrapped DATA_KEY (needs KEK to unwrap)
- */
-export const getWrappedDataKey = (): Promise<string | null> => {
-  return getSetting(CONFIG_KEYS.WRAPPED_DATA_KEY);
 };
 
 /**
@@ -283,45 +256,37 @@ export const getWrappedPrivateKey = (): Promise<string | null> => {
 };
 
 /**
- * Unwrap the DATA_KEY using a password hash
- * Used during login to get the DATA_KEY for session storage
+ * Update a user's password and re-wrap DATA_KEY with new KEK
+ * Requires the user's old password hash (decrypted) and their user row
  */
-export const unwrapDataKey = async (
-  passwordHash: string,
-): Promise<CryptoKey | null> => {
-  const wrappedDataKey = await getWrappedDataKey();
-  if (!wrappedDataKey) return null;
-
-  const kek = await deriveKEK(passwordHash);
-  return unwrapKey(wrappedDataKey, kek);
-};
-
-/**
- * Update admin password and re-wrap DATA_KEY with new KEK
- * Requires the old password to unwrap the existing DATA_KEY
- */
-export const updateAdminPassword = async (
-  oldPassword: string,
+export const updateUserPassword = async (
+  userId: number,
+  oldPasswordHash: string,
+  oldWrappedDataKey: string,
   newPassword: string,
 ): Promise<boolean> => {
-  // Verify old password and get its hash
-  const oldHash = await verifyAdminPassword(oldPassword);
-  if (!oldHash) return false;
-
   // Unwrap DATA_KEY with old KEK
-  const dataKey = await unwrapDataKey(oldHash);
-  if (!dataKey) return false;
+  const oldKek = await deriveKEK(oldPasswordHash);
+  let dataKey: CryptoKey;
+  try {
+    dataKey = await unwrapKey(oldWrappedDataKey, oldKek);
+  } catch {
+    return false;
+  }
 
   // Hash the new password
   const newHash = await hashPassword(newPassword);
+  const encryptedNewHash = await encrypt(newHash);
 
   // Derive new KEK and re-wrap DATA_KEY
   const newKek = await deriveKEK(newHash);
   const newWrappedDataKey = await wrapKey(dataKey, newKek);
 
-  // Update settings
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, newHash);
-  await setSetting(CONFIG_KEYS.WRAPPED_DATA_KEY, newWrappedDataKey);
+  // Update user row
+  await getDb().execute({
+    sql: "UPDATE users SET password_hash = ?, wrapped_data_key = ? WHERE id = ?",
+    args: [encryptedNewHash, newWrappedDataKey, userId],
+  });
 
   // Invalidate all sessions (force re-login with new password)
   await deleteAllSessions();
@@ -403,13 +368,9 @@ export const settingsApi = {
   setSetting,
   isSetupComplete,
   clearSetupCompleteCache,
-  getAdminPasswordHash,
-  verifyAdminPassword,
   getPublicKey,
-  getWrappedDataKey,
   getWrappedPrivateKey,
-  unwrapDataKey,
-  updateAdminPassword,
+  updateUserPassword,
   getCurrencyCodeFromDb,
   getPaymentProviderFromDb,
   setPaymentProvider,

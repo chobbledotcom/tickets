@@ -9,7 +9,7 @@ import { getPublicKey } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "encrypt event closes_at column";
+export const LATEST_UPDATE = "add multi-user admin";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -207,6 +207,31 @@ export const initDb = async (): Promise<void> => {
     }
   }
 
+  // Create users table for multi-user admin access
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username_hash TEXT NOT NULL,
+      username_index TEXT NOT NULL,
+      password_hash TEXT NOT NULL DEFAULT '',
+      wrapped_data_key TEXT,
+      admin_level TEXT NOT NULL,
+      invite_code_hash TEXT,
+      invite_expiry TEXT
+    )
+  `);
+
+  // Create unique index on username_index for fast lookups
+  await runMigration(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_index ON users(username_index)`,
+  );
+
+  // Migration: add user_id column to sessions (nullable for migration compatibility)
+  await runMigration(`ALTER TABLE sessions ADD COLUMN user_id INTEGER`);
+
+  // Clear sessions without user_id (pre-migration sessions)
+  await runMigration(`DELETE FROM sessions WHERE user_id IS NULL`);
+
   // Update the version marker
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
@@ -223,6 +248,7 @@ const ALL_TABLES = [
   "attendees",
   "events",
   "sessions",
+  "users",
   "login_attempts",
   "settings",
 ] as const;

@@ -77,6 +77,7 @@ describe("server (setup)", () => {
         const response = await handleRequest(
           mockSetupFormRequest(
             {
+              admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
               currency_code: "USD",
@@ -93,7 +94,8 @@ describe("server (setup)", () => {
         // POST without getting CSRF token first
         const response = await handleRequest(
           mockFormRequest("/setup/", {
-            admin_password: "mypassword123",
+            admin_username: "testadmin",
+              admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
             currency_code: "USD",
           }),
@@ -120,6 +122,7 @@ describe("server (setup)", () => {
               cookie: `setup_csrf=${cookieCsrf}`,
             },
             body: new URLSearchParams({
+              admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
               currency_code: "USD",
@@ -141,6 +144,7 @@ describe("server (setup)", () => {
         const response = await handleRequest(
           mockSetupFormRequest(
             {
+              admin_username: "testadmin",
               admin_password: "",
               admin_password_confirm: "",
               currency_code: "GBP",
@@ -162,6 +166,7 @@ describe("server (setup)", () => {
         const response = await handleRequest(
           mockSetupFormRequest(
             {
+              admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "different",
               currency_code: "GBP",
@@ -183,6 +188,7 @@ describe("server (setup)", () => {
         const response = await handleRequest(
           mockSetupFormRequest(
             {
+              admin_username: "testadmin",
               admin_password: "short",
               admin_password_confirm: "short",
               currency_code: "GBP",
@@ -204,6 +210,7 @@ describe("server (setup)", () => {
         const response = await handleRequest(
           mockSetupFormRequest(
             {
+              admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
               currency_code: "INVALID",
@@ -225,6 +232,7 @@ describe("server (setup)", () => {
         const response = await handleRequest(
           mockSetupFormRequest(
             {
+              admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
               currency_code: "GBP",
@@ -247,6 +255,7 @@ describe("server (setup)", () => {
         const response = await handleRequest(
           mockSetupFormRequest(
             {
+              admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
               currency_code: "usd",
@@ -280,7 +289,8 @@ describe("server (setup)", () => {
               handleRequest(
                 mockSetupFormRequest(
                   {
-                    admin_password: "mypassword123",
+                    admin_username: "testadmin",
+              admin_password: "mypassword123",
                     admin_password_confirm: "mypassword123",
                     currency_code: "GBP",
                   },
@@ -331,6 +341,7 @@ describe("server (setup)", () => {
               cookie: `setup_csrf=${csrfToken}`,
             },
             body: new URLSearchParams({
+              admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
               currency_code: "GBP",
@@ -386,6 +397,7 @@ describe("server (setup)", () => {
               cookie: `setup_csrf=${csrfToken}`,
             },
             body: new URLSearchParams({
+              admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
               currency_code: "GBP",
@@ -459,6 +471,7 @@ describe("server (setup)", () => {
       const response = await handleRequest(
         mockSetupFormRequest(
           {
+            admin_username: "testadmin",
             admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
             currency_code: "", // Empty defaults to GBP

@@ -37,6 +37,7 @@ const setupResponse =
 type SetupValidation =
   | {
       valid: true;
+      username: string;
       password: string;
       currency: string;
     }
@@ -53,14 +54,10 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
   }
 
   const { values } = validation;
+  const username = values.admin_username as string;
   const password = values.admin_password as string;
   const passwordConfirm = values.admin_password_confirm as string;
   const currency = ((values.currency_code as string) || "GBP").toUpperCase();
-
-  logDebug(
-    "Setup",
-    `Form values: passwordLength=${password?.length} confirmLength=${passwordConfirm?.length} currency=${currency}`,
-  );
 
   // Check Data Controller Agreement acceptance
   const acceptAgreement = form.get("accept_agreement");
@@ -88,6 +85,7 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
   logDebug("Setup", "Validation passed");
   return {
     valid: true,
+    username,
     password,
     currency,
   };
@@ -160,7 +158,11 @@ const handleSetupPost = async (
   logDebug("Setup", "Form validation passed, completing setup...");
 
   try {
-    await settingsApi.completeSetup(validation.password, validation.currency);
+    await settingsApi.completeSetup(
+      validation.username,
+      validation.password,
+      validation.currency,
+    );
     logDebug("Setup", "Setup completed successfully!");
     return htmlResponse(setupCompletePage());
   } catch (error) {

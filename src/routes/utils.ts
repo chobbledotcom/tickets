@@ -7,13 +7,13 @@ import {
   constantTimeEqual,
   generateSecureToken,
   getPrivateKeyFromSession,
-  unwrapKeyWithToken,
 } from "#lib/crypto.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
+import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { AdminLevel, EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { paymentErrorPage } from "#templates/payment.tsx";
 import { notFoundPage } from "#templates/public.tsx";
@@ -68,6 +68,7 @@ export const parseCookies = (request: Request): Map<string, string> => {
  * Get authenticated session if valid
  * Returns null if not authenticated
  * Includes wrapped_data_key for deriving the private key when needed
+ * Loads user info and decrypts admin_level for role checking
  *
  * Validates that wrapped_data_key can be unwrapped with current DB_ENCRYPTION_KEY.
  * If unwrapping fails (e.g., after key rotation), the session is invalidated.
@@ -87,36 +88,46 @@ export const getAuthenticatedSession = async (
     return null;
   }
 
-  // Validate wrapped_data_key can be unwrapped with current DB_ENCRYPTION_KEY
-  // This catches sessions created before a key rotation
-  try {
-    await unwrapKeyWithToken(session.wrapped_data_key!, token);
-  } catch {
-    // Key unwrapping failed - likely due to DB_ENCRYPTION_KEY rotation
+  // Load user and decrypt admin level
+  const user = await getUserById(session.user_id);
+  if (!user) {
     logError({
-      code: ErrorCode.KEY_DERIVATION,
-      detail: "Session has invalid wrapped_data_key, likely due to DB_ENCRYPTION_KEY rotation. User must re-login.",
+      code: ErrorCode.AUTH_INVALID_SESSION,
+      detail: "Session references non-existent user, invalidating",
     });
     await deleteSession(token);
     return null;
   }
 
+  const adminLevel = await decryptAdminLevel(user) as AdminLevel;
+
   return {
     token,
     csrfToken: session.csrf_token,
-    wrappedDataKey: session.wrapped_data_key!,
+    wrappedDataKey: session.wrapped_data_key,
+    userId: session.user_id,
+    adminLevel,
   };
 };
 
 /**
  * Get private key for decrypting attendee PII from an authenticated session
+ * Returns null if session doesn't have wrapped_data_key
  */
 export const getPrivateKey = async (
   token: string,
-  wrappedDataKey: string,
-): Promise<CryptoKey> => {
-  const wrappedPrivateKey = (await getWrappedPrivateKey())!;
-  return getPrivateKeyFromSession(token, wrappedDataKey, wrappedPrivateKey);
+  wrappedDataKey: string | null,
+): Promise<CryptoKey | null> => {
+  if (!wrappedDataKey) return null;
+
+  const wrappedPrivateKey = await getWrappedPrivateKey();
+  if (!wrappedPrivateKey) return null;
+
+  try {
+    return await getPrivateKeyFromSession(token, wrappedDataKey, wrappedPrivateKey);
+  } catch {
+    return null;
+  }
 };
 
 /**
@@ -317,11 +328,13 @@ export const formatCountdown = (closesAt: string): string => {
   return `${pl(Math.max(1, Math.floor(diffMs / (1000 * 60))), "minute")} from now`;
 };
 
-/** Session with CSRF token and wrapped data key for private key derivation */
+/** Session with CSRF token, wrapped data key for private key derivation, and user role */
 export type AuthSession = {
   token: string;
   csrfToken: string;
-  wrappedDataKey: string;
+  wrappedDataKey: string | null;
+  userId: number;
+  adminLevel: AdminLevel;
 };
 
 /**
@@ -344,17 +357,24 @@ export const requireSessionOr = (
   handler: (session: AuthSession) => Response | Promise<Response>,
 ): Promise<Response> => withSession(request, handler, () => redirect("/admin"));
 
+/** Check owner role, return 403 if not owner */
+const requireOwnerRole = (
+  session: AuthSession,
+  handler: (session: AuthSession) => Response | Promise<Response>,
+): Response | Promise<Response> =>
+  session.adminLevel === "owner" ? handler(session) : htmlResponse("Forbidden", 403);
+
 /** CSRF form result type (for public forms using double-submit cookie) */
 export type CsrfFormResult =
   | { ok: true; form: URLSearchParams }
   | { ok: false; response: Response };
 
-/** Cookie name for public form CSRF tokens */
-const CSRF_COOKIE_NAME = "csrf_token";
+/** Default cookie name for public form CSRF tokens */
+const DEFAULT_CSRF_COOKIE = "csrf_token";
 
 /** Generate CSRF cookie string */
-export const csrfCookie = (token: string, path: string): string =>
-  `${CSRF_COOKIE_NAME}=${token}; HttpOnly; Secure; SameSite=Strict; Path=${path}; Max-Age=3600`;
+export const csrfCookie = (token: string, path: string, cookieName = DEFAULT_CSRF_COOKIE): string =>
+  `${cookieName}=${token}; HttpOnly; Secure; SameSite=Strict; Path=${path}; Max-Age=3600`;
 
 /**
  * Parse form with CSRF validation (double-submit cookie pattern)
@@ -363,9 +383,10 @@ export const csrfCookie = (token: string, path: string): string =>
 export const requireCsrfForm = async (
   request: Request,
   onInvalid: (newToken: string) => Response,
+  cookieName = DEFAULT_CSRF_COOKIE,
 ): Promise<CsrfFormResult> => {
   const cookies = parseCookies(request);
-  const cookieCsrf = cookies.get(CSRF_COOKIE_NAME) || "";
+  const cookieCsrf = cookies.get(cookieName) || "";
   const form = await parseFormData(request);
   const formCsrf = form.get("csrf_token") || "";
 
@@ -402,16 +423,31 @@ export const requireAuthForm = async (
   return { ok: true, session, form };
 };
 
-/**
- * Handle request with auth form - unwrap AuthFormResult
- */
-export const withAuthForm = async (
+type FormHandler = (session: AuthSession, form: URLSearchParams) => Response | Promise<Response>;
+type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
+
+/** Unwrap an AuthFormResult, optionally checking role */
+const handleAuthForm = async (
   request: Request,
-  handler: (
-    session: AuthSession,
-    form: URLSearchParams,
-  ) => Response | Promise<Response>,
+  requiredRole: AdminLevel | null,
+  handler: FormHandler,
 ): Promise<Response> => {
   const auth = await requireAuthForm(request);
-  return auth.ok ? handler(auth.session, auth.form) : auth.response;
+  if (!auth.ok) return auth.response;
+  if (requiredRole && auth.session.adminLevel !== requiredRole) {
+    return htmlResponse("Forbidden", 403);
+  }
+  return handler(auth.session, auth.form);
 };
+
+/** Handle request with auth form - unwrap AuthFormResult */
+export const withAuthForm = (request: Request, handler: FormHandler): Promise<Response> =>
+  handleAuthForm(request, null, handler);
+
+/** Require owner role - returns 403 if not owner, redirect if not authenticated */
+export const requireOwnerOr = (request: Request, handler: SessionHandler): Promise<Response> =>
+  requireSessionOr(request, (session) => requireOwnerRole(session, handler));
+
+/** Handle request with owner auth form - requires owner role + CSRF validation */
+export const withOwnerAuthForm = (request: Request, handler: FormHandler): Promise<Response> =>
+  handleAuthForm(request, "owner", handler);

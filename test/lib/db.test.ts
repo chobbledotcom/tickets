@@ -58,17 +58,15 @@ import {
   getPublicKey,
   getSetting,
   getStripeSecretKeyFromDb,
-  getWrappedDataKey,
   getWrappedPrivateKey,
   hasStripeKey,
   isSetupComplete,
   setPaymentProvider,
   setSetting,
-  unwrapDataKey,
-  updateAdminPassword,
   updateStripeKey,
-  verifyAdminPassword,
 } from "#lib/db/settings.ts";
+import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
+import { deriveKEK, unwrapKey } from "#lib/crypto.ts";
 import {
   createTestAttendee,
   createTestDbWithSetup,
@@ -77,14 +75,18 @@ import {
   resetDb,
   resetTestSlugCounter,
   TEST_ADMIN_PASSWORD,
+  TEST_ADMIN_USERNAME,
 } from "#test-utils";
 
 /** Helper to get private key for decrypting attendees in tests */
 const getTestPrivateKey = async (): Promise<CryptoKey> => {
-  const passwordHash = await verifyAdminPassword(TEST_ADMIN_PASSWORD);
+  const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+  if (!user) throw new Error("Test setup failed: user not found");
+  const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
   if (!passwordHash) throw new Error("Test setup failed: invalid password");
-  const dataKey = await unwrapDataKey(passwordHash);
-  if (!dataKey) throw new Error("Test setup failed: could not unwrap data key");
+  if (!user.wrapped_data_key) throw new Error("Test setup failed: no wrapped data key");
+  const kek = await deriveKEK(passwordHash);
+  const dataKey = await unwrapKey(user.wrapped_data_key, kek);
   const wrappedPrivateKey = await getWrappedPrivateKey();
   if (!wrappedPrivateKey)
     throw new Error("Test setup failed: no wrapped private key");
@@ -163,7 +165,7 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createSession("test-token", "test-csrf", Date.now() + 1000);
+      await createSession("test-token", "test-csrf", Date.now() + 1000, null, 1);
 
       // Reset the database
       await resetDatabase();
@@ -193,7 +195,7 @@ describe("db", () => {
       await initDb();
 
       // Verify we can create new data
-      await completeSetup(TEST_ADMIN_PASSWORD, "USD");
+      await completeSetup("testadmin", TEST_ADMIN_PASSWORD, "USD");
       const event = await createTestEvent({
         name: "New Event",
         maxAttendees: 25,
@@ -227,25 +229,29 @@ describe("db", () => {
 
   describe("setup", () => {
     test("completeSetup sets all config values and generates key hierarchy", async () => {
-      await completeSetup("mypassword", "USD");
+      // Delete existing user from createTestDbWithSetup to test fresh setup
+      await getDb().execute("DELETE FROM users");
+      await getDb().execute("DELETE FROM settings");
+      await completeSetup("setupuser", "mypassword", "USD");
 
       expect(await isSetupComplete()).toBe(true);
-      // Password is now hashed, verify it returns the hash on success
-      const hash = await verifyAdminPassword("mypassword");
+      // Password is now stored on the user row, verify via user-based API
+      const user = await getUserByUsername("setupuser");
+      expect(user).not.toBeNull();
+      const hash = await verifyUserPassword(user!, "mypassword");
       expect(hash).toBeTruthy();
+      expect(hash).toContain("pbkdf2:");
       expect(await getCurrencyCodeFromDb()).toBe("USD");
 
       // Key hierarchy should be generated
       expect(await getPublicKey()).toBeTruthy();
-      expect(await getWrappedDataKey()).toBeTruthy();
+      expect(user!.wrapped_data_key).toBeTruthy();
       expect(await getWrappedPrivateKey()).toBeTruthy();
     });
 
     test("CONFIG_KEYS contains expected keys", () => {
-      expect(CONFIG_KEYS.ADMIN_PASSWORD).toBe("admin_password");
       expect(CONFIG_KEYS.CURRENCY_CODE).toBe("currency_code");
       expect(CONFIG_KEYS.SETUP_COMPLETE).toBe("setup_complete");
-      expect(CONFIG_KEYS.WRAPPED_DATA_KEY).toBe("wrapped_data_key");
       expect(CONFIG_KEYS.WRAPPED_PRIVATE_KEY).toBe("wrapped_private_key");
       expect(CONFIG_KEYS.PUBLIC_KEY).toBe("public_key");
       expect(CONFIG_KEYS.STRIPE_SECRET_KEY).toBe("stripe_secret_key");
@@ -295,62 +301,74 @@ describe("db", () => {
   });
 
   describe("admin password", () => {
-    test("verifyAdminPassword returns hash for correct password", async () => {
-      await completeSetup("testpassword123", "GBP");
-      const result = await verifyAdminPassword("testpassword123");
+    test("verifyUserPassword returns hash for correct password", async () => {
+      // Use the user created by createTestDbWithSetup
+      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(user).not.toBeNull();
+      const result = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
       expect(result).toBeTruthy();
       expect(result).toContain("pbkdf2:");
     });
 
-    test("verifyAdminPassword returns null for wrong password", async () => {
-      await completeSetup("testpassword123", "GBP");
-      const result = await verifyAdminPassword("wrong");
+    test("verifyUserPassword returns null for wrong password", async () => {
+      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(user).not.toBeNull();
+      const result = await verifyUserPassword(user!, "wrong");
       expect(result).toBeNull();
     });
 
-    test("verifyAdminPassword returns null when no password set", async () => {
-      // Don't set any password
-      const result = await verifyAdminPassword("anypassword");
-      expect(result).toBeNull();
-    });
+    test("updateUserPassword re-wraps DATA_KEY with new KEK", async () => {
+      // Use the user from createTestDbWithSetup
+      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(user).not.toBeNull();
+      const oldWrappedKey = user!.wrapped_data_key;
 
-    test("updateAdminPassword re-wraps DATA_KEY with new KEK", async () => {
-      await completeSetup("oldpassword123", "GBP");
-      const oldWrappedKey = await getWrappedDataKey();
+      const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
+      expect(oldHash).toBeTruthy();
 
-      const success = await updateAdminPassword(
-        "oldpassword123",
+      const { updateUserPassword } = await import("#lib/db/settings.ts");
+      const success = await updateUserPassword(
+        user!.id,
+        oldHash!,
+        user!.wrapped_data_key!,
         "newpassword456",
       );
       expect(success).toBe(true);
 
       // Wrapped key should be different (re-wrapped with new KEK)
-      const newWrappedKey = await getWrappedDataKey();
-      expect(newWrappedKey).not.toBe(oldWrappedKey);
+      const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(updatedUser!.wrapped_data_key).not.toBe(oldWrappedKey);
 
       // Old password should no longer work
-      expect(await verifyAdminPassword("oldpassword123")).toBeNull();
+      expect(await verifyUserPassword(updatedUser!, TEST_ADMIN_PASSWORD)).toBeNull();
 
       // New password should work
-      expect(await verifyAdminPassword("newpassword456")).toBeTruthy();
+      expect(await verifyUserPassword(updatedUser!, "newpassword456")).toBeTruthy();
     });
 
-    test("updateAdminPassword fails with wrong old password", async () => {
-      await completeSetup("correctpassword", "GBP");
+    test("updateUserPassword fails with wrong old password hash", async () => {
+      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(user).not.toBeNull();
 
-      const success = await updateAdminPassword("wrongpassword", "newpassword");
+      const { updateUserPassword } = await import("#lib/db/settings.ts");
+      // Pass a bogus password hash - KEK derivation will produce wrong key
+      const success = await updateUserPassword(
+        user!.id,
+        "pbkdf2:bogus:hash",
+        user!.wrapped_data_key!,
+        "newpassword",
+      );
       expect(success).toBe(false);
 
       // Original password should still work
-      expect(await verifyAdminPassword("correctpassword")).toBeTruthy();
+      const unchanged = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(await verifyUserPassword(unchanged!, TEST_ADMIN_PASSWORD)).toBeTruthy();
     });
 
     test("password change allows decryption of both old and new attendee records", async () => {
       const newPassword = "newpassword456";
 
-      // Setup with TEST_ADMIN_PASSWORD so createTestEvent works
-      await completeSetup(TEST_ADMIN_PASSWORD, "GBP");
-
+      // Use the user from createTestDbWithSetup (TEST_ADMIN_PASSWORD)
       // Create an event via REST API
       const event = await createTestEvent({
         name: "Password Test Event",
@@ -368,8 +386,19 @@ describe("db", () => {
       if (!beforeResult.success) throw new Error("Failed to create attendee");
       const attendeeBefore = beforeResult.attendee;
 
-      // Change the password
-      const changeSuccess = await updateAdminPassword(TEST_ADMIN_PASSWORD, newPassword);
+      // Change the password using user-based API
+      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(user).not.toBeNull();
+      const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
+      expect(oldHash).toBeTruthy();
+
+      const { updateUserPassword } = await import("#lib/db/settings.ts");
+      const changeSuccess = await updateUserPassword(
+        user!.id,
+        oldHash!,
+        user!.wrapped_data_key!,
+        newPassword,
+      );
       expect(changeSuccess).toBe(true);
 
       // Create an attendee AFTER password change
@@ -383,16 +412,18 @@ describe("db", () => {
       const attendeeAfter = afterResult.attendee;
 
       // Get the private key using the NEW password
-      const newPasswordHash = await verifyAdminPassword(newPassword);
+      const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(updatedUser).not.toBeNull();
+      const newPasswordHash = await verifyUserPassword(updatedUser!, newPassword);
       expect(newPasswordHash).toBeTruthy();
 
-      const dataKey = await unwrapDataKey(newPasswordHash!);
-      expect(dataKey).toBeTruthy();
+      const kek = await deriveKEK(newPasswordHash!);
+      const dataKey = await unwrapKey(updatedUser!.wrapped_data_key!, kek);
 
       const wrappedPrivateKey = await getWrappedPrivateKey();
       expect(wrappedPrivateKey).toBeTruthy();
 
-      const privateKeyJwk = await decryptWithKey(wrappedPrivateKey!, dataKey!);
+      const privateKeyJwk = await decryptWithKey(wrappedPrivateKey!, dataKey);
       const privateKey = await importPrivateKey(privateKeyJwk);
 
       // Decrypt the attendee created BEFORE password change
@@ -846,7 +877,7 @@ describe("db", () => {
   describe("sessions", () => {
     test("createSession and getSession work together", async () => {
       const expires = Date.now() + 1000;
-      await createSession("test-token", "test-csrf-token", expires);
+      await createSession("test-token", "test-csrf-token", expires, null, 1);
 
       const session = await getSession("test-token");
       expect(session).not.toBeNull();
@@ -861,7 +892,7 @@ describe("db", () => {
     });
 
     test("deleteSession removes session", async () => {
-      await createSession("delete-me", "csrf-delete", Date.now() + 1000);
+      await createSession("delete-me", "csrf-delete", Date.now() + 1000, null, 1);
       await deleteSession("delete-me");
 
       const session = await getSession("delete-me");
@@ -869,9 +900,9 @@ describe("db", () => {
     });
 
     test("deleteAllSessions removes all sessions", async () => {
-      await createSession("session1", "csrf1", Date.now() + 10000);
-      await createSession("session2", "csrf2", Date.now() + 10000);
-      await createSession("session3", "csrf3", Date.now() + 10000);
+      await createSession("session1", "csrf1", Date.now() + 10000, null, 1);
+      await createSession("session2", "csrf2", Date.now() + 10000, null, 1);
+      await createSession("session3", "csrf3", Date.now() + 10000, null, 1);
 
       await deleteAllSessions();
 
@@ -886,9 +917,9 @@ describe("db", () => {
 
     test("getAllSessions returns all sessions ordered by expiration descending", async () => {
       const now = Date.now();
-      await createSession("session1", "csrf1", now + 1000);
-      await createSession("session2", "csrf2", now + 3000);
-      await createSession("session3", "csrf3", now + 2000);
+      await createSession("session1", "csrf1", now + 1000, null, 1);
+      await createSession("session2", "csrf2", now + 3000, null, 1);
+      await createSession("session3", "csrf3", now + 2000, null, 1);
 
       const sessions = await getAllSessions();
 
@@ -905,9 +936,9 @@ describe("db", () => {
     });
 
     test("deleteOtherSessions removes all sessions except current", async () => {
-      await createSession("current", "csrf-current", Date.now() + 10000);
-      await createSession("other1", "csrf-other1", Date.now() + 10000);
-      await createSession("other2", "csrf-other2", Date.now() + 10000);
+      await createSession("current", "csrf-current", Date.now() + 10000, null, 1);
+      await createSession("other1", "csrf-other1", Date.now() + 10000, null, 1);
+      await createSession("other2", "csrf-other2", Date.now() + 10000, null, 1);
 
       await deleteOtherSessions("current");
 
@@ -921,7 +952,7 @@ describe("db", () => {
     });
 
     test("deleteOtherSessions with no other sessions keeps current", async () => {
-      await createSession("only-session", "csrf", Date.now() + 10000);
+      await createSession("only-session", "csrf", Date.now() + 10000, null, 1);
 
       await deleteOtherSessions("only-session");
 
@@ -936,7 +967,7 @@ describe("db", () => {
       jest.setSystemTime(startTime);
 
       // Create and cache a session
-      await createSession("ttl-test", "csrf-ttl", startTime + 60000);
+      await createSession("ttl-test", "csrf-ttl", startTime + 60000, null, 1);
       const firstCall = await getSession("ttl-test");
       expect(firstCall).not.toBeNull();
 
@@ -964,32 +995,37 @@ describe("db", () => {
     });
   });
 
-  describe("updateAdminPassword", () => {
+  describe("updateUserPassword", () => {
     test("updates password and invalidates all sessions", async () => {
-      // Set up initial password
-      await completeSetup("initial-password", "GBP");
+      // Use user from createTestDbWithSetup
+      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(user).not.toBeNull();
 
       // Create some sessions
-      await createSession("session1", "csrf1", Date.now() + 10000);
-      await createSession("session2", "csrf2", Date.now() + 10000);
+      await createSession("session1", "csrf1", Date.now() + 10000, null, 1);
+      await createSession("session2", "csrf2", Date.now() + 10000, null, 1);
 
       // Verify initial password works
-      const initialValid = await verifyAdminPassword("initial-password");
-      expect(initialValid).toBeTruthy();
+      const initialHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
+      expect(initialHash).toBeTruthy();
 
-      // Update password (new signature requires old password)
-      const success = await updateAdminPassword(
-        "initial-password",
+      // Update password using user-based API
+      const { updateUserPassword } = await import("#lib/db/settings.ts");
+      const success = await updateUserPassword(
+        user!.id,
+        initialHash!,
+        user!.wrapped_data_key!,
         "new-password-123",
       );
       expect(success).toBe(true);
 
       // Verify new password works
-      const newValid = await verifyAdminPassword("new-password-123");
+      const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
+      const newValid = await verifyUserPassword(updatedUser!, "new-password-123");
       expect(newValid).toBeTruthy();
 
       // Verify old password no longer works
-      const oldValid = await verifyAdminPassword("initial-password");
+      const oldValid = await verifyUserPassword(updatedUser!, TEST_ADMIN_PASSWORD);
       expect(oldValid).toBeNull();
 
       // Verify all sessions were invalidated
@@ -1706,37 +1742,21 @@ describe("db", () => {
       expect(await getSetting(CONFIG_KEYS.PAYMENT_PROVIDER)).toBeNull();
     });
 
-    test("verifyAdminPassword returns null when no password hash is stored", async () => {
-      // Before completeSetup, there's no admin_password in settings
-      // createTestDbWithSetup already calls completeSetup, so delete the hash
-      await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = ?",
-        args: [CONFIG_KEYS.ADMIN_PASSWORD],
-      });
+    test("updateUserPassword returns false when dataKey unwrap fails", async () => {
+      // Use the user from createTestDbWithSetup
+      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(user).not.toBeNull();
+      const passwordHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
+      expect(passwordHash).toBeTruthy();
 
-      const result = await verifyAdminPassword("anypassword");
-      expect(result).toBeNull();
-    });
-
-    test("unwrapDataKey returns null when no wrapped key stored", async () => {
-      await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = ?",
-        args: [CONFIG_KEYS.WRAPPED_DATA_KEY],
-      });
-
-      const result = await unwrapDataKey("somehash");
-      expect(result).toBeNull();
-    });
-
-    test("updateAdminPassword returns false when dataKey unwrap fails", async () => {
-      // Set up valid password but corrupt the wrapped data key
-      await completeSetup("validpassword", "GBP");
-      await getDb().execute({
-        sql: "DELETE FROM settings WHERE key = ?",
-        args: [CONFIG_KEYS.WRAPPED_DATA_KEY],
-      });
-
-      const result = await updateAdminPassword("validpassword", "newpassword");
+      // Pass corrupted wrapped_data_key - unwrap will fail
+      const { updateUserPassword } = await import("#lib/db/settings.ts");
+      const result = await updateUserPassword(
+        user!.id,
+        passwordHash!,
+        "corrupted_wrapped_data_key",
+        "newpassword",
+      );
       expect(result).toBe(false);
     });
   });

@@ -5,14 +5,14 @@
 import { hashSessionToken } from "#lib/crypto.ts";
 import { deleteOtherSessions, getAllSessions } from "#lib/db/sessions.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { htmlResponse, requireSessionOr, withAuthForm } from "#routes/utils.ts";
+import { htmlResponse, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 
 /**
  * Handle GET /admin/sessions
  */
 const handleAdminSessionsGet = (request: Request): Promise<Response> =>
-  requireSessionOr(request, async (session) => {
+  requireOwnerOr(request, async (session) => {
     const sessions = await getAllSessions();
     // Hash the token for comparison with stored hashed tokens
     const tokenHash = await hashSessionToken(session.token);
@@ -25,7 +25,7 @@ const handleAdminSessionsGet = (request: Request): Promise<Response> =>
  * Handle POST /admin/sessions (log out of all other sessions)
  */
 const handleAdminSessionsPost = (request: Request): Promise<Response> =>
-  withAuthForm(request, async (session) => {
+  withOwnerAuthForm(request, async (session) => {
     await deleteOtherSessions(session.token);
     const sessions = await getAllSessions();
     // Hash the token for comparison with stored hashed tokens

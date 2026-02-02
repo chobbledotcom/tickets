@@ -15,6 +15,11 @@ import { clearSetupCompleteCache, completeSetup } from "#lib/db/settings.ts";
 import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 
 /**
+ * Default test admin username
+ */
+export const TEST_ADMIN_USERNAME = "testadmin";
+
+/**
  * Default test admin password
  */
 export const TEST_ADMIN_PASSWORD = "testpassword123";
@@ -57,11 +62,15 @@ let cachedClient: Client | null = null;
 /** Snapshot of settings rows after completeSetup (avoids re-running crypto) */
 let cachedSetupSettings: Array<{ key: string; value: string }> | null = null;
 
+/** Snapshot of users rows after completeSetup */
+// deno-lint-ignore no-explicit-any
+let cachedSetupUsers: Array<Record<string, any>> | null = null;
+
 /** Cached admin session (avoids re-doing login + key wrapping per test) */
 let cachedAdminSession: {
   cookie: string;
   csrfToken: string;
-  sessionRow: { token: string; csrf_token: string; expires: number; wrapped_data_key: string | null };
+  sessionRow: { token: string; csrf_token: string; expires: number; wrapped_data_key: string | null; user_id: number | null };
 } | null = null;
 
 /** Clear all data tables and reset autoincrement counters */
@@ -145,22 +154,35 @@ export const createTestDbWithSetup = async (
         args: [row.key, row.value],
       });
     }
+    // Restore users table
+    if (cachedSetupUsers) {
+      for (const row of cachedSetupUsers) {
+        await cachedClient!.execute({
+          sql: "INSERT INTO users (id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          args: [row.id, row.username_hash, row.username_index, row.password_hash, row.wrapped_data_key, row.admin_level, row.invite_code_hash, row.invite_expiry],
+        });
+      }
+    }
     return;
   }
 
-  await completeSetup(TEST_ADMIN_PASSWORD, currency);
+  await completeSetup(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, currency);
 
-  // Snapshot settings for reuse
+  // Snapshot settings AND users for reuse
   const result = await cachedClient!.execute("SELECT key, value FROM settings");
   cachedSetupSettings = result.rows.map((r) => ({
     key: r.key as string,
     value: r.value as string,
   }));
 
+  // Also snapshot users table
+  const usersResult = await cachedClient!.execute("SELECT * FROM users");
+  cachedSetupUsers = usersResult.rows.map((r) => ({ ...r }));
+
   // Perform one admin login and cache the session for reuse
   const session = await loginAsAdmin();
   const sessionsResult = await cachedClient!.execute(
-    "SELECT token, csrf_token, expires, wrapped_data_key FROM sessions LIMIT 1",
+    "SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions LIMIT 1",
   );
   if (sessionsResult.rows.length > 0) {
     const row = sessionsResult.rows[0]!;
@@ -172,6 +194,7 @@ export const createTestDbWithSetup = async (
         csrf_token: row.csrf_token as string,
         expires: row.expires as number,
         wrapped_data_key: row.wrapped_data_key as string | null,
+        user_id: row.user_id as number | null,
       },
     };
   }
@@ -196,6 +219,7 @@ export const resetDb = (): void => {
 export const invalidateTestDbCache = (): void => {
   cachedClient = null;
   cachedSetupSettings = null;
+  cachedSetupUsers = null;
   cachedAdminSession = null;
 };
 
@@ -513,7 +537,7 @@ export const loginAsAdmin = async (): Promise<{
 }> => {
   const { handleRequest } = await import("#routes");
   const loginResponse = await handleRequest(
-    mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+    mockFormRequest("/admin/login", { username: TEST_ADMIN_USERNAME, password: TEST_ADMIN_PASSWORD }),
   );
   const cookie = loginResponse.headers.get("set-cookie") || "";
   const csrfToken = await getCsrfTokenFromCookie(cookie);
@@ -537,8 +561,8 @@ const getTestSession = async (): Promise<{
     const { getDb } = await import("#lib/db/client.ts");
     const { sessionRow } = cachedAdminSession;
     await getDb().execute({
-      sql: "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key) VALUES (?, ?, ?, ?)",
-      args: [sessionRow.token, sessionRow.csrf_token, sessionRow.expires, sessionRow.wrapped_data_key],
+      sql: "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key, user_id) VALUES (?, ?, ?, ?, ?)",
+      args: [sessionRow.token, sessionRow.csrf_token, sessionRow.expires, sessionRow.wrapped_data_key, sessionRow.user_id],
     });
     testSession = { cookie: cachedAdminSession.cookie, csrfToken: cachedAdminSession.csrfToken };
     return testSession;

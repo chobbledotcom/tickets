@@ -4,7 +4,7 @@
 
 import { map, pipe, reduce } from "#fp";
 import { renderFields } from "#lib/forms.tsx";
-import type { EventWithCount } from "#lib/types.ts";
+import type { AdminLevel, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { eventFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -32,6 +32,7 @@ const EventRow = ({ e }: { e: EventWithCount }): string => {
 export const adminDashboardPage = (
   events: EventWithCount[],
   csrfToken: string,
+  adminLevel?: AdminLevel,
 ): string => {
   const eventRows =
     events.length > 0
@@ -40,7 +41,7 @@ export const adminDashboardPage = (
 
   return String(
     <Layout title="Events">
-      <AdminNav />
+      <AdminNav adminLevel={adminLevel} />
 
       <table>
           <thead>

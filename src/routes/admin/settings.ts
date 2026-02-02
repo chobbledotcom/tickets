@@ -1,5 +1,6 @@
 /**
  * Admin settings routes - password, payment provider, and key configuration
+ * Owner-only access enforced via requireOwnerOr / withOwnerAuthForm
  */
 
 import {
@@ -10,17 +11,18 @@ import {
   hasStripeKey,
   setPaymentProvider,
   setStripeWebhookConfig,
-  updateAdminPassword,
   updateSquareAccessToken,
   updateSquareLocationId,
   updateSquareWebhookSignatureKey,
   updateStripeKey,
+  updateUserPassword,
 } from "#lib/db/settings.ts";
 import {
   getSquareWebhookSignatureKey,
   getAllowedDomain,
 } from "#lib/config.ts";
 import { resetDatabase } from "#lib/db/migrations/index.ts";
+import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
@@ -29,8 +31,8 @@ import { defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
   redirect,
-  requireSessionOr,
-  withAuthForm,
+  requireOwnerOr,
+  withOwnerAuthForm,
 } from "#routes/utils.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import {
@@ -83,10 +85,10 @@ const renderSettingsPage = async (
 };
 
 /**
- * Handle GET /admin/settings
+ * Handle GET /admin/settings - owner only
  */
 const handleAdminSettingsGet = (request: Request): Promise<Response> =>
-  requireSessionOr(request, async (session) =>
+  requireOwnerOr(request, async (session) =>
     htmlResponse(await renderSettingsPage(session.csrfToken)),
   );
 
@@ -124,10 +126,10 @@ const validateChangePasswordForm = (
 };
 
 /**
- * Handle POST /admin/settings
+ * Handle POST /admin/settings - change password (owner only)
  */
 const handleAdminSettingsPost = (request: Request): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
+  withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
       htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
 
@@ -136,13 +138,22 @@ const handleAdminSettingsPost = (request: Request): Promise<Response> =>
       return settingsPageWithError(validation.error, 400);
     }
 
-    // updateAdminPassword now verifies old password and re-wraps DATA_KEY
-    const success = await updateAdminPassword(
-      validation.currentPassword,
+    // Load current user (guaranteed to exist since session was just validated)
+    const user = (await getUserById(session.userId))!;
+
+    const passwordHash = await verifyUserPassword(user, validation.currentPassword);
+    if (!passwordHash) {
+      return settingsPageWithError("Current password is incorrect", 401);
+    }
+
+    const success = await updateUserPassword(
+      session.userId,
+      passwordHash,
+      user.wrapped_data_key!,
       validation.newPassword,
     );
     if (!success) {
-      return settingsPageWithError("Current password is incorrect", 401);
+      return settingsPageWithError("Failed to update password", 500);
     }
 
     return redirect("/admin", clearSessionCookie);
@@ -155,13 +166,10 @@ const VALID_PROVIDERS: ReadonlySet<string> = new Set<PaymentProviderType>([
 ]);
 
 /**
- * Handle POST /admin/settings/payment-provider
- *
- * Sets the active payment provider. The provider's API keys must be
- * configured separately (e.g. via /admin/settings/stripe).
+ * Handle POST /admin/settings/payment-provider - owner only
  */
 const handlePaymentProviderPost = (request: Request): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
+  withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
       htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
 
@@ -194,14 +202,10 @@ const handlePaymentProviderPost = (request: Request): Promise<Response> =>
   });
 
 /**
- * Handle POST /admin/settings/stripe
- *
- * When the Stripe secret key is saved, automatically creates/updates
- * a webhook endpoint in Stripe and stores the signing secret.
- * Also sets the payment provider to "stripe" if not already set.
+ * Handle POST /admin/settings/stripe - owner only
  */
 const handleAdminStripePost = (request: Request): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
+  withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
       htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
 
@@ -246,13 +250,10 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
   });
 
 /**
- * Handle POST /admin/settings/square
- *
- * Stores the Square access token and location ID.
- * Also sets the payment provider to "square".
+ * Handle POST /admin/settings/square - owner only
  */
 const handleAdminSquarePost = (request: Request): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
+  withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
       htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
 
@@ -280,12 +281,10 @@ const handleAdminSquarePost = (request: Request): Promise<Response> =>
   });
 
 /**
- * Handle POST /admin/settings/square-webhook
- *
- * Stores the Square webhook signature key (manually provided by user).
+ * Handle POST /admin/settings/square-webhook - owner only
  */
 const handleAdminSquareWebhookPost = (request: Request): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
+  withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
       htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
 
@@ -308,13 +307,10 @@ const handleAdminSquareWebhookPost = (request: Request): Promise<Response> =>
   });
 
 /**
- * Handle POST /admin/settings/stripe/test
- *
- * Tests that the stored Stripe API key and webhook endpoint are working.
- * Returns JSON with diagnostic information.
+ * Handle POST /admin/settings/stripe/test - owner only
  */
 const handleStripeTestPost = (request: Request): Promise<Response> =>
-  withAuthForm(request, async () => {
+  withOwnerAuthForm(request, async () => {
     const result = await testStripeConnection();
     return new Response(JSON.stringify(result), {
       headers: { "content-type": "application/json" },
@@ -328,10 +324,10 @@ const RESET_DATABASE_PHRASE =
   "The site will be fully reset and all data will be lost.";
 
 /**
- * Handle POST /admin/settings/reset-database
+ * Handle POST /admin/settings/reset-database - owner only
  */
 const handleResetDatabasePost = (request: Request): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
+  withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
       htmlResponse(await renderSettingsPage(session.csrfToken, error), status);
 

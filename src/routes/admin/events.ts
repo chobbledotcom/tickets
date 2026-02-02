@@ -127,7 +127,7 @@ const withEventAttendees = async (
     return redirect("/admin");
   }
 
-  const privateKey = await getPrivateKey(session.token, session.wrappedDataKey);
+  const privateKey = (await getPrivateKey(session.token, session.wrappedDataKey))!;
 
   // Fetch event and attendees in single DB round-trip
   const result = await getEventWithAttendeesRaw(eventId);

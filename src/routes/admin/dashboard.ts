@@ -21,7 +21,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) =>
-      htmlResponse(adminDashboardPage(await getAllEvents(), session.csrfToken)),
+      htmlResponse(adminDashboardPage(await getAllEvents(), session.csrfToken, session.adminLevel)),
     () => loginResponse(),
   );
 

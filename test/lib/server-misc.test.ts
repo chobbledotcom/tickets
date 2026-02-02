@@ -4,12 +4,12 @@ import {
   createTestDb,
   createTestDbWithSetup,
   createTestEvent,
+  loginAsAdmin,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
   resetDb,
   resetTestSlugCounter,
-  loginAsAdmin,
 } from "#test-utils";
 
 describe("server (misc)", () => {
@@ -176,6 +176,32 @@ describe("server (misc)", () => {
       });
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       expect(response.status).toBe(200);
+    });
+  });
+
+  describe("routes/utils.ts (getPrivateKey)", () => {
+    test("returns null when wrappedDataKey is null", async () => {
+      const { getPrivateKey } = await import("#routes/utils.ts");
+      const result = await getPrivateKey("any-token", null);
+      expect(result).toBeNull();
+    });
+
+    test("returns null when wrappedPrivateKey is not set in DB", async () => {
+      const { getDb: getDbFn } = await import("#lib/db/client.ts");
+      await getDbFn().execute({
+        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+        args: [],
+      });
+
+      const { getPrivateKey } = await import("#routes/utils.ts");
+      const result = await getPrivateKey("any-token", "some-wrapped-key");
+      expect(result).toBeNull();
+    });
+
+    test("returns null when crypto operation throws", async () => {
+      const { getPrivateKey } = await import("#routes/utils.ts");
+      const result = await getPrivateKey("any-token", "corrupt-key-data");
+      expect(result).toBeNull();
     });
   });
 
