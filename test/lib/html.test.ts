@@ -211,6 +211,18 @@ describe("html", () => {
       const html = adminEventPage(event, [], "localhost", TEST_SESSION);
       expect(html).not.toContain("This event is deactivated and cannot be booked");
     });
+
+    test("shows ticket column header", () => {
+      const html = adminEventPage(event, [], "localhost", TEST_SESSION);
+      expect(html).toContain("<th>Ticket</th>");
+    });
+
+    test("shows ticket token as link to public ticket URL", () => {
+      const attendees = [testAttendee({ ticket_token: "abc123" })];
+      const html = adminEventPage(event, attendees, "mysite.com", TEST_SESSION);
+      expect(html).toContain('href="https://mysite.com/t/abc123"');
+      expect(html).toContain("abc123");
+    });
   });
 
   describe("ticketPage", () => {
@@ -438,7 +450,7 @@ describe("html", () => {
   describe("generateAttendeesCsv", () => {
     test("generates CSV header for empty attendees", () => {
       const csv = generateAttendeesCsv([]);
-      expect(csv).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In");
+      expect(csv).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("generates CSV with attendee data", () => {
@@ -447,7 +459,7 @@ describe("html", () => {
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In");
+      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain("John Doe");
       expect(lines[1]).toContain("john@example.com");
       expect(lines[1]).toContain(",2,");
@@ -494,7 +506,7 @@ describe("html", () => {
       const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In");
+      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain("+1 555 123 4567");
     });
 
@@ -523,8 +535,8 @@ describe("html", () => {
       const attendees = [testAttendee()];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      // Price and transaction ID should be empty, followed by Checked In value
-      expect(lines[1]).toMatch(/,,,No$/);
+      // Price and transaction ID should be empty, followed by Checked In, Token, URL
+      expect(lines[1]).toContain(",,,No,");
     });
 
     test("shared transaction ID across multiple attendees", () => {
@@ -553,14 +565,22 @@ describe("html", () => {
       const attendees = [testAttendee({ checked_in: "true" })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[1]).toMatch(/,Yes$/);
+      expect(lines[1]).toContain(",Yes,");
     });
 
     test("includes Checked In as No for not checked-in attendee", () => {
       const attendees = [testAttendee({ checked_in: "false" })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[1]).toMatch(/,No$/);
+      expect(lines[1]).toContain(",No,");
+    });
+
+    test("includes ticket token and URL in CSV output", () => {
+      const attendees = [testAttendee({ ticket_token: "abc123" })];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[1]).toContain("abc123");
+      expect(lines[1]).toContain("https://localhost/t/abc123");
     });
   });
 
