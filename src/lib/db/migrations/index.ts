@@ -8,7 +8,7 @@ import { getDb } from "#lib/db/client.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add event description";
+export const LATEST_UPDATE = "add attendee checked_in column";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -178,6 +178,9 @@ export const initDb = async (): Promise<void> => {
     sql: `UPDATE events SET description = ? WHERE description = ''`,
     args: [encryptedEmpty],
   });
+
+  // Migration: add checked_in column to attendees (hybrid encrypted, defaults to encrypted "false")
+  await runMigration(`ALTER TABLE attendees ADD COLUMN checked_in TEXT NOT NULL DEFAULT ''`);
 
   // Update the version marker
   await getDb().execute({

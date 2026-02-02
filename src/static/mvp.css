@@ -684,3 +684,41 @@ fieldset.agreement {
     color: #ff4444;
   }
 }
+
+/* Check-in form (inline, unstyled to look like a text link) */
+form.checkin-form {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+form.checkin-form button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  box-shadow: none;
+  min-height: 0;
+}
+
+form.checkin-form button.checkin {
+  color: green;
+}
+
+form.checkin-form button.checkout {
+  color: red;
+}
+
+/* Check-in success/failure messages */
+.checkin-message-in {
+  color: green;
+}
+
+.checkin-message-out {
+  color: red;
+}

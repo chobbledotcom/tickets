@@ -1264,13 +1264,13 @@ describe("server (admin events)", () => {
   });
 
   describe("admin/events.ts (withEventAttendees privateKey null)", () => {
-    test("redirects when session has no wrapped data key on event view", async () => {
+    test("rejects session without wrapped data key on event view", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
 
-      // Create session without wrapped_data_key
+      // Create session without wrapped_data_key - rejected at auth layer
       const token = "test-token-no-key-event";
       await createSession(token, "csrf123", Date.now() + 3600000, null);
 

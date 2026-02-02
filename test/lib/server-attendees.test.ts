@@ -49,14 +49,14 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(404);
     });
 
-    test("redirects when session lacks wrapped data key", async () => {
+    test("rejects session without wrapped data key", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      // Create session without wrapped_data_key (simulates legacy session)
+      // Create session without wrapped_data_key - rejected at auth layer
       const token = "test-token-no-data-key";
       await createSession(token, "csrf123", Date.now() + 3600000, null);
 
@@ -372,14 +372,14 @@ describe("server (admin attendees)", () => {
   });
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/delete (no privateKey on POST)", () => {
-    test("redirects to admin when session lacks wrapped data key on POST", async () => {
+    test("rejects POST when session lacks wrapped data key", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      // Create session without wrapped_data_key (simulates legacy session)
+      // Create session without wrapped_data_key - rejected at auth layer
       const token = "test-token-no-data-key-post";
       await createSession(token, "csrf123", Date.now() + 3600000, null);
 
@@ -457,6 +457,251 @@ describe("server (admin attendees)", () => {
       );
       // Should redirect after successful delete
       expect(response.status).toBe(302);
+    });
+  });
+
+  describe("POST /admin/event/:eventId/attendee/:attendeeId/checkin", () => {
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const response = await handleRequest(
+        mockFormRequest(`/admin/event/${event.id}/attendee/${attendee.id}/checkin`, {}),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: "invalid-token" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+    });
+
+    test("returns 404 for non-existent attendee", async () => {
+      await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/attendee/999/checkin",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/999/attendee/1/checkin",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("checks in an attendee and redirects with message", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain(`/admin/event/${event.id}`);
+      expect(location).toContain("checkin_status=in");
+      expect(location).toContain("checkin_name=John");
+      expect(location).toContain("#message");
+    });
+
+    test("checks out an already checked-in attendee", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "Jane Doe", "jane@example.com");
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // First check in
+      await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      // Then check out
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain("checkin_status=out");
+    });
+
+    test("rejects session without wrapped data key on checkin", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      // Create session without wrapped_data_key - rejected at auth layer
+      const token = "test-token-no-key-checkin";
+      await createSession(token, "csrf123", Date.now() + 3600000, null);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: "csrf123" },
+          `__Host-session=${token}`,
+        ),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("event page shows Check in button for unchecked attendee", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Check in");
+      expect(html).toContain("/checkin");
+    });
+
+    test("event page shows check-in success message when query params present", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?checkin_name=John%20Doe&checkin_status=in`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Checked John Doe in");
+      expect(html).toContain('checkin-message-in');
+    });
+
+    test("event page shows check-out message in red", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?checkin_name=John%20Doe&checkin_status=out`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Checked John Doe out");
+      expect(html).toContain('checkin-message-out');
+    });
+
+    test("event page ignores invalid checkin_status param", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?checkin_name=John%20Doe&checkin_status=invalid`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).not.toContain("Checked John Doe");
+    });
+
+    test("event page shows Check out button for checked-in attendee", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Check in first
+      await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      // View event page
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Check out");
+      expect(html).toContain('class="checkout"');
     });
   });
 

@@ -44,7 +44,8 @@ const decryptAttendee = async (
     ? await decryptAttendeePII(row.payment_id, privateKey)
     : null;
   const price_paid = row.price_paid ? await decrypt(row.price_paid) : null;
-  return { ...row, name, email, phone, payment_id, price_paid };
+  const checked_in = await decryptAttendeePII(row.checked_in, privateKey);
+  return { ...row, name, email, phone, payment_id, price_paid, checked_in };
 };
 
 /**
@@ -88,6 +89,7 @@ type EncryptedAttendeeData = {
   encryptedPhone: string;
   encryptedPaymentId: string | null;
   encryptedPricePaid: string | null;
+  encryptedCheckedIn: string;
 };
 
 /** Encrypt attendee fields, returning null if key not configured */
@@ -116,6 +118,7 @@ const encryptAttendeeFields = async (
     encryptedPricePaid: pricePaid !== null
       ? await encrypt(String(pricePaid))
       : null,
+    encryptedCheckedIn: await encryptAttendeePII("false", publicKeyJwk),
   };
 };
 
@@ -140,6 +143,7 @@ const buildAttendeeResult = (
   payment_id: paymentId,
   quantity,
   price_paid: pricePaid !== null ? String(pricePaid) : null,
+  checked_in: "false",
 });
 
 /**
@@ -205,8 +209,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid, checked_in)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?
             ) + ? <= (
@@ -221,6 +225,7 @@ export const attendeesApi = {
         enc.encryptedPaymentId,
         qty,
         enc.encryptedPricePaid,
+        enc.encryptedCheckedIn,
         eventId,
         qty,
         eventId,
@@ -264,3 +269,24 @@ export const createAttendeeAtomic = (
   phone = "",
   price: number | null = null,
 ): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(evtId, n, e, pId, q, phone, price);
+
+/**
+ * Update an attendee's checked_in status (encrypted)
+ * Caller must be authenticated admin (public key always exists after setup)
+ */
+export const updateCheckedIn = async (
+  attendeeId: number,
+  checkedIn: boolean,
+): Promise<void> => {
+  const publicKeyJwk = (await getPublicKey())!;
+
+  const encryptedValue = await encryptAttendeePII(
+    checkedIn ? "true" : "false",
+    publicKeyJwk,
+  );
+
+  await getDb().execute({
+    sql: "UPDATE attendees SET checked_in = ? WHERE id = ?",
+    args: [encryptedValue, attendeeId],
+  });
+};

@@ -103,6 +103,13 @@ const eventsResource = defineResource({
   nameField: "name",
 });
 
+/** Context available after auth + data fetch for event with attendees */
+type EventAttendeesContext = {
+  event: EventWithCount;
+  attendees: Attendee[];
+  csrfToken: string;
+};
+
 /**
  * Handle event with attendees - auth, fetch, then apply handler fn.
  * Uses batched query to fetch event + attendees in a single DB round-trip.
@@ -110,7 +117,7 @@ const eventsResource = defineResource({
 const withEventAttendees = async (
   request: Request,
   eventId: number,
-  handler: (event: EventWithCount, attendees: Attendee[]) => Response | Promise<Response>,
+  handler: (ctx: EventAttendeesContext) => Response | Promise<Response>,
 ): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
   if (!session) {
@@ -118,10 +125,6 @@ const withEventAttendees = async (
   }
 
   const privateKey = await getPrivateKey(session.token, session.wrappedDataKey);
-  if (!privateKey) {
-    // Session exists but can't derive private key - need to re-login
-    return redirect("/admin");
-  }
 
   // Fetch event and attendees in single DB round-trip
   const result = await getEventWithAttendeesRaw(eventId);
@@ -130,7 +133,7 @@ const withEventAttendees = async (
   }
 
   const attendees = await decryptAttendees(result.attendeesRaw, privateKey);
-  return handler(result.event, attendees);
+  return handler({ event: result.event, attendees, csrfToken: session.csrfToken });
 };
 
 /**
@@ -144,12 +147,31 @@ const handleCreateEvent = createHandler(eventsResource, {
   onError: () => redirect("/admin"),
 });
 
+/** Extract check-in message params from request URL */
+const getCheckinMessage = (request: Request): { name: string; status: string } | null => {
+  const url = new URL(request.url);
+  const name = url.searchParams.get("checkin_name");
+  const status = url.searchParams.get("checkin_status");
+  if (name && (status === "in" || status === "out")) {
+    return { name, status };
+  }
+  return null;
+};
+
 /**
  * Handle GET /admin/event/:id
  */
 const handleAdminEventGet = (request: Request, eventId: number) =>
-  withEventAttendees(request, eventId, (event, attendees) =>
-    htmlResponse(adminEventPage(event, attendees, getAllowedDomain())),
+  withEventAttendees(request, eventId, ({ event, attendees, csrfToken }) =>
+    htmlResponse(
+      adminEventPage(
+        event,
+        attendees,
+        getAllowedDomain(),
+        csrfToken,
+        getCheckinMessage(request),
+      ),
+    ),
   );
 
 /** Curried event page GET handler: renderPage -> (request, eventId) -> Response */
@@ -220,7 +242,7 @@ const handleAdminEventEditPost = async (
  * Handle GET /admin/event/:id/export (CSV export)
  */
 const handleAdminEventExport = (request: Request, eventId: number) =>
-  withEventAttendees(request, eventId, async (event, attendees) => {
+  withEventAttendees(request, eventId, async ({ event, attendees }) => {
     const csv = generateAttendeesCsv(attendees);
     const filename = `${event.name.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
     await logActivity(`CSV exported for '${event.name}'`, event.id);
