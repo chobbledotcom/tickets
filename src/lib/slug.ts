@@ -36,3 +36,17 @@ export const generateSlug = (): string => {
 
   return chars.join("");
 };
+
+/** Normalize a user-provided slug: trim, lowercase, replace spaces with hyphens */
+export const normalizeSlug = (input: string): string =>
+  input.trim().toLowerCase().replace(/\s+/g, "-");
+
+/** Valid slug pattern: lowercase alphanumeric and hyphens only */
+const SLUG_PATTERN = /^[a-z0-9-]+$/;
+
+/** Validate a normalized slug. Returns error message or null. */
+export const validateSlug = (slug: string): string | null => {
+  if (!slug) return "Slug is required";
+  if (!SLUG_PATTERN.test(slug)) return "Slug may only contain lowercase letters, numbers, and hyphens";
+  return null;
+};

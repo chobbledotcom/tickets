@@ -648,6 +648,7 @@ export const updateTestEvent = async (
     `/admin/event/${eventId}/edit`,
     {
       name: updates.name ?? existing.name,
+      slug: updates.slug ?? existing.slug,
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
       max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
       fields: updates.fields ?? existing.fields,

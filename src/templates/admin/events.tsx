@@ -3,10 +3,10 @@
  */
 
 import { map, pipe, reduce } from "#fp";
-import { type FieldValues, renderError, renderFields } from "#lib/forms.tsx";
+import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
 import type { Attendee, EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { eventFields } from "#templates/fields.ts";
+import { eventFields, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -145,6 +145,7 @@ export const adminEventPage = (
  */
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,
+  slug: event.slug,
   max_attendees: event.max_attendees,
   max_quantity: event.max_quantity,
   fields: event.fields,
@@ -168,6 +169,7 @@ export const adminEventEditPage = (
         <form method="POST" action={`/admin/event/${event.id}/edit`}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
           <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
+          <Raw html={renderField(slugField, String(event.slug))} />
           <button type="submit">Save Changes</button>
         </form>
     </Layout>

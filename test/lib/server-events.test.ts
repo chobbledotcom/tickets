@@ -302,7 +302,7 @@ describe("server (admin events)", () => {
     test("shows edit form when authenticated", async () => {
       const { cookie } = await loginAsAdmin();
 
-      await createTestEvent({
+      const event = await createTestEvent({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
@@ -319,6 +319,8 @@ describe("server (admin events)", () => {
       expect(html).toContain('value="100"');
       expect(html).toContain('value="1500"');
       expect(html).toContain('value="https://example.com/thanks"');
+      expect(html).toContain(`value="${event.slug}"`);
+      expect(html).toContain("Slug");
     });
   });
 
@@ -331,6 +333,7 @@ describe("server (admin events)", () => {
       const response = await handleRequest(
         mockFormRequest("/admin/event/1/edit", {
           name: "Updated Event",
+          slug: "updated-event",
           max_attendees: "50",
           max_quantity: "1",
           thank_you_url: "https://example.com/updated",
@@ -347,6 +350,7 @@ describe("server (admin events)", () => {
           "/admin/event/999/edit",
           {
             name: "Updated Event",
+            slug: "updated-event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/updated",
@@ -371,6 +375,7 @@ describe("server (admin events)", () => {
           "/admin/event/1/edit",
           {
             name: "Updated Event",
+            slug: "updated-event",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/updated",
@@ -397,6 +402,7 @@ describe("server (admin events)", () => {
           "/admin/event/1/edit",
           {
             name: "",
+            slug: "test-slug",
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com",
@@ -423,6 +429,7 @@ describe("server (admin events)", () => {
           "/admin/event/1/edit",
           {
             name: event.name,
+            slug: event.slug,
             max_attendees: "200",
             max_quantity: "5",
             thank_you_url: "https://example.com/updated",
@@ -440,6 +447,150 @@ describe("server (admin events)", () => {
       expect(updated?.max_attendees).toBe(200);
       expect(updated?.thank_you_url).toBe("https://example.com/updated");
       expect(updated?.unit_price).toBe(2000);
+    });
+
+    test("updates event slug", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const event = await createTestEvent({
+        name: "Slug Update Test",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: "Slug Update Test",
+            slug: "new-custom-slug",
+            max_attendees: "100",
+            max_quantity: "1",
+            thank_you_url: "https://example.com",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectRedirect(`/admin/event/${event.id}`)(response);
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.slug).toBe("new-custom-slug");
+    });
+
+    test("normalizes slug on update (spaces, uppercase)", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const event = await createTestEvent({
+        name: "Normalize Test",
+        maxAttendees: 50,
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: "Normalize Test",
+            slug: "  My Custom Slug  ",
+            max_attendees: "50",
+            max_quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectRedirect(`/admin/event/${event.id}`)(response);
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.slug).toBe("my-custom-slug");
+    });
+
+    test("rejects invalid slug characters", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await createTestEvent({
+        name: "Invalid Slug Test",
+        maxAttendees: 50,
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/edit",
+          {
+            name: "Invalid Slug Test",
+            slug: "invalid_slug!@#",
+            max_attendees: "50",
+            max_quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Slug may only contain lowercase letters, numbers, and hyphens");
+    });
+
+    test("rejects duplicate slug used by another event", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const event1 = await createTestEvent({
+        name: "Event One",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        name: "Event Two",
+        maxAttendees: 50,
+      });
+
+      // Try to change event2's slug to event1's slug
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event2.id}/edit`,
+          {
+            name: "Event Two",
+            slug: event1.slug,
+            max_attendees: "50",
+            max_quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Slug is already in use by another event");
+    });
+
+    test("allows keeping the same slug on update", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const event = await createTestEvent({
+        name: "Same Slug Test",
+        maxAttendees: 50,
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: "Same Slug Test",
+            slug: event.slug,
+            max_attendees: "100",
+            max_quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectRedirect(`/admin/event/${event.id}`)(response);
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.slug).toBe(event.slug);
+      expect(updated?.max_attendees).toBe(100);
     });
   });
 
@@ -1391,6 +1542,7 @@ describe("server (admin events)", () => {
             `/admin/event/${event.id}/edit`,
             {
               name: "Updated Name",
+              slug: "updated-slug",
               max_attendees: "50",
               max_quantity: "1",
               csrf_token: csrfToken,

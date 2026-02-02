@@ -4,6 +4,7 @@
 
 import type { Field } from "#lib/forms.tsx";
 import type { EventFields } from "#lib/types.ts";
+import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 
 /**
  * Validate URL is safe (https or relative path, no javascript: etc.)
@@ -140,6 +141,16 @@ export const eventFields: Field[] = [
     validate: validateSafeUrl,
   },
 ];
+
+/** Slug field for event edit page only */
+export const slugField: Field = {
+  name: "slug",
+  label: "Slug",
+  type: "text",
+  required: true,
+  hint: "URL-friendly identifier (lowercase letters, numbers, and hyphens)",
+  validate: (value: string) => validateSlug(normalizeSlug(value)),
+};
 
 /** Name field shown on all ticket forms */
 const nameField: Field = {
