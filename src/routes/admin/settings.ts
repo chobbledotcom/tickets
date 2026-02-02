@@ -26,7 +26,7 @@ import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
-import type { AdminLevel } from "#lib/types.ts";
+import type { AdminSession } from "#lib/types.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
@@ -68,17 +68,15 @@ const getSettingsPageState = async () => {
 
 /** Render the settings page with current state */
 const renderSettingsPage = async (
-  csrfToken: string,
-  adminLevel: AdminLevel,
+  session: AdminSession,
   error?: string,
   success?: string,
 ) => {
   const state = await getSettingsPageState();
   return adminSettingsPage(
-    csrfToken,
+    session,
     state.stripeKeyConfigured,
     state.paymentProvider,
-    adminLevel,
     error,
     success,
     state.squareTokenConfigured,
@@ -92,7 +90,7 @@ const renderSettingsPage = async (
  */
 const handleAdminSettingsGet = (request: Request): Promise<Response> =>
   requireOwnerOr(request, async (session) =>
-    htmlResponse(await renderSettingsPage(session.csrfToken, session.adminLevel)),
+    htmlResponse(await renderSettingsPage(session)),
   );
 
 /**
@@ -134,7 +132,7 @@ const validateChangePasswordForm = (
 const handleAdminSettingsPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session.csrfToken, session.adminLevel, error), status);
+      htmlResponse(await renderSettingsPage(session, error), status);
 
     const validation = validateChangePasswordForm(form);
     if (!validation.valid) {
@@ -174,7 +172,7 @@ const VALID_PROVIDERS: ReadonlySet<string> = new Set<PaymentProviderType>([
 const handlePaymentProviderPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session.csrfToken, session.adminLevel, error), status);
+      htmlResponse(await renderSettingsPage(session, error), status);
 
     const provider = form.get("payment_provider") ?? "";
 
@@ -182,8 +180,7 @@ const handlePaymentProviderPost = (request: Request): Promise<Response> =>
       await clearPaymentProvider();
       return htmlResponse(
         await renderSettingsPage(
-          session.csrfToken,
-          session.adminLevel,
+          session,
           undefined,
           "Payment provider disabled",
         ),
@@ -198,8 +195,7 @@ const handlePaymentProviderPost = (request: Request): Promise<Response> =>
 
     return htmlResponse(
       await renderSettingsPage(
-        session.csrfToken,
-        session.adminLevel,
+        session,
         undefined,
         `Payment provider set to ${provider}`,
       ),
@@ -212,7 +208,7 @@ const handlePaymentProviderPost = (request: Request): Promise<Response> =>
 const handleAdminStripePost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session.csrfToken, session.adminLevel, error), status);
+      htmlResponse(await renderSettingsPage(session, error), status);
 
     const validation = validateForm(form, stripeKeyFields);
     if (!validation.valid) {
@@ -247,8 +243,7 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
 
     return htmlResponse(
       await renderSettingsPage(
-        session.csrfToken,
-        session.adminLevel,
+        session,
         undefined,
         "Stripe key updated and webhook configured successfully",
       ),
@@ -261,7 +256,7 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
 const handleAdminSquarePost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session.csrfToken, session.adminLevel, error), status);
+      htmlResponse(await renderSettingsPage(session, error), status);
 
     const validation = validateForm(form, squareAccessTokenFields);
     if (!validation.valid) {
@@ -279,8 +274,7 @@ const handleAdminSquarePost = (request: Request): Promise<Response> =>
 
     return htmlResponse(
       await renderSettingsPage(
-        session.csrfToken,
-        session.adminLevel,
+        session,
         undefined,
         "Square credentials updated successfully",
       ),
@@ -293,7 +287,7 @@ const handleAdminSquarePost = (request: Request): Promise<Response> =>
 const handleAdminSquareWebhookPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session.csrfToken, session.adminLevel, error), status);
+      htmlResponse(await renderSettingsPage(session, error), status);
 
     const validation = validateForm(form, squareWebhookFields);
     if (!validation.valid) {
@@ -306,8 +300,7 @@ const handleAdminSquareWebhookPost = (request: Request): Promise<Response> =>
 
     return htmlResponse(
       await renderSettingsPage(
-        session.csrfToken,
-        session.adminLevel,
+        session,
         undefined,
         "Square webhook signature key updated successfully",
       ),
@@ -337,7 +330,7 @@ const RESET_DATABASE_PHRASE =
 const handleResetDatabasePost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (session, form) => {
     const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session.csrfToken, session.adminLevel, error), status);
+      htmlResponse(await renderSettingsPage(session, error), status);
 
     const confirmPhrase = form.get("confirm_phrase") ?? "";
     if (confirmPhrase.trim() !== RESET_DATABASE_PHRASE) {

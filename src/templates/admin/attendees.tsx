@@ -2,7 +2,7 @@
  * Admin attendee page templates
  */
 
-import type { AdminLevel, Attendee, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -12,13 +12,12 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 export const adminDeleteAttendeePage = (
   event: EventWithCount,
   attendee: Attendee,
-  csrfToken: string,
-  adminLevel?: AdminLevel,
+  session: AdminSession,
   error?: string,
 ): string =>
   String(
     <Layout title={`Delete Attendee: ${attendee.name}`}>
-      <AdminNav adminLevel={adminLevel} />
+      <AdminNav session={session} />
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -38,7 +37,7 @@ export const adminDeleteAttendeePage = (
         <p>To delete this attendee, you must type their name "{attendee.name}" into the box below:</p>
 
         <form method="POST" action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="confirm_name">Attendee name</label>
           <input
             type="text"

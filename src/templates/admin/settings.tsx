@@ -4,7 +4,7 @@
 
 import { renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminLevel } from "#lib/types.ts";
+import type { AdminSession } from "#lib/types.ts";
 import {
   changePasswordFields,
   squareAccessTokenFields,
@@ -18,10 +18,9 @@ import { AdminNav } from "#templates/admin/nav.tsx";
  * Admin settings page
  */
 export const adminSettingsPage = (
-  csrfToken: string,
+  session: AdminSession,
   stripeKeyConfigured: boolean,
   paymentProvider: string | null,
-  adminLevel: AdminLevel,
   error?: string,
   success?: string,
   squareTokenConfigured?: boolean,
@@ -30,7 +29,7 @@ export const adminSettingsPage = (
 ): string =>
   String(
     <Layout title="Settings">
-      <AdminNav adminLevel={adminLevel} />
+      <AdminNav session={session} />
 
       {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}
@@ -38,7 +37,7 @@ export const adminSettingsPage = (
         <form method="POST" action="/admin/settings/payment-provider">
             <h2>Payment Provider</h2>
           <p>Choose which payment provider to use for paid events.</p>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <fieldset>
             <label>
               <input
@@ -79,7 +78,7 @@ export const adminSettingsPage = (
               ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
               : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
           </p>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(stripeKeyFields)} />
           <button type="submit">Update Stripe Key</button>
           {stripeKeyConfigured && (
@@ -140,7 +139,7 @@ document.getElementById('stripe-test-btn')?.addEventListener('click', async func
               ? "A Square access token is currently configured. Enter new credentials below to replace them."
               : "No Square access token is configured. Enter your Square credentials to enable Square payments."}
           </p>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(squareAccessTokenFields)} />
           <button type="submit">Update Square Credentials</button>
         </form>
@@ -168,7 +167,7 @@ document.getElementById('stripe-test-btn')?.addEventListener('click', async func
               ? "A webhook signature key is currently configured. Enter a new key below to replace it."
               : "No webhook signature key is configured. Follow the steps above to set one up."}
           </p>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(squareWebhookFields)} />
           <button type="submit">Update Webhook Key</button>
         </form>
@@ -177,7 +176,7 @@ document.getElementById('stripe-test-btn')?.addEventListener('click', async func
         <form method="POST" action="/admin/settings">
             <h2>Change Password</h2>
           <p>Changing your password will log you out of all sessions.</p>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(changePasswordFields)} />
           <button type="submit">Change Password</button>
         </form>
@@ -191,7 +190,7 @@ document.getElementById('stripe-test-btn')?.addEventListener('click', async func
           </article>
           <p>To reset the database, type the following phrase into the box below:</p>
           <p><strong>"The site will be fully reset and all data will be lost."</strong></p>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="confirm_phrase">Confirmation phrase</label>
           <input
             type="text"

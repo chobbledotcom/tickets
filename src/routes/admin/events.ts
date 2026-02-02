@@ -20,7 +20,7 @@ import {
 import { createHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
-import type { AdminLevel, Attendee, EventFields, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventFields, EventWithCount } from "#lib/types.ts";
 import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
   getAuthenticatedSession,
@@ -110,8 +110,7 @@ const eventsResource = defineResource({
 type EventAttendeesContext = {
   event: EventWithCount;
   attendees: Attendee[];
-  csrfToken: string;
-  adminLevel: AdminLevel;
+  session: AdminSession;
 };
 
 /**
@@ -137,7 +136,7 @@ const withEventAttendees = async (
   }
 
   const attendees = await decryptAttendees(result.attendeesRaw, privateKey);
-  return handler({ event: result.event, attendees, csrfToken: session.csrfToken, adminLevel: session.adminLevel });
+  return handler({ event: result.event, attendees, session });
 };
 
 /**
@@ -166,14 +165,13 @@ const getCheckinMessage = (request: Request): { name: string; status: string } |
  * Handle GET /admin/event/:id (with optional filter)
  */
 const handleAdminEventGet = (request: Request, eventId: number, activeFilter: AttendeeFilter = "all") =>
-  withEventAttendees(request, eventId, ({ event, attendees, csrfToken, adminLevel }) =>
+  withEventAttendees(request, eventId, ({ event, attendees, session }) =>
     htmlResponse(
       adminEventPage(
         event,
         attendees,
         getAllowedDomain(),
-        csrfToken,
-        adminLevel,
+        session,
         getCheckinMessage(request),
         activeFilter,
       ),
@@ -183,12 +181,12 @@ const handleAdminEventGet = (request: Request, eventId: number, activeFilter: At
 /** Curried event page GET handler: renderPage -> (request, eventId) -> Response */
 const withEventPage =
   (
-    renderPage: (event: EventWithCount, csrfToken: string, adminLevel?: AdminLevel) => string,
+    renderPage: (event: EventWithCount, session: AdminSession) => string,
   ): ((request: Request, eventId: number) => Promise<Response>) =>
   (request, eventId) =>
     requireSessionOr(request, (session) =>
       withEvent(eventId, (event) =>
-        htmlResponse(renderPage(event, session.csrfToken, session.adminLevel)),
+        htmlResponse(renderPage(event, session)),
       ),
     );
 
@@ -197,17 +195,15 @@ const eventErrorPage = async (
   id: number,
   renderPage: (
     event: EventWithCount,
-    csrfToken: string,
-    adminLevel?: AdminLevel,
+    session: AdminSession,
     error?: string,
   ) => string,
-  csrfToken: string,
-  adminLevel: AdminLevel,
+  session: AdminSession,
   error: string,
 ): Promise<Response> => {
   const event = await getEventWithCount(id);
   return event
-    ? htmlResponse(renderPage(event, csrfToken, adminLevel, error), 400)
+    ? htmlResponse(renderPage(event, session, error), 400)
     : notFoundResponse();
 };
 
@@ -243,7 +239,7 @@ const handleAdminEventEditPost = async (
   const result = await updateResource.update(eventId, auth.form);
   if (result.ok) return redirect(`/admin/event/${result.row.id}`);
   if ("notFound" in result) return notFoundResponse();
-  return eventErrorPage(eventId, adminEventEditPage, auth.session.csrfToken, auth.session.adminLevel, result.error);
+  return eventErrorPage(eventId, adminEventEditPage, auth.session, result.error);
 };
 
 /**
@@ -284,8 +280,7 @@ const handleAdminEventDeactivatePost = (
       return eventErrorPage(
         eventId,
         adminDeactivateEventPage,
-        session.csrfToken,
-        session.adminLevel,
+        session,
         "Event name does not match. Please type the exact name to confirm.",
       );
     }
@@ -311,8 +306,7 @@ const handleAdminEventReactivatePost = (
       return eventErrorPage(
         eventId,
         adminReactivateEventPage,
-        session.csrfToken,
-        session.adminLevel,
+        session,
         "Event name does not match. Please type the exact name to confirm.",
       );
     }
@@ -338,7 +332,7 @@ const handleAdminEventLog = (
     if (!result) {
       return notFoundResponse();
     }
-    return htmlResponse(adminEventActivityLogPage(result.event, result.entries, session.adminLevel));
+    return htmlResponse(adminEventActivityLogPage(result.event, result.entries, session));
   });
 
 /** Verify identifier matches for deletion confirmation (case-insensitive, trimmed) */
@@ -366,8 +360,7 @@ const handleAdminEventDelete = (
         return eventErrorPage(
           eventId,
           adminDeleteEventPage,
-          session.csrfToken,
-          session.adminLevel,
+          session,
           "Event name does not match. Please type the exact name to confirm deletion.",
         );
       }

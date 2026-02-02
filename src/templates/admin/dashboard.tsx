@@ -4,7 +4,7 @@
 
 import { map, pipe, reduce } from "#fp";
 import { renderFields } from "#lib/forms.tsx";
-import type { AdminLevel, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { eventFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -31,8 +31,7 @@ const EventRow = ({ e }: { e: EventWithCount }): string => {
  */
 export const adminDashboardPage = (
   events: EventWithCount[],
-  csrfToken: string,
-  adminLevel?: AdminLevel,
+  session: AdminSession,
 ): string => {
   const eventRows =
     events.length > 0
@@ -41,7 +40,7 @@ export const adminDashboardPage = (
 
   return String(
     <Layout title="Events">
-      <AdminNav adminLevel={adminLevel} />
+      <AdminNav session={session} />
 
       <table>
           <thead>
@@ -62,7 +61,7 @@ export const adminDashboardPage = (
 
         <form method="POST" action="/admin/event">
             <h2>Create New Event</h2>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(eventFields)} />
           <button type="submit">Create Event</button>
         </form>

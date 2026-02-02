@@ -25,7 +25,7 @@ import {
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
-import type { AdminLevel, User } from "#lib/types.ts";
+import type { AdminLevel, AdminSession, User } from "#lib/types.ts";
 import {
   adminUsersPage,
   type DisplayUser,
@@ -55,15 +55,14 @@ const toDisplayUser = async (
  * Render users page with current state
  */
 const renderUsersPage = async (
-  csrfToken: string,
-  adminLevel: AdminLevel,
+  session: AdminSession,
   inviteLink?: string,
   error?: string,
   success?: string,
 ): Promise<string> => {
   const users = await getAllUsers();
   const displayUsers = await Promise.all(users.map(toDisplayUser));
-  return adminUsersPage(displayUsers, csrfToken, adminLevel, inviteLink, error, success);
+  return adminUsersPage(displayUsers, session, inviteLink, error, success);
 };
 
 /**
@@ -71,7 +70,7 @@ const renderUsersPage = async (
  */
 const handleUsersGet = (request: Request): Promise<Response> =>
   requireOwnerOr(request, async (session) =>
-    htmlResponse(await renderUsersPage(session.csrfToken, session.adminLevel)),
+    htmlResponse(await renderUsersPage(session)),
   );
 
 /**
@@ -82,7 +81,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
     const validation = validateForm(form, inviteUserFields);
     if (!validation.valid) {
       return htmlResponse(
-        await renderUsersPage(session.csrfToken, session.adminLevel, undefined, validation.error),
+        await renderUsersPage(session, undefined, validation.error),
         400,
       );
     }
@@ -92,7 +91,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
 
     if (!VALID_ADMIN_LEVELS.includes(adminLevel as typeof VALID_ADMIN_LEVELS[number])) {
       return htmlResponse(
-        await renderUsersPage(session.csrfToken, session.adminLevel, undefined, "Invalid role"),
+        await renderUsersPage(session, undefined, "Invalid role"),
         400,
       );
     }
@@ -101,8 +100,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
     if (await isUsernameTaken(username)) {
       return htmlResponse(
         await renderUsersPage(
-          session.csrfToken,
-          session.adminLevel,
+          session,
           undefined,
           "Username is already taken",
         ),
@@ -126,7 +124,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
     const inviteLink = `https://${domain}/join/${inviteCode}`;
 
     return htmlResponse(
-      await renderUsersPage(session.csrfToken, session.adminLevel, inviteLink),
+      await renderUsersPage(session, inviteLink),
     );
   });
 
@@ -143,7 +141,7 @@ const handleUserActivate = (
 
     if (!user) {
       return htmlResponse(
-        await renderUsersPage(session.csrfToken, session.adminLevel, undefined, "User not found"),
+        await renderUsersPage(session, undefined, "User not found"),
         404,
       );
     }
@@ -153,8 +151,7 @@ const handleUserActivate = (
     if (!userHasPassword) {
       return htmlResponse(
         await renderUsersPage(
-          session.csrfToken,
-          session.adminLevel,
+          session,
           undefined,
           "User has not set their password yet",
         ),
@@ -166,8 +163,7 @@ const handleUserActivate = (
     if (user.wrapped_data_key) {
       return htmlResponse(
         await renderUsersPage(
-          session.csrfToken,
-          session.adminLevel,
+          session,
           undefined,
           "User is already activated",
         ),
@@ -179,8 +175,7 @@ const handleUserActivate = (
     if (!session.wrappedDataKey) {
       return htmlResponse(
         await renderUsersPage(
-          session.csrfToken,
-          session.adminLevel,
+          session,
           undefined,
           "Cannot activate: session lacks data key",
         ),
@@ -201,8 +196,7 @@ const handleUserActivate = (
 
     return htmlResponse(
       await renderUsersPage(
-        session.csrfToken,
-        session.adminLevel,
+        session,
         undefined,
         undefined,
         "User activated successfully",
@@ -223,7 +217,7 @@ const handleUserDelete = (
 
     if (!user) {
       return htmlResponse(
-        await renderUsersPage(session.csrfToken, session.adminLevel, undefined, "User not found"),
+        await renderUsersPage(session, undefined, "User not found"),
         404,
       );
     }
@@ -233,8 +227,7 @@ const handleUserDelete = (
     if (adminLevel === "owner" && user.id === session.userId) {
       return htmlResponse(
         await renderUsersPage(
-          session.csrfToken,
-          session.adminLevel,
+          session,
           undefined,
           "Cannot delete your own account",
         ),
@@ -246,8 +239,7 @@ const handleUserDelete = (
 
     return htmlResponse(
       await renderUsersPage(
-        session.csrfToken,
-        session.adminLevel,
+        session,
         undefined,
         undefined,
         "User deleted successfully",

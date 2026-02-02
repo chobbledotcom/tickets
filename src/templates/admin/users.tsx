@@ -4,7 +4,7 @@
 
 import { renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminLevel } from "#lib/types.ts";
+import type { AdminSession } from "#lib/types.ts";
 import { inviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -30,15 +30,14 @@ const userStatus = (user: DisplayUser): string => {
  */
 export const adminUsersPage = (
   users: DisplayUser[],
-  csrfToken: string,
-  adminLevel: AdminLevel,
+  session: AdminSession,
   inviteLink?: string,
   error?: string,
   success?: string,
 ): string =>
   String(
     <Layout title="Users">
-      <AdminNav adminLevel={adminLevel} />
+      <AdminNav session={session} />
       <h1>Users</h1>
       <Raw html={renderError(error)} />
       {success && <div class="success">{success}</div>}
@@ -53,7 +52,7 @@ export const adminUsersPage = (
 
       <h2>Invite New User</h2>
       <form method="POST" action="/admin/users">
-        <input type="hidden" name="csrf_token" value={csrfToken} />
+        <input type="hidden" name="csrf_token" value={session.csrfToken} />
         <Raw html={renderFields(inviteUserFields)} />
         <button type="submit">Create Invite</button>
       </form>
@@ -78,7 +77,7 @@ export const adminUsersPage = (
               <td>
                 {user.hasPassword && !user.hasDataKey && (
                   <form class="inline" method="POST" action={`/admin/users/${user.id}/activate`}>
-                    <input type="hidden" name="csrf_token" value={csrfToken} />
+                    <input type="hidden" name="csrf_token" value={session.csrfToken} />
                     <button type="submit">Activate</button>
                   </form>
                 )}
@@ -86,7 +85,7 @@ export const adminUsersPage = (
               <td>
                 {user.adminLevel !== "owner" && (
                   <form class="inline" method="POST" action={`/admin/users/${user.id}/delete`}>
-                    <input type="hidden" name="csrf_token" value={csrfToken} />
+                    <input type="hidden" name="csrf_token" value={session.csrfToken} />
                     <button type="submit">Delete</button>
                   </form>
                 )}
