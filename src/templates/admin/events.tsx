@@ -36,18 +36,15 @@ const FIELDS_LABELS: Record<EventFields, string> = {
 const CheckinButton = ({ a, eventId, csrfToken }: { a: Attendee; eventId: number; csrfToken: string }): string => {
   const isCheckedIn = a.checked_in === "true";
   const label = isCheckedIn ? "Check out" : "Check in";
-  const color = isCheckedIn ? "red" : "green";
+  const buttonClass = isCheckedIn ? "checkout" : "checkin";
   return String(
     <form
       method="POST"
       action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
-      style="display:inline;margin:0;padding:0;border:0;background:none"
+      class="checkin-form"
     >
       <input type="hidden" name="csrf_token" value={csrfToken} />
-      <button
-        type="submit"
-        style={`background:none;border:none;padding:0;margin:0;font:inherit;cursor:pointer;color:${color};text-decoration:underline;box-shadow:none;min-height:0`}
-      >
+      <button type="submit" class={buttonClass}>
         {label}
       </button>
     </form>
@@ -64,7 +61,8 @@ const AttendeeRow = ({ a, eventId, csrfToken }: { a: Attendee; eventId: number; 
       <td>{new Date(a.created).toLocaleString()}</td>
       <td>
         <Raw html={CheckinButton({ a, eventId, csrfToken })} />
-        {" "}
+      </td>
+      <td>
         <a href={`/admin/event/${eventId}/attendee/${a.id}/delete`} class="danger">
           Delete
         </a>
@@ -93,7 +91,7 @@ export const adminEventPage = (
       : '<tr><td colspan="7">No attendees yet</td></tr>';
 
   const checkedInLabel = checkinMessage?.status === "in" ? "in" : "out";
-  const checkedInColor = checkinMessage?.status === "in" ? "green" : "red";
+  const checkedInClass = checkinMessage?.status === "in" ? "checkin-message-in" : "checkin-message-out";
 
   return String(
     <Layout title={`Event: ${event.name}`}>
@@ -168,7 +166,7 @@ export const adminEventPage = (
 
         <h2>Attendees</h2>
         {checkinMessage && (
-          <p id="message" style={`color: ${checkedInColor}`}>
+          <p id="message" class={checkedInClass}>
             Checked {checkinMessage.name} {checkedInLabel}
           </p>
         )}
@@ -180,7 +178,8 @@ export const adminEventPage = (
               <th>Phone</th>
               <th>Qty</th>
               <th>Registered</th>
-              <th>Actions</th>
+              <th></th>
+              <th></th>
             </tr>
           </thead>
           <tbody>

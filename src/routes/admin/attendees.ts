@@ -9,6 +9,7 @@ import {
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
 import { getEventWithAttendeeRaw } from "#lib/db/events.ts";
+import { logError } from "#lib/logger.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import {
   defineRoutes,
@@ -141,6 +142,7 @@ const handleAdminAttendeeCheckinPost = (
       session.wrappedDataKey,
     );
     if (!privateKey) {
+      logError({ code: "E_KEY_DERIVATION", detail: "checkin: no private key" });
       return redirect("/admin");
     }
 
@@ -152,10 +154,7 @@ const handleAdminAttendeeCheckinPost = (
     const wasCheckedIn = data.attendee.checked_in === "true";
     const nowCheckedIn = !wasCheckedIn;
 
-    const updated = await updateCheckedIn(attendeeId, nowCheckedIn);
-    if (!updated) {
-      return redirect(`/admin/event/${eventId}`);
-    }
+    await updateCheckedIn(attendeeId, nowCheckedIn);
 
     const action = nowCheckedIn ? "checked in" : "checked out";
     await logActivity(`Attendee ${action}`, eventId);

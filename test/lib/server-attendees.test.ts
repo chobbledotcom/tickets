@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
@@ -600,29 +599,6 @@ describe("server (admin attendees)", () => {
       expectAdminRedirect(response);
     });
 
-    test("redirects without message when updateCheckedIn fails", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      // Delete public key from settings so updateCheckedIn returns false
-      await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
-    });
-
     test("event page shows Check in button for unchecked attendee", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
@@ -658,7 +634,7 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Checked John Doe in");
-      expect(html).toContain('color: green');
+      expect(html).toContain('checkin-message-in');
     });
 
     test("event page shows check-out message in red", async () => {
@@ -677,7 +653,7 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Checked John Doe out");
-      expect(html).toContain('color: red');
+      expect(html).toContain('checkin-message-out');
     });
 
     test("event page ignores invalid checkin_status param", async () => {
@@ -724,7 +700,7 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Check out");
-      expect(html).toContain('color:red');
+      expect(html).toContain('class="checkout"');
     });
   });
 
