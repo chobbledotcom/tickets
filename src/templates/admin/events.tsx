@@ -12,6 +12,23 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
+/** Calculate total revenue in cents from attendees, falling back to unit_price * quantity */
+export const calculateTotalRevenue = (
+  attendees: Attendee[],
+  unitPrice: number | null,
+): number =>
+  reduce((sum: number, a: Attendee) => {
+    if (a.price_paid) {
+      const cents = Number.parseInt(a.price_paid, 10);
+      return Number.isNaN(cents) ? sum : sum + cents;
+    }
+    if (unitPrice) return sum + unitPrice * a.quantity;
+    return sum;
+  }, 0)(attendees);
+
+/** Format cents as a decimal string (e.g. 1000 -> "10.00") */
+const formatRevenue = (cents: number): string => (cents / 100).toFixed(2);
+
 /** Human-readable labels for fields settings */
 const FIELDS_LABELS: Record<EventFields, string> = {
   email: "Email",
@@ -86,6 +103,9 @@ export const adminEventPage = (
           <p><strong>Max Tickets Per Purchase:</strong> {event.max_quantity}</p>
           <p><strong>Tickets Sold:</strong> {event.attendee_count}</p>
           <p><strong>Spots Remaining:</strong> {event.max_attendees - event.attendee_count}</p>
+          {event.unit_price !== null && (
+            <p><strong>Total Revenue:</strong> {formatRevenue(calculateTotalRevenue(attendees, event.unit_price))}</p>
+          )}
           <p><strong>Contact Fields:</strong> {FIELDS_LABELS[event.fields]}</p>
           {event.thank_you_url ? (
             <p>

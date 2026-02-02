@@ -1,7 +1,7 @@
 import { describe, expect, test } from "#test-compat";
 import { CSS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
-import { adminEventPage } from "#templates/admin/events.tsx";
+import { adminEventPage, calculateTotalRevenue } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
@@ -556,6 +556,73 @@ describe("html", () => {
       const html = adminDashboardPage(events, TEST_CSRF_TOKEN);
       expect(html).toContain("opacity: 0.5");
       expect(html).toContain("Inactive");
+    });
+  });
+
+  describe("calculateTotalRevenue", () => {
+    test("returns 0 for empty attendees", () => {
+      expect(calculateTotalRevenue([], 1000)).toBe(0);
+    });
+
+    test("sums price_paid from attendees", () => {
+      const attendees = [
+        testAttendee({ price_paid: "1000" }),
+        testAttendee({ id: 2, price_paid: "2000" }),
+      ];
+      expect(calculateTotalRevenue(attendees, 1000)).toBe(3000);
+    });
+
+    test("falls back to unit_price * quantity when price_paid is null", () => {
+      const attendees = [
+        testAttendee({ quantity: 2 }),
+        testAttendee({ id: 2, quantity: 3 }),
+      ];
+      expect(calculateTotalRevenue(attendees, 500)).toBe(2500);
+    });
+
+    test("mixes price_paid and unit_price fallback", () => {
+      const attendees = [
+        testAttendee({ price_paid: "1500" }),
+        testAttendee({ id: 2, quantity: 2 }),
+      ];
+      expect(calculateTotalRevenue(attendees, 500)).toBe(2500);
+    });
+
+    test("returns 0 when no unit_price and no price_paid", () => {
+      const attendees = [testAttendee({ quantity: 3 })];
+      expect(calculateTotalRevenue(attendees, null)).toBe(0);
+    });
+
+    test("ignores non-numeric price_paid", () => {
+      const attendees = [testAttendee({ price_paid: "not-a-number" })];
+      expect(calculateTotalRevenue(attendees, 1000)).toBe(0);
+    });
+  });
+
+  describe("adminEventPage total revenue", () => {
+    test("shows total revenue for paid events", () => {
+      const event = testEventWithCount({ unit_price: 1000, attendee_count: 2 });
+      const attendees = [
+        testAttendee({ price_paid: "1000" }),
+        testAttendee({ id: 2, price_paid: "2000" }),
+      ];
+      const html = adminEventPage(event, attendees, "localhost");
+      expect(html).toContain("Total Revenue:");
+      expect(html).toContain("30.00");
+    });
+
+    test("does not show total revenue for free events", () => {
+      const event = testEventWithCount({ unit_price: null, attendee_count: 1 });
+      const attendees = [testAttendee()];
+      const html = adminEventPage(event, attendees, "localhost");
+      expect(html).not.toContain("Total Revenue:");
+    });
+
+    test("shows 0.00 revenue for paid event with no attendees", () => {
+      const event = testEventWithCount({ unit_price: 1000, attendee_count: 0 });
+      const html = adminEventPage(event, [], "localhost");
+      expect(html).toContain("Total Revenue:");
+      expect(html).toContain("0.00");
     });
   });
 
