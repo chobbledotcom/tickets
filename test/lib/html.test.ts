@@ -120,12 +120,30 @@ describe("html", () => {
       expect(html).toContain("example.com/ticket/ab12c");
     });
 
-    test("shows embed code with allowed domain", () => {
+    test("shows embed code with allowed domain and iframe param", () => {
       const html = adminEventPage(event, [], "example.com", TEST_CSRF_TOKEN);
       expect(html).toContain("Embed Code");
-      expect(html).toContain("https://example.com/ticket/ab12c");
+      expect(html).toContain("https://example.com/ticket/ab12c?iframe=true");
       expect(html).toContain("loading=");
       expect(html).toContain("readonly");
+    });
+
+    test("embed code uses 18rem height for email-only events", () => {
+      const emailEvent = testEventWithCount({ attendee_count: 2, fields: "email" });
+      const html = adminEventPage(emailEvent, [], "example.com", TEST_CSRF_TOKEN);
+      expect(html).toContain("height: 18rem");
+    });
+
+    test("embed code uses 24rem height for both fields events", () => {
+      const bothEvent = testEventWithCount({ attendee_count: 2, fields: "both" });
+      const html = adminEventPage(bothEvent, [], "example.com", TEST_CSRF_TOKEN);
+      expect(html).toContain("height: 24rem");
+    });
+
+    test("embed code uses 18rem height for phone-only events", () => {
+      const phoneEvent = testEventWithCount({ attendee_count: 2, fields: "phone" });
+      const html = adminEventPage(phoneEvent, [], "example.com", TEST_CSRF_TOKEN);
+      expect(html).toContain("height: 18rem");
     });
 
     test("renders empty attendees state", () => {
@@ -286,6 +304,23 @@ describe("html", () => {
       const html = ticketPage(event, csrfToken);
       expect(html).toContain('name="email"');
       expect(html).not.toContain('name="phone"');
+    });
+
+    test("hides header and description in iframe mode", () => {
+      const eventWithDesc = testEventWithCount({ attendee_count: 50, description: "A great event" });
+      const html = ticketPage(eventWithDesc, csrfToken, undefined, false, true);
+      expect(html).not.toContain("<h1>");
+      expect(html).not.toContain("A great event");
+      expect(html).toContain('class="iframe"');
+      expect(html).toContain('name="name"');
+    });
+
+    test("shows header and description when not in iframe mode", () => {
+      const eventWithDesc = testEventWithCount({ attendee_count: 50, description: "A great event" });
+      const html = ticketPage(eventWithDesc, csrfToken, undefined, false, false);
+      expect(html).toContain("<h1>Test Event</h1>");
+      expect(html).toContain("A great event");
+      expect(html).not.toContain('class="iframe"');
     });
   });
 

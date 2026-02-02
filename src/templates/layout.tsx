@@ -14,13 +14,15 @@ export const escapeHtml = (str: string): string =>
 
 interface LayoutProps {
   title: string;
+  bodyClass?: string;
+  extraStyle?: string;
   children?: Child;
 }
 
 /**
  * Wrap content in MVP.css semantic HTML layout
  */
-export const Layout = ({ title, children }: LayoutProps): SafeHtml =>
+export const Layout = ({ title, bodyClass, extraStyle, children }: LayoutProps): SafeHtml =>
   new SafeHtml(
     "<!DOCTYPE html>" +
     (
@@ -30,9 +32,9 @@ export const Layout = ({ title, children }: LayoutProps): SafeHtml =>
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
           <title>{title}</title>
           <link rel="stylesheet" href={CSS_PATH} />
-          <style>{".inline{display:inline}"}</style>
+          <style>{".inline{display:inline}" + (extraStyle || "")}</style>
         </head>
-        <body>
+        <body class={bodyClass || undefined}>
           <main>
             {children}
           </main>

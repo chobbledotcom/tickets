@@ -63,8 +63,8 @@ const ticketCsrfPath = (slug: string): string => `/ticket/${slug}`;
 
 /** Ticket response with CSRF cookie */
 const ticketResponseWithCookie = makeCsrfResponseBuilder(
-  (event: EventWithCount, _isClosed: boolean) => ticketCsrfPath(event.slug),
-  (token, error, event, isClosed) => ticketPage(event, token, error, isClosed),
+  (event: EventWithCount, _isClosed: boolean, _iframe: boolean) => ticketCsrfPath(event.slug),
+  (token, error, event, isClosed, iframe) => ticketPage(event, token, error, isClosed, iframe),
 );
 
 /** Ticket response without cookie - for validation errors after CSRF passed */
@@ -73,14 +73,24 @@ const ticketResponse =
   (error: string, status = 400) =>
     htmlResponse(ticketPage(event, token, error), status);
 
+/** Check if request URL has ?iframe=true */
+const isIframeRequest = (url: string): boolean => {
+  try {
+    return new URL(url).searchParams.get("iframe") === "true";
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Handle GET /ticket/:slug
  */
-export const handleTicketGet = (slug: string): Promise<Response> =>
+export const handleTicketGet = (slug: string, request: Request): Promise<Response> =>
   withActiveEventBySlug(slug, (event) => {
     const token = generateSecureToken();
     const closed = isRegistrationClosed(event);
-    return ticketResponseWithCookie(event, closed)(token)();
+    const iframe = isIframeRequest(request.url);
+    return ticketResponseWithCookie(event, closed, iframe)(token)();
   });
 
 /**
@@ -573,7 +583,7 @@ export const routeTicket = (
 
   // Single ticket
   if (method === "GET") {
-    return handleTicketGet(slug);
+    return handleTicketGet(slug, request);
   }
   if (method === "POST") {
     return handleTicketPost(request, slug);
