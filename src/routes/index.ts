@@ -58,6 +58,12 @@ const loadTicketViewRoutes = once(async () => {
   return routeTicketView;
 });
 
+/** Lazy-load check-in routes */
+const loadCheckinRoutes = once(async () => {
+  const { routeCheckin } = await import("#routes/checkin.ts");
+  return routeCheckin;
+});
+
 // Re-export middleware functions for testing
 export {
   getSecurityHeaders,
@@ -98,6 +104,7 @@ const routeTicketPath = createLazyRoute(
 const routePaymentPath = createLazyRoute("/payment", loadPaymentRoutes);
 const routeJoinPath = createLazyRoute("/join", loadJoinRoutes);
 const routeTicketViewPath = createLazyRoute("/t", loadTicketViewRoutes);
+const routeCheckinPath = createLazyRoute("/checkin", loadCheckinRoutes);
 
 /**
  * Route main application requests (after setup is complete)
@@ -108,6 +115,7 @@ const routeMainApp: RouterFn = async (request, path, method, server) =>
   (await routeAdminPath(request, path, method, server)) ??
   (await routeTicketPath(request, path, method, server)) ??
   (await routeTicketViewPath(request, path, method, server)) ??
+  (await routeCheckinPath(request, path, method, server)) ??
   (await routePaymentPath(request, path, method, server)) ??
   (await routeJoinPath(request, path, method, server)) ??
   notFoundResponse();
