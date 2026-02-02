@@ -21,12 +21,16 @@ const formatPrice = (pricePaid: string | null): string => {
   return (Number.parseInt(pricePaid, 10) / 100).toFixed(2);
 };
 
+/** Format checked_in value as Yes/No */
+const formatCheckedIn = (checkedIn: string): string =>
+  checkedIn === "true" ? "Yes" : "No";
+
 /**
  * Generate CSV content from attendees.
  * Always includes both Email and Phone columns regardless of event settings.
  */
 export const generateAttendeesCsv = (attendees: Attendee[]): string => {
-  const header = "Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID";
+  const header = "Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In";
   const rows = pipe(
     map((a: Attendee) =>
       [
@@ -37,6 +41,7 @@ export const generateAttendeesCsv = (attendees: Attendee[]): string => {
         escapeCsvValue(new Date(a.created).toISOString()),
         formatPrice(a.price_paid),
         escapeCsvValue(a.payment_id ?? ""),
+        formatCheckedIn(a.checked_in),
       ].join(","),
     ),
     reduce((acc: string, row: string) => `${acc}\n${row}`, header),

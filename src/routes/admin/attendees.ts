@@ -123,13 +123,20 @@ const attendeeDeleteHandler: RouteHandlerFn = (request, params) => {
   return handleAdminAttendeeDeletePost(request, ids.eventId, ids.attendeeId);
 };
 
+/** Map return_filter form value to URL suffix */
+const filterSuffix = (returnFilter: string | null): string => {
+  if (returnFilter === "in") return "/in";
+  if (returnFilter === "out") return "/out";
+  return "";
+};
+
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/checkin (toggle check-in) */
 const handleAdminAttendeeCheckinPost = (
   request: Request,
   eventId: number,
   attendeeId: number,
 ): Promise<Response> =>
-  withAuthForm(request, async (session) => {
+  withAuthForm(request, async (session, form) => {
     const privateKey = await getPrivateKey(
       session.token,
       session.wrappedDataKey,
@@ -150,8 +157,9 @@ const handleAdminAttendeeCheckinPost = (
 
     const name = encodeURIComponent(data.attendee.name);
     const status = nowCheckedIn ? "in" : "out";
+    const suffix = filterSuffix(form.get("return_filter"));
     return redirect(
-      `/admin/event/${eventId}?checkin_name=${name}&checkin_status=${status}#message`,
+      `/admin/event/${eventId}${suffix}?checkin_name=${name}&checkin_status=${status}#message`,
     );
   });
 

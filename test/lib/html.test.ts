@@ -395,7 +395,7 @@ describe("html", () => {
   describe("generateAttendeesCsv", () => {
     test("generates CSV header for empty attendees", () => {
       const csv = generateAttendeesCsv([]);
-      expect(csv).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID");
+      expect(csv).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In");
     });
 
     test("generates CSV with attendee data", () => {
@@ -404,7 +404,7 @@ describe("html", () => {
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID");
+      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In");
       expect(lines[1]).toContain("John Doe");
       expect(lines[1]).toContain("john@example.com");
       expect(lines[1]).toContain(",2,");
@@ -451,7 +451,7 @@ describe("html", () => {
       const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID");
+      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In");
       expect(lines[1]).toContain("+1 555 123 4567");
     });
 
@@ -480,8 +480,8 @@ describe("html", () => {
       const attendees = [testAttendee()];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      // Price and transaction ID should be empty
-      expect(lines[1]).toMatch(/,,$/)
+      // Price and transaction ID should be empty, followed by Checked In value
+      expect(lines[1]).toMatch(/,,,No$/);
     });
 
     test("shared transaction ID across multiple attendees", () => {
@@ -506,6 +506,95 @@ describe("html", () => {
       expect(lines[2]).toContain("pi_shared_123");
     });
 
+    test("includes Checked In as Yes for checked-in attendee", () => {
+      const attendees = [testAttendee({ checked_in: "true" })];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[1]).toMatch(/,Yes$/);
+    });
+
+    test("includes Checked In as No for not checked-in attendee", () => {
+      const attendees = [testAttendee({ checked_in: "false" })];
+      const csv = generateAttendeesCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[1]).toMatch(/,No$/);
+    });
+  });
+
+  describe("adminEventPage filter links", () => {
+    test("renders All / Checked In / Checked Out links", () => {
+      const event = testEventWithCount({ attendee_count: 1 });
+      const attendees = [testAttendee()];
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
+      expect(html).toContain("All");
+      expect(html).toContain("Checked In");
+      expect(html).toContain("Checked Out");
+    });
+
+    test("bolds All when no filter is active", () => {
+      const event = testEventWithCount({ attendee_count: 1 });
+      const attendees = [testAttendee()];
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN);
+      expect(html).toContain("<strong>All</strong>");
+      expect(html).toContain(`href="/admin/event/${event.id}/in"`);
+      expect(html).toContain(`href="/admin/event/${event.id}/out"`);
+    });
+
+    test("bolds Checked In when filter is in", () => {
+      const event = testEventWithCount({ attendee_count: 1 });
+      const attendees = [testAttendee()];
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "in");
+      expect(html).toContain("<strong>Checked In</strong>");
+      expect(html).toContain(`href="/admin/event/${event.id}"`);
+    });
+
+    test("bolds Checked Out when filter is out", () => {
+      const event = testEventWithCount({ attendee_count: 1 });
+      const attendees = [testAttendee()];
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "out");
+      expect(html).toContain("<strong>Checked Out</strong>");
+    });
+
+    test("filters to only checked-in attendees when filter is in", () => {
+      const event = testEventWithCount({ attendee_count: 2 });
+      const attendees = [
+        testAttendee({ id: 1, name: "Checked In User", checked_in: "true" }),
+        testAttendee({ id: 2, name: "Not Checked In User", checked_in: "false" }),
+      ];
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "in");
+      expect(html).toContain("Checked In User");
+      expect(html).not.toContain("Not Checked In User");
+    });
+
+    test("filters to only checked-out attendees when filter is out", () => {
+      const event = testEventWithCount({ attendee_count: 2 });
+      const attendees = [
+        testAttendee({ id: 1, name: "Alice InPerson", checked_in: "true" }),
+        testAttendee({ id: 2, name: "Bob Remote", checked_in: "false" }),
+      ];
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "out");
+      expect(html).not.toContain("Alice InPerson");
+      expect(html).toContain("Bob Remote");
+    });
+
+    test("shows all attendees when filter is all", () => {
+      const event = testEventWithCount({ attendee_count: 2 });
+      const attendees = [
+        testAttendee({ id: 1, name: "Checked In User", checked_in: "true" }),
+        testAttendee({ id: 2, name: "Not Checked In User", checked_in: "false" }),
+      ];
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "all");
+      expect(html).toContain("Checked In User");
+      expect(html).toContain("Not Checked In User");
+    });
+
+    test("includes return_filter hidden field in checkin form", () => {
+      const event = testEventWithCount({ attendee_count: 1 });
+      const attendees = [testAttendee({ checked_in: "true" })];
+      const html = adminEventPage(event, attendees, "localhost", TEST_CSRF_TOKEN, null, "in");
+      expect(html).toContain('name="return_filter"');
+      expect(html).toContain('value="in"');
+    });
   });
 
   describe("adminEventActivityLogPage", () => {
