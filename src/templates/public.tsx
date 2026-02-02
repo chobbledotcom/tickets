@@ -8,7 +8,7 @@ import { renderError, renderFields } from "#lib/forms.tsx";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
+import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Quantity values parsed from multi-ticket form */
 export type MultiTicketQuantities = Map<number, number>;
@@ -44,7 +44,7 @@ export const ticketPage = (
           <h1>{event.name}</h1>
           {event.description && (
             <div style="font-size: 0.9em; margin: 0.5rem 0 1rem;">
-              <Raw html={event.description} />
+              <Raw html={escapeHtml(event.description)} />
             </div>
           )}
         </>
@@ -110,7 +110,7 @@ export const buildMultiTicketEvent = (
 /** Render description HTML for multi-ticket event row */
 const renderMultiEventDescription = (description: string): string =>
   description
-    ? `<div style="font-size: 0.9em; margin: 0.25rem 0 0.5rem;">${description}</div>`
+    ? `<div style="font-size: 0.9em; margin: 0.25rem 0 0.5rem;">${escapeHtml(description)}</div>`
     : "";
 
 /** Render quantity selector for a single event in multi-ticket form */
@@ -121,7 +121,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
   if (isClosed) {
     return `
       <div class="multi-ticket-row sold-out">
-        <label>${event.name}</label>
+        <label>${escapeHtml(event.name)}</label>
         <span class="sold-out-label">Registration Closed</span>
       </div>
     `;
@@ -130,7 +130,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
   if (isSoldOut) {
     return `
       <div class="multi-ticket-row sold-out">
-        <label>${event.name}</label>
+        <label>${escapeHtml(event.name)}</label>
         ${renderMultiEventDescription(event.description)}
         <span class="sold-out-label">Sold Out</span>
       </div>
@@ -143,7 +143,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
 
   return `
     <div class="multi-ticket-row">
-      <label for="${fieldName}">${event.name}</label>
+      <label for="${fieldName}">${escapeHtml(event.name)}</label>
       ${renderMultiEventDescription(event.description)}
       <select name="${fieldName}" id="${fieldName}">
         ${options}

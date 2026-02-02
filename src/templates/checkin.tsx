@@ -7,14 +7,14 @@
 import { map, pipe } from "#fp";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
-import { Layout } from "#templates/layout.tsx";
+import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Re-export for backwards compatibility */
 export type { TokenEntry as CheckinEntry };
 
 /** Render a single attendee detail row (admin view) */
 const renderCheckinRow = ({ event, attendee }: TokenEntry): string =>
-  `<tr><td>${event.name}</td><td>${attendee.quantity}</td><td>${attendee.checked_in === "true" ? "Yes" : "No"}</td></tr>`;
+  `<tr><td>${escapeHtml(event.name)}</td><td>${attendee.quantity}</td><td>${attendee.checked_in === "true" ? "Yes" : "No"}</td></tr>`;
 
 /**
  * Admin check-in page - shows attendee details with check-in/check-out status

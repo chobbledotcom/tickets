@@ -137,7 +137,7 @@ describe("server (public routes)", () => {
       );
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("A <b>great</b> event");
+      expect(html).toContain("A &lt;b&gt;great&lt;/b&gt; event");
       expect(html).toContain("font-size: 0.9em");
     });
 
@@ -199,7 +199,7 @@ describe("server (public routes)", () => {
       const html = await response.text();
       expect(html).not.toContain('class="iframe"');
       expect(html).toContain("<h1>");
-      expect(html).toContain("A <b>great</b> event");
+      expect(html).toContain("A &lt;b&gt;great&lt;/b&gt; event");
     });
   });
 
