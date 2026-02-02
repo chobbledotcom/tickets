@@ -59,10 +59,21 @@ export const validatePhone = (value: string): string | null => {
   return null;
 };
 
+/** Validate username format: alphanumeric, hyphens, underscores, 2-32 chars */
+export const validateUsername = (value: string): string | null => {
+  if (value.length < 2) return "Username must be at least 2 characters";
+  if (value.length > 32) return "Username must be 32 characters or fewer";
+  if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
+    return "Username may only contain letters, numbers, hyphens, and underscores";
+  }
+  return null;
+};
+
 /**
  * Login form field definitions
  */
 export const loginFields: Field[] = [
+  { name: "username", label: "Username", type: "text", required: true },
   { name: "password", label: "Password", type: "password", required: true },
 ];
 
@@ -254,6 +265,14 @@ export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
  */
 export const setupFields: Field[] = [
   {
+    name: "admin_username",
+    label: "Admin Username *",
+    type: "text",
+    required: true,
+    hint: "Letters, numbers, hyphens, underscores (2-32 chars)",
+    validate: validateUsername,
+  },
+  {
     name: "admin_password",
     label: "Admin Password *",
     type: "password",
@@ -346,5 +365,48 @@ export const squareWebhookFields: Field[] = [
     type: "password",
     required: true,
     hint: "The signature key from your Square webhook subscription",
+  },
+];
+
+/**
+ * Invite user form field definitions
+ */
+export const inviteUserFields: Field[] = [
+  {
+    name: "username",
+    label: "Username",
+    type: "text",
+    required: true,
+    hint: "Letters, numbers, hyphens, underscores (2-32 chars)",
+    validate: validateUsername,
+  },
+  {
+    name: "admin_level",
+    label: "Role",
+    type: "select",
+    required: true,
+    options: [
+      { value: "manager", label: "Manager" },
+      { value: "owner", label: "Owner" },
+    ],
+  },
+];
+
+/**
+ * Join (set password) form field definitions
+ */
+export const joinFields: Field[] = [
+  {
+    name: "password",
+    label: "Password",
+    type: "password",
+    required: true,
+    hint: "Minimum 8 characters",
+  },
+  {
+    name: "password_confirm",
+    label: "Confirm Password",
+    type: "password",
+    required: true,
   },
 ];

@@ -17,6 +17,7 @@ import {
 } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
 import { deleteAllSessions } from "#lib/db/sessions.ts";
+import { createUser } from "#lib/db/users.ts";
 import type { Settings } from "#lib/types.ts";
 
 /**
@@ -114,14 +115,15 @@ export const clearSetupCompleteCache = (): void => {
  * - DATA_KEY: random symmetric key for encrypting private key
  * - RSA key pair: public key encrypts attendee PII, private key decrypts
  * - KEK: derived from password hash + DB_ENCRYPTION_KEY, wraps DATA_KEY
+ * Creates the first owner user row instead of storing credentials in settings.
  */
 export const completeSetup = async (
+  username: string,
   adminPassword: string,
   currencyCode: string,
 ): Promise<void> => {
   // Hash the password
   const hashedPassword = await hashPassword(adminPassword);
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, hashedPassword);
 
   // Generate DATA_KEY (random symmetric key)
   const dataKey = await generateDataKey();
@@ -134,7 +136,9 @@ export const completeSetup = async (
 
   // Wrap DATA_KEY with KEK
   const wrappedDataKey = await wrapKey(dataKey, kek);
-  await setSetting(CONFIG_KEYS.WRAPPED_DATA_KEY, wrappedDataKey);
+
+  // Create the owner user row with wrapped data key
+  await createUser(username, hashedPassword, wrappedDataKey, "owner");
 
   // Encrypt private key with DATA_KEY
   const encryptedPrivateKey = await encryptWithKey(privateKey, dataKey);
@@ -297,33 +301,117 @@ export const unwrapDataKey = async (
 };
 
 /**
- * Update admin password and re-wrap DATA_KEY with new KEK
- * Requires the old password to unwrap the existing DATA_KEY
+ * Update a user's password and re-wrap DATA_KEY with new KEK
+ * Requires the user's old password hash (decrypted) and their user row
  */
-export const updateAdminPassword = async (
-  oldPassword: string,
+export const updateUserPassword = async (
+  userId: number,
+  oldPasswordHash: string,
+  oldWrappedDataKey: string,
   newPassword: string,
 ): Promise<boolean> => {
-  // Verify old password and get its hash
-  const oldHash = await verifyAdminPassword(oldPassword);
-  if (!oldHash) return false;
-
   // Unwrap DATA_KEY with old KEK
-  const dataKey = await unwrapDataKey(oldHash);
-  if (!dataKey) return false;
+  const oldKek = await deriveKEK(oldPasswordHash);
+  let dataKey: CryptoKey;
+  try {
+    dataKey = await unwrapKey(oldWrappedDataKey, oldKek);
+  } catch {
+    return false;
+  }
 
   // Hash the new password
   const newHash = await hashPassword(newPassword);
+  const encryptedNewHash = await encrypt(newHash);
 
   // Derive new KEK and re-wrap DATA_KEY
   const newKek = await deriveKEK(newHash);
   const newWrappedDataKey = await wrapKey(dataKey, newKek);
 
-  // Update settings
-  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, newHash);
-  await setSetting(CONFIG_KEYS.WRAPPED_DATA_KEY, newWrappedDataKey);
+  // Update user row
+  await getDb().execute({
+    sql: "UPDATE users SET password_hash = ?, wrapped_data_key = ? WHERE id = ?",
+    args: [encryptedNewHash, newWrappedDataKey, userId],
+  });
 
   // Invalidate all sessions (force re-login with new password)
+  await deleteAllSessions();
+
+  return true;
+};
+
+/**
+ * Legacy: Check if the old single-admin settings still exist
+ * Returns true if admin_password_hash is in settings but no users exist
+ */
+export const isLegacyAdmin = async (): Promise<boolean> => {
+  const passwordHash = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
+  if (!passwordHash) return false;
+
+  const { getUserCount } = await import("#lib/db/users.ts");
+  const userCount = await getUserCount();
+  return userCount === 0;
+};
+
+/**
+ * Legacy: Verify admin password from settings (pre-migration)
+ */
+export const verifyLegacyPassword = async (
+  password: string,
+): Promise<string | null> => {
+  const storedHash = await getSetting(CONFIG_KEYS.ADMIN_PASSWORD);
+  if (!storedHash) return null;
+  const isValid = await verifyPassword(password, storedHash);
+  return isValid ? storedHash : null;
+};
+
+/**
+ * Legacy: Migrate single-admin to multi-user
+ * Creates a user row from settings data and removes the old settings
+ */
+export const migrateLegacyAdmin = async (
+  username: string,
+  passwordHash: string,
+): Promise<void> => {
+  const wrappedDataKey = await getSetting(CONFIG_KEYS.WRAPPED_DATA_KEY);
+  if (!wrappedDataKey) {
+    throw new Error("Cannot migrate: wrapped_data_key not found in settings");
+  }
+
+  const { createUser: createUserRow } = await import("#lib/db/users.ts");
+  await createUserRow(username, passwordHash, wrappedDataKey, "owner");
+
+  // Remove legacy settings
+  await getDb().execute({
+    sql: "DELETE FROM settings WHERE key = ?",
+    args: [CONFIG_KEYS.ADMIN_PASSWORD],
+  });
+  await getDb().execute({
+    sql: "DELETE FROM settings WHERE key = ?",
+    args: [CONFIG_KEYS.WRAPPED_DATA_KEY],
+  });
+};
+
+/**
+ * @deprecated Use verifyUserPassword from users.ts instead
+ * Kept for backward compatibility during migration
+ */
+export const updateAdminPassword = async (
+  oldPassword: string,
+  newPassword: string,
+): Promise<boolean> => {
+  // This is now only used for legacy admin password change
+  const oldHash = await verifyAdminPassword(oldPassword);
+  if (!oldHash) return false;
+
+  const dataKey = await unwrapDataKey(oldHash);
+  if (!dataKey) return false;
+
+  const newHash = await hashPassword(newPassword);
+  const newKek = await deriveKEK(newHash);
+  const newWrappedDataKey = await wrapKey(dataKey, newKek);
+
+  await setSetting(CONFIG_KEYS.ADMIN_PASSWORD, newHash);
+  await setSetting(CONFIG_KEYS.WRAPPED_DATA_KEY, newWrappedDataKey);
   await deleteAllSessions();
 
   return true;
@@ -410,6 +498,10 @@ export const settingsApi = {
   getWrappedPrivateKey,
   unwrapDataKey,
   updateAdminPassword,
+  updateUserPassword,
+  isLegacyAdmin,
+  verifyLegacyPassword,
+  migrateLegacyAdmin,
   getCurrencyCodeFromDb,
   getPaymentProviderFromDb,
   setPaymentProvider,

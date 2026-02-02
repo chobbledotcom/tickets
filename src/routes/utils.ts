@@ -12,8 +12,9 @@ import {
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
+import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import type { AdminLevel, EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { paymentErrorPage } from "#templates/payment.tsx";
 import { notFoundPage } from "#templates/public.tsx";
@@ -68,6 +69,7 @@ export const parseCookies = (request: Request): Map<string, string> => {
  * Get authenticated session if valid
  * Returns null if not authenticated
  * Includes wrapped_data_key for deriving the private key when needed
+ * Loads user info and decrypts admin_level for role checking
  *
  * Validates that wrapped_data_key can be unwrapped with current DB_ENCRYPTION_KEY.
  * If unwrapping fails (e.g., after key rotation), the session is invalidated.
@@ -83,6 +85,27 @@ export const getAuthenticatedSession = async (
   if (!session) return null;
 
   if (session.expires < Date.now()) {
+    await deleteSession(token);
+    return null;
+  }
+
+  // Require user_id on session (sessions without user_id are invalid after migration)
+  if (session.user_id == null) {
+    await deleteSession(token);
+    return null;
+  }
+
+  // Load user and decrypt admin level
+  const user = await getUserById(session.user_id);
+  if (!user) {
+    await deleteSession(token);
+    return null;
+  }
+
+  let adminLevel: AdminLevel;
+  try {
+    adminLevel = await decryptAdminLevel(user) as AdminLevel;
+  } catch {
     await deleteSession(token);
     return null;
   }
@@ -104,19 +127,30 @@ export const getAuthenticatedSession = async (
   return {
     token,
     csrfToken: session.csrf_token,
-    wrappedDataKey: session.wrapped_data_key!,
+    wrappedDataKey: session.wrapped_data_key,
+    userId: session.user_id,
+    adminLevel,
   };
 };
 
 /**
  * Get private key for decrypting attendee PII from an authenticated session
+ * Returns null if session doesn't have wrapped_data_key
  */
 export const getPrivateKey = async (
   token: string,
-  wrappedDataKey: string,
-): Promise<CryptoKey> => {
-  const wrappedPrivateKey = (await getWrappedPrivateKey())!;
-  return getPrivateKeyFromSession(token, wrappedDataKey, wrappedPrivateKey);
+  wrappedDataKey: string | null,
+): Promise<CryptoKey | null> => {
+  if (!wrappedDataKey) return null;
+
+  const wrappedPrivateKey = await getWrappedPrivateKey();
+  if (!wrappedPrivateKey) return null;
+
+  try {
+    return await getPrivateKeyFromSession(token, wrappedDataKey, wrappedPrivateKey);
+  } catch {
+    return null;
+  }
 };
 
 /**
@@ -287,6 +321,7 @@ export const withActiveEventBySlug = (
   fn: (event: EventWithCount) => Response | Promise<Response>,
 ): Promise<Response> => withEventBySlug(slug, requireActiveEvent(fn));
 
+<<<<<<< HEAD
 /** Check if an event's registration period has closed */
 export const isRegistrationClosed = (event: { closes_at: string | null }): boolean =>
   event.closes_at !== null && new Date(event.closes_at).getTime() < Date.now();
@@ -305,11 +340,13 @@ export const formatCountdown = (closesAt: string): string => {
   return `${pl(Math.max(1, Math.floor(diffMs / (1000 * 60))), "minute")} from now`;
 };
 
-/** Session with CSRF token and wrapped data key for private key derivation */
+/** Session with CSRF token, wrapped data key for private key derivation, and user role */
 export type AuthSession = {
   token: string;
   csrfToken: string;
-  wrappedDataKey: string;
+  wrappedDataKey: string | null;
+  userId: number;
+  adminLevel: AdminLevel;
 };
 
 /**
@@ -331,6 +368,13 @@ export const requireSessionOr = (
   request: Request,
   handler: (session: AuthSession) => Response | Promise<Response>,
 ): Promise<Response> => withSession(request, handler, () => redirect("/admin"));
+
+/** Check owner role, return 403 if not owner */
+const requireOwnerRole = (
+  session: AuthSession,
+  handler: (session: AuthSession) => Response | Promise<Response>,
+): Response | Promise<Response> =>
+  session.adminLevel === "owner" ? handler(session) : htmlResponse("Forbidden", 403);
 
 /** CSRF form result type (for public forms using double-submit cookie) */
 export type CsrfFormResult =
@@ -390,16 +434,31 @@ export const requireAuthForm = async (
   return { ok: true, session, form };
 };
 
-/**
- * Handle request with auth form - unwrap AuthFormResult
- */
-export const withAuthForm = async (
+type FormHandler = (session: AuthSession, form: URLSearchParams) => Response | Promise<Response>;
+type SessionHandler = (session: AuthSession) => Response | Promise<Response>;
+
+/** Unwrap an AuthFormResult, optionally checking role */
+const handleAuthForm = async (
   request: Request,
-  handler: (
-    session: AuthSession,
-    form: URLSearchParams,
-  ) => Response | Promise<Response>,
+  requiredRole: AdminLevel | null,
+  handler: FormHandler,
 ): Promise<Response> => {
   const auth = await requireAuthForm(request);
-  return auth.ok ? handler(auth.session, auth.form) : auth.response;
+  if (!auth.ok) return auth.response;
+  if (requiredRole && auth.session.adminLevel !== requiredRole) {
+    return htmlResponse("Forbidden", 403);
+  }
+  return handler(auth.session, auth.form);
 };
+
+/** Handle request with auth form - unwrap AuthFormResult */
+export const withAuthForm = (request: Request, handler: FormHandler): Promise<Response> =>
+  handleAuthForm(request, null, handler);
+
+/** Require owner role - returns 403 if not owner, redirect if not authenticated */
+export const requireOwnerOr = (request: Request, handler: SessionHandler): Promise<Response> =>
+  requireSessionOr(request, (session) => requireOwnerRole(session, handler));
+
+/** Handle request with owner auth form - requires owner role + CSRF validation */
+export const withOwnerAuthForm = (request: Request, handler: FormHandler): Promise<Response> =>
+  handleAuthForm(request, "owner", handler);

@@ -59,6 +59,9 @@ const handleAdminAttendeeDeleteGet = async (
   }
 
   const privateKey = await getPrivateKey(session.token, session.wrappedDataKey);
+  if (!privateKey) {
+    return redirect("/admin");
+  }
 
   const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
   if (!data) {
@@ -85,6 +88,9 @@ const handleAdminAttendeeDeletePost = (
       session.token,
       session.wrappedDataKey,
     );
+    if (!privateKey) {
+      return redirect("/admin");
+    }
 
     const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
     if (!data) {
@@ -141,6 +147,9 @@ const handleAdminAttendeeCheckinPost = (
       session.token,
       session.wrappedDataKey,
     );
+    if (!privateKey) {
+      return redirect("/admin");
+    }
 
     const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
     if (!data) {

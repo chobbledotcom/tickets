@@ -55,7 +55,7 @@ describe("server (admin auth)", () => {
   describe("POST /admin/login", () => {
     test("validates required password field", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/login", { password: "" }),
+        mockFormRequest("/admin/login", { username: "testadmin", password: "" }),
       );
       expect(response.status).toBe(400);
       const html = await response.text();
@@ -64,7 +64,7 @@ describe("server (admin auth)", () => {
 
     test("rejects wrong password", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/login", { password: "wrong" }),
+        mockFormRequest("/admin/login", { username: "testadmin", password: "wrong" }),
       );
       expect(response.status).toBe(401);
       const html = await response.text();
@@ -74,7 +74,7 @@ describe("server (admin auth)", () => {
     test("accepts correct password and sets cookie", async () => {
       const password = TEST_ADMIN_PASSWORD;
       const response = await handleRequest(
-        mockFormRequest("/admin/login", { password }),
+        mockFormRequest("/admin/login", { username: "testadmin", password }),
       );
       expectAdminRedirect(response);
       expect(response.headers.get("set-cookie")).toContain("__Host-session=");
@@ -89,7 +89,7 @@ describe("server (admin auth)", () => {
             "content-type": "application/x-www-form-urlencoded",
             host: "localhost",
           },
-          body: new URLSearchParams({ password: "wrong" }).toString(),
+          body: new URLSearchParams({ username: "testadmin", password: "wrong" }).toString(),
         });
 
       // Make 5 failed attempts to trigger lockout
@@ -116,7 +116,7 @@ describe("server (admin auth)", () => {
           "content-type": "application/x-www-form-urlencoded",
           host: "localhost",
         },
-        body: new URLSearchParams({ password: "wrong" }).toString(),
+        body: new URLSearchParams({ username: "testadmin", password: "wrong" }).toString(),
       });
 
       // Make request with server context
@@ -137,7 +137,7 @@ describe("server (admin auth)", () => {
           "content-type": "application/x-www-form-urlencoded",
           host: "localhost",
         },
-        body: new URLSearchParams({ password: "wrong" }).toString(),
+        body: new URLSearchParams({ username: "testadmin", password: "wrong" }).toString(),
       });
 
       // Make request with server context
@@ -310,6 +310,64 @@ describe("server (admin auth)", () => {
       // Verify session was deleted
       const sessionAfter = await getSession(token);
       expect(sessionAfter).toBeNull();
+    });
+  });
+
+  describe("POST /admin/login (user without wrapped data key)", () => {
+    test("returns 403 when user has no wrapped data key (not activated)", async () => {
+      // Null out the user's wrapped_data_key to simulate an unactivated user
+      const { getDb } = await import("#lib/db/client.ts");
+      await getDb().execute({
+        sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",
+        args: [],
+      });
+
+      const response = await handleRequest(
+        mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
+      );
+      // Should return 403 - user exists but is not activated
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("not been activated");
+    });
+  });
+
+  describe("routes/admin/auth.ts (wrappedDataKey corrupted path)", () => {
+    test("login fails when wrapped data key cannot be unwrapped", async () => {
+      // Corrupt the user's wrapped_data_key so unwrapKey throws
+      const { getDb } = await import("#lib/db/client.ts");
+      await getDb().execute({
+        sql: "UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1",
+        args: [],
+      });
+
+      const response = await handleRequest(
+        mockFormRequest("/admin/login", {
+          username: "testadmin",
+          password: TEST_ADMIN_PASSWORD,
+        }),
+      );
+      // Should fail - KEK can't unwrap corrupted key
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe("routes/admin/auth.ts (login with null wrappedDataKey)", () => {
+    test("login returns 403 when user has null wrappedDataKey", async () => {
+      // Null out user's wrapped_data_key
+      const { getDb } = await import("#lib/db/client.ts");
+      await getDb().execute({
+        sql: "UPDATE users SET wrapped_data_key = NULL WHERE id = 1",
+        args: [],
+      });
+
+      // Login should fail with 403 since user is not activated
+      const response = await handleRequest(
+        mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("not been activated");
     });
   });
 

@@ -753,8 +753,8 @@ describe("html", () => {
   describe("adminSessionsPage", () => {
     test("renders session rows", () => {
       const sessions = [
-        { token: "abcdefghijklmnop", csrf_token: "csrf1", expires: Date.now() + 86400000, wrapped_data_key: null },
-        { token: "qrstuvwxyz123456", csrf_token: "csrf2", expires: Date.now() + 86400000, wrapped_data_key: null },
+        { token: "abcdefghijklmnop", csrf_token: "csrf1", expires: Date.now() + 86400000, wrapped_data_key: null, user_id: null },
+        { token: "qrstuvwxyz123456", csrf_token: "csrf2", expires: Date.now() + 86400000, wrapped_data_key: null, user_id: null },
       ];
       const html = adminSessionsPage(sessions, "abcdefghijklmnop", TEST_CSRF_TOKEN);
       expect(html).toContain("abcdefgh...");

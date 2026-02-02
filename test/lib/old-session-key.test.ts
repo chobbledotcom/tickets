@@ -42,7 +42,7 @@ describe("old session key handling", () => {
   test("invalidates session and shows login when DB_ENCRYPTION_KEY changes", async () => {
     // Step 1: Login to get a valid session with wrapped_data_key
     const loginResponse = await handleRequest(
-      mockFormRequest("/admin/login", { password: TEST_ADMIN_PASSWORD }),
+      mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
     );
     expect(loginResponse.status).toBe(302);
     const sessionCookie = loginResponse.headers.get("set-cookie") || "";
