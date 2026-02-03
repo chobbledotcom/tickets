@@ -17,34 +17,28 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
 
 /**
  * Build CSP header value
- * Restricts resources to self and prevents clickjacking for non-embeddable pages.
- * For embeddable pages, uses frame-ancestors from allowed embed hosts if configured.
+ * Non-embeddable pages get frame-ancestors 'none' to prevent clickjacking.
+ * Embeddable pages omit frame-ancestors here; it's added by applySecurityHeaders
+ * if embed host restrictions are configured.
  */
-const buildCspHeader = (embeddable: boolean, embedHosts: string[]): string =>
+const buildCspHeader = (embeddable: boolean): string =>
   compact([
-    // Frame ancestors - prevent clickjacking (except for embeddable pages)
-    !embeddable
-      ? "frame-ancestors 'none'"
-      : buildFrameAncestors(embedHosts),
-    // Restrict resource loading to self (prevents loading from unexpected domains)
+    !embeddable && "frame-ancestors 'none'",
     "default-src 'self'",
-    "style-src 'self' 'unsafe-inline'", // Allow inline styles
-    "script-src 'self' 'unsafe-inline'", // Allow inline scripts
-    "form-action 'self' https://checkout.stripe.com", // Restrict form submissions to self + Stripe checkout redirect
+    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline'",
+    "form-action 'self' https://checkout.stripe.com",
   ]).join("; ");
 
 /**
  * Get security headers for a response
- * @param embeddable - Whether the page should be embeddable in iframes
- * @param embedHosts - Allowed embed hosts (empty = allow all)
  */
 export const getSecurityHeaders = (
   embeddable: boolean,
-  embedHosts: string[] = [],
 ): Record<string, string> => ({
   ...BASE_SECURITY_HEADERS,
   ...(!embeddable && { "x-frame-options": "DENY" }),
-  "content-security-policy": buildCspHeader(embeddable, embedHosts),
+  "content-security-policy": buildCspHeader(embeddable),
 });
 
 /**
@@ -127,18 +121,24 @@ export const domainRejectionResponse = (): Response =>
 
 /**
  * Apply security headers to a response
- * Fetches embed host restrictions from the database for embeddable pages.
+ * For embeddable pages, fetches embed host restrictions and adds frame-ancestors.
  */
 export const applySecurityHeaders = async (
   response: Response,
   embeddable: boolean,
 ): Promise<Response> => {
-  const embedHosts = embeddable ? await getEmbedHosts() : [];
   const headers = new Headers(response.headers);
-  const securityHeaders = getSecurityHeaders(embeddable, embedHosts);
+  const securityHeaders = getSecurityHeaders(embeddable);
 
   for (const [key, value] of Object.entries(securityHeaders)) {
     headers.set(key, value);
+  }
+
+  if (embeddable) {
+    const frameAncestors = buildFrameAncestors(await getEmbedHosts());
+    if (frameAncestors) {
+      headers.set("content-security-policy", `${frameAncestors}; ${headers.get("content-security-policy")}`);
+    }
   }
 
   return new Response(response.body, {
