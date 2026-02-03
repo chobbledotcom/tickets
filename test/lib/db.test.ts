@@ -61,6 +61,7 @@ import {
   getStripeSecretKeyFromDb,
   getWrappedPrivateKey,
   hasStripeKey,
+  invalidateSettingsCache,
   isSetupComplete,
   setPaymentProvider,
   setSetting,
@@ -799,6 +800,7 @@ describe("db", () => {
         sql: "DELETE FROM settings WHERE key = ?",
         args: [CONFIG_KEYS.PUBLIC_KEY],
       });
+      invalidateSettingsCache();
 
       const result = await createAttendeeAtomic(
         event.id,
@@ -1957,6 +1959,7 @@ describe("db", () => {
       await getDb().execute(
         "DELETE FROM settings WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
 
       // Re-run migrations - should backfill checked_in
       await initDb();
@@ -1987,6 +1990,7 @@ describe("db", () => {
       await getDb().execute(
         "DELETE FROM settings WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
 
       // Re-run migrations - should backfill ticket_token
       await initDb();
@@ -2070,6 +2074,7 @@ describe("db", () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
       await initDb();
 
       // Verify the event now has encrypted closes_at (not NULL)
@@ -2097,6 +2102,7 @@ describe("db", () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
       await initDb();
 
       // Verify it still decrypts correctly (not double-encrypted)
@@ -2124,6 +2130,7 @@ describe("db", () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
       await initDb();
 
       // Verify an owner user was created
@@ -2152,6 +2159,7 @@ describe("db", () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
       await initDb();
 
       // Verify no additional user was created
@@ -2167,6 +2175,7 @@ describe("db", () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
       await initDb();
 
       // Verify no user was created

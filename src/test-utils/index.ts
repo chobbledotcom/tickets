@@ -11,7 +11,7 @@ import {
 } from "#lib/db/events.ts";
 import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
-import { clearSetupCompleteCache, completeSetup } from "#lib/db/settings.ts";
+import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache } from "#lib/db/settings.ts";
 import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 
 /**
@@ -212,6 +212,7 @@ export const createTestDbWithSetup = async (
 export const resetDb = (): void => {
   setDb(null);
   clearSetupCompleteCache();
+  invalidateSettingsCache();
   resetSessionCache();
   resetTestSession();
 };

@@ -43,25 +43,68 @@ export const CONFIG_KEYS = {
 } as const;
 
 /**
- * Get a setting value
+ * In-memory settings cache. Loads all rows in a single query and
+ * serves subsequent reads from memory until the TTL expires or a
+ * write invalidates the cache.
  */
-export const getSetting = async (key: string): Promise<string | null> => {
-  const result = await getDb().execute({
-    sql: "SELECT value FROM settings WHERE key = ?",
-    args: [key],
-  });
-  if (result.rows.length === 0) return null;
-  return (result.rows[0] as unknown as Settings).value;
+export const SETTINGS_CACHE_TTL_MS = 5_000;
+
+type SettingsCacheState = {
+  entries: Map<string, string> | null;
+  time: number;
+};
+
+const [getSettingsCacheState, setSettingsCacheState] = lazyRef<SettingsCacheState>(
+  () => ({ entries: null, time: 0 }),
+);
+
+const isCacheValid = (): boolean => {
+  const state = getSettingsCacheState();
+  return state.entries !== null && Date.now() - state.time < SETTINGS_CACHE_TTL_MS;
 };
 
 /**
- * Set a setting value
+ * Load every setting row into the in-memory cache with a single query.
+ */
+export const loadAllSettings = async (): Promise<Map<string, string>> => {
+  const result = await getDb().execute("SELECT key, value FROM settings");
+  const cache = new Map<string, string>();
+  for (const row of result.rows) {
+    const { key, value } = row as unknown as Settings;
+    cache.set(key, value);
+  }
+  setSettingsCacheState({ entries: cache, time: Date.now() });
+  return cache;
+};
+
+/**
+ * Invalidate the settings cache (for testing or after writes).
+ */
+export const invalidateSettingsCache = (): void => {
+  setSettingsCacheState(null);
+};
+
+/**
+ * Get a setting value. Reads from the in-memory cache, loading all
+ * settings in one query on first access or after TTL expiry.
+ */
+export const getSetting = async (key: string): Promise<string | null> => {
+  const cache = isCacheValid()
+    ? getSettingsCacheState().entries!
+    : await loadAllSettings();
+  return cache.get(key) ?? null;
+};
+
+/**
+ * Set a setting value. Invalidates the cache so the next read
+ * will pick up the new value.
  */
 export const setSetting = async (key: string, value: string): Promise<void> => {
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
     args: [key, value],
   });
+  invalidateSettingsCache();
 };
 
 /**
@@ -182,6 +225,7 @@ export const clearPaymentProvider = async (): Promise<void> => {
     sql: "DELETE FROM settings WHERE key = ?",
     args: [CONFIG_KEYS.PAYMENT_PROVIDER],
   });
+  invalidateSettingsCache();
 };
 
 /**
@@ -394,6 +438,8 @@ export const settingsApi = {
   completeSetup,
   getSetting,
   setSetting,
+  loadAllSettings,
+  invalidateSettingsCache,
   isSetupComplete,
   clearSetupCompleteCache,
   getPublicKey,

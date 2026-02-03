@@ -188,10 +188,12 @@ describe("server (misc)", () => {
 
     test("returns null when wrappedPrivateKey is not set in DB", async () => {
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
+      const { invalidateSettingsCache: invalidateCache } = await import("#lib/db/settings.ts");
       await getDbFn().execute({
         sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
         args: [],
       });
+      invalidateCache();
 
       const { getPrivateKey } = await import("#routes/utils.ts");
       const result = await getPrivateKey("any-token", "some-wrapped-key");
