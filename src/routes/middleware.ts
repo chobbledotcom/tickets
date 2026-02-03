@@ -4,6 +4,7 @@
 
 import { compact } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
+import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 
 /**
  * Security headers for all responses
@@ -16,12 +17,15 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
 
 /**
  * Build CSP header value
- * Restricts resources to self and prevents clickjacking for non-embeddable pages
+ * Restricts resources to self and prevents clickjacking for non-embeddable pages.
+ * For embeddable pages, uses frame-ancestors from allowed embed hosts if configured.
  */
-const buildCspHeader = (embeddable: boolean): string =>
+const buildCspHeader = (embeddable: boolean, embedHosts: string | null): string =>
   compact([
     // Frame ancestors - prevent clickjacking (except for embeddable pages)
-    !embeddable && "frame-ancestors 'none'",
+    !embeddable
+      ? "frame-ancestors 'none'"
+      : buildFrameAncestors(embedHosts),
     // Restrict resource loading to self (prevents loading from unexpected domains)
     "default-src 'self'",
     "style-src 'self' 'unsafe-inline'", // Allow inline styles
@@ -32,13 +36,15 @@ const buildCspHeader = (embeddable: boolean): string =>
 /**
  * Get security headers for a response
  * @param embeddable - Whether the page should be embeddable in iframes
+ * @param embedHosts - Comma-separated allowed embed hosts (null = allow all)
  */
 export const getSecurityHeaders = (
   embeddable: boolean,
+  embedHosts: string | null = null,
 ): Record<string, string> => ({
   ...BASE_SECURITY_HEADERS,
   ...(!embeddable && { "x-frame-options": "DENY" }),
-  "content-security-policy": buildCspHeader(embeddable),
+  "content-security-policy": buildCspHeader(embeddable, embedHosts),
 });
 
 /**
@@ -125,9 +131,10 @@ export const domainRejectionResponse = (): Response =>
 export const applySecurityHeaders = (
   response: Response,
   embeddable: boolean,
+  embedHosts: string | null = null,
 ): Response => {
   const headers = new Headers(response.headers);
-  const securityHeaders = getSecurityHeaders(embeddable);
+  const securityHeaders = getSecurityHeaders(embeddable, embedHosts);
 
   for (const [key, value] of Object.entries(securityHeaders)) {
     headers.set(key, value);

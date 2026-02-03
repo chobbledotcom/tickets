@@ -38,6 +38,8 @@ export const CONFIG_KEYS = {
   SQUARE_ACCESS_TOKEN: "square_access_token",
   SQUARE_WEBHOOK_SIGNATURE_KEY: "square_webhook_signature_key",
   SQUARE_LOCATION_ID: "square_location_id",
+  // Embed host restrictions (encrypted)
+  EMBED_HOSTS: "embed_hosts",
 } as const;
 
 /**
@@ -359,6 +361,32 @@ export const updateSquareLocationId = async (
 };
 
 /**
+ * Get allowed embed hosts from database (decrypted)
+ * Returns null if not configured (embedding allowed from anywhere)
+ */
+export const getEmbedHostsFromDb = async (): Promise<string | null> => {
+  const value = await getSetting(CONFIG_KEYS.EMBED_HOSTS);
+  if (!value) return null;
+  return decrypt(value);
+};
+
+/**
+ * Update allowed embed hosts (encrypted at rest)
+ * Pass empty string to clear the restriction
+ */
+export const updateEmbedHosts = async (hosts: string): Promise<void> => {
+  if (hosts === "") {
+    await getDb().execute({
+      sql: "DELETE FROM settings WHERE key = ?",
+      args: [CONFIG_KEYS.EMBED_HOSTS],
+    });
+    return;
+  }
+  const encrypted = await encrypt(hosts);
+  await setSetting(CONFIG_KEYS.EMBED_HOSTS, encrypted);
+};
+
+/**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
  */
@@ -388,4 +416,6 @@ export const settingsApi = {
   updateSquareWebhookSignatureKey,
   getSquareLocationIdFromDb,
   updateSquareLocationId,
+  getEmbedHostsFromDb,
+  updateEmbedHosts,
 };

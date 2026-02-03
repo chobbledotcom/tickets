@@ -6,6 +6,7 @@
 
 import {
   getCurrencyCodeFromDb,
+  getEmbedHostsFromDb,
   getPaymentProviderFromDb,
   getSquareAccessTokenFromDb,
   getSquareLocationIdFromDb,
@@ -106,6 +107,13 @@ export const getCurrencyCode = (): Promise<string> => {
 export const getAllowedDomain = (): string => {
   return getEnv("ALLOWED_DOMAIN") as string;
 };
+
+/**
+ * Get allowed embed hosts from database (encrypted)
+ * Returns null if not configured (embedding allowed from anywhere)
+ */
+export const getEmbedHosts = (): Promise<string | null> =>
+  getEmbedHostsFromDb();
 
 /**
  * Check if initial setup has been completed
