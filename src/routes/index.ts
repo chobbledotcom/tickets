@@ -4,7 +4,7 @@
  */
 
 import { once } from "#fp";
-import { getEmbedHosts, isSetupComplete } from "#lib/config.ts";
+import { isSetupComplete } from "#lib/config.ts";
 import { createRequestTimer, logRequest } from "#lib/logger.ts";
 import {
   applySecurityHeaders,
@@ -184,6 +184,5 @@ export const handleRequest = async (
   }
 
   const response = await handleRequestInternal(request, path, method, server);
-  const embedHosts = embeddable ? await getEmbedHosts() : null;
-  return logAndReturn(applySecurityHeaders(response, embeddable, embedHosts), method, path, getElapsed);
+  return logAndReturn(await applySecurityHeaders(response, embeddable), method, path, getElapsed);
 };

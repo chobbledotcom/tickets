@@ -109,11 +109,15 @@ export const getAllowedDomain = (): string => {
 };
 
 /**
- * Get allowed embed hosts from database (encrypted)
- * Returns null if not configured (embedding allowed from anywhere)
+ * Get allowed embed hosts from database (encrypted, parsed to array)
+ * Returns empty array if not configured (embedding allowed from anywhere)
  */
-export const getEmbedHosts = (): Promise<string | null> =>
-  getEmbedHostsFromDb();
+export const getEmbedHosts = async (): Promise<string[]> => {
+  const raw = await getEmbedHostsFromDb();
+  if (!raw) return [];
+  const { parseEmbedHosts } = await import("#lib/embed-hosts.ts");
+  return parseEmbedHosts(raw);
+};
 
 /**
  * Check if initial setup has been completed

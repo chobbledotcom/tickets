@@ -140,28 +140,20 @@ describe("embed-hosts", () => {
   });
 
   describe("buildFrameAncestors", () => {
-    test("returns null when embedHosts is null", () => {
-      expect(buildFrameAncestors(null)).toBeNull();
-    });
-
-    test("returns null when embedHosts is empty string", () => {
-      expect(buildFrameAncestors("")).toBeNull();
+    test("returns null for empty array", () => {
+      expect(buildFrameAncestors([])).toBeNull();
     });
 
     test("builds frame-ancestors with single host", () => {
-      expect(buildFrameAncestors("example.com")).toBe(
+      expect(buildFrameAncestors(["example.com"])).toBe(
         "frame-ancestors 'self' example.com",
       );
     });
 
     test("builds frame-ancestors with multiple hosts", () => {
-      expect(buildFrameAncestors("example.com, *.mysite.org")).toBe(
+      expect(buildFrameAncestors(["example.com", "*.mysite.org"])).toBe(
         "frame-ancestors 'self' example.com *.mysite.org",
       );
-    });
-
-    test("returns null for whitespace-only input", () => {
-      expect(buildFrameAncestors("  ,  ")).toBeNull();
     });
   });
 });

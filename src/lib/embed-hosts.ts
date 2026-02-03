@@ -55,11 +55,9 @@ export const validateEmbedHosts = (input: string): string | null => {
 
 /**
  * Build a frame-ancestors CSP value from allowed embed hosts.
- * Returns null if no hosts are configured (allow embedding from anywhere).
+ * Returns null if the list is empty (allow embedding from anywhere).
  */
-export const buildFrameAncestors = (embedHosts: string | null): string | null => {
-  if (!embedHosts) return null;
-  const hosts = parseEmbedHosts(embedHosts);
+export const buildFrameAncestors = (hosts: string[]): string | null => {
   if (hosts.length === 0) return null;
   return `frame-ancestors 'self' ${hosts.join(" ")}`;
 };

@@ -3,7 +3,7 @@
  */
 
 import { compact } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getAllowedDomain, getEmbedHosts } from "#lib/config.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 
 /**
@@ -20,7 +20,7 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
  * Restricts resources to self and prevents clickjacking for non-embeddable pages.
  * For embeddable pages, uses frame-ancestors from allowed embed hosts if configured.
  */
-const buildCspHeader = (embeddable: boolean, embedHosts: string | null): string =>
+const buildCspHeader = (embeddable: boolean, embedHosts: string[]): string =>
   compact([
     // Frame ancestors - prevent clickjacking (except for embeddable pages)
     !embeddable
@@ -36,11 +36,11 @@ const buildCspHeader = (embeddable: boolean, embedHosts: string | null): string 
 /**
  * Get security headers for a response
  * @param embeddable - Whether the page should be embeddable in iframes
- * @param embedHosts - Comma-separated allowed embed hosts (null = allow all)
+ * @param embedHosts - Allowed embed hosts (empty = allow all)
  */
 export const getSecurityHeaders = (
   embeddable: boolean,
-  embedHosts: string | null = null,
+  embedHosts: string[] = [],
 ): Record<string, string> => ({
   ...BASE_SECURITY_HEADERS,
   ...(!embeddable && { "x-frame-options": "DENY" }),
@@ -127,12 +127,13 @@ export const domainRejectionResponse = (): Response =>
 
 /**
  * Apply security headers to a response
+ * Fetches embed host restrictions from the database for embeddable pages.
  */
-export const applySecurityHeaders = (
+export const applySecurityHeaders = async (
   response: Response,
   embeddable: boolean,
-  embedHosts: string | null = null,
-): Response => {
+): Promise<Response> => {
+  const embedHosts = embeddable ? await getEmbedHosts() : [];
   const headers = new Headers(response.headers);
   const securityHeaders = getSecurityHeaders(embeddable, embedHosts);
 
