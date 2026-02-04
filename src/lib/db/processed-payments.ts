@@ -62,6 +62,19 @@ export const deleteStaleReservation = async (
 };
 
 /**
+ * Delete all stale reservations (unfinalized and older than STALE_RESERVATION_MS).
+ * Called from admin event views to clean up abandoned checkouts.
+ */
+export const deleteAllStaleReservations = async (): Promise<number> => {
+  const cutoff = new Date(Date.now() - STALE_RESERVATION_MS).toISOString();
+  const result = await getDb().execute({
+    sql: "DELETE FROM processed_payments WHERE attendee_id IS NULL AND processed_at < ?",
+    args: [cutoff],
+  });
+  return result.rowsAffected;
+};
+
+/**
  * Reserve a payment session for processing (first phase of two-phase lock)
  * Inserts with NULL attendee_id to claim the session.
  * Returns { reserved: true } if we claimed it, or { reserved: false, existing } if already claimed.

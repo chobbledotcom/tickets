@@ -8,6 +8,7 @@ import {
   logActivity,
 } from "#lib/db/activityLog.ts";
 import { decryptAttendees } from "#lib/db/attendees.ts";
+import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import {
   computeSlugIndex,
   deleteEvent,
@@ -164,8 +165,9 @@ const getCheckinMessage = (request: Request): { name: string; status: string } |
 /**
  * Handle GET /admin/event/:id (with optional filter)
  */
-const handleAdminEventGet = (request: Request, eventId: number, activeFilter: AttendeeFilter = "all") =>
-  withEventAttendees(request, eventId, ({ event, attendees, session }) =>
+const handleAdminEventGet = async (request: Request, eventId: number, activeFilter: AttendeeFilter = "all") => {
+  await deleteAllStaleReservations();
+  return withEventAttendees(request, eventId, ({ event, attendees, session }) =>
     htmlResponse(
       adminEventPage(
         event,
@@ -177,6 +179,7 @@ const handleAdminEventGet = (request: Request, eventId: number, activeFilter: At
       ),
     ),
   );
+};
 
 /** Curried event page GET handler: renderPage -> (request, eventId) -> Response */
 const withEventPage =

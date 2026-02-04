@@ -19,7 +19,7 @@ import {
   loginAsAdmin,
   updateTestEvent,
 } from "#test-utils";
-import { formatCountdown } from "#routes/utils.ts";
+import { formatCountdown, withCookie } from "#routes/utils.ts";
 
 describe("server (admin events)", () => {
   beforeEach(async () => {
@@ -1924,6 +1924,97 @@ describe("server (admin events)", () => {
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("Please enter a valid date and time");
+    });
+  });
+
+  describe("withCookie", () => {
+    test("adds a cookie to a response without existing cookies", () => {
+      const response = new Response("body", { status: 200 });
+      const result = withCookie(response, "session=abc; Path=/");
+      expect(result.headers.get("set-cookie")).toBe("session=abc; Path=/");
+    });
+
+    test("preserves existing set-cookie headers when adding another", () => {
+      const headers = new Headers();
+      headers.append("set-cookie", "first=one; Path=/");
+      const response = new Response("body", { status: 200, headers });
+      const result = withCookie(response, "second=two; Path=/");
+      const cookies = result.headers.getSetCookie();
+      expect(cookies.length).toBe(2);
+      expect(cookies).toContain("first=one; Path=/");
+      expect(cookies).toContain("second=two; Path=/");
+    });
+
+    test("preserves response status", () => {
+      const response = new Response("body", { status: 201 });
+      const result = withCookie(response, "session=abc; Path=/");
+      expect(result.status).toBe(201);
+    });
+  });
+
+  describe("stale reservation cleanup on admin event view", () => {
+    test("cleans up stale reservations when viewing an event", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({
+        name: "Cleanup Test Event",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Insert a stale reservation (older than 5 minutes)
+      const staleTime = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["cs_stale_admin_test", staleTime],
+      });
+
+      // Verify it exists
+      const before = await getDb().execute({
+        sql: "SELECT * FROM processed_payments WHERE payment_session_id = ?",
+        args: ["cs_stale_admin_test"],
+      });
+      expect(before.rows.length).toBe(1);
+
+      // View the admin event page
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+
+      // Stale reservation should be cleaned up
+      const after = await getDb().execute({
+        sql: "SELECT * FROM processed_payments WHERE payment_session_id = ?",
+        args: ["cs_stale_admin_test"],
+      });
+      expect(after.rows.length).toBe(0);
+    });
+
+    test("does not clean up fresh reservations when viewing an event", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({
+        name: "Fresh Reservation Test",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Insert a fresh reservation (just now)
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["cs_fresh_admin_test", new Date().toISOString()],
+      });
+
+      // View the admin event page
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+
+      // Fresh reservation should still exist
+      const after = await getDb().execute({
+        sql: "SELECT * FROM processed_payments WHERE payment_session_id = ?",
+        args: ["cs_fresh_admin_test"],
+      });
+      expect(after.rows.length).toBe(1);
     });
   });
 

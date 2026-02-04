@@ -230,7 +230,7 @@ export const getSearchParam = (
  */
 export const withCookie = (response: Response, cookie: string): Response => {
   const headers = new Headers(response.headers);
-  headers.set("set-cookie", cookie);
+  headers.append("set-cookie", cookie);
   return new Response(response.body, { status: response.status, headers });
 };
 
