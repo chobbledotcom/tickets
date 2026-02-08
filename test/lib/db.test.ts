@@ -379,12 +379,12 @@ describe("db", () => {
       });
 
       // Create an attendee BEFORE password change
-      const beforeResult = await createAttendeeAtomic(
-        event.id,
-        "Alice Before",
-        "alice@example.com",
-        "pi_before_change",
-      );
+      const beforeResult = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Alice Before",
+        email: "alice@example.com",
+        paymentId: "pi_before_change",
+      });
       if (!beforeResult.success) throw new Error("Failed to create attendee");
       const attendeeBefore = beforeResult.attendee;
 
@@ -404,12 +404,12 @@ describe("db", () => {
       expect(changeSuccess).toBe(true);
 
       // Create an attendee AFTER password change
-      const afterResult = await createAttendeeAtomic(
-        event.id,
-        "Bob After",
-        "bob@example.com",
-        "pi_after_change",
-      );
+      const afterResult = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Bob After",
+        email: "bob@example.com",
+        paymentId: "pi_after_change",
+      });
       if (!afterResult.success) throw new Error("Failed to create attendee");
       const attendeeAfter = afterResult.attendee;
 
@@ -752,13 +752,13 @@ describe("db", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const result = await createAttendeeAtomic(
-        event.id,
-        "John",
-        "john@example.com",
-        "pi_test",
-        1,
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "John",
+        email: "john@example.com",
+        paymentId: "pi_test",
+        quantity: 1,
+      });
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -773,15 +773,14 @@ describe("db", () => {
         thankYouUrl: "https://example.com",
       });
       // Use createAttendeeAtomic to fill capacity (production code path)
-      await createAttendeeAtomic(event.id, "First", "first@example.com");
+      await createAttendeeAtomic({ eventId: event.id, name: "First", email: "first@example.com" });
 
-      const result = await createAttendeeAtomic(
-        event.id,
-        "Second",
-        "second@example.com",
-        null,
-        1,
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Second",
+        email: "second@example.com",
+        quantity: 1,
+      });
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -802,11 +801,11 @@ describe("db", () => {
       });
       invalidateSettingsCache();
 
-      const result = await createAttendeeAtomic(
-        event.id,
-        "John",
-        "john@example.com",
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "John",
+        email: "john@example.com",
+      });
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -1436,14 +1435,13 @@ describe("db", () => {
       });
 
       // Create attendee with a non-empty phone to exercise the phone decryption branch
-      const result = await createAttendeeAtomic(
-        event.id,
-        "Phone Person",
-        "phone@example.com",
-        null,
-        1,
-        "+44 7700 900000",
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Phone Person",
+        email: "phone@example.com",
+        quantity: 1,
+        phone: "+44 7700 900000",
+      });
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -1468,14 +1466,13 @@ describe("db", () => {
       });
 
       // Create attendee with empty email/phone via createAttendeeAtomic
-      const result = await createAttendeeAtomic(
-        event.id,
-        "NoContact Person",
-        "", // empty email
-        null,
-        1,
-        "", // empty phone
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "NoContact Person",
+        email: "", // empty email
+        quantity: 1,
+        phone: "", // empty phone
+      });
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -1499,15 +1496,14 @@ describe("db", () => {
         unitPrice: 2500,
       });
 
-      const result = await createAttendeeAtomic(
-        event.id,
-        "Paying Customer",
-        "pay@example.com",
-        "pi_test_price",
-        1,
-        "",
-        2500,
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Paying Customer",
+        email: "pay@example.com",
+        paymentId: "pi_test_price",
+        quantity: 1,
+        pricePaid: 2500,
+      });
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -1662,11 +1658,11 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const attendeeResult = await createAttendeeAtomic(
-        event.id,
-        "Test",
-        "test@example.com",
-      );
+      const attendeeResult = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Test",
+        email: "test@example.com",
+      });
       if (!attendeeResult.success) throw new Error("Failed to create attendee");
 
       await reserveSession("sess_dup");

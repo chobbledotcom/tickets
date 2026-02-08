@@ -128,7 +128,7 @@ const withEventAttendees = async (
     return redirect("/admin");
   }
 
-  const privateKey = (await getPrivateKey(session.token, session.wrappedDataKey))!;
+  const privateKey = (await getPrivateKey(session))!;
 
   // Fetch event and attendees in single DB round-trip
   const result = await getEventWithAttendeesRaw(eventId);
@@ -145,7 +145,7 @@ const withEventAttendees = async (
  */
 const handleCreateEvent = createHandler(eventsResource, {
   onSuccess: async (row) => {
-    await logActivity(`Event '${row.name}' created`, row.id);
+    await logActivity(`Event '${row.name}' created`, row);
     return redirect("/admin");
   },
   onError: () => redirect("/admin"),
@@ -252,7 +252,7 @@ const handleAdminEventExport = (request: Request, eventId: number) =>
   withEventAttendees(request, eventId, async ({ event, attendees }) => {
     const csv = generateAttendeesCsv(attendees);
     const filename = `${event.name.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
-    await logActivity(`CSV exported for '${event.name}'`, event.id);
+    await logActivity(`CSV exported for '${event.name}'`, event);
     return new Response(csv, {
       headers: {
         "content-type": "text/csv; charset=utf-8",

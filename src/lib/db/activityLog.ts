@@ -47,9 +47,9 @@ export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
  */
 export const logActivity = (
   message: string,
-  eventId?: number | null,
+  event?: number | { id: number } | null,
 ): Promise<ActivityLogEntry> =>
-  activityLogTable.insert({ message, eventId: eventId ?? null });
+  activityLogTable.insert({ message, eventId: (typeof event === "object" && event !== null ? event.id : event) ?? null });
 
 /** Query activity log with optional event filter, decrypts messages */
 const queryActivityLog = async (

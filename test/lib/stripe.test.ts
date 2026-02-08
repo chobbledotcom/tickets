@@ -325,7 +325,7 @@ describe("stripe", () => {
 
     beforeEach(async () => {
       // Set webhook secret in database (encrypted)
-      await setStripeWebhookConfig(TEST_SECRET, "we_test_endpoint");
+      await setStripeWebhookConfig({ secret: TEST_SECRET, endpointId: "we_test_endpoint" });
     });
 
     test("returns error when webhook secret not configured", async () => {
@@ -585,7 +585,7 @@ describe("stripe", () => {
 
     test("returns webhook error when endpoint retrieval fails", async () => {
       await updateStripeKey("sk_test_mock");
-      await setStripeWebhookConfig("whsec_test", "we_test_missing");
+      await setStripeWebhookConfig({ secret: "whsec_test", endpointId: "we_test_missing" });
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client to be defined");
 
@@ -606,7 +606,7 @@ describe("stripe", () => {
 
     test("returns full success when API key and webhook are both valid", async () => {
       await updateStripeKey("sk_test_mock");
-      await setStripeWebhookConfig("whsec_test", "we_test_valid");
+      await setStripeWebhookConfig({ secret: "whsec_test", endpointId: "we_test_valid" });
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client to be defined");
 
@@ -664,7 +664,7 @@ describe("stripe", () => {
       expect(signature).toMatch(/^t=\d+,v1=[a-f0-9]+$/);
 
       // Signature should be verifiable with the same secret (stored in DB)
-      await setStripeWebhookConfig(secret, "we_test_construction");
+      await setStripeWebhookConfig({ secret, endpointId: "we_test_construction" });
       const result = await verifyWebhookSignature(payload, signature);
       expect(result.valid).toBe(true);
     });
@@ -886,7 +886,7 @@ describe("stripe", () => {
 
     test("handles non-Error thrown value in webhook retrieval", async () => {
       await updateStripeKey("sk_test_mock");
-      await setStripeWebhookConfig("whsec_test", "we_test_nonerror");
+      await setStripeWebhookConfig({ secret: "whsec_test", endpointId: "we_test_nonerror" });
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client to be defined");
 
@@ -1164,7 +1164,7 @@ describe("stripe", () => {
     const TEST_SECRET = "whsec_test_secret_key_for_timestamp_test";
 
     test("handles timestamp value that needs parseInt", async () => {
-      await setStripeWebhookConfig(TEST_SECRET, "we_test_ts");
+      await setStripeWebhookConfig({ secret: TEST_SECRET, endpointId: "we_test_ts" });
 
       // Create event with proper signature
       const event: StripeWebhookEvent = {
@@ -1183,7 +1183,7 @@ describe("stripe", () => {
     });
 
     test("parses timestamp with parseInt when t key has value", async () => {
-      await setStripeWebhookConfig(TEST_SECRET, "we_test_parse");
+      await setStripeWebhookConfig({ secret: TEST_SECRET, endpointId: "we_test_parse" });
 
       // Use a timestamp that is a valid number string, exercising Number.parseInt
       const timestamp = Math.floor(Date.now() / 1000);
@@ -1215,7 +1215,7 @@ describe("stripe", () => {
     });
 
     test("treats t key without equals as zero timestamp via parseInt fallback", async () => {
-      await setStripeWebhookConfig(TEST_SECRET, "we_test_nullish");
+      await setStripeWebhookConfig({ secret: TEST_SECRET, endpointId: "we_test_nullish" });
 
       // Header "t,v1=abc123" - split("=") on "t" gives ["t"], so value is undefined
       // value ?? "0" gives "0", parseInt("0", 10) gives 0
@@ -1231,7 +1231,7 @@ describe("stripe", () => {
     });
 
     test("secureCompare handles strings of different lengths", async () => {
-      await setStripeWebhookConfig(TEST_SECRET, "we_test_len");
+      await setStripeWebhookConfig({ secret: TEST_SECRET, endpointId: "we_test_len" });
 
       // Provide a signature that has different length than expected
       const timestamp = Math.floor(Date.now() / 1000);
@@ -1473,7 +1473,7 @@ describe("stripe-provider", () => {
   describe("verifyWebhookSignature delegation", () => {
     test("delegates to stripe.ts verifyWebhookSignature", async () => {
       const TEST_SECRET = "whsec_provider_verify_test";
-      await setStripeWebhookConfig(TEST_SECRET, "we_provider_test");
+      await setStripeWebhookConfig({ secret: TEST_SECRET, endpointId: "we_provider_test" });
 
       const event: StripeWebhookEvent = {
         id: "evt_provider",
@@ -1498,7 +1498,7 @@ describe("stripe-provider", () => {
 
     test("returns error for invalid signature", async () => {
       const TEST_SECRET = "whsec_provider_invalid_test";
-      await setStripeWebhookConfig(TEST_SECRET, "we_provider_inv");
+      await setStripeWebhookConfig({ secret: TEST_SECRET, endpointId: "we_provider_inv" });
 
       const timestamp = Math.floor(Date.now() / 1000);
       const result = await stripePaymentProvider.verifyWebhookSignature(

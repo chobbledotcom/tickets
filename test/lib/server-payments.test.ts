@@ -181,7 +181,7 @@ describe("server (payment flow)", () => {
       });
 
       // Fill the event with another attendee (using atomic to simulate production flow)
-      await createAttendeeAtomic(event.id, "First", "first@example.com", "pi_first");
+      await createAttendeeAtomic({ eventId: event.id, name: "First", email: "first@example.com", paymentId: "pi_first" });
 
       await withMocks(
         () => ({
@@ -540,7 +540,7 @@ describe("server (payment flow)", () => {
       });
 
       // Create attendee as if payment was already processed (using atomic to simulate production flow)
-      await createAttendeeAtomic(event.id, "John", "john@example.com", "pi_test_123");
+      await createAttendeeAtomic({ eventId: event.id, name: "John", email: "john@example.com", paymentId: "pi_test_123" });
 
       await withMocks(
         () => spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
@@ -624,7 +624,7 @@ describe("server (payment flow)", () => {
       });
 
       // Fill the event (using atomic to simulate production flow)
-      await createAttendeeAtomic(event.id, "First", "first@example.com", "pi_first");
+      await createAttendeeAtomic({ eventId: event.id, name: "First", email: "first@example.com", paymentId: "pi_first" });
 
       // Try to register - should fail before Stripe session is created
       const response = await submitTicketForm(event.slug, {
@@ -869,7 +869,7 @@ describe("server (payment flow)", () => {
       });
 
       // Fill the event
-      await createAttendeeAtomic(event.id, "First", "first@example.com", "pi_first");
+      await createAttendeeAtomic({ eventId: event.id, name: "First", email: "first@example.com", paymentId: "pi_first" });
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
@@ -919,7 +919,7 @@ describe("server (payment flow)", () => {
       });
 
       // Fill event2
-      await createAttendeeAtomic(event2.id, "First", "first@example.com", "pi_first");
+      await createAttendeeAtomic({ eventId: event2.id, name: "First", email: "first@example.com", paymentId: "pi_first" });
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
