@@ -21,7 +21,7 @@ import {
 import { createHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
-import type { AdminSession, Attendee, EventFields, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventFields, EventType, EventWithCount } from "#lib/types.ts";
 import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
   getAuthenticatedSession,
@@ -58,6 +58,10 @@ const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: stri
   throw new Error("Failed to generate unique slug after 10 attempts");
 };
 
+/** Serialize comma-separated day names to JSON array string */
+const serializeBookableDays = (value: string | null): string | undefined =>
+  value ? JSON.stringify(value.split(",").map((d) => d.trim()).filter((d) => d)) : undefined;
+
 /** Extract event input from validated form (async to compute slugIndex) */
 const extractEventInput = async (
   values: Record<string, unknown>,
@@ -75,6 +79,10 @@ const extractEventInput = async (
     webhookUrl: (values.webhook_url as string) || null,
     fields: (values.fields as EventFields) || "email",
     closesAt: (values.closes_at as string) || "",
+    eventType: (values.event_type as EventType) || undefined,
+    bookableDays: serializeBookableDays(values.bookable_days as string | null),
+    minimumDaysBefore: (values.minimum_days_before as number | null) ?? undefined,
+    maximumDaysAfter: (values.maximum_days_after as number | null) ?? undefined,
   };
 };
 
@@ -96,6 +104,10 @@ const extractEventUpdateInput = async (
     webhookUrl: (values.webhook_url as string) || null,
     fields: (values.fields as EventFields) || "email",
     closesAt: (values.closes_at as string) || "",
+    eventType: (values.event_type as EventType) || undefined,
+    bookableDays: serializeBookableDays(values.bookable_days as string | null),
+    minimumDaysBefore: (values.minimum_days_before as number | null) ?? undefined,
+    maximumDaysAfter: (values.maximum_days_after as number | null) ?? undefined,
   };
 };
 

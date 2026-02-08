@@ -5,6 +5,9 @@
 /** Contact fields setting for an event */
 export type EventFields = "email" | "phone" | "both";
 
+/** Event type: standard (one-time) or daily (date-based booking) */
+export type EventType = "standard" | "daily";
+
 export interface Event {
   id: number;
   name: string;
@@ -20,6 +23,10 @@ export interface Event {
   active: number;
   fields: EventFields;
   closes_at: string | null;
+  event_type: EventType;
+  bookable_days: string;
+  minimum_days_before: number;
+  maximum_days_after: number;
 }
 
 export interface Attendee {

@@ -3,7 +3,7 @@
  */
 
 import type { Field } from "#lib/forms.tsx";
-import type { EventFields } from "#lib/types.ts";
+import type { EventFields, EventType } from "#lib/types.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 
 /**
@@ -88,6 +88,40 @@ const validateEventFields = (value: string): string | null => {
   return null;
 };
 
+/** Valid event type values */
+const VALID_EVENT_TYPES: EventType[] = ["standard", "daily"];
+
+/** Validate event type setting */
+const validateEventType = (value: string): string | null => {
+  if (!VALID_EVENT_TYPES.includes(value as EventType)) {
+    return "Event Type must be standard or daily";
+  }
+  return null;
+};
+
+/** Valid day names for bookable_days */
+export const VALID_DAY_NAMES = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+
+/** Validate bookable days (comma-separated day names) */
+export const validateBookableDays = (value: string): string | null => {
+  const days = value.split(",").map((d) => d.trim()).filter((d) => d);
+  if (days.length === 0) return "At least one day is required";
+  for (const day of days) {
+    if (!VALID_DAY_NAMES.includes(day as typeof VALID_DAY_NAMES[number])) {
+      return `Invalid day: ${day}. Use: ${VALID_DAY_NAMES.join(", ")}`;
+    }
+  }
+  return null;
+};
+
 /** Max length for event description */
 const MAX_DESCRIPTION_LENGTH = 128;
 
@@ -131,11 +165,23 @@ export const eventFields: Field[] = [
     validate: validateDescription,
   },
   {
+    name: "event_type",
+    label: "Event Type",
+    type: "select",
+    hint: "Daily events require attendees to select a specific date when booking",
+    options: [
+      { value: "standard", label: "Standard" },
+      { value: "daily", label: "Daily" },
+    ],
+    validate: validateEventType,
+  },
+  {
     name: "max_attendees",
     label: "Max Attendees",
     type: "number",
     required: true,
     min: 1,
+    hint: "For daily events, this limit applies per date",
   },
   {
     name: "max_quantity",
@@ -144,6 +190,28 @@ export const eventFields: Field[] = [
     required: true,
     min: 1,
     hint: "Maximum tickets a customer can buy in one transaction",
+  },
+  {
+    name: "bookable_days",
+    label: "Bookable Days (for daily events)",
+    type: "text",
+    placeholder: "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
+    hint: "Comma-separated day names. Leave blank for all days.",
+    validate: validateBookableDays,
+  },
+  {
+    name: "minimum_days_before",
+    label: "Minimum Days Notice (for daily events)",
+    type: "number",
+    min: 0,
+    hint: "How many days in advance attendees must book. Leave blank for 1.",
+  },
+  {
+    name: "maximum_days_after",
+    label: "Maximum Days Ahead (for daily events)",
+    type: "number",
+    min: 1,
+    hint: "How far into the future attendees can book. Leave blank for 90.",
   },
   {
     name: "fields",

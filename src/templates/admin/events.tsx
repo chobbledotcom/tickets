@@ -144,7 +144,23 @@ export const adminEventPage = (
           <table>
             <tbody>
               <tr>
-                <th>Attendees</th>
+                <th>Event Type</th>
+                <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
+              </tr>
+              {event.event_type === "daily" && (
+                <tr>
+                  <th>Bookable Days</th>
+                  <td>{formatBookableDays(event.bookable_days)}</td>
+                </tr>
+              )}
+              {event.event_type === "daily" && (
+                <tr>
+                  <th>Booking Window</th>
+                  <td>{event.minimum_days_before} to {event.maximum_days_after} days from today</td>
+                </tr>
+              )}
+              <tr>
+                <th>Attendees{event.event_type === "daily" ? " (per date)" : ""}</th>
                 <td>
                   <span class={nearCapacity(event) ? "danger-text" : ""}>
                     {event.attendee_count} / {event.max_attendees} &mdash; {event.max_attendees - event.attendee_count} remain
@@ -265,12 +281,20 @@ const formatClosesAt = (closesAt: string | null): string | null => {
   return closesAt.slice(0, 16);
 };
 
+/** Convert bookable_days JSON array to comma-separated display string */
+const formatBookableDays = (json: string): string =>
+  (JSON.parse(json) as string[]).join(",");
+
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,
   description: event.description,
   slug: event.slug,
+  event_type: event.event_type,
   max_attendees: event.max_attendees,
   max_quantity: event.max_quantity,
+  bookable_days: formatBookableDays(event.bookable_days),
+  minimum_days_before: event.minimum_days_before,
+  maximum_days_after: event.maximum_days_after,
   fields: event.fields,
   unit_price: event.unit_price,
   closes_at: formatClosesAt(event.closes_at),

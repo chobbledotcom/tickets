@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add ticket_token";
+export const LATEST_UPDATE = "add event_type";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -279,6 +279,12 @@ export const initDb = async (): Promise<void> => {
   await runMigration(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_attendees_ticket_token ON attendees(ticket_token)`,
   );
+
+  // Migration: add event_type and daily booking config columns to events
+  await runMigration(`ALTER TABLE events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'standard'`);
+  await runMigration(`ALTER TABLE events ADD COLUMN bookable_days TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]'`);
+  await runMigration(`ALTER TABLE events ADD COLUMN minimum_days_before INTEGER NOT NULL DEFAULT 1`);
+  await runMigration(`ALTER TABLE events ADD COLUMN maximum_days_after INTEGER NOT NULL DEFAULT 90`);
 
   // Update the version marker
   await getDb().execute({

@@ -628,6 +628,12 @@ export const createTestEvent = (
       unit_price: input.unitPrice != null ? String(input.unitPrice) : "",
       webhook_url: input.webhookUrl ?? "",
       closes_at: input.closesAt ?? "",
+      event_type: input.eventType ?? "",
+      bookable_days: input.bookableDays
+        ? formatBookableDaysForForm(input.bookableDays)
+        : "",
+      minimum_days_before: input.minimumDaysBefore != null ? String(input.minimumDaysBefore) : "",
+      maximum_days_after: input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
     },
     async () => {
       // Get the most recently created event
@@ -663,6 +669,10 @@ const formatOptional = (
 ): string =>
   update !== undefined ? update ?? "" : existing ?? "";
 
+/** Format bookable_days JSON array to comma-separated string for form submission */
+const formatBookableDaysForForm = (json: string): string =>
+  (JSON.parse(json) as string[]).join(",");
+
 /** Format closes_at for form submission (truncate existing ISO to datetime-local) */
 const formatClosesAt = (
   update: string | undefined,
@@ -695,6 +705,12 @@ export const updateTestEvent = async (
       unit_price: formatPrice(updates.unitPrice, existing.unit_price),
       webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
       closes_at: formatClosesAt(updates.closesAt, existing.closes_at),
+      event_type: updates.eventType ?? existing.event_type,
+      bookable_days: updates.bookableDays
+        ? formatBookableDaysForForm(updates.bookableDays)
+        : formatBookableDaysForForm(existing.bookable_days),
+      minimum_days_before: String(updates.minimumDaysBefore ?? existing.minimum_days_before),
+      maximum_days_after: String(updates.maximumDaysAfter ?? existing.maximum_days_after),
     },
     async () =>
       (await getEventWithCount(eventId)) as EventWithCount,
@@ -869,6 +885,10 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   closes_at: null,
   active: 1,
   fields: "email",
+  event_type: "standard",
+  bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+  minimum_days_before: 1,
+  maximum_days_after: 90,
   ...overrides,
 });
 

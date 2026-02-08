@@ -1952,6 +1952,191 @@ describe("server (admin events)", () => {
     });
   });
 
+  describe("daily event type", () => {
+    test("creates a daily event with custom config", async () => {
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: '["Monday","Wednesday","Friday"]',
+        minimumDaysBefore: 2,
+        maximumDaysAfter: 30,
+      });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.event_type).toBe("daily");
+      expect(saved?.bookable_days).toBe('["Monday","Wednesday","Friday"]');
+      expect(saved?.minimum_days_before).toBe(2);
+      expect(saved?.maximum_days_after).toBe(30);
+    });
+
+    test("creates standard event with default daily config", async () => {
+      const event = await createTestEvent();
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.event_type).toBe("standard");
+      expect(saved?.bookable_days).toBe('["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]');
+      expect(saved?.minimum_days_before).toBe(1);
+      expect(saved?.maximum_days_after).toBe(90);
+    });
+
+    test("admin event detail page shows Daily type for daily events", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: '["Monday","Tuesday"]',
+        minimumDaysBefore: 3,
+        maximumDaysAfter: 60,
+      });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Event Type");
+      expect(html).toContain("Daily");
+      expect(html).toContain("Bookable Days");
+      expect(html).toContain("Monday,Tuesday");
+      expect(html).toContain("Booking Window");
+      expect(html).toContain("3 to 60 days");
+      expect(html).toContain("per date");
+    });
+
+    test("admin event detail page shows Standard type without daily config", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Event Type");
+      expect(html).toContain("Standard");
+      expect(html).not.toContain("Bookable Days");
+      expect(html).not.toContain("Booking Window");
+    });
+
+    test("admin event edit page pre-fills daily config", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: '["Wednesday","Friday"]',
+        minimumDaysBefore: 5,
+        maximumDaysAfter: 120,
+      });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('value="Wednesday,Friday"');
+      expect(html).toContain('value="5"');
+      expect(html).toContain('value="120"');
+    });
+
+    test("updates event from standard to daily", async () => {
+      const event = await createTestEvent();
+      await updateTestEvent(event.id, {
+        eventType: "daily",
+        bookableDays: '["Saturday","Sunday"]',
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.event_type).toBe("daily");
+      expect(updated?.bookable_days).toBe('["Saturday","Sunday"]');
+      expect(updated?.minimum_days_before).toBe(0);
+      expect(updated?.maximum_days_after).toBe(14);
+    });
+
+    test("updates event from daily to standard", async () => {
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: '["Monday"]',
+        minimumDaysBefore: 7,
+        maximumDaysAfter: 365,
+      });
+      await updateTestEvent(event.id, { eventType: "standard" });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.event_type).toBe("standard");
+    });
+
+    test("duplicate page pre-fills daily event config", async () => {
+      const { cookie } = await loginAsAdmin();
+      await createTestEvent({
+        eventType: "daily",
+        bookableDays: '["Tuesday","Thursday"]',
+        minimumDaysBefore: 2,
+        maximumDaysAfter: 45,
+      });
+
+      const response = await awaitTestRequest("/admin/event/1/duplicate", {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('value="Tuesday,Thursday"');
+      expect(html).toContain('value="2"');
+      expect(html).toContain('value="45"');
+    });
+
+    test("rejects invalid event_type value", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event",
+          {
+            name: "Bad Type Event",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "https://example.com",
+            event_type: "invalid",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid bookable_days value", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      await createTestEvent({ name: "Edit Target" });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const event = (await getEventWithCount(1))!;
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/edit",
+          {
+            name: "Edit Target",
+            slug: event.slug,
+            max_attendees: "50",
+            max_quantity: "1",
+            event_type: "daily",
+            bookable_days: "Funday,Bunday",
+            minimum_days_before: "1",
+            maximum_days_after: "90",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Invalid day");
+    });
+  });
+
   describe("stale reservation cleanup on admin event view", () => {
     test("cleans up stale reservations when viewing an event", async () => {
       const { cookie } = await loginAsAdmin();
