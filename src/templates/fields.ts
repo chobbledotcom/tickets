@@ -258,6 +258,42 @@ export const eventFields: Field[] = [
   },
 ];
 
+/** Validate date format (YYYY-MM-DD) */
+export const validateDate = (value: string): string | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "Please enter a valid date (YYYY-MM-DD)";
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "Please enter a valid date";
+  return null;
+};
+
+/**
+ * Holiday form field definitions
+ */
+export const holidayFields: Field[] = [
+  {
+    name: "name",
+    label: "Holiday Name",
+    type: "text",
+    required: true,
+    placeholder: "Bank Holiday",
+  },
+  {
+    name: "start_date",
+    label: "Start Date",
+    type: "date",
+    required: true,
+    validate: validateDate,
+  },
+  {
+    name: "end_date",
+    label: "End Date",
+    type: "date",
+    required: true,
+    hint: "Must be on or after the start date",
+    validate: validateDate,
+  },
+];
+
 /** Slug field for event edit page only */
 export const slugField: Field = {
   name: "slug",

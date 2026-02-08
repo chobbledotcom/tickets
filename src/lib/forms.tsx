@@ -20,6 +20,7 @@ export type FieldType =
   | "password"
   | "textarea"
   | "select"
+  | "date"
   | "datetime-local";
 
 export interface Field {

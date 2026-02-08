@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add event_type";
+export const LATEST_UPDATE = "add holidays";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -286,6 +286,16 @@ export const initDb = async (): Promise<void> => {
   await runMigration(`ALTER TABLE events ADD COLUMN minimum_days_before INTEGER NOT NULL DEFAULT 1`);
   await runMigration(`ALTER TABLE events ADD COLUMN maximum_days_after INTEGER NOT NULL DEFAULT 90`);
 
+  // Migration: create holidays table
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS holidays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL
+    )
+  `);
+
   // Update the version marker
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
@@ -297,6 +307,7 @@ export const initDb = async (): Promise<void> => {
  * All database tables in order for safe dropping (respects foreign key constraints)
  */
 const ALL_TABLES = [
+  "holidays",
   "activity_log",
   "processed_payments",
   "attendees",

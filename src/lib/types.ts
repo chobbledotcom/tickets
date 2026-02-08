@@ -76,6 +76,13 @@ export interface User {
   invite_expiry: string | null; // encrypted ISO 8601, null after password set
 }
 
+export interface Holiday {
+  id: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+}
+
 export interface EventWithCount extends Event {
   attendee_count: number;
 }

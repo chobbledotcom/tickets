@@ -8,9 +8,11 @@ import {
 import {
   eventFields,
   getTicketFields,
+  holidayFields,
   mergeEventFields,
   ticketFields,
   validateBookableDays,
+  validateDate,
   validatePhone,
 } from "#templates/fields.ts";
 import {
@@ -542,6 +544,95 @@ describe("forms", () => {
         email: "",
         phone: "+1 555 123 4567",
       });
+    });
+  });
+
+  describe("holidayFields validation", () => {
+    const holidayForm = (overrides: Record<string, string> = {}): Record<string, string> => ({
+      name: "Bank Holiday",
+      start_date: "2026-12-25",
+      end_date: "2026-12-25",
+      ...overrides,
+    });
+
+    test("validates required name", () => {
+      expectInvalid("Holiday Name is required")(holidayFields, holidayForm({ name: "" }));
+    });
+
+    test("validates required start_date", () => {
+      expectInvalid("Start Date is required")(holidayFields, holidayForm({ start_date: "" }));
+    });
+
+    test("validates required end_date", () => {
+      expectInvalid("End Date is required")(holidayFields, holidayForm({ end_date: "" }));
+    });
+
+    test("validates start_date format", () => {
+      expectInvalid("Please enter a valid date (YYYY-MM-DD)")(
+        holidayFields,
+        holidayForm({ start_date: "25-12-2026" }),
+      );
+    });
+
+    test("validates end_date format", () => {
+      expectInvalid("Please enter a valid date (YYYY-MM-DD)")(
+        holidayFields,
+        holidayForm({ end_date: "not-a-date" }),
+      );
+    });
+
+    test("accepts valid holiday form", () => {
+      const values = expectValid(holidayFields, holidayForm());
+      expect(values.name).toBe("Bank Holiday");
+      expect(values.start_date).toBe("2026-12-25");
+      expect(values.end_date).toBe("2026-12-25");
+    });
+
+    test("accepts multi-day holiday", () => {
+      expectValid(holidayFields, holidayForm({ start_date: "2026-12-24", end_date: "2026-12-26" }));
+    });
+  });
+
+  describe("validateDate", () => {
+    test("accepts valid date", () => {
+      expect(validateDate("2026-12-25")).toBeNull();
+    });
+
+    test("accepts leap year date", () => {
+      expect(validateDate("2028-02-29")).toBeNull();
+    });
+
+    test("rejects wrong format", () => {
+      expect(validateDate("12/25/2026")).toBe("Please enter a valid date (YYYY-MM-DD)");
+    });
+
+    test("rejects partial date", () => {
+      expect(validateDate("2026-12")).toBe("Please enter a valid date (YYYY-MM-DD)");
+    });
+
+    test("rejects text", () => {
+      expect(validateDate("not-a-date")).toBe("Please enter a valid date (YYYY-MM-DD)");
+    });
+
+    test("rejects empty string", () => {
+      expect(validateDate("")).toBe("Please enter a valid date (YYYY-MM-DD)");
+    });
+
+    test("rejects valid format but invalid date (month 00)", () => {
+      expect(validateDate("2026-00-01")).toBe("Please enter a valid date");
+    });
+  });
+
+  describe("renderField date type", () => {
+    test("renders date input", () => {
+      const html = rendered({ name: "start_date", label: "Start Date", type: "date" });
+      expect(html).toContain('type="date"');
+      expect(html).toContain('name="start_date"');
+    });
+
+    test("renders date input with value", () => {
+      const html = rendered({ name: "start_date", label: "Start Date", type: "date" }, "2026-12-25");
+      expect(html).toContain('value="2026-12-25"');
     });
   });
 

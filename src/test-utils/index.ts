@@ -1006,3 +1006,87 @@ export const baseEventForm: Record<string, string> = {
   thank_you_url: "https://example.com",
 };
 
+import type { Holiday } from "#lib/types.ts";
+import type { HolidayInput } from "#lib/db/holidays.ts";
+
+/** Create a test Holiday with sensible defaults. Override any field via `overrides`. */
+export const testHoliday = (overrides: Partial<Holiday> = {}): Holiday => ({
+  id: 1,
+  name: "Test Holiday",
+  start_date: "2026-12-25",
+  end_date: "2026-12-25",
+  ...overrides,
+});
+
+/**
+ * Create a holiday via the REST API
+ */
+export const createTestHoliday = (
+  overrides: Partial<HolidayInput> = {},
+): Promise<Holiday> => {
+  const input: HolidayInput = {
+    name: overrides.name ?? "Test Holiday",
+    startDate: overrides.startDate ?? "2026-12-25",
+    endDate: overrides.endDate ?? "2026-12-25",
+  };
+
+  return authenticatedFormRequest(
+    "/admin/holiday",
+    {
+      name: input.name,
+      start_date: input.startDate,
+      end_date: input.endDate,
+    },
+    async () => {
+      const { getAllHolidays } = await import("#lib/db/holidays.ts");
+      const holidays = await getAllHolidays();
+      return holidays[holidays.length - 1] as Holiday;
+    },
+    "create holiday",
+  );
+};
+
+/**
+ * Update a holiday via the REST API
+ */
+export const updateTestHoliday = async (
+  holidayId: number,
+  updates: Partial<HolidayInput>,
+): Promise<Holiday> => {
+  const { holidaysTable } = await import("#lib/db/holidays.ts");
+  const existing = (await holidaysTable.findById(holidayId)) as Holiday;
+
+  return authenticatedFormRequest(
+    `/admin/holiday/${holidayId}/edit`,
+    {
+      name: updates.name ?? existing.name,
+      start_date: updates.startDate ?? existing.start_date,
+      end_date: updates.endDate ?? existing.end_date,
+    },
+    async () => {
+      const updated = await holidaysTable.findById(holidayId);
+      return updated as Holiday;
+    },
+    "update holiday",
+  );
+};
+
+/**
+ * Delete a holiday via the REST API
+ */
+export const deleteTestHoliday = async (
+  holidayId: number,
+): Promise<void> => {
+  const { holidaysTable } = await import("#lib/db/holidays.ts");
+  const existing = (await holidaysTable.findById(holidayId)) as Holiday;
+
+  return authenticatedFormRequest(
+    `/admin/holiday/${holidayId}/delete`,
+    { confirm_identifier: existing.name },
+    async () => {},
+    "delete holiday",
+  );
+};
+
+export type { HolidayInput };
+
