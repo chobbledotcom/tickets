@@ -27,7 +27,7 @@ const buildAdminView = async (
   if (setCheckedIn !== null) {
     await Promise.all(map((a: Attendee) => updateCheckedIn(a.id, setCheckedIn))(rawAttendees));
   }
-  const privateKey = (await getPrivateKey(session.token, session.wrappedDataKey))!;
+  const privateKey = (await getPrivateKey(session))!;
   const decrypted = await decryptAttendees(rawAttendees, privateKey);
   const attendees = setCheckedIn !== null
     ? map((a: Attendee) => ({ ...a, checked_in: setCheckedIn ? "true" : "false" }))(decrypted)

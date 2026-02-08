@@ -221,7 +221,7 @@ const processFreeReservation = async (
   reservation: ReservationParams,
 ): Promise<Response> => {
   const { event, name, email, phone, quantity, token } = reservation;
-  const result = await createAttendeeAtomic(event.id, name, email, null, quantity, phone);
+  const result = await createAttendeeAtomic({ eventId: event.id, name, email, quantity, phone });
 
   if (!result.success) {
     return ticketResponse(event, token)(formatAtomicError(result.reason));
@@ -438,7 +438,7 @@ const processMultiFreeReservation = async (
 ): Promise<{ success: true } | { success: false; error: string }> => {
   const entries: Array<{ event: MultiTicketEvent["event"]; attendee: { id: number; quantity: number; name: string; email: string; phone: string; ticket_token: string } }> = [];
   for (const { event, qty } of eventsWithQuantity(events, quantities)) {
-    const result = await createAttendeeAtomic(event.id, name, email, null, qty, phone);
+    const result = await createAttendeeAtomic({ eventId: event.id, name, email, quantity: qty, phone });
     if (!result.success) {
       return { success: false, error: formatAtomicError(result.reason, event.name) };
     }

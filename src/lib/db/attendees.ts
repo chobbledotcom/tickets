@@ -182,6 +182,17 @@ export type CreateAttendeeResult =
   | { success: true; attendee: Attendee }
   | { success: false; reason: "capacity_exceeded" | "encryption_error" };
 
+/** Input for creating an attendee atomically */
+export type AttendeeInput = {
+  eventId: number;
+  name: string;
+  email: string;
+  paymentId?: string | null;
+  quantity?: number;
+  phone?: string;
+  pricePaid?: number | null;
+};
+
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
   /** Check if an event has available spots for the requested quantity */
@@ -198,14 +209,9 @@ export const attendeesApi = {
    * Prevents race conditions by combining check and insert.
    */
   createAttendeeAtomic: async (
-    eventId: number,
-    name: string,
-    email: string,
-    paymentId: string | null = null,
-    qty = 1,
-    phone = "",
-    pricePaid: number | null = null,
+    input: AttendeeInput,
   ): Promise<CreateAttendeeResult> => {
+    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", pricePaid = null } = input;
     const enc = await encryptAttendeeFields(name, email, phone, paymentId, pricePaid);
     if (!enc) {
       return { success: false, reason: "encryption_error" };
@@ -269,14 +275,8 @@ export const hasAvailableSpots = (
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const createAttendeeAtomic = (
-  evtId: number,
-  n: string,
-  e: string,
-  pId: string | null = null,
-  q = 1,
-  phone = "",
-  price: number | null = null,
-): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(evtId, n, e, pId, q, phone, price);
+  input: AttendeeInput,
+): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(input);
 
 /**
  * Get attendees by ticket tokens (plaintext, no decryption needed for token lookup)

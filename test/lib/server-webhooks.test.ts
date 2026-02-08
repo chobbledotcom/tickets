@@ -355,7 +355,7 @@ describe("server (webhooks)", () => {
       });
 
       // Fill the event
-      await createAttendeeAtomic(event.id, "First", "first@example.com", "pi_first");
+      await createAttendeeAtomic({ eventId: event.id, name: "First", email: "first@example.com", paymentId: "pi_first" });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -947,7 +947,7 @@ describe("server (webhooks)", () => {
         unitPrice: 500,
       });
       // Create attendee directly (not via public form which redirects to Stripe for paid events)
-      const result = await createAttendeeAtomic(event.id, "Already Done", "already@example.com", "pi_already_done", 1);
+      const result = await createAttendeeAtomic({ eventId: event.id, name: "Already Done", email: "already@example.com", paymentId: "pi_already_done", quantity: 1 });
       if (!result.success) throw new Error("Failed to create test attendee");
       const attendee = result.attendee;
 
@@ -1073,7 +1073,7 @@ describe("server (webhooks)", () => {
         maxAttendees: 1,
         unitPrice: 500,
       });
-      await createAttendeeAtomic(event2.id, "First", "first@example.com", "pi_first", 1);
+      await createAttendeeAtomic({ eventId: event2.id, name: "First", email: "first@example.com", paymentId: "pi_first", quantity: 1 });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -1284,7 +1284,7 @@ describe("server (webhooks)", () => {
       });
 
       // Fill event2 to capacity
-      await createAttendeeAtomic(event2.id, "Existing", "existing@example.com", null, 1);
+      await createAttendeeAtomic({ eventId: event2.id, name: "Existing", email: "existing@example.com", quantity: 1 });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -1340,7 +1340,7 @@ describe("server (webhooks)", () => {
         maxAttendees: 50,
         unitPrice: 500,
       });
-      const attResult = await createAttendeeAtomic(event.id, "WH Del", "whdel@example.com", "pi_del", 1);
+      const attResult = await createAttendeeAtomic({ eventId: event.id, name: "WH Del", email: "whdel@example.com", paymentId: "pi_del", quantity: 1 });
       if (!attResult.success) throw new Error("Failed to create attendee");
 
       // Reserve and finalize the session with the real attendee
