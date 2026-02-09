@@ -328,3 +328,50 @@ For daily events, the event detail section should show capacity info per-date co
 - `src/templates/admin/events.tsx` — date selector dropdown, date column in table, event type in details
 - `src/templates/csv.ts` — conditional date column, date filtering
 - Tests for all of the above
+
+---
+
+## Phase 4 Status: Complete
+
+All Phase 4 features are implemented:
+
+- Event type, bookable days, and booking window shown in event detail view
+- `?date=YYYY-MM-DD` query parameter parsing in admin event route
+- Date selector dropdown above attendee table for daily events
+- Attendee filtering by date (server-side, composable with check-in filter)
+- "Date" column in attendee table for daily events
+- Per-date capacity count when filtered (total count with capacity note when unfiltered)
+- "Date" column in CSV export for daily events
+- CSV export respecting `?date=` filter parameter
+- Date in CSV filename when filtered (`{event_name}_{date}_attendees.csv`)
+- Export CSV link preserves active date filter
+
+---
+
+## Phase 5: Post-MVP Improvements
+
+Features beyond the original plan that would be needed for real-world daily booking use:
+
+### Ticket & Check-in Date Display
+
+The booked date is not shown on the ticket view (`src/templates/tickets.tsx`) or the check-in page (`src/templates/checkin.tsx`). For daily events, the date is the most important piece of information — attendees need to see it on their ticket, and operators checking people in need to verify the correct date.
+
+### Webhook Date Field
+
+The outgoing webhook payload (`src/lib/webhook.ts`) does not include the attendee's booked date. External integrations receiving webhook notifications for daily events have no way to know which date was booked.
+
+### Per-Date Availability on Public Form
+
+The public date dropdown shows all available dates but gives no indication of remaining capacity per date. Users may select a date only to get a "full" error after submitting. Showing remaining spots (e.g. "Monday 15 March (3 spots left)") would prevent this.
+
+### Per-Event Date Overrides
+
+Currently the only way to block a specific date is to create a global holiday, which affects all daily events. A per-event date blacklist would let operators cancel individual dates (emergency, staffing) without affecting other events.
+
+### Bulk Holiday Import
+
+Holidays must be entered one at a time. A bulk import (paste a list, or import a country's public holidays) would save significant setup time for real deployments.
+
+### Admin Calendar View
+
+Daily events are calendar-shaped data shown in a flat table. A month or week view showing bookings-per-date would be far more practical for capacity management than scrolling through a list.

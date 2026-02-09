@@ -763,6 +763,19 @@ body.iframe form {
   margin-bottom: 0;
 }
 
+/* Checkbox group (used by form framework) */
+.checkbox-group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.checkbox-group label {
+  display: inline-block;
+  margin-right: 1rem;
+  font-weight: normal;
+}
+
 /* Remove button margins inside forms */
 form > button {
   margin: 0;

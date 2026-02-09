@@ -20,6 +20,7 @@ export type FieldType =
   | "password"
   | "textarea"
   | "select"
+  | "checkbox-group"
   | "date"
   | "datetime-local";
 
@@ -63,6 +64,19 @@ const renderSelectOptions = (
     )
     .join("");
 
+/** Render checkbox group HTML (multiple checkboxes with the same name) */
+const renderCheckboxGroup = (
+  name: string,
+  options: { value: string; label: string }[],
+  selectedValues: Set<string>,
+): string =>
+  `<fieldset class="checkbox-group">${options
+    .map(
+      (opt) =>
+        `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(opt.value)}"${selectedValues.has(opt.value) ? " checked" : ""}> ${escapeHtml(opt.label)}</label>`,
+    )
+    .join("")}</fieldset>`;
+
 /**
  * Render a single form field
  */
@@ -82,6 +96,10 @@ export const renderField = (field: Field, value: string = ""): string =>
       ) : field.type === "select" && field.options ? (
         <Raw
           html={`<select name="${escapeHtml(field.name)}" id="${escapeHtml(field.name)}">${renderSelectOptions(field.options, value)}</select>`}
+        />
+      ) : field.type === "checkbox-group" && field.options ? (
+        <Raw
+          html={renderCheckboxGroup(field.name, field.options, new Set(value ? value.split(",").map((v) => v.trim()) : []))}
         />
       ) : (
         <input
@@ -129,14 +147,17 @@ const parseFieldValue = (
     : trimmed || null;
 
 /**
- * Validate a single field and return its parsed value
+ * Validate a single field and return its parsed value.
+ * For checkbox-group fields, collects all checked values via getAll()
+ * and joins them as a comma-separated string.
  */
 const validateSingleField = (
   form: URLSearchParams,
   field: Field,
 ): FieldValidationResult => {
-  const raw = form.get(field.name) || "";
-  const trimmed = raw.trim();
+  const trimmed = field.type === "checkbox-group"
+    ? form.getAll(field.name).map((v) => v.trim()).filter((v) => v).join(",")
+    : (form.get(field.name) || "").trim();
 
   if (field.required && !trimmed) {
     return { valid: false, error: `${field.label} is required` };

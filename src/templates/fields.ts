@@ -187,9 +187,9 @@ export const eventFields: Field[] = [
   {
     name: "bookable_days",
     label: "Bookable Days (for daily events)",
-    type: "text",
-    placeholder: "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday",
-    hint: "Comma-separated day names. Leave blank for all days.",
+    type: "checkbox-group",
+    hint: "Select which days of the week are available for booking",
+    options: VALID_DAY_NAMES.map((d) => ({ value: d, label: d })),
     validate: validateBookableDays,
   },
   {
