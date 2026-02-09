@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
 import {
