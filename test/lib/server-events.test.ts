@@ -1868,22 +1868,22 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown shows days and hours", () => {
-      const future = new Date(nowMs + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000).toISOString();
+      const future = new Date(nowMs() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("3 days and 5 hours from now");
     });
 
     test("formatCountdown shows only days when no remaining hours", () => {
-      const future = new Date(nowMs + 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
+      const future = new Date(nowMs() + 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("2 days from now");
     });
 
     test("formatCountdown shows only hours", () => {
-      const future = new Date(nowMs + 5 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
+      const future = new Date(nowMs() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("5 hours from now");
     });
 
     test("formatCountdown shows minutes when less than an hour", () => {
-      const result = formatCountdown(new Date(nowMs + 30 * 60 * 1000).toISOString());
+      const result = formatCountdown(new Date(nowMs() + 30 * 60 * 1000).toISOString());
       expect(result).toContain("minute");
       expect(result).toContain("from now");
     });
@@ -1893,7 +1893,7 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown singular forms", () => {
-      const future = new Date(nowMs + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString();
+      const future = new Date(nowMs() + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("1 day and 1 hour from now");
     });
 
@@ -2137,8 +2137,8 @@ describe("server (admin events)", () => {
   });
 
   describe("daily event admin view (Phase 4)", () => {
-    const validDate1 = addDays(today, 1);
-    const validDate2 = addDays(today, 2);
+    const validDate1 = addDays(today(), 1);
+    const validDate2 = addDays(today(), 2);
 
     const createDailyEventWithAttendees = async () => {
       const event = await createTestEvent({

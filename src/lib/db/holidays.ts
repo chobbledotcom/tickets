@@ -48,5 +48,5 @@ export const getAllHolidays = (): Promise<Holiday[]> =>
 export const getActiveHolidays = (): Promise<Holiday[]> =>
   queryHolidays({
     sql: "SELECT * FROM holidays WHERE end_date >= ? ORDER BY start_date ASC",
-    args: [today],
+    args: [today()],
   });

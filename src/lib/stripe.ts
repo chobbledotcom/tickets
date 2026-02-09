@@ -520,7 +520,7 @@ export const verifyWebhookSignature = async (
   const { timestamp, signatures } = parsed;
 
   // Check timestamp tolerance
-  const nowSecs = Math.floor(nowMs / 1000);
+  const nowSecs = Math.floor(nowMs() / 1000);
   if (Math.abs(nowSecs - timestamp) > toleranceSeconds) {
     logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "timestamp out of tolerance" });
     return { valid: false, error: "Timestamp outside tolerance window" };
@@ -557,7 +557,7 @@ export const constructTestWebhookEvent = async (
   secret: string,
 ): Promise<{ payload: string; signature: string }> => {
   const payload = JSON.stringify(event);
-  const timestamp = Math.floor(nowMs / 1000);
+  const timestamp = Math.floor(nowMs() / 1000);
   const signedPayload = `${timestamp}.${payload}`;
   const sig = await computeSignature(signedPayload, secret);
 

@@ -96,7 +96,7 @@ export const buildWebhookPayload = (
       unit_price: event.unit_price,
       quantity: attendee.quantity,
     })),
-    timestamp: nowIso,
+    timestamp: nowIso(),
   };
 };
 

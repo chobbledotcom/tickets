@@ -124,7 +124,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
     // Generate invite code
     const inviteCode = generateSecureToken();
     const codeHash = await hashInviteCode(inviteCode);
-    const expiry = new Date(nowMs + INVITE_EXPIRY_MS).toISOString();
+    const expiry = new Date(nowMs() + INVITE_EXPIRY_MS).toISOString();
 
     await createInvitedUser(
       username,
