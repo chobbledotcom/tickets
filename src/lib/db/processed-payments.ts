@@ -47,7 +47,7 @@ export const isSessionProcessed = (
  */
 export const isReservationStale = (processedAt: string): boolean => {
   const reservedAt = new Date(processedAt).getTime();
-  return nowMs - reservedAt > STALE_RESERVATION_MS;
+  return nowMs() - reservedAt > STALE_RESERVATION_MS;
 };
 
 /**
@@ -67,7 +67,7 @@ export const deleteStaleReservation = async (
  * Called from admin event views to clean up abandoned checkouts.
  */
 export const deleteAllStaleReservations = async (): Promise<number> => {
-  const cutoff = new Date(nowMs - STALE_RESERVATION_MS).toISOString();
+  const cutoff = new Date(nowMs() - STALE_RESERVATION_MS).toISOString();
   const result = await getDb().execute({
     sql: "DELETE FROM processed_payments WHERE attendee_id IS NULL AND processed_at < ?",
     args: [cutoff],
@@ -90,7 +90,7 @@ export const reserveSession = async (
   try {
     await getDb().execute({
       sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
-      args: [sessionId, nowIso],
+      args: [sessionId, nowIso()],
     });
     return { reserved: true };
   } catch (e) {

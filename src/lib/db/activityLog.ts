@@ -36,7 +36,7 @@ export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
     primaryKey: "id",
     schema: {
       id: col.generated<number>(),
-      created: col.withDefault(() => nowIso),
+      created: col.withDefault(() => nowIso()),
       event_id: col.simple<number | null>(),
       message: col.encrypted<string>(encrypt, decrypt),
     },

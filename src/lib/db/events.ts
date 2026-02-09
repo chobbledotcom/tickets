@@ -67,7 +67,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     description: { default: () => "", write: encrypt, read: decrypt },
     slug: col.encrypted<string>(encrypt, decrypt),
     slug_index: col.simple<string>(),
-    created: col.withDefault(() => nowIso),
+    created: col.withDefault(() => nowIso()),
     max_attendees: col.simple<number>(),
     thank_you_url: col.encryptedNullable<string>(encrypt, decrypt),
     unit_price: col.simple<number | null>(),

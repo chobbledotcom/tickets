@@ -72,12 +72,13 @@ export const getAvailableDates = (
   holidays: Holiday[],
 ): string[] => {
   const bookableDays = JSON.parse(event.bookable_days) as string[];
-  const start = addDays(today, event.minimum_days_before);
+  const todayStr = today();
+  const start = addDays(todayStr, event.minimum_days_before);
   const maxDays =
     event.maximum_days_after === 0
       ? MAX_FUTURE_DAYS
       : event.maximum_days_after;
-  const end = addDays(today, maxDays);
+  const end = addDays(todayStr, maxDays);
 
   return pipe(
     filter((d: string) => bookableDays.includes(getDayName(d))),
