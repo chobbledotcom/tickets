@@ -53,7 +53,7 @@ type ValidateFn<Input> =
 /**
  * Resource interface - provides typed REST operations
  */
-export interface Resource<Row, Input> {
+export interface Resource<Row, Input, Values extends FieldValues = FieldValues> {
   readonly table: Table<Row, Input>;
   readonly fields: Field[];
   parseInput: (form: URLSearchParams) => Promise<ParseResult<Input>>;
@@ -67,10 +67,10 @@ export interface Resource<Row, Input> {
 /**
  * Configuration for defineResource
  */
-export interface ResourceConfig<Row, Input> {
+export interface ResourceConfig<Row, Input, Values extends FieldValues = FieldValues> {
   table: Table<Row, Input>;
   fields: Field[];
-  toInput: (values: FieldValues) => Input | Promise<Input>;
+  toInput: (values: Values) => Input | Promise<Input>;
   nameField?: keyof Row & string;
   /** Custom delete function (e.g., to delete related records first) */
   onDelete?: (id: InValue) => Promise<void>;
@@ -79,12 +79,12 @@ export interface ResourceConfig<Row, Input> {
 }
 
 /** Validate form and convert to result type */
-const validateAndParse = async <T>(
+const validateAndParse = async <T, V extends FieldValues = FieldValues>(
   form: URLSearchParams,
   fields: Field[],
-  toInput: (values: FieldValues) => T | Promise<T>,
+  toInput: (values: V) => T | Promise<T>,
 ): Promise<ParseResult<T>> => {
-  const validation = validateForm(form, fields);
+  const validation = validateForm<V>(form, fields);
   return validation.valid
     ? { ok: true, input: await toInput(validation.values) }
     : { ok: false, error: validation.error };
@@ -130,18 +130,18 @@ const parseAndValidate = async <Input>(
 /**
  * Define a REST resource with typed CRUD operations.
  */
-export const defineResource = <Row, Input>(
-  config: ResourceConfig<Row, Input>,
-): Resource<Row, Input> => {
+export const defineResource = <Row, Input, Values extends FieldValues = FieldValues>(
+  config: ResourceConfig<Row, Input, Values>,
+): Resource<Row, Input, Values> => {
   const { table, fields, toInput, nameField } = config;
 
   const parseInput = (form: URLSearchParams): Promise<ParseResult<Input>> =>
-    validateAndParse(form, fields, toInput);
+    validateAndParse<Input, Values>(form, fields, toInput);
 
   const parsePartialInput = (
     form: URLSearchParams,
   ): Promise<ParseResult<Partial<Input>>> =>
-    validateAndParse(
+    validateAndParse<Partial<Input>, Values>(
       form,
       fields.filter((f) => form.has(f.name)),
       async (v) => (await toInput(v)) as Partial<Input>,

@@ -33,7 +33,7 @@ import {
   adminUsersPage,
   type DisplayUser,
 } from "#templates/admin/users.tsx";
-import { inviteUserFields } from "#templates/fields.ts";
+import { inviteUserFields, type InviteUserFormValues } from "#templates/fields.ts";
 
 /** Invite link expiry: 7 days */
 const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
@@ -90,7 +90,7 @@ const handleUsersGet = (request: Request): Promise<Response> =>
  */
 const handleUsersPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (session, form) => {
-    const validation = validateForm(form, inviteUserFields);
+    const validation = validateForm<InviteUserFormValues>(form, inviteUserFields);
     if (!validation.valid) {
       return htmlResponse(
         await renderUsersPage(session, undefined, validation.error),
@@ -98,8 +98,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
       );
     }
 
-    const username = validation.values.username as string;
-    const adminLevel = validation.values.admin_level as string;
+    const { username, admin_level: adminLevel } = validation.values;
 
     if (!VALID_ADMIN_LEVELS.includes(adminLevel as typeof VALID_ADMIN_LEVELS[number])) {
       return htmlResponse(

@@ -15,7 +15,7 @@ import {
   redirect,
   validateCsrfToken,
 } from "#routes/utils.ts";
-import { setupFields } from "#templates/fields.ts";
+import { setupFields, type SetupFormValues } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
 /** Cookie for CSRF token with standard security options */
@@ -47,17 +47,14 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
   logDebug("Setup", "Validating form data...");
   logDebug("Setup", `Form keys: ${Array.from(form.keys()).join(", ")}`);
 
-  const validation = validateForm(form, setupFields);
+  const validation = validateForm<SetupFormValues>(form, setupFields);
   if (!validation.valid) {
     logDebug("Setup", `Form framework validation failed: ${validation.error}`);
     return validation;
   }
 
-  const { values } = validation;
-  const username = values.admin_username as string;
-  const password = values.admin_password as string;
-  const passwordConfirm = values.admin_password_confirm as string;
-  const currency = ((values.currency_code as string) || "GBP").toUpperCase();
+  const { admin_username: username, admin_password: password, admin_password_confirm: passwordConfirm } = validation.values;
+  const currency = (validation.values.currency_code || "GBP").toUpperCase();
 
   // Check Data Controller Agreement acceptance
   const acceptAgreement = form.get("accept_agreement");
