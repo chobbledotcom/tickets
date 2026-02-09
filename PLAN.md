@@ -86,17 +86,28 @@ Daily events have a dedicated calendar-style admin view for browsing bookings by
 - Date selector filtering by dates with bookings
 - Attendee table by selected date with CSV export
 
----
-
-## Outstanding
-
 ### Ticket & Check-in Date Display
 
-The booked date is not shown on the ticket view (`src/templates/tickets.tsx`) or the check-in page (`src/templates/checkin.tsx`). For daily events, the date is the most important piece of information — attendees need to see it on their ticket, and operators checking people in need to verify the correct date.
+Booked date shown on ticket view and check-in page for daily events.
+
+**What was done:**
+
+- Ticket view conditionally shows "Date" column with formatted date label (`src/templates/tickets.tsx`)
+- Check-in page conditionally shows "Date" column for admin view (`src/templates/checkin.tsx`)
+- Both use `formatDateLabel()` from `src/lib/dates.ts` and only render the column when any entry has a date
 
 ### Webhook Date Field
 
-The outgoing webhook payload (`src/lib/webhook.ts`) does not include the attendee's booked date. External integrations receiving webhook notifications for daily events have no way to know which date was booked.
+Outgoing webhook payloads include the attendee's booked date for daily events.
+
+**What was done:**
+
+- `date: string | null` added to `WebhookTicket` and `WebhookAttendee` types (`src/lib/webhook.ts`)
+- `buildWebhookPayload` passes `attendee.date` through to each ticket in the payload
+
+---
+
+## Outstanding
 
 ### Per-Date Availability on Public Form
 
