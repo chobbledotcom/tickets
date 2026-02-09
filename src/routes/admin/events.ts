@@ -75,8 +75,8 @@ const extractCommonFields = (values: Record<string, unknown>) => ({
   closesAt: (values.closes_at as string) || "",
   eventType: (values.event_type as EventType) || undefined,
   bookableDays: serializeBookableDays(values.bookable_days as string | null),
-  minimumDaysBefore: (values.minimum_days_before as number | null) ?? 0,
-  maximumDaysAfter: (values.maximum_days_after as number | null) ?? 0,
+  minimumDaysBefore: (values.minimum_days_before as number | null) ?? 1,
+  maximumDaysAfter: (values.maximum_days_after as number | null) ?? 90,
 });
 
 /** Extract event input from validated form (async to compute slugIndex) */

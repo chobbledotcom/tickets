@@ -156,15 +156,18 @@ export const adminEventPage = (
               {event.event_type === "daily" && (
                 <tr>
                   <th>Booking Window</th>
-                  <td>{event.minimum_days_before} to {event.maximum_days_after} days from today</td>
+                  <td>{event.minimum_days_before} to {event.maximum_days_after === 0 ? "unlimited" : event.maximum_days_after} days from today</td>
                 </tr>
               )}
               <tr>
-                <th>Attendees{event.event_type === "daily" ? " (per date)" : ""}</th>
+                <th>Attendees{event.event_type === "daily" ? " (total)" : ""}</th>
                 <td>
                   <span class={nearCapacity(event) ? "danger-text" : ""}>
-                    {event.attendee_count} / {event.max_attendees} &mdash; {event.max_attendees - event.attendee_count} remain
+                    {event.attendee_count}{event.event_type !== "daily" && <> / {event.max_attendees} &mdash; {event.max_attendees - event.attendee_count} remain</>}
                   </span>
+                  {event.event_type === "daily" && (
+                    <small style="display: block; color: #666;">Capacity of {event.max_attendees} applies per date</small>
+                  )}
                 </td>
               </tr>
               {event.unit_price !== null && (

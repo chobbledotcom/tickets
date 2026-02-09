@@ -1967,8 +1967,8 @@ describe("server (admin events)", () => {
       const saved = await getEventWithCount(event.id);
       expect(saved?.event_type).toBe("standard");
       expect(saved?.bookable_days).toBe('["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]');
-      expect(saved?.minimum_days_before).toBe(0);
-      expect(saved?.maximum_days_after).toBe(0);
+      expect(saved?.minimum_days_before).toBe(1);
+      expect(saved?.maximum_days_after).toBe(90);
     });
 
     test("admin event detail page shows Daily type for daily events", async () => {
@@ -1991,7 +1991,8 @@ describe("server (admin events)", () => {
       expect(html).toContain("Monday,Tuesday");
       expect(html).toContain("Booking Window");
       expect(html).toContain("3 to 60 days");
-      expect(html).toContain("per date");
+      expect(html).toContain("Capacity of");
+      expect(html).toContain("applies per date");
     });
 
     test("admin event detail page shows Standard type without daily config", async () => {
@@ -2023,7 +2024,9 @@ describe("server (admin events)", () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain('value="Wednesday,Friday"');
+      expect(html).toContain('value="Wednesday" checked');
+      expect(html).toContain('value="Friday" checked');
+      expect(html).not.toContain('value="Monday" checked');
       expect(html).toContain('value="5"');
       expect(html).toContain('value="120"');
     });
@@ -2073,7 +2076,9 @@ describe("server (admin events)", () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain('value="Tuesday,Thursday"');
+      expect(html).toContain('value="Tuesday" checked');
+      expect(html).toContain('value="Thursday" checked');
+      expect(html).not.toContain('value="Monday" checked');
       expect(html).toContain('value="2"');
       expect(html).toContain('value="45"');
     });

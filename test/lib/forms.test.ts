@@ -4,6 +4,7 @@ import {
   renderError,
   renderField,
   renderFields,
+  validateForm,
 } from "#lib/forms.tsx";
 import {
   eventFields,
@@ -194,6 +195,42 @@ describe("forms", () => {
     test("trims values", () => {
       const values = expectValid(requiredName, { name: "  John  " });
       expect(values.name).toBe("John");
+    });
+
+    test("collects checkbox-group values from multiple form entries", () => {
+      const fields: Field[] = [
+        field({ name: "days", label: "Days", type: "checkbox-group" }),
+      ];
+      const form = new URLSearchParams();
+      form.append("days", "Monday");
+      form.append("days", "Wednesday");
+      const result = validateForm(form, fields);
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.values.days).toBe("Monday,Wednesday");
+      }
+    });
+
+    test("handles checkbox-group with single comma-separated value", () => {
+      const fields: Field[] = [
+        field({ name: "days", label: "Days", type: "checkbox-group" }),
+      ];
+      const result = validateForm(new URLSearchParams({ days: "Monday,Friday" }), fields);
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.values.days).toBe("Monday,Friday");
+      }
+    });
+
+    test("returns null for empty checkbox-group", () => {
+      const fields: Field[] = [
+        field({ name: "days", label: "Days", type: "checkbox-group" }),
+      ];
+      const result = validateForm(new URLSearchParams(), fields);
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.values.days).toBeNull();
+      }
     });
   });
 
@@ -633,6 +670,53 @@ describe("forms", () => {
     test("renders date input with value", () => {
       const html = rendered({ name: "start_date", label: "Start Date", type: "date" }, "2026-12-25");
       expect(html).toContain('value="2026-12-25"');
+    });
+  });
+
+  describe("renderField checkbox-group type", () => {
+    test("renders checkbox group with options", () => {
+      const html = rendered({
+        name: "days",
+        label: "Days",
+        type: "checkbox-group",
+        options: [
+          { value: "Monday", label: "Monday" },
+          { value: "Tuesday", label: "Tuesday" },
+        ],
+      });
+      expect(html).toContain('type="checkbox"');
+      expect(html).toContain('name="days"');
+      expect(html).toContain('value="Monday"');
+      expect(html).toContain('value="Tuesday"');
+    });
+
+    test("renders checkbox group with pre-selected values", () => {
+      const html = rendered(
+        {
+          name: "days",
+          label: "Days",
+          type: "checkbox-group",
+          options: [
+            { value: "Monday", label: "Monday" },
+            { value: "Tuesday", label: "Tuesday" },
+            { value: "Wednesday", label: "Wednesday" },
+          ],
+        },
+        "Monday,Wednesday",
+      );
+      expect(html).toContain('value="Monday" checked');
+      expect(html).toContain('value="Wednesday" checked');
+      expect(html).not.toContain('value="Tuesday" checked');
+    });
+
+    test("renders empty checkbox group when no values selected", () => {
+      const html = rendered({
+        name: "days",
+        label: "Days",
+        type: "checkbox-group",
+        options: [{ value: "Monday", label: "Monday" }],
+      });
+      expect(html).not.toContain("checked");
     });
   });
 
