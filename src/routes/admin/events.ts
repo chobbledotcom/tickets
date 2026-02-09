@@ -20,7 +20,8 @@ import {
 import { createHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
-import type { AdminSession, Attendee, EventFields, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
 import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
   getAuthenticatedSession,
@@ -59,42 +60,42 @@ const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: stri
 
 /** Extract event input from validated form (async to compute slugIndex) */
 const extractEventInput = async (
-  values: Record<string, unknown>,
+  values: EventFormValues,
 ): Promise<EventInput> => {
   const { slug, slugIndex } = await generateUniqueSlug();
   return {
-    name: values.name as string,
-    description: (values.description as string) || "",
+    name: values.name,
+    description: values.description || "",
     slug,
     slugIndex,
-    maxAttendees: values.max_attendees as number,
-    thankYouUrl: values.thank_you_url as string,
-    unitPrice: values.unit_price as number | null,
-    maxQuantity: values.max_quantity as number,
-    webhookUrl: (values.webhook_url as string) || null,
-    fields: (values.fields as EventFields) || "email",
-    closesAt: (values.closes_at as string) || "",
+    maxAttendees: values.max_attendees,
+    thankYouUrl: values.thank_you_url,
+    unitPrice: values.unit_price,
+    maxQuantity: values.max_quantity,
+    webhookUrl: values.webhook_url || null,
+    fields: values.fields || "email",
+    closesAt: values.closes_at || "",
   };
 };
 
 /** Extract event input for update (reads slug from form, normalizes it) */
 const extractEventUpdateInput = async (
-  values: Record<string, unknown>,
+  values: EventEditFormValues,
 ): Promise<EventInput> => {
-  const slug = normalizeSlug(values.slug as string);
+  const slug = normalizeSlug(values.slug);
   const slugIndex = await computeSlugIndex(slug);
   return {
-    name: values.name as string,
-    description: (values.description as string) || "",
+    name: values.name,
+    description: values.description || "",
     slug,
     slugIndex,
-    maxAttendees: values.max_attendees as number,
-    thankYouUrl: values.thank_you_url as string,
-    unitPrice: values.unit_price as number | null,
-    maxQuantity: values.max_quantity as number,
-    webhookUrl: (values.webhook_url as string) || null,
-    fields: (values.fields as EventFields) || "email",
-    closesAt: (values.closes_at as string) || "",
+    maxAttendees: values.max_attendees,
+    thankYouUrl: values.thank_you_url,
+    unitPrice: values.unit_price,
+    maxQuantity: values.max_quantity,
+    webhookUrl: values.webhook_url || null,
+    fields: values.fields || "email",
+    closesAt: values.closes_at || "",
   };
 };
 
@@ -231,7 +232,7 @@ const handleAdminEventEditPost = async (
     toInput: extractEventUpdateInput,
     nameField: "name",
     validate: async (input, id) => {
-      const taken = await isSlugTaken(input.slug, id as number);
+      const taken = await isSlugTaken(input.slug, Number(id));
       return taken ? "Slug is already in use by another event" : null;
     },
   });
@@ -374,9 +375,9 @@ const handleAdminEventDelete = (
     return redirect("/admin");
   });
 
-/** Parse event ID from params */
+/** Parse event ID from params (route pattern guarantees :id exists as \d+) */
 const parseEventId = (params: RouteParams): number =>
-  Number.parseInt(params.id as string, 10);
+  Number.parseInt(params.id!, 10);
 
 /** Event routes */
 export const eventsRoutes = defineRoutes({

@@ -30,7 +30,7 @@ import {
   requireCsrfForm,
   withActiveEventBySlug,
 } from "#routes/utils.ts";
-import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
+import { getTicketFields, mergeEventFields, type TicketFormValues } from "#templates/fields.ts";
 import { reservationSuccessPage } from "#templates/payment.tsx";
 import {
   buildMultiTicketEvent,
@@ -171,10 +171,10 @@ const handlePaymentFlow = (
   );
 
 /** Extract contact details (name, email, phone) from validated form values */
-const extractContact = (values: import("#lib/forms.tsx").FieldValues) => ({
-  name: values.name as string,
-  email: (values.email as string) || "",
-  phone: (values.phone as string) || "",
+const extractContact = (values: TicketFormValues) => ({
+  name: values.name,
+  email: values.email || "",
+  phone: values.phone || "",
 });
 
 /** Parse and validate a quantity value from a raw string, capping at max */
@@ -257,7 +257,7 @@ const processTicketReservation = async (
 
   const { form } = csrfResult;
   const fields = getTicketFields(event.fields);
-  const validation = validateForm(form, fields);
+  const validation = validateForm<TicketFormValues>(form, fields);
   if (!validation.valid) {
     return ticketResponse(event, currentToken)(validation.error);
   }
@@ -393,7 +393,7 @@ const buildMultiRegistrationItems = (
     }),
     map(({ event }: MultiTicketEvent) => ({
       eventId: event.id,
-      quantity: quantities.get(event.id) as number,
+      quantity: quantities.get(event.id)!,
       unitPrice: event.unit_price ?? 0,
       slug: event.slug,
       name: event.name,
@@ -472,7 +472,7 @@ const handleMultiTicketPost = (
   // Validate fields based on merged event settings
   const fieldsSetting = getMultiTicketFieldsSetting(activeEvents);
   const fields = getTicketFields(fieldsSetting);
-  const validation = validateForm(form, fields);
+  const validation = validateForm<TicketFormValues>(form, fields);
   if (!validation.valid) {
     return multiTicketResponse(slugs, activeEvents, currentToken)(
       validation.error,
