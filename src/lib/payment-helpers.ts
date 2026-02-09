@@ -53,9 +53,15 @@ export const serializeMultiItems = (
     }))(items),
   );
 
+/** Spread optional phone/date fields into metadata (only if truthy) */
+const optionalFields = (intent: { phone?: string | null; date?: string | null }): Record<string, string> => ({
+  ...(intent.phone ? { phone: intent.phone } : {}),
+  ...(intent.date ? { date: intent.date } : {}),
+});
+
 /**
  * Build intent metadata for a single-event checkout.
- * Common fields: event_id, name, email, quantity, optional phone.
+ * Common fields: event_id, name, email, quantity, optional phone/date.
  */
 export const buildSingleIntentMetadata = (
   eventId: number,
@@ -65,13 +71,12 @@ export const buildSingleIntentMetadata = (
   name: intent.name,
   email: intent.email,
   quantity: String(intent.quantity),
-  ...(intent.phone ? { phone: intent.phone } : {}),
-  ...(intent.date ? { date: intent.date } : {}),
+  ...optionalFields(intent),
 });
 
 /**
  * Build intent metadata for a multi-event checkout.
- * Common fields: multi flag, name, email, serialized items, optional phone.
+ * Common fields: multi flag, name, email, serialized items, optional phone/date.
  */
 export const buildMultiIntentMetadata = (
   intent: MultiRegistrationIntent,
@@ -80,8 +85,7 @@ export const buildMultiIntentMetadata = (
   name: intent.name,
   email: intent.email,
   items: serializeMultiItems(intent.items),
-  ...(intent.phone ? { phone: intent.phone } : {}),
-  ...(intent.date ? { date: intent.date } : {}),
+  ...optionalFields(intent),
 });
 
 /**
