@@ -219,6 +219,50 @@ export const getEventWithAttendeesRaw = async (
   return { event: await decryptEventRow(eventRow, count), attendeesRaw };
 };
 
+/**
+ * Get all daily events with all their attendees in a single database round-trip.
+ * Returns decrypted events and raw (encrypted) attendees grouped by event.
+ */
+export const getAllDailyEventsWithAttendeesRaw = async (): Promise<
+  { event: EventWithCount; attendeesRaw: Attendee[] }[]
+> => {
+  const [eventsResult, attendeesResult] = await queryBatch([
+    {
+      sql: `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
+            FROM events e
+            LEFT JOIN attendees a ON e.id = a.event_id
+            WHERE e.event_type = 'daily'
+            GROUP BY e.id
+            ORDER BY e.created DESC, e.id DESC`,
+      args: [],
+    },
+    {
+      sql: `SELECT a.* FROM attendees a
+            INNER JOIN events e ON a.event_id = e.id
+            WHERE e.event_type = 'daily'
+            ORDER BY a.created DESC`,
+      args: [],
+    },
+  ]);
+
+  const eventRows = eventsResult!.rows as unknown as EventWithCount[];
+  const allAttendees = attendeesResult!.rows as unknown as Attendee[];
+  const decryptedEvents = await Promise.all(eventRows.map(decryptEventWithCount));
+
+  // Group attendees by event_id
+  const attendeesByEvent = new Map<number, Attendee[]>();
+  for (const a of allAttendees) {
+    const list = attendeesByEvent.get(a.event_id) ?? [];
+    list.push(a);
+    attendeesByEvent.set(a.event_id, list);
+  }
+
+  return decryptedEvents.map((event) => ({
+    event,
+    attendeesRaw: attendeesByEvent.get(event.id) ?? [],
+  }));
+};
+
 /** Result type for event + single attendee query */
 export type EventWithAttendeeRaw = {
   event: EventWithCount;

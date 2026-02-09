@@ -113,7 +113,7 @@ describe("dates", () => {
       expect(earliest >= addDays(today, 3)).toBe(true);
     });
 
-    test("uses 365 days when maximum_days_after is 0 (unlimited)", () => {
+    test("uses 730 days when maximum_days_after is 0 (unlimited)", () => {
       const event = testEvent({
         event_type: "daily",
         bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
@@ -123,8 +123,8 @@ describe("dates", () => {
 
       const dates = getAvailableDates(event, []);
       const latest = dates[dates.length - 1]!;
-      // Should extend close to 365 days
-      expect(latest >= addDays(today, 300)).toBe(true);
+      // Should extend close to 730 days (2 years)
+      expect(latest >= addDays(today, 700)).toBe(true);
     });
 
     test("respects maximum_days_after when non-zero", () => {
