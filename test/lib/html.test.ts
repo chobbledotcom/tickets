@@ -7,7 +7,8 @@ import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#template
 import { Breadcrumb } from "#templates/admin/nav.tsx";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
-import { generateAttendeesCsv } from "#templates/csv.ts";
+import { generateAttendeesCsv, generateCalendarCsv } from "#templates/csv.ts";
+import { adminCalendarPage, type CalendarAttendeeRow } from "#templates/admin/calendar.tsx";
 import {
   paymentCancelPage,
   paymentErrorPage,
@@ -582,6 +583,33 @@ describe("html", () => {
       expect(lines[1]).toContain("abc123");
       expect(lines[1]).toContain("https://localhost/t/abc123");
     });
+
+    test("includes Date column when includeDate is true", () => {
+      const csv = generateAttendeesCsv([], true);
+      expect(csv).toBe("Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+    });
+
+    test("includes date value in row when includeDate is true", () => {
+      const attendees = [testAttendee({ date: "2026-03-15" })];
+      const csv = generateAttendeesCsv(attendees, true);
+      const lines = csv.split("\n");
+      expect(lines[0]).toContain("Date,Name");
+      expect(lines[1]).toMatch(/^2026-03-15,/);
+    });
+
+    test("includes empty date in row when date is null", () => {
+      const attendees = [testAttendee({ date: null })];
+      const csv = generateAttendeesCsv(attendees, true);
+      const lines = csv.split("\n");
+      expect(lines[1]).toMatch(/^,John Doe/);
+    });
+
+    test("omits Date column when includeDate is false", () => {
+      const attendees = [testAttendee({ date: "2026-03-15" })];
+      const csv = generateAttendeesCsv(attendees, false);
+      expect(csv.startsWith("Name,")).toBe(true);
+      expect(csv).not.toContain("2026-03-15");
+    });
   });
 
   describe("adminEventPage filter links", () => {
@@ -902,6 +930,179 @@ describe("html", () => {
       );
       expect(html).toContain("No webhook signature key is configured");
       expect(html).toContain("Follow the steps above to set one up");
+    });
+  });
+
+  describe("adminCalendarPage", () => {
+    const calendarAttendee = (overrides: Partial<CalendarAttendeeRow> = {}): CalendarAttendeeRow => ({
+      ...testAttendee(),
+      eventName: "Daily Event",
+      eventId: 1,
+      date: "2026-03-15",
+      ...overrides,
+    });
+
+    test("renders Calendar title", () => {
+      const html = adminCalendarPage([], "localhost", TEST_SESSION, null, []);
+      expect(html).toContain("Calendar");
+      expect(html).toContain("Attendees by Date");
+    });
+
+    test("renders date selector dropdown", () => {
+      const dates = [
+        { value: "2026-03-15", label: "Sunday 15 March 2026", hasBookings: true },
+        { value: "2026-03-16", label: "Monday 16 March 2026", hasBookings: false },
+      ];
+      const html = adminCalendarPage([], "localhost", TEST_SESSION, null, dates);
+      expect(html).toContain("Sunday 15 March 2026");
+      expect(html).toContain("Monday 16 March 2026");
+      expect(html).toContain("Select a date");
+    });
+
+    test("disables options for dates without bookings", () => {
+      const dates = [
+        { value: "2026-03-15", label: "Sunday 15 March 2026", hasBookings: false },
+      ];
+      const html = adminCalendarPage([], "localhost", TEST_SESSION, null, dates);
+      expect(html).toContain("<option disabled>");
+    });
+
+    test("enables options for dates with bookings", () => {
+      const dates = [
+        { value: "2026-03-15", label: "Sunday 15 March 2026", hasBookings: true },
+      ];
+      const html = adminCalendarPage([], "localhost", TEST_SESSION, null, dates);
+      expect(html).toContain('value="/admin/calendar?date=2026-03-15#attendees"');
+    });
+
+    test("shows prompt when no date selected", () => {
+      const html = adminCalendarPage([], "localhost", TEST_SESSION, null, []);
+      expect(html).toContain("Select a date above to view attendees");
+    });
+
+    test("shows no attendees message when date selected but empty", () => {
+      const html = adminCalendarPage([], "localhost", TEST_SESSION, "2026-03-15", []);
+      expect(html).toContain("No attendees for this date");
+    });
+
+    test("shows formatted date label when date is selected", () => {
+      const html = adminCalendarPage([], "localhost", TEST_SESSION, "2026-03-15", []);
+      expect(html).toContain("Sunday 15 March 2026");
+    });
+
+    test("renders attendee rows with event name and link", () => {
+      const attendees = [calendarAttendee()];
+      const html = adminCalendarPage(attendees, "localhost", TEST_SESSION, "2026-03-15", []);
+      expect(html).toContain("Daily Event");
+      expect(html).toContain('href="/admin/event/1"');
+      expect(html).toContain("John Doe");
+    });
+
+    test("renders Event column header", () => {
+      const html = adminCalendarPage([], "localhost", TEST_SESSION, null, []);
+      expect(html).toContain("<th>Event</th>");
+    });
+
+    test("shows CSV export link when date has attendees", () => {
+      const attendees = [calendarAttendee()];
+      const html = adminCalendarPage(attendees, "localhost", TEST_SESSION, "2026-03-15", []);
+      expect(html).toContain('href="/admin/calendar/export?date=2026-03-15"');
+      expect(html).toContain("Export CSV");
+    });
+
+    test("does not show CSV export when date has no attendees", () => {
+      const html = adminCalendarPage([], "localhost", TEST_SESSION, "2026-03-15", []);
+      expect(html).not.toContain("Export CSV");
+    });
+
+    test("does not show CSV export when no date selected", () => {
+      const html = adminCalendarPage([], "localhost", TEST_SESSION, null, []);
+      expect(html).not.toContain("Export CSV");
+    });
+
+    test("includes Calendar link in admin nav", () => {
+      const html = adminCalendarPage([], "localhost", TEST_SESSION, null, []);
+      expect(html).toContain('href="/admin/calendar"');
+    });
+
+    test("escapes attendee data", () => {
+      const attendees = [calendarAttendee({ name: "<script>evil()</script>" })];
+      const html = adminCalendarPage(attendees, "localhost", TEST_SESSION, "2026-03-15", []);
+      expect(html).toContain("&lt;script&gt;");
+    });
+  });
+
+  describe("generateCalendarCsv", () => {
+    const calendarAttendee = (overrides: Partial<CalendarAttendeeRow> = {}): CalendarAttendeeRow => ({
+      ...testAttendee(),
+      eventName: "Daily Event",
+      eventId: 1,
+      date: "2026-03-15",
+      ...overrides,
+    });
+
+    test("generates CSV header for empty attendees", () => {
+      const csv = generateCalendarCsv([]);
+      expect(csv).toBe("Event,Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+    });
+
+    test("includes Event name as first column", () => {
+      const attendees = [calendarAttendee()];
+      const csv = generateCalendarCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[0]).toContain("Event,Date,Name");
+      expect(lines[1]).toMatch(/^Daily Event,2026-03-15,/);
+    });
+
+    test("includes Date column", () => {
+      const attendees = [calendarAttendee({ date: "2026-03-20" })];
+      const csv = generateCalendarCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[1]).toContain("2026-03-20");
+    });
+
+    test("escapes event names with commas", () => {
+      const attendees = [calendarAttendee({ eventName: "Event, Special" })];
+      const csv = generateCalendarCsv(attendees);
+      expect(csv).toContain('"Event, Special"');
+    });
+
+    test("includes standard attendee columns", () => {
+      const attendees = [calendarAttendee({
+        created: "2024-01-15T10:30:00Z",
+        quantity: 2,
+        price_paid: "2000",
+        payment_id: "pi_abc",
+        checked_in: "true",
+      })];
+      const csv = generateCalendarCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[1]).toContain("John Doe");
+      expect(lines[1]).toContain("john@example.com");
+      expect(lines[1]).toContain(",2,");
+      expect(lines[1]).toContain("20.00");
+      expect(lines[1]).toContain("pi_abc");
+      expect(lines[1]).toContain(",Yes,");
+    });
+
+    test("generates multiple rows", () => {
+      const attendees = [
+        calendarAttendee(),
+        calendarAttendee({ id: 2, name: "Jane Smith", eventName: "Other Event" }),
+      ];
+      const csv = generateCalendarCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines).toHaveLength(3);
+      expect(lines[1]).toContain("Daily Event");
+      expect(lines[2]).toContain("Other Event");
+    });
+  });
+
+  describe("admin nav Calendar link", () => {
+    test("admin dashboard includes Calendar link in nav", () => {
+      const html = adminDashboardPage([], TEST_SESSION);
+      expect(html).toContain('href="/admin/calendar"');
+      expect(html).toContain("Calendar");
     });
   });
 });

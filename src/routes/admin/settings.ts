@@ -5,12 +5,14 @@
 
 import {
   clearPaymentProvider,
+  getEmbedHostsFromDb,
   getPaymentProviderFromDb,
   getStripeWebhookEndpointId,
   hasSquareToken,
   hasStripeKey,
   setPaymentProvider,
   setStripeWebhookConfig,
+  updateEmbedHosts,
   updateSquareAccessToken,
   updateSquareLocationId,
   updateSquareWebhookSignatureKey,
@@ -21,6 +23,7 @@ import {
   getSquareWebhookSignatureKey,
   getAllowedDomain,
 } from "#lib/config.ts";
+import { validateEmbedHosts, parseEmbedHosts } from "#lib/embed-hosts.ts";
 import { resetDatabase } from "#lib/db/migrations/index.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
@@ -59,12 +62,14 @@ const getSettingsPageState = async () => {
   const squareWebhookKey = await getSquareWebhookSignatureKey();
   const squareWebhookConfigured = squareWebhookKey !== null;
   const webhookUrl = getWebhookUrl();
+  const embedHosts = await getEmbedHostsFromDb();
   return {
     stripeKeyConfigured,
     paymentProvider,
     squareTokenConfigured,
     squareWebhookConfigured,
     webhookUrl,
+    embedHosts,
   };
 };
 
@@ -84,6 +89,7 @@ const renderSettingsPage = async (
     state.squareTokenConfigured,
     state.squareWebhookConfigured,
     state.webhookUrl,
+    state.embedHosts,
   );
 };
 
@@ -229,7 +235,7 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
 
     // Store both the Stripe key and webhook config
     await updateStripeKey(stripeSecretKey);
-    await setStripeWebhookConfig(webhookResult.secret, webhookResult.endpointId);
+    await setStripeWebhookConfig(webhookResult);
 
     // Auto-set payment provider to stripe when key is configured
     await setPaymentProvider("stripe");
@@ -300,6 +306,34 @@ const handleStripeTestPost = (request: Request): Promise<Response> =>
   });
 
 /**
+ * Handle POST /admin/settings/embed-hosts - owner only
+ */
+const handleEmbedHostsPost = (request: Request): Promise<Response> =>
+  withOwnerAuthForm(request, async (session, form) => {
+    const settingsPageWithError = async (error: string, status: number) =>
+      htmlResponse(await renderSettingsPage(session, error), status);
+
+    const raw = form.get("embed_hosts") ?? "";
+    const trimmed = raw.trim();
+
+    // Empty = clear restriction
+    if (trimmed === "") {
+      await updateEmbedHosts("");
+      return redirectWithSuccess("/admin/settings", "Embed host restrictions removed");
+    }
+
+    const error = validateEmbedHosts(trimmed);
+    if (error) {
+      return settingsPageWithError(error, 400);
+    }
+
+    // Normalize: trim, lowercase, rejoin
+    const normalized = parseEmbedHosts(trimmed).join(", ");
+    await updateEmbedHosts(normalized);
+    return redirectWithSuccess("/admin/settings", "Allowed embed hosts updated");
+  });
+
+/**
  * Expected confirmation phrase for database reset
  */
 const RESET_DATABASE_PHRASE =
@@ -338,6 +372,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/square-webhook": (request) =>
     handleAdminSquareWebhookPost(request),
   "POST /admin/settings/stripe/test": (request) => handleStripeTestPost(request),
+  "POST /admin/settings/embed-hosts": (request) => handleEmbedHostsPost(request),
   "POST /admin/settings/reset-database": (request) =>
     handleResetDatabasePost(request),
 });

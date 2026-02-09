@@ -26,6 +26,7 @@ export const adminSettingsPage = (
   squareTokenConfigured?: boolean,
   squareWebhookConfigured?: boolean,
   webhookUrl?: string,
+  embedHosts?: string | null,
 ): string =>
   String(
     <Layout title="Settings">
@@ -172,6 +173,23 @@ document.getElementById('stripe-test-btn')?.addEventListener('click', async func
           <button type="submit">Update Webhook Key</button>
         </form>
         )}
+
+        <form method="POST" action="/admin/settings/embed-hosts">
+            <h2>Allowed Embed Hosts</h2>
+          <p>Restrict which websites can embed your booking forms in an iframe. Leave blank to allow embedding from any site.</p>
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          <label for="embed_hosts">Hosts (comma-separated)</label>
+          <input
+            type="text"
+            id="embed_hosts"
+            name="embed_hosts"
+            placeholder="example.com, *.mysite.org"
+            value={embedHosts ?? ""}
+            autocomplete="off"
+          />
+          <p><small>Use <code>*.example.com</code> to allow all subdomains. Direct visits to the booking page are always allowed.</small></p>
+          <button type="submit">Save Embed Hosts</button>
+        </form>
 
         <form method="POST" action="/admin/settings">
             <h2>Change Password</h2>

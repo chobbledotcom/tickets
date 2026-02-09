@@ -1,7 +1,9 @@
-import { afterEach, beforeEach, describe, expect, jest, spyOn, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import type { InStatement } from "@libsql/client";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
+import { addDays } from "#lib/dates.ts";
+import { today } from "#lib/now.ts";
 
 import { handleRequest } from "#routes";
 import {
@@ -17,9 +19,11 @@ import {
   expectAdminRedirect,
   expectRedirect,
   loginAsAdmin,
+  submitTicketForm,
   updateTestEvent,
 } from "#test-utils";
-import { formatCountdown } from "#routes/utils.ts";
+import { nowMs } from "#lib/now.ts";
+import { formatCountdown, withCookie } from "#routes/utils.ts";
 
 describe("server (admin events)", () => {
   beforeEach(async () => {
@@ -1864,25 +1868,22 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown shows days and hours", () => {
-      jest.useFakeTimers();
-      jest.setSystemTime(new Date("2025-01-01T00:00:00Z"));
-      const future = new Date("2025-01-04T05:00:00Z").toISOString();
+      const future = new Date(nowMs() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("3 days and 5 hours from now");
-      jest.useRealTimers();
     });
 
     test("formatCountdown shows only days when no remaining hours", () => {
-      const future = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
+      const future = new Date(nowMs() + 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("2 days from now");
     });
 
     test("formatCountdown shows only hours", () => {
-      const future = new Date(Date.now() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
+      const future = new Date(nowMs() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("5 hours from now");
     });
 
     test("formatCountdown shows minutes when less than an hour", () => {
-      const result = formatCountdown(new Date(Date.now() + 30 * 60 * 1000).toISOString());
+      const result = formatCountdown(new Date(nowMs() + 30 * 60 * 1000).toISOString());
       expect(result).toContain("minute");
       expect(result).toContain("from now");
     });
@@ -1892,15 +1893,8 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown singular forms", () => {
-      const now = Date.now();
-      const spy = spyOn(Date, "now");
-      spy.mockReturnValue(now);
-      try {
-        const future = new Date(now + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString();
-        expect(formatCountdown(future)).toBe("1 day and 1 hour from now");
-      } finally {
-        spy.mockRestore();
-      }
+      const future = new Date(nowMs() + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString();
+      expect(formatCountdown(future)).toBe("1 day and 1 hour from now");
     });
 
     test("rejects invalid closes_at format", async () => {
@@ -1924,6 +1918,464 @@ describe("server (admin events)", () => {
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("Please enter a valid date and time");
+    });
+  });
+
+  describe("withCookie", () => {
+    test("adds a cookie to a response without existing cookies", () => {
+      const response = new Response("body", { status: 200 });
+      const result = withCookie(response, "session=abc; Path=/");
+      expect(result.headers.get("set-cookie")).toBe("session=abc; Path=/");
+    });
+
+    test("preserves existing set-cookie headers when adding another", () => {
+      const headers = new Headers();
+      headers.append("set-cookie", "first=one; Path=/");
+      const response = new Response("body", { status: 200, headers });
+      const result = withCookie(response, "second=two; Path=/");
+      const cookies = result.headers.getSetCookie();
+      expect(cookies.length).toBe(2);
+      expect(cookies).toContain("first=one; Path=/");
+      expect(cookies).toContain("second=two; Path=/");
+    });
+
+    test("preserves response status", () => {
+      const response = new Response("body", { status: 201 });
+      const result = withCookie(response, "session=abc; Path=/");
+      expect(result.status).toBe(201);
+    });
+  });
+
+  describe("daily event type", () => {
+    test("creates a daily event with custom config", async () => {
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: '["Monday","Wednesday","Friday"]',
+        minimumDaysBefore: 2,
+        maximumDaysAfter: 30,
+      });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.event_type).toBe("daily");
+      expect(saved?.bookable_days).toBe('["Monday","Wednesday","Friday"]');
+      expect(saved?.minimum_days_before).toBe(2);
+      expect(saved?.maximum_days_after).toBe(30);
+    });
+
+    test("creates standard event with default daily config", async () => {
+      const event = await createTestEvent();
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.event_type).toBe("standard");
+      expect(saved?.bookable_days).toBe('["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]');
+      expect(saved?.minimum_days_before).toBe(1);
+      expect(saved?.maximum_days_after).toBe(90);
+    });
+
+    test("admin event detail page shows Daily type for daily events", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: '["Monday","Tuesday"]',
+        minimumDaysBefore: 3,
+        maximumDaysAfter: 60,
+      });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Event Type");
+      expect(html).toContain("Daily");
+      expect(html).toContain("Bookable Days");
+      expect(html).toContain("Monday,Tuesday");
+      expect(html).toContain("Booking Window");
+      expect(html).toContain("3 to 60 days");
+      expect(html).toContain("Capacity of");
+      expect(html).toContain("applies per date");
+    });
+
+    test("admin event detail page shows Standard type without daily config", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Event Type");
+      expect(html).toContain("Standard");
+      expect(html).not.toContain("Bookable Days");
+      expect(html).not.toContain("Booking Window");
+    });
+
+    test("admin event edit page pre-fills daily config", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: '["Wednesday","Friday"]',
+        minimumDaysBefore: 5,
+        maximumDaysAfter: 120,
+      });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('value="Wednesday" checked');
+      expect(html).toContain('value="Friday" checked');
+      expect(html).not.toContain('value="Monday" checked');
+      expect(html).toContain('value="5"');
+      expect(html).toContain('value="120"');
+    });
+
+    test("updates event from standard to daily", async () => {
+      const event = await createTestEvent();
+      await updateTestEvent(event.id, {
+        eventType: "daily",
+        bookableDays: '["Saturday","Sunday"]',
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.event_type).toBe("daily");
+      expect(updated?.bookable_days).toBe('["Saturday","Sunday"]');
+      expect(updated?.minimum_days_before).toBe(0);
+      expect(updated?.maximum_days_after).toBe(14);
+    });
+
+    test("updates event from daily to standard", async () => {
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: '["Monday"]',
+        minimumDaysBefore: 7,
+        maximumDaysAfter: 365,
+      });
+      await updateTestEvent(event.id, { eventType: "standard" });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.event_type).toBe("standard");
+    });
+
+    test("duplicate page pre-fills daily event config", async () => {
+      const { cookie } = await loginAsAdmin();
+      await createTestEvent({
+        eventType: "daily",
+        bookableDays: '["Tuesday","Thursday"]',
+        minimumDaysBefore: 2,
+        maximumDaysAfter: 45,
+      });
+
+      const response = await awaitTestRequest("/admin/event/1/duplicate", {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('value="Tuesday" checked');
+      expect(html).toContain('value="Thursday" checked');
+      expect(html).not.toContain('value="Monday" checked');
+      expect(html).toContain('value="2"');
+      expect(html).toContain('value="45"');
+    });
+
+    test("rejects invalid event_type value", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event",
+          {
+            name: "Bad Type Event",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "https://example.com",
+            event_type: "invalid",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid bookable_days value", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      await createTestEvent({ name: "Edit Target" });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const event = (await getEventWithCount(1))!;
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/edit",
+          {
+            name: "Edit Target",
+            slug: event.slug,
+            max_attendees: "50",
+            max_quantity: "1",
+            event_type: "daily",
+            bookable_days: "Funday,Bunday",
+            minimum_days_before: "1",
+            maximum_days_after: "90",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Invalid day");
+    });
+  });
+
+  describe("daily event admin view (Phase 4)", () => {
+    const validDate1 = addDays(today(), 1);
+    const validDate2 = addDays(today(), 2);
+
+    const createDailyEventWithAttendees = async () => {
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      // Create attendees on two different dates via the public form
+      await submitTicketForm(event.slug, { name: "User A", email: "a@test.com", date: validDate1 });
+      await submitTicketForm(event.slug, { name: "User B", email: "b@test.com", date: validDate1 });
+      await submitTicketForm(event.slug, { name: "User C", email: "c@test.com", date: validDate2 });
+      return event;
+    };
+
+    test("shows date selector dropdown for daily events", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("<select");
+      expect(html).toContain("All dates");
+      expect(html).toContain(validDate1);
+      expect(html).toContain(validDate2);
+    });
+
+    test("shows Date column header for daily events", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
+      const html = await response.text();
+      expect(html).toContain("<th>Date</th>");
+    });
+
+    test("does not show Date column for standard events", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
+      const html = await response.text();
+      expect(html).not.toContain("<th>Date</th>");
+    });
+
+    test("filters attendees by ?date= parameter", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      // Filter to date1 — should show 2 attendees (User A and User B)
+      const response = await awaitTestRequest(`/admin/event/${event.id}?date=${validDate1}`, { cookie });
+      const html = await response.text();
+      expect(html).toContain("User A");
+      expect(html).toContain("User B");
+      expect(html).not.toContain("User C");
+    });
+
+    test("filters attendees by ?date= showing other date", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      // Filter to date2 — should show 1 attendee (User C)
+      const response = await awaitTestRequest(`/admin/event/${event.id}?date=${validDate2}`, { cookie });
+      const html = await response.text();
+      expect(html).toContain("User C");
+      expect(html).not.toContain("User A");
+    });
+
+    test("shows per-date capacity when date filter is active", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}?date=${validDate1}`, { cookie });
+      const html = await response.text();
+      // Should show "2 / 100" for the 2 attendees on date1
+      expect(html).toContain("2 / 100");
+      expect(html).toContain("98 remain");
+    });
+
+    test("shows total count without date filter", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
+      const html = await response.text();
+      expect(html).toContain("(total)");
+      expect(html).toContain("Capacity of");
+    });
+
+    test("date filter composes with check-in filter", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      // Filter to date1 + checked out — should show both since none are checked in
+      const response = await awaitTestRequest(`/admin/event/${event.id}/out?date=${validDate1}`, { cookie });
+      const html = await response.text();
+      expect(html).toContain("User A");
+      expect(html).toContain("User B");
+      expect(html).not.toContain("User C");
+    });
+
+    test("ignores ?date= for standard events", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent();
+      await createTestAttendee(event.id, event.slug, "Standard User", "std@test.com");
+
+      // Even with ?date= param, standard events show all attendees
+      const response = await awaitTestRequest(`/admin/event/${event.id}?date=2026-03-15`, { cookie });
+      const html = await response.text();
+      expect(html).toContain("Standard User");
+      expect(html).not.toContain("<th>Date</th>");
+    });
+
+    test("CSV export includes Date column for daily events", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}/export`, { cookie });
+      expect(response.status).toBe(200);
+      const csv = await response.text();
+      expect(csv).toContain("Date,Name,Email");
+    });
+
+    test("CSV export excludes Date column for standard events", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent();
+      await createTestAttendee(event.id, event.slug, "CSV User", "csv@test.com");
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}/export`, { cookie });
+      const csv = await response.text();
+      expect(csv.startsWith("Name,Email")).toBe(true);
+    });
+
+    test("CSV export filters by ?date= for daily events", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}/export?date=${validDate2}`, { cookie });
+      const csv = await response.text();
+      expect(csv).toContain("User C");
+      expect(csv).not.toContain("User A");
+    });
+
+    test("CSV export filename includes date when filtered", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}/export?date=${validDate1}`, { cookie });
+      const disposition = response.headers.get("content-disposition") ?? "";
+      expect(disposition).toContain(validDate1);
+      expect(disposition).toContain("_attendees.csv");
+    });
+
+    test("Export CSV link includes ?date= when filter is active", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}?date=${validDate1}`, { cookie });
+      const html = await response.text();
+      expect(html).toContain(`/admin/event/${event.id}/export?date=${validDate1}`);
+    });
+
+    test("filter links preserve ?date= query parameter", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createDailyEventWithAttendees();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}?date=${validDate1}`, { cookie });
+      const html = await response.text();
+      expect(html).toContain(`/admin/event/${event.id}/in?date=${validDate1}#attendees`);
+      expect(html).toContain(`/admin/event/${event.id}/out?date=${validDate1}#attendees`);
+    });
+  });
+
+  describe("stale reservation cleanup on admin event view", () => {
+    test("cleans up stale reservations when viewing an event", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({
+        name: "Cleanup Test Event",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Insert a stale reservation (older than 5 minutes)
+      const staleTime = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["cs_stale_admin_test", staleTime],
+      });
+
+      // Verify it exists
+      const before = await getDb().execute({
+        sql: "SELECT * FROM processed_payments WHERE payment_session_id = ?",
+        args: ["cs_stale_admin_test"],
+      });
+      expect(before.rows.length).toBe(1);
+
+      // View the admin event page
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+
+      // Stale reservation should be cleaned up
+      const after = await getDb().execute({
+        sql: "SELECT * FROM processed_payments WHERE payment_session_id = ?",
+        args: ["cs_stale_admin_test"],
+      });
+      expect(after.rows.length).toBe(0);
+    });
+
+    test("does not clean up fresh reservations when viewing an event", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({
+        name: "Fresh Reservation Test",
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Insert a fresh reservation (just now)
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["cs_fresh_admin_test", new Date().toISOString()],
+      });
+
+      // View the admin event page
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      expect(response.status).toBe(200);
+
+      // Fresh reservation should still exist
+      const after = await getDb().execute({
+        sql: "SELECT * FROM processed_payments WHERE payment_session_id = ?",
+        args: ["cs_fresh_admin_test"],
+      });
+      expect(after.rows.length).toBe(1);
     });
   });
 

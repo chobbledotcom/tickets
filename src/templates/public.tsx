@@ -3,12 +3,23 @@
  */
 
 import { map, pipe } from "#fp";
+import { formatDateLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { renderError, renderFields } from "#lib/forms.tsx";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
-import { Layout } from "#templates/layout.tsx";
+import { escapeHtml, Layout } from "#templates/layout.tsx";
+
+/** Render a date selector dropdown for daily events */
+const renderDateSelector = (dates: string[]): string =>
+  dates.length === 0
+    ? `<div class="error">No dates are currently available for booking.</div>`
+    : `<label for="date">Select Date</label>
+       <select name="date" id="date" required>
+         <option value="">— Select a date —</option>
+         ${dates.map((d) => `<option value="${d}">${formatDateLabel(d)}</option>`).join("")}
+       </select>`;
 
 /** Quantity values parsed from multi-ticket form */
 export type MultiTicketQuantities = Map<number, number>;
@@ -30,12 +41,14 @@ export const ticketPage = (
   error?: string,
   isClosed = false,
   iframe = false,
+  availableDates?: string[],
 ): string => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isFull = spotsRemaining <= 0;
   const maxPurchasable = Math.min(event.max_quantity, spotsRemaining);
   const showQuantity = maxPurchasable > 1;
   const fields: Field[] = getTicketFields(event.fields);
+  const isDaily = event.event_type === "daily";
 
   return String(
     <Layout title={event.name} bodyClass={iframe ? "iframe" : undefined}>
@@ -44,7 +57,7 @@ export const ticketPage = (
           <h1>{event.name}</h1>
           {event.description && (
             <div style="font-size: 0.9em; margin: 0.5rem 0 1rem;">
-              <Raw html={event.description} />
+              <Raw html={escapeHtml(event.description)} />
             </div>
           )}
         </>
@@ -59,6 +72,9 @@ export const ticketPage = (
           <form method="POST" action={`/ticket/${event.slug}`}>
             <input type="hidden" name="csrf_token" value={csrfToken} />
             <Raw html={renderFields(fields)} />
+            {isDaily && availableDates && (
+              <Raw html={renderDateSelector(availableDates)} />
+            )}
             {showQuantity ? (
               <>
                 <label for="quantity">Number of Tickets</label>
@@ -110,7 +126,7 @@ export const buildMultiTicketEvent = (
 /** Render description HTML for multi-ticket event row */
 const renderMultiEventDescription = (description: string): string =>
   description
-    ? `<div style="font-size: 0.9em; margin: 0.25rem 0 0.5rem;">${description}</div>`
+    ? `<div style="font-size: 0.9em; margin: 0.25rem 0 0.5rem;">${escapeHtml(description)}</div>`
     : "";
 
 /** Render quantity selector for a single event in multi-ticket form */
@@ -121,7 +137,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
   if (isClosed) {
     return `
       <div class="multi-ticket-row sold-out">
-        <label>${event.name}</label>
+        <label>${escapeHtml(event.name)}</label>
         <span class="sold-out-label">Registration Closed</span>
       </div>
     `;
@@ -130,7 +146,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
   if (isSoldOut) {
     return `
       <div class="multi-ticket-row sold-out">
-        <label>${event.name}</label>
+        <label>${escapeHtml(event.name)}</label>
         ${renderMultiEventDescription(event.description)}
         <span class="sold-out-label">Sold Out</span>
       </div>
@@ -143,7 +159,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
 
   return `
     <div class="multi-ticket-row">
-      <label for="${fieldName}">${event.name}</label>
+      <label for="${fieldName}">${escapeHtml(event.name)}</label>
       ${renderMultiEventDescription(event.description)}
       <select name="${fieldName}" id="${fieldName}">
         ${options}
@@ -166,12 +182,14 @@ export const multiTicketPage = (
   slugs: string[],
   csrfToken: string,
   error?: string,
+  availableDates?: string[],
 ): string => {
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
   const formAction = `/ticket/${slugs.join("+")}`;
   const fieldsSetting = getMultiTicketFieldsSetting(events);
   const fields: Field[] = getTicketFields(fieldsSetting);
+  const hasDaily = events.some((e) => e.event.event_type === "daily");
 
   const eventRows = pipe(
     map(renderMultiEventRow),
@@ -188,6 +206,9 @@ export const multiTicketPage = (
         <form method="POST" action={formAction}>
           <input type="hidden" name="csrf_token" value={csrfToken} />
           <Raw html={renderFields(fields)} />
+          {hasDaily && availableDates && (
+            <Raw html={renderDateSelector(availableDates)} />
+          )}
 
           <fieldset class="multi-ticket-events">
             <legend>Select Tickets</legend>

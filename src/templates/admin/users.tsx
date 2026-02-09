@@ -58,41 +58,43 @@ export const adminUsersPage = (
       </form>
 
       <h2>Current Users</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Username</th>
-            <th>Role</th>
-            <th>Status</th>
-            <th>Actions</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((user) => (
+      <div class="table-scroll">
+        <table>
+          <thead>
             <tr>
-              <td>{user.username}</td>
-              <td>{user.adminLevel}</td>
-              <td>{userStatus(user)}</td>
-              <td>
-                {user.hasPassword && !user.hasDataKey && (
-                  <form class="inline" method="POST" action={`/admin/users/${user.id}/activate`}>
-                    <input type="hidden" name="csrf_token" value={session.csrfToken} />
-                    <button type="submit">Activate</button>
-                  </form>
-                )}
-              </td>
-              <td>
-                {user.adminLevel !== "owner" && (
-                  <form class="inline" method="POST" action={`/admin/users/${user.id}/delete`}>
-                    <input type="hidden" name="csrf_token" value={session.csrfToken} />
-                    <button type="submit">Delete</button>
-                  </form>
-                )}
-              </td>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Actions</th>
+              <th></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr>
+                <td>{user.username}</td>
+                <td>{user.adminLevel}</td>
+                <td>{userStatus(user)}</td>
+                <td>
+                  {user.hasPassword && !user.hasDataKey && (
+                    <form class="inline" method="POST" action={`/admin/users/${user.id}/activate`}>
+                      <input type="hidden" name="csrf_token" value={session.csrfToken} />
+                      <button type="submit">Activate</button>
+                    </form>
+                  )}
+                </td>
+                <td>
+                  {user.adminLevel !== "owner" && (
+                    <form class="inline" method="POST" action={`/admin/users/${user.id}/delete`}>
+                      <input type="hidden" name="csrf_token" value={session.csrfToken} />
+                      <button type="submit">Delete</button>
+                    </form>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Layout>
   );

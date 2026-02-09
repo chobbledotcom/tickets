@@ -11,6 +11,7 @@ import {
 import { createSession, deleteSession } from "#lib/db/sessions.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
+import { nowMs } from "#lib/now.ts";
 import { loginResponse } from "#routes/admin/dashboard.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -38,7 +39,7 @@ const createLoginSession = async (
 ): Promise<Response> => {
   const token = generateSecureToken();
   const csrfToken = generateSecureToken();
-  const expires = Date.now() + 24 * 60 * 60 * 1000;
+  const expires = nowMs() + 24 * 60 * 60 * 1000;
   const wrappedDataKey = await wrapKeyWithToken(dataKey, token);
 
   await createSession(token, csrfToken, expires, wrappedDataKey, userId);
@@ -131,6 +132,7 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
 
 /** Authentication routes */
 export const authRoutes = defineRoutes({
+  "GET /admin/login": () => redirect("/admin"),
   "POST /admin/login": (request, _, server) =>
     handleAdminLogin(request, server),
   "GET /admin/logout": (request) => handleAdminLogout(request),
