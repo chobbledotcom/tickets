@@ -6,6 +6,7 @@
 import { compact, map, unique } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
+import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso } from "#lib/now.ts";
 
@@ -129,7 +130,11 @@ export const sendRegistrationWebhooks = async (
   entries: RegistrationEntry[],
   currency: string,
 ): Promise<void> => {
-  const webhookUrls = unique(compact(entries.map((e) => e.event.webhook_url)));
+  const envWebhookUrl = getEnv("WEBHOOK_URL");
+  const webhookUrls = unique(compact([
+    ...entries.map((e) => e.event.webhook_url),
+    envWebhookUrl,
+  ]));
   if (webhookUrls.length === 0) return;
 
   const payload = buildWebhookPayload(entries, currency);
