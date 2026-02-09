@@ -17,6 +17,7 @@ import {
 } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { getAllowedDomain } from "#lib/config.ts";
+import { nowMs } from "#lib/now.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { RouteParams } from "#routes/router.ts";
 import {
@@ -122,7 +123,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
     // Generate invite code
     const inviteCode = generateSecureToken();
     const codeHash = await hashInviteCode(inviteCode);
-    const expiry = new Date(Date.now() + INVITE_EXPIRY_MS).toISOString();
+    const expiry = new Date(nowMs() + INVITE_EXPIRY_MS).toISOString();
 
     await createInvitedUser(
       username,

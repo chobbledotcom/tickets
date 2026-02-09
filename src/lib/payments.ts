@@ -25,6 +25,7 @@ export type RegistrationIntent = {
   email: string;
   phone: string;
   quantity: number;
+  date?: string | null;
 };
 
 /** Single item within a multi-event checkout */
@@ -41,6 +42,7 @@ export type MultiRegistrationIntent = {
   name: string;
   email: string;
   phone: string;
+  date?: string | null;
   items: MultiRegistrationItem[];
 };
 
@@ -59,6 +61,7 @@ export type SessionMetadata = {
   quantity?: string;
   multi?: string;
   items?: string;
+  date?: string;
 };
 
 /** A validated payment session returned after checkout completion */

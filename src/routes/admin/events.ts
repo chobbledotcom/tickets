@@ -2,12 +2,15 @@
  * Admin event management routes
  */
 
+import { filter } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
+import { formatDateLabel } from "#lib/dates.ts";
 import {
   getEventWithActivityLog,
   logActivity,
 } from "#lib/db/activityLog.ts";
 import { decryptAttendees } from "#lib/db/attendees.ts";
+import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import {
   computeSlugIndex,
   deleteEvent,
@@ -58,24 +61,33 @@ const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: stri
   throw new Error("Failed to generate unique slug after 10 attempts");
 };
 
+/** Serialize comma-separated day names to JSON array string */
+const serializeBookableDays = (value: string | null): string | undefined =>
+  value ? JSON.stringify(value.split(",").map((d) => d.trim()).filter((d) => d)) : undefined;
+
+/** Extract common event fields from validated form values */
+const extractCommonFields = (values: EventFormValues) => ({
+  name: values.name,
+  description: values.description || "",
+  maxAttendees: values.max_attendees,
+  thankYouUrl: values.thank_you_url,
+  unitPrice: values.unit_price,
+  maxQuantity: values.max_quantity,
+  webhookUrl: values.webhook_url || null,
+  fields: values.fields || "email",
+  closesAt: values.closes_at || "",
+  eventType: values.event_type || undefined,
+  bookableDays: serializeBookableDays(values.bookable_days),
+  minimumDaysBefore: values.minimum_days_before ?? 1,
+  maximumDaysAfter: values.maximum_days_after ?? 90,
+});
+
 /** Extract event input from validated form (async to compute slugIndex) */
 const extractEventInput = async (
   values: EventFormValues,
 ): Promise<EventInput> => {
   const { slug, slugIndex } = await generateUniqueSlug();
-  return {
-    name: values.name,
-    description: values.description || "",
-    slug,
-    slugIndex,
-    maxAttendees: values.max_attendees,
-    thankYouUrl: values.thank_you_url,
-    unitPrice: values.unit_price,
-    maxQuantity: values.max_quantity,
-    webhookUrl: values.webhook_url || null,
-    fields: values.fields || "email",
-    closesAt: values.closes_at || "",
-  };
+  return { ...extractCommonFields(values), slug, slugIndex };
 };
 
 /** Extract event input for update (reads slug from form, normalizes it) */
@@ -84,19 +96,7 @@ const extractEventUpdateInput = async (
 ): Promise<EventInput> => {
   const slug = normalizeSlug(values.slug);
   const slugIndex = await computeSlugIndex(slug);
-  return {
-    name: values.name,
-    description: values.description || "",
-    slug,
-    slugIndex,
-    maxAttendees: values.max_attendees,
-    thankYouUrl: values.thank_you_url,
-    unitPrice: values.unit_price,
-    maxQuantity: values.max_quantity,
-    webhookUrl: values.webhook_url || null,
-    fields: values.fields || "email",
-    closesAt: values.closes_at || "",
-  };
+  return { ...extractCommonFields(values), slug, slugIndex };
 };
 
 /** Events resource for REST create operations */
@@ -128,7 +128,7 @@ const withEventAttendees = async (
     return redirect("/admin");
   }
 
-  const privateKey = (await getPrivateKey(session.token, session.wrappedDataKey))!;
+  const privateKey = (await getPrivateKey(session))!;
 
   // Fetch event and attendees in single DB round-trip
   const result = await getEventWithAttendeesRaw(eventId);
@@ -145,7 +145,7 @@ const withEventAttendees = async (
  */
 const handleCreateEvent = createHandler(eventsResource, {
   onSuccess: async (row) => {
-    await logActivity(`Event '${row.name}' created`, row.id);
+    await logActivity(`Event '${row.name}' created`, row);
     return redirect("/admin");
   },
   onError: () => redirect("/admin"),
@@ -162,22 +162,49 @@ const getCheckinMessage = (request: Request): { name: string; status: string } |
   return null;
 };
 
+/** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
+const getDateFilter = (request: Request): string | null => {
+  const date = new URL(request.url).searchParams.get("date");
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  return date;
+};
+
+/** Filter attendees by date for daily events */
+const filterByDate = (attendees: Attendee[], date: string | null): Attendee[] =>
+  date ? filter((a: Attendee) => a.date === date)(attendees) : attendees;
+
+/** Collect unique dates from attendees, sorted ascending */
+const getUniqueDates = (attendees: Attendee[]): { value: string; label: string }[] => {
+  const dates = new Set<string>();
+  for (const a of attendees) {
+    if (a.date) dates.add(a.date);
+  }
+  return [...dates].sort().map((d) => ({ value: d, label: formatDateLabel(d) }));
+};
+
 /**
  * Handle GET /admin/event/:id (with optional filter)
  */
-const handleAdminEventGet = (request: Request, eventId: number, activeFilter: AttendeeFilter = "all") =>
-  withEventAttendees(request, eventId, ({ event, attendees, session }) =>
-    htmlResponse(
+const handleAdminEventGet = async (request: Request, eventId: number, activeFilter: AttendeeFilter = "all") => {
+  await deleteAllStaleReservations();
+  return withEventAttendees(request, eventId, ({ event, attendees, session }) => {
+    const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
+    const availableDates = event.event_type === "daily" ? getUniqueDates(attendees) : [];
+    const filteredByDate = filterByDate(attendees, dateFilter);
+    return htmlResponse(
       adminEventPage(
         event,
-        attendees,
+        filteredByDate,
         getAllowedDomain(),
         session,
         getCheckinMessage(request),
         activeFilter,
+        dateFilter,
+        availableDates,
       ),
-    ),
-  );
+    );
+  });
+};
 
 /** Curried event page GET handler: renderPage -> (request, eventId) -> Response */
 const withEventPage =
@@ -248,9 +275,15 @@ const handleAdminEventEditPost = async (
  */
 const handleAdminEventExport = (request: Request, eventId: number) =>
   withEventAttendees(request, eventId, async ({ event, attendees }) => {
-    const csv = generateAttendeesCsv(attendees);
-    const filename = `${event.name.replace(/[^a-zA-Z0-9]/g, "_")}_attendees.csv`;
-    await logActivity(`CSV exported for '${event.name}'`, event.id);
+    const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
+    const filteredByDate = filterByDate(attendees, dateFilter);
+    const isDaily = event.event_type === "daily";
+    const csv = generateAttendeesCsv(filteredByDate, isDaily);
+    const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
+    const filename = dateFilter
+      ? `${sanitizedName}_${dateFilter}_attendees.csv`
+      : `${sanitizedName}_attendees.csv`;
+    await logActivity(`CSV exported for '${event.name}'${dateFilter ? ` (date: ${dateFilter})` : ""}`, event);
     return new Response(csv, {
       headers: {
         "content-type": "text/csv; charset=utf-8",

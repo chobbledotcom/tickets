@@ -57,6 +57,7 @@ const extractIntent = (
   email: session.metadata.email,
   phone: session.metadata.phone ?? "",
   quantity: Number.parseInt(session.metadata.quantity || "1", 10),
+  date: session.metadata.date ?? null,
 });
 
 /** Wrap handler with session ID extraction */
@@ -214,14 +215,13 @@ type EventPriceValidation =
   | { ok: false; error: string; status?: number };
 
 const validateAndPrice = async (
-  eventId: number,
-  quantity: number,
+  input: { eventId: number; quantity: number },
   includeEventName = false,
 ): Promise<EventPriceValidation> => {
-  const validation = await validateEventForPayment(eventId, includeEventName);
+  const validation = await validateEventForPayment(input.eventId, includeEventName);
   if (!validation.ok) return validation;
   const { event } = validation;
-  const pricePaid = event.unit_price !== null ? event.unit_price * quantity : null;
+  const pricePaid = event.unit_price !== null ? event.unit_price * input.quantity : null;
   return { ok: true, event, pricePaid };
 };
 
@@ -258,6 +258,7 @@ type MultiIntent = {
   name: string;
   email: string;
   phone: string;
+  date: string | null;
   items: MultiItem[];
 };
 
@@ -275,6 +276,7 @@ const extractMultiIntent = (
     name: metadata.name,
     email: metadata.email,
     phone: metadata.phone ?? "",
+    date: metadata.date ?? null,
     items,
   };
 };
@@ -286,9 +288,9 @@ const extractMultiIntent = (
  */
 const processMultiPaymentSession = async (
   sessionId: string,
-  session: ValidatedPaymentSession,
-  intent: MultiIntent,
+  data: { session: ValidatedPaymentSession; intent: MultiIntent },
 ): Promise<PaymentResult> => {
+  const { session, intent } = data;
   // Phase 1: Reserve the session
   const reservation = await reserveSession(sessionId);
 
@@ -313,22 +315,23 @@ const processMultiPaymentSession = async (
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
   for (const item of intent.items) {
-    const vp = await validateAndPrice(item.e, item.q, true);
+    const vp = await validateAndPrice({ eventId: item.e, quantity: item.q }, true);
     if (!vp.ok) {
       await rollbackAttendees(createdAttendees);
       return refundAndFail(session, vp.error, vp.status);
     }
 
     const { event, pricePaid } = vp;
-    const result = await createAttendeeAtomic(
-      item.e,
-      intent.name,
-      intent.email,
-      session.paymentReference,
-      item.q,
-      intent.phone,
+    const result = await createAttendeeAtomic({
+      eventId: item.e,
+      name: intent.name,
+      email: intent.email,
+      paymentId: session.paymentReference,
+      quantity: item.q,
+      phone: intent.phone,
       pricePaid,
-    );
+      date: event.event_type === "daily" ? intent.date : null,
+    });
 
     if (!result.success) {
       failedEvent = event;
@@ -374,9 +377,9 @@ const processMultiPaymentSession = async (
  */
 const processPaymentSession = async (
   sessionId: string,
-  session: ValidatedPaymentSession,
-  intent: RegistrationIntent,
+  data: { session: ValidatedPaymentSession; intent: RegistrationIntent },
 ): Promise<PaymentResult> => {
+  const { session, intent } = data;
   // Phase 1: Try to reserve the session (claim the lock)
   const reservation = await reserveSession(sessionId);
 
@@ -401,19 +404,15 @@ const processPaymentSession = async (
   // We have the lock - proceed with attendee creation
 
   // Phase 2: Validate event and create attendee atomically with capacity check
-  const vp = await validateAndPrice(intent.eventId, intent.quantity);
+  const vp = await validateAndPrice(intent);
   if (!vp.ok) return refundAndFail(session, vp.error, vp.status);
 
   const { event, pricePaid } = vp;
-  const result = await createAttendeeAtomic(
-    intent.eventId,
-    intent.name,
-    intent.email,
-    session.paymentReference,
-    intent.quantity,
-    intent.phone,
+  const result = await createAttendeeAtomic({
+    ...intent,
+    paymentId: session.paymentReference,
     pricePaid,
-  );
+  });
 
   if (!result.success) {
     return refundAndFail(session, formatPostPaymentError(result.reason));
@@ -453,8 +452,8 @@ const handlePaymentSuccess = withSessionId(async (sessionId) => {
   const { data } = validation;
   const result =
     data.type === "multi"
-      ? await processMultiPaymentSession(sessionId, data.session, data.intent)
-      : await processPaymentSession(sessionId, data.session, data.intent);
+      ? await processMultiPaymentSession(sessionId, data)
+      : await processPaymentSession(sessionId, data);
 
   if (!result.success) {
     return paymentErrorResponse(formatPaymentError(result), result.status);
@@ -545,6 +544,7 @@ const extractSessionFromEvent = (
       quantity: obj.metadata.quantity,
       multi: obj.metadata.multi,
       items: obj.metadata.items,
+      date: obj.metadata.date,
     },
   };
 };
@@ -648,11 +648,11 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
       return new Response("Invalid multi-ticket session data", { status: 400 });
     }
     eventIdForLog = multiIntent.items[0]?.e;
-    result = await processMultiPaymentSession(session.id, session, multiIntent);
+    result = await processMultiPaymentSession(session.id, { session, intent: multiIntent });
   } else {
     const intent = extractIntent(session);
     eventIdForLog = intent.eventId;
-    result = await processPaymentSession(session.id, session, intent);
+    result = await processPaymentSession(session.id, { session, intent });
   }
 
   if (!result.success) {

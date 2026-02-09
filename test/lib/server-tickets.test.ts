@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { formatDateLabel } from "#lib/dates.ts";
+import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
   awaitTestRequest,
   createTestAttendee,
@@ -113,5 +115,73 @@ describe("ticket view (/t/:tokens)", () => {
     const body = await response.text();
     expect(body).toContain("<svg");
     expect(body).toContain("</svg>");
+  });
+
+  test("displays booked date for daily event tickets", async () => {
+    const event = await createTestEvent({
+      maxAttendees: 10,
+      eventType: "daily",
+      bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+      minimumDaysBefore: 0,
+      maximumDaysAfter: 30,
+    });
+    const date = "2026-02-15";
+    const result = await createAttendeeAtomic({
+      eventId: event.id,
+      name: "Zara",
+      email: "zara@test.com",
+      date,
+    });
+    if (!result.success) throw new Error("Failed to create attendee");
+
+    const response = await awaitTestRequest(`/t/${result.attendee.ticket_token}`);
+    expect(response.status).toBe(200);
+
+    const body = await response.text();
+    expect(body).toContain(formatDateLabel(date));
+    expect(body).toContain("<th>Date</th>");
+  });
+
+  test("shows date for daily event and empty cell for standard event on same ticket", async () => {
+    const dailyEvent = await createTestEvent({
+      maxAttendees: 10,
+      eventType: "daily",
+      bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+      minimumDaysBefore: 0,
+      maximumDaysAfter: 30,
+    });
+    const standardEvent = await createTestEvent({ maxAttendees: 10 });
+    const date = "2026-02-15";
+    const dailyResult = await createAttendeeAtomic({
+      eventId: dailyEvent.id,
+      name: "Mixed",
+      email: "mixed@test.com",
+      date,
+    });
+    if (!dailyResult.success) throw new Error("Failed to create daily attendee");
+    await createTestAttendee(standardEvent.id, standardEvent.slug, "Mixed", "mixed@test.com");
+    const standardAttendees = await getAttendeesRaw(standardEvent.id);
+    const tokenA = dailyResult.attendee.ticket_token;
+    const tokenB = standardAttendees[0]!.ticket_token;
+
+    const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
+    expect(response.status).toBe(200);
+
+    const body = await response.text();
+    expect(body).toContain(formatDateLabel(date));
+    expect(body).toContain("<th>Date</th>");
+    expect(body).toContain(dailyEvent.name);
+    expect(body).toContain(standardEvent.name);
+  });
+
+  test("does not show date column for standard event tickets", async () => {
+    const event = await createTestEvent({ maxAttendees: 10 });
+    await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
+    const attendees = await getAttendeesRaw(event.id);
+    const token = attendees[0]!.ticket_token;
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    const body = await response.text();
+    expect(body).not.toContain("<th>Date</th>");
   });
 });

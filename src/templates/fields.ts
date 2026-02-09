@@ -2,8 +2,9 @@
  * Form field definitions and typed value interfaces for all forms
  */
 
+import { DAY_NAMES } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
-import type { AdminLevel, EventFields } from "#lib/types.ts";
+import type { AdminLevel, EventFields, EventType } from "#lib/types.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 
 // ---------------------------------------------------------------------------
@@ -26,6 +27,10 @@ export type EventFormValues = {
   closes_at: string | null;
   thank_you_url: string | null;
   webhook_url: string | null;
+  event_type: EventType | null;
+  bookable_days: string | null;
+  minimum_days_before: number | null;
+  maximum_days_after: number | null;
 };
 
 /** Typed values from event edit form (includes slug) */
@@ -171,6 +176,32 @@ const validateEventFields = (value: string): string | null => {
   return null;
 };
 
+/** Valid event type values */
+const VALID_EVENT_TYPES: EventType[] = ["standard", "daily"];
+
+/** Validate event type setting */
+const validateEventType = (value: string): string | null => {
+  if (!VALID_EVENT_TYPES.includes(value as EventType)) {
+    return "Event Type must be standard or daily";
+  }
+  return null;
+};
+
+/** Valid day names for bookable_days (Monday-first for display) */
+export const VALID_DAY_NAMES = [...DAY_NAMES.slice(1), DAY_NAMES[0]!];
+
+/** Validate bookable days (comma-separated day names) */
+export const validateBookableDays = (value: string): string | null => {
+  const days = value.split(",").map((d) => d.trim()).filter((d) => d);
+  if (days.length === 0) return "At least one day is required";
+  for (const day of days) {
+    if (!(VALID_DAY_NAMES as readonly string[]).includes(day)) {
+      return `Invalid day: ${day}. Use: ${VALID_DAY_NAMES.join(", ")}`;
+    }
+  }
+  return null;
+};
+
 /** Max length for event description */
 const MAX_DESCRIPTION_LENGTH = 128;
 
@@ -214,11 +245,23 @@ export const eventFields: Field[] = [
     validate: validateDescription,
   },
   {
+    name: "event_type",
+    label: "Event Type",
+    type: "select",
+    hint: "Daily events require attendees to select a specific date when booking",
+    options: [
+      { value: "standard", label: "Standard" },
+      { value: "daily", label: "Daily" },
+    ],
+    validate: validateEventType,
+  },
+  {
     name: "max_attendees",
     label: "Max Attendees",
     type: "number",
     required: true,
     min: 1,
+    hint: "For daily events, this limit applies per date",
   },
   {
     name: "max_quantity",
@@ -227,6 +270,28 @@ export const eventFields: Field[] = [
     required: true,
     min: 1,
     hint: "Maximum tickets a customer can buy in one transaction",
+  },
+  {
+    name: "bookable_days",
+    label: "Bookable Days (for daily events)",
+    type: "checkbox-group",
+    hint: "Select which days of the week are available for booking",
+    options: VALID_DAY_NAMES.map((d) => ({ value: d, label: d })),
+    validate: validateBookableDays,
+  },
+  {
+    name: "minimum_days_before",
+    label: "Minimum Days Notice (for daily events)",
+    type: "number",
+    min: 0,
+    hint: "How many days in advance attendees must book (0 = same day)",
+  },
+  {
+    name: "maximum_days_after",
+    label: "Maximum Days Ahead (for daily events)",
+    type: "number",
+    min: 0,
+    hint: "How far into the future attendees can book (0 = no limit)",
   },
   {
     name: "fields",
@@ -270,6 +335,42 @@ export const eventFields: Field[] = [
     placeholder: "https://example.com/webhook",
     hint: "Receives POST with attendee name, email, and phone on registration",
     validate: validateSafeUrl,
+  },
+];
+
+/** Validate date format (YYYY-MM-DD) */
+export const validateDate = (value: string): string | null => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "Please enter a valid date (YYYY-MM-DD)";
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "Please enter a valid date";
+  return null;
+};
+
+/**
+ * Holiday form field definitions
+ */
+export const holidayFields: Field[] = [
+  {
+    name: "name",
+    label: "Holiday Name",
+    type: "text",
+    required: true,
+    placeholder: "Bank Holiday",
+  },
+  {
+    name: "start_date",
+    label: "Start Date",
+    type: "date",
+    required: true,
+    validate: validateDate,
+  },
+  {
+    name: "end_date",
+    label: "End Date",
+    type: "date",
+    required: true,
+    hint: "Must be on or after the start date",
+    validate: validateDate,
   },
 ];
 

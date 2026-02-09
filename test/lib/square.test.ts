@@ -140,6 +140,10 @@ describe("square", () => {
         active: 1,
         fields: "email" as const,
         closes_at: null,
+        event_type: "standard" as const,
+        bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+        minimum_days_before: 1,
+        maximum_days_after: 90,
       };
       const intent = {
         eventId: 1,
@@ -174,6 +178,10 @@ describe("square", () => {
         active: 1,
         fields: "email" as const,
         closes_at: null,
+        event_type: "standard" as const,
+        bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+        minimum_days_before: 1,
+        maximum_days_after: 90,
       };
       const intent = {
         eventId: 1,
@@ -208,6 +216,10 @@ describe("square", () => {
         active: 1,
         fields: "email" as const,
         closes_at: null,
+        event_type: "standard" as const,
+        bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+        minimum_days_before: 1,
+        maximum_days_after: 90,
       };
       const intent = {
         eventId: 1,
@@ -250,6 +262,10 @@ describe("square", () => {
             active: 1,
             fields: "email" as const,
             closes_at: null,
+            event_type: "standard" as const,
+            bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+            minimum_days_before: 1,
+            maximum_days_after: 90,
           };
           const intent = {
             eventId: 7,
@@ -328,6 +344,10 @@ describe("square", () => {
             active: 1,
             fields: "email" as const,
             closes_at: null,
+            event_type: "standard" as const,
+            bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+            minimum_days_before: 1,
+            maximum_days_after: 90,
           };
           const intent = {
             eventId: 1,
@@ -374,6 +394,10 @@ describe("square", () => {
             active: 1,
             fields: "email" as const,
             closes_at: null,
+            event_type: "standard" as const,
+            bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+            minimum_days_before: 1,
+            maximum_days_after: 90,
           };
           const intent = {
             eventId: 1,
@@ -419,6 +443,10 @@ describe("square", () => {
             active: 1,
             fields: "email" as const,
             closes_at: null,
+            event_type: "standard" as const,
+            bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+            minimum_days_before: 1,
+            maximum_days_after: 90,
           };
           const intent = {
             eventId: 1,
@@ -1185,6 +1213,10 @@ describe("square", () => {
             active: 1,
             fields: "email" as const,
             closes_at: null,
+            event_type: "standard" as const,
+            bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+            minimum_days_before: 1,
+            maximum_days_after: 90,
           };
           const intent = {
             eventId: 1,

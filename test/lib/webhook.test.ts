@@ -30,6 +30,7 @@ const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee
   email: "jane@example.com",
   phone: "555-1234",
   ticket_token: "test-token-42",
+  date: null,
   ...overrides,
 });
 
@@ -69,6 +70,7 @@ describe("webhook", () => {
       expect(payload.tickets[0]!.event_slug).toBe("test-event");
       expect(payload.tickets[0]!.unit_price).toBeNull();
       expect(payload.tickets[0]!.quantity).toBe(1);
+      expect(payload.tickets[0]!.date).toBeNull();
       expect(payload.timestamp).toBeDefined();
     });
 
@@ -117,6 +119,37 @@ describe("webhook", () => {
       expect(payload.tickets[1]!.event_name).toBe("Event B");
       expect(payload.tickets[1]!.unit_price).toBe(700);
       expect(payload.tickets[1]!.quantity).toBe(2);
+    });
+
+    test("includes date in ticket when attendee has a date", () => {
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent(),
+          attendee: makeAttendee({ date: "2025-07-15" }),
+        },
+      ];
+
+      const payload = buildWebhookPayload(entries, "GBP");
+
+      expect(payload.tickets[0]!.date).toBe("2025-07-15");
+    });
+
+    test("includes mixed dates for multi-event with daily and standard events", () => {
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ id: 1, name: "Daily Event", slug: "daily-event" }),
+          attendee: makeAttendee({ ticket_token: "tok-a", date: "2025-07-15" }),
+        },
+        {
+          event: makeEvent({ id: 2, name: "Standard Event", slug: "standard-event" }),
+          attendee: makeAttendee({ ticket_token: "tok-b", date: null }),
+        },
+      ];
+
+      const payload = buildWebhookPayload(entries, "GBP");
+
+      expect(payload.tickets[0]!.date).toBe("2025-07-15");
+      expect(payload.tickets[1]!.date).toBeNull();
     });
 
     test("returns 0 price_paid when attendee has no price_paid on paid event", () => {

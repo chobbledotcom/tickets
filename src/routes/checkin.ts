@@ -1,15 +1,17 @@
 /**
  * Check-in routes - /checkin/:tokens
- * GET: Admin auto-checks-in attendees and shows details; non-admin sees message
- * POST: Admin checks-out attendees and redirects back
+ * GET: Shows attendee details and check-in/check-out button
+ * POST: Sets check-in status based on explicit check_in form field (PRG pattern)
  */
 
 import { map } from "#fp";
-import { updateCheckedIn } from "#lib/db/attendees.ts";
+import { decryptAttendees, updateCheckedIn } from "#lib/db/attendees.ts";
 import type { Attendee } from "#lib/types.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
 import {
+  type AuthSession,
   getAuthenticatedSession,
+  getPrivateKey,
   getSearchParam,
   htmlResponse,
   redirect,
@@ -17,33 +19,20 @@ import {
 } from "#routes/utils.ts";
 import { createTokenRoute, lookupAttendees, resolveEntries } from "#routes/token-utils.ts";
 
-/** Update one attendee's check-in status and return updated copy */
-const updateAndCopy = async (
-  attendee: Attendee,
-  checkedIn: boolean,
-): Promise<Attendee> => {
-  await updateCheckedIn(attendee.id, checkedIn);
-  return { ...attendee, checked_in: checkedIn ? "true" : "false" };
-};
-
-/** Set checked_in for all attendees and return updated copies */
-const setCheckedInAll = (
-  attendees: Attendee[],
-  checkedIn: boolean,
-): Promise<Attendee[]> =>
-  Promise.all(map((a: Attendee) => updateAndCopy(a, checkedIn))(attendees));
-
-/** Render admin view after check-in/check-out */
+/** Render admin check-in view with current attendee state */
 const renderAdminView = async (
-  attendees: Attendee[],
-  csrfToken: string,
+  rawAttendees: Attendee[],
+  session: AuthSession,
   tokens: string[],
+  message: string | null,
 ): Promise<Response> => {
-  const entries = await resolveEntries(attendees);
-  return htmlResponse(checkinAdminPage(entries, csrfToken, `/checkin/${tokens.join("+")}`));
+  const privateKey = (await getPrivateKey(session))!;
+  const decrypted = await decryptAttendees(rawAttendees, privateKey);
+  const entries = await resolveEntries(decrypted);
+  return htmlResponse(checkinAdminPage(entries, session.csrfToken, `/checkin/${tokens.join("+")}`, message));
 };
 
-/** Handle GET /checkin/:tokens */
+/** Handle GET /checkin/:tokens - show current status */
 const handleCheckinGet = async (
   request: Request,
   tokens: string[],
@@ -54,22 +43,21 @@ const handleCheckinGet = async (
   const session = await getAuthenticatedSession(request);
   if (!session) return htmlResponse(checkinPublicPage());
 
-  // When view=true (redirected from check-out POST), show current state without auto-check-in
-  const viewOnly = getSearchParam(request, "view") === "true";
-  const attendees = viewOnly
-    ? lookup.attendees
-    : await setCheckedInAll(lookup.attendees, true);
-  return renderAdminView(attendees, session.csrfToken, tokens);
+  const message = getSearchParam(request, "message");
+  return renderAdminView(lookup.attendees, session, tokens, message);
 };
 
-/** Handle POST /checkin/:tokens (check-out) */
+/** Handle POST /checkin/:tokens - set check-in status from form field */
 const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response> =>
-  withAuthForm(request, async (_session) => {
+  withAuthForm(request, async (_session, form) => {
     const lookup = await lookupAttendees(tokens);
     if (!lookup.ok) return lookup.response;
 
-    await setCheckedInAll(lookup.attendees, false);
-    return redirect(`/checkin/${tokens.join("+")}?view=true`);
+    const checkedIn = form.get("check_in") === "true";
+    await Promise.all(map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(lookup.attendees));
+
+    const message = checkedIn ? "Checked in" : "Checked out";
+    return redirect(`/checkin/${tokens.join("+")}?message=${encodeURIComponent(message)}`);
   });
 
 /** Route check-in requests */
