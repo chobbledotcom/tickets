@@ -52,6 +52,13 @@ describe("server (admin auth)", () => {
     });
   });
 
+  describe("GET /admin/login", () => {
+    test("redirects to /admin", async () => {
+      const response = await handleRequest(mockRequest("/admin/login"));
+      expectAdminRedirect(response);
+    });
+  });
+
   describe("POST /admin/login", () => {
     test("validates required password field", async () => {
       const response = await handleRequest(
@@ -222,6 +229,19 @@ describe("server (admin auth)", () => {
       expect(response.status).toBe(403);
     });
 
+    test("displays success message from query param on sessions page", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        "/admin/sessions?success=Logged+out+of+all+other+sessions",
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Logged out of all other sessions");
+      expect(html).toContain('class="success"');
+    });
+
     test("logs out other sessions and shows success message", async () => {
       // Create other sessions before login
       await createSession("other1", "csrf1", Date.now() + 10000, null, 1);
@@ -236,9 +256,9 @@ describe("server (admin auth)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Logged out of all other sessions");
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Logged out of all other sessions");
 
       // Verify other sessions are deleted
       const other1 = await getSession("other1");

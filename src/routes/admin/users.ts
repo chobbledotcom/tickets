@@ -17,11 +17,15 @@ import {
 } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { getAllowedDomain } from "#lib/config.ts";
+import { nowMs } from "#lib/now.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { RouteParams } from "#routes/router.ts";
 import {
   generateSecureToken,
+  getSearchParam,
   htmlResponse,
+  redirect,
+  redirectWithSuccess,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
@@ -69,9 +73,18 @@ const renderUsersPage = async (
  * Handle GET /admin/users
  */
 const handleUsersGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, async (session) =>
-    htmlResponse(await renderUsersPage(session)),
-  );
+  requireOwnerOr(request, async (session) => {
+    const invite = getSearchParam(request, "invite");
+    const success = getSearchParam(request, "success");
+    return htmlResponse(
+      await renderUsersPage(
+        session,
+        invite ?? undefined,
+        undefined,
+        success ?? undefined,
+      ),
+    );
+  });
 
 /**
  * Handle POST /admin/users - create invited user
@@ -111,7 +124,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
     // Generate invite code
     const inviteCode = generateSecureToken();
     const codeHash = await hashInviteCode(inviteCode);
-    const expiry = new Date(Date.now() + INVITE_EXPIRY_MS).toISOString();
+    const expiry = new Date(nowMs() + INVITE_EXPIRY_MS).toISOString();
 
     await createInvitedUser(
       username,
@@ -123,9 +136,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
     const domain = getAllowedDomain();
     const inviteLink = `https://${domain}/join/${inviteCode}`;
 
-    return htmlResponse(
-      await renderUsersPage(session, inviteLink),
-    );
+    return redirect(`/admin/users?invite=${encodeURIComponent(inviteLink)}`);
   });
 
 /**
@@ -194,14 +205,7 @@ const handleUserActivate = (
 
     await activateUser(userId, dataKey, decryptedPasswordHash);
 
-    return htmlResponse(
-      await renderUsersPage(
-        session,
-        undefined,
-        undefined,
-        "User activated successfully",
-      ),
-    );
+    return redirectWithSuccess("/admin/users", "User activated successfully");
   });
 
 /**
@@ -237,14 +241,7 @@ const handleUserDelete = (
 
     await deleteUser(userId);
 
-    return htmlResponse(
-      await renderUsersPage(
-        session,
-        undefined,
-        undefined,
-        "User deleted successfully",
-      ),
-    );
+    return redirectWithSuccess("/admin/users", "User deleted successfully");
   });
 
 /** User management routes */

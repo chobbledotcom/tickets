@@ -5,7 +5,13 @@
 import { hashSessionToken } from "#lib/crypto.ts";
 import { deleteOtherSessions, getAllSessions } from "#lib/db/sessions.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { htmlResponse, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
+import {
+  getSearchParam,
+  htmlResponse,
+  redirectWithSuccess,
+  requireOwnerOr,
+  withOwnerAuthForm,
+} from "#routes/utils.ts";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 
 /**
@@ -14,10 +20,10 @@ import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 const handleAdminSessionsGet = (request: Request): Promise<Response> =>
   requireOwnerOr(request, async (session) => {
     const sessions = await getAllSessions();
-    // Hash the token for comparison with stored hashed tokens
     const tokenHash = await hashSessionToken(session.token);
+    const success = getSearchParam(request, "success");
     return htmlResponse(
-      adminSessionsPage(sessions, tokenHash, session),
+      adminSessionsPage(sessions, tokenHash, session, success ?? undefined),
     );
   });
 
@@ -27,17 +33,7 @@ const handleAdminSessionsGet = (request: Request): Promise<Response> =>
 const handleAdminSessionsPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (session) => {
     await deleteOtherSessions(session.token);
-    const sessions = await getAllSessions();
-    // Hash the token for comparison with stored hashed tokens
-    const tokenHash = await hashSessionToken(session.token);
-    return htmlResponse(
-      adminSessionsPage(
-        sessions,
-        tokenHash,
-        session,
-        "Logged out of all other sessions",
-      ),
-    );
+    return redirectWithSuccess("/admin/sessions", "Logged out of all other sessions");
   });
 
 /** Session management routes */

@@ -5,6 +5,9 @@
 /** Contact fields setting for an event */
 export type EventFields = "email" | "phone" | "both";
 
+/** Event type: standard (one-time) or daily (date-based booking) */
+export type EventType = "standard" | "daily";
+
 export interface Event {
   id: number;
   name: string;
@@ -20,6 +23,10 @@ export interface Event {
   active: number;
   fields: EventFields;
   closes_at: string | null;
+  event_type: EventType;
+  bookable_days: string;
+  minimum_days_before: number;
+  maximum_days_after: number;
 }
 
 export interface Attendee {
@@ -34,6 +41,7 @@ export interface Attendee {
   price_paid: string | null;
   checked_in: string;
   ticket_token: string;
+  date: string | null;
 }
 
 export interface Settings {
@@ -67,6 +75,13 @@ export interface User {
   admin_level: string; // encrypted "owner" or "manager"
   invite_code_hash: string | null; // encrypted SHA-256 of invite token, null after password set
   invite_expiry: string | null; // encrypted ISO 8601, null after password set
+}
+
+export interface Holiday {
+  id: number;
+  name: string;
+  start_date: string;
+  end_date: string;
 }
 
 export interface EventWithCount extends Event {

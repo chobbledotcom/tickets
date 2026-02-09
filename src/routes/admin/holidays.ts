@@ -1,0 +1,180 @@
+/**
+ * Admin holiday management routes - owner only
+ */
+
+import { logActivity } from "#lib/db/activityLog.ts";
+import { getAllHolidays, type HolidayInput, holidaysTable } from "#lib/db/holidays.ts";
+import { validateForm } from "#lib/forms.tsx";
+import { defineResource } from "#lib/rest/resource.ts";
+import type { AdminSession, Holiday } from "#lib/types.ts";
+import { defineRoutes, type RouteParams } from "#routes/router.ts";
+import {
+  htmlResponse,
+  notFoundResponse,
+  redirect,
+  requireOwnerOr,
+  withOwnerAuthForm,
+} from "#routes/utils.ts";
+import {
+  adminHolidayDeletePage,
+  adminHolidayEditPage,
+  adminHolidayNewPage,
+  adminHolidaysPage,
+} from "#templates/admin/holidays.tsx";
+import { holidayFields } from "#templates/fields.ts";
+
+/** Extract holiday input from validated form values */
+const extractHolidayInput = (
+  values: Record<string, unknown>,
+): HolidayInput => ({
+  name: values.name as string,
+  startDate: values.start_date as string,
+  endDate: values.end_date as string,
+});
+
+/** Validate end_date >= start_date */
+const validateDateRange = (input: HolidayInput): Promise<string | null> =>
+  Promise.resolve(
+    input.endDate < input.startDate
+      ? "End date must be on or after the start date"
+      : null,
+  );
+
+/** Holidays resource for REST create/update operations */
+const holidaysResource = defineResource({
+  table: holidaysTable,
+  fields: holidayFields,
+  toInput: extractHolidayInput,
+  nameField: "name",
+  validate: validateDateRange,
+});
+
+/** Verify identifier matches for deletion confirmation (case-insensitive, trimmed) */
+const verifyIdentifier = (expected: string, provided: string): boolean =>
+  expected.trim().toLowerCase() === provided.trim().toLowerCase();
+
+/** Handle GET /admin/holidays */
+const handleHolidaysGet = (request: Request): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const holidays = await getAllHolidays();
+    return htmlResponse(adminHolidaysPage(holidays, session));
+  });
+
+/** Handle GET /admin/holiday/new */
+const handleHolidayNewGet = (request: Request): Promise<Response> =>
+  requireOwnerOr(request, (session) =>
+    htmlResponse(adminHolidayNewPage(session)),
+  );
+
+/** Handle POST /admin/holiday (create) */
+const handleHolidayCreate = (request: Request): Promise<Response> =>
+  withOwnerAuthForm(request, async (session, form) => {
+    const result = await holidaysResource.create(form);
+    if (result.ok) {
+      await logActivity(`Holiday '${String(form.get("name"))}' created`);
+      return redirect("/admin/holidays");
+    }
+    return htmlResponse(adminHolidayNewPage(session, result.error), 400);
+  });
+
+/** Handle GET /admin/holiday/:id/edit */
+const handleHolidayEditGet = (
+  request: Request,
+  holidayId: number,
+): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const holiday = await holidaysTable.findById(holidayId);
+    if (!holiday) return notFoundResponse();
+    return htmlResponse(adminHolidayEditPage(holiday, session));
+  });
+
+/** Render holiday error page or 404 */
+const holidayErrorPage = async (
+  id: number,
+  renderPage: (holiday: Holiday, session: AdminSession, error?: string) => string,
+  session: AdminSession,
+  error: string,
+): Promise<Response> => {
+  const holiday = await holidaysTable.findById(id);
+  return holiday
+    ? htmlResponse(renderPage(holiday, session, error), 400)
+    : notFoundResponse();
+};
+
+/** Handle POST /admin/holiday/:id/edit (update) */
+const handleHolidayEditPost = (
+  request: Request,
+  holidayId: number,
+): Promise<Response> =>
+  withOwnerAuthForm(request, async (session, form) => {
+    const validation = validateForm(form, holidayFields);
+    if (!validation.valid) {
+      return holidayErrorPage(holidayId, adminHolidayEditPage, session, validation.error);
+    }
+
+    const input = extractHolidayInput(validation.values);
+    const rangeError = await validateDateRange(input);
+    if (rangeError) {
+      return holidayErrorPage(holidayId, adminHolidayEditPage, session, rangeError);
+    }
+
+    const updated = await holidaysTable.update(holidayId, input);
+    if (!updated) return notFoundResponse();
+
+    await logActivity(`Holiday '${String(form.get("name"))}' updated`);
+    return redirect("/admin/holidays");
+  });
+
+/** Handle GET /admin/holiday/:id/delete */
+const handleHolidayDeleteGet = (
+  request: Request,
+  holidayId: number,
+): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const holiday = await holidaysTable.findById(holidayId);
+    if (!holiday) return notFoundResponse();
+    return htmlResponse(adminHolidayDeletePage(holiday, session));
+  });
+
+/** Handle POST /admin/holiday/:id/delete */
+const handleHolidayDeletePost = (
+  request: Request,
+  holidayId: number,
+): Promise<Response> =>
+  withOwnerAuthForm(request, async (session, form) => {
+    const holiday = await holidaysTable.findById(holidayId);
+    if (!holiday) return notFoundResponse();
+
+    const confirmIdentifier = String(form.get("confirm_identifier"));
+    if (!verifyIdentifier(holiday.name, confirmIdentifier)) {
+      return holidayErrorPage(
+        holidayId,
+        adminHolidayDeletePage,
+        session,
+        "Holiday name does not match. Please type the exact name to confirm deletion.",
+      );
+    }
+
+    await holidaysTable.deleteById(holidayId);
+    await logActivity(`Holiday '${holiday.name}' deleted`);
+    return redirect("/admin/holidays");
+  });
+
+/** Parse holiday ID from params */
+const parseHolidayId = (params: RouteParams): number =>
+  Number.parseInt(params.id as string, 10);
+
+/** Holiday routes */
+export const holidaysRoutes = defineRoutes({
+  "GET /admin/holidays": (request) => handleHolidaysGet(request),
+  "GET /admin/holiday/new": (request) => handleHolidayNewGet(request),
+  "POST /admin/holiday": (request) => handleHolidayCreate(request),
+  "GET /admin/holiday/:id/edit": (request, params) =>
+    handleHolidayEditGet(request, parseHolidayId(params)),
+  "POST /admin/holiday/:id/edit": (request, params) =>
+    handleHolidayEditPost(request, parseHolidayId(params)),
+  "GET /admin/holiday/:id/delete": (request, params) =>
+    handleHolidayDeleteGet(request, parseHolidayId(params)),
+  "POST /admin/holiday/:id/delete": (request, params) =>
+    handleHolidayDeletePost(request, parseHolidayId(params)),
+});

@@ -4,6 +4,7 @@
 
 import { hashSessionToken } from "#lib/crypto.ts";
 import { executeByField, getDb, queryOne } from "#lib/db/client.ts";
+
 import type { Session } from "#lib/types.ts";
 
 /**

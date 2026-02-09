@@ -236,6 +236,8 @@ describe("code quality", () => {
       "lib/stripe.ts:resetStripeClient",
       // Reset cached setup complete status between tests
       "lib/db/settings.ts:clearSetupCompleteCache",
+      // Reset cached settings between tests
+      "lib/db/settings.ts:invalidateSettingsCache",
       // Reset cached sessions between tests
       "lib/db/sessions.ts:resetSessionCache",
       // DB version constant used in production but test pattern doesn't detect constant comparison

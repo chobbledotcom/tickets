@@ -14,6 +14,7 @@
  */
 
 import { getDb, queryOne } from "#lib/db/client.ts";
+import { nowIso, nowMs } from "#lib/now.ts";
 
 /** Threshold for considering an unfinalized reservation abandoned (5 minutes) */
 export const STALE_RESERVATION_MS = 5 * 60 * 1000;
@@ -46,7 +47,7 @@ export const isSessionProcessed = (
  */
 export const isReservationStale = (processedAt: string): boolean => {
   const reservedAt = new Date(processedAt).getTime();
-  return Date.now() - reservedAt > STALE_RESERVATION_MS;
+  return nowMs() - reservedAt > STALE_RESERVATION_MS;
 };
 
 /**
@@ -59,6 +60,19 @@ export const deleteStaleReservation = async (
     sql: "DELETE FROM processed_payments WHERE payment_session_id = ? AND attendee_id IS NULL",
     args: [sessionId],
   });
+};
+
+/**
+ * Delete all stale reservations (unfinalized and older than STALE_RESERVATION_MS).
+ * Called from admin event views to clean up abandoned checkouts.
+ */
+export const deleteAllStaleReservations = async (): Promise<number> => {
+  const cutoff = new Date(nowMs() - STALE_RESERVATION_MS).toISOString();
+  const result = await getDb().execute({
+    sql: "DELETE FROM processed_payments WHERE attendee_id IS NULL AND processed_at < ?",
+    args: [cutoff],
+  });
+  return result.rowsAffected;
 };
 
 /**
@@ -76,7 +90,7 @@ export const reserveSession = async (
   try {
     await getDb().execute({
       sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
-      args: [sessionId, new Date().toISOString()],
+      args: [sessionId, nowIso()],
     });
     return { reserved: true };
   } catch (e) {

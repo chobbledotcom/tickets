@@ -5,12 +5,14 @@
 
 import {
   clearPaymentProvider,
+  getEmbedHostsFromDb,
   getPaymentProviderFromDb,
   getStripeWebhookEndpointId,
   hasSquareToken,
   hasStripeKey,
   setPaymentProvider,
   setStripeWebhookConfig,
+  updateEmbedHosts,
   updateSquareAccessToken,
   updateSquareLocationId,
   updateSquareWebhookSignatureKey,
@@ -21,6 +23,7 @@ import {
   getSquareWebhookSignatureKey,
   getAllowedDomain,
 } from "#lib/config.ts";
+import { validateEmbedHosts, parseEmbedHosts } from "#lib/embed-hosts.ts";
 import { resetDatabase } from "#lib/db/migrations/index.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
@@ -30,8 +33,10 @@ import type { AdminSession } from "#lib/types.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  getSearchParam,
   htmlResponse,
   redirect,
+  redirectWithSuccess,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
@@ -57,12 +62,14 @@ const getSettingsPageState = async () => {
   const squareWebhookKey = await getSquareWebhookSignatureKey();
   const squareWebhookConfigured = squareWebhookKey !== null;
   const webhookUrl = getWebhookUrl();
+  const embedHosts = await getEmbedHostsFromDb();
   return {
     stripeKeyConfigured,
     paymentProvider,
     squareTokenConfigured,
     squareWebhookConfigured,
     webhookUrl,
+    embedHosts,
   };
 };
 
@@ -82,6 +89,7 @@ const renderSettingsPage = async (
     state.squareTokenConfigured,
     state.squareWebhookConfigured,
     state.webhookUrl,
+    state.embedHosts,
   );
 };
 
@@ -89,9 +97,12 @@ const renderSettingsPage = async (
  * Handle GET /admin/settings - owner only
  */
 const handleAdminSettingsGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, async (session) =>
-    htmlResponse(await renderSettingsPage(session)),
-  );
+  requireOwnerOr(request, async (session) => {
+    const success = getSearchParam(request, "success");
+    return htmlResponse(
+      await renderSettingsPage(session, undefined, success ?? undefined),
+    );
+  });
 
 /**
  * Validate change password form data
@@ -178,13 +189,7 @@ const handlePaymentProviderPost = (request: Request): Promise<Response> =>
 
     if (provider === "none") {
       await clearPaymentProvider();
-      return htmlResponse(
-        await renderSettingsPage(
-          session,
-          undefined,
-          "Payment provider disabled",
-        ),
-      );
+      return redirectWithSuccess("/admin/settings", "Payment provider disabled");
     }
 
     if (!VALID_PROVIDERS.has(provider)) {
@@ -193,13 +198,7 @@ const handlePaymentProviderPost = (request: Request): Promise<Response> =>
 
     await setPaymentProvider(provider);
 
-    return htmlResponse(
-      await renderSettingsPage(
-        session,
-        undefined,
-        `Payment provider set to ${provider}`,
-      ),
-    );
+    return redirectWithSuccess("/admin/settings", `Payment provider set to ${provider}`);
   });
 
 /**
@@ -236,17 +235,14 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
 
     // Store both the Stripe key and webhook config
     await updateStripeKey(stripeSecretKey);
-    await setStripeWebhookConfig(webhookResult.secret, webhookResult.endpointId);
+    await setStripeWebhookConfig(webhookResult);
 
     // Auto-set payment provider to stripe when key is configured
     await setPaymentProvider("stripe");
 
-    return htmlResponse(
-      await renderSettingsPage(
-        session,
-        undefined,
-        "Stripe key updated and webhook configured successfully",
-      ),
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Stripe key updated and webhook configured successfully",
     );
   });
 
@@ -272,13 +268,7 @@ const handleAdminSquarePost = (request: Request): Promise<Response> =>
     // Auto-set payment provider to square when credentials are configured
     await setPaymentProvider("square");
 
-    return htmlResponse(
-      await renderSettingsPage(
-        session,
-        undefined,
-        "Square credentials updated successfully",
-      ),
-    );
+    return redirectWithSuccess("/admin/settings", "Square credentials updated successfully");
   });
 
 /**
@@ -298,12 +288,9 @@ const handleAdminSquareWebhookPost = (request: Request): Promise<Response> =>
 
     await updateSquareWebhookSignatureKey(signatureKey);
 
-    return htmlResponse(
-      await renderSettingsPage(
-        session,
-        undefined,
-        "Square webhook signature key updated successfully",
-      ),
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Square webhook signature key updated successfully",
     );
   });
 
@@ -316,6 +303,34 @@ const handleStripeTestPost = (request: Request): Promise<Response> =>
     return new Response(JSON.stringify(result), {
       headers: { "content-type": "application/json" },
     });
+  });
+
+/**
+ * Handle POST /admin/settings/embed-hosts - owner only
+ */
+const handleEmbedHostsPost = (request: Request): Promise<Response> =>
+  withOwnerAuthForm(request, async (session, form) => {
+    const settingsPageWithError = async (error: string, status: number) =>
+      htmlResponse(await renderSettingsPage(session, error), status);
+
+    const raw = form.get("embed_hosts") ?? "";
+    const trimmed = raw.trim();
+
+    // Empty = clear restriction
+    if (trimmed === "") {
+      await updateEmbedHosts("");
+      return redirectWithSuccess("/admin/settings", "Embed host restrictions removed");
+    }
+
+    const error = validateEmbedHosts(trimmed);
+    if (error) {
+      return settingsPageWithError(error, 400);
+    }
+
+    // Normalize: trim, lowercase, rejoin
+    const normalized = parseEmbedHosts(trimmed).join(", ");
+    await updateEmbedHosts(normalized);
+    return redirectWithSuccess("/admin/settings", "Allowed embed hosts updated");
   });
 
 /**
@@ -357,6 +372,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/square-webhook": (request) =>
     handleAdminSquareWebhookPost(request),
   "POST /admin/settings/stripe/test": (request) => handleStripeTestPost(request),
+  "POST /admin/settings/embed-hosts": (request) => handleEmbedHostsPost(request),
   "POST /admin/settings/reset-database": (request) =>
     handleResetDatabasePost(request),
 });
