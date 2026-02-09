@@ -28,7 +28,7 @@ import {
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
-import type { AdminLevel, AdminSession, User } from "#lib/types.ts";
+import type { AdminSession, User } from "#lib/types.ts";
 import {
   adminUsersPage,
   type DisplayUser,
@@ -100,7 +100,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
 
     const { username, admin_level: adminLevel } = validation.values;
 
-    if (!VALID_ADMIN_LEVELS.includes(adminLevel as typeof VALID_ADMIN_LEVELS[number])) {
+    if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
       return htmlResponse(
         await renderUsersPage(session, undefined, "Invalid role"),
         400,
@@ -126,7 +126,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
 
     await createInvitedUser(
       username,
-      adminLevel as AdminLevel,
+      adminLevel,
       codeHash,
       expiry,
     );

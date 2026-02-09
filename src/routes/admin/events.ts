@@ -20,7 +20,7 @@ import {
 import { createHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
-import type { AdminSession, Attendee, EventFields, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
 import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
@@ -73,7 +73,7 @@ const extractEventInput = async (
     unitPrice: values.unit_price,
     maxQuantity: values.max_quantity,
     webhookUrl: values.webhook_url || null,
-    fields: (values.fields as EventFields) || "email",
+    fields: values.fields || "email",
     closesAt: values.closes_at || "",
   };
 };
@@ -94,7 +94,7 @@ const extractEventUpdateInput = async (
     unitPrice: values.unit_price,
     maxQuantity: values.max_quantity,
     webhookUrl: values.webhook_url || null,
-    fields: (values.fields as EventFields) || "email",
+    fields: values.fields || "email",
     closesAt: values.closes_at || "",
   };
 };
@@ -232,7 +232,7 @@ const handleAdminEventEditPost = async (
     toInput: extractEventUpdateInput,
     nameField: "name",
     validate: async (input, id) => {
-      const taken = await isSlugTaken(input.slug, id as number);
+      const taken = await isSlugTaken(input.slug, Number(id));
       return taken ? "Slug is already in use by another event" : null;
     },
   });
@@ -375,9 +375,9 @@ const handleAdminEventDelete = (
     return redirect("/admin");
   });
 
-/** Parse event ID from params */
+/** Parse event ID from params (route pattern guarantees :id exists as \d+) */
 const parseEventId = (params: RouteParams): number =>
-  Number.parseInt(params.id as string, 10);
+  Number.parseInt(params.id!, 10);
 
 /** Event routes */
 export const eventsRoutes = defineRoutes({

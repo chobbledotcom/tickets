@@ -3,7 +3,7 @@
  */
 
 import type { Field } from "#lib/forms.tsx";
-import type { EventFields } from "#lib/types.ts";
+import type { AdminLevel, EventFields } from "#lib/types.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 
 // ---------------------------------------------------------------------------
@@ -21,7 +21,7 @@ export type EventFormValues = {
   description: string | null;
   max_attendees: number;
   max_quantity: number;
-  fields: string | null;
+  fields: EventFields | null;
   unit_price: number | null;
   closes_at: string | null;
   thank_you_url: string | null;
@@ -80,7 +80,7 @@ export type SquareWebhookFormValues = {
 /** Typed values from invite user form */
 export type InviteUserFormValues = {
   username: string;
-  admin_level: string;
+  admin_level: AdminLevel;
 };
 
 /** Typed values from join (set password) form */
@@ -161,11 +161,11 @@ export const loginFields: Field[] = [
 ];
 
 /** Valid event fields values */
-const VALID_EVENT_FIELDS: EventFields[] = ["email", "phone", "both"];
+const VALID_EVENT_FIELDS: readonly string[] = ["email", "phone", "both"];
 
 /** Validate event fields setting */
 const validateEventFields = (value: string): string | null => {
-  if (!VALID_EVENT_FIELDS.includes(value as EventFields)) {
+  if (!VALID_EVENT_FIELDS.includes(value)) {
     return "Contact Fields must be email, phone, or both";
   }
   return null;
@@ -336,7 +336,7 @@ export const getTicketFields = (fields: EventFields): Field[] => {
  */
 export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
   if (fieldSettings.length === 0) return "email";
-  const first = fieldSettings[0] as EventFields;
+  const first = fieldSettings[0]!;
   const allSame = fieldSettings.every((f) => f === first);
   if (allSame) return first;
   return "both";

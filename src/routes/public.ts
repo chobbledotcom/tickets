@@ -393,7 +393,7 @@ const buildMultiRegistrationItems = (
     }),
     map(({ event }: MultiTicketEvent) => ({
       eventId: event.id,
-      quantity: quantities.get(event.id) as number,
+      quantity: quantities.get(event.id)!,
       unitPrice: event.unit_price ?? 0,
       slug: event.slug,
       name: event.name,
