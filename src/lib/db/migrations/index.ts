@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add ticket_token";
+export const LATEST_UPDATE = "add attendee date";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -280,6 +280,25 @@ export const initDb = async (): Promise<void> => {
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_attendees_ticket_token ON attendees(ticket_token)`,
   );
 
+  // Migration: add event_type and daily booking config columns to events
+  await runMigration(`ALTER TABLE events ADD COLUMN event_type TEXT NOT NULL DEFAULT 'standard'`);
+  await runMigration(`ALTER TABLE events ADD COLUMN bookable_days TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]'`);
+  await runMigration(`ALTER TABLE events ADD COLUMN minimum_days_before INTEGER NOT NULL DEFAULT 1`);
+  await runMigration(`ALTER TABLE events ADD COLUMN maximum_days_after INTEGER NOT NULL DEFAULT 90`);
+
+  // Migration: create holidays table
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS holidays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL
+    )
+  `);
+
+  // Migration: add date column to attendees for daily events
+  await runMigration(`ALTER TABLE attendees ADD COLUMN date TEXT DEFAULT NULL`);
+
   // Update the version marker
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
@@ -291,6 +310,7 @@ export const initDb = async (): Promise<void> => {
  * All database tables in order for safe dropping (respects foreign key constraints)
  */
 const ALL_TABLES = [
+  "holidays",
   "activity_log",
   "processed_payments",
   "attendees",

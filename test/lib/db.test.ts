@@ -7,12 +7,14 @@ import {
   logActivity,
 } from "#lib/db/activityLog.ts";
 import {
+  checkBatchAvailability,
   createAttendeeAtomic,
   decryptAttendees,
   deleteAttendee,
   getAttendee,
   getAttendeesByTokens,
   getAttendeesRaw,
+  getDateAttendeeCount,
   hasAvailableSpots,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
@@ -36,6 +38,7 @@ import {
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
 import { initDb, LATEST_UPDATE, resetDatabase } from "#lib/db/migrations/index.ts";
+import { nowMs } from "#lib/now.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
@@ -61,6 +64,7 @@ import {
   getStripeSecretKeyFromDb,
   getWrappedPrivateKey,
   hasStripeKey,
+  invalidateSettingsCache,
   isSetupComplete,
   setPaymentProvider,
   setSetting,
@@ -378,12 +382,12 @@ describe("db", () => {
       });
 
       // Create an attendee BEFORE password change
-      const beforeResult = await createAttendeeAtomic(
-        event.id,
-        "Alice Before",
-        "alice@example.com",
-        "pi_before_change",
-      );
+      const beforeResult = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Alice Before",
+        email: "alice@example.com",
+        paymentId: "pi_before_change",
+      });
       if (!beforeResult.success) throw new Error("Failed to create attendee");
       const attendeeBefore = beforeResult.attendee;
 
@@ -403,12 +407,12 @@ describe("db", () => {
       expect(changeSuccess).toBe(true);
 
       // Create an attendee AFTER password change
-      const afterResult = await createAttendeeAtomic(
-        event.id,
-        "Bob After",
-        "bob@example.com",
-        "pi_after_change",
-      );
+      const afterResult = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Bob After",
+        email: "bob@example.com",
+        paymentId: "pi_after_change",
+      });
       if (!afterResult.success) throw new Error("Failed to create attendee");
       const attendeeAfter = afterResult.attendee;
 
@@ -751,13 +755,13 @@ describe("db", () => {
         thankYouUrl: "https://example.com",
       });
 
-      const result = await createAttendeeAtomic(
-        event.id,
-        "John",
-        "john@example.com",
-        "pi_test",
-        1,
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "John",
+        email: "john@example.com",
+        paymentId: "pi_test",
+        quantity: 1,
+      });
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -772,15 +776,14 @@ describe("db", () => {
         thankYouUrl: "https://example.com",
       });
       // Use createAttendeeAtomic to fill capacity (production code path)
-      await createAttendeeAtomic(event.id, "First", "first@example.com");
+      await createAttendeeAtomic({ eventId: event.id, name: "First", email: "first@example.com" });
 
-      const result = await createAttendeeAtomic(
-        event.id,
-        "Second",
-        "second@example.com",
-        null,
-        1,
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Second",
+        email: "second@example.com",
+        quantity: 1,
+      });
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -799,12 +802,13 @@ describe("db", () => {
         sql: "DELETE FROM settings WHERE key = ?",
         args: [CONFIG_KEYS.PUBLIC_KEY],
       });
+      invalidateSettingsCache();
 
-      const result = await createAttendeeAtomic(
-        event.id,
-        "John",
-        "john@example.com",
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "John",
+        email: "john@example.com",
+      });
 
       expect(result.success).toBe(false);
       if (!result.success) {
@@ -849,6 +853,142 @@ describe("db", () => {
 
       const result = await hasAvailableSpots(event.id);
       expect(result).toBe(false);
+    });
+
+    test("checks per-date capacity for daily events", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 1,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      // Create an attendee for a specific date
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Day User",
+        email: "day@example.com",
+        date: "2026-02-10",
+      });
+
+      // That date should be full
+      const full = await hasAvailableSpots(event.id, 1, "2026-02-10");
+      expect(full).toBe(false);
+
+      // A different date should be available
+      const available = await hasAvailableSpots(event.id, 1, "2026-02-11");
+      expect(available).toBe(true);
+    });
+  });
+
+  describe("getDateAttendeeCount", () => {
+    test("returns 0 when no attendees for date", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 10,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const count = await getDateAttendeeCount(event.id, "2026-02-10");
+      expect(count).toBe(0);
+    });
+
+    test("returns correct count for date with attendees", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 10,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "User 1",
+        email: "u1@example.com",
+        quantity: 2,
+        date: "2026-02-10",
+      });
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "User 2",
+        email: "u2@example.com",
+        quantity: 3,
+        date: "2026-02-10",
+      });
+
+      const count = await getDateAttendeeCount(event.id, "2026-02-10");
+      expect(count).toBe(5);
+    });
+
+    test("does not count attendees on different dates", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 10,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "User 1",
+        email: "u1@example.com",
+        quantity: 2,
+        date: "2026-02-10",
+      });
+
+      const count = await getDateAttendeeCount(event.id, "2026-02-11");
+      expect(count).toBe(0);
+    });
+  });
+
+  describe("checkBatchAvailability", () => {
+    test("returns true for empty items", async () => {
+      const result = await checkBatchAvailability([], null);
+      expect(result).toBe(true);
+    });
+
+    test("returns false when event not found", async () => {
+      const result = await checkBatchAvailability(
+        [{ eventId: 99999, quantity: 1 }],
+        null,
+      );
+      expect(result).toBe(false);
+    });
+
+    test("checks per-date capacity for daily events", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 2,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Existing",
+        email: "existing@example.com",
+        quantity: 1,
+        date: "2026-02-10",
+      });
+
+      // Should have 1 spot left on that date
+      const available = await checkBatchAvailability(
+        [{ eventId: event.id, quantity: 1 }],
+        "2026-02-10",
+      );
+      expect(available).toBe(true);
+
+      // Should not have 2 spots on that date
+      const notAvailable = await checkBatchAvailability(
+        [{ eventId: event.id, quantity: 2 }],
+        "2026-02-10",
+      );
+      expect(notAvailable).toBe(false);
     });
   });
 
@@ -1434,14 +1574,13 @@ describe("db", () => {
       });
 
       // Create attendee with a non-empty phone to exercise the phone decryption branch
-      const result = await createAttendeeAtomic(
-        event.id,
-        "Phone Person",
-        "phone@example.com",
-        null,
-        1,
-        "+44 7700 900000",
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Phone Person",
+        email: "phone@example.com",
+        quantity: 1,
+        phone: "+44 7700 900000",
+      });
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -1466,14 +1605,13 @@ describe("db", () => {
       });
 
       // Create attendee with empty email/phone via createAttendeeAtomic
-      const result = await createAttendeeAtomic(
-        event.id,
-        "NoContact Person",
-        "", // empty email
-        null,
-        1,
-        "", // empty phone
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "NoContact Person",
+        email: "", // empty email
+        quantity: 1,
+        phone: "", // empty phone
+      });
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -1497,15 +1635,14 @@ describe("db", () => {
         unitPrice: 2500,
       });
 
-      const result = await createAttendeeAtomic(
-        event.id,
-        "Paying Customer",
-        "pay@example.com",
-        "pi_test_price",
-        1,
-        "",
-        2500,
-      );
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Paying Customer",
+        email: "pay@example.com",
+        paymentId: "pi_test_price",
+        quantity: 1,
+        pricePaid: 2500,
+      });
 
       expect(result.success).toBe(true);
       if (result.success) {
@@ -1660,11 +1797,11 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const attendeeResult = await createAttendeeAtomic(
-        event.id,
-        "Test",
-        "test@example.com",
-      );
+      const attendeeResult = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Test",
+        email: "test@example.com",
+      });
       if (!attendeeResult.success) throw new Error("Failed to create attendee");
 
       await reserveSession("sess_dup");
@@ -1690,21 +1827,16 @@ describe("db", () => {
     });
 
     test("reserveSession retries when stale reservation detected", async () => {
-      jest.useFakeTimers();
-      const startTime = Date.now();
-      jest.setSystemTime(startTime);
-
-      // Create initial reservation
-      await reserveSession("sess_stale");
-
-      // Advance time past stale threshold
-      jest.setSystemTime(startTime + STALE_RESERVATION_MS + 1000);
+      // Insert a reservation with a timestamp old enough relative to frozen nowMs
+      const oldTimestamp = new Date(nowMs() - STALE_RESERVATION_MS - 1000).toISOString();
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["sess_stale", oldTimestamp],
+      });
 
       // This should detect the stale reservation, delete it, and retry
       const result = await reserveSession("sess_stale");
       expect(result.reserved).toBe(true);
-
-      jest.useRealTimers();
     });
 
     test("reserveSession re-throws non-unique-constraint errors", async () => {
@@ -1731,14 +1863,12 @@ describe("db", () => {
     });
 
     test("reserveSession retries when stale reservation is detected (recursive path)", async () => {
-      jest.useFakeTimers();
-      const startTime = Date.now();
-      jest.setSystemTime(startTime);
-
-      await reserveSession("sess_race");
-
-      // Make it stale so it gets deleted on retry
-      jest.setSystemTime(startTime + STALE_RESERVATION_MS + 1000);
+      // Insert a reservation with a timestamp old enough relative to frozen nowMs
+      const oldTimestamp = new Date(nowMs() - STALE_RESERVATION_MS - 1000).toISOString();
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["sess_race", oldTimestamp],
+      });
 
       const result = await reserveSession("sess_race");
       expect(result.reserved).toBe(true);
@@ -1746,8 +1876,6 @@ describe("db", () => {
       // Verify the session was re-reserved
       const processed = await isSessionProcessed("sess_race");
       expect(processed).not.toBeNull();
-
-      jest.useRealTimers();
     });
   });
 
@@ -1957,6 +2085,7 @@ describe("db", () => {
       await getDb().execute(
         "DELETE FROM settings WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
 
       // Re-run migrations - should backfill checked_in
       await initDb();
@@ -1987,6 +2116,7 @@ describe("db", () => {
       await getDb().execute(
         "DELETE FROM settings WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
 
       // Re-run migrations - should backfill ticket_token
       await initDb();
@@ -2070,6 +2200,7 @@ describe("db", () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
       await initDb();
 
       // Verify the event now has encrypted closes_at (not NULL)
@@ -2097,6 +2228,7 @@ describe("db", () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
       await initDb();
 
       // Verify it still decrypts correctly (not double-encrypted)
@@ -2124,6 +2256,7 @@ describe("db", () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
       await initDb();
 
       // Verify an owner user was created
@@ -2152,6 +2285,7 @@ describe("db", () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
       await initDb();
 
       // Verify no additional user was created
@@ -2167,6 +2301,7 @@ describe("db", () => {
       await getDb().execute(
         "UPDATE settings SET value = 'outdated' WHERE key = 'latest_db_update'",
       );
+      invalidateSettingsCache();
       await initDb();
 
       // Verify no user was created

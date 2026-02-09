@@ -7,6 +7,7 @@ import { compact, map, unique } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
+import { nowIso } from "#lib/now.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -14,6 +15,7 @@ export type WebhookTicket = {
   event_slug: string;
   unit_price: number | null;
   quantity: number;
+  date: string | null;
 };
 
 /** Consolidated payload sent to webhook endpoints */
@@ -51,6 +53,7 @@ export type WebhookAttendee = {
   payment_id?: string | null;
   price_paid?: string | null;
   ticket_token: string;
+  date: string | null;
 };
 
 /** Registration entry: event + attendee pair */
@@ -94,8 +97,9 @@ export const buildWebhookPayload = (
       event_slug: event.slug,
       unit_price: event.unit_price,
       quantity: attendee.quantity,
+      date: attendee.date,
     })),
-    timestamp: new Date().toISOString(),
+    timestamp: nowIso(),
   };
 };
 
@@ -143,7 +147,7 @@ export const logAndNotifyRegistration = async (
   attendee: WebhookAttendee,
   currency: string,
 ): Promise<void> => {
-  await logActivity(`Attendee registered for '${event.name}'`, event.id);
+  await logActivity(`Attendee registered for '${event.name}'`, event);
   await sendRegistrationWebhooks([{ event, attendee }], currency);
 };
 
@@ -155,7 +159,7 @@ export const logAndNotifyMultiRegistration = async (
   currency: string,
 ): Promise<void> => {
   for (const { event } of entries) {
-    await logActivity(`Attendee registered for '${event.name}'`, event.id);
+    await logActivity(`Attendee registered for '${event.name}'`, event);
   }
   await sendRegistrationWebhooks(entries, currency);
 };
