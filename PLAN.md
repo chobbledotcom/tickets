@@ -331,24 +331,20 @@ For daily events, the event detail section should show capacity info per-date co
 
 ---
 
-## Phase 4 Outstanding Work
+## Phase 4 Status: Complete
 
-Phase 4 is largely unimplemented. The event detail metadata display is done (event type, bookable days, booking window), but all attendee filtering and CSV features are missing.
-
-### Done
+All Phase 4 features are implemented:
 
 - Event type, bookable days, and booking window shown in event detail view
-
-### Not Done
-
 - `?date=YYYY-MM-DD` query parameter parsing in admin event route
 - Date selector dropdown above attendee table for daily events
 - Attendee filtering by date (server-side, composable with check-in filter)
 - "Date" column in attendee table for daily events
-- Per-date capacity count (currently shows total count with misleading "(per date)" label)
+- Per-date capacity count when filtered (total count with capacity note when unfiltered)
 - "Date" column in CSV export for daily events
 - CSV export respecting `?date=` filter parameter
 - Date in CSV filename when filtered (`{event_name}_{date}_attendees.csv`)
+- Export CSV link preserves active date filter
 
 ---
 

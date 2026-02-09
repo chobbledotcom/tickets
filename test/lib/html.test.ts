@@ -582,6 +582,33 @@ describe("html", () => {
       expect(lines[1]).toContain("abc123");
       expect(lines[1]).toContain("https://localhost/t/abc123");
     });
+
+    test("includes Date column when includeDate is true", () => {
+      const csv = generateAttendeesCsv([], true);
+      expect(csv).toBe("Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+    });
+
+    test("includes date value in row when includeDate is true", () => {
+      const attendees = [testAttendee({ date: "2026-03-15" })];
+      const csv = generateAttendeesCsv(attendees, true);
+      const lines = csv.split("\n");
+      expect(lines[0]).toContain("Date,Name");
+      expect(lines[1]).toMatch(/^2026-03-15,/);
+    });
+
+    test("includes empty date in row when date is null", () => {
+      const attendees = [testAttendee({ date: null })];
+      const csv = generateAttendeesCsv(attendees, true);
+      const lines = csv.split("\n");
+      expect(lines[1]).toMatch(/^,John Doe/);
+    });
+
+    test("omits Date column when includeDate is false", () => {
+      const attendees = [testAttendee({ date: "2026-03-15" })];
+      const csv = generateAttendeesCsv(attendees, false);
+      expect(csv.startsWith("Name,")).toBe(true);
+      expect(csv).not.toContain("2026-03-15");
+    });
   });
 
   describe("adminEventPage filter links", () => {

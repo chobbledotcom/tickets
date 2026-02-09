@@ -70,10 +70,10 @@ const renderCheckboxGroup = (
   options: { value: string; label: string }[],
   selectedValues: Set<string>,
 ): string =>
-  `<fieldset style="border:0;padding:0;margin:0;">${options
+  `<fieldset class="checkbox-group">${options
     .map(
       (opt) =>
-        `<label style="display:inline-block;margin-right:1rem;font-weight:normal;"><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(opt.value)}"${selectedValues.has(opt.value) ? " checked" : ""}> ${escapeHtml(opt.label)}</label>`,
+        `<label><input type="checkbox" name="${escapeHtml(name)}" value="${escapeHtml(opt.value)}"${selectedValues.has(opt.value) ? " checked" : ""}> ${escapeHtml(opt.label)}</label>`,
     )
     .join("")}</fieldset>`;
 
