@@ -3,6 +3,7 @@
  */
 
 import { decrypt, encrypt } from "#lib/crypto.ts";
+import { today } from "#lib/now.ts";
 import type { InStatement } from "@libsql/client";
 import { getDb } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
@@ -47,5 +48,5 @@ export const getAllHolidays = (): Promise<Holiday[]> =>
 export const getActiveHolidays = (): Promise<Holiday[]> =>
   queryHolidays({
     sql: "SELECT * FROM holidays WHERE end_date >= ? ORDER BY start_date ASC",
-    args: [new Date().toISOString().slice(0, 10)],
+    args: [today],
   });

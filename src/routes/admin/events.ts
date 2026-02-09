@@ -62,28 +62,29 @@ const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: stri
 const serializeBookableDays = (value: string | null): string | undefined =>
   value ? JSON.stringify(value.split(",").map((d) => d.trim()).filter((d) => d)) : undefined;
 
+/** Extract common event fields from validated form values */
+const extractCommonFields = (values: Record<string, unknown>) => ({
+  name: values.name as string,
+  description: (values.description as string) || "",
+  maxAttendees: values.max_attendees as number,
+  thankYouUrl: values.thank_you_url as string,
+  unitPrice: values.unit_price as number | null,
+  maxQuantity: values.max_quantity as number,
+  webhookUrl: (values.webhook_url as string) || null,
+  fields: (values.fields as EventFields) || "email",
+  closesAt: (values.closes_at as string) || "",
+  eventType: (values.event_type as EventType) || undefined,
+  bookableDays: serializeBookableDays(values.bookable_days as string | null),
+  minimumDaysBefore: (values.minimum_days_before as number | null) ?? 0,
+  maximumDaysAfter: (values.maximum_days_after as number | null) ?? 0,
+});
+
 /** Extract event input from validated form (async to compute slugIndex) */
 const extractEventInput = async (
   values: Record<string, unknown>,
 ): Promise<EventInput> => {
   const { slug, slugIndex } = await generateUniqueSlug();
-  return {
-    name: values.name as string,
-    description: (values.description as string) || "",
-    slug,
-    slugIndex,
-    maxAttendees: values.max_attendees as number,
-    thankYouUrl: values.thank_you_url as string,
-    unitPrice: values.unit_price as number | null,
-    maxQuantity: values.max_quantity as number,
-    webhookUrl: (values.webhook_url as string) || null,
-    fields: (values.fields as EventFields) || "email",
-    closesAt: (values.closes_at as string) || "",
-    eventType: (values.event_type as EventType) || undefined,
-    bookableDays: serializeBookableDays(values.bookable_days as string | null),
-    minimumDaysBefore: (values.minimum_days_before as number | null) ?? undefined,
-    maximumDaysAfter: (values.maximum_days_after as number | null) ?? undefined,
-  };
+  return { ...extractCommonFields(values), slug, slugIndex };
 };
 
 /** Extract event input for update (reads slug from form, normalizes it) */
@@ -92,23 +93,7 @@ const extractEventUpdateInput = async (
 ): Promise<EventInput> => {
   const slug = normalizeSlug(values.slug as string);
   const slugIndex = await computeSlugIndex(slug);
-  return {
-    name: values.name as string,
-    description: (values.description as string) || "",
-    slug,
-    slugIndex,
-    maxAttendees: values.max_attendees as number,
-    thankYouUrl: values.thank_you_url as string,
-    unitPrice: values.unit_price as number | null,
-    maxQuantity: values.max_quantity as number,
-    webhookUrl: (values.webhook_url as string) || null,
-    fields: (values.fields as EventFields) || "email",
-    closesAt: (values.closes_at as string) || "",
-    eventType: (values.event_type as EventType) || undefined,
-    bookableDays: serializeBookableDays(values.bookable_days as string | null),
-    minimumDaysBefore: (values.minimum_days_before as number | null) ?? undefined,
-    maximumDaysAfter: (values.maximum_days_after as number | null) ?? undefined,
-  };
+  return { ...extractCommonFields(values), slug, slugIndex };
 };
 
 /** Events resource for REST create operations */

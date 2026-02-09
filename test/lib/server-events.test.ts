@@ -1976,8 +1976,8 @@ describe("server (admin events)", () => {
       const saved = await getEventWithCount(event.id);
       expect(saved?.event_type).toBe("standard");
       expect(saved?.bookable_days).toBe('["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]');
-      expect(saved?.minimum_days_before).toBe(1);
-      expect(saved?.maximum_days_after).toBe(90);
+      expect(saved?.minimum_days_before).toBe(0);
+      expect(saved?.maximum_days_after).toBe(0);
     });
 
     test("admin event detail page shows Daily type for daily events", async () => {

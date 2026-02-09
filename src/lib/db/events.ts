@@ -76,8 +76,8 @@ export const eventsTable = defineTable<Event, EventInput>({
     closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
     event_type: col.withDefault<EventType>(() => "standard"),
     bookable_days: col.withDefault(() => DEFAULT_BOOKABLE_DAYS),
-    minimum_days_before: col.withDefault(() => 1),
-    maximum_days_after: col.withDefault(() => 90),
+    minimum_days_before: col.withDefault(() => 0),
+    maximum_days_after: col.withDefault(() => 0),
   },
 });
 

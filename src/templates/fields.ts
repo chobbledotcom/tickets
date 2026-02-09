@@ -204,14 +204,14 @@ export const eventFields: Field[] = [
     label: "Minimum Days Notice (for daily events)",
     type: "number",
     min: 0,
-    hint: "How many days in advance attendees must book. Leave blank for 1.",
+    hint: "How many days in advance attendees must book (0 = same day)",
   },
   {
     name: "maximum_days_after",
     label: "Maximum Days Ahead (for daily events)",
     type: "number",
-    min: 1,
-    hint: "How far into the future attendees can book. Leave blank for 90.",
+    min: 0,
+    hint: "How far into the future attendees can book (0 = no limit)",
   },
   {
     name: "fields",

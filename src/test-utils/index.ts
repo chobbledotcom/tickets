@@ -887,8 +887,8 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   fields: "email",
   event_type: "standard",
   bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
-  minimum_days_before: 1,
-  maximum_days_after: 90,
+  minimum_days_before: 0,
+  maximum_days_after: 0,
   ...overrides,
 });
 
