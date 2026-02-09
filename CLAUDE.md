@@ -89,6 +89,7 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 ### Optional
 
 - `PORT` - Server port (defaults to 3000, local dev only)
+- `WEBHOOK_URL` - Global webhook URL for registration notifications (sends in addition to per-event webhook URLs)
 
 ### Stripe Configuration
 
