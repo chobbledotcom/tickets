@@ -19,6 +19,7 @@ export const AdminNav = ({ session }: AdminNavProps = {}): JSX.Element => (
       {session?.adminLevel === "owner" && <li><a href="/admin/users">Users</a></li>}
       {session?.adminLevel === "owner" && <li><a href="/admin/settings">Settings</a></li>}
       {session?.adminLevel === "owner" && <li><a href="/admin/log">Log</a></li>}
+      {session?.adminLevel === "owner" && <li><a href="/admin/holidays">Holidays</a></li>}
       {session?.adminLevel === "owner" && <li><a href="/admin/sessions">Sessions</a></li>}
       <li><a href="/admin/logout">Logout</a></li>
     </ul>

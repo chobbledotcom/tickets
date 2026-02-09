@@ -13,6 +13,7 @@ import {
 import { getStripeWebhookEndpointId } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
+import { nowMs } from "#lib/now.ts";
 import { computeHmacSha256, hmacToHex, secureCompare } from "#lib/payment-crypto.ts";
 import {
   buildMultiIntentMetadata,
@@ -519,8 +520,8 @@ export const verifyWebhookSignature = async (
   const { timestamp, signatures } = parsed;
 
   // Check timestamp tolerance
-  const now = Math.floor(Date.now() / 1000);
-  if (Math.abs(now - timestamp) > toleranceSeconds) {
+  const nowSecs = Math.floor(nowMs / 1000);
+  if (Math.abs(nowSecs - timestamp) > toleranceSeconds) {
     logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "timestamp out of tolerance" });
     return { valid: false, error: "Timestamp outside tolerance window" };
   }
@@ -556,7 +557,7 @@ export const constructTestWebhookEvent = async (
   secret: string,
 ): Promise<{ payload: string; signature: string }> => {
   const payload = JSON.stringify(event);
-  const timestamp = Math.floor(Date.now() / 1000);
+  const timestamp = Math.floor(nowMs / 1000);
   const signedPayload = `${timestamp}.${payload}`;
   const sig = await computeSignature(signedPayload, secret);
 

@@ -4,6 +4,7 @@
 
 import { hmacHash } from "#lib/crypto.ts";
 import { executeByField, getDb, queryOne } from "#lib/db/client.ts";
+import { nowMs } from "#lib/now.ts";
 
 /**
  * Rate limiting constants
@@ -34,12 +35,12 @@ export const isLoginRateLimited = (ip: string): Promise<boolean> =>
     if (!row) return false;
 
     // Check if currently locked out
-    if (row.locked_until && row.locked_until > Date.now()) {
+    if (row.locked_until && row.locked_until > nowMs) {
       return true;
     }
 
     // If lockout expired, reset
-    if (row.locked_until && row.locked_until <= Date.now()) {
+    if (row.locked_until && row.locked_until <= nowMs) {
       await executeByField("login_attempts", "ip", hashedIp);
     }
 
@@ -55,7 +56,7 @@ export const recordFailedLogin = (ip: string): Promise<boolean> =>
     const newAttempts = (row?.attempts ?? 0) + 1;
 
     if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
-      const lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+      const lockedUntil = nowMs + LOCKOUT_DURATION_MS;
       await getDb().execute({
         sql: "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
         args: [hashedIp, newAttempts, lockedUntil],

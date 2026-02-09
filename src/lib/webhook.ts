@@ -7,6 +7,7 @@ import { compact, map, unique } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
+import { nowIso } from "#lib/now.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -95,7 +96,7 @@ export const buildWebhookPayload = (
       unit_price: event.unit_price,
       quantity: attendee.quantity,
     })),
-    timestamp: new Date().toISOString(),
+    timestamp: nowIso,
   };
 };
 

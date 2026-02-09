@@ -29,13 +29,17 @@ const formatCheckedIn = (checkedIn: string): string =>
 /**
  * Generate CSV content from attendees.
  * Always includes both Email and Phone columns regardless of event settings.
+ * When includeDate is true, adds a Date column for daily events.
  */
-export const generateAttendeesCsv = (attendees: Attendee[]): string => {
+export const generateAttendeesCsv = (attendees: Attendee[], includeDate = false): string => {
   const domain = getAllowedDomain();
-  const header = "Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL";
+  const header = includeDate
+    ? "Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL"
+    : "Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL";
   const rows = pipe(
-    map((a: Attendee) =>
-      [
+    map((a: Attendee) => {
+      const cols = [
+        ...(includeDate ? [escapeCsvValue(a.date ?? "")] : []),
         escapeCsvValue(a.name),
         escapeCsvValue(a.email),
         escapeCsvValue(a.phone),
@@ -46,8 +50,9 @@ export const generateAttendeesCsv = (attendees: Attendee[]): string => {
         formatCheckedIn(a.checked_in),
         escapeCsvValue(a.ticket_token),
         escapeCsvValue(`https://${domain}/t/${a.ticket_token}`),
-      ].join(","),
-    ),
+      ];
+      return cols.join(",");
+    }),
     reduce((acc: string, row: string) => `${acc}\n${row}`, header),
   )(attendees);
   return rows;

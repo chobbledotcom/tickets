@@ -7,12 +7,14 @@ import {
   logActivity,
 } from "#lib/db/activityLog.ts";
 import {
+  checkBatchAvailability,
   createAttendeeAtomic,
   decryptAttendees,
   deleteAttendee,
   getAttendee,
   getAttendeesByTokens,
   getAttendeesRaw,
+  getDateAttendeeCount,
   hasAvailableSpots,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
@@ -36,6 +38,7 @@ import {
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
 import { initDb, LATEST_UPDATE, resetDatabase } from "#lib/db/migrations/index.ts";
+import { nowMs } from "#lib/now.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
@@ -850,6 +853,142 @@ describe("db", () => {
 
       const result = await hasAvailableSpots(event.id);
       expect(result).toBe(false);
+    });
+
+    test("checks per-date capacity for daily events", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 1,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      // Create an attendee for a specific date
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Day User",
+        email: "day@example.com",
+        date: "2026-02-10",
+      });
+
+      // That date should be full
+      const full = await hasAvailableSpots(event.id, 1, "2026-02-10");
+      expect(full).toBe(false);
+
+      // A different date should be available
+      const available = await hasAvailableSpots(event.id, 1, "2026-02-11");
+      expect(available).toBe(true);
+    });
+  });
+
+  describe("getDateAttendeeCount", () => {
+    test("returns 0 when no attendees for date", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 10,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const count = await getDateAttendeeCount(event.id, "2026-02-10");
+      expect(count).toBe(0);
+    });
+
+    test("returns correct count for date with attendees", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 10,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "User 1",
+        email: "u1@example.com",
+        quantity: 2,
+        date: "2026-02-10",
+      });
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "User 2",
+        email: "u2@example.com",
+        quantity: 3,
+        date: "2026-02-10",
+      });
+
+      const count = await getDateAttendeeCount(event.id, "2026-02-10");
+      expect(count).toBe(5);
+    });
+
+    test("does not count attendees on different dates", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 10,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "User 1",
+        email: "u1@example.com",
+        quantity: 2,
+        date: "2026-02-10",
+      });
+
+      const count = await getDateAttendeeCount(event.id, "2026-02-11");
+      expect(count).toBe(0);
+    });
+  });
+
+  describe("checkBatchAvailability", () => {
+    test("returns true for empty items", async () => {
+      const result = await checkBatchAvailability([], null);
+      expect(result).toBe(true);
+    });
+
+    test("returns false when event not found", async () => {
+      const result = await checkBatchAvailability(
+        [{ eventId: 99999, quantity: 1 }],
+        null,
+      );
+      expect(result).toBe(false);
+    });
+
+    test("checks per-date capacity for daily events", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 2,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Existing",
+        email: "existing@example.com",
+        quantity: 1,
+        date: "2026-02-10",
+      });
+
+      // Should have 1 spot left on that date
+      const available = await checkBatchAvailability(
+        [{ eventId: event.id, quantity: 1 }],
+        "2026-02-10",
+      );
+      expect(available).toBe(true);
+
+      // Should not have 2 spots on that date
+      const notAvailable = await checkBatchAvailability(
+        [{ eventId: event.id, quantity: 2 }],
+        "2026-02-10",
+      );
+      expect(notAvailable).toBe(false);
     });
   });
 
@@ -1688,21 +1827,16 @@ describe("db", () => {
     });
 
     test("reserveSession retries when stale reservation detected", async () => {
-      jest.useFakeTimers();
-      const startTime = Date.now();
-      jest.setSystemTime(startTime);
-
-      // Create initial reservation
-      await reserveSession("sess_stale");
-
-      // Advance time past stale threshold
-      jest.setSystemTime(startTime + STALE_RESERVATION_MS + 1000);
+      // Insert a reservation with a timestamp old enough relative to frozen nowMs
+      const oldTimestamp = new Date(nowMs - STALE_RESERVATION_MS - 1000).toISOString();
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["sess_stale", oldTimestamp],
+      });
 
       // This should detect the stale reservation, delete it, and retry
       const result = await reserveSession("sess_stale");
       expect(result.reserved).toBe(true);
-
-      jest.useRealTimers();
     });
 
     test("reserveSession re-throws non-unique-constraint errors", async () => {
@@ -1729,14 +1863,12 @@ describe("db", () => {
     });
 
     test("reserveSession retries when stale reservation is detected (recursive path)", async () => {
-      jest.useFakeTimers();
-      const startTime = Date.now();
-      jest.setSystemTime(startTime);
-
-      await reserveSession("sess_race");
-
-      // Make it stale so it gets deleted on retry
-      jest.setSystemTime(startTime + STALE_RESERVATION_MS + 1000);
+      // Insert a reservation with a timestamp old enough relative to frozen nowMs
+      const oldTimestamp = new Date(nowMs - STALE_RESERVATION_MS - 1000).toISOString();
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["sess_race", oldTimestamp],
+      });
 
       const result = await reserveSession("sess_race");
       expect(result.reserved).toBe(true);
@@ -1744,8 +1876,6 @@ describe("db", () => {
       // Verify the session was re-reserved
       const processed = await isSessionProcessed("sess_race");
       expect(processed).not.toBeNull();
-
-      jest.useRealTimers();
     });
   });
 

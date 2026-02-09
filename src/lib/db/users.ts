@@ -13,6 +13,7 @@ import {
   wrapKey,
 } from "#lib/crypto.ts";
 import { getDb, queryOne } from "#lib/db/client.ts";
+import { now } from "#lib/now.ts";
 import type { AdminLevel, User } from "#lib/types.ts";
 
 /** Shared user creation logic */
@@ -234,7 +235,7 @@ export const isInviteValid = async (user: User): Promise<boolean> => {
 
   const decryptedExpiry = await decrypt(user.invite_expiry);
   if (!decryptedExpiry) return false;
-  return new Date(decryptedExpiry) > new Date();
+  return new Date(decryptedExpiry) > now;
 };
 
 /**

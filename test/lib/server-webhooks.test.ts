@@ -2040,6 +2040,77 @@ describe("server (webhooks)", () => {
         mockRefund.mockRestore();
       }
     });
+
+    test("multi-ticket webhook passes date to daily events only", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Multi WH Daily",
+        maxAttendees: 50,
+        unitPrice: 500,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi WH Standard",
+        maxAttendees: 50,
+        unitPrice: 300,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_multi_daily",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_daily",
+              payment_status: "paid",
+              payment_intent: "pi_multi_daily",
+              metadata: {
+                name: "Multi Daily Buyer",
+                email: "multidaily@example.com",
+                multi: "1",
+                date: "2026-02-10",
+                items: JSON.stringify([
+                  { e: event1.id, q: 1 },
+                  { e: event2.id, q: 1 },
+                ]),
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify daily event attendee has the date set
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        expect(attendees1.length).toBe(1);
+        expect(attendees1[0]?.date).toBe("2026-02-10");
+
+        // Verify standard event attendee has null date
+        const attendees2 = await getAttendeesRaw(event2.id);
+        expect(attendees2.length).toBe(1);
+        expect(attendees2[0]?.date).toBeNull();
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
   });
 
 });

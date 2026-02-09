@@ -13,6 +13,7 @@ import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
+import { nowMs } from "#lib/now.ts";
 import type { AdminLevel, EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { paymentErrorPage } from "#templates/payment.tsx";
@@ -83,7 +84,7 @@ export const getAuthenticatedSession = async (
   const session = await getSession(token);
   if (!session) return null;
 
-  if (session.expires < Date.now()) {
+  if (session.expires < nowMs) {
     await deleteSession(token);
     return null;
   }
@@ -305,7 +306,7 @@ export const withActiveEventBySlug = (
 
 /** Check if an event's registration period has closed */
 export const isRegistrationClosed = (event: { closes_at: string | null }): boolean =>
-  event.closes_at !== null && new Date(event.closes_at).getTime() < Date.now();
+  event.closes_at !== null && new Date(event.closes_at).getTime() < nowMs;
 
 /** Create a formatter for attendee creation failures (capacity_exceeded / encryption_error) */
 export const formatCreationError =
@@ -321,7 +322,7 @@ export const formatCreationError =
 
 /** Format a countdown from now to a future closes_at date, e.g. "3 days and 5 hours from now" */
 export const formatCountdown = (closesAt: string): string => {
-  const diffMs = new Date(closesAt).getTime() - Date.now();
+  const diffMs = new Date(closesAt).getTime() - nowMs;
   if (diffMs <= 0) return "closed";
   const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
   const days = Math.floor(totalHours / 24);

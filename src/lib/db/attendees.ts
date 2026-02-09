@@ -10,6 +10,7 @@ import { map } from "#fp";
 import { decrypt, decryptAttendeePII, encrypt, encryptAttendeePII, generateTicketToken } from "#lib/crypto.ts";
 import { getDb, inPlaceholders, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
+import { nowIso } from "#lib/now.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 import type { Attendee } from "#lib/types.ts";
@@ -106,7 +107,7 @@ const encryptAttendeeFields = async (
   if (!publicKeyJwk) return null;
 
   return {
-    created: new Date().toISOString(),
+    created: nowIso,
     encryptedName: await encryptAttendeePII(name, publicKeyJwk),
     encryptedEmail: email
       ? await encryptAttendeePII(email, publicKeyJwk)
@@ -136,6 +137,7 @@ const buildAttendeeResult = (
   quantity: number,
   pricePaid: number | null,
   ticketToken: string,
+  date: string | null,
 ): Attendee => ({
   id: Number(insertId),
   event_id: eventId,
@@ -148,6 +150,7 @@ const buildAttendeeResult = (
   price_paid: pricePaid !== null ? String(pricePaid) : null,
   checked_in: "false",
   ticket_token: ticketToken,
+  date,
 });
 
 /**
@@ -191,17 +194,68 @@ export type AttendeeInput = {
   quantity?: number;
   phone?: string;
   pricePaid?: number | null;
+  date?: string | null;
+};
+
+/** Item for batch availability check */
+export type BatchAvailabilityItem = { eventId: number; quantity: number };
+
+/** Get the total attendee quantity for a specific event + date */
+export const getDateAttendeeCount = async (
+  eventId: number,
+  date: string,
+): Promise<number> => {
+  const result = await getDb().execute({
+    sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ? AND date = ?",
+    args: [eventId, date],
+  });
+  return (result.rows[0] as unknown as { count: number }).count;
 };
 
 /** Stubbable API for testing atomic operations */
 export const attendeesApi = {
+  /**
+   * Check availability for multiple events in a single query.
+   * Uses a JOIN with conditional date filtering: daily events check per-date
+   * capacity while standard events check total capacity.
+   */
+  checkBatchAvailability: async (
+    items: BatchAvailabilityItem[],
+    date?: string | null,
+  ): Promise<boolean> => {
+    if (items.length === 0) return true;
+    const eventIds = items.map((i) => i.eventId);
+    const result = await getDb().execute({
+      sql: `SELECT e.id, e.max_attendees,
+              COALESCE(SUM(a.quantity), 0) as current_count
+            FROM events e
+            LEFT JOIN attendees a ON a.event_id = e.id
+              AND (e.event_type != 'daily' OR a.date = ?)
+            WHERE e.id IN (${inPlaceholders(eventIds)})
+            GROUP BY e.id`,
+      args: [date ?? null, ...eventIds],
+    });
+    const counts = new Map(
+      (result.rows as unknown as Array<{ id: number; max_attendees: number; current_count: number }>)
+        .map((r) => [r.id, r]),
+    );
+    return items.every((item) => {
+      const row = counts.get(item.eventId);
+      return row ? row.current_count + item.quantity <= row.max_attendees : false;
+    });
+  },
   /** Check if an event has available spots for the requested quantity */
   hasAvailableSpots: async (
     eventId: number,
     quantity = 1,
+    date?: string | null,
   ): Promise<boolean> => {
     const event = await getEventWithCount(eventId);
     if (!event) return false;
+    if (date) {
+      const dateCount = await getDateAttendeeCount(eventId, date);
+      return dateCount + quantity <= event.max_attendees;
+    }
     return event.attendee_count + quantity <= event.max_attendees;
   },
   /**
@@ -211,7 +265,7 @@ export const attendeesApi = {
   createAttendeeAtomic: async (
     input: AttendeeInput,
   ): Promise<CreateAttendeeResult> => {
-    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", pricePaid = null } = input;
+    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", pricePaid = null, date = null } = input;
     const enc = await encryptAttendeeFields(name, email, phone, paymentId, pricePaid);
     if (!enc) {
       return { success: false, reason: "encryption_error" };
@@ -219,12 +273,18 @@ export const attendeesApi = {
 
     const ticketToken = generateTicketToken();
 
+    // For daily events with a date, check capacity per-date; otherwise check total
+    const capacityFilter = date
+      ? "SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ? AND date = ?"
+      : "SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?";
+    const capacityArgs = date ? [eventId, date] : [eventId];
+
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid, checked_in, ticket_token)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid, checked_in, ticket_token, date)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
-              SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?
+              ${capacityFilter}
             ) + ? <= (
               SELECT max_attendees FROM events WHERE id = ?
             )`,
@@ -239,7 +299,8 @@ export const attendeesApi = {
         enc.encryptedPricePaid,
         enc.encryptedCheckedIn,
         ticketToken,
-        eventId,
+        date,
+        ...capacityArgs,
         qty,
         eventId,
       ],
@@ -262,6 +323,7 @@ export const attendeesApi = {
         qty,
         pricePaid,
         ticketToken,
+        date,
       ),
     };
   },
@@ -271,12 +333,19 @@ export const attendeesApi = {
 export const hasAvailableSpots = (
   eventId: number,
   quantity = 1,
-): Promise<boolean> => attendeesApi.hasAvailableSpots(eventId, quantity);
+  date?: string | null,
+): Promise<boolean> => attendeesApi.hasAvailableSpots(eventId, quantity, date);
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const createAttendeeAtomic = (
   input: AttendeeInput,
 ): Promise<CreateAttendeeResult> => attendeesApi.createAttendeeAtomic(input);
+
+/** Wrapper for test mocking - delegates to attendeesApi at runtime */
+export const checkBatchAvailability = (
+  items: BatchAvailabilityItem[],
+  date?: string | null,
+): Promise<boolean> => attendeesApi.checkBatchAvailability(items, date);
 
 /**
  * Get attendees by ticket tokens (plaintext, no decryption needed for token lookup)
