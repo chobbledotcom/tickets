@@ -1828,18 +1828,12 @@ describe("server (webhooks)", () => {
 
       const event = await createTestEvent({
         name: "WH Multi No Att",
-        maxAttendees: 50,
+        maxAttendees: 1,
         unitPrice: 500,
       });
 
-      // Mock createAttendeeAtomic to always fail with capacity_exceeded on first try
-      // so createdAttendees stays empty and we hit lines 309-310
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const mockAtomic = spyOn(attendeesApi, "createAttendeeAtomic");
-      mockAtomic.mockResolvedValue({
-        success: false,
-        reason: "capacity_exceeded",
-      });
+      // Fill event to capacity so atomic create naturally fails
+      await createAttendeeAtomic(event.id, "Existing", "existing@example.com", "pi_existing", 1);
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
       mockRetrieve.mockResolvedValue({
@@ -1869,7 +1863,6 @@ describe("server (webhooks)", () => {
         const html = await response.text();
         expect(html).toContain("sold out");
       } finally {
-        mockAtomic.mockRestore();
         mockRetrieve.mockRestore();
         mockRefund.mockRestore();
       }
