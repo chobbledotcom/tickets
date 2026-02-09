@@ -355,7 +355,7 @@ describe("server (webhooks)", () => {
       });
 
       // Fill the event
-      await createAttendeeAtomic(event.id, "First", "first@example.com", "pi_first");
+      await createAttendeeAtomic({ eventId: event.id, name: "First", email: "first@example.com", paymentId: "pi_first" });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -947,7 +947,7 @@ describe("server (webhooks)", () => {
         unitPrice: 500,
       });
       // Create attendee directly (not via public form which redirects to Stripe for paid events)
-      const result = await createAttendeeAtomic(event.id, "Already Done", "already@example.com", "pi_already_done", 1);
+      const result = await createAttendeeAtomic({ eventId: event.id, name: "Already Done", email: "already@example.com", paymentId: "pi_already_done", quantity: 1 });
       if (!result.success) throw new Error("Failed to create test attendee");
       const attendee = result.attendee;
 
@@ -1073,7 +1073,7 @@ describe("server (webhooks)", () => {
         maxAttendees: 1,
         unitPrice: 500,
       });
-      await createAttendeeAtomic(event2.id, "First", "first@example.com", "pi_first", 1);
+      await createAttendeeAtomic({ eventId: event2.id, name: "First", email: "first@example.com", paymentId: "pi_first", quantity: 1 });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -1284,7 +1284,7 @@ describe("server (webhooks)", () => {
       });
 
       // Fill event2 to capacity
-      await createAttendeeAtomic(event2.id, "Existing", "existing@example.com", null, 1);
+      await createAttendeeAtomic({ eventId: event2.id, name: "Existing", email: "existing@example.com", quantity: 1 });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -1340,7 +1340,7 @@ describe("server (webhooks)", () => {
         maxAttendees: 50,
         unitPrice: 500,
       });
-      const attResult = await createAttendeeAtomic(event.id, "WH Del", "whdel@example.com", "pi_del", 1);
+      const attResult = await createAttendeeAtomic({ eventId: event.id, name: "WH Del", email: "whdel@example.com", paymentId: "pi_del", quantity: 1 });
       if (!attResult.success) throw new Error("Failed to create attendee");
 
       // Reserve and finalize the session with the real attendee
@@ -2038,6 +2038,77 @@ describe("server (webhooks)", () => {
       } finally {
         mockVerify.mockRestore();
         mockRefund.mockRestore();
+      }
+    });
+
+    test("multi-ticket webhook passes date to daily events only", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Multi WH Daily",
+        maxAttendees: 50,
+        unitPrice: 500,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi WH Standard",
+        maxAttendees: 50,
+        unitPrice: 300,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_multi_daily",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_daily",
+              payment_status: "paid",
+              payment_intent: "pi_multi_daily",
+              metadata: {
+                name: "Multi Daily Buyer",
+                email: "multidaily@example.com",
+                multi: "1",
+                date: "2026-02-10",
+                items: JSON.stringify([
+                  { e: event1.id, q: 1 },
+                  { e: event2.id, q: 1 },
+                ]),
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify daily event attendee has the date set
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        expect(attendees1.length).toBe(1);
+        expect(attendees1[0]?.date).toBe("2026-02-10");
+
+        // Verify standard event attendee has null date
+        const attendees2 = await getAttendeesRaw(event2.id);
+        expect(attendees2.length).toBe(1);
+        expect(attendees2[0]?.date).toBeNull();
+      } finally {
+        mockVerify.mockRestore();
       }
     });
   });

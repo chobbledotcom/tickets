@@ -3,6 +3,7 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
+import { formatDateLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
@@ -11,6 +12,9 @@ import { formatCountdown } from "#routes/utils.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+
+/** Date option for the date filter dropdown */
+export type DateOption = { value: string; label: string };
 
 /** Attendee filter type */
 export type AttendeeFilter = "all" | "in" | "out";
@@ -42,7 +46,7 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; e
     <form
       method="POST"
       action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
-      class="checkin-form"
+      class="checkin-form inline"
     >
       <input type="hidden" name="csrf_token" value={csrfToken} />
       <input type="hidden" name="return_filter" value={activeFilter} />
@@ -53,13 +57,15 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; e
   );
 };
 
-const AttendeeRow = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter }): string =>
+const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showDate }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter; allowedDomain: string; showDate: boolean }): string =>
   String(
     <tr>
+      {showDate && <td>{a.date ? formatDateLabel(a.date) : ""}</td>}
       <td>{a.name}</td>
       <td>{a.email || ""}</td>
       <td>{a.phone || ""}</td>
       <td>{a.quantity}</td>
+      <td><a href={`https://${allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
       <td>{new Date(a.created).toLocaleString()}</td>
       <td>
         <Raw html={CheckinButton({ a, eventId, csrfToken, activeFilter })} />
@@ -88,6 +94,23 @@ const FilterLink = ({ href, label, active }: { href: string; label: string; acti
     ? String(<strong>{label}</strong>)
     : String(<a href={href}>{label}</a>);
 
+/** Build the path suffix for a checkin filter (preserves date query) */
+const filterSuffix = (activeFilter: AttendeeFilter): string =>
+  activeFilter === "all" ? "" : `/${activeFilter}`;
+
+/** Date selector dropdown for daily events */
+const DateSelector = ({ basePath, activeFilter, dateFilter, dates }: { basePath: string; activeFilter: AttendeeFilter; dateFilter: string | null; dates: DateOption[] }): string => {
+  const suffix = filterSuffix(activeFilter);
+  const options = [
+    `<option value="${basePath}${suffix}#attendees"${!dateFilter ? " selected" : ""}>All dates</option>`,
+    ...dates.map(
+      (d) =>
+        `<option value="${basePath}${suffix}?date=${d.value}#attendees"${dateFilter === d.value ? " selected" : ""}>${d.label}</option>`,
+    ),
+  ].join("");
+  return `<select onchange="window.location.href=this.value">${options}</select>`;
+};
+
 export const adminEventPage = (
   event: EventWithCount,
   attendees: Attendee[],
@@ -95,23 +118,28 @@ export const adminEventPage = (
   session: AdminSession,
   checkinMessage?: CheckinMessage,
   activeFilter: AttendeeFilter = "all",
+  dateFilter: string | null = null,
+  availableDates: DateOption[] = [],
 ): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const iframeHeight = event.fields === "both" ? "24rem" : "18rem";
   const embedCode = `<iframe src="${ticketUrl}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
+  const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);
+  const colSpan = isDaily ? 9 : 8;
   const attendeeRows =
     filteredAttendees.length > 0
       ? pipe(
-          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken: session.csrfToken, activeFilter })),
+          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken: session.csrfToken, activeFilter, allowedDomain, showDate: isDaily })),
           joinStrings,
         )(filteredAttendees)
-      : '<tr><td colspan="7">No attendees yet</td></tr>';
+      : `<tr><td colspan="${colSpan}">No attendees yet</td></tr>`;
 
   const checkedInLabel = checkinMessage?.status === "in" ? "in" : "out";
   const checkedInClass = checkinMessage?.status === "in" ? "checkin-message-in" : "checkin-message-out";
 
   const basePath = `/admin/event/${event.id}`;
+  const dateQs = dateFilter ? `?date=${dateFilter}` : "";
 
   return String(
     <Layout title={`Event: ${event.name}`}>
@@ -123,7 +151,7 @@ export const adminEventPage = (
             <li><a href={`/admin/event/${event.id}/edit`}>Edit</a></li>
             <li><a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a></li>
             <li><a href={`/admin/event/${event.id}/log`}>Log</a></li>
-            <li><a href={`/admin/event/${event.id}/export`}>Export CSV</a></li>
+            <li><a href={`/admin/event/${event.id}/export${dateFilter ? `?date=${dateFilter}` : ""}`}>Export CSV</a></li>
             {event.active === 1 ? (
               <li><a href={`/admin/event/${event.id}/deactivate`} class="danger">Deactivate</a></li>
             ) : (
@@ -139,14 +167,40 @@ export const adminEventPage = (
 
         <article>
           <h2>Event Details</h2>
+          <div class="table-scroll">
           <table>
             <tbody>
               <tr>
-                <th>Attendees</th>
+                <th>Event Type</th>
+                <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
+              </tr>
+              {event.event_type === "daily" && (
+                <tr>
+                  <th>Bookable Days</th>
+                  <td>{formatBookableDays(event.bookable_days)}</td>
+                </tr>
+              )}
+              {event.event_type === "daily" && (
+                <tr>
+                  <th>Booking Window</th>
+                  <td>{event.minimum_days_before} to {event.maximum_days_after === 0 ? "unlimited" : event.maximum_days_after} days from today</td>
+                </tr>
+              )}
+              <tr>
+                <th>Attendees{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
                 <td>
-                  <span class={nearCapacity(event) ? "danger-text" : ""}>
-                    {event.attendee_count} / {event.max_attendees} &mdash; {event.max_attendees - event.attendee_count} remain
-                  </span>
+                  {isDaily && dateFilter ? (
+                    <span class={attendees.length >= event.max_attendees ? "danger-text" : ""}>
+                      {attendees.length} / {event.max_attendees} &mdash; {event.max_attendees - attendees.length} remain
+                    </span>
+                  ) : (
+                    <span class={nearCapacity(event) ? "danger-text" : ""}>
+                      {event.attendee_count}{!isDaily && <> / {event.max_attendees} &mdash; {event.max_attendees - event.attendee_count} remain</>}
+                    </span>
+                  )}
+                  {isDaily && !dateFilter && (
+                    <small>Capacity of {event.max_attendees} applies per date</small>
+                  )}
                 </td>
               </tr>
               {event.unit_price !== null && (
@@ -215,6 +269,7 @@ export const adminEventPage = (
               </tr>
             </tbody>
           </table>
+          </div>
         </article>
 
         <article>
@@ -224,29 +279,36 @@ export const adminEventPage = (
               Checked {checkinMessage.name} {checkedInLabel}
             </p>
           )}
+          {isDaily && availableDates.length > 0 && (
+            <Raw html={DateSelector({ basePath, activeFilter, dateFilter, dates: availableDates })} />
+          )}
           <p>
-            <Raw html={FilterLink({ href: `${basePath}#attendees`, label: "All", active: activeFilter === "all" })} />
+            <Raw html={FilterLink({ href: `${basePath}${dateQs}#attendees`, label: "All", active: activeFilter === "all" })} />
             {" / "}
-            <Raw html={FilterLink({ href: `${basePath}/in#attendees`, label: "Checked In", active: activeFilter === "in" })} />
+            <Raw html={FilterLink({ href: `${basePath}/in${dateQs}#attendees`, label: "Checked In", active: activeFilter === "in" })} />
             {" / "}
-            <Raw html={FilterLink({ href: `${basePath}/out#attendees`, label: "Checked Out", active: activeFilter === "out" })} />
+            <Raw html={FilterLink({ href: `${basePath}/out${dateQs}#attendees`, label: "Checked Out", active: activeFilter === "out" })} />
           </p>
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Qty</th>
-                <th>Registered</th>
-                <th></th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <Raw html={attendeeRows} />
-            </tbody>
-          </table>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  {isDaily && <th>Date</th>}
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Qty</th>
+                  <th>Ticket</th>
+                  <th>Registered</th>
+                  <th></th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <Raw html={attendeeRows} />
+              </tbody>
+            </table>
+          </div>
         </article>
     </Layout>
   );
@@ -259,12 +321,20 @@ const formatClosesAt = (closesAt: string | null): string | null => {
   return closesAt.slice(0, 16);
 };
 
+/** Convert bookable_days JSON array to comma-separated display string */
+const formatBookableDays = (json: string): string =>
+  (JSON.parse(json) as string[]).join(",");
+
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,
   description: event.description,
   slug: event.slug,
+  event_type: event.event_type,
   max_attendees: event.max_attendees,
   max_quantity: event.max_quantity,
+  bookable_days: formatBookableDays(event.bookable_days),
+  minimum_days_before: event.minimum_days_before,
+  maximum_days_after: event.maximum_days_after,
   fields: event.fields,
   unit_price: event.unit_price,
   closes_at: formatClosesAt(event.closes_at),

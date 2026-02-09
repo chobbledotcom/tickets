@@ -4,12 +4,16 @@ import {
   renderError,
   renderField,
   renderFields,
+  validateForm,
 } from "#lib/forms.tsx";
 import {
   eventFields,
   getTicketFields,
+  holidayFields,
   mergeEventFields,
   ticketFields,
+  validateBookableDays,
+  validateDate,
   validatePhone,
 } from "#templates/fields.ts";
 import {
@@ -191,6 +195,42 @@ describe("forms", () => {
     test("trims values", () => {
       const values = expectValid(requiredName, { name: "  John  " });
       expect(values.name).toBe("John");
+    });
+
+    test("collects checkbox-group values from multiple form entries", () => {
+      const fields: Field[] = [
+        field({ name: "days", label: "Days", type: "checkbox-group" }),
+      ];
+      const form = new URLSearchParams();
+      form.append("days", "Monday");
+      form.append("days", "Wednesday");
+      const result = validateForm(form, fields);
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.values.days).toBe("Monday,Wednesday");
+      }
+    });
+
+    test("handles checkbox-group with single comma-separated value", () => {
+      const fields: Field[] = [
+        field({ name: "days", label: "Days", type: "checkbox-group" }),
+      ];
+      const result = validateForm(new URLSearchParams({ days: "Monday,Friday" }), fields);
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.values.days).toBe("Monday,Friday");
+      }
+    });
+
+    test("returns null for empty checkbox-group", () => {
+      const fields: Field[] = [
+        field({ name: "days", label: "Days", type: "checkbox-group" }),
+      ];
+      const result = validateForm(new URLSearchParams(), fields);
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.values.days).toBeNull();
+      }
     });
   });
 
@@ -448,6 +488,58 @@ describe("forms", () => {
     });
   });
 
+  describe("eventFields Event Type validation", () => {
+    test("validates event_type accepts standard", () => {
+      expectValid(eventFields, eventForm({ event_type: "standard" }));
+    });
+
+    test("validates event_type accepts daily", () => {
+      expectValid(eventFields, eventForm({ event_type: "daily" }));
+    });
+
+    test("validates event_type rejects invalid value", () => {
+      expectInvalid("Event Type must be standard or daily")(
+        eventFields,
+        eventForm({ event_type: "weekly" }),
+      );
+    });
+
+    test("accepts empty event_type (optional)", () => {
+      expectValid(eventFields, eventForm());
+    });
+  });
+
+  describe("eventFields Bookable Days validation", () => {
+    test("validates bookable_days accepts valid days", () => {
+      expectValid(eventFields, eventForm({ bookable_days: "Monday,Wednesday,Friday" }));
+    });
+
+    test("validates bookable_days accepts all days", () => {
+      expectValid(
+        eventFields,
+        eventForm({ bookable_days: "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday" }),
+      );
+    });
+
+    test("validates bookable_days rejects invalid day name", () => {
+      expectInvalid("Invalid day: Funday. Use: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday")(
+        eventFields,
+        eventForm({ bookable_days: "Monday,Funday" }),
+      );
+    });
+
+    test("validates bookable_days rejects empty after trimming", () => {
+      expectInvalid("At least one day is required")(
+        eventFields,
+        eventForm({ bookable_days: "," }),
+      );
+    });
+
+    test("accepts empty bookable_days (optional)", () => {
+      expectValid(eventFields, eventForm());
+    });
+  });
+
   describe("phone ticket fields validation", () => {
     test("validates phone is required for phone-only events", () => {
       expectInvalid("Your Phone Number is required")(
@@ -489,6 +581,172 @@ describe("forms", () => {
         email: "",
         phone: "+1 555 123 4567",
       });
+    });
+  });
+
+  describe("holidayFields validation", () => {
+    const holidayForm = (overrides: Record<string, string> = {}): Record<string, string> => ({
+      name: "Bank Holiday",
+      start_date: "2026-12-25",
+      end_date: "2026-12-25",
+      ...overrides,
+    });
+
+    test("validates required name", () => {
+      expectInvalid("Holiday Name is required")(holidayFields, holidayForm({ name: "" }));
+    });
+
+    test("validates required start_date", () => {
+      expectInvalid("Start Date is required")(holidayFields, holidayForm({ start_date: "" }));
+    });
+
+    test("validates required end_date", () => {
+      expectInvalid("End Date is required")(holidayFields, holidayForm({ end_date: "" }));
+    });
+
+    test("validates start_date format", () => {
+      expectInvalid("Please enter a valid date (YYYY-MM-DD)")(
+        holidayFields,
+        holidayForm({ start_date: "25-12-2026" }),
+      );
+    });
+
+    test("validates end_date format", () => {
+      expectInvalid("Please enter a valid date (YYYY-MM-DD)")(
+        holidayFields,
+        holidayForm({ end_date: "not-a-date" }),
+      );
+    });
+
+    test("accepts valid holiday form", () => {
+      const values = expectValid(holidayFields, holidayForm());
+      expect(values.name).toBe("Bank Holiday");
+      expect(values.start_date).toBe("2026-12-25");
+      expect(values.end_date).toBe("2026-12-25");
+    });
+
+    test("accepts multi-day holiday", () => {
+      expectValid(holidayFields, holidayForm({ start_date: "2026-12-24", end_date: "2026-12-26" }));
+    });
+  });
+
+  describe("validateDate", () => {
+    test("accepts valid date", () => {
+      expect(validateDate("2026-12-25")).toBeNull();
+    });
+
+    test("accepts leap year date", () => {
+      expect(validateDate("2028-02-29")).toBeNull();
+    });
+
+    test("rejects wrong format", () => {
+      expect(validateDate("12/25/2026")).toBe("Please enter a valid date (YYYY-MM-DD)");
+    });
+
+    test("rejects partial date", () => {
+      expect(validateDate("2026-12")).toBe("Please enter a valid date (YYYY-MM-DD)");
+    });
+
+    test("rejects text", () => {
+      expect(validateDate("not-a-date")).toBe("Please enter a valid date (YYYY-MM-DD)");
+    });
+
+    test("rejects empty string", () => {
+      expect(validateDate("")).toBe("Please enter a valid date (YYYY-MM-DD)");
+    });
+
+    test("rejects valid format but invalid date (month 00)", () => {
+      expect(validateDate("2026-00-01")).toBe("Please enter a valid date");
+    });
+  });
+
+  describe("renderField date type", () => {
+    test("renders date input", () => {
+      const html = rendered({ name: "start_date", label: "Start Date", type: "date" });
+      expect(html).toContain('type="date"');
+      expect(html).toContain('name="start_date"');
+    });
+
+    test("renders date input with value", () => {
+      const html = rendered({ name: "start_date", label: "Start Date", type: "date" }, "2026-12-25");
+      expect(html).toContain('value="2026-12-25"');
+    });
+  });
+
+  describe("renderField checkbox-group type", () => {
+    test("renders checkbox group with options", () => {
+      const html = rendered({
+        name: "days",
+        label: "Days",
+        type: "checkbox-group",
+        options: [
+          { value: "Monday", label: "Monday" },
+          { value: "Tuesday", label: "Tuesday" },
+        ],
+      });
+      expect(html).toContain('type="checkbox"');
+      expect(html).toContain('name="days"');
+      expect(html).toContain('value="Monday"');
+      expect(html).toContain('value="Tuesday"');
+    });
+
+    test("renders checkbox group with pre-selected values", () => {
+      const html = rendered(
+        {
+          name: "days",
+          label: "Days",
+          type: "checkbox-group",
+          options: [
+            { value: "Monday", label: "Monday" },
+            { value: "Tuesday", label: "Tuesday" },
+            { value: "Wednesday", label: "Wednesday" },
+          ],
+        },
+        "Monday,Wednesday",
+      );
+      expect(html).toContain('value="Monday" checked');
+      expect(html).toContain('value="Wednesday" checked');
+      expect(html).not.toContain('value="Tuesday" checked');
+    });
+
+    test("renders empty checkbox group when no values selected", () => {
+      const html = rendered({
+        name: "days",
+        label: "Days",
+        type: "checkbox-group",
+        options: [{ value: "Monday", label: "Monday" }],
+      });
+      expect(html).not.toContain("checked");
+    });
+  });
+
+  describe("validateBookableDays", () => {
+    test("accepts single valid day", () => {
+      expect(validateBookableDays("Monday")).toBeNull();
+    });
+
+    test("accepts multiple valid days", () => {
+      expect(validateBookableDays("Monday,Wednesday,Friday")).toBeNull();
+    });
+
+    test("accepts all days of the week", () => {
+      expect(validateBookableDays("Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday")).toBeNull();
+    });
+
+    test("trims whitespace around day names", () => {
+      expect(validateBookableDays(" Monday , Friday ")).toBeNull();
+    });
+
+    test("rejects invalid day name", () => {
+      expect(validateBookableDays("Monday,Funday")).toContain("Invalid day: Funday");
+    });
+
+    test("rejects empty string after splitting", () => {
+      expect(validateBookableDays(",")).toBe("At least one day is required");
+    });
+
+    test("rejects completely empty value", () => {
+      expect(validateBookableDays("  ")).toBe("At least one day is required");
     });
   });
 });

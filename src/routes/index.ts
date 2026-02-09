@@ -184,5 +184,5 @@ export const handleRequest = async (
   }
 
   const response = await handleRequestInternal(request, path, method, server);
-  return logAndReturn(applySecurityHeaders(response, embeddable), method, path, getElapsed);
+  return logAndReturn(await applySecurityHeaders(response, embeddable), method, path, getElapsed);
 };

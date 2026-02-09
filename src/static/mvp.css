@@ -468,6 +468,18 @@ label {
   margin-bottom: 0.2rem;
 }
 
+label > small {
+  color: #666;
+  display: block;
+  font-weight: normal;
+  margin-top: 0.25rem;
+}
+
+label > select,
+label > input {
+  margin-bottom: 0;
+}
+
 /* Popups */
 dialog {
   max-width: 90%;
@@ -525,13 +537,17 @@ dialog hr {
 }
 
 /* Tables */
+.table-scroll {
+  margin: 2rem 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 table {
   border: 1px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
   border-spacing: 0;
-  margin: 2rem 0;
   max-width: 100%;
-  overflow-x: auto;
   padding: 0;
   white-space: nowrap;
   width: 100%;
@@ -706,33 +722,35 @@ fieldset.agreement {
   }
 }
 
-/* Check-in form (inline, unstyled to look like a text link) */
-form.checkin-form {
-  display: inline;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-}
-
-form.checkin-form button {
-  background: none;
+/* Bulk check-in / check-out button */
+button.bulk-checkin,
+button.bulk-checkout {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  margin-bottom: 1rem;
   border: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
+  border-radius: var(--border-radius);
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: bold;
   cursor: pointer;
-  text-decoration: underline;
-  box-shadow: none;
-  min-height: 0;
 }
 
-form.checkin-form button.checkin {
-  color: green;
+button.bulk-checkin {
+  background: #22863a;
 }
 
-form.checkin-form button.checkout {
-  color: red;
+button.bulk-checkin:hover {
+  background: #1a6e2e;
+}
+
+button.bulk-checkout {
+  background: #d73a49;
+}
+
+button.bulk-checkout:hover {
+  background: #b52a37;
 }
 
 /* Check-in success/failure messages */
@@ -755,6 +773,19 @@ body.iframe main {
 
 body.iframe form {
   margin-bottom: 0;
+}
+
+/* Checkbox group (used by form framework) */
+.checkbox-group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.checkbox-group label {
+  display: inline-block;
+  margin-right: 1rem;
+  font-weight: normal;
 }
 
 /* Remove button margins inside forms */

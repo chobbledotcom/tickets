@@ -54,18 +54,20 @@ export const adminSessionsPage = (
 
       {success && <div class="success">{success}</div>}
 
-        <table>
-          <thead>
-            <tr>
-              <th>Token</th>
-              <th>Expires</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={sessionRows} />
-          </tbody>
-        </table>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Token</th>
+                <th>Expires</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <Raw html={sessionRows} />
+            </tbody>
+          </table>
+        </div>
 
       {otherSessionCount > 0 && (
         <>
