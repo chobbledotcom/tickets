@@ -490,7 +490,7 @@ const processMultiFreeReservation = async (
   phone: string,
   date: string | null,
 ): Promise<{ success: true } | { success: false; error: string }> => {
-  const entries: Array<{ event: MultiTicketEvent["event"]; attendee: { id: number; quantity: number; name: string; email: string; phone: string; ticket_token: string } }> = [];
+  const entries: Array<{ event: MultiTicketEvent["event"]; attendee: { id: number; quantity: number; name: string; email: string; phone: string; ticket_token: string; date: string | null } }> = [];
   for (const { event, qty } of eventsWithQuantity(events, quantities)) {
     const eventDate = event.event_type === "daily" ? date : null;
     const result = await createAttendeeAtomic({ eventId: event.id, name, email, quantity: qty, phone, date: eventDate });
