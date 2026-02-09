@@ -235,7 +235,7 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
 
     // Store both the Stripe key and webhook config
     await updateStripeKey(stripeSecretKey);
-    await setStripeWebhookConfig(webhookResult.secret, webhookResult.endpointId);
+    await setStripeWebhookConfig(webhookResult);
 
     // Auto-set payment provider to stripe when key is configured
     await setPaymentProvider("stripe");

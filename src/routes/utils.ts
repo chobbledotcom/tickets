@@ -115,16 +115,15 @@ export const getAuthenticatedSession = async (
  * Returns null if session doesn't have wrapped_data_key
  */
 export const getPrivateKey = async (
-  token: string,
-  wrappedDataKey: string | null,
+  session: { token: string; wrappedDataKey: string | null },
 ): Promise<CryptoKey | null> => {
-  if (!wrappedDataKey) return null;
+  if (!session.wrappedDataKey) return null;
 
   const wrappedPrivateKey = await getWrappedPrivateKey();
   if (!wrappedPrivateKey) return null;
 
   try {
-    return await getPrivateKeyFromSession(token, wrappedDataKey, wrappedPrivateKey);
+    return await getPrivateKeyFromSession(session.token, session.wrappedDataKey, wrappedPrivateKey);
   } catch {
     return null;
   }

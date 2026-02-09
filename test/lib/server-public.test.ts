@@ -403,7 +403,7 @@ describe("server (public routes)", () => {
         maxAttendees: 1,
       });
       // Fill up event2
-      await createAttendeeAtomic(event2.id, "John", "john@example.com", null, 1);
+      await createAttendeeAtomic({ eventId: event2.id, name: "John", email: "john@example.com", quantity: 1 });
 
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
@@ -424,7 +424,7 @@ describe("server (public routes)", () => {
         maxAttendees: 1,
         description: "Sold out desc",
       });
-      await createAttendeeAtomic(event2.id, "Jane", "jane@example.com", null, 1);
+      await createAttendeeAtomic({ eventId: event2.id, name: "Jane", email: "jane@example.com", quantity: 1 });
 
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
@@ -906,7 +906,7 @@ describe("server (public routes)", () => {
       });
 
       // Fill up event1 to make it sold out
-      await createAttendeeAtomic(event1.id, "First", "first@example.com", null, 1);
+      await createAttendeeAtomic({ eventId: event1.id, name: "First", email: "first@example.com", quantity: 1 });
 
       // GET the multi-ticket page (sold-out event will show Sold Out label)
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -993,7 +993,7 @@ describe("server (public routes)", () => {
       });
 
       // Fill event1
-      await createAttendeeAtomic(event1.id, "First", "first@example.com", "pi_first");
+      await createAttendeeAtomic({ eventId: event1.id, name: "First", email: "first@example.com", paymentId: "pi_first" });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
@@ -1121,12 +1121,12 @@ describe("server (public routes)", () => {
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const originalFn = attendeesApi.createAttendeeAtomic;
       let callCount = 0;
-      attendeesApi.createAttendeeAtomic = (...args) => {
+      attendeesApi.createAttendeeAtomic = (input) => {
         callCount++;
         if (callCount === 2) {
           return Promise.resolve({ success: false as const, reason: "capacity_exceeded" as const });
         }
-        return originalFn(...args);
+        return originalFn(input);
       };
 
       try {
@@ -1240,7 +1240,7 @@ describe("server (public routes)", () => {
       });
 
       // Fill event1 to capacity
-      await createAttendeeAtomic(event1.id, "First", "first@example.com", null, 1);
+      await createAttendeeAtomic({ eventId: event1.id, name: "First", email: "first@example.com", quantity: 1 });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));

@@ -278,12 +278,11 @@ export const getStripeWebhookEndpointId = (): Promise<string | null> => {
  * Store Stripe webhook configuration (secret encrypted, endpoint ID plaintext)
  */
 export const setStripeWebhookConfig = async (
-  webhookSecret: string,
-  endpointId: string,
+  config: { secret: string; endpointId: string },
 ): Promise<void> => {
-  const encryptedSecret = await encrypt(webhookSecret);
+  const encryptedSecret = await encrypt(config.secret);
   await setSetting(CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, encryptedSecret);
-  await setSetting(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, endpointId);
+  await setSetting(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, config.endpointId);
 };
 
 /**
