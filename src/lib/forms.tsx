@@ -114,7 +114,7 @@ export const renderField = (field: Field, value: string = ""): string =>
         />
       )}
       {field.hint && (
-        <small style="color: #666; display: block; margin-top: 0.25rem;">
+        <small>
           {field.hint}
         </small>
       )}
