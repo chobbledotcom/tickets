@@ -235,7 +235,7 @@ export const isInviteValid = async (user: User): Promise<boolean> => {
 
   const decryptedExpiry = await decrypt(user.invite_expiry);
   if (!decryptedExpiry) return false;
-  return new Date(decryptedExpiry) > now;
+  return new Date(decryptedExpiry) > now();
 };
 
 /**

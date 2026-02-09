@@ -39,7 +39,7 @@ const createLoginSession = async (
 ): Promise<Response> => {
   const token = generateSecureToken();
   const csrfToken = generateSecureToken();
-  const expires = nowMs + 24 * 60 * 60 * 1000;
+  const expires = nowMs() + 24 * 60 * 60 * 1000;
   const wrappedDataKey = await wrapKeyWithToken(dataKey, token);
 
   await createSession(token, csrfToken, expires, wrappedDataKey, userId);

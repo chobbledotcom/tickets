@@ -107,7 +107,7 @@ const encryptAttendeeFields = async (
   if (!publicKeyJwk) return null;
 
   return {
-    created: nowIso,
+    created: nowIso(),
     encryptedName: await encryptAttendeePII(name, publicKeyJwk),
     encryptedEmail: email
       ? await encryptAttendeePII(email, publicKeyJwk)

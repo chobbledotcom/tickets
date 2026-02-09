@@ -61,7 +61,7 @@ describe("admin calendar", () => {
     });
 
     test("includes attendee dates in dropdown", async () => {
-      const validDate = addDays(today, 1);
+      const validDate = addDays(today(), 1);
       const event = await createTestEvent({
         eventType: "daily",
         bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
@@ -80,8 +80,8 @@ describe("admin calendar", () => {
     });
 
     test("filters attendees by date parameter", async () => {
-      const date1 = addDays(today, 1);
-      const date2 = addDays(today, 2);
+      const date1 = addDays(today(), 1);
+      const date2 = addDays(today(), 2);
       const event = await createTestEvent({
         eventType: "daily",
         bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
@@ -106,7 +106,7 @@ describe("admin calendar", () => {
     });
 
     test("shows attendees from multiple daily events for same date", async () => {
-      const validDate = addDays(today, 1);
+      const validDate = addDays(today(), 1);
       const event1 = await createTestEvent({
         eventType: "daily",
         bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
@@ -140,7 +140,7 @@ describe("admin calendar", () => {
     });
 
     test("links event name to event page", async () => {
-      const validDate = addDays(today, 1);
+      const validDate = addDays(today(), 1);
       const event = await createTestEvent({
         eventType: "daily",
         bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
@@ -159,7 +159,7 @@ describe("admin calendar", () => {
     });
 
     test("shows Export CSV link when attendees exist for date", async () => {
-      const validDate = addDays(today, 1);
+      const validDate = addDays(today(), 1);
       const event = await createTestEvent({
         eventType: "daily",
         bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
@@ -179,7 +179,7 @@ describe("admin calendar", () => {
     });
 
     test("does not show Export CSV link when no attendees for date", async () => {
-      const validDate = addDays(today, 1);
+      const validDate = addDays(today(), 1);
       await createTestEvent({
         eventType: "daily",
         bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
@@ -221,7 +221,7 @@ describe("admin calendar", () => {
     });
 
     test("returns CSV with correct headers", async () => {
-      const validDate = addDays(today, 1);
+      const validDate = addDays(today(), 1);
       const event = await createTestEvent({
         eventType: "daily",
         bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
@@ -242,7 +242,7 @@ describe("admin calendar", () => {
     });
 
     test("includes Event and Date columns in CSV", async () => {
-      const validDate = addDays(today, 1);
+      const validDate = addDays(today(), 1);
       const event = await createTestEvent({
         eventType: "daily",
         bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
@@ -265,7 +265,7 @@ describe("admin calendar", () => {
     });
 
     test("includes attendees from multiple events", async () => {
-      const validDate = addDays(today, 1);
+      const validDate = addDays(today(), 1);
       const event1 = await createTestEvent({
         eventType: "daily",
         bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
@@ -298,7 +298,7 @@ describe("admin calendar", () => {
     });
 
     test("returns empty CSV when no attendees for date", async () => {
-      const validDate = addDays(today, 1);
+      const validDate = addDays(today(), 1);
       await createTestEvent({
         eventType: "daily",
         bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
