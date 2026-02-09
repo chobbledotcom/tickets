@@ -23,7 +23,7 @@ import {
   redirect,
   withSession,
 } from "#routes/utils.ts";
-import { loginFields } from "#templates/fields.ts";
+import { loginFields, type LoginFormValues } from "#templates/fields.ts";
 import { getEnv } from "#lib/env.ts";
 
 /** Random delay between 100-200ms to prevent timing attacks */
@@ -70,14 +70,13 @@ const handleAdminLogin = async (
   }
 
   const form = await parseFormData(request);
-  const validation = validateForm(form, loginFields);
+  const validation = validateForm<LoginFormValues>(form, loginFields);
 
   if (!validation.valid) {
     return loginResponse(validation.error, 400);
   }
 
-  const username = validation.values.username as string;
-  const password = validation.values.password as string;
+  const { username, password } = validation.values;
 
   // Look up user by username
   const user = await getUserByUsername(username);

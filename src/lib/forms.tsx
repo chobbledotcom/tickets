@@ -42,8 +42,8 @@ export interface FieldValues {
   [key: string]: string | number | null;
 }
 
-type ValidationResult =
-  | { valid: true; values: FieldValues }
+export type ValidationResult<T = FieldValues> =
+  | { valid: true; values: T }
   | { valid: false; error: string };
 
 type FieldValidationResult =
@@ -172,12 +172,17 @@ const validateSingleField = (
 };
 
 /**
- * Parse and validate form data against field definitions
+ * Parse and validate form data against field definitions.
+ *
+ * Supply a type parameter to get strongly-typed values back:
+ *   validateForm<EventFormValues>(form, eventFields)
+ *
+ * Without a type parameter, values default to the loose FieldValues dict.
  */
-export const validateForm = (
+export const validateForm = <T = FieldValues>(
   form: URLSearchParams,
   fields: Field[],
-): ValidationResult => {
+): ValidationResult<T> => {
   const values: FieldValues = {};
 
   for (const field of fields) {
@@ -186,7 +191,7 @@ export const validateForm = (
     values[field.name] = result.value;
   }
 
-  return { valid: true, values };
+  return { valid: true, values: values as T };
 };
 
 /**

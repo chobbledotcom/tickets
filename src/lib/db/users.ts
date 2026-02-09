@@ -138,8 +138,8 @@ export const verifyUserPassword = async (
 /**
  * Decrypt a user's admin level
  */
-export const decryptAdminLevel = (user: User): Promise<string> =>
-  decrypt(user.admin_level);
+export const decryptAdminLevel = (user: User): Promise<AdminLevel> =>
+  decrypt(user.admin_level) as Promise<AdminLevel>;
 
 /**
  * Decrypt a user's username

@@ -106,12 +106,12 @@ const handleAdminAttendeeDeletePost = (
     return redirect(`/admin/event/${eventId}`);
   });
 
-/** Parse event and attendee IDs from params */
+/** Parse event and attendee IDs from params (route pattern guarantees both exist as \d+) */
 const parseAttendeeIds = (
   params: RouteParams,
 ): { eventId: number; attendeeId: number } => ({
-  eventId: Number.parseInt(params.eventId as string, 10),
-  attendeeId: Number.parseInt(params.attendeeId as string, 10),
+  eventId: Number.parseInt(params.eventId!, 10),
+  attendeeId: Number.parseInt(params.attendeeId!, 10),
 });
 
 /** Route handler for POST/DELETE attendee delete */

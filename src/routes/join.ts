@@ -20,7 +20,7 @@ import {
   redirect,
   requireCsrfForm,
 } from "#routes/utils.ts";
-import { joinFields } from "#templates/fields.ts";
+import { joinFields, type JoinFormValues } from "#templates/fields.ts";
 import {
   joinCompletePage,
   joinErrorPage,
@@ -94,13 +94,12 @@ const handleJoinPost = (request: Request, params: RouteParams): Promise<Response
     const formCsrf = form.get("csrf_token")!;
 
     // Validate password fields
-    const validation = validateForm(form, joinFields);
+    const validation = validateForm<JoinFormValues>(form, joinFields);
     if (!validation.valid) {
       return htmlResponse(joinPage(code, username, validation.error, formCsrf), 400);
     }
 
-    const password = validation.values.password as string;
-    const passwordConfirm = validation.values.password_confirm as string;
+    const { password, password_confirm: passwordConfirm } = validation.values;
 
     if (password.length < 8) {
       return htmlResponse(

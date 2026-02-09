@@ -212,9 +212,14 @@ describe("check-in (/checkin/:tokens)", () => {
           session.cookie,
         ),
       );
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`/checkin/${token}?message=Checked%20in`);
 
-      const body = await response.text();
+      // Follow redirect and verify checked-in state
+      const viewResponse = await awaitTestRequest(`/checkin/${token}?message=Checked%20in`, {
+        cookie: session.cookie,
+      });
+      const body = await viewResponse.text();
       expect(body).toContain("Yes");
       expect(body).toContain('class="success"');
       expect(body).toContain("Checked in");
@@ -249,8 +254,14 @@ describe("check-in (/checkin/:tokens)", () => {
           session.cookie,
         ),
       );
-      expect(response.status).toBe(200);
-      const body = await response.text();
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`/checkin/${token}?message=Checked%20out`);
+
+      // Follow redirect and verify checked-out state
+      const viewResponse = await awaitTestRequest(`/checkin/${token}?message=Checked%20out`, {
+        cookie: session.cookie,
+      });
+      const body = await viewResponse.text();
       expect(body).toContain("No");
       expect(body).toContain("Checked out");
     });
@@ -279,9 +290,14 @@ describe("check-in (/checkin/:tokens)", () => {
           session.cookie,
         ),
       );
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(302);
 
-      const body = await response.text();
+      // Follow redirect and verify still checked in
+      const location = response.headers.get("location")!;
+      const viewResponse = await awaitTestRequest(location, {
+        cookie: session.cookie,
+      });
+      const body = await viewResponse.text();
       expect(body).toContain("Yes");
     });
 

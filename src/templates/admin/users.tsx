@@ -4,7 +4,7 @@
 
 import { renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession } from "#lib/types.ts";
+import type { AdminLevel, AdminSession } from "#lib/types.ts";
 import { inviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -13,7 +13,7 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 export interface DisplayUser {
   id: number;
   username: string;
-  adminLevel: string;
+  adminLevel: AdminLevel;
   hasPassword: boolean;
   hasDataKey: boolean;
 }

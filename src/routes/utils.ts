@@ -100,7 +100,7 @@ export const getAuthenticatedSession = async (
     return null;
   }
 
-  const adminLevel = await decryptAdminLevel(user) as AdminLevel;
+  const adminLevel = await decryptAdminLevel(user);
 
   return {
     token,

@@ -43,9 +43,13 @@ import {
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import {
   changePasswordFields,
+  type ChangePasswordFormValues,
   squareAccessTokenFields,
+  type SquareTokenFormValues,
   squareWebhookFields,
+  type SquareWebhookFormValues,
   stripeKeyFields,
+  type StripeKeyFormValues,
 } from "#templates/fields.ts";
 
 /** Build the webhook URL from the configured domain */
@@ -114,27 +118,24 @@ type ChangePasswordValidation =
 const validateChangePasswordForm = (
   form: URLSearchParams,
 ): ChangePasswordValidation => {
-  const validation = validateForm(form, changePasswordFields);
+  const validation = validateForm<ChangePasswordFormValues>(form, changePasswordFields);
   if (!validation.valid) {
     return validation;
   }
 
-  const { values } = validation;
-  const currentPassword = values.current_password as string;
-  const newPassword = values.new_password as string;
-  const newPasswordConfirm = values.new_password_confirm as string;
+  const { current_password, new_password, new_password_confirm } = validation.values;
 
-  if (newPassword.length < 8) {
+  if (new_password.length < 8) {
     return {
       valid: false,
       error: "New password must be at least 8 characters",
     };
   }
-  if (newPassword !== newPasswordConfirm) {
+  if (new_password !== new_password_confirm) {
     return { valid: false, error: "New passwords do not match" };
   }
 
-  return { valid: true, currentPassword, newPassword };
+  return { valid: true, currentPassword: current_password, newPassword: new_password };
 };
 
 /**
@@ -209,12 +210,12 @@ const handleAdminStripePost = (request: Request): Promise<Response> =>
     const settingsPageWithError = async (error: string, status: number) =>
       htmlResponse(await renderSettingsPage(session, error), status);
 
-    const validation = validateForm(form, stripeKeyFields);
+    const validation = validateForm<StripeKeyFormValues>(form, stripeKeyFields);
     if (!validation.valid) {
       return settingsPageWithError(validation.error, 400);
     }
 
-    const stripeSecretKey = validation.values.stripe_secret_key as string;
+    const { stripe_secret_key: stripeSecretKey } = validation.values;
 
     // Set up webhook endpoint automatically
     const webhookUrl = getWebhookUrl();
@@ -254,13 +255,12 @@ const handleAdminSquarePost = (request: Request): Promise<Response> =>
     const settingsPageWithError = async (error: string, status: number) =>
       htmlResponse(await renderSettingsPage(session, error), status);
 
-    const validation = validateForm(form, squareAccessTokenFields);
+    const validation = validateForm<SquareTokenFormValues>(form, squareAccessTokenFields);
     if (!validation.valid) {
       return settingsPageWithError(validation.error, 400);
     }
 
-    const accessToken = validation.values.square_access_token as string;
-    const locationId = validation.values.square_location_id as string;
+    const { square_access_token: accessToken, square_location_id: locationId } = validation.values;
 
     await updateSquareAccessToken(accessToken);
     await updateSquareLocationId(locationId);
@@ -279,12 +279,12 @@ const handleAdminSquareWebhookPost = (request: Request): Promise<Response> =>
     const settingsPageWithError = async (error: string, status: number) =>
       htmlResponse(await renderSettingsPage(session, error), status);
 
-    const validation = validateForm(form, squareWebhookFields);
+    const validation = validateForm<SquareWebhookFormValues>(form, squareWebhookFields);
     if (!validation.valid) {
       return settingsPageWithError(validation.error, 400);
     }
 
-    const signatureKey = validation.values.square_webhook_signature_key as string;
+    const { square_webhook_signature_key: signatureKey } = validation.values;
 
     await updateSquareWebhookSignatureKey(signatureKey);
 

@@ -1,11 +1,98 @@
 /**
- * Form field definitions for all forms
+ * Form field definitions and typed value interfaces for all forms
  */
 
 import { DAY_NAMES } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
-import type { EventFields, EventType } from "#lib/types.ts";
+import type { AdminLevel, EventFields, EventType } from "#lib/types.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
+
+// ---------------------------------------------------------------------------
+// Typed form value interfaces
+//
+// Each interface describes the shape returned by validateForm<T>() for a
+// specific set of field definitions.  Required text fields produce `string`,
+// optional text fields produce `string | null`, required number fields
+// produce `number`, and optional number fields produce `number | null`.
+// ---------------------------------------------------------------------------
+
+/** Typed values from event form validation */
+export type EventFormValues = {
+  name: string;
+  description: string | null;
+  max_attendees: number;
+  max_quantity: number;
+  fields: EventFields | null;
+  unit_price: number | null;
+  closes_at: string | null;
+  thank_you_url: string | null;
+  webhook_url: string | null;
+  event_type: EventType | null;
+  bookable_days: string | null;
+  minimum_days_before: number | null;
+  maximum_days_after: number | null;
+};
+
+/** Typed values from event edit form (includes slug) */
+export type EventEditFormValues = EventFormValues & {
+  slug: string;
+};
+
+/** Typed values from ticket form (field presence varies by event config) */
+export type TicketFormValues = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+};
+
+/** Typed values from login form */
+export type LoginFormValues = {
+  username: string;
+  password: string;
+};
+
+/** Typed values from setup form */
+export type SetupFormValues = {
+  admin_username: string;
+  admin_password: string;
+  admin_password_confirm: string;
+  currency_code: string | null;
+};
+
+/** Typed values from change password form */
+export type ChangePasswordFormValues = {
+  current_password: string;
+  new_password: string;
+  new_password_confirm: string;
+};
+
+/** Typed values from Stripe key form */
+export type StripeKeyFormValues = {
+  stripe_secret_key: string;
+};
+
+/** Typed values from Square access token form */
+export type SquareTokenFormValues = {
+  square_access_token: string;
+  square_location_id: string;
+};
+
+/** Typed values from Square webhook form */
+export type SquareWebhookFormValues = {
+  square_webhook_signature_key: string;
+};
+
+/** Typed values from invite user form */
+export type InviteUserFormValues = {
+  username: string;
+  admin_level: AdminLevel;
+};
+
+/** Typed values from join (set password) form */
+export type JoinFormValues = {
+  password: string;
+  password_confirm: string;
+};
 
 /**
  * Validate URL is safe (https or relative path, no javascript: etc.)
@@ -79,11 +166,11 @@ export const loginFields: Field[] = [
 ];
 
 /** Valid event fields values */
-const VALID_EVENT_FIELDS: EventFields[] = ["email", "phone", "both"];
+const VALID_EVENT_FIELDS: readonly string[] = ["email", "phone", "both"];
 
 /** Validate event fields setting */
 const validateEventFields = (value: string): string | null => {
-  if (!VALID_EVENT_FIELDS.includes(value as EventFields)) {
+  if (!VALID_EVENT_FIELDS.includes(value)) {
     return "Contact Fields must be email, phone, or both";
   }
   return null;
@@ -350,7 +437,7 @@ export const getTicketFields = (fields: EventFields): Field[] => {
  */
 export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
   if (fieldSettings.length === 0) return "email";
-  const first = fieldSettings[0] as EventFields;
+  const first = fieldSettings[0]!;
   const allSame = fieldSettings.every((f) => f === first);
   if (allSame) return first;
   return "both";
