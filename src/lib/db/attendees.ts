@@ -124,7 +124,7 @@ const encryptAttendeeFields = async (
   };
 };
 
-/** Build plain Attendee object from insert result */
+/** Build plain Attendee object from insert result (without date — caller adds it) */
 const buildAttendeeResult = (
   insertId: number | bigint | undefined,
   eventId: number,
@@ -136,7 +136,7 @@ const buildAttendeeResult = (
   quantity: number,
   pricePaid: number | null,
   ticketToken: string,
-): Attendee => ({
+): Omit<Attendee, "date"> => ({
   id: Number(insertId),
   event_id: eventId,
   name,
@@ -191,6 +191,7 @@ export type AttendeeInput = {
   quantity?: number;
   phone?: string;
   pricePaid?: number | null;
+  date?: string | null;
 };
 
 /** Stubbable API for testing atomic operations */
@@ -199,9 +200,18 @@ export const attendeesApi = {
   hasAvailableSpots: async (
     eventId: number,
     quantity = 1,
+    date?: string | null,
   ): Promise<boolean> => {
     const event = await getEventWithCount(eventId);
     if (!event) return false;
+    if (date) {
+      const result = await getDb().execute({
+        sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ? AND date = ?",
+        args: [eventId, date],
+      });
+      const dateCount = (result.rows[0] as unknown as { count: number }).count;
+      return dateCount + quantity <= event.max_attendees;
+    }
     return event.attendee_count + quantity <= event.max_attendees;
   },
   /**
@@ -211,7 +221,7 @@ export const attendeesApi = {
   createAttendeeAtomic: async (
     input: AttendeeInput,
   ): Promise<CreateAttendeeResult> => {
-    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", pricePaid = null } = input;
+    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", pricePaid = null, date = null } = input;
     const enc = await encryptAttendeeFields(name, email, phone, paymentId, pricePaid);
     if (!enc) {
       return { success: false, reason: "encryption_error" };
@@ -219,12 +229,18 @@ export const attendeesApi = {
 
     const ticketToken = generateTicketToken();
 
+    // For daily events with a date, check capacity per-date; otherwise check total
+    const capacityFilter = date
+      ? "SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ? AND date = ?"
+      : "SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?";
+    const capacityArgs = date ? [eventId, date] : [eventId];
+
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid, checked_in, ticket_token)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid, checked_in, ticket_token, date)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
-              SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ?
+              ${capacityFilter}
             ) + ? <= (
               SELECT max_attendees FROM events WHERE id = ?
             )`,
@@ -239,7 +255,8 @@ export const attendeesApi = {
         enc.encryptedPricePaid,
         enc.encryptedCheckedIn,
         ticketToken,
-        eventId,
+        date,
+        ...capacityArgs,
         qty,
         eventId,
       ],
@@ -251,18 +268,21 @@ export const attendeesApi = {
 
     return {
       success: true,
-      attendee: buildAttendeeResult(
-        insertResult.lastInsertRowid,
-        eventId,
-        name,
-        email,
-        phone,
-        enc.created,
-        paymentId,
-        qty,
-        pricePaid,
-        ticketToken,
-      ),
+      attendee: {
+        ...buildAttendeeResult(
+          insertResult.lastInsertRowid,
+          eventId,
+          name,
+          email,
+          phone,
+          enc.created,
+          paymentId,
+          qty,
+          pricePaid,
+          ticketToken,
+        ),
+        date,
+      },
     };
   },
 };
@@ -271,7 +291,8 @@ export const attendeesApi = {
 export const hasAvailableSpots = (
   eventId: number,
   quantity = 1,
-): Promise<boolean> => attendeesApi.hasAvailableSpots(eventId, quantity);
+  date?: string | null,
+): Promise<boolean> => attendeesApi.hasAvailableSpots(eventId, quantity, date);
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const createAttendeeAtomic = (

@@ -57,6 +57,7 @@ const extractIntent = (
   email: session.metadata.email,
   phone: session.metadata.phone ?? "",
   quantity: Number.parseInt(session.metadata.quantity || "1", 10),
+  date: session.metadata.date ?? null,
 });
 
 /** Wrap handler with session ID extraction */
@@ -257,6 +258,7 @@ type MultiIntent = {
   name: string;
   email: string;
   phone: string;
+  date: string | null;
   items: MultiItem[];
 };
 
@@ -274,6 +276,7 @@ const extractMultiIntent = (
     name: metadata.name,
     email: metadata.email,
     phone: metadata.phone ?? "",
+    date: metadata.date ?? null,
     items,
   };
 };
@@ -327,6 +330,7 @@ const processMultiPaymentSession = async (
       quantity: item.q,
       phone: intent.phone,
       pricePaid,
+      date: event.event_type === "daily" ? intent.date : null,
     });
 
     if (!result.success) {

@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add holidays";
+export const LATEST_UPDATE = "add attendee date";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -295,6 +295,9 @@ export const initDb = async (): Promise<void> => {
       end_date TEXT NOT NULL
     )
   `);
+
+  // Migration: add date column to attendees for daily events
+  await runMigration(`ALTER TABLE attendees ADD COLUMN date TEXT DEFAULT NULL`);
 
   // Update the version marker
   await getDb().execute({

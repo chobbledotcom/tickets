@@ -59,13 +59,14 @@ export const serializeMultiItems = (
  */
 export const buildSingleIntentMetadata = (
   eventId: number,
-  intent: { name: string; email: string; phone?: string | null; quantity: number },
+  intent: { name: string; email: string; phone?: string | null; quantity: number; date?: string | null },
 ): Record<string, string> => ({
   event_id: String(eventId),
   name: intent.name,
   email: intent.email,
   quantity: String(intent.quantity),
   ...(intent.phone ? { phone: intent.phone } : {}),
+  ...(intent.date ? { date: intent.date } : {}),
 });
 
 /**
@@ -80,6 +81,7 @@ export const buildMultiIntentMetadata = (
   email: intent.email,
   items: serializeMultiItems(intent.items),
   ...(intent.phone ? { phone: intent.phone } : {}),
+  ...(intent.date ? { date: intent.date } : {}),
 });
 
 /**
@@ -124,5 +126,6 @@ export const extractSessionMetadata = (
   phone: metadata.phone,
   quantity: metadata.quantity,
   multi: metadata.multi,
+  date: metadata.date,
   items: metadata.items,
 });
