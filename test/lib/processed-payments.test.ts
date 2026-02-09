@@ -10,7 +10,7 @@ import {
   STALE_RESERVATION_MS,
 } from "#lib/db/processed-payments.ts";
 import { getDb } from "#lib/db/client.ts";
-import { nowIso, nowMs } from "#lib/now.ts";
+import { nowIso } from "#lib/now.ts";
 import {
   createTestAttendee,
   createTestDbWithSetup,

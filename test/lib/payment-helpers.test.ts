@@ -172,6 +172,26 @@ describe("payment-helpers", () => {
       expect(typeof result.event_id).toBe("string");
       expect(typeof result.quantity).toBe("string");
     });
+
+    test("includes date when provided", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Alice",
+        email: "alice@example.com",
+        quantity: 1,
+        date: "2026-02-10",
+      });
+      expect(result.date).toBe("2026-02-10");
+    });
+
+    test("excludes date when null", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Alice",
+        email: "alice@example.com",
+        quantity: 1,
+        date: null,
+      });
+      expect("date" in result).toBe(false);
+    });
   });
 
   describe("buildMultiIntentMetadata", () => {
@@ -216,6 +236,30 @@ describe("payment-helpers", () => {
       };
       const result = buildMultiIntentMetadata(intent);
       expect("phone" in result).toBe(false);
+    });
+
+    test("includes date when provided", () => {
+      const intent = {
+        name: "Alice",
+        email: "alice@example.com",
+        phone: "",
+        date: "2026-02-10",
+        items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
+      };
+      const result = buildMultiIntentMetadata(intent);
+      expect(result.date).toBe("2026-02-10");
+    });
+
+    test("excludes date when null", () => {
+      const intent = {
+        name: "Alice",
+        email: "alice@example.com",
+        phone: "",
+        date: null,
+        items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
+      };
+      const result = buildMultiIntentMetadata(intent);
+      expect("date" in result).toBe(false);
     });
   });
 
