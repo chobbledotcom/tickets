@@ -788,6 +788,10 @@ body.iframe form {
   font-weight: normal;
 }
 
+form > label {
+  margin-bottom: 1rem;
+}
+
 /* Remove button margins inside forms */
 form > button {
   margin: 0;
