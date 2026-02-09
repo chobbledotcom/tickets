@@ -69,11 +69,16 @@ const ticketResponseWithCookie = makeCsrfResponseBuilder(
   (token, error, event, isClosed, iframe, dates) => ticketPage(event, token, error, isClosed, iframe, dates),
 );
 
+/** Curried error response: render(error) → (error, status) → Response */
+const errorResponse =
+  (render: (error: string) => string) =>
+  (error: string, status = 400) =>
+    htmlResponse(render(error), status);
+
 /** Ticket response without cookie - for validation errors after CSRF passed */
 const ticketResponse =
   (event: EventWithCount, token: string, dates?: string[]) =>
-  (error: string, status = 400) =>
-    htmlResponse(ticketPage(event, token, error, false, false, dates), status);
+    errorResponse((error) => ticketPage(event, token, error, false, false, dates));
 
 /** Check if request URL has ?iframe=true */
 const isIframeRequest = (url: string): boolean =>
@@ -252,12 +257,23 @@ const processFreeReservation = async (
 const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
   "Sorry, registration closed while you were submitting.";
 
+/** Extract CSRF token from request cookies, falling back to a fresh token */
+const getFormToken = (request: Request): string => {
+  const cookies = parseCookies(request);
+  return cookies.get("csrf_token") || generateSecureToken();
+};
+
+/** Validate submitted date against available dates; returns the date or null if invalid */
+const validateSubmittedDate = (form: URLSearchParams, dates: string[]): string | null => {
+  const submitted = form.get("date") || "";
+  return submitted && dates.includes(submitted) ? submitted : null;
+};
+
 const processTicketReservation = async (
   request: Request,
   event: EventWithCount,
 ): Promise<Response> => {
-  const cookies = parseCookies(request);
-  const currentToken = cookies.get("csrf_token") || generateSecureToken();
+  const currentToken = getFormToken(request);
 
   const csrfResult = await requireCsrfForm(request, ticketCsrfError(event));
   if (!csrfResult.ok) return csrfResult.response;
@@ -279,11 +295,10 @@ const processTicketReservation = async (
   let dates: string[] | undefined;
   if (event.event_type === "daily") {
     dates = getAvailableDates(event, await getActiveHolidays());
-    const submittedDate = form.get("date") || "";
-    if (!submittedDate || !dates.includes(submittedDate)) {
+    date = validateSubmittedDate(form, dates);
+    if (!date) {
       return ticketResponse(event, currentToken, dates)("Please select a valid date");
     }
-    date = submittedDate;
   }
 
   const quantity = parseQuantity(form, event);
@@ -342,8 +357,7 @@ const multiTicketResponseWithCookie = makeCsrfResponseBuilder(
 /** Multi-ticket response without cookie (for validation errors) */
 const multiTicketResponse =
   (slugs: string[], events: MultiTicketEvent[], token: string, dates?: string[]) =>
-  (error: string, status = 400) =>
-    htmlResponse(multiTicketPage(events, slugs, token, error, dates), status);
+    errorResponse((error) => multiTicketPage(events, slugs, token, error, dates));
 
 /** Load and validate active events for multi-ticket, return 404 if none */
 const withActiveMultiEvents = async (
@@ -495,8 +509,7 @@ const handleMultiTicketPost = (
   slugs: string[],
 ): Promise<Response> =>
   withActiveMultiEvents(slugs, async (activeEvents) => {
-    const cookies = parseCookies(request);
-    const currentToken = cookies.get("csrf_token") || generateSecureToken();
+    const currentToken = getFormToken(request);
     const dates = await computeSharedDates(activeEvents);
 
     // CSRF validation
@@ -526,13 +539,12 @@ const handleMultiTicketPost = (
     // For daily events, validate the submitted date
     let date: string | null = null;
     if (dates) {
-      const submittedDate = form.get("date") || "";
-      if (!submittedDate || !dates.includes(submittedDate)) {
+      date = validateSubmittedDate(form, dates);
+      if (!date) {
         return multiTicketResponse(slugs, activeEvents, currentToken, dates)(
           "Please select a valid date",
         );
       }
-      date = submittedDate;
     }
 
     // Check if any event the user selected is now closed

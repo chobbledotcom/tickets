@@ -544,6 +544,7 @@ const extractSessionFromEvent = (
       quantity: obj.metadata.quantity,
       multi: obj.metadata.multi,
       items: obj.metadata.items,
+      date: obj.metadata.date,
     },
   };
 };

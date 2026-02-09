@@ -197,6 +197,9 @@ export type AttendeeInput = {
   date?: string | null;
 };
 
+/** Item for batch availability check */
+export type BatchAvailabilityItem = { eventId: number; quantity: number };
+
 /** Get the total attendee quantity for a specific event + date */
 export const getDateAttendeeCount = async (
   eventId: number,
@@ -217,7 +220,7 @@ export const attendeesApi = {
    * capacity while standard events check total capacity.
    */
   checkBatchAvailability: async (
-    items: Array<{ eventId: number; quantity: number }>,
+    items: BatchAvailabilityItem[],
     date?: string | null,
   ): Promise<boolean> => {
     if (items.length === 0) return true;
@@ -340,7 +343,7 @@ export const createAttendeeAtomic = (
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const checkBatchAvailability = (
-  items: Array<{ eventId: number; quantity: number }>,
+  items: BatchAvailabilityItem[],
   date?: string | null,
 ): Promise<boolean> => attendeesApi.checkBatchAvailability(items, date);
 

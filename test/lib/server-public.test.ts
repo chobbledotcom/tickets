@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-comp
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
+import { addDays } from "#lib/dates.ts";
+import { today } from "#lib/now.ts";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
+  createTestHoliday,
   deactivateTestEvent,
   getTicketCsrfToken,
   mockFormRequest,
@@ -1612,6 +1615,365 @@ describe("server (public routes)", () => {
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("Sorry, registration closed while you were submitting.");
+    });
+  });
+
+  describe("daily events (single ticket)", () => {
+    // A valid bookable date: tomorrow (today + 1 day)
+    const validDate = addDays(today, 1);
+
+    test("GET shows date selector for daily event", async () => {
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Select Date");
+      expect(html).toContain('<select name="date"');
+    });
+
+    test("GET shows no-dates message when no dates available", async () => {
+      // Create a daily event where minimum_days_before > maximum_days_after
+      // so the date range is empty (start > end)
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday"]),
+        minimumDaysBefore: 30,
+        maximumDaysAfter: 7,
+      });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No dates are currently available for booking");
+    });
+
+    test("POST succeeds for free daily event with valid date", async () => {
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const response = await submitTicketForm(event.slug, {
+        name: "Daily User",
+        email: "daily@example.com",
+        date: validDate,
+      });
+      expectRedirect("https://example.com/thanks")(response);
+    });
+
+    test("POST rejects daily event with missing date", async () => {
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const response = await submitTicketForm(event.slug, {
+        name: "Daily User",
+        email: "daily@example.com",
+      });
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Please select a valid date");
+    });
+
+    test("POST rejects daily event with invalid date", async () => {
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const response = await submitTicketForm(event.slug, {
+        name: "Daily User",
+        email: "daily@example.com",
+        date: "2099-01-01",
+      });
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Please select a valid date");
+    });
+
+    test("POST checks per-date capacity for daily events", async () => {
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+        maxAttendees: 1,
+      });
+
+      // Fill up the date
+      await submitTicketForm(event.slug, {
+        name: "First User",
+        email: "first@example.com",
+        date: validDate,
+      });
+
+      // Second booking for same date should fail
+      const response = await submitTicketForm(event.slug, {
+        name: "Second User",
+        email: "second@example.com",
+        date: validDate,
+      });
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("not enough spots available");
+    });
+
+    test("POST allows booking different dates at capacity", async () => {
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+        maxAttendees: 1,
+      });
+
+      // Book first date
+      const response1 = await submitTicketForm(event.slug, {
+        name: "First User",
+        email: "first@example.com",
+        date: validDate,
+      });
+      expect(response1.status).toBe(302);
+
+      // Book different date should succeed
+      const otherDate = addDays(today, 2);
+      const response2 = await submitTicketForm(event.slug, {
+        name: "Second User",
+        email: "second@example.com",
+        date: otherDate,
+      });
+      expect(response2.status).toBe(302);
+    });
+
+    test("POST redirects to checkout for paid daily event", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+        unitPrice: 500,
+      });
+
+      const getResponse = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/ticket/${event.slug}`,
+          {
+            name: "Paid Daily User",
+            email: "paid@example.com",
+            date: validDate,
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location");
+      expect(location).not.toBeNull();
+
+      resetStripeClient();
+    });
+
+    test("daily event excludes holiday dates", async () => {
+      // Create a holiday covering tomorrow
+      await createTestHoliday({
+        name: "Test Holiday",
+        startDate: validDate,
+        endDate: validDate,
+      });
+
+      const event = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      // The holiday date should not appear as an option
+      expect(html).not.toContain(`value="${validDate}"`);
+    });
+  });
+
+  describe("daily events (multi-ticket)", () => {
+    const validDate = addDays(today, 1);
+
+    test("GET shows date selector for multi-ticket with daily events", async () => {
+      const event1 = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const event2 = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Select Date");
+      expect(html).toContain('<select name="date"');
+    });
+
+    test("POST rejects multi-ticket daily event without date", async () => {
+      const event1 = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const event2 = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("No CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "Test User",
+            email: "test@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Please select a valid date");
+    });
+
+    test("POST succeeds for free multi-ticket daily events with valid date", async () => {
+      const event1 = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const event2 = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("No CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "Multi Daily User",
+            email: "multidaily@example.com",
+            date: validDate,
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expectRedirect("/ticket/reserved")(response);
+    });
+
+    test("POST redirects to checkout for paid multi-ticket daily events", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+        unitPrice: 300,
+      });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("No CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "Multi Daily Paid",
+            email: "multipaid@example.com",
+            date: validDate,
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location");
+      expect(location).not.toBeNull();
+
+      resetStripeClient();
+    });
+
+    test("computes shared dates across daily events", async () => {
+      // event1: only bookable on Monday, event2: bookable all days
+      // Shared dates should only be Mondays
+      const event1 = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const event2 = await createTestEvent({
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      // Should contain Monday dates but not Tuesday dates
+      expect(html).toContain("Monday");
+      expect(html).not.toContain("Tuesday");
     });
   });
 
