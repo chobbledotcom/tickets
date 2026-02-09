@@ -203,6 +203,10 @@ describe("webhook", () => {
   });
 
   describe("sendRegistrationWebhooks", () => {
+    afterEach(() => {
+      Deno.env.delete("WEBHOOK_URL");
+    });
+
     test("sends to all unique webhook URLs", async () => {
       const entries: RegistrationEntry[] = [
         {
@@ -261,7 +265,7 @@ describe("webhook", () => {
       expect(url).toBe("https://hook.com");
     });
 
-    test("does nothing when all webhook URLs are null", async () => {
+    test("does nothing when all webhook URLs are null and WEBHOOK_URL is not set", async () => {
       const entries: RegistrationEntry[] = [
         {
           event: makeEvent({ webhook_url: null }),
@@ -272,6 +276,55 @@ describe("webhook", () => {
       await sendRegistrationWebhooks(entries, "GBP");
 
       expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    test("sends to WEBHOOK_URL env var in addition to event webhook URLs", async () => {
+      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ webhook_url: "https://event-hook.com" }),
+          attendee: makeAttendee(),
+        },
+      ];
+
+      await sendRegistrationWebhooks(entries, "GBP");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      const urls = fetchSpy.mock.calls.map(
+        (call: [string, RequestInit]) => call[0],
+      );
+      expect(urls).toContain("https://event-hook.com");
+      expect(urls).toContain("https://global-hook.com");
+    });
+
+    test("sends to WEBHOOK_URL even when no events have webhook URLs", async () => {
+      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ webhook_url: null }),
+          attendee: makeAttendee(),
+        },
+      ];
+
+      await sendRegistrationWebhooks(entries, "GBP");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://global-hook.com");
+    });
+
+    test("deduplicates WEBHOOK_URL when it matches an event webhook URL", async () => {
+      Deno.env.set("WEBHOOK_URL", "https://same-hook.com");
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ webhook_url: "https://same-hook.com" }),
+          attendee: makeAttendee(),
+        },
+      ];
+
+      await sendRegistrationWebhooks(entries, "GBP");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -319,6 +372,26 @@ describe("webhook", () => {
       await logAndNotifyRegistration(event, attendee, "GBP");
 
       expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    test("sends to WEBHOOK_URL env var when event has no webhook_url", async () => {
+      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
+      const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
+      const dbEvent = await createTestEvent();
+      const event = makeEvent({
+        id: dbEvent.id,
+        name: dbEvent.name,
+        slug: dbEvent.slug,
+        webhook_url: null,
+      });
+      const attendee = makeAttendee();
+
+      await logAndNotifyRegistration(event, attendee, "GBP");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://global-hook.com");
+      Deno.env.delete("WEBHOOK_URL");
     });
   });
 
@@ -382,6 +455,30 @@ describe("webhook", () => {
       await logAndNotifyMultiRegistration(entries, "USD");
 
       expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    test("sends to WEBHOOK_URL env var for multi-event registration", async () => {
+      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
+      const { logAndNotifyMultiRegistration } = await import("#lib/webhook.ts");
+      const dbEventA = await createTestEvent();
+      const dbEventB = await createTestEvent();
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ id: dbEventA.id, webhook_url: null }),
+          attendee: makeAttendee(),
+        },
+        {
+          event: makeEvent({ id: dbEventB.id, webhook_url: null }),
+          attendee: makeAttendee(),
+        },
+      ];
+
+      await logAndNotifyMultiRegistration(entries, "USD");
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://global-hook.com");
+      Deno.env.delete("WEBHOOK_URL");
     });
   });
 });
