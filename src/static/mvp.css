@@ -468,6 +468,18 @@ label {
   margin-bottom: 0.2rem;
 }
 
+label > small {
+  color: #666;
+  display: block;
+  font-weight: normal;
+  margin-top: 0.25rem;
+}
+
+label > select,
+label > input {
+  margin-bottom: 0;
+}
+
 /* Popups */
 dialog {
   max-width: 90%;
