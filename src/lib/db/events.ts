@@ -5,10 +5,12 @@
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { executeByField, getDb, inPlaceholders, queryBatch, queryOne } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
+import { nowIso } from "#lib/now.ts";
+import { VALID_DAY_NAMES } from "#templates/fields.ts";
 import type { Attendee, Event, EventFields, EventType, EventWithCount } from "#lib/types.ts";
 
 /** Default bookable days (all days of the week) as a JSON array string */
-export const DEFAULT_BOOKABLE_DAYS = '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]';
+export const DEFAULT_BOOKABLE_DAYS = JSON.stringify(VALID_DAY_NAMES);
 
 /** Event input fields for create/update (camelCase) */
 export type EventInput = {
@@ -65,7 +67,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     description: { default: () => "", write: encrypt, read: decrypt },
     slug: col.encrypted<string>(encrypt, decrypt),
     slug_index: col.simple<string>(),
-    created: col.withDefault(() => new Date().toISOString()),
+    created: col.withDefault(() => nowIso),
     max_attendees: col.simple<number>(),
     thank_you_url: col.encryptedNullable<string>(encrypt, decrypt),
     unit_price: col.simple<number | null>(),
@@ -146,7 +148,7 @@ export const getAllEvents = async (): Promise<EventWithCount[]> => {
     FROM events e
     LEFT JOIN attendees a ON e.id = a.event_id
     GROUP BY e.id
-    ORDER BY e.created DESC
+    ORDER BY e.created DESC, e.id DESC
   `);
   const rows = result.rows as unknown as EventWithCount[];
   return Promise.all(rows.map(decryptEventWithCount));

@@ -7,3 +7,9 @@ export const now = new Date();
 
 /** Today's date as YYYY-MM-DD */
 export const today = now.toISOString().slice(0, 10);
+
+/** Full ISO-8601 timestamp for created/logged_at fields */
+export const nowIso = now.toISOString();
+
+/** Epoch milliseconds for numeric comparisons */
+export const nowMs = now.getTime();

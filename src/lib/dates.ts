@@ -6,8 +6,8 @@ import { filter, pipe } from "#fp";
 import { today } from "#lib/now.ts";
 import type { Event, Holiday } from "#lib/types.ts";
 
-/** Day name lookup from Date.getUTCDay() index */
-const DAY_NAMES = [
+/** Day name lookup from Date.getUTCDay() index (Sunday=0) */
+export const DAY_NAMES = [
   "Sunday",
   "Monday",
   "Tuesday",

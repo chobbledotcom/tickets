@@ -15,6 +15,7 @@ import {
   wrapKey,
 } from "#lib/crypto.ts";
 import { getDb } from "#lib/db/client.ts";
+import { nowMs } from "#lib/now.ts";
 import { deleteAllSessions } from "#lib/db/sessions.ts";
 import { createUser } from "#lib/db/users.ts";
 import type { Settings } from "#lib/types.ts";
@@ -60,7 +61,7 @@ const [getSettingsCacheState, setSettingsCacheState] = lazyRef<SettingsCacheStat
 
 const isCacheValid = (): boolean => {
   const state = getSettingsCacheState();
-  return state.entries !== null && Date.now() - state.time < SETTINGS_CACHE_TTL_MS;
+  return state.entries !== null && nowMs - state.time < SETTINGS_CACHE_TTL_MS;
 };
 
 /**
@@ -73,7 +74,7 @@ export const loadAllSettings = async (): Promise<Map<string, string>> => {
     const { key, value } = row as unknown as Settings;
     cache.set(key, value);
   }
-  setSettingsCacheState({ entries: cache, time: Date.now() });
+  setSettingsCacheState({ entries: cache, time: nowMs });
   return cache;
 };
 

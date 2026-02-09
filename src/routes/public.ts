@@ -5,7 +5,7 @@
 import { compact, filter, map, pipe, reduce } from "#fp";
 import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
 import { getAvailableDates } from "#lib/dates.ts";
-import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
+import { checkBatchAvailability, createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
 import { getEventsBySlugsBatch } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { validateForm } from "#lib/forms.tsx";
@@ -405,18 +405,19 @@ const eventsWithQuantity = (
     filter(({ qty }) => qty > 0),
   )(events) as Array<{ event: EventWithCount; qty: number }>;
 
-/** Check if all selected events have available spots */
-const checkMultiAvailability = async (
+/** Check if all selected events have available spots (single efficient query) */
+const checkMultiAvailability = (
   events: MultiTicketEvent[],
   quantities: Map<number, number>,
   date?: string | null,
-): Promise<boolean> => {
-  for (const { event, qty } of eventsWithQuantity(events, quantities)) {
-    const eventDate = event.event_type === "daily" ? date : null;
-    if (!(await hasAvailableSpots(event.id, qty, eventDate))) return false;
-  }
-  return true;
-};
+): Promise<boolean> =>
+  checkBatchAvailability(
+    eventsWithQuantity(events, quantities).map(({ event, qty }) => ({
+      eventId: event.id,
+      quantity: qty,
+    })),
+    date,
+  );
 
 /** Build multi-registration items from events and quantities */
 const buildMultiRegistrationItems = (

@@ -19,6 +19,7 @@ import {
   loginAsAdmin,
   updateTestEvent,
 } from "#test-utils";
+import { nowMs } from "#lib/now.ts";
 import { formatCountdown, withCookie } from "#routes/utils.ts";
 
 describe("server (admin events)", () => {
@@ -1864,25 +1865,22 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown shows days and hours", () => {
-      jest.useFakeTimers();
-      jest.setSystemTime(new Date("2025-01-01T00:00:00Z"));
-      const future = new Date("2025-01-04T05:00:00Z").toISOString();
+      const future = new Date(nowMs + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("3 days and 5 hours from now");
-      jest.useRealTimers();
     });
 
     test("formatCountdown shows only days when no remaining hours", () => {
-      const future = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
+      const future = new Date(nowMs + 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("2 days from now");
     });
 
     test("formatCountdown shows only hours", () => {
-      const future = new Date(Date.now() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
+      const future = new Date(nowMs + 5 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("5 hours from now");
     });
 
     test("formatCountdown shows minutes when less than an hour", () => {
-      const result = formatCountdown(new Date(Date.now() + 30 * 60 * 1000).toISOString());
+      const result = formatCountdown(new Date(nowMs + 30 * 60 * 1000).toISOString());
       expect(result).toContain("minute");
       expect(result).toContain("from now");
     });
@@ -1892,15 +1890,8 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown singular forms", () => {
-      const now = Date.now();
-      const spy = spyOn(Date, "now");
-      spy.mockReturnValue(now);
-      try {
-        const future = new Date(now + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString();
-        expect(formatCountdown(future)).toBe("1 day and 1 hour from now");
-      } finally {
-        spy.mockRestore();
-      }
+      const future = new Date(nowMs + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString();
+      expect(formatCountdown(future)).toBe("1 day and 1 hour from now");
     });
 
     test("rejects invalid closes_at format", async () => {

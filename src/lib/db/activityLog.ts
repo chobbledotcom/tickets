@@ -8,6 +8,7 @@
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { getDb, queryBatch } from "#lib/db/client.ts";
 import { eventsTable } from "#lib/db/events.ts";
+import { nowIso } from "#lib/now.ts";
 import type { Event, EventWithCount } from "#lib/types.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 
@@ -35,7 +36,7 @@ export const activityLogTable = defineTable<ActivityLogEntry, ActivityLogInput>(
     primaryKey: "id",
     schema: {
       id: col.generated<number>(),
-      created: col.withDefault(() => new Date().toISOString()),
+      created: col.withDefault(() => nowIso),
       event_id: col.simple<number | null>(),
       message: col.encrypted<string>(encrypt, decrypt),
     },

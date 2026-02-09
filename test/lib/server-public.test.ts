@@ -1358,15 +1358,11 @@ describe("server (public routes)", () => {
       const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
-      // Mock hasAvailableSpots via attendeesApi to return false for event1,
+      // Mock checkBatchAvailability via attendeesApi to return false,
       // simulating a race condition where event sells out between page load and check
       const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const origHasSpots = attendeesApi.hasAvailableSpots;
-      const mockSpots = spyOn(attendeesApi, "hasAvailableSpots");
-      mockSpots.mockImplementation((...args: Parameters<typeof origHasSpots>) => {
-        if (args[0] === event1.id) return Promise.resolve(false);
-        return origHasSpots(...args);
-      });
+      const mockBatch = spyOn(attendeesApi, "checkBatchAvailability");
+      mockBatch.mockImplementation(() => Promise.resolve(false));
 
       try {
         const response = await handleRequest(
@@ -1387,7 +1383,7 @@ describe("server (public routes)", () => {
         const html = await response.text();
         expect(html).toContain("some tickets are no longer available");
       } finally {
-        mockSpots.mockRestore();
+        mockBatch.mockRestore();
       }
     });
   });

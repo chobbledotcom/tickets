@@ -10,6 +10,7 @@ import {
   STALE_RESERVATION_MS,
 } from "#lib/db/processed-payments.ts";
 import { getDb } from "#lib/db/client.ts";
+import { nowIso, nowMs } from "#lib/now.ts";
 import {
   createTestAttendee,
   createTestDbWithSetup,
@@ -176,17 +177,13 @@ describe("processed-payments", () => {
     });
 
     test("stores ISO timestamp", async () => {
-      const before = new Date().toISOString();
       await processSession("cs_timestamp_test", testAttendeeId);
-      const after = new Date().toISOString();
 
       const record = await isSessionProcessed("cs_timestamp_test");
       expect(record).not.toBeNull();
       expect(record?.processed_at).toBeDefined();
-      // Timestamp should be between before and after
-      const processedAt = record?.processed_at ?? "";
-      expect(processedAt >= before).toBe(true);
-      expect(processedAt <= after).toBe(true);
+      // Timestamp should match the frozen nowIso from now.ts
+      expect(record?.processed_at).toBe(nowIso);
     });
   });
 

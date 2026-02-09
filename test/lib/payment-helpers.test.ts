@@ -356,6 +356,7 @@ describe("payment-helpers", () => {
         phone: "+1234567890",
         quantity: "3",
         multi: undefined,
+        date: undefined,
         items: undefined,
       });
     });
@@ -375,6 +376,7 @@ describe("payment-helpers", () => {
         phone: undefined,
         quantity: undefined,
         multi: "1",
+        date: undefined,
         items: '[{"e":1,"q":2}]',
       });
     });

@@ -2,6 +2,7 @@
  * Form field definitions for all forms
  */
 
+import { DAY_NAMES } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import type { EventFields, EventType } from "#lib/types.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
@@ -99,23 +100,15 @@ const validateEventType = (value: string): string | null => {
   return null;
 };
 
-/** Valid day names for bookable_days */
-export const VALID_DAY_NAMES = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-] as const;
+/** Valid day names for bookable_days (Monday-first for display) */
+export const VALID_DAY_NAMES = [...DAY_NAMES.slice(1), DAY_NAMES[0]!];
 
 /** Validate bookable days (comma-separated day names) */
 export const validateBookableDays = (value: string): string | null => {
   const days = value.split(",").map((d) => d.trim()).filter((d) => d);
   if (days.length === 0) return "At least one day is required";
   for (const day of days) {
-    if (!VALID_DAY_NAMES.includes(day as typeof VALID_DAY_NAMES[number])) {
+    if (!(VALID_DAY_NAMES as readonly string[]).includes(day)) {
       return `Invalid day: ${day}. Use: ${VALID_DAY_NAMES.join(", ")}`;
     }
   }
