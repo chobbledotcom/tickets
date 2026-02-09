@@ -138,21 +138,28 @@ const decryptEventRow = async (
 const extractEventRow = (result: { rows: unknown[] } | undefined): Event | null =>
   (result?.rows[0] as unknown as Event) ?? null;
 
+/** Query events with attendee counts, optionally filtered by a WHERE clause */
+const queryEventsWithCounts = async (
+  whereClause = "",
+): Promise<EventWithCount[]> => {
+  const result = await getDb().execute(
+    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
+     FROM events e
+     LEFT JOIN attendees a ON e.id = a.event_id
+     ${whereClause}
+     GROUP BY e.id
+     ORDER BY e.created DESC, e.id DESC`,
+  );
+  const rows = result.rows as unknown as EventWithCount[];
+  return Promise.all(rows.map(decryptEventWithCount));
+};
+
 /**
  * Get all events with attendee counts (sum of quantities)
  * Uses custom JOIN query - not covered by table abstraction
  */
-export const getAllEvents = async (): Promise<EventWithCount[]> => {
-  const result = await getDb().execute(`
-    SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
-    FROM events e
-    LEFT JOIN attendees a ON e.id = a.event_id
-    GROUP BY e.id
-    ORDER BY e.created DESC, e.id DESC
-  `);
-  const rows = result.rows as unknown as EventWithCount[];
-  return Promise.all(rows.map(decryptEventWithCount));
-};
+export const getAllEvents = (): Promise<EventWithCount[]> =>
+  queryEventsWithCounts();
 
 /**
  * Get event with attendee count (sum of quantities)
@@ -217,6 +224,43 @@ export const getEventWithAttendeesRaw = async (
   const attendeesRaw = attendeesResult!.rows as unknown as Attendee[];
   const count = attendeesRaw.reduce((sum, a) => sum + a.quantity, 0);
   return { event: await decryptEventRow(eventRow, count), attendeesRaw };
+};
+
+/**
+ * Get all daily events with attendee counts (no attendees loaded).
+ */
+export const getAllDailyEvents = (): Promise<EventWithCount[]> =>
+  queryEventsWithCounts("WHERE e.event_type = 'daily'");
+
+/**
+ * Get distinct attendee dates for daily events.
+ * Used for the calendar date picker (lightweight, no attendee data).
+ */
+export const getDailyEventAttendeeDates = async (): Promise<string[]> => {
+  const result = await getDb().execute(
+    `SELECT DISTINCT a.date FROM attendees a
+     INNER JOIN events e ON a.event_id = e.id
+     WHERE e.event_type = 'daily' AND a.date IS NOT NULL
+     ORDER BY a.date`,
+  );
+  return (result.rows as unknown as { date: string }[]).map((r) => r.date);
+};
+
+/**
+ * Get raw attendees for daily events on a specific date.
+ * Bounded query: only returns attendees matching the given date.
+ */
+export const getDailyEventAttendeesByDate = async (
+  date: string,
+): Promise<Attendee[]> => {
+  const result = await getDb().execute({
+    sql: `SELECT a.* FROM attendees a
+          INNER JOIN events e ON a.event_id = e.id
+          WHERE e.event_type = 'daily' AND a.date = ?
+          ORDER BY a.created DESC`,
+    args: [date],
+  });
+  return result.rows as unknown as Attendee[];
 };
 
 /** Result type for event + single attendee query */

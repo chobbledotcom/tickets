@@ -34,7 +34,7 @@ const MONTH_NAMES = [
 ] as const;
 
 /** Maximum future range when maximum_days_after is 0 (no limit) */
-const MAX_FUTURE_DAYS = 365;
+const MAX_FUTURE_DAYS = 730;
 
 /** Add days to a YYYY-MM-DD date string */
 export const addDays = (dateStr: string, days: number): string => {

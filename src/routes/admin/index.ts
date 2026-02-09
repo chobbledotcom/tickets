@@ -4,6 +4,7 @@
 
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
+import { calendarRoutes } from "#routes/admin/calendar.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
 import { eventsRoutes } from "#routes/admin/events.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
@@ -18,6 +19,7 @@ const adminRoutes = {
   ...authRoutes,
   ...settingsRoutes,
   ...sessionsRoutes,
+  ...calendarRoutes,
   ...eventsRoutes,
   ...attendeesRoutes,
   ...usersRoutes,
