@@ -2,20 +2,20 @@
  * Admin calendar view routes
  */
 
-import { filter, pipe, unique } from "#fp";
+import { flatMap, map, pipe, reduce, sort, unique } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { formatDateLabel, getAvailableDates } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendees } from "#lib/db/attendees.ts";
-import { getAllDailyEventsWithAttendeesRaw } from "#lib/db/events.ts";
+import { getAllDailyEvents, getDailyEventAttendeeDates, getDailyEventAttendeesByDate } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
-  getAuthenticatedSession,
   getPrivateKey,
   htmlResponse,
   redirect,
+  requireSessionOr,
 } from "#routes/utils.ts";
 import { adminCalendarPage, type CalendarAttendeeRow, type CalendarDateOption } from "#templates/admin/calendar.tsx";
 import { type CalendarAttendee, generateCalendarCsv } from "#templates/csv.ts";
@@ -27,92 +27,69 @@ const getDateFilter = (request: Request): string | null => {
   return date;
 };
 
-/** Context for calendar view */
-type CalendarContext = {
-  events: { event: EventWithCount; attendees: Attendee[] }[];
-  session: AdminSession;
-};
-
-/** Authenticate and load all daily events with decrypted attendees */
-const withCalendarData = async (
-  request: Request,
-  handler: (ctx: CalendarContext) => Response | Promise<Response>,
-): Promise<Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) return redirect("/admin");
-
-  const privateKey = (await getPrivateKey(session))!;
-  const rawResults = await getAllDailyEventsWithAttendeesRaw();
-
-  const events = await Promise.all(
-    rawResults.map(async ({ event, attendeesRaw }) => ({
-      event,
-      attendees: await decryptAttendees(attendeesRaw, privateKey),
-    })),
-  );
-
-  return handler({ events, session });
-};
-
 /** Compile all possible dates from events (available + existing attendee dates) */
 const compileDateOptions = (
-  events: { event: EventWithCount; attendees: Attendee[] }[],
+  events: EventWithCount[],
+  attendeeDates: string[],
   holidays: { id: number; name: string; start_date: string; end_date: string }[],
 ): CalendarDateOption[] => {
-  // Collect all available dates from each event
-  const availableDateSet = new Set<string>();
-  for (const { event } of events) {
-    for (const d of getAvailableDates(event, holidays)) {
-      availableDateSet.add(d);
-    }
-  }
+  const availableDates = pipe(
+    flatMap((event: EventWithCount) => getAvailableDates(event, holidays)),
+    unique,
+  )(events);
 
-  // Collect all unique attendee dates
-  const attendeeDateSet = new Set<string>();
-  for (const { attendees } of events) {
-    for (const a of attendees) {
-      if (a.date) attendeeDateSet.add(a.date);
-    }
-  }
+  const allDates = sort((a: string, b: string) => a.localeCompare(b))(
+    unique([...availableDates, ...attendeeDates]),
+  );
 
-  // Merge: all available dates + all attendee dates
-  const allDates = pipe(unique)([...availableDateSet, ...attendeeDateSet]);
-  allDates.sort();
-
-  // Determine which dates have bookings
-  const datesWithBookings = attendeeDateSet;
-
-  return allDates.map((d) => ({
+  const attendeeDateSet = new Set(attendeeDates);
+  return map((d: string) => ({
     value: d,
     label: formatDateLabel(d),
-    hasBookings: datesWithBookings.has(d),
-  }));
+    hasBookings: attendeeDateSet.has(d),
+  }))(allDates);
 };
 
-/** Build calendar attendee rows for the selected date */
+/** Build calendar attendee rows by joining attendees with their event info */
 const buildCalendarAttendees = (
-  events: { event: EventWithCount; attendees: Attendee[] }[],
-  dateFilter: string,
+  events: EventWithCount[],
+  attendees: Attendee[],
 ): CalendarAttendeeRow[] => {
-  const rows: CalendarAttendeeRow[] = [];
-  for (const { event, attendees } of events) {
-    const filtered = filter((a: Attendee) => a.date === dateFilter)(attendees);
-    for (const a of filtered) {
-      rows.push({ ...a, eventName: event.name, eventId: event.id });
-    }
-  }
-  return rows;
+  const eventById = reduce(
+    (acc: Map<number, EventWithCount>, e: EventWithCount) => {
+      acc.set(e.id, e);
+      return acc;
+    },
+    new Map<number, EventWithCount>(),
+  )(events);
+
+  return flatMap((a: Attendee): CalendarAttendeeRow[] => {
+    const event = eventById.get(a.event_id);
+    return event ? [{ ...a, eventName: event.name, eventId: event.id }] : [];
+  })(attendees);
 };
 
 /**
  * Handle GET /admin/calendar
  */
 const handleAdminCalendarGet = (request: Request) =>
-  withCalendarData(request, async ({ events, session }) => {
+  requireSessionOr(request, async (session) => {
     const dateFilter = getDateFilter(request);
-    const holidays = await getActiveHolidays();
-    const availableDates = compileDateOptions(events, holidays);
-    const attendees = dateFilter ? buildCalendarAttendees(events, dateFilter) : [];
+    const [events, attendeeDates, holidays] = await Promise.all([
+      getAllDailyEvents(),
+      getDailyEventAttendeeDates(),
+      getActiveHolidays(),
+    ]);
+
+    let attendees: CalendarAttendeeRow[] = [];
+    if (dateFilter) {
+      const privateKey = (await getPrivateKey(session))!;
+      const rawAttendees = await getDailyEventAttendeesByDate(dateFilter);
+      const decrypted = await decryptAttendees(rawAttendees, privateKey);
+      attendees = buildCalendarAttendees(events, decrypted);
+    }
+
+    const availableDates = compileDateOptions(events, attendeeDates, holidays);
     return htmlResponse(
       adminCalendarPage(
         attendees,
@@ -128,15 +105,19 @@ const handleAdminCalendarGet = (request: Request) =>
  * Handle GET /admin/calendar/export (CSV export for calendar view)
  */
 const handleAdminCalendarExport = (request: Request) =>
-  withCalendarData(request, async ({ events }) => {
+  requireSessionOr(request, async (session) => {
     const dateFilter = getDateFilter(request);
     if (!dateFilter) return redirect("/admin/calendar");
 
-    const attendees = buildCalendarAttendees(events, dateFilter);
-    const calendarAttendees: CalendarAttendee[] = attendees.map((a) => ({
-      ...a,
-      eventName: a.eventName,
-    }));
+    const privateKey = (await getPrivateKey(session))!;
+    const [events, rawAttendees] = await Promise.all([
+      getAllDailyEvents(),
+      getDailyEventAttendeesByDate(dateFilter),
+    ]);
+
+    const decrypted = await decryptAttendees(rawAttendees, privateKey);
+    const attendees = buildCalendarAttendees(events, decrypted);
+    const calendarAttendees: CalendarAttendee[] = attendees;
 
     const csv = generateCalendarCsv(calendarAttendees);
     const filename = `calendar_${dateFilter}_attendees.csv`;
