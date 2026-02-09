@@ -15,6 +15,7 @@ export type WebhookTicket = {
   event_slug: string;
   unit_price: number | null;
   quantity: number;
+  date: string | null;
 };
 
 /** Consolidated payload sent to webhook endpoints */
@@ -52,6 +53,7 @@ export type WebhookAttendee = {
   payment_id?: string | null;
   price_paid?: string | null;
   ticket_token: string;
+  date: string | null;
 };
 
 /** Registration entry: event + attendee pair */
@@ -95,8 +97,9 @@ export const buildWebhookPayload = (
       event_slug: event.slug,
       unit_price: event.unit_price,
       quantity: attendee.quantity,
+      date: attendee.date,
     })),
-    timestamp: nowIso,
+    timestamp: nowIso(),
   };
 };
 

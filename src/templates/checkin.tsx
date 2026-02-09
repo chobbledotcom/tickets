@@ -5,6 +5,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { formatDateLabel } from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -12,12 +13,13 @@ import { Layout } from "#templates/layout.tsx";
 /** Re-export for backwards compatibility */
 export type { TokenEntry as CheckinEntry };
 
-/** Render a single attendee detail row (admin view) */
-const renderCheckinRow = ({ event, attendee }: TokenEntry): string => {
+/** Render a single attendee detail row (admin view), optionally including a date column */
+const renderCheckinRow = (showDate: boolean, { event, attendee }: TokenEntry): string => {
   const isCheckedIn = attendee.checked_in === "true";
   return String(
     <tr>
       <td><a href={`/admin/event/${event.id}`}>{event.name}</a></td>
+      {showDate && <td>{attendee.date ? formatDateLabel(attendee.date) : ""}</td>}
       <td>{attendee.name}</td>
       <td>{attendee.email || ""}</td>
       <td>{attendee.phone || ""}</td>
@@ -36,8 +38,9 @@ export const checkinAdminPage = (
   checkinPath: string,
   message: string | null,
 ): string => {
+  const showDate = entries.some((e) => e.attendee.date !== null);
   const rows = pipe(
-    map((e: TokenEntry) => renderCheckinRow(e)),
+    map((e: TokenEntry) => renderCheckinRow(showDate, e)),
     (r: string[]) => r.join(""),
   )(entries);
 
@@ -60,6 +63,7 @@ export const checkinAdminPage = (
           <thead>
             <tr>
               <th>Event</th>
+              {showDate && <th>Date</th>}
               <th>Name</th>
               <th>Email</th>
               <th>Phone</th>

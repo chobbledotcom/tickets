@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { formatDateLabel } from "#lib/dates.ts";
+import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
   awaitTestRequest,
   createTestAttendee,
@@ -149,6 +151,48 @@ describe("check-in (/checkin/:tokens)", () => {
       expect(body).toContain('class="bulk-checkin"');
       expect(body).toContain("Check In All");
       expect(body).toContain('value="true"');
+    });
+
+    test("displays booked date for daily event in admin view", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 10,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 30,
+      });
+      const date = "2026-02-15";
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Zara",
+        email: "zara@test.com",
+        date,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+
+      const session = await loginAsAdmin();
+      const response = await awaitTestRequest(`/checkin/${result.attendee.ticket_token}`, {
+        cookie: session.cookie,
+      });
+      expect(response.status).toBe(200);
+
+      const body = await response.text();
+      expect(body).toContain(formatDateLabel(date));
+      expect(body).toContain("<th>Date</th>");
+    });
+
+    test("does not show date column for standard event in admin view", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
+      const attendees = await getAttendeesRaw(event.id);
+      const token = attendees[0]!.ticket_token;
+
+      const session = await loginAsAdmin();
+      const response = await awaitTestRequest(`/checkin/${token}`, {
+        cookie: session.cookie,
+      });
+      const body = await response.text();
+      expect(body).not.toContain("<th>Date</th>");
     });
   });
 

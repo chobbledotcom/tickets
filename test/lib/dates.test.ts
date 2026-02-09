@@ -68,7 +68,7 @@ describe("dates", () => {
 
     test("excludes holidays", () => {
       // Pick a date range that includes "today + 1" as a holiday
-      const holidayDate = addDays(today, 1);
+      const holidayDate = addDays(today(), 1);
       const holidays = [{ id: 1, name: "Holiday", start_date: holidayDate, end_date: holidayDate }];
 
       const event = testEvent({
@@ -83,8 +83,8 @@ describe("dates", () => {
     });
 
     test("excludes holiday ranges", () => {
-      const holidayStart = addDays(today, 1);
-      const holidayEnd = addDays(today, 3);
+      const holidayStart = addDays(today(), 1);
+      const holidayEnd = addDays(today(), 3);
       const holidays = [{ id: 1, name: "Holiday Range", start_date: holidayStart, end_date: holidayEnd }];
 
       const event = testEvent({
@@ -96,7 +96,7 @@ describe("dates", () => {
 
       const dates = getAvailableDates(event, holidays);
       expect(dates).not.toContain(holidayStart);
-      expect(dates).not.toContain(addDays(today, 2));
+      expect(dates).not.toContain(addDays(today(), 2));
       expect(dates).not.toContain(holidayEnd);
     });
 
@@ -110,7 +110,7 @@ describe("dates", () => {
 
       const dates = getAvailableDates(event, []);
       const earliest = dates[0]!;
-      expect(earliest >= addDays(today, 3)).toBe(true);
+      expect(earliest >= addDays(today(), 3)).toBe(true);
     });
 
     test("uses 730 days when maximum_days_after is 0 (unlimited)", () => {
@@ -124,7 +124,7 @@ describe("dates", () => {
       const dates = getAvailableDates(event, []);
       const latest = dates[dates.length - 1]!;
       // Should extend close to 730 days (2 years)
-      expect(latest >= addDays(today, 700)).toBe(true);
+      expect(latest >= addDays(today(), 700)).toBe(true);
     });
 
     test("respects maximum_days_after when non-zero", () => {
@@ -137,7 +137,7 @@ describe("dates", () => {
 
       const dates = getAvailableDates(event, []);
       const latest = dates[dates.length - 1]!;
-      expect(latest <= addDays(today, 7)).toBe(true);
+      expect(latest <= addDays(today(), 7)).toBe(true);
     });
 
     test("returns empty array when no bookable days match", () => {

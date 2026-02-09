@@ -1828,7 +1828,7 @@ describe("db", () => {
 
     test("reserveSession retries when stale reservation detected", async () => {
       // Insert a reservation with a timestamp old enough relative to frozen nowMs
-      const oldTimestamp = new Date(nowMs - STALE_RESERVATION_MS - 1000).toISOString();
+      const oldTimestamp = new Date(nowMs() - STALE_RESERVATION_MS - 1000).toISOString();
       await getDb().execute({
         sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
         args: ["sess_stale", oldTimestamp],
@@ -1864,7 +1864,7 @@ describe("db", () => {
 
     test("reserveSession retries when stale reservation is detected (recursive path)", async () => {
       // Insert a reservation with a timestamp old enough relative to frozen nowMs
-      const oldTimestamp = new Date(nowMs - STALE_RESERVATION_MS - 1000).toISOString();
+      const oldTimestamp = new Date(nowMs() - STALE_RESERVATION_MS - 1000).toISOString();
       await getDb().execute({
         sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
         args: ["sess_race", oldTimestamp],

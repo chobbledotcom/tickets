@@ -1620,7 +1620,7 @@ describe("server (public routes)", () => {
 
   describe("daily events (single ticket)", () => {
     // A valid bookable date: tomorrow (today + 1 day)
-    const validDate = addDays(today, 1);
+    const validDate = addDays(today(), 1);
 
     test("GET shows date selector for daily event", async () => {
       const event = await createTestEvent({
@@ -1744,7 +1744,7 @@ describe("server (public routes)", () => {
       expect(response1.status).toBe(302);
 
       // Book different date should succeed
-      const otherDate = addDays(today, 2);
+      const otherDate = addDays(today(), 2);
       const response2 = await submitTicketForm(event.slug, {
         name: "Second User",
         email: "second@example.com",
@@ -1810,7 +1810,7 @@ describe("server (public routes)", () => {
   });
 
   describe("daily events (multi-ticket)", () => {
-    const validDate = addDays(today, 1);
+    const validDate = addDays(today(), 1);
 
     test("GET shows date selector for multi-ticket with daily events", async () => {
       const event1 = await createTestEvent({

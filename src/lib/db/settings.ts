@@ -61,7 +61,7 @@ const [getSettingsCacheState, setSettingsCacheState] = lazyRef<SettingsCacheStat
 
 const isCacheValid = (): boolean => {
   const state = getSettingsCacheState();
-  return state.entries !== null && nowMs - state.time < SETTINGS_CACHE_TTL_MS;
+  return state.entries !== null && nowMs() - state.time < SETTINGS_CACHE_TTL_MS;
 };
 
 /**
@@ -74,7 +74,7 @@ export const loadAllSettings = async (): Promise<Map<string, string>> => {
     const { key, value } = row as unknown as Settings;
     cache.set(key, value);
   }
-  setSettingsCacheState({ entries: cache, time: nowMs });
+  setSettingsCacheState({ entries: cache, time: nowMs() });
   return cache;
 };
 
