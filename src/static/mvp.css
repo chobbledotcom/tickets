@@ -24,6 +24,7 @@
   --width-card-medium: 460px;
   --width-card-wide: 800px;
   --width-content: 800px;
+  --section-padding-y: 3rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -73,7 +74,11 @@ header,
 main {
   margin: 0 auto;
   max-width: var(--width-content);
-  padding: 3rem 1rem;
+  padding: var(--section-padding-y) 1rem;
+}
+
+main {
+  --section-padding-y: calc(3rem / 2);
 }
 
 hr {
