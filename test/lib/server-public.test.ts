@@ -109,6 +109,34 @@ describe("server (public routes)", () => {
     });
   });
 
+  describe("GET /admin.js", () => {
+    test("returns JavaScript file", async () => {
+      const response = await handleRequest(mockRequest("/admin.js"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe(
+        "application/javascript; charset=utf-8",
+      );
+      const js = await response.text();
+      expect(js).toContain("data-select-on-click");
+      expect(js).toContain("data-nav-select");
+    });
+
+    test("returns 404 for non-GET requests to /admin.js", async () => {
+      const response = await awaitTestRequest("/admin.js", {
+        method: "POST",
+        data: {},
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("has long cache headers", async () => {
+      const response = await handleRequest(mockRequest("/admin.js"));
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=31536000, immutable",
+      );
+    });
+  });
+
   describe("GET /ticket/:slug", () => {
     test("returns 404 for non-existent slug", async () => {
       const response = await handleRequest(mockRequest("/ticket/non-existent"));
@@ -141,7 +169,7 @@ describe("server (public routes)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("A &lt;b&gt;great&lt;/b&gt; event");
-      expect(html).toContain("font-size: 0.9em");
+      expect(html).toContain('class="description"');
     });
 
     test("does not show description div when description is empty", async () => {

@@ -85,51 +85,8 @@ export const adminSettingsPage = (
           {stripeKeyConfigured && (
             <button type="button" id="stripe-test-btn" class="secondary">Test Connection</button>
           )}
-          <div id="stripe-test-result" style="display:none"></div>
+          <div id="stripe-test-result" class="hidden"></div>
         </form>
-        )}
-
-        {stripeKeyConfigured && paymentProvider === "stripe" && (
-          <Raw html={`<script>
-document.getElementById('stripe-test-btn')?.addEventListener('click', async function() {
-  var btn = this;
-  var resultDiv = document.getElementById('stripe-test-result');
-  btn.disabled = true;
-  btn.textContent = 'Testing...';
-  resultDiv.style.display = 'none';
-  resultDiv.className = '';
-  try {
-    var csrfToken = btn.closest('form').querySelector('input[name="csrf_token"]').value;
-    var res = await fetch('/admin/settings/stripe/test', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'csrf_token=' + encodeURIComponent(csrfToken) });
-    var data = await res.json();
-    var lines = [];
-    if (data.apiKey.valid) {
-      lines.push('API Key: Valid (' + data.apiKey.mode + ' mode)');
-    } else {
-      lines.push('API Key: Invalid' + (data.apiKey.error ? ' - ' + data.apiKey.error : ''));
-    }
-    if (data.webhook.configured) {
-      lines.push('Webhook: ' + (data.webhook.status || 'configured'));
-      lines.push('URL: ' + data.webhook.url);
-      if (data.webhook.enabledEvents) {
-        lines.push('Events: ' + data.webhook.enabledEvents.join(', '));
-      }
-    } else {
-      lines.push('Webhook: Not configured' + (data.webhook.error ? ' - ' + data.webhook.error : ''));
-    }
-    resultDiv.textContent = lines.join('\\n');
-    resultDiv.className = data.ok ? 'success' : 'error';
-    resultDiv.style.display = 'block';
-    resultDiv.style.whiteSpace = 'pre-wrap';
-  } catch (e) {
-    resultDiv.textContent = 'Connection test failed: ' + e.message;
-    resultDiv.className = 'error';
-    resultDiv.style.display = 'block';
-  }
-  btn.disabled = false;
-  btn.textContent = 'Test Connection';
-});
-</script>`} />
         )}
 
         {paymentProvider === "square" && (

@@ -35,7 +35,7 @@ const CalendarDateSelector = ({ dateFilter, dates }: { dateFilter: string | null
           : `<option disabled>${d.label}</option>`,
     ),
   ].join("");
-  return `<select onchange="window.location.href=this.value">${options}</select>`;
+  return `<select data-nav-select>${options}</select>`;
 };
 
 const AttendeeRow = ({ a, allowedDomain }: { a: CalendarAttendeeRow; allowedDomain: string }): string =>
