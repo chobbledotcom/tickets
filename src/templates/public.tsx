@@ -56,7 +56,7 @@ export const ticketPage = (
         <>
           <h1>{event.name}</h1>
           {event.description && (
-            <div style="font-size: 0.9em; margin: 0.5rem 0 1rem;">
+            <div class="description">
               <Raw html={escapeHtml(event.description)} />
             </div>
           )}
@@ -126,7 +126,7 @@ export const buildMultiTicketEvent = (
 /** Render description HTML for multi-ticket event row */
 const renderMultiEventDescription = (description: string): string =>
   description
-    ? `<div style="font-size: 0.9em; margin: 0.25rem 0 0.5rem;">${escapeHtml(description)}</div>`
+    ? `<div class="description-compact">${escapeHtml(description)}</div>`
     : "";
 
 /** Render quantity selector for a single event in multi-ticket form */

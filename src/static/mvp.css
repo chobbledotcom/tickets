@@ -796,3 +796,23 @@ form > label {
 form > button {
   margin: 0;
 }
+
+/* Utility classes for strict CSP (no inline styles) */
+.hidden {
+  display: none;
+}
+
+.text-center {
+  text-align: center;
+  margin: 1em 0;
+}
+
+.description {
+  font-size: 0.9em;
+  margin: 0.5rem 0 1rem;
+}
+
+.description-compact {
+  font-size: 0.9em;
+  margin: 0.25rem 0 0.5rem;
+}

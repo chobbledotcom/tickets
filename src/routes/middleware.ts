@@ -25,8 +25,8 @@ const buildCspHeader = (embeddable: boolean): string =>
   compact([
     !embeddable && "frame-ancestors 'none'",
     "default-src 'self'",
-    "style-src 'self' 'unsafe-inline'",
-    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self'",
+    "script-src 'self'",
     "form-action 'self' https://checkout.stripe.com",
   ]).join("; ");
 

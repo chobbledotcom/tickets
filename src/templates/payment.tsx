@@ -3,7 +3,6 @@
  */
 
 import type { Attendee, Event } from "#lib/types.ts";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /**
@@ -35,7 +34,7 @@ export const paymentPage = (
  */
 export const paymentSuccessPage = (_event: Event, thankYouUrl: string | null): string =>
   String(
-    <Layout title="Payment Successful">
+    <Layout title="Payment Successful" headExtra={thankYouUrl ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(thankYouUrl)}">` : undefined}>
         <h1>Payment Successful!</h1>
         <div class="success">
           <p>Thank you for your payment. Your ticket has been confirmed.</p>
@@ -44,9 +43,6 @@ export const paymentSuccessPage = (_event: Event, thankYouUrl: string | null): s
           <>
             <p>You will be redirected shortly...</p>
             <p><a href={thankYouUrl}>Click here if you are not redirected</a></p>
-            <script>
-              <Raw html={`setTimeout(function() { window.location.href = "${escapeHtml(thankYouUrl)}"; }, 3000);`} />
-            </script>
           </>
         ) : null}
     </Layout>

@@ -32,7 +32,7 @@ export const ticketViewPage = (entries: TokenEntry[], qrSvg: string): string => 
   return String(
     <Layout title="Your Tickets">
       <h1>Your Tickets</h1>
-      <div style="text-align:center;margin:1em 0">
+      <div class="text-center">
         <Raw html={qrSvg} />
       </div>
       <div class="table-scroll">
