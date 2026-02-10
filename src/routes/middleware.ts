@@ -26,7 +26,8 @@ const buildCspHeader = (embeddable: boolean): string =>
     !embeddable && "frame-ancestors 'none'",
     "default-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "script-src 'self' 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline' https://*.squarecdn.com https://js.squareup.com",
+    "connect-src 'self' https://pci-connect.squareup.com",
     "form-action 'self' https://checkout.stripe.com",
   ]).join("; ");
 
