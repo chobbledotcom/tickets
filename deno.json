@@ -1,6 +1,7 @@
 {
   "name": "tickets",
   "version": "1.0.0",
+  "exports": "./src/index.ts",
   "tasks": {
     "start": "deno run --allow-net --allow-env --allow-read src/index.ts",
     "build:edge": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-edge.ts",

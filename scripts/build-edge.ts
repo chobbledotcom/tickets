@@ -89,6 +89,9 @@ const result = await esbuild.build({
     "@bunny.net/edgescript-sdk",
     "@libsql/client",
     "@libsql/client/web",
+    "qrcode",
+    "stripe",
+    "square",
   ],
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
@@ -114,16 +117,28 @@ try {
 // Note: Both @libsql/client and @libsql/client/web get rewritten to the web version
 const finalContent = content
   .replace(
-    /from\s+["']@bunny\.net\/edgescript-sdk["']/g,
-    'from "https://esm.sh/@bunny.net/edgescript-sdk@0.11.0"',
+    /from\s*["']@bunny\.net\/edgescript-sdk["']/g,
+    'from"https://esm.sh/@bunny.net/edgescript-sdk@0.11.0"',
   )
   .replace(
-    /from\s+["']@libsql\/client\/web["']/g,
-    'from "https://esm.sh/@libsql/client@0.6.0/web"',
+    /from\s*["']@libsql\/client\/web["']/g,
+    'from"https://esm.sh/@libsql/client@0.6.0/web"',
   )
   .replace(
-    /from\s+["']@libsql\/client["']/g,
-    'from "https://esm.sh/@libsql/client@0.6.0/web"',
+    /from\s*["']@libsql\/client["']/g,
+    'from"https://esm.sh/@libsql/client@0.6.0/web"',
+  )
+  .replace(
+    /\bimport\(\s*["']qrcode["']\s*\)/g,
+    'import("https://esm.sh/qrcode@1.5.0")',
+  )
+  .replace(
+    /\bimport\(\s*["']stripe["']\s*\)/g,
+    'import("https://esm.sh/stripe@17.0.0")',
+  )
+  .replace(
+    /\bimport\(\s*["']square["']\s*\)/g,
+    'import("https://esm.sh/square@43.0.0")',
   );
 
 await Deno.writeTextFile("./bunny-script.ts", finalContent);
