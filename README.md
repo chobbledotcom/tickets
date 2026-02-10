@@ -1,4 +1,4 @@
-# Tickets
+# Chobble Tickets
 
 A self-hosted ticket reservation system. Runs on Bunny Edge Scripting with libsql (Turso). Encrypts all PII at rest. Handles free and paid events with Stripe or Square.
 
