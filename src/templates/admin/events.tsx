@@ -108,7 +108,7 @@ const DateSelector = ({ basePath, activeFilter, dateFilter, dates }: { basePath:
         `<option value="${basePath}${suffix}?date=${d.value}#attendees"${dateFilter === d.value ? " selected" : ""}>${d.label}</option>`,
     ),
   ].join("");
-  return `<select onchange="window.location.href=this.value">${options}</select>`;
+  return `<select data-nav-select>${options}</select>`;
 };
 
 export const adminEventPage = (
@@ -234,7 +234,7 @@ export const adminEventPage = (
                       id={`thank-you-url-${event.id}`}
                       value={event.thank_you_url}
                       readonly
-                      onclick="this.select()"
+                      data-select-on-click
                     />
                   ) : (
                     <em>None (shows simple success message)</em>
@@ -250,7 +250,7 @@ export const adminEventPage = (
                       id={`webhook-url-${event.id}`}
                       value={event.webhook_url}
                       readonly
-                      onclick="this.select()"
+                      data-select-on-click
                     />
                   </td>
                 </tr>
@@ -263,7 +263,7 @@ export const adminEventPage = (
                     id={`embed-code-${event.id}`}
                     value={embedCode}
                     readonly
-                    onclick="this.select()"
+                    data-select-on-click
                   />
                 </td>
               </tr>

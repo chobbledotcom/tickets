@@ -18,6 +18,7 @@ const minifiedCss = await minifyCss(rawCss);
 const STATIC_ASSETS: Record<string, string> = {
   "favicon.svg": await Deno.readTextFile("./src/static/favicon.svg"),
   "mvp.css": minifiedCss,
+  "admin.js": await Deno.readTextFile("./src/static/admin.js"),
 };
 
 /**
@@ -34,7 +35,7 @@ const inlineAssetsPlugin: Plugin = {
     }));
 
     build.onLoad({ filter: /.*/, namespace: "inline-asset-paths" }, () => ({
-      contents: `export const CSS_PATH = "/mvp.css?ts=${BUILD_TS}";`,
+      contents: `export const CSS_PATH = "/mvp.css?ts=${BUILD_TS}";\nexport const JS_PATH = "/admin.js?ts=${BUILD_TS}";`,
       loader: "ts",
     }));
 
@@ -48,6 +49,7 @@ const inlineAssetsPlugin: Plugin = {
       contents: `
         const faviconSvg = ${JSON.stringify(STATIC_ASSETS["favicon.svg"])};
         const mvpCss = ${JSON.stringify(STATIC_ASSETS["mvp.css"])};
+        const adminJs = ${JSON.stringify(STATIC_ASSETS["admin.js"])};
 
         const CACHE_HEADERS = {
           "cache-control": "public, max-age=31536000, immutable",
@@ -61,6 +63,11 @@ const inlineAssetsPlugin: Plugin = {
         export const handleFavicon = () =>
           new Response(faviconSvg, {
             headers: { "content-type": "image/svg+xml", ...CACHE_HEADERS },
+          });
+
+        export const handleAdminJs = () =>
+          new Response(adminJs, {
+            headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
           });
       `,
       loader: "ts",

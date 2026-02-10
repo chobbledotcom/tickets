@@ -1,5 +1,5 @@
 import { describe, expect, test } from "#test-compat";
-import { CSS_PATH } from "#src/config/asset-paths.ts";
+import { CSS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminEventPage, calculateTotalRevenue, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
@@ -30,6 +30,16 @@ describe("asset-paths", () => {
     const html = adminLoginPage();
     expect(html).toContain(`href="${CSS_PATH}"`);
     expect(html).toContain('rel="stylesheet"');
+  });
+
+  test("JS_PATH defaults to /admin.js in dev", () => {
+    expect(JS_PATH).toBe("/admin.js");
+  });
+
+  test("pages include JS_PATH in deferred script tag", () => {
+    const html = adminLoginPage();
+    expect(html).toContain(`src="${JS_PATH}"`);
+    expect(html).toContain("defer");
   });
 });
 
@@ -112,7 +122,7 @@ describe("html", () => {
       expect(html).toContain("Thank You URL");
       expect(html).toContain('value="https://example.com/thanks"');
       expect(html).toContain("readonly");
-      expect(html).toContain("this.select()");
+      expect(html).toContain("data-select-on-click");
     });
 
     test("shows public URL with allowed domain", () => {
@@ -394,10 +404,10 @@ describe("html", () => {
       expect(html).toContain("https://example.com/thanks");
     });
 
-    test("includes redirect script", () => {
+    test("includes meta refresh redirect", () => {
       const html = paymentSuccessPage(event, "https://example.com/thanks");
-      expect(html).toContain("setTimeout");
-      expect(html).toContain("window.location.href");
+      expect(html).toContain('http-equiv="refresh"');
+      expect(html).toContain("3;url=https://example.com/thanks");
     });
   });
 
