@@ -766,6 +766,30 @@ button.bulk-checkout:hover {
   display: inline;
 }
 
+button.link-button {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+button.link-button:hover {
+  filter: none;
+  text-decoration: none;
+}
+
+button.link-button.checkin {
+  color: #22863a;
+}
+
+button.link-button.checkout {
+  color: #cc0000;
+}
+
 /* Iframe embed mode */
 body.iframe main {
   padding: 0;

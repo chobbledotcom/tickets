@@ -41,12 +41,12 @@ export const nearCapacity = (event: EventWithCount): boolean =>
 const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter }): string => {
   const isCheckedIn = a.checked_in === "true";
   const label = isCheckedIn ? "Check out" : "Check in";
-  const buttonClass = isCheckedIn ? "checkout" : "checkin";
+  const buttonClass = isCheckedIn ? "link-button checkout" : "link-button checkin";
   return String(
     <form
       method="POST"
       action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
-      class="checkin-form inline"
+      class="inline"
     >
       <input type="hidden" name="csrf_token" value={csrfToken} />
       <input type="hidden" name="return_filter" value={activeFilter} />
@@ -60,6 +60,9 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; e
 const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showDate }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter; allowedDomain: string; showDate: boolean }): string =>
   String(
     <tr>
+      <td>
+        <Raw html={CheckinButton({ a, eventId, csrfToken, activeFilter })} />
+      </td>
       {showDate && <td>{a.date ? formatDateLabel(a.date) : ""}</td>}
       <td>{a.name}</td>
       <td>{a.email || ""}</td>
@@ -67,9 +70,6 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
       <td>{a.quantity}</td>
       <td><a href={`https://${allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
       <td>{new Date(a.created).toLocaleString()}</td>
-      <td>
-        <Raw html={CheckinButton({ a, eventId, csrfToken, activeFilter })} />
-      </td>
       <td>
         <a href={`/admin/event/${eventId}/attendee/${a.id}/delete`} class="danger">
           Delete
@@ -293,6 +293,7 @@ export const adminEventPage = (
             <table>
               <thead>
                 <tr>
+                  <th></th>
                   {isDaily && <th>Date</th>}
                   <th>Name</th>
                   <th>Email</th>
@@ -300,7 +301,6 @@ export const adminEventPage = (
                   <th>Qty</th>
                   <th>Ticket</th>
                   <th>Registered</th>
-                  <th></th>
                   <th></th>
                 </tr>
               </thead>

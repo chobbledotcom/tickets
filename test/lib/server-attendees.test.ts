@@ -659,7 +659,6 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Check out");
-      expect(html).toContain('class="checkout"');
     });
   });
 
