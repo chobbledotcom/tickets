@@ -99,49 +99,54 @@ const filterSuffix = (returnFilter: string | null): string => {
   return "";
 };
 
-/** Delete attendee handler with name verification */
-const attendeeDeleteHandler: RouteHandlerFn = (request, params) => {
-  const { eventId, attendeeId } = parseAttendeeIds(params);
-  return withAttendeeForm(request, eventId, attendeeId, async (data, session, form) => {
-    const confirmName = form.get("confirm_name") ?? "";
-    if (!verifyIdentifier(data.attendee.name, confirmName)) {
-      return htmlResponse(
-        adminDeleteAttendeePage(
-          data.event,
-          data.attendee,
-          session,
-          "Attendee name does not match. Please type the exact name to confirm deletion.",
-        ),
-        400,
-      );
-    }
+/** Route handler that parses attendee IDs and wraps withAttendeeForm */
+type AttendeeFormHandler = (
+  data: AttendeeWithEvent, session: AuthSession, form: URLSearchParams, eventId: number, attendeeId: number,
+) => Response | Promise<Response>;
+const attendeeFormRoute = (handler: AttendeeFormHandler): RouteHandlerFn =>
+  (request, params) => {
+    const { eventId, attendeeId } = parseAttendeeIds(params);
+    return withAttendeeForm(request, eventId, attendeeId, (data, session, form) =>
+      handler(data, session, form, eventId, attendeeId));
+  };
 
-    await deleteAttendee(attendeeId);
-    await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
-    return redirect(`/admin/event/${eventId}`);
-  });
-};
+/** Delete attendee handler with name verification */
+const attendeeDeleteHandler = attendeeFormRoute(async (data, session, form, eventId, attendeeId) => {
+  const confirmName = form.get("confirm_name") ?? "";
+  if (!verifyIdentifier(data.attendee.name, confirmName)) {
+    return htmlResponse(
+      adminDeleteAttendeePage(
+        data.event,
+        data.attendee,
+        session,
+        "Attendee name does not match. Please type the exact name to confirm deletion.",
+      ),
+      400,
+    );
+  }
+
+  await deleteAttendee(attendeeId);
+  await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
+  return redirect(`/admin/event/${eventId}`);
+});
 
 /** Checkin toggle handler */
-const attendeeCheckinHandler: RouteHandlerFn = (request, params) => {
-  const { eventId, attendeeId } = parseAttendeeIds(params);
-  return withAttendeeForm(request, eventId, attendeeId, async (data, _session, form) => {
-    const wasCheckedIn = data.attendee.checked_in === "true";
-    const nowCheckedIn = !wasCheckedIn;
+const attendeeCheckinHandler = attendeeFormRoute(async (data, _session, form, eventId, attendeeId) => {
+  const wasCheckedIn = data.attendee.checked_in === "true";
+  const nowCheckedIn = !wasCheckedIn;
 
-    await updateCheckedIn(attendeeId, nowCheckedIn);
+  await updateCheckedIn(attendeeId, nowCheckedIn);
 
-    const action = nowCheckedIn ? "checked in" : "checked out";
-    await logActivity(`Attendee ${action}`, eventId);
+  const action = nowCheckedIn ? "checked in" : "checked out";
+  await logActivity(`Attendee ${action}`, eventId);
 
-    const name = encodeURIComponent(data.attendee.name);
-    const status = nowCheckedIn ? "in" : "out";
-    const suffix = filterSuffix(form.get("return_filter"));
-    return redirect(
-      `/admin/event/${eventId}${suffix}?checkin_name=${name}&checkin_status=${status}#message`,
-    );
-  });
-};
+  const name = encodeURIComponent(data.attendee.name);
+  const status = nowCheckedIn ? "in" : "out";
+  const suffix = filterSuffix(form.get("return_filter"));
+  return redirect(
+    `/admin/event/${eventId}${suffix}?checkin_name=${name}&checkin_status=${status}#message`,
+  );
+});
 
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({

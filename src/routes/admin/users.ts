@@ -18,8 +18,7 @@ import {
 import { validateForm } from "#lib/forms.tsx";
 import { getAllowedDomain } from "#lib/config.ts";
 import { nowMs } from "#lib/now.ts";
-import { defineRoutes } from "#routes/router.ts";
-import type { RouteParams } from "#routes/router.ts";
+import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
   type AuthSession,
   generateSecureToken,
@@ -158,63 +157,64 @@ const withUserAction = (
     return handler(user, session, errorPage);
   });
 
+/** Route handler that delegates to withUserAction with parsed ID */
+const userActionRoute = (handler: UserActionHandler) =>
+  (request: Request, params: RouteParams): Promise<Response> =>
+    withUserAction(request, Number(params.id), handler);
+
 /**
  * Handle POST /admin/users/:id/activate
  */
-const handleUserActivate = (request: Request, params: RouteParams): Promise<Response> =>
-  withUserAction(request, Number(params.id), async (user, session, errorPage) => {
-    // User must have a password set
-    const userHasPassword = await hasPassword(user);
-    if (!userHasPassword) {
-      return errorPage("User has not set their password yet", 400);
-    }
+const handleUserActivate = userActionRoute(async (user, session, errorPage) => {
+  // User must have a password set
+  const userHasPassword = await hasPassword(user);
+  if (!userHasPassword) {
+    return errorPage("User has not set their password yet", 400);
+  }
 
-    // User must not already have a data key
-    if (user.wrapped_data_key) {
-      return errorPage("User is already activated", 400);
-    }
+  // User must not already have a data key
+  if (user.wrapped_data_key) {
+    return errorPage("User is already activated", 400);
+  }
 
-    // Get the data key from the current session
-    if (!session.wrappedDataKey) {
-      return errorPage("Cannot activate: session lacks data key", 500);
-    }
+  // Get the data key from the current session
+  if (!session.wrappedDataKey) {
+    return errorPage("Cannot activate: session lacks data key", 500);
+  }
 
-    const dataKey = await unwrapKeyWithToken(
-      session.wrappedDataKey,
-      session.token,
-    );
+  const dataKey = await unwrapKeyWithToken(
+    session.wrappedDataKey,
+    session.token,
+  );
 
-    // Decrypt user's password hash to derive their KEK
-    const { decrypt } = await import("#lib/crypto.ts");
-    const decryptedPasswordHash = await decrypt(user.password_hash);
+  // Decrypt user's password hash to derive their KEK
+  const { decrypt } = await import("#lib/crypto.ts");
+  const decryptedPasswordHash = await decrypt(user.password_hash);
 
-    await activateUser(user.id, dataKey, decryptedPasswordHash);
+  await activateUser(user.id, dataKey, decryptedPasswordHash);
 
-    return redirectWithSuccess("/admin/users", "User activated successfully");
-  });
+  return redirectWithSuccess("/admin/users", "User activated successfully");
+});
 
 /**
  * Handle POST /admin/users/:id/delete
  */
-const handleUserDelete = (request: Request, params: RouteParams): Promise<Response> =>
-  withUserAction(request, Number(params.id), async (user, session, errorPage) => {
-    // Cannot delete the owner who is performing the action
-    const adminLevel = await decryptAdminLevel(user);
-    if (adminLevel === "owner" && user.id === session.userId) {
-      return errorPage("Cannot delete your own account", 400);
-    }
+const handleUserDelete = userActionRoute(async (user, session, errorPage) => {
+  // Cannot delete the owner who is performing the action
+  const adminLevel = await decryptAdminLevel(user);
+  if (adminLevel === "owner" && user.id === session.userId) {
+    return errorPage("Cannot delete your own account", 400);
+  }
 
-    await deleteUser(user.id);
+  await deleteUser(user.id);
 
-    return redirectWithSuccess("/admin/users", "User deleted successfully");
-  });
+  return redirectWithSuccess("/admin/users", "User deleted successfully");
+});
 
 /** User management routes */
 export const usersRoutes = defineRoutes({
   "GET /admin/users": (request) => handleUsersGet(request),
   "POST /admin/users": (request) => handleUsersPost(request),
-  "POST /admin/users/:id/activate": (request, params) =>
-    handleUserActivate(request, params),
-  "POST /admin/users/:id/delete": (request, params) =>
-    handleUserDelete(request, params),
+  "POST /admin/users/:id/activate": handleUserActivate,
+  "POST /admin/users/:id/delete": handleUserDelete,
 });

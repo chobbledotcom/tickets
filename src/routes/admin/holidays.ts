@@ -7,7 +7,7 @@ import { getAllHolidays, type HolidayInput, holidaysTable } from "#lib/db/holida
 import { validateForm } from "#lib/forms.tsx";
 import { defineResource } from "#lib/rest/resource.ts";
 import type { AdminSession, Holiday } from "#lib/types.ts";
-import { defineRoutes, type RouteParams } from "#routes/router.ts";
+import { defineRoutes, type RouteHandlerFn, type RouteParams } from "#routes/router.ts";
 import { verifyIdentifier } from "#routes/admin/utils.ts";
 import {
   htmlResponse,
@@ -64,7 +64,7 @@ const handleHolidayNewGet = (request: Request): Promise<Response> =>
   );
 
 /** Handle POST /admin/holiday (create) */
-const handleHolidayCreate = (request: Request): Promise<Response> =>
+const handleHolidayCreate: RouteHandlerFn = (request) =>
   withOwnerAuthForm(request, async (session, form) => {
     const result = await holidaysResource.create(form);
     if (result.ok) {
@@ -161,7 +161,7 @@ const parseHolidayId = (params: RouteParams): number =>
 export const holidaysRoutes = defineRoutes({
   "GET /admin/holidays": (request) => handleHolidaysGet(request),
   "GET /admin/holiday/new": (request) => handleHolidayNewGet(request),
-  "POST /admin/holiday": (request) => handleHolidayCreate(request),
+  "POST /admin/holiday": handleHolidayCreate,
   "GET /admin/holiday/:id/edit": (request, params) =>
     handleHolidayEditGet(request, parseHolidayId(params)),
   "POST /admin/holiday/:id/edit": (request, params) =>

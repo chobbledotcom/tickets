@@ -351,19 +351,19 @@ describe("forms", () => {
     });
 
     test("renders select with hint", () => {
-      const fieldsSelect: Field = {
-        name: "fields",
-        label: "Contact Fields",
+      const selectWithHint: Field = {
+        name: "priority",
+        label: "Priority Level",
         type: "select",
-        hint: "Which contact details to collect",
+        hint: "Choose the priority for this item",
         options: [
-          { value: "email", label: "Email" },
-          { value: "phone", label: "Phone Number" },
-          { value: "both", label: "Email & Phone Number" },
+          { value: "low", label: "Low" },
+          { value: "medium", label: "Medium" },
+          { value: "high", label: "High" },
         ],
       };
-      const html = renderField(fieldsSelect);
-      expect(html).toContain("Which contact details to collect");
+      const html = renderField(selectWithHint);
+      expect(html).toContain("Choose the priority for this item");
     });
   });
 

@@ -105,13 +105,13 @@ const settingsPageWithError = (session: AuthSession) =>
   };
 
 type ErrorPageFn = (error: string, status: number) => Promise<Response>;
-type SettingsFormHandler = (form: URLSearchParams, errorPage: ErrorPageFn) => Response | Promise<Response>;
+type SettingsFormHandler = (form: URLSearchParams, errorPage: ErrorPageFn, session: AuthSession) => Response | Promise<Response>;
 
-/** Owner auth form route that provides the errorPage helper */
+/** Owner auth form route that provides the errorPage helper and session */
 const settingsRoute = (handler: SettingsFormHandler) =>
   (request: Request): Promise<Response> =>
     withOwnerAuthForm(request, (session, form) =>
-      handler(form, settingsPageWithError(session)));
+      handler(form, settingsPageWithError(session), session));
 
 /**
  * Handle GET /admin/settings - owner only
@@ -157,34 +157,32 @@ const validateChangePasswordForm = (
 /**
  * Handle POST /admin/settings - change password (owner only)
  */
-const handleAdminSettingsPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (session, form) => {
-    const errorPage = settingsPageWithError(session);
-    const validation = validateChangePasswordForm(form);
-    if (!validation.valid) {
-      return errorPage(validation.error, 400);
-    }
+const handleAdminSettingsPost = settingsRoute(async (form, errorPage, session) => {
+  const validation = validateChangePasswordForm(form);
+  if (!validation.valid) {
+    return errorPage(validation.error, 400);
+  }
 
-    // Load current user (guaranteed to exist since session was just validated)
-    const user = (await getUserById(session.userId))!;
+  // Load current user (guaranteed to exist since session was just validated)
+  const user = (await getUserById(session.userId))!;
 
-    const passwordHash = await verifyUserPassword(user, validation.currentPassword);
-    if (!passwordHash) {
-      return errorPage("Current password is incorrect", 401);
-    }
+  const passwordHash = await verifyUserPassword(user, validation.currentPassword);
+  if (!passwordHash) {
+    return errorPage("Current password is incorrect", 401);
+  }
 
-    const success = await updateUserPassword(
-      session.userId,
-      passwordHash,
-      user.wrapped_data_key!,
-      validation.newPassword,
-    );
-    if (!success) {
-      return errorPage("Failed to update password", 500);
-    }
+  const success = await updateUserPassword(
+    session.userId,
+    passwordHash,
+    user.wrapped_data_key!,
+    validation.newPassword,
+  );
+  if (!success) {
+    return errorPage("Failed to update password", 500);
+  }
 
-    return redirect("/admin", clearSessionCookie);
-  });
+  return redirect("/admin", clearSessionCookie);
+});
 
 /** Valid payment provider values from the form */
 const VALID_PROVIDERS: ReadonlySet<string> = new Set<PaymentProviderType>([

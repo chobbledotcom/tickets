@@ -7,13 +7,13 @@
 		"**/node_modules/**",
 		"**/package-lock.json",
 		"**/deno.lock",
-		"src/fp/index.ts"
+		"**/fp/index.ts"
 	],
 	"format": ["typescript", "json"],
 	"absolute": false,
 	"gitignore": true,
 	"exitCode": 1,
 	"minLines": 1,
-	"minTokens": 55,
+	"minTokens": 25,
 	"path": ["src", "test", "scripts"]
 }
