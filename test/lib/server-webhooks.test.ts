@@ -118,6 +118,7 @@ describe("server (webhooks)", () => {
             object: {
               id: "cs_test",
               payment_status: "paid",
+              amount_total: 0,
               metadata: {}, // Missing required fields
             },
           },
@@ -159,6 +160,7 @@ describe("server (webhooks)", () => {
               id: "cs_test",
               payment_status: "unpaid",
               payment_intent: "pi_test",
+              amount_total: 1000,
               metadata: {
                 event_id: String(event.id),
                 name: "John",
@@ -206,6 +208,7 @@ describe("server (webhooks)", () => {
               id: "cs_webhook_test",
               payment_status: "paid",
               payment_intent: "pi_webhook_test",
+              amount_total: 1000,
               metadata: {
                 event_id: String(event.id),
                 name: "Webhook User",
@@ -265,6 +268,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_webhook",
               payment_status: "paid",
               payment_intent: "pi_multi_webhook",
+              amount_total: 2000,
               metadata: {
                 name: "Multi User",
                 email: "multi@example.com",
@@ -320,6 +324,7 @@ describe("server (webhooks)", () => {
               id: "cs_bad_multi",
               payment_status: "paid",
               payment_intent: "pi_bad",
+              amount_total: 0,
               metadata: {
                 name: "Bad Multi",
                 email: "bad@example.com",
@@ -369,6 +374,7 @@ describe("server (webhooks)", () => {
               id: "cs_soldout",
               payment_status: "paid",
               payment_intent: "pi_soldout",
+              amount_total: 1000,
               metadata: {
                 event_id: String(event.id),
                 name: "Late Buyer",
@@ -525,6 +531,7 @@ describe("server (webhooks)", () => {
               id: "cs_pi_extract",
               payment_status: "paid",
               payment_intent: "pi_extracted_ref",
+              amount_total: 1000,
               metadata: {
                 event_id: String(event.id),
                 name: "PI User",
@@ -572,6 +579,7 @@ describe("server (webhooks)", () => {
               id: "cs_non_array",
               payment_status: "paid",
               payment_intent: "pi_non_array",
+              amount_total: 0,
               metadata: {
                 name: "Test",
                 email: "test@example.com",
@@ -613,6 +621,7 @@ describe("server (webhooks)", () => {
               id: "cs_no_items",
               payment_status: "paid",
               payment_intent: "pi_no_items",
+              amount_total: 0,
               metadata: {
                 name: "Test",
                 email: "test@example.com",
@@ -970,6 +979,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_already_done",
               payment_status: "paid",
               payment_intent: "pi_already_done",
+              amount_total: 500,
               metadata: {
                 name: "Already Done",
                 email: "already@example.com",
@@ -1023,6 +1033,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_inactive_wh",
               payment_status: "paid",
               payment_intent: "pi_multi_inactive_wh",
+              amount_total: 1000,
               metadata: {
                 name: "Multi Inactive",
                 email: "inactive@example.com",
@@ -1090,6 +1101,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_soldout_wh",
               payment_status: "paid",
               payment_intent: "pi_multi_soldout_wh",
+              amount_total: 1000,
               metadata: {
                 name: "Sold Out Multi",
                 email: "soldout@example.com",
@@ -1196,6 +1208,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_ok",
               payment_status: "paid",
               payment_intent: "pi_multi_ok",
+              amount_total: 1100,
               metadata: {
                 name: "Multi Buyer",
                 email: "multi@example.com",
@@ -1240,6 +1253,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_notfound",
               payment_status: "paid",
               payment_intent: "pi_multi_notfound",
+              amount_total: 1000,
               metadata: {
                 name: "Multi NotFound",
                 email: "notfound@example.com",
@@ -1301,6 +1315,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_cap",
               payment_status: "paid",
               payment_intent: "pi_multi_cap",
+              amount_total: 800,
               metadata: {
                 name: "Multi Cap",
                 email: "cap@example.com",
@@ -1364,6 +1379,7 @@ describe("server (webhooks)", () => {
               id: "cs_del_event_wh",
               payment_status: "paid",
               payment_intent: "pi_del_event_wh",
+              amount_total: 1000,
               metadata: {
                 name: "Deleted Event",
                 email: "deleted@example.com",
@@ -1411,6 +1427,7 @@ describe("server (webhooks)", () => {
             object: {
               id: "cs_noref",
               payment_status: "paid",
+              amount_total: 500,
               metadata: {
                 name: "No Ref",
                 email: "noref@example.com",
@@ -1539,6 +1556,7 @@ describe("server (webhooks)", () => {
               id: "cs_tryrefund_noprov",
               payment_status: "paid",
               payment_intent: "pi_tryrefund_noprov",
+              amount_total: 500,
               metadata: {
                 name: "No Provider",
                 email: "noprov@example.com",
@@ -1588,6 +1606,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_rollback_cleanup",
               payment_status: "paid",
               payment_intent: "pi_multi_rollback",
+              amount_total: 500,
               metadata: {
                 name: "Rollback Test",
                 email: "rollback@example.com",
@@ -2213,6 +2232,7 @@ describe("server (webhooks)", () => {
               id: "cs_closed_wh",
               payment_status: "paid",
               payment_intent: "pi_closed_wh",
+              amount_total: 1000,
               metadata: {
                 event_id: String(event.id),
                 name: "Jane",
@@ -2269,6 +2289,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_closed",
               payment_status: "paid",
               payment_intent: "pi_multi_closed",
+              amount_total: 1500,
               metadata: {
                 name: "Jane",
                 email: "jane@example.com",
@@ -2337,6 +2358,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_daily",
               payment_status: "paid",
               payment_intent: "pi_multi_daily",
+              amount_total: 800,
               metadata: {
                 name: "Multi Daily Buyer",
                 email: "multidaily@example.com",

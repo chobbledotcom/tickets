@@ -548,7 +548,7 @@ type WebhookSessionData = {
   id: string;
   payment_status: string;
   payment_intent: string | null;
-  amount_total?: number;
+  amount_total: number;
   metadata: SessionMetadata;
 };
 
@@ -567,6 +567,7 @@ const extractSessionFromEvent = (
   if (
     typeof obj.id !== "string" ||
     typeof obj.payment_status !== "string" ||
+    typeof obj.amount_total !== "number" ||
     !obj.metadata ||
     typeof obj.metadata.name !== "string" ||
     typeof obj.metadata.email !== "string"
@@ -579,7 +580,7 @@ const extractSessionFromEvent = (
     paymentStatus: obj.payment_status as ValidatedPaymentSession["paymentStatus"],
     paymentReference:
       typeof obj.payment_intent === "string" ? obj.payment_intent : null,
-    amountTotal: typeof obj.amount_total === "number" ? obj.amount_total : 0,
+    amountTotal: obj.amount_total,
     metadata: {
       event_id: obj.metadata.event_id,
       name: obj.metadata.name,
