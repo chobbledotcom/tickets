@@ -11,6 +11,7 @@ import { getAllDailyEvents, getDailyEventAttendeeDates, getDailyEventAttendeesBy
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { defineRoutes } from "#routes/router.ts";
+import { csvResponse, getDateFilter } from "#routes/admin/utils.ts";
 import {
   getPrivateKey,
   htmlResponse,
@@ -19,13 +20,6 @@ import {
 } from "#routes/utils.ts";
 import { adminCalendarPage, type CalendarAttendeeRow, type CalendarDateOption } from "#templates/admin/calendar.tsx";
 import { type CalendarAttendee, generateCalendarCsv } from "#templates/csv.ts";
-
-/** Extract and validate ?date= query parameter */
-const getDateFilter = (request: Request): string | null => {
-  const date = new URL(request.url).searchParams.get("date");
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  return date;
-};
 
 /** Compile all possible dates from events (available + existing attendee dates) */
 const compileDateOptions = (
@@ -69,12 +63,17 @@ const buildCalendarAttendees = (
   })(attendees);
 };
 
+/** Auth + parse date filter from request, then call handler */
+const withCalendarSession = (
+  request: Request,
+  handler: (session: Parameters<Parameters<typeof requireSessionOr>[1]>[0], dateFilter: string | null) => Response | Promise<Response>,
+) => requireSessionOr(request, (session) => handler(session, getDateFilter(request)));
+
 /**
  * Handle GET /admin/calendar
  */
 const handleAdminCalendarGet = (request: Request) =>
-  requireSessionOr(request, async (session) => {
-    const dateFilter = getDateFilter(request);
+  withCalendarSession(request, async (session, dateFilter) => {
     const [events, attendeeDates, holidays] = await Promise.all([
       getAllDailyEvents(),
       getDailyEventAttendeeDates(),
@@ -105,8 +104,7 @@ const handleAdminCalendarGet = (request: Request) =>
  * Handle GET /admin/calendar/export (CSV export for calendar view)
  */
 const handleAdminCalendarExport = (request: Request) =>
-  requireSessionOr(request, async (session) => {
-    const dateFilter = getDateFilter(request);
+  withCalendarSession(request, async (session, dateFilter) => {
     if (!dateFilter) return redirect("/admin/calendar");
 
     const privateKey = (await getPrivateKey(session))!;
@@ -122,12 +120,7 @@ const handleAdminCalendarExport = (request: Request) =>
     const csv = generateCalendarCsv(calendarAttendees);
     const filename = `calendar_${dateFilter}_attendees.csv`;
     await logActivity(`Calendar CSV exported for date ${dateFilter}`);
-    return new Response(csv, {
-      headers: {
-        "content-type": "text/csv; charset=utf-8",
-        "content-disposition": `attachment; filename="${filename}"`,
-      },
-    });
+    return csvResponse(csv, filename);
   });
 
 /** Calendar routes */

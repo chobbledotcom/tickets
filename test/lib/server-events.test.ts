@@ -1191,6 +1191,18 @@ describe("server (admin events)", () => {
       const event = await getEvent(1);
       expect(event).toBeNull();
     });
+
+    test("returns 404 when event not found with verify_identifier=false", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/9999/delete?verify_identifier=false",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
   });
 
   describe("DELETE /admin/event/:id/delete", () => {
@@ -1893,7 +1905,8 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown singular forms", () => {
-      const future = new Date(nowMs() + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString();
+      // Add 30s buffer so elapsed time between nowMs() calls doesn't push hours below boundary
+      const future = new Date(nowMs() + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000 + 30_000).toISOString();
       expect(formatCountdown(future)).toBe("1 day and 1 hour from now");
     });
 

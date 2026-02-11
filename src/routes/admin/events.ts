@@ -26,13 +26,12 @@ import { generateSlug, normalizeSlug } from "#lib/slug.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
 import { defineRoutes, type RouteParams } from "#routes/router.ts";
+import { csvResponse, getDateFilter, verifyIdentifier } from "#routes/admin/utils.ts";
 import {
-  getAuthenticatedSession,
   getPrivateKey,
   htmlResponse,
   notFoundResponse,
   redirect,
-  requireAuthForm,
   requireSessionOr,
   withAuthForm,
   withEvent,
@@ -118,27 +117,18 @@ type EventAttendeesContext = {
  * Handle event with attendees - auth, fetch, then apply handler fn.
  * Uses batched query to fetch event + attendees in a single DB round-trip.
  */
-const withEventAttendees = async (
+const withEventAttendees = (
   request: Request,
   eventId: number,
   handler: (ctx: EventAttendeesContext) => Response | Promise<Response>,
-): Promise<Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return redirect("/admin");
-  }
-
-  const privateKey = (await getPrivateKey(session))!;
-
-  // Fetch event and attendees in single DB round-trip
-  const result = await getEventWithAttendeesRaw(eventId);
-  if (!result) {
-    return notFoundResponse();
-  }
-
-  const attendees = await decryptAttendees(result.attendeesRaw, privateKey);
-  return handler({ event: result.event, attendees, session });
-};
+): Promise<Response> =>
+  requireSessionOr(request, async (session) => {
+    const privateKey = (await getPrivateKey(session))!;
+    const result = await getEventWithAttendeesRaw(eventId);
+    if (!result) return notFoundResponse();
+    const attendees = await decryptAttendees(result.attendeesRaw, privateKey);
+    return handler({ event: result.event, attendees, session });
+  });
 
 /**
  * Handle POST /admin/event (create event)
@@ -160,13 +150,6 @@ const getCheckinMessage = (request: Request): { name: string; status: string } |
     return { name, status };
   }
   return null;
-};
-
-/** Extract and validate ?date= query parameter. Returns null if absent or invalid. */
-const getDateFilter = (request: Request): string | null => {
-  const date = new URL(request.url).searchParams.get("date");
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  return date;
 };
 
 /** Filter attendees by date for daily events */
@@ -242,33 +225,31 @@ const handleAdminEventDuplicateGet = withEventPage(adminDuplicateEventPage);
 const handleAdminEventEditGet = withEventPage(adminEventEditPage);
 
 /** Handle POST /admin/event/:id/edit */
-const handleAdminEventEditPost = async (
+const handleAdminEventEditPost = (
   request: Request,
   eventId: number,
-): Promise<Response> => {
-  const auth = await requireAuthForm(request);
-  if (!auth.ok) return auth.response;
+): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const existing = await getEventWithCount(eventId);
+    if (!existing) return notFoundResponse();
 
-  const existing = await getEventWithCount(eventId);
-  if (!existing) return notFoundResponse();
+    // Build a resource that includes the slug field and validates uniqueness
+    const updateResource = defineResource({
+      table: eventsTable,
+      fields: [...eventFields, slugField],
+      toInput: extractEventUpdateInput,
+      nameField: "name",
+      validate: async (input, id) => {
+        const taken = await isSlugTaken(input.slug, Number(id));
+        return taken ? "Slug is already in use by another event" : null;
+      },
+    });
 
-  // Build a resource that includes the slug field and validates uniqueness
-  const updateResource = defineResource({
-    table: eventsTable,
-    fields: [...eventFields, slugField],
-    toInput: extractEventUpdateInput,
-    nameField: "name",
-    validate: async (input, id) => {
-      const taken = await isSlugTaken(input.slug, Number(id));
-      return taken ? "Slug is already in use by another event" : null;
-    },
+    const result = await updateResource.update(eventId, form);
+    if (result.ok) return redirect(`/admin/event/${result.row.id}`);
+    if ("notFound" in result) return notFoundResponse();
+    return eventErrorPage(eventId, adminEventEditPage, session, result.error);
   });
-
-  const result = await updateResource.update(eventId, auth.form);
-  if (result.ok) return redirect(`/admin/event/${result.row.id}`);
-  if ("notFound" in result) return notFoundResponse();
-  return eventErrorPage(eventId, adminEventEditPage, auth.session, result.error);
-};
 
 /**
  * Handle GET /admin/event/:id/export (CSV export)
@@ -284,12 +265,7 @@ const handleAdminEventExport = (request: Request, eventId: number) =>
       ? `${sanitizedName}_${dateFilter}_attendees.csv`
       : `${sanitizedName}_attendees.csv`;
     await logActivity(`CSV exported for '${event.name}'${dateFilter ? ` (date: ${dateFilter})` : ""}`, event);
-    return new Response(csv, {
-      headers: {
-        "content-type": "text/csv; charset=utf-8",
-        "content-disposition": `attachment; filename="${filename}"`,
-      },
-    });
+    return csvResponse(csv, filename);
   });
 
 /** Handle GET /admin/event/:id/deactivate (show confirmation page) */
@@ -298,10 +274,13 @@ const handleAdminEventDeactivateGet = withEventPage(adminDeactivateEventPage);
 /** Handle GET /admin/event/:id/reactivate (show confirmation page) */
 const handleAdminEventReactivateGet = withEventPage(adminReactivateEventPage);
 
-/** Handle POST /admin/event/:id/deactivate */
-const handleAdminEventDeactivatePost = (
+/** Handle POST for event action with confirmation */
+const handleEventWithConfirmation = (
   request: Request,
   eventId: number,
+  renderPage: (event: EventWithCount, session: AdminSession, error?: string) => string,
+  errorMsg: string,
+  action: (event: EventWithCount) => Promise<Response>,
 ): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
     const event = await getEventWithCount(eventId);
@@ -311,14 +290,20 @@ const handleAdminEventDeactivatePost = (
 
     const confirmIdentifier = form.get("confirm_identifier") ?? "";
     if (!verifyIdentifier(event.name, confirmIdentifier)) {
-      return eventErrorPage(
-        eventId,
-        adminDeactivateEventPage,
-        session,
-        "Event name does not match. Please type the exact name to confirm.",
-      );
+      return eventErrorPage(eventId, renderPage, session, errorMsg);
     }
 
+    return action(event);
+  });
+
+const CONFIRM_NAME_MSG = "Event name does not match. Please type the exact name to confirm.";
+
+/** Handle POST /admin/event/:id/deactivate */
+const handleAdminEventDeactivatePost = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  handleEventWithConfirmation(request, eventId, adminDeactivateEventPage, CONFIRM_NAME_MSG, async (event) => {
     await eventsTable.update(eventId, { active: 0 });
     await logActivity(`Event '${event.name}' deactivated`, eventId);
     return redirect(`/admin/event/${eventId}`);
@@ -329,22 +314,7 @@ const handleAdminEventReactivatePost = (
   request: Request,
   eventId: number,
 ): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
-    const event = await getEventWithCount(eventId);
-    if (!event) {
-      return notFoundResponse();
-    }
-
-    const confirmIdentifier = form.get("confirm_identifier") ?? "";
-    if (!verifyIdentifier(event.name, confirmIdentifier)) {
-      return eventErrorPage(
-        eventId,
-        adminReactivateEventPage,
-        session,
-        "Event name does not match. Please type the exact name to confirm.",
-      );
-    }
-
+  handleEventWithConfirmation(request, eventId, adminReactivateEventPage, CONFIRM_NAME_MSG, async (event) => {
     await eventsTable.update(eventId, { active: 1 });
     await logActivity(`Event '${event.name}' reactivated`, eventId);
     return redirect(`/admin/event/${eventId}`);
@@ -369,44 +339,35 @@ const handleAdminEventLog = (
     return htmlResponse(adminEventActivityLogPage(result.event, result.entries, session));
   });
 
-/** Verify identifier matches for deletion confirmation (case-insensitive, trimmed) */
-const verifyIdentifier = (expected: string, provided: string): boolean =>
-  expected.trim().toLowerCase() === provided.trim().toLowerCase();
-
 /** Check if identifier verification should be skipped (for API users) */
 const needsVerify = (req: Request): boolean =>
   new URL(req.url).searchParams.get("verify_identifier") !== "false";
+
+/** Perform event deletion */
+const performDelete = async (event: EventWithCount): Promise<Response> => {
+  const attendeeCount = event.attendee_count;
+  await deleteEvent(event.id);
+  await logActivity(
+    `Event '${event.name}' deleted (${attendeeCount} attendee(s) removed)`,
+  );
+  return redirect("/admin");
+};
 
 /** Handle DELETE /admin/event/:id (delete event with logging) */
 const handleAdminEventDelete = (
   request: Request,
   eventId: number,
 ): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
-    const event = await getEventWithCount(eventId);
-    if (!event) {
-      return notFoundResponse();
-    }
-
-    if (needsVerify(request)) {
-      const confirmIdentifier = form.get("confirm_identifier") ?? "";
-      if (!verifyIdentifier(event.name, confirmIdentifier)) {
-        return eventErrorPage(
-          eventId,
-          adminDeleteEventPage,
-          session,
-          "Event name does not match. Please type the exact name to confirm deletion.",
-        );
-      }
-    }
-
-    const attendeeCount = event.attendee_count;
-    await deleteEvent(eventId);
-    await logActivity(
-      `Event '${event.name}' deleted (${attendeeCount} attendee(s) removed)`,
-    );
-    return redirect("/admin");
-  });
+  needsVerify(request)
+    ? handleEventWithConfirmation(
+        request, eventId, adminDeleteEventPage,
+        "Event name does not match. Please type the exact name to confirm deletion.",
+        performDelete,
+      )
+    : withAuthForm(request, async () => {
+        const event = await getEventWithCount(eventId);
+        return event ? performDelete(event) : notFoundResponse();
+      });
 
 /** Parse event ID from params (route pattern guarantees :id exists as \d+) */
 const parseEventId = (params: RouteParams): number =>

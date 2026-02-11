@@ -29,10 +29,10 @@ import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
-import type { AdminSession } from "#lib/types.ts";
 import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
+  type AuthSession,
   getSearchParam,
   htmlResponse,
   redirect,
@@ -79,7 +79,7 @@ const getSettingsPageState = async () => {
 
 /** Render the settings page with current state */
 const renderSettingsPage = async (
-  session: AdminSession,
+  session: AuthSession,
   error?: string,
   success?: string,
 ) => {
@@ -96,6 +96,22 @@ const renderSettingsPage = async (
     state.embedHosts,
   );
 };
+
+/** Render settings page with error at given status */
+const settingsPageWithError = (session: AuthSession) =>
+  async (error: string, status: number): Promise<Response> => {
+    const html = await renderSettingsPage(session, error);
+    return htmlResponse(html, status);
+  };
+
+type ErrorPageFn = (error: string, status: number) => Promise<Response>;
+type SettingsFormHandler = (form: URLSearchParams, errorPage: ErrorPageFn, session: AuthSession) => Response | Promise<Response>;
+
+/** Owner auth form route that provides the errorPage helper and session */
+const settingsRoute = (handler: SettingsFormHandler) =>
+  (request: Request): Promise<Response> =>
+    withOwnerAuthForm(request, (session, form) =>
+      handler(form, settingsPageWithError(session), session));
 
 /**
  * Handle GET /admin/settings - owner only
@@ -141,36 +157,32 @@ const validateChangePasswordForm = (
 /**
  * Handle POST /admin/settings - change password (owner only)
  */
-const handleAdminSettingsPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (session, form) => {
-    const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session, error), status);
+const handleAdminSettingsPost = settingsRoute(async (form, errorPage, session) => {
+  const validation = validateChangePasswordForm(form);
+  if (!validation.valid) {
+    return errorPage(validation.error, 400);
+  }
 
-    const validation = validateChangePasswordForm(form);
-    if (!validation.valid) {
-      return settingsPageWithError(validation.error, 400);
-    }
+  // Load current user (guaranteed to exist since session was just validated)
+  const user = (await getUserById(session.userId))!;
 
-    // Load current user (guaranteed to exist since session was just validated)
-    const user = (await getUserById(session.userId))!;
+  const passwordHash = await verifyUserPassword(user, validation.currentPassword);
+  if (!passwordHash) {
+    return errorPage("Current password is incorrect", 401);
+  }
 
-    const passwordHash = await verifyUserPassword(user, validation.currentPassword);
-    if (!passwordHash) {
-      return settingsPageWithError("Current password is incorrect", 401);
-    }
+  const success = await updateUserPassword(
+    session.userId,
+    passwordHash,
+    user.wrapped_data_key!,
+    validation.newPassword,
+  );
+  if (!success) {
+    return errorPage("Failed to update password", 500);
+  }
 
-    const success = await updateUserPassword(
-      session.userId,
-      passwordHash,
-      user.wrapped_data_key!,
-      validation.newPassword,
-    );
-    if (!success) {
-      return settingsPageWithError("Failed to update password", 500);
-    }
-
-    return redirect("/admin", clearSessionCookie);
-  });
+  return redirect("/admin", clearSessionCookie);
+});
 
 /** Valid payment provider values from the form */
 const VALID_PROVIDERS: ReadonlySet<string> = new Set<PaymentProviderType>([
@@ -181,118 +193,102 @@ const VALID_PROVIDERS: ReadonlySet<string> = new Set<PaymentProviderType>([
 /**
  * Handle POST /admin/settings/payment-provider - owner only
  */
-const handlePaymentProviderPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (session, form) => {
-    const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session, error), status);
+const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
+  const provider = form.get("payment_provider") ?? "";
 
-    const provider = form.get("payment_provider") ?? "";
+  if (provider === "none") {
+    await clearPaymentProvider();
+    return redirectWithSuccess("/admin/settings", "Payment provider disabled");
+  }
 
-    if (provider === "none") {
-      await clearPaymentProvider();
-      return redirectWithSuccess("/admin/settings", "Payment provider disabled");
-    }
+  if (!VALID_PROVIDERS.has(provider)) {
+    return errorPage("Invalid payment provider", 400);
+  }
 
-    if (!VALID_PROVIDERS.has(provider)) {
-      return settingsPageWithError("Invalid payment provider", 400);
-    }
+  await setPaymentProvider(provider);
 
-    await setPaymentProvider(provider);
-
-    return redirectWithSuccess("/admin/settings", `Payment provider set to ${provider}`);
-  });
+  return redirectWithSuccess("/admin/settings", `Payment provider set to ${provider}`);
+});
 
 /**
  * Handle POST /admin/settings/stripe - owner only
  */
-const handleAdminStripePost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (session, form) => {
-    const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session, error), status);
+const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
+  const validation = validateForm<StripeKeyFormValues>(form, stripeKeyFields);
+  if (!validation.valid) {
+    return errorPage(validation.error, 400);
+  }
 
-    const validation = validateForm<StripeKeyFormValues>(form, stripeKeyFields);
-    if (!validation.valid) {
-      return settingsPageWithError(validation.error, 400);
-    }
+  const { stripe_secret_key: stripeSecretKey } = validation.values;
 
-    const { stripe_secret_key: stripeSecretKey } = validation.values;
+  // Set up webhook endpoint automatically
+  const webhookUrl = getWebhookUrl();
+  const existingEndpointId = await getStripeWebhookEndpointId();
 
-    // Set up webhook endpoint automatically
-    const webhookUrl = getWebhookUrl();
-    const existingEndpointId = await getStripeWebhookEndpointId();
+  const webhookResult = await setupWebhookEndpoint(
+    stripeSecretKey,
+    webhookUrl,
+    existingEndpointId,
+  );
 
-    const webhookResult = await setupWebhookEndpoint(
-      stripeSecretKey,
-      webhookUrl,
-      existingEndpointId,
+  if (!webhookResult.success) {
+    return errorPage(
+      `Failed to set up Stripe webhook: ${webhookResult.error}`,
+      400,
     );
+  }
 
-    if (!webhookResult.success) {
-      return settingsPageWithError(
-        `Failed to set up Stripe webhook: ${webhookResult.error}`,
-        400,
-      );
-    }
+  // Store both the Stripe key and webhook config
+  await updateStripeKey(stripeSecretKey);
+  await setStripeWebhookConfig(webhookResult);
 
-    // Store both the Stripe key and webhook config
-    await updateStripeKey(stripeSecretKey);
-    await setStripeWebhookConfig(webhookResult);
+  // Auto-set payment provider to stripe when key is configured
+  await setPaymentProvider("stripe");
 
-    // Auto-set payment provider to stripe when key is configured
-    await setPaymentProvider("stripe");
-
-    return redirectWithSuccess(
-      "/admin/settings",
-      "Stripe key updated and webhook configured successfully",
-    );
-  });
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Stripe key updated and webhook configured successfully",
+  );
+});
 
 /**
  * Handle POST /admin/settings/square - owner only
  */
-const handleAdminSquarePost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (session, form) => {
-    const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session, error), status);
+const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
+  const validation = validateForm<SquareTokenFormValues>(form, squareAccessTokenFields);
+  if (!validation.valid) {
+    return errorPage(validation.error, 400);
+  }
 
-    const validation = validateForm<SquareTokenFormValues>(form, squareAccessTokenFields);
-    if (!validation.valid) {
-      return settingsPageWithError(validation.error, 400);
-    }
+  const { square_access_token: accessToken, square_location_id: locationId } = validation.values;
 
-    const { square_access_token: accessToken, square_location_id: locationId } = validation.values;
+  await updateSquareAccessToken(accessToken);
+  await updateSquareLocationId(locationId);
 
-    await updateSquareAccessToken(accessToken);
-    await updateSquareLocationId(locationId);
+  // Auto-set payment provider to square when credentials are configured
+  await setPaymentProvider("square");
 
-    // Auto-set payment provider to square when credentials are configured
-    await setPaymentProvider("square");
-
-    return redirectWithSuccess("/admin/settings", "Square credentials updated successfully");
-  });
+  return redirectWithSuccess("/admin/settings", "Square credentials updated successfully");
+});
 
 /**
  * Handle POST /admin/settings/square-webhook - owner only
  */
-const handleAdminSquareWebhookPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (session, form) => {
-    const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session, error), status);
+const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
+  const validation = validateForm<SquareWebhookFormValues>(form, squareWebhookFields);
+  if (!validation.valid) {
+    return errorPage(validation.error, 400);
+  }
 
-    const validation = validateForm<SquareWebhookFormValues>(form, squareWebhookFields);
-    if (!validation.valid) {
-      return settingsPageWithError(validation.error, 400);
-    }
+  const { square_webhook_signature_key: signatureKey } = validation.values;
 
-    const { square_webhook_signature_key: signatureKey } = validation.values;
+  await updateSquareWebhookSignatureKey(signatureKey);
 
-    await updateSquareWebhookSignatureKey(signatureKey);
-
-    return redirectWithSuccess(
-      "/admin/settings",
-      "Square webhook signature key updated successfully",
-    );
-  });
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Square webhook signature key updated successfully",
+  );
+});
 
 /**
  * Handle POST /admin/settings/stripe/test - owner only
@@ -308,30 +304,26 @@ const handleStripeTestPost = (request: Request): Promise<Response> =>
 /**
  * Handle POST /admin/settings/embed-hosts - owner only
  */
-const handleEmbedHostsPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (session, form) => {
-    const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session, error), status);
+const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
+  const raw = form.get("embed_hosts") ?? "";
+  const trimmed = raw.trim();
 
-    const raw = form.get("embed_hosts") ?? "";
-    const trimmed = raw.trim();
+  // Empty = clear restriction
+  if (trimmed === "") {
+    await updateEmbedHosts("");
+    return redirectWithSuccess("/admin/settings", "Embed host restrictions removed");
+  }
 
-    // Empty = clear restriction
-    if (trimmed === "") {
-      await updateEmbedHosts("");
-      return redirectWithSuccess("/admin/settings", "Embed host restrictions removed");
-    }
+  const error = validateEmbedHosts(trimmed);
+  if (error) {
+    return errorPage(error, 400);
+  }
 
-    const error = validateEmbedHosts(trimmed);
-    if (error) {
-      return settingsPageWithError(error, 400);
-    }
-
-    // Normalize: trim, lowercase, rejoin
-    const normalized = parseEmbedHosts(trimmed).join(", ");
-    await updateEmbedHosts(normalized);
-    return redirectWithSuccess("/admin/settings", "Allowed embed hosts updated");
-  });
+  // Normalize: trim, lowercase, rejoin
+  const normalized = parseEmbedHosts(trimmed).join(", ");
+  await updateEmbedHosts(normalized);
+  return redirectWithSuccess("/admin/settings", "Allowed embed hosts updated");
+});
 
 /**
  * Expected confirmation phrase for database reset
@@ -342,24 +334,20 @@ const RESET_DATABASE_PHRASE =
 /**
  * Handle POST /admin/settings/reset-database - owner only
  */
-const handleResetDatabasePost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (session, form) => {
-    const settingsPageWithError = async (error: string, status: number) =>
-      htmlResponse(await renderSettingsPage(session, error), status);
+const handleResetDatabasePost = settingsRoute(async (form, errorPage) => {
+  const confirmPhrase = form.get("confirm_phrase") ?? "";
+  if (confirmPhrase.trim() !== RESET_DATABASE_PHRASE) {
+    return errorPage(
+      "Confirmation phrase does not match. Please type the exact phrase to confirm reset.",
+      400,
+    );
+  }
 
-    const confirmPhrase = form.get("confirm_phrase") ?? "";
-    if (confirmPhrase.trim() !== RESET_DATABASE_PHRASE) {
-      return settingsPageWithError(
-        "Confirmation phrase does not match. Please type the exact phrase to confirm reset.",
-        400,
-      );
-    }
+  await resetDatabase();
 
-    await resetDatabase();
-
-    // Redirect to setup page since the database is now empty
-    return redirect("/setup/", clearSessionCookie);
-  });
+  // Redirect to setup page since the database is now empty
+  return redirect("/setup/", clearSessionCookie);
+});
 
 /** Settings routes */
 export const settingsRoutes = defineRoutes({

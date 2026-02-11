@@ -7,10 +7,7 @@
 		"**/node_modules/**",
 		"**/package-lock.json",
 		"**/deno.lock",
-		"bunny-script.ts",
-		"src/fp/index.ts",
-		"src/lib/crypto.ts",
-		"src/routes/admin/**"
+		"**/fp/index.ts"
 	],
 	"format": ["typescript", "json"],
 	"absolute": false,

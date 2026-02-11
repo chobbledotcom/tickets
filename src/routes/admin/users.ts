@@ -18,9 +18,9 @@ import {
 import { validateForm } from "#lib/forms.tsx";
 import { getAllowedDomain } from "#lib/config.ts";
 import { nowMs } from "#lib/now.ts";
-import { defineRoutes } from "#routes/router.ts";
-import type { RouteParams } from "#routes/router.ts";
+import { defineRoutes, type RouteParams } from "#routes/router.ts";
 import {
+  type AuthSession,
   generateSecureToken,
   getSearchParam,
   htmlResponse,
@@ -29,7 +29,7 @@ import {
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
-import type { AdminSession, User } from "#lib/types.ts";
+import type { User } from "#lib/types.ts";
 import {
   adminUsersPage,
   type DisplayUser,
@@ -59,7 +59,7 @@ const toDisplayUser = async (
  * Render users page with current state
  */
 const renderUsersPage = async (
-  session: AdminSession,
+  session: AuthSession,
   inviteLink?: string,
   error?: string,
   success?: string,
@@ -138,117 +138,83 @@ const handleUsersPost = (request: Request): Promise<Response> =>
     return redirect(`/admin/users?invite=${encodeURIComponent(inviteLink)}`);
   });
 
+type UserErrorPageFn = (error: string, status: number) => Promise<Response>;
+type UserActionHandler = (user: User, session: AuthSession, errorPage: UserErrorPageFn) => Response | Promise<Response>;
+
+/** Owner auth + fetch user by ID, providing session, errorPage and user to handler */
+const withUserAction = (
+  request: Request,
+  userId: number,
+  handler: UserActionHandler,
+): Promise<Response> =>
+  withOwnerAuthForm(request, async (session) => {
+    const errorPage = async (error: string, status: number): Promise<Response> => {
+      const html = await renderUsersPage(session, undefined, error);
+      return htmlResponse(html, status);
+    };
+    const user = await getUserById(userId);
+    if (!user) return errorPage("User not found", 404);
+    return handler(user, session, errorPage);
+  });
+
+/** Route handler that delegates to withUserAction with parsed ID */
+const userActionRoute = (handler: UserActionHandler) =>
+  (request: Request, params: RouteParams): Promise<Response> =>
+    withUserAction(request, Number(params.id), handler);
+
 /**
  * Handle POST /admin/users/:id/activate
  */
-const handleUserActivate = (
-  request: Request,
-  params: RouteParams,
-): Promise<Response> =>
-  withOwnerAuthForm(request, async (session) => {
-    const userId = Number(params.id);
-    const user = await getUserById(userId);
+const handleUserActivate = userActionRoute(async (user, session, errorPage) => {
+  // User must have a password set
+  const userHasPassword = await hasPassword(user);
+  if (!userHasPassword) {
+    return errorPage("User has not set their password yet", 400);
+  }
 
-    if (!user) {
-      return htmlResponse(
-        await renderUsersPage(session, undefined, "User not found"),
-        404,
-      );
-    }
+  // User must not already have a data key
+  if (user.wrapped_data_key) {
+    return errorPage("User is already activated", 400);
+  }
 
-    // User must have a password set
-    const userHasPassword = await hasPassword(user);
-    if (!userHasPassword) {
-      return htmlResponse(
-        await renderUsersPage(
-          session,
-          undefined,
-          "User has not set their password yet",
-        ),
-        400,
-      );
-    }
+  // Get the data key from the current session
+  if (!session.wrappedDataKey) {
+    return errorPage("Cannot activate: session lacks data key", 500);
+  }
 
-    // User must not already have a data key
-    if (user.wrapped_data_key) {
-      return htmlResponse(
-        await renderUsersPage(
-          session,
-          undefined,
-          "User is already activated",
-        ),
-        400,
-      );
-    }
+  const dataKey = await unwrapKeyWithToken(
+    session.wrappedDataKey,
+    session.token,
+  );
 
-    // Get the data key from the current session
-    if (!session.wrappedDataKey) {
-      return htmlResponse(
-        await renderUsersPage(
-          session,
-          undefined,
-          "Cannot activate: session lacks data key",
-        ),
-        500,
-      );
-    }
+  // Decrypt user's password hash to derive their KEK
+  const { decrypt } = await import("#lib/crypto.ts");
+  const decryptedPasswordHash = await decrypt(user.password_hash);
 
-    const dataKey = await unwrapKeyWithToken(
-      session.wrappedDataKey,
-      session.token,
-    );
+  await activateUser(user.id, dataKey, decryptedPasswordHash);
 
-    // Decrypt user's password hash to derive their KEK
-    const { decrypt } = await import("#lib/crypto.ts");
-    const decryptedPasswordHash = await decrypt(user.password_hash);
-
-    await activateUser(userId, dataKey, decryptedPasswordHash);
-
-    return redirectWithSuccess("/admin/users", "User activated successfully");
-  });
+  return redirectWithSuccess("/admin/users", "User activated successfully");
+});
 
 /**
  * Handle POST /admin/users/:id/delete
  */
-const handleUserDelete = (
-  request: Request,
-  params: RouteParams,
-): Promise<Response> =>
-  withOwnerAuthForm(request, async (session) => {
-    const userId = Number(params.id);
-    const user = await getUserById(userId);
+const handleUserDelete = userActionRoute(async (user, session, errorPage) => {
+  // Cannot delete the owner who is performing the action
+  const adminLevel = await decryptAdminLevel(user);
+  if (adminLevel === "owner" && user.id === session.userId) {
+    return errorPage("Cannot delete your own account", 400);
+  }
 
-    if (!user) {
-      return htmlResponse(
-        await renderUsersPage(session, undefined, "User not found"),
-        404,
-      );
-    }
+  await deleteUser(user.id);
 
-    // Cannot delete the owner who is performing the action
-    const adminLevel = await decryptAdminLevel(user);
-    if (adminLevel === "owner" && user.id === session.userId) {
-      return htmlResponse(
-        await renderUsersPage(
-          session,
-          undefined,
-          "Cannot delete your own account",
-        ),
-        400,
-      );
-    }
-
-    await deleteUser(userId);
-
-    return redirectWithSuccess("/admin/users", "User deleted successfully");
-  });
+  return redirectWithSuccess("/admin/users", "User deleted successfully");
+});
 
 /** User management routes */
 export const usersRoutes = defineRoutes({
   "GET /admin/users": (request) => handleUsersGet(request),
   "POST /admin/users": (request) => handleUsersPost(request),
-  "POST /admin/users/:id/activate": (request, params) =>
-    handleUserActivate(request, params),
-  "POST /admin/users/:id/delete": (request, params) =>
-    handleUserDelete(request, params),
+  "POST /admin/users/:id/activate": handleUserActivate,
+  "POST /admin/users/:id/delete": handleUserDelete,
 });

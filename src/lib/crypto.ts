@@ -164,31 +164,72 @@ export const validateEncryptionKey = (): void => {
 };
 
 /**
+ * Encrypt plaintext with an AES-GCM key, returning prefixed format: enc:1:$base64iv:$base64ciphertext
+ */
+const symmetricEncrypt = async (
+  plaintext: string,
+  key: CryptoKey,
+): Promise<string> => {
+  const iv = getRandomBytes(12);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    key,
+    new TextEncoder().encode(plaintext),
+  );
+  return `${ENCRYPTION_PREFIX}${toBase64(iv)}:${toBase64(new Uint8Array(ciphertext))}`;
+};
+
+/**
  * Encrypt a string value using AES-256-GCM via Web Crypto API
  * Returns format: enc:1:$base64iv:$base64ciphertext
  * Note: ciphertext includes auth tag appended (Web Crypto API does this automatically)
  */
 export const encrypt = async (plaintext: string): Promise<string> => {
   const key = await importEncryptionKey();
+  return symmetricEncrypt(plaintext, key);
+};
 
-  // Generate random 12-byte nonce (recommended for GCM)
-  const nonce = getRandomBytes(12);
+/**
+ * Parse a prefixed encrypted payload into IV and ciphertext bytes.
+ * Validates the prefix and separator; throws on invalid format.
+ */
+const parseEncryptedPayload = (
+  encrypted: string,
+  prefix: string,
+  label: string,
+): { iv: Uint8Array; ciphertext: Uint8Array } => {
+  if (!encrypted.startsWith(prefix)) {
+    throw new Error(`Invalid ${label} format`);
+  }
+  const withoutPrefix = encrypted.slice(prefix.length);
+  const colonIndex = withoutPrefix.indexOf(":");
+  if (colonIndex === -1) {
+    throw new Error(`Invalid ${label} format: missing IV separator`);
+  }
+  return {
+    iv: fromBase64(withoutPrefix.slice(0, colonIndex)),
+    ciphertext: fromBase64(withoutPrefix.slice(colonIndex + 1)),
+  };
+};
 
-  // Encrypt using AES-256-GCM
-  const encoder = new TextEncoder();
-  const plaintextBytes = encoder.encode(plaintext);
-
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: nonce as BufferSource },
-    key,
-    plaintextBytes,
+/**
+ * Decrypt a prefixed AES-GCM payload with the given key.
+ */
+const symmetricDecrypt = async (
+  encrypted: string,
+  key: CryptoKey,
+): Promise<string> => {
+  const { iv, ciphertext } = parseEncryptedPayload(
+    encrypted,
+    ENCRYPTION_PREFIX,
+    "encrypted data",
   );
-
-  // Encode nonce and ciphertext as base64
-  const nonceBase64 = toBase64(nonce);
-  const ciphertextBase64 = toBase64(new Uint8Array(ciphertext));
-
-  return `${ENCRYPTION_PREFIX}${nonceBase64}:${ciphertextBase64}`;
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    key,
+    ciphertext as BufferSource,
+  );
+  return new TextDecoder().decode(plaintext);
 };
 
 /**
@@ -196,35 +237,8 @@ export const encrypt = async (plaintext: string): Promise<string> => {
  * Expects format: enc:1:$base64iv:$base64ciphertext
  */
 export const decrypt = async (encrypted: string): Promise<string> => {
-  if (!encrypted.startsWith(ENCRYPTION_PREFIX)) {
-    throw new Error("Invalid encrypted data format");
-  }
-
   const key = await importEncryptionKey();
-
-  // Parse the encrypted format
-  const withoutPrefix = encrypted.slice(ENCRYPTION_PREFIX.length);
-  const colonIndex = withoutPrefix.indexOf(":");
-  if (colonIndex === -1) {
-    throw new Error("Invalid encrypted data format: missing IV separator");
-  }
-
-  const nonceBase64 = withoutPrefix.slice(0, colonIndex);
-  const ciphertextBase64 = withoutPrefix.slice(colonIndex + 1);
-
-  // Decode from base64
-  const nonce = fromBase64(nonceBase64);
-  const ciphertext = fromBase64(ciphertextBase64);
-
-  // Decrypt using AES-256-GCM (Web Crypto handles auth tag internally)
-  const plaintextBytes = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: nonce as BufferSource },
-    key,
-    ciphertext as BufferSource,
-  );
-
-  const decoder = new TextDecoder();
-  return decoder.decode(plaintextBytes);
+  return symmetricDecrypt(encrypted, key);
 };
 
 /**
@@ -432,58 +446,40 @@ export const generateDataKey = (): Promise<CryptoKey> => {
 };
 
 /**
- * Wrap a symmetric key with another key using AES-GCM
+ * Export a CryptoKey and encrypt it with a wrapping key using AES-GCM.
  * Returns format: wk:1:$base64iv:$base64wrapped
  */
-export const wrapKey = async (
+const exportAndWrapKey = async (
   keyToWrap: CryptoKey,
   wrappingKey: CryptoKey,
 ): Promise<string> => {
   const iv = getRandomBytes(12);
-
-  // Export the key to raw bytes, then encrypt
   const rawKey = await crypto.subtle.exportKey("raw", keyToWrap);
   const wrapped = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv: iv as BufferSource },
     wrappingKey,
     rawKey,
   );
-
   return `${WRAPPED_KEY_PREFIX}${toBase64(iv)}:${toBase64(new Uint8Array(wrapped))}`;
 };
 
 /**
- * Unwrap a symmetric key
- * Expects format: wk:1:$base64iv:$base64wrapped
+ * Decrypt a wrapped key payload and reimport it as an AES-GCM CryptoKey.
  */
-export const unwrapKey = async (
+const unwrapAndImportKey = async (
   wrapped: string,
   unwrappingKey: CryptoKey,
 ): Promise<CryptoKey> => {
-  if (!wrapped.startsWith(WRAPPED_KEY_PREFIX)) {
-    throw new Error("Invalid wrapped key format");
-  }
-
-  const withoutPrefix = wrapped.slice(WRAPPED_KEY_PREFIX.length);
-  const colonIndex = withoutPrefix.indexOf(":");
-  if (colonIndex === -1) {
-    throw new Error("Invalid wrapped key format: missing IV separator");
-  }
-
-  const ivBase64 = withoutPrefix.slice(0, colonIndex);
-  const wrappedBase64 = withoutPrefix.slice(colonIndex + 1);
-
-  const iv = fromBase64(ivBase64);
-  const wrappedBytes = fromBase64(wrappedBase64);
-
-  // Decrypt to get raw key bytes
+  const { iv, ciphertext } = parseEncryptedPayload(
+    wrapped,
+    WRAPPED_KEY_PREFIX,
+    "wrapped key",
+  );
   const rawKey = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: iv as BufferSource },
     unwrappingKey,
-    wrappedBytes as BufferSource,
+    ciphertext as BufferSource,
   );
-
-  // Import as AES-GCM key
   return crypto.subtle.importKey(
     "raw",
     rawKey,
@@ -494,14 +490,32 @@ export const unwrapKey = async (
 };
 
 /**
- * Wrap a key using a session token (derives a wrapping key from the token)
- * Incorporates DB_ENCRYPTION_KEY in salt to ensure session tokens alone
- * cannot be used to unwrap keys without access to the encryption key.
+ * Wrap a symmetric key with another key using AES-GCM
+ * Returns format: wk:1:$base64iv:$base64wrapped
  */
-export const wrapKeyWithToken = async (
+export const wrapKey = (
   keyToWrap: CryptoKey,
+  wrappingKey: CryptoKey,
+): Promise<string> => exportAndWrapKey(keyToWrap, wrappingKey);
+
+/**
+ * Unwrap a symmetric key
+ * Expects format: wk:1:$base64iv:$base64wrapped
+ */
+export const unwrapKey = (
+  wrapped: string,
+  unwrappingKey: CryptoKey,
+): Promise<CryptoKey> => unwrapAndImportKey(wrapped, unwrappingKey);
+
+/**
+ * Derive a wrapping/unwrapping key from a session token using PBKDF2.
+ * Incorporates DB_ENCRYPTION_KEY in salt to ensure session tokens alone
+ * cannot be used to wrap/unwrap keys without access to the encryption key.
+ */
+const deriveTokenKey = async (
   sessionToken: string,
-): Promise<string> => {
+  usage: "encrypt" | "decrypt",
+): Promise<CryptoKey> => {
   const encoder = new TextEncoder();
   const tokenKey = await crypto.subtle.importKey(
     "raw",
@@ -510,10 +524,8 @@ export const wrapKeyWithToken = async (
     false,
     ["deriveKey"],
   );
-
-  // Include DB_ENCRYPTION_KEY in salt to prevent session-only attacks
   const salt = encoder.encode(`session-key-wrap:${getEncryptionKeyString()}`);
-  const wrappingKey = await crypto.subtle.deriveKey(
+  return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
       salt,
@@ -523,81 +535,30 @@ export const wrapKeyWithToken = async (
     tokenKey,
     { name: "AES-GCM", length: 256 },
     false,
-    ["encrypt"],
+    [usage],
   );
+};
 
-  const iv = getRandomBytes(12);
-  const rawKey = await crypto.subtle.exportKey("raw", keyToWrap);
-  const wrapped = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    wrappingKey,
-    rawKey,
-  );
-
-  return `${WRAPPED_KEY_PREFIX}${toBase64(iv)}:${toBase64(new Uint8Array(wrapped))}`;
+/**
+ * Wrap a key using a session token (derives a wrapping key from the token)
+ */
+export const wrapKeyWithToken = async (
+  keyToWrap: CryptoKey,
+  sessionToken: string,
+): Promise<string> => {
+  const wrappingKey = await deriveTokenKey(sessionToken, "encrypt");
+  return exportAndWrapKey(keyToWrap, wrappingKey);
 };
 
 /**
  * Unwrap a key using a session token
- * Incorporates DB_ENCRYPTION_KEY in salt to match wrapKeyWithToken.
  */
 export const unwrapKeyWithToken = async (
   wrapped: string,
   sessionToken: string,
 ): Promise<CryptoKey> => {
-  if (!wrapped.startsWith(WRAPPED_KEY_PREFIX)) {
-    throw new Error("Invalid wrapped key format");
-  }
-
-  const encoder = new TextEncoder();
-  const tokenKey = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(sessionToken),
-    { name: "PBKDF2" },
-    false,
-    ["deriveKey"],
-  );
-
-  // Include DB_ENCRYPTION_KEY in salt to match wrapKeyWithToken
-  const salt = encoder.encode(`session-key-wrap:${getEncryptionKeyString()}`);
-  const unwrappingKey = await crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations: 1,
-      hash: "SHA-256",
-    },
-    tokenKey,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["decrypt"],
-  );
-
-  const withoutPrefix = wrapped.slice(WRAPPED_KEY_PREFIX.length);
-  const colonIndex = withoutPrefix.indexOf(":");
-  if (colonIndex === -1) {
-    throw new Error("Invalid wrapped key format: missing IV separator");
-  }
-
-  const ivBase64 = withoutPrefix.slice(0, colonIndex);
-  const wrappedBase64 = withoutPrefix.slice(colonIndex + 1);
-
-  const iv = fromBase64(ivBase64);
-  const wrappedBytes = fromBase64(wrappedBase64);
-
-  const rawKey = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    unwrappingKey,
-    wrappedBytes as BufferSource,
-  );
-
-  return crypto.subtle.importKey(
-    "raw",
-    rawKey,
-    { name: "AES-GCM", length: 256 },
-    true,
-    ["encrypt", "decrypt"],
-  );
+  const unwrappingKey = await deriveTokenKey(sessionToken, "decrypt");
+  return unwrapAndImportKey(wrapped, unwrappingKey);
 };
 
 /**
@@ -640,33 +601,32 @@ export const generateKeyPair = async (): Promise<{
   };
 };
 
-/**
- * Import a public key from JWK string
- */
-export const importPublicKey = (jwkString: string): Promise<CryptoKey> => {
+/** Import an RSA-OAEP key from JWK string with the given usage */
+const importRsaKey = (
+  jwkString: string,
+  usage: "encrypt" | "decrypt",
+): Promise<CryptoKey> => {
   const jwk = JSON.parse(jwkString) as JsonWebKey;
   return crypto.subtle.importKey(
     "jwk",
     jwk,
     { name: "RSA-OAEP", hash: "SHA-256" },
     false,
-    ["encrypt"],
+    [usage],
   );
 };
 
 /**
+ * Import a public key from JWK string
+ */
+export const importPublicKey = (jwkString: string): Promise<CryptoKey> =>
+  importRsaKey(jwkString, "encrypt");
+
+/**
  * Import a private key from JWK string
  */
-export const importPrivateKey = (jwkString: string): Promise<CryptoKey> => {
-  const jwk = JSON.parse(jwkString) as JsonWebKey;
-  return crypto.subtle.importKey(
-    "jwk",
-    jwk,
-    { name: "RSA-OAEP", hash: "SHA-256" },
-    false,
-    ["decrypt"],
-  );
-};
+export const importPrivateKey = (jwkString: string): Promise<CryptoKey> =>
+  importRsaKey(jwkString, "decrypt");
 
 const HYBRID_PREFIX = "hyb:1:";
 
@@ -765,53 +725,19 @@ export const hybridDecrypt = async (
 
 /**
  * Encrypt data with a symmetric key (for wrapping private key with DATA_KEY)
- * Similar to existing encrypt() but takes a key parameter
  */
-export const encryptWithKey = async (
+export const encryptWithKey = (
   plaintext: string,
   key: CryptoKey,
-): Promise<string> => {
-  const iv = getRandomBytes(12);
-  const encoder = new TextEncoder();
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    key,
-    encoder.encode(plaintext),
-  );
-  return `${ENCRYPTION_PREFIX}${toBase64(iv)}:${toBase64(new Uint8Array(ciphertext))}`;
-};
+): Promise<string> => symmetricEncrypt(plaintext, key);
 
 /**
  * Decrypt data with a symmetric key
  */
-export const decryptWithKey = async (
+export const decryptWithKey = (
   encrypted: string,
   key: CryptoKey,
-): Promise<string> => {
-  if (!encrypted.startsWith(ENCRYPTION_PREFIX)) {
-    throw new Error("Invalid encrypted data format");
-  }
-
-  const withoutPrefix = encrypted.slice(ENCRYPTION_PREFIX.length);
-  const colonIndex = withoutPrefix.indexOf(":");
-  if (colonIndex === -1) {
-    throw new Error("Invalid encrypted data format: missing IV separator");
-  }
-
-  const ivB64 = withoutPrefix.slice(0, colonIndex);
-  const ciphertextB64 = withoutPrefix.slice(colonIndex + 1);
-
-  const iv = fromBase64(ivB64);
-  const ciphertext = fromBase64(ciphertextB64);
-
-  const plaintext = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    key,
-    ciphertext as BufferSource,
-  );
-
-  return new TextDecoder().decode(plaintext);
-};
+): Promise<string> => symmetricDecrypt(encrypted, key);
 
 /**
  * Encrypt attendee PII using the public key from settings
