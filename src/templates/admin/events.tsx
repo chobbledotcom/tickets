@@ -49,7 +49,7 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; e
     >
       <input type="hidden" name="csrf_token" value={csrfToken} />
       <input type="hidden" name="return_filter" value={activeFilter} />
-      <button type="submit">
+      <button type="submit" class="link-button">
         {label}
       </button>
     </form>
