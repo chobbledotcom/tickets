@@ -8,7 +8,7 @@
 
 import { map } from "#fp";
 import { decrypt, decryptAttendeePII, encrypt, encryptAttendeePII, generateTicketToken } from "#lib/crypto.ts";
-import { getDb, inPlaceholders, queryOne } from "#lib/db/client.ts";
+import { getDb, inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { nowIso } from "#lib/now.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
@@ -138,6 +138,7 @@ const buildAttendeeResult = (
   pricePaid: number | null,
   ticketToken: string,
   date: string | null,
+  paymentSessionId: string | null,
 ): Attendee => ({
   id: Number(insertId),
   event_id: eventId,
@@ -151,6 +152,7 @@ const buildAttendeeResult = (
   checked_in: "false",
   ticket_token: ticketToken,
   date,
+  payment_session_id: paymentSessionId,
 });
 
 /**
@@ -195,6 +197,7 @@ export type AttendeeInput = {
   phone?: string;
   pricePaid?: number | null;
   date?: string | null;
+  paymentSessionId?: string | null;
 };
 
 /** Item for batch availability check */
@@ -265,7 +268,7 @@ export const attendeesApi = {
   createAttendeeAtomic: async (
     input: AttendeeInput,
   ): Promise<CreateAttendeeResult> => {
-    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", pricePaid = null, date = null } = input;
+    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", pricePaid = null, date = null, paymentSessionId = null } = input;
     const enc = await encryptAttendeeFields(name, email, phone, paymentId, pricePaid);
     if (!enc) {
       return { success: false, reason: "encryption_error" };
@@ -281,8 +284,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid, checked_in, ticket_token, date)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid, checked_in, ticket_token, date, payment_session_id)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (
@@ -300,6 +303,7 @@ export const attendeesApi = {
         enc.encryptedCheckedIn,
         ticketToken,
         date,
+        paymentSessionId,
         ...capacityArgs,
         qty,
         eventId,
@@ -324,10 +328,20 @@ export const attendeesApi = {
         pricePaid,
         ticketToken,
         date,
+        paymentSessionId,
       ),
     };
   },
 };
+
+/**
+ * Find attendees created for a specific payment session.
+ * Used for stale reservation recovery: if a server crash left an attendee
+ * without finalizing the processed_payments record, this allows the retry
+ * to find and reuse the existing attendee instead of creating a duplicate.
+ */
+export const getAttendeesBySessionId = (sessionId: string): Promise<Attendee[]> =>
+  queryAll<Attendee>("SELECT * FROM attendees WHERE payment_session_id = ?", [sessionId]);
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const hasAvailableSpots = (

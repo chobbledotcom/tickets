@@ -15,6 +15,7 @@
  */
 
 import { createAttendeeAtomic, deleteAttendee } from "#lib/db/attendees.ts";
+import { getAttendeesBySessionId } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
   finalizeSession,
@@ -209,9 +210,9 @@ const validateEventForPayment = async (
   return { ok: true, event };
 };
 
-/** Validate event and compute price for post-payment attendee creation */
+/** Validate event and compute expected price for post-payment attendee creation */
 type EventPriceValidation =
-  | { ok: true; event: EventWithCount; pricePaid: number | null }
+  | { ok: true; event: EventWithCount; expectedPrice: number | null }
   | { ok: false; error: string; status?: number };
 
 const validateAndPrice = async (
@@ -221,8 +222,51 @@ const validateAndPrice = async (
   const validation = await validateEventForPayment(input.eventId, includeEventName);
   if (!validation.ok) return validation;
   const { event } = validation;
-  const pricePaid = event.unit_price !== null ? event.unit_price * input.quantity : null;
-  return { ok: true, event, pricePaid };
+  const expectedPrice = event.unit_price !== null ? event.unit_price * input.quantity : null;
+  return { ok: true, event, expectedPrice };
+};
+
+/**
+ * Recover from a stale reservation where the attendee was created
+ * but the session was never finalized (e.g., due to a server crash).
+ * Returns a PaymentResult if orphaned attendees exist, or null to proceed normally.
+ */
+const recoverOrphanedAttendees = async (
+  sessionId: string,
+  eventId: number,
+): Promise<PaymentResult | null> => {
+  const orphaned = await getAttendeesBySessionId(sessionId);
+  if (orphaned.length === 0) return null;
+  await finalizeSession(sessionId, orphaned[0]!.id);
+  const event = await getEventWithCount(eventId);
+  return event
+    ? { success: true, attendee: orphaned[0]!, event }
+    : { success: false, error: "Event not found", status: 404 };
+};
+
+/**
+ * Resolve the price to record for a single-ticket attendee.
+ * Uses the actual amount charged by the payment provider (session.amountTotal)
+ * when available. Falls back to the expected price (computed from current DB price)
+ * only when the provider didn't report an amount.
+ * Logs a warning if the actual and expected amounts differ (indicates a price
+ * change occurred between checkout creation and fulfillment).
+ */
+const resolvePricePaid = (
+  amountTotal: number | null,
+  expectedPrice: number | null,
+  eventId: number,
+): number | null => {
+  if (amountTotal !== null && expectedPrice !== null && amountTotal !== expectedPrice) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      eventId,
+      detail: `Price mismatch: provider charged ${amountTotal} but current event price yields ${expectedPrice}`,
+    });
+  }
+  // Prefer the actual amount from the provider
+  if (amountTotal !== null) return amountTotal;
+  return expectedPrice;
 };
 
 /** Format error for post-payment attendee creation failure */
@@ -309,19 +353,45 @@ const processMultiPaymentSession = async (
     };
   }
 
+  // Check for orphaned attendees from a prior crashed attempt
+  const recovered = await recoverOrphanedAttendees(sessionId, intent.items[0]!.e);
+  if (recovered) return recovered;
+
   // Phase 2: Validate events and create attendees atomically
-  const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
-  let failedEvent: EventWithCount | null = null;
-  let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
+  // First pass: validate all events and compute expected prices
+  const validatedItems: { item: MultiItem; event: EventWithCount; expectedPrice: number | null }[] = [];
+  let expectedTotal = 0;
 
   for (const item of intent.items) {
     const vp = await validateAndPrice({ eventId: item.e, quantity: item.q }, true);
     if (!vp.ok) {
-      await rollbackAttendees(createdAttendees);
       return refundAndFail(session, vp.error, vp.status);
     }
+    validatedItems.push({ item, event: vp.event, expectedPrice: vp.expectedPrice });
+    expectedTotal += vp.expectedPrice ?? 0;
+  }
 
-    const { event, pricePaid } = vp;
+  // Log if the actual amount charged doesn't match expected total
+  if (session.amountTotal !== null && expectedTotal !== session.amountTotal) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Multi-ticket price mismatch: provider charged ${session.amountTotal} but current event prices yield ${expectedTotal}`,
+    });
+  }
+
+  // Use actual total from provider to scale per-item prices proportionally
+  const useActualPrices = session.amountTotal !== null && expectedTotal > 0 && session.amountTotal !== expectedTotal;
+
+  const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
+  let failedEvent: EventWithCount | null = null;
+  let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
+
+  for (const { item, event, expectedPrice } of validatedItems) {
+    // When provider amount differs from expected, scale proportionally
+    const pricePaid = useActualPrices && expectedPrice !== null
+      ? Math.round(session.amountTotal! * (expectedPrice / expectedTotal))
+      : expectedPrice;
+
     const result = await createAttendeeAtomic({
       eventId: item.e,
       name: intent.name,
@@ -331,6 +401,7 @@ const processMultiPaymentSession = async (
       phone: intent.phone,
       pricePaid,
       date: event.event_type === "daily" ? intent.date : null,
+      paymentSessionId: sessionId,
     });
 
     if (!result.success) {
@@ -401,17 +472,22 @@ const processPaymentSession = async (
     };
   }
 
-  // We have the lock - proceed with attendee creation
+  // Check for orphaned attendees from a prior crashed attempt
+  // (stale reservation was cleaned up, but the attendee was already created)
+  const recovered = await recoverOrphanedAttendees(sessionId, intent.eventId);
+  if (recovered) return recovered;
 
   // Phase 2: Validate event and create attendee atomically with capacity check
   const vp = await validateAndPrice(intent);
   if (!vp.ok) return refundAndFail(session, vp.error, vp.status);
 
-  const { event, pricePaid } = vp;
+  const { event, expectedPrice } = vp;
+  const pricePaid = resolvePricePaid(session.amountTotal, expectedPrice, intent.eventId);
   const result = await createAttendeeAtomic({
     ...intent,
     paymentId: session.paymentReference,
     pricePaid,
+    paymentSessionId: sessionId,
   });
 
   if (!result.success) {
@@ -506,6 +582,7 @@ type WebhookSessionData = {
   id: string;
   payment_status: string;
   payment_intent: string | null;
+  amount_total?: number;
   metadata: SessionMetadata;
 };
 
@@ -536,6 +613,7 @@ const extractSessionFromEvent = (
     paymentStatus: obj.payment_status as ValidatedPaymentSession["paymentStatus"],
     paymentReference:
       typeof obj.payment_intent === "string" ? obj.payment_intent : null,
+    amountTotal: typeof obj.amount_total === "number" ? obj.amount_total : null,
     metadata: {
       event_id: obj.metadata.event_id,
       name: obj.metadata.name,

@@ -739,6 +739,50 @@ describe("square", () => {
         },
       );
     });
+
+    test("maps totalMoney from order response", async () => {
+      const { client, ordersGet } = createMockClient();
+      ordersGet.mockResolvedValue({
+        order: {
+          id: "order_with_total",
+          metadata: { event_id: "1", name: "John", email: "john@example.com" },
+          state: "COMPLETED",
+          tenders: [{ id: "tender_1", paymentId: "pay_total" }],
+          totalMoney: { amount: BigInt(7500), currency: "GBP" },
+        },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const result = await squareApi.retrieveOrder("order_with_total");
+          expect(result).not.toBeNull();
+          expect(result!.totalMoney).toBeDefined();
+          expect(result!.totalMoney!.amount).toBe(BigInt(7500));
+          expect(result!.totalMoney!.currency).toBe("GBP");
+        },
+      );
+    });
+
+    test("returns undefined totalMoney when order has no totalMoney", async () => {
+      const { client, ordersGet } = createMockClient();
+      ordersGet.mockResolvedValue({
+        order: {
+          id: "order_no_total",
+          metadata: { event_id: "1", name: "Jane", email: "jane@example.com" },
+          state: "OPEN",
+        },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const result = await squareApi.retrieveOrder("order_no_total");
+          expect(result).not.toBeNull();
+          expect(result!.totalMoney).toBeUndefined();
+        },
+      );
+    });
   });
 
   describe("retrievePayment", () => {
@@ -1154,6 +1198,61 @@ describe("square", () => {
         async () => {
           const result = await squarePaymentProvider.retrieveSession("order_gone");
           expect(result).toBeNull();
+        },
+      );
+    });
+
+    test("retrieveSession returns amountTotal from order totalMoney", async () => {
+      const { client, ordersGet } = createMockClient();
+      ordersGet.mockResolvedValue({
+        order: {
+          id: "order_with_amount",
+          metadata: {
+            event_id: "5",
+            name: "Total User",
+            email: "total@example.com",
+            quantity: "2",
+          },
+          tenders: [{ id: "tender_1", paymentId: "pay_total_123" }],
+          state: "COMPLETED",
+          totalMoney: { amount: BigInt(6000), currency: "GBP" },
+        },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const result = await squarePaymentProvider.retrieveSession("order_with_amount");
+          expect(result).not.toBeNull();
+          expect(result!.amountTotal).toBe(6000);
+          expect(result!.paymentStatus).toBe("paid");
+          expect(result!.paymentReference).toBe("pay_total_123");
+        },
+      );
+    });
+
+    test("retrieveSession returns null amountTotal when totalMoney is absent", async () => {
+      const { client, ordersGet } = createMockClient();
+      ordersGet.mockResolvedValue({
+        order: {
+          id: "order_no_amount",
+          metadata: {
+            event_id: "6",
+            name: "No Total",
+            email: "nototal@example.com",
+            quantity: "1",
+          },
+          tenders: [{ id: "tender_1", paymentId: "pay_nototal" }],
+          state: "COMPLETED",
+        },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const result = await squarePaymentProvider.retrieveSession("order_no_amount");
+          expect(result).not.toBeNull();
+          expect(result!.amountTotal).toBeNull();
         },
       );
     });

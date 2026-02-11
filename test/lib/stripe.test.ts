@@ -1484,6 +1484,63 @@ describe("stripe-provider", () => {
         retrieveSpy.mockRestore();
       }
     });
+
+    test("returns amountTotal when session has numeric amount_total", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: "cs_with_amount",
+        payment_status: "paid",
+        payment_intent: "pi_amount_123",
+        amount_total: 4500,
+        metadata: {
+          name: "Amount User",
+          email: "amount@example.com",
+          event_id: "10",
+          quantity: "3",
+        },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_with_amount");
+        expect(result).not.toBeNull();
+        expect(result?.amountTotal).toBe(4500);
+        expect(result?.paymentReference).toBe("pi_amount_123");
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
+
+    test("returns null amountTotal when amount_total is not a number", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: "cs_no_amount",
+        payment_status: "paid",
+        payment_intent: "pi_no_amount",
+        amount_total: null,
+        metadata: {
+          name: "No Amount User",
+          email: "noamount@example.com",
+          event_id: "11",
+          quantity: "1",
+        },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_no_amount");
+        expect(result).not.toBeNull();
+        expect(result?.amountTotal).toBeNull();
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
   });
 
   describe("verifyWebhookSignature delegation", () => {

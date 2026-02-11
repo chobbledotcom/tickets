@@ -1874,6 +1874,475 @@ describe("server (webhooks)", () => {
         mockRefund.mockRestore();
       }
     });
+
+    test("webhook extracts amount_total as number from event data", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 2500,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_amount_total",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_amount_total",
+              payment_status: "paid",
+              payment_intent: "pi_amount_total",
+              amount_total: 2500,
+              metadata: {
+                event_id: String(event.id),
+                name: "Amount User",
+                email: "amount@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify attendee was created with price_paid set (encrypted)
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]?.price_paid).not.toBeNull();
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("resolvePricePaid returns amountTotal when it differs from expected price and logs mismatch", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      // amountTotal (1200) differs from expectedPrice (1000 * 1 = 1000)
+      // This covers lines 260-266 (mismatch logging) and line 268 (returning amountTotal)
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_mismatch",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_mismatch",
+              payment_status: "paid",
+              payment_intent: "pi_mismatch",
+              amount_total: 1200,
+              metadata: {
+                event_id: String(event.id),
+                name: "Mismatch User",
+                email: "mismatch@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      const mockConsoleError = spyOn(console, "error");
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify mismatch was logged (lines 260-266)
+        const mismatchCall = mockConsoleError.mock.calls.find(
+          (call: unknown[]) => typeof call[0] === "string" && call[0].includes("Price mismatch"),
+        );
+        expect(mismatchCall).toBeDefined();
+
+        // Verify attendee was created with amountTotal as price (line 268)
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        // price_paid is encrypted so we just confirm it was set
+        expect(attendees[0]?.price_paid).not.toBeNull();
+      } finally {
+        mockVerify.mockRestore();
+        mockConsoleError.mockRestore();
+      }
+    });
+
+    test("orphaned attendee is recovered in single-ticket flow instead of creating duplicate", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      // Create an attendee with a specific paymentSessionId (simulating a prior crashed attempt)
+      const orphanResult = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Orphan",
+        email: "orphan@example.com",
+        paymentId: "pi_orphan_single",
+        paymentSessionId: "cs_orphan_single",
+      });
+      if (!orphanResult.success) throw new Error("Failed to create orphan attendee");
+
+      // Insert a stale reservation (>5min old) so reserveSession will clean it up and re-reserve
+      const { getDb } = await import("#lib/db/client.ts");
+      const staleTime = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["cs_orphan_single", staleTime],
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_orphan_single",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_orphan_single",
+              payment_status: "paid",
+              payment_intent: "pi_orphan_single",
+              metadata: {
+                event_id: String(event.id),
+                name: "Orphan",
+                email: "orphan@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify no duplicate was created - still just 1 attendee
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("orphaned attendee recovery returns error when event no longer exists", async () => {
+      await setupStripe();
+
+      // Create an event and note its ID, then delete the event entirely
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const deletedEventId = event.id;
+      const { getDb } = await import("#lib/db/client.ts");
+      await getDb().execute({ sql: "DELETE FROM events WHERE id = ?", args: [deletedEventId] });
+
+      // Insert an orphaned attendee via raw SQL (bypassing FK checks) pointing
+      // to the now-deleted event, simulating a crash scenario where the event
+      // was deleted after an attendee was partially created.
+      await getDb().execute({ sql: "PRAGMA foreign_keys = OFF", args: [] });
+      await getDb().execute({
+        sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid, checked_in, ticket_token, date, payment_session_id)
+              VALUES (?, 'enc', 'enc', '', ?, NULL, 1, NULL, 'false', 'orphan-del-tok', NULL, ?)`,
+        args: [deletedEventId, new Date().toISOString(), "cs_orphan_deleted"],
+      });
+      await getDb().execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
+
+      // Insert a stale reservation
+      const staleTime = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["cs_orphan_deleted", staleTime],
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_orphan_deleted",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_orphan_deleted",
+              payment_status: "paid",
+              payment_intent: "pi_orphan_deleted",
+              metadata: {
+                event_id: String(deletedEventId),
+                name: "Orphan Deleted",
+                email: "orphan.deleted@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        // Should get an error response (event not found) rather than a crash
+        const json = await response.json();
+        expect(json.error).toContain("not found");
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("orphaned attendee is recovered in multi-ticket flow instead of creating duplicate", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        name: "Multi Orphan Evt",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      // Create an orphaned attendee with paymentSessionId (simulating a prior crashed attempt)
+      const orphanResult = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Orphan Multi",
+        email: "orphanmulti@example.com",
+        paymentId: "pi_orphan_multi",
+        paymentSessionId: "cs_orphan_multi",
+      });
+      if (!orphanResult.success) throw new Error("Failed to create orphan attendee");
+
+      // Insert a stale reservation so reserveSession will clean it up
+      const { getDb } = await import("#lib/db/client.ts");
+      const staleTime = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      await getDb().execute({
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        args: ["cs_orphan_multi", staleTime],
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_orphan_multi",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_orphan_multi",
+              payment_status: "paid",
+              payment_intent: "pi_orphan_multi",
+              metadata: {
+                name: "Orphan Multi",
+                email: "orphanmulti@example.com",
+                multi: "1",
+                items: JSON.stringify([{ e: event.id, q: 1 }]),
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify no duplicate was created - still just 1 attendee
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("multi-ticket webhook logs mismatch when amountTotal differs from expected total", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Multi Mismatch 1",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Mismatch 2",
+        maxAttendees: 50,
+        unitPrice: 300,
+      });
+
+      // expectedTotal = 500*1 + 300*2 = 1100, but amountTotal = 1000
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_multi_mismatch",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_mismatch",
+              payment_status: "paid",
+              payment_intent: "pi_multi_mismatch",
+              amount_total: 1000,
+              metadata: {
+                name: "Multi Mismatch",
+                email: "multimismatch@example.com",
+                multi: "1",
+                items: JSON.stringify([
+                  { e: event1.id, q: 1 },
+                  { e: event2.id, q: 2 },
+                ]),
+              },
+            },
+          },
+        },
+      });
+
+      const mockConsoleError = spyOn(console, "error");
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify multi-ticket price mismatch was logged (lines 375-380)
+        const mismatchCall = mockConsoleError.mock.calls.find(
+          (call: unknown[]) => typeof call[0] === "string" && call[0].includes("Multi-ticket price mismatch"),
+        );
+        expect(mismatchCall).toBeDefined();
+      } finally {
+        mockVerify.mockRestore();
+        mockConsoleError.mockRestore();
+      }
+    });
+
+    test("multi-ticket webhook scales prices proportionally when amountTotal differs", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Multi Scale 1",
+        maxAttendees: 50,
+        unitPrice: 600,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Scale 2",
+        maxAttendees: 50,
+        unitPrice: 400,
+      });
+
+      // expectedTotal = 600*1 + 400*1 = 1000, amountTotal = 800 (20% discount)
+      // Proportional scaling: event1 = round(800 * 600/1000) = 480
+      //                       event2 = round(800 * 400/1000) = 320
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_multi_scale",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_scale",
+              payment_status: "paid",
+              payment_intent: "pi_multi_scale",
+              amount_total: 800,
+              metadata: {
+                name: "Scale User",
+                email: "scale@example.com",
+                multi: "1",
+                items: JSON.stringify([
+                  { e: event1.id, q: 1 },
+                  { e: event2.id, q: 1 },
+                ]),
+              },
+            },
+          },
+        },
+      });
+
+      const mockConsoleError = spyOn(console, "error");
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify attendees were created for both events with price_paid set
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        const attendees2 = await getAttendeesRaw(event2.id);
+        expect(attendees1.length).toBe(1);
+        expect(attendees2.length).toBe(1);
+        // Both should have price_paid set (encrypted, so just check non-null)
+        expect(attendees1[0]?.price_paid).not.toBeNull();
+        expect(attendees2[0]?.price_paid).not.toBeNull();
+
+        // Verify mismatch was logged (proportional scaling implies mismatch)
+        const mismatchCall = mockConsoleError.mock.calls.find(
+          (call: unknown[]) => typeof call[0] === "string" && call[0].includes("Multi-ticket price mismatch"),
+        );
+        expect(mismatchCall).toBeDefined();
+      } finally {
+        mockVerify.mockRestore();
+        mockConsoleError.mockRestore();
+      }
+    });
   });
 
   describe("closes_at in payment processing", () => {

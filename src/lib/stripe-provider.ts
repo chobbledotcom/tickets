@@ -59,7 +59,7 @@ export const stripePaymentProvider: PaymentProvider = {
     const session = await retrieveCheckoutSession(sessionId);
     if (!session) return null;
 
-    const { id, payment_status, payment_intent, metadata } = session;
+    const { id, payment_status, payment_intent, metadata, amount_total } = session;
 
     if (!hasRequiredSessionMetadata(metadata)) {
       return null;
@@ -70,6 +70,7 @@ export const stripePaymentProvider: PaymentProvider = {
       paymentStatus: payment_status as ValidatedPaymentSession["paymentStatus"],
       paymentReference:
         typeof payment_intent === "string" ? payment_intent : null,
+      amountTotal: typeof amount_total === "number" ? amount_total : null,
       metadata: extractSessionMetadata(metadata),
     };
   },

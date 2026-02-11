@@ -42,6 +42,7 @@ export interface Attendee {
   checked_in: string;
   ticket_token: string;
   date: string | null;
+  payment_session_id: string | null;
 }
 
 export interface Settings {
