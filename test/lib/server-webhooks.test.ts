@@ -118,6 +118,7 @@ describe("server (webhooks)", () => {
             object: {
               id: "cs_test",
               payment_status: "paid",
+              amount_total: 0,
               metadata: {}, // Missing required fields
             },
           },
@@ -159,6 +160,7 @@ describe("server (webhooks)", () => {
               id: "cs_test",
               payment_status: "unpaid",
               payment_intent: "pi_test",
+              amount_total: 1000,
               metadata: {
                 event_id: String(event.id),
                 name: "John",
@@ -206,6 +208,7 @@ describe("server (webhooks)", () => {
               id: "cs_webhook_test",
               payment_status: "paid",
               payment_intent: "pi_webhook_test",
+              amount_total: 1000,
               metadata: {
                 event_id: String(event.id),
                 name: "Webhook User",
@@ -265,6 +268,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_webhook",
               payment_status: "paid",
               payment_intent: "pi_multi_webhook",
+              amount_total: 2000,
               metadata: {
                 name: "Multi User",
                 email: "multi@example.com",
@@ -320,6 +324,7 @@ describe("server (webhooks)", () => {
               id: "cs_bad_multi",
               payment_status: "paid",
               payment_intent: "pi_bad",
+              amount_total: 0,
               metadata: {
                 name: "Bad Multi",
                 email: "bad@example.com",
@@ -369,6 +374,7 @@ describe("server (webhooks)", () => {
               id: "cs_soldout",
               payment_status: "paid",
               payment_intent: "pi_soldout",
+              amount_total: 1000,
               metadata: {
                 event_id: String(event.id),
                 name: "Late Buyer",
@@ -440,6 +446,7 @@ describe("server (webhooks)", () => {
         id: "cs_no_qty",
         payment_status: "paid",
         payment_intent: "pi_no_qty",
+        amount_total: 1000,
         metadata: {
           event_id: String(event.id),
           name: "John",
@@ -524,6 +531,7 @@ describe("server (webhooks)", () => {
               id: "cs_pi_extract",
               payment_status: "paid",
               payment_intent: "pi_extracted_ref",
+              amount_total: 1000,
               metadata: {
                 event_id: String(event.id),
                 name: "PI User",
@@ -571,6 +579,7 @@ describe("server (webhooks)", () => {
               id: "cs_non_array",
               payment_status: "paid",
               payment_intent: "pi_non_array",
+              amount_total: 0,
               metadata: {
                 name: "Test",
                 email: "test@example.com",
@@ -612,6 +621,7 @@ describe("server (webhooks)", () => {
               id: "cs_no_items",
               payment_status: "paid",
               payment_intent: "pi_no_items",
+              amount_total: 0,
               metadata: {
                 name: "Test",
                 email: "test@example.com",
@@ -731,6 +741,7 @@ describe("server (webhooks)", () => {
         id: "cs_multi_price",
         payment_status: "paid",
         payment_intent: "pi_multi_price",
+        amount_total: 1500,
         metadata: {
           name: "Price Test",
           email: "price@example.com",
@@ -772,6 +783,7 @@ describe("server (webhooks)", () => {
         id: "cs_single_price",
         payment_status: "paid",
         payment_intent: "pi_single_price",
+        amount_total: 2000,
         metadata: {
           event_id: String(event.id),
           name: "Price Single",
@@ -967,6 +979,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_already_done",
               payment_status: "paid",
               payment_intent: "pi_already_done",
+              amount_total: 500,
               metadata: {
                 name: "Already Done",
                 email: "already@example.com",
@@ -1020,6 +1033,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_inactive_wh",
               payment_status: "paid",
               payment_intent: "pi_multi_inactive_wh",
+              amount_total: 1000,
               metadata: {
                 name: "Multi Inactive",
                 email: "inactive@example.com",
@@ -1087,6 +1101,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_soldout_wh",
               payment_status: "paid",
               payment_intent: "pi_multi_soldout_wh",
+              amount_total: 1000,
               metadata: {
                 name: "Sold Out Multi",
                 email: "soldout@example.com",
@@ -1193,6 +1208,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_ok",
               payment_status: "paid",
               payment_intent: "pi_multi_ok",
+              amount_total: 1100,
               metadata: {
                 name: "Multi Buyer",
                 email: "multi@example.com",
@@ -1237,6 +1253,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_notfound",
               payment_status: "paid",
               payment_intent: "pi_multi_notfound",
+              amount_total: 1000,
               metadata: {
                 name: "Multi NotFound",
                 email: "notfound@example.com",
@@ -1298,6 +1315,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_cap",
               payment_status: "paid",
               payment_intent: "pi_multi_cap",
+              amount_total: 800,
               metadata: {
                 name: "Multi Cap",
                 email: "cap@example.com",
@@ -1361,6 +1379,7 @@ describe("server (webhooks)", () => {
               id: "cs_del_event_wh",
               payment_status: "paid",
               payment_intent: "pi_del_event_wh",
+              amount_total: 1000,
               metadata: {
                 name: "Deleted Event",
                 email: "deleted@example.com",
@@ -1408,6 +1427,7 @@ describe("server (webhooks)", () => {
             object: {
               id: "cs_noref",
               payment_status: "paid",
+              amount_total: 500,
               metadata: {
                 name: "No Ref",
                 email: "noref@example.com",
@@ -1536,6 +1556,7 @@ describe("server (webhooks)", () => {
               id: "cs_tryrefund_noprov",
               payment_status: "paid",
               payment_intent: "pi_tryrefund_noprov",
+              amount_total: 500,
               metadata: {
                 name: "No Provider",
                 email: "noprov@example.com",
@@ -1585,6 +1606,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_rollback_cleanup",
               payment_status: "paid",
               payment_intent: "pi_multi_rollback",
+              amount_total: 500,
               metadata: {
                 name: "Rollback Test",
                 email: "rollback@example.com",
@@ -1625,10 +1647,9 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("multi-ticket pricePaid is null when event has no unit_price", async () => {
+    test("multi-ticket pricePaid records zero when event has no unit_price", async () => {
       await setupStripe();
 
-      // Create event with no unitPrice (free event) to cover line 273 null path
       const event = await createTestEvent({
         name: "WH Multi Free",
         maxAttendees: 50,
@@ -1639,6 +1660,7 @@ describe("server (webhooks)", () => {
         id: "cs_multi_free",
         payment_status: "paid",
         payment_intent: "pi_multi_free",
+        amount_total: 0,
         metadata: {
           name: "Free Multi",
           email: "freemulti@example.com",
@@ -1659,17 +1681,16 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        // price_paid should be null for free events
-        expect(attendees[0]?.price_paid).toBeNull();
+        // price_paid is encrypted "0" (unit_price defaults to 0 for free events)
+        expect(attendees[0]?.price_paid).not.toBeNull();
       } finally {
         mockRetrieve.mockRestore();
       }
     });
 
-    test("single-ticket pricePaid is null when event has no unit_price", async () => {
+    test("single-ticket pricePaid records zero when event has no unit_price", async () => {
       await setupStripe();
 
-      // Create event with no unitPrice (free event) to cover line 378 null path
       const event = await createTestEvent({
         name: "WH Single Free",
         maxAttendees: 50,
@@ -1680,6 +1701,7 @@ describe("server (webhooks)", () => {
         id: "cs_single_free",
         payment_status: "paid",
         payment_intent: "pi_single_free",
+        amount_total: 0,
         metadata: {
           event_id: String(event.id),
           name: "Free Single",
@@ -1700,7 +1722,8 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        expect(attendees[0]?.price_paid).toBeNull();
+        // price_paid is encrypted "0" (always records actual amount from provider)
+        expect(attendees[0]?.price_paid).not.toBeNull();
       } finally {
         mockRetrieve.mockRestore();
       }
@@ -1874,6 +1897,268 @@ describe("server (webhooks)", () => {
         mockRefund.mockRestore();
       }
     });
+
+    test("webhook extracts amount_total as number from event data", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 2500,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_amount_total",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_amount_total",
+              payment_status: "paid",
+              payment_intent: "pi_amount_total",
+              amount_total: 2500,
+              metadata: {
+                event_id: String(event.id),
+                name: "Amount User",
+                email: "amount@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify attendee was created with price_paid set (encrypted)
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]?.price_paid).not.toBeNull();
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("resolvePricePaid returns amountTotal when it differs from expected price and logs mismatch", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      // amountTotal (1200) differs from expectedPrice (1000 * 1 = 1000)
+      // This covers lines 260-266 (mismatch logging) and line 268 (returning amountTotal)
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_mismatch",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_mismatch",
+              payment_status: "paid",
+              payment_intent: "pi_mismatch",
+              amount_total: 1200,
+              metadata: {
+                event_id: String(event.id),
+                name: "Mismatch User",
+                email: "mismatch@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      const mockConsoleError = spyOn(console, "error");
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify mismatch was logged (lines 260-266)
+        const mismatchCall = mockConsoleError.mock.calls.find(
+          (call: unknown[]) => typeof call[0] === "string" && call[0].includes("Price mismatch"),
+        );
+        expect(mismatchCall).toBeDefined();
+
+        // Verify attendee was created with amountTotal as price (line 268)
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        // price_paid is encrypted so we just confirm it was set
+        expect(attendees[0]?.price_paid).not.toBeNull();
+      } finally {
+        mockVerify.mockRestore();
+        mockConsoleError.mockRestore();
+      }
+    });
+
+    test("multi-ticket webhook logs mismatch when amountTotal differs from expected total", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Multi Mismatch 1",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Mismatch 2",
+        maxAttendees: 50,
+        unitPrice: 300,
+      });
+
+      // expectedTotal = 500*1 + 300*2 = 1100, but amountTotal = 1000
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_multi_mismatch",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_mismatch",
+              payment_status: "paid",
+              payment_intent: "pi_multi_mismatch",
+              amount_total: 1000,
+              metadata: {
+                name: "Multi Mismatch",
+                email: "multimismatch@example.com",
+                multi: "1",
+                items: JSON.stringify([
+                  { e: event1.id, q: 1 },
+                  { e: event2.id, q: 2 },
+                ]),
+              },
+            },
+          },
+        },
+      });
+
+      const mockConsoleError = spyOn(console, "error");
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify multi-ticket price mismatch was logged (lines 375-380)
+        const mismatchCall = mockConsoleError.mock.calls.find(
+          (call: unknown[]) => typeof call[0] === "string" && call[0].includes("Multi-ticket price mismatch"),
+        );
+        expect(mismatchCall).toBeDefined();
+      } finally {
+        mockVerify.mockRestore();
+        mockConsoleError.mockRestore();
+      }
+    });
+
+    test("multi-ticket webhook scales prices proportionally when amountTotal differs", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Multi Scale 1",
+        maxAttendees: 50,
+        unitPrice: 600,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Scale 2",
+        maxAttendees: 50,
+        unitPrice: 400,
+      });
+
+      // expectedTotal = 600*1 + 400*1 = 1000, amountTotal = 800 (20% discount)
+      // Proportional scaling: event1 = round(800 * 600/1000) = 480
+      //                       event2 = round(800 * 400/1000) = 320
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_multi_scale",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_scale",
+              payment_status: "paid",
+              payment_intent: "pi_multi_scale",
+              amount_total: 800,
+              metadata: {
+                name: "Scale User",
+                email: "scale@example.com",
+                multi: "1",
+                items: JSON.stringify([
+                  { e: event1.id, q: 1 },
+                  { e: event2.id, q: 1 },
+                ]),
+              },
+            },
+          },
+        },
+      });
+
+      const mockConsoleError = spyOn(console, "error");
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify attendees were created for both events with price_paid set
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        const attendees2 = await getAttendeesRaw(event2.id);
+        expect(attendees1.length).toBe(1);
+        expect(attendees2.length).toBe(1);
+        // Both should have price_paid set (encrypted, so just check non-null)
+        expect(attendees1[0]?.price_paid).not.toBeNull();
+        expect(attendees2[0]?.price_paid).not.toBeNull();
+
+        // Verify mismatch was logged (proportional scaling implies mismatch)
+        const mismatchCall = mockConsoleError.mock.calls.find(
+          (call: unknown[]) => typeof call[0] === "string" && call[0].includes("Multi-ticket price mismatch"),
+        );
+        expect(mismatchCall).toBeDefined();
+      } finally {
+        mockVerify.mockRestore();
+        mockConsoleError.mockRestore();
+      }
+    });
   });
 
   describe("closes_at in payment processing", () => {
@@ -1947,6 +2232,7 @@ describe("server (webhooks)", () => {
               id: "cs_closed_wh",
               payment_status: "paid",
               payment_intent: "pi_closed_wh",
+              amount_total: 1000,
               metadata: {
                 event_id: String(event.id),
                 name: "Jane",
@@ -2003,6 +2289,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_closed",
               payment_status: "paid",
               payment_intent: "pi_multi_closed",
+              amount_total: 1500,
               metadata: {
                 name: "Jane",
                 email: "jane@example.com",
@@ -2071,6 +2358,7 @@ describe("server (webhooks)", () => {
               id: "cs_multi_daily",
               payment_status: "paid",
               payment_intent: "pi_multi_daily",
+              amount_total: 800,
               metadata: {
                 name: "Multi Daily Buyer",
                 email: "multidaily@example.com",

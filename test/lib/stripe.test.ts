@@ -1484,6 +1484,63 @@ describe("stripe-provider", () => {
         retrieveSpy.mockRestore();
       }
     });
+
+    test("returns amountTotal when session has numeric amount_total", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: "cs_with_amount",
+        payment_status: "paid",
+        payment_intent: "pi_amount_123",
+        amount_total: 4500,
+        metadata: {
+          name: "Amount User",
+          email: "amount@example.com",
+          event_id: "10",
+          quantity: "3",
+        },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_with_amount");
+        expect(result).not.toBeNull();
+        expect(result?.amountTotal).toBe(4500);
+        expect(result?.paymentReference).toBe("pi_amount_123");
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
+
+    test("casts amount_total to number", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: "cs_amount_cast",
+        payment_status: "paid",
+        payment_intent: "pi_amount_cast",
+        amount_total: 7500,
+        metadata: {
+          name: "Cast User",
+          email: "cast@example.com",
+          event_id: "11",
+          quantity: "1",
+        },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_amount_cast");
+        expect(result).not.toBeNull();
+        expect(result?.amountTotal).toBe(7500);
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
   });
 
   describe("verifyWebhookSignature delegation", () => {

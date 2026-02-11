@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add attendee date";
+export const LATEST_UPDATE = "add date column";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)

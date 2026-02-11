@@ -701,6 +701,7 @@ describe("square", () => {
             { id: "tender_1", paymentId: "pay_abc" },
             { id: "tender_2", paymentId: null },
           ],
+          totalMoney: { amount: BigInt(2000), currency: "USD" },
         },
       });
 
@@ -724,6 +725,7 @@ describe("square", () => {
           metadata: undefined,
           state: "OPEN",
           tenders: undefined,
+          totalMoney: { amount: BigInt(0), currency: "USD" },
         },
       });
 
@@ -739,6 +741,30 @@ describe("square", () => {
         },
       );
     });
+
+    test("maps totalMoney from order response", async () => {
+      const { client, ordersGet } = createMockClient();
+      ordersGet.mockResolvedValue({
+        order: {
+          id: "order_with_total",
+          metadata: { event_id: "1", name: "John", email: "john@example.com" },
+          state: "COMPLETED",
+          tenders: [{ id: "tender_1", paymentId: "pay_total" }],
+          totalMoney: { amount: BigInt(7500), currency: "GBP" },
+        },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const result = await squareApi.retrieveOrder("order_with_total");
+          expect(result).not.toBeNull();
+          expect(result!.totalMoney.amount).toBe(BigInt(7500));
+          expect(result!.totalMoney.currency).toBe("GBP");
+        },
+      );
+    });
+
   });
 
   describe("retrievePayment", () => {
@@ -1063,6 +1089,7 @@ describe("square", () => {
           },
           tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
           state: "COMPLETED",
+          totalMoney: { amount: BigInt(5000), currency: "USD" },
         },
       });
 
@@ -1094,6 +1121,7 @@ describe("square", () => {
             email: "john@example.com",
           },
           state: "OPEN",
+          totalMoney: { amount: BigInt(1000), currency: "USD" },
         },
       });
 
@@ -1158,6 +1186,36 @@ describe("square", () => {
       );
     });
 
+    test("retrieveSession returns amountTotal from order totalMoney", async () => {
+      const { client, ordersGet } = createMockClient();
+      ordersGet.mockResolvedValue({
+        order: {
+          id: "order_with_amount",
+          metadata: {
+            event_id: "5",
+            name: "Total User",
+            email: "total@example.com",
+            quantity: "2",
+          },
+          tenders: [{ id: "tender_1", paymentId: "pay_total_123" }],
+          state: "COMPLETED",
+          totalMoney: { amount: BigInt(6000), currency: "GBP" },
+        },
+      });
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const result = await squarePaymentProvider.retrieveSession("order_with_amount");
+          expect(result).not.toBeNull();
+          expect(result!.amountTotal).toBe(6000);
+          expect(result!.paymentStatus).toBe("paid");
+          expect(result!.paymentReference).toBe("pay_total_123");
+        },
+      );
+    });
+
+
     test("retrieveSession handles multi-ticket order", async () => {
       const items = JSON.stringify([{ e: 1, q: 2 }, { e: 2, q: 1 }]);
       const { client, ordersGet } = createMockClient();
@@ -1172,6 +1230,7 @@ describe("square", () => {
           },
           tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
           state: "COMPLETED",
+          totalMoney: { amount: BigInt(3000), currency: "USD" },
         },
       });
 
