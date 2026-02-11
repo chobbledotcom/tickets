@@ -15,7 +15,6 @@
  */
 
 import { createAttendeeAtomic, deleteAttendee } from "#lib/db/attendees.ts";
-import { getAttendeesBySessionId } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
   finalizeSession,
@@ -227,24 +226,6 @@ const validateAndPrice = async (
 };
 
 /**
- * Recover from a stale reservation where the attendee was created
- * but the session was never finalized (e.g., due to a server crash).
- * Returns a PaymentResult if orphaned attendees exist, or null to proceed normally.
- */
-const recoverOrphanedAttendees = async (
-  sessionId: string,
-  eventId: number,
-): Promise<PaymentResult | null> => {
-  const orphaned = await getAttendeesBySessionId(sessionId);
-  if (orphaned.length === 0) return null;
-  await finalizeSession(sessionId, orphaned[0]!.id);
-  const event = await getEventWithCount(eventId);
-  return event
-    ? { success: true, attendee: orphaned[0]!, event }
-    : { success: false, error: "Event not found", status: 404 };
-};
-
-/**
  * Resolve the price to record for a single-ticket attendee.
  * Uses the actual amount charged by the payment provider (session.amountTotal)
  * when available. Falls back to the expected price (computed from current DB price)
@@ -353,10 +334,6 @@ const processMultiPaymentSession = async (
     };
   }
 
-  // Check for orphaned attendees from a prior crashed attempt
-  const recovered = await recoverOrphanedAttendees(sessionId, intent.items[0]!.e);
-  if (recovered) return recovered;
-
   // Phase 2: Validate events and create attendees atomically
   // First pass: validate all events and compute expected prices
   const validatedItems: { item: MultiItem; event: EventWithCount; expectedPrice: number | null }[] = [];
@@ -401,7 +378,6 @@ const processMultiPaymentSession = async (
       phone: intent.phone,
       pricePaid,
       date: event.event_type === "daily" ? intent.date : null,
-      paymentSessionId: sessionId,
     });
 
     if (!result.success) {
@@ -472,11 +448,6 @@ const processPaymentSession = async (
     };
   }
 
-  // Check for orphaned attendees from a prior crashed attempt
-  // (stale reservation was cleaned up, but the attendee was already created)
-  const recovered = await recoverOrphanedAttendees(sessionId, intent.eventId);
-  if (recovered) return recovered;
-
   // Phase 2: Validate event and create attendee atomically with capacity check
   const vp = await validateAndPrice(intent);
   if (!vp.ok) return refundAndFail(session, vp.error, vp.status);
@@ -487,7 +458,6 @@ const processPaymentSession = async (
     ...intent,
     paymentId: session.paymentReference,
     pricePaid,
-    paymentSessionId: sessionId,
   });
 
   if (!result.success) {

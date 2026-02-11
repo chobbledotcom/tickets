@@ -38,15 +38,6 @@ export const queryOne = async <T>(
   return result.rows.length === 0 ? null : (result.rows[0] as unknown as T);
 };
 
-/** Query all matching rows */
-export const queryAll = async <T>(
-  sql: string,
-  args: InValue[],
-): Promise<T[]> => {
-  const result = await getDb().execute({ sql, args });
-  return result.rows as unknown as T[];
-};
-
 /** Execute delete by field */
 export const executeByField = async (
   table: string,

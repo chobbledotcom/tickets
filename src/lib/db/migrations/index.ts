@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add payment session id";
+export const LATEST_UPDATE = "add date column";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -298,11 +298,6 @@ export const initDb = async (): Promise<void> => {
 
   // Migration: add date column to attendees for daily events
   await runMigration(`ALTER TABLE attendees ADD COLUMN date TEXT DEFAULT NULL`);
-
-  // Migration: add payment_session_id to attendees for stale reservation recovery.
-  // Links attendees to their payment session so orphaned attendees (created but
-  // not finalized due to server crash) can be recovered instead of duplicated.
-  await runMigration(`ALTER TABLE attendees ADD COLUMN payment_session_id TEXT DEFAULT NULL`);
 
   // Update the version marker
   await getDb().execute({
