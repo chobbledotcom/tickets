@@ -143,7 +143,7 @@ type SquareOrder = {
     paymentId?: string;
   }>;
   state?: string;
-  totalMoney?: { amount?: bigint; currency?: string };
+  totalMoney: { amount: bigint; currency: string };
 };
 
 /** Square payment response shape (subset we use) */
@@ -339,10 +339,10 @@ export const squareApi: {
             paymentId: t.paymentId ?? undefined,
           })),
           state: order.state,
-          totalMoney: order.totalMoney ? {
-            amount: order.totalMoney.amount as bigint | undefined,
-            currency: order.totalMoney.currency as string | undefined,
-          } : undefined,
+          totalMoney: {
+            amount: order.totalMoney!.amount!,
+            currency: order.totalMoney!.currency!,
+          },
         };
       },
       ErrorCode.SQUARE_ORDER,

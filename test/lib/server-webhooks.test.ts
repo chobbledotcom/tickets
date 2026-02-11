@@ -1662,9 +1662,8 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        // Multi-ticket with no unit_price: expectedTotal=0 so no proportional scaling,
-        // pricePaid falls through as null (expectedPrice is null for free events)
-        expect(attendees[0]?.price_paid).toBeNull();
+        // price_paid is encrypted "0" (unit_price defaults to 0 for free events)
+        expect(attendees[0]?.price_paid).not.toBeNull();
       } finally {
         mockRetrieve.mockRestore();
       }

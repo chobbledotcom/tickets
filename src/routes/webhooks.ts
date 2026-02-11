@@ -211,7 +211,7 @@ const validateEventForPayment = async (
 
 /** Validate event and compute expected price for post-payment attendee creation */
 type EventPriceValidation =
-  | { ok: true; event: EventWithCount; expectedPrice: number | null }
+  | { ok: true; event: EventWithCount; expectedPrice: number }
   | { ok: false; error: string; status?: number };
 
 const validateAndPrice = async (
@@ -221,7 +221,7 @@ const validateAndPrice = async (
   const validation = await validateEventForPayment(input.eventId, includeEventName);
   if (!validation.ok) return validation;
   const { event } = validation;
-  const expectedPrice = event.unit_price !== null ? event.unit_price * input.quantity : null;
+  const expectedPrice = (event.unit_price ?? 0) * input.quantity;
   return { ok: true, event, expectedPrice };
 };
 
@@ -233,10 +233,10 @@ const validateAndPrice = async (
  */
 const resolvePricePaid = (
   amountTotal: number,
-  expectedPrice: number | null,
+  expectedPrice: number,
   eventId: number,
 ): number => {
-  if (expectedPrice !== null && amountTotal !== expectedPrice) {
+  if (amountTotal !== expectedPrice) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       eventId,
@@ -332,7 +332,7 @@ const processMultiPaymentSession = async (
 
   // Phase 2: Validate events and create attendees atomically
   // First pass: validate all events and compute expected prices
-  const validatedItems: { item: MultiItem; event: EventWithCount; expectedPrice: number | null }[] = [];
+  const validatedItems: { item: MultiItem; event: EventWithCount; expectedPrice: number }[] = [];
   let expectedTotal = 0;
 
   for (const item of intent.items) {
@@ -341,7 +341,7 @@ const processMultiPaymentSession = async (
       return refundAndFail(session, vp.error, vp.status);
     }
     validatedItems.push({ item, event: vp.event, expectedPrice: vp.expectedPrice });
-    expectedTotal += vp.expectedPrice ?? 0;
+    expectedTotal += vp.expectedPrice;
   }
 
   // Log if the actual amount charged doesn't match expected total
@@ -361,7 +361,7 @@ const processMultiPaymentSession = async (
 
   for (const { item, event, expectedPrice } of validatedItems) {
     // When provider amount differs from expected, scale proportionally
-    const pricePaid = useActualPrices && expectedPrice !== null
+    const pricePaid = useActualPrices
       ? Math.round(session.amountTotal * (expectedPrice / expectedTotal))
       : expectedPrice;
 

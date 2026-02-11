@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import { squarePaymentProvider } from "#lib/square-provider.ts";
+import { squareApi } from "#lib/square.ts";
 import { createTestDb, resetDb } from "#test-utils";
 
 describe("square-provider", () => {
@@ -11,6 +12,20 @@ describe("square-provider", () => {
   afterEach(() => {
     resetDb();
     Deno.env.set("ALLOWED_DOMAIN", "localhost");
+  });
+
+  describe("retrieveSession", () => {
+    test("returns null when order metadata is missing required fields", async () => {
+      const restore = spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+        id: "order_no_meta",
+        metadata: {},
+        state: "COMPLETED",
+        totalMoney: { amount: BigInt(1000), currency: "USD" },
+      });
+      const result = await squarePaymentProvider.retrieveSession("order_no_meta");
+      expect(result).toBeNull();
+      restore();
+    });
   });
 
   describe("setupWebhookEndpoint", () => {

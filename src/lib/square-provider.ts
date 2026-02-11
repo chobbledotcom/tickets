@@ -87,7 +87,7 @@ export const squarePaymentProvider: PaymentProvider = {
       id: order.id,
       paymentStatus,
       paymentReference,
-      amountTotal: Number(order.totalMoney!.amount),
+      amountTotal: Number(order.totalMoney.amount),
       metadata: extractSessionMetadata(metadata),
     };
   },
