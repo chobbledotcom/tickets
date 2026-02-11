@@ -769,18 +769,25 @@ button.bulk-checkout:hover {
 button.link-button {
   background: transparent;
   border: none;
-  color: var(--color-link);
   padding: 0;
   margin: 0;
   font: inherit;
+  font-weight: bold;
   cursor: pointer;
   text-decoration: underline;
 }
 
 button.link-button:hover {
   filter: none;
-  color: var(--color-link);
   text-decoration: none;
+}
+
+button.link-button.checkin {
+  color: #22863a;
+}
+
+button.link-button.checkout {
+  color: #cc0000;
 }
 
 /* Iframe embed mode */

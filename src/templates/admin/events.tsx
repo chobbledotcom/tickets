@@ -41,6 +41,7 @@ export const nearCapacity = (event: EventWithCount): boolean =>
 const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter }): string => {
   const isCheckedIn = a.checked_in === "true";
   const label = isCheckedIn ? "Check out" : "Check in";
+  const buttonClass = isCheckedIn ? "link-button checkout" : "link-button checkin";
   return String(
     <form
       method="POST"
@@ -49,7 +50,7 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; e
     >
       <input type="hidden" name="csrf_token" value={csrfToken} />
       <input type="hidden" name="return_filter" value={activeFilter} />
-      <button type="submit" class="link-button">
+      <button type="submit" class={buttonClass}>
         {label}
       </button>
     </form>
