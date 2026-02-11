@@ -15,12 +15,14 @@ import {
   type RouteHandlerFn,
   type RouteParams,
 } from "#routes/router.ts";
+import { verifyIdentifier } from "#routes/admin/utils.ts";
 import {
-  getAuthenticatedSession,
+  type AuthSession,
   getPrivateKey,
   htmlResponse,
   notFoundResponse,
   redirect,
+  requireSessionOr,
   withAuthForm,
 } from "#routes/utils.ts";
 import { adminDeleteAttendeePage } from "#templates/admin/attendees.tsx";
@@ -47,49 +49,62 @@ const loadAttendeeForEvent = async (
   return { attendee, event: result.event };
 };
 
-/** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
-const handleAdminAttendeeDeleteGet = async (
-  request: Request,
+/** Load attendee with auth, returning 404 if not found */
+const withAttendee = async (
+  session: AuthSession,
   eventId: number,
   attendeeId: number,
+  handler: (data: AttendeeWithEvent) => Response | Promise<Response>,
 ): Promise<Response> => {
-  const session = await getAuthenticatedSession(request);
-  if (!session) {
-    return redirect("/admin");
-  }
-
   const privateKey = (await getPrivateKey(session))!;
-
   const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
-  if (!data) {
-    return notFoundResponse();
-  }
-
-  return htmlResponse(
-    adminDeleteAttendeePage(data.event, data.attendee, session),
-  );
+  return data ? handler(data) : notFoundResponse();
 };
 
-/** Verify name matches for deletion confirmation (case-insensitive, trimmed) */
-const verifyName = (expected: string, provided: string): boolean =>
-  expected.trim().toLowerCase() === provided.trim().toLowerCase();
-
-/** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete with name verification */
-const handleAdminAttendeeDeletePost = (
+/** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
+const handleAdminAttendeeDeleteGet = (
   request: Request,
   eventId: number,
   attendeeId: number,
 ): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
-    const privateKey = (await getPrivateKey(session))!;
+  requireSessionOr(request, (session) =>
+    withAttendee(session, eventId, attendeeId, (data) =>
+      htmlResponse(adminDeleteAttendeePage(data.event, data.attendee, session)),
+    ),
+  );
 
-    const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
-    if (!data) {
-      return notFoundResponse();
-    }
+/** Auth + load attendee from form handler */
+const withAttendeeForm = (
+  request: Request,
+  eventId: number,
+  attendeeId: number,
+  handler: (data: AttendeeWithEvent, session: AuthSession, form: URLSearchParams) => Response | Promise<Response>,
+): Promise<Response> =>
+  withAuthForm(request, (session, form) =>
+    withAttendee(session, eventId, attendeeId, (data) =>
+      handler(data, session, form)));
 
+/** Parse event and attendee IDs from params (route pattern guarantees both exist as \d+) */
+const parseAttendeeIds = (
+  params: RouteParams,
+): { eventId: number; attendeeId: number } => ({
+  eventId: Number.parseInt(params.eventId!, 10),
+  attendeeId: Number.parseInt(params.attendeeId!, 10),
+});
+
+/** Map return_filter form value to URL suffix */
+const filterSuffix = (returnFilter: string | null): string => {
+  if (returnFilter === "in") return "/in";
+  if (returnFilter === "out") return "/out";
+  return "";
+};
+
+/** Delete attendee handler with name verification */
+const attendeeDeleteHandler: RouteHandlerFn = (request, params) => {
+  const { eventId, attendeeId } = parseAttendeeIds(params);
+  return withAttendeeForm(request, eventId, attendeeId, async (data, session, form) => {
     const confirmName = form.get("confirm_name") ?? "";
-    if (!verifyName(data.attendee.name, confirmName)) {
+    if (!verifyIdentifier(data.attendee.name, confirmName)) {
       return htmlResponse(
         adminDeleteAttendeePage(
           data.event,
@@ -105,42 +120,12 @@ const handleAdminAttendeeDeletePost = (
     await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
     return redirect(`/admin/event/${eventId}`);
   });
-
-/** Parse event and attendee IDs from params (route pattern guarantees both exist as \d+) */
-const parseAttendeeIds = (
-  params: RouteParams,
-): { eventId: number; attendeeId: number } => ({
-  eventId: Number.parseInt(params.eventId!, 10),
-  attendeeId: Number.parseInt(params.attendeeId!, 10),
-});
-
-/** Route handler for POST/DELETE attendee delete */
-const attendeeDeleteHandler: RouteHandlerFn = (request, params) => {
-  const ids = parseAttendeeIds(params);
-  return handleAdminAttendeeDeletePost(request, ids.eventId, ids.attendeeId);
 };
 
-/** Map return_filter form value to URL suffix */
-const filterSuffix = (returnFilter: string | null): string => {
-  if (returnFilter === "in") return "/in";
-  if (returnFilter === "out") return "/out";
-  return "";
-};
-
-/** Handle POST /admin/event/:eventId/attendee/:attendeeId/checkin (toggle check-in) */
-const handleAdminAttendeeCheckinPost = (
-  request: Request,
-  eventId: number,
-  attendeeId: number,
-): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
-    const privateKey = (await getPrivateKey(session))!;
-
-    const data = await loadAttendeeForEvent(eventId, attendeeId, privateKey);
-    if (!data) {
-      return notFoundResponse();
-    }
-
+/** Checkin toggle handler */
+const attendeeCheckinHandler: RouteHandlerFn = (request, params) => {
+  const { eventId, attendeeId } = parseAttendeeIds(params);
+  return withAttendeeForm(request, eventId, attendeeId, async (data, _session, form) => {
     const wasCheckedIn = data.attendee.checked_in === "true";
     const nowCheckedIn = !wasCheckedIn;
 
@@ -156,6 +141,7 @@ const handleAdminAttendeeCheckinPost = (
       `/admin/event/${eventId}${suffix}?checkin_name=${name}&checkin_status=${status}#message`,
     );
   });
+};
 
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
@@ -166,15 +152,7 @@ export const attendeesRoutes = defineRoutes({
     const ids = parseAttendeeIds(params);
     return handleAdminAttendeeDeleteGet(request, ids.eventId, ids.attendeeId);
   },
-  "POST /admin/event/:eventId/attendee/:attendeeId/delete":
-    attendeeDeleteHandler,
-  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete":
-    attendeeDeleteHandler,
-  "POST /admin/event/:eventId/attendee/:attendeeId/checkin": (
-    request,
-    params,
-  ) => {
-    const ids = parseAttendeeIds(params);
-    return handleAdminAttendeeCheckinPost(request, ids.eventId, ids.attendeeId);
-  },
+  "POST /admin/event/:eventId/attendee/:attendeeId/delete": attendeeDeleteHandler,
+  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete": attendeeDeleteHandler,
+  "POST /admin/event/:eventId/attendee/:attendeeId/checkin": attendeeCheckinHandler,
 });

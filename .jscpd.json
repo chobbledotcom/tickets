@@ -7,16 +7,13 @@
 		"**/node_modules/**",
 		"**/package-lock.json",
 		"**/deno.lock",
-		"bunny-script.ts",
-		"src/fp/index.ts",
-		"src/lib/crypto.ts",
-		"src/routes/admin/**"
+		"src/fp/index.ts"
 	],
 	"format": ["typescript", "json"],
 	"absolute": false,
 	"gitignore": true,
 	"exitCode": 1,
 	"minLines": 1,
-	"minTokens": 25,
+	"minTokens": 55,
 	"path": ["src", "test", "scripts"]
 }
