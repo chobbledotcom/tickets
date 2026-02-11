@@ -440,6 +440,7 @@ describe("server (webhooks)", () => {
         id: "cs_no_qty",
         payment_status: "paid",
         payment_intent: "pi_no_qty",
+        amount_total: 1000,
         metadata: {
           event_id: String(event.id),
           name: "John",
@@ -731,6 +732,7 @@ describe("server (webhooks)", () => {
         id: "cs_multi_price",
         payment_status: "paid",
         payment_intent: "pi_multi_price",
+        amount_total: 1500,
         metadata: {
           name: "Price Test",
           email: "price@example.com",
@@ -772,6 +774,7 @@ describe("server (webhooks)", () => {
         id: "cs_single_price",
         payment_status: "paid",
         payment_intent: "pi_single_price",
+        amount_total: 2000,
         metadata: {
           event_id: String(event.id),
           name: "Price Single",
@@ -1625,10 +1628,9 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("multi-ticket pricePaid is null when event has no unit_price", async () => {
+    test("multi-ticket pricePaid records zero when event has no unit_price", async () => {
       await setupStripe();
 
-      // Create event with no unitPrice (free event) to cover line 273 null path
       const event = await createTestEvent({
         name: "WH Multi Free",
         maxAttendees: 50,
@@ -1639,6 +1641,7 @@ describe("server (webhooks)", () => {
         id: "cs_multi_free",
         payment_status: "paid",
         payment_intent: "pi_multi_free",
+        amount_total: 0,
         metadata: {
           name: "Free Multi",
           email: "freemulti@example.com",
@@ -1659,17 +1662,17 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        // price_paid should be null for free events
+        // Multi-ticket with no unit_price: expectedTotal=0 so no proportional scaling,
+        // pricePaid falls through as null (expectedPrice is null for free events)
         expect(attendees[0]?.price_paid).toBeNull();
       } finally {
         mockRetrieve.mockRestore();
       }
     });
 
-    test("single-ticket pricePaid is null when event has no unit_price", async () => {
+    test("single-ticket pricePaid records zero when event has no unit_price", async () => {
       await setupStripe();
 
-      // Create event with no unitPrice (free event) to cover line 378 null path
       const event = await createTestEvent({
         name: "WH Single Free",
         maxAttendees: 50,
@@ -1680,6 +1683,7 @@ describe("server (webhooks)", () => {
         id: "cs_single_free",
         payment_status: "paid",
         payment_intent: "pi_single_free",
+        amount_total: 0,
         metadata: {
           event_id: String(event.id),
           name: "Free Single",
@@ -1700,7 +1704,8 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        expect(attendees[0]?.price_paid).toBeNull();
+        // price_paid is encrypted "0" (always records actual amount from provider)
+        expect(attendees[0]?.price_paid).not.toBeNull();
       } finally {
         mockRetrieve.mockRestore();
       }

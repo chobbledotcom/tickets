@@ -1107,6 +1107,7 @@ describe("square", () => {
           },
           tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
           state: "COMPLETED",
+          totalMoney: { amount: BigInt(5000), currency: "USD" },
         },
       });
 
@@ -1138,6 +1139,7 @@ describe("square", () => {
             email: "john@example.com",
           },
           state: "OPEN",
+          totalMoney: { amount: BigInt(1000), currency: "USD" },
         },
       });
 
@@ -1231,28 +1233,29 @@ describe("square", () => {
       );
     });
 
-    test("retrieveSession returns null amountTotal when totalMoney is absent", async () => {
+    test("retrieveSession returns amountTotal as number from totalMoney", async () => {
       const { client, ordersGet } = createMockClient();
       ordersGet.mockResolvedValue({
         order: {
-          id: "order_no_amount",
+          id: "order_amount_num",
           metadata: {
             event_id: "6",
-            name: "No Total",
-            email: "nototal@example.com",
+            name: "Total Num",
+            email: "totalnum@example.com",
             quantity: "1",
           },
-          tenders: [{ id: "tender_1", paymentId: "pay_nototal" }],
+          tenders: [{ id: "tender_1", paymentId: "pay_totalnum" }],
           state: "COMPLETED",
+          totalMoney: { amount: BigInt(4200), currency: "USD" },
         },
       });
 
       await withMocks(
         () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
         async () => {
-          const result = await squarePaymentProvider.retrieveSession("order_no_amount");
+          const result = await squarePaymentProvider.retrieveSession("order_amount_num");
           expect(result).not.toBeNull();
-          expect(result!.amountTotal).toBeNull();
+          expect(result!.amountTotal).toBe(4200);
         },
       );
     });
@@ -1271,6 +1274,7 @@ describe("square", () => {
           },
           tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
           state: "COMPLETED",
+          totalMoney: { amount: BigInt(3000), currency: "USD" },
         },
       });
 

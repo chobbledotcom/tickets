@@ -70,7 +70,7 @@ export const stripePaymentProvider: PaymentProvider = {
       paymentStatus: payment_status as ValidatedPaymentSession["paymentStatus"],
       paymentReference:
         typeof payment_intent === "string" ? payment_intent : null,
-      amountTotal: typeof amount_total === "number" ? amount_total : null,
+      amountTotal: amount_total as number,
       metadata: extractSessionMetadata(metadata),
     };
   },

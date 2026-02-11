@@ -70,7 +70,7 @@ export type ValidatedPaymentSession = {
   paymentStatus: "paid" | "unpaid" | "no_payment_required";
   paymentReference: string | null;
   /** Total amount charged in smallest currency unit (cents), from the payment provider */
-  amountTotal: number | null;
+  amountTotal: number;
   metadata: SessionMetadata;
 };
 

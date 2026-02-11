@@ -83,16 +83,11 @@ export const squarePaymentProvider: PaymentProvider = {
     const paymentStatus: ValidatedPaymentSession["paymentStatus"] =
       order.state === "COMPLETED" ? "paid" : "unpaid";
 
-    // Extract total amount from order (Square uses bigint)
-    const amountTotal = order.totalMoney?.amount != null
-      ? Number(order.totalMoney.amount)
-      : null;
-
     return {
       id: order.id,
       paymentStatus,
       paymentReference,
-      amountTotal,
+      amountTotal: Number(order.totalMoney!.amount),
       metadata: extractSessionMetadata(metadata),
     };
   },

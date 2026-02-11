@@ -227,27 +227,23 @@ const validateAndPrice = async (
 
 /**
  * Resolve the price to record for a single-ticket attendee.
- * Uses the actual amount charged by the payment provider (session.amountTotal)
- * when available. Falls back to the expected price (computed from current DB price)
- * only when the provider didn't report an amount.
+ * Uses the actual amount charged by the payment provider (session.amountTotal).
  * Logs a warning if the actual and expected amounts differ (indicates a price
  * change occurred between checkout creation and fulfillment).
  */
 const resolvePricePaid = (
-  amountTotal: number | null,
+  amountTotal: number,
   expectedPrice: number | null,
   eventId: number,
-): number | null => {
-  if (amountTotal !== null && expectedPrice !== null && amountTotal !== expectedPrice) {
+): number => {
+  if (expectedPrice !== null && amountTotal !== expectedPrice) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       eventId,
       detail: `Price mismatch: provider charged ${amountTotal} but current event price yields ${expectedPrice}`,
     });
   }
-  // Prefer the actual amount from the provider
-  if (amountTotal !== null) return amountTotal;
-  return expectedPrice;
+  return amountTotal;
 };
 
 /** Format error for post-payment attendee creation failure */
@@ -349,7 +345,7 @@ const processMultiPaymentSession = async (
   }
 
   // Log if the actual amount charged doesn't match expected total
-  if (session.amountTotal !== null && expectedTotal !== session.amountTotal) {
+  if (expectedTotal !== session.amountTotal) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Multi-ticket price mismatch: provider charged ${session.amountTotal} but current event prices yield ${expectedTotal}`,
@@ -357,7 +353,7 @@ const processMultiPaymentSession = async (
   }
 
   // Use actual total from provider to scale per-item prices proportionally
-  const useActualPrices = session.amountTotal !== null && expectedTotal > 0 && session.amountTotal !== expectedTotal;
+  const useActualPrices = expectedTotal > 0 && session.amountTotal !== expectedTotal;
 
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   let failedEvent: EventWithCount | null = null;
@@ -366,7 +362,7 @@ const processMultiPaymentSession = async (
   for (const { item, event, expectedPrice } of validatedItems) {
     // When provider amount differs from expected, scale proportionally
     const pricePaid = useActualPrices && expectedPrice !== null
-      ? Math.round(session.amountTotal! * (expectedPrice / expectedTotal))
+      ? Math.round(session.amountTotal * (expectedPrice / expectedTotal))
       : expectedPrice;
 
     const result = await createAttendeeAtomic({
@@ -583,7 +579,7 @@ const extractSessionFromEvent = (
     paymentStatus: obj.payment_status as ValidatedPaymentSession["paymentStatus"],
     paymentReference:
       typeof obj.payment_intent === "string" ? obj.payment_intent : null,
-    amountTotal: typeof obj.amount_total === "number" ? obj.amount_total : null,
+    amountTotal: typeof obj.amount_total === "number" ? obj.amount_total : 0,
     metadata: {
       event_id: obj.metadata.event_id,
       name: obj.metadata.name,
