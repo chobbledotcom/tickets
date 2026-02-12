@@ -41,6 +41,7 @@ const attendeeCols = (a: Attendee, domain: string): string[] => [
   escapeCsvValue(a.email),
   escapeCsvValue(a.phone),
   escapeCsvValue(a.address),
+  escapeCsvValue(a.special_instructions),
   String(a.quantity),
   escapeCsvValue(new Date(a.created).toISOString()),
   formatPrice(a.price_paid),
@@ -87,7 +88,7 @@ export const generateAttendeesCsv = (
   const headerParts = [
     ...(includeDate ? ["Date"] : []),
     ...eventInfoHeaders(showEventDate, showEventLocation),
-    "Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+    "Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
   ];
   return buildCsv(headerParts.join(","), (a: Attendee, domain) => [
     ...(includeDate ? [escapeCsvValue(a.date ?? "")] : []),
@@ -106,7 +107,7 @@ export const generateCalendarCsv = (attendees: CalendarAttendee[]): string => {
   const headerParts = [
     "Event",
     ...eventInfoHeaders(showEventDate, showEventLocation),
-    "Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+    "Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
   ];
   return buildCsv(headerParts.join(","), (a: CalendarAttendee, domain) => [
     escapeCsvValue(a.eventName),

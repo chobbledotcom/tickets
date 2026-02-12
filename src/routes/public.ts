@@ -202,6 +202,7 @@ const extractContact = (values: TicketFormValues): ContactInfo => ({
   email: values.email || "",
   phone: values.phone || "",
   address: values.address || "",
+  special_instructions: values.special_instructions || "",
 });
 
 /** Parse and validate a quantity value from a raw string, capping at max */

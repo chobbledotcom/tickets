@@ -82,6 +82,7 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
       <td>{a.email || ""}</td>
       <td>{a.phone || ""}</td>
       <td>{formatAddressInline(a.address)}</td>
+      <td>{formatAddressInline(a.special_instructions)}</td>
       <td>{a.quantity}</td>
       <td><a href={`https://${allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
       <td>{new Date(a.created).toLocaleString()}</td>
@@ -161,14 +162,14 @@ export const adminEventPage = ({
 }: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const contactFields = parseEventFields(event.fields);
-  const hasTextarea = contactFields.includes("address");
-  const inputCount = contactFields.filter((f) => f !== "address").length;
-  const iframeHeight = `${14 + inputCount * 4 + (hasTextarea ? 6 : 0)}rem`;
+  const textareaCount = ["address", "special_instructions"].filter((f) => contactFields.includes(f as "address" | "special_instructions")).length;
+  const inputCount = contactFields.filter((f) => f !== "address" && f !== "special_instructions").length;
+  const iframeHeight = `${14 + inputCount * 4 + textareaCount * 6}rem`;
   const embedCode = `<iframe src="${ticketUrl}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
   const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);
   const hasPaidEvent = event.unit_price !== null;
-  const colSpan = isDaily ? 9 : 8;
+  const colSpan = isDaily ? 10 : 9;
   const attendeeRows =
     filteredAttendees.length > 0
       ? pipe(
@@ -357,6 +358,7 @@ export const adminEventPage = ({
                   <th>Email</th>
                   <th>Phone</th>
                   <th>Address</th>
+                  <th>Special Instructions</th>
                   <th>Qty</th>
                   <th>Ticket</th>
                   <th>Registered</th>

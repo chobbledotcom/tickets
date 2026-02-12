@@ -475,7 +475,7 @@ describe("html", () => {
   describe("generateAttendeesCsv", () => {
     test("generates CSV header for empty attendees", () => {
       const csv = generateAttendeesCsv([]);
-      expect(csv).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("generates CSV with attendee data", () => {
@@ -484,7 +484,7 @@ describe("html", () => {
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(lines[0]).toBe("Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain("John Doe");
       expect(lines[1]).toContain("john@example.com");
       expect(lines[1]).toContain(",2,");
@@ -531,7 +531,7 @@ describe("html", () => {
       const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(lines[0]).toBe("Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain("+1 555 123 4567");
     });
 
@@ -539,7 +539,7 @@ describe("html", () => {
       const attendees = [testAttendee()];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[1]).toContain("john@example.com,,,1,");
+      expect(lines[1]).toContain("john@example.com,,,,1,");
     });
 
     test("generates CSV with price and transaction ID", () => {
@@ -610,7 +610,7 @@ describe("html", () => {
 
     test("includes Date column when includeDate is true", () => {
       const csv = generateAttendeesCsv([], true);
-      expect(csv).toBe("Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("includes date value in row when includeDate is true", () => {
@@ -1189,7 +1189,7 @@ describe("html", () => {
 
     test("generates CSV header for empty attendees (no Event Date/Location columns)", () => {
       const csv = generateCalendarCsv([]);
-      expect(csv).toBe("Event,Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Event,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("omits Event Date and Event Location columns when all empty", () => {

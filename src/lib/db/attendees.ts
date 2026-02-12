@@ -44,6 +44,9 @@ const decryptAttendee = async (
   const address = row.address
     ? await decryptAttendeePII(row.address, privateKey)
     : "";
+  const special_instructions = row.special_instructions
+    ? await decryptAttendeePII(row.special_instructions, privateKey)
+    : "";
   const payment_id = row.payment_id
     ? await decryptAttendeePII(row.payment_id, privateKey)
     : null;
@@ -51,7 +54,7 @@ const decryptAttendee = async (
   const checked_in = row.checked_in
     ? await decryptAttendeePII(row.checked_in, privateKey)
     : "false";
-  return { ...row, name, email, phone, address, payment_id, price_paid, checked_in };
+  return { ...row, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in };
 };
 
 /**
@@ -94,6 +97,7 @@ type EncryptedAttendeeData = {
   encryptedEmail: string;
   encryptedPhone: string;
   encryptedAddress: string;
+  encryptedSpecialInstructions: string;
   encryptedPaymentId: string | null;
   encryptedPricePaid: string | null;
   encryptedCheckedIn: string;
@@ -123,6 +127,9 @@ const encryptAttendeeFields = async (
       : "",
     encryptedAddress: input.address
       ? await encryptAttendeePII(input.address, publicKeyJwk)
+      : "",
+    encryptedSpecialInstructions: input.special_instructions
+      ? await encryptAttendeePII(input.special_instructions, publicKeyJwk)
       : "",
     encryptedPaymentId: input.paymentId
       ? await encryptAttendeePII(input.paymentId, publicKeyJwk)
@@ -154,6 +161,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   email: input.email,
   phone: input.phone,
   address: input.address,
+  special_instructions: input.special_instructions,
   created: input.created,
   payment_id: input.paymentId,
   quantity: input.quantity,
@@ -196,7 +204,7 @@ export type CreateAttendeeResult =
   | { success: false; reason: "capacity_exceeded" | "encryption_error" };
 
 /** Input for creating an attendee atomically */
-export type AttendeeInput = Pick<ContactInfo, "name" | "email"> & Partial<Pick<ContactInfo, "phone" | "address">> & {
+export type AttendeeInput = Pick<ContactInfo, "name" | "email"> & Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">> & {
   eventId: number;
   paymentId?: string | null;
   quantity?: number;
@@ -272,8 +280,8 @@ export const attendeesApi = {
   createAttendeeAtomic: async (
     input: AttendeeInput,
   ): Promise<CreateAttendeeResult> => {
-    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", address = "", pricePaid = null, date = null } = input;
-    const enc = await encryptAttendeeFields({ name, email, phone, address, paymentId, pricePaid });
+    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", address = "", special_instructions = "", pricePaid = null, date = null } = input;
+    const enc = await encryptAttendeeFields({ name, email, phone, address, special_instructions, paymentId, pricePaid });
     if (!enc) {
       return { success: false, reason: "encryption_error" };
     }
@@ -288,8 +296,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, address, created, payment_id, quantity, price_paid, checked_in, ticket_token, date)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, ticket_token, date)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (
@@ -301,6 +309,7 @@ export const attendeesApi = {
         enc.encryptedEmail,
         enc.encryptedPhone,
         enc.encryptedAddress,
+        enc.encryptedSpecialInstructions,
         enc.created,
         enc.encryptedPaymentId,
         qty,
@@ -327,6 +336,7 @@ export const attendeesApi = {
         email,
         phone,
         address,
+        special_instructions,
         created: enc.created,
         paymentId,
         quantity: qty,

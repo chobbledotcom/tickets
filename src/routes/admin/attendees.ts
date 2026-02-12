@@ -296,7 +296,7 @@ const handleAddAttendee = (
       );
     }
 
-    const { name, email, phone, address, quantity, date } = validation.values;
+    const { name, email, phone, address, special_instructions, quantity, date } = validation.values;
 
     const result = await createAttendeeAtomic({
       eventId,
@@ -305,6 +305,7 @@ const handleAddAttendee = (
       quantity,
       phone: phone || "",
       address: address || "",
+      special_instructions: special_instructions || "",
       date: isDaily ? date : null,
     });
 
