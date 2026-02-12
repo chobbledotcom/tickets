@@ -31,6 +31,7 @@ import {
   getEventWithCount,
   isSlugTaken,
   writeClosesAt,
+  writeEventDate,
 } from "#lib/db/events.ts";
 import {
   clearLoginAttempts,
@@ -1598,25 +1599,27 @@ describe("db", () => {
   });
 
   describe("attendees - edge cases", () => {
-    test("decryptAttendees handles empty email and phone strings", async () => {
+    test("decryptAttendees handles empty email, phone, and address strings", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
 
-      // Create attendee with empty email/phone via createAttendeeAtomic
+      // Create attendee with empty email/phone/address via createAttendeeAtomic
       const result = await createAttendeeAtomic({
         eventId: event.id,
         name: "NoContact Person",
         email: "", // empty email
         quantity: 1,
         phone: "", // empty phone
+        address: "", // empty address
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.attendee.email).toBe("");
         expect(result.attendee.phone).toBe("");
+        expect(result.attendee.address).toBe("");
       }
 
       // Decrypt and verify empty strings come back correctly
@@ -1626,6 +1629,33 @@ describe("db", () => {
       expect(attendees.length).toBe(1);
       expect(attendees[0]?.email).toBe("");
       expect(attendees[0]?.phone).toBe("");
+      expect(attendees[0]?.address).toBe("");
+    });
+
+    test("encrypts and decrypts non-empty address", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Address Person",
+        email: "addr@example.com",
+        quantity: 1,
+        address: "123 Main St\nSpringfield\nIL 62701",
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.attendee.address).toBe("123 Main St\nSpringfield\nIL 62701");
+      }
+
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendees(raw, privateKey);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]?.address).toBe("123 Main St\nSpringfield\nIL 62701");
     });
 
     test("createAttendeeAtomic stores and returns price_paid when provided", async () => {
@@ -2161,6 +2191,57 @@ describe("db", () => {
 
     test("throws on invalid datetime string", async () => {
       await expect(writeClosesAt("not-a-date")).rejects.toThrow("Invalid closes_at");
+    });
+  });
+
+  describe("writeEventDate", () => {
+    test("encrypts empty string for no date", async () => {
+      const { decrypt } = await import("#lib/crypto.ts");
+      const result = await writeEventDate("");
+      expect(typeof result).toBe("string");
+      expect(result).not.toBe("");
+      const decrypted = await decrypt(result);
+      expect(decrypted).toBe("");
+    });
+
+    test("normalizes datetime-local format to full ISO", async () => {
+      const { decrypt } = await import("#lib/crypto.ts");
+      const result = await writeEventDate("2026-06-15T14:00");
+      const decrypted = await decrypt(result);
+      expect(decrypted).toBe("2026-06-15T14:00:00.000Z");
+    });
+
+    test("handles already-normalized ISO string", async () => {
+      const { decrypt } = await import("#lib/crypto.ts");
+      const result = await writeEventDate("2026-06-15T14:00:00.000Z");
+      const decrypted = await decrypt(result);
+      expect(decrypted).toBe("2026-06-15T14:00:00.000Z");
+    });
+
+    test("throws on invalid datetime string", async () => {
+      await expect(writeEventDate("not-a-date")).rejects.toThrow("Invalid date");
+    });
+  });
+
+  describe("event date read transform", () => {
+    test("returns empty string for no-date event", async () => {
+      const event = await eventsTable.insert({
+        name: "test", slug: "test-date-read-1",
+        slugIndex: await computeSlugIndex("test-date-read-1"),
+        maxAttendees: 100, date: "",
+      });
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.date).toBe("");
+    });
+
+    test("returns normalized ISO string for valid datetime", async () => {
+      const event = await eventsTable.insert({
+        name: "test", slug: "test-date-read-2",
+        slugIndex: await computeSlugIndex("test-date-read-2"),
+        maxAttendees: 100, date: "2026-06-15T14:00",
+      });
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.date).toBe("2026-06-15T14:00:00.000Z");
     });
   });
 

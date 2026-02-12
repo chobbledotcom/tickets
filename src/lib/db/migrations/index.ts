@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add address column";
+export const LATEST_UPDATE = "add address and event date/location columns";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -19,6 +19,15 @@ const runMigration = async (sql: string): Promise<void> => {
     await getDb().execute(sql);
   } catch {
     // Migration already applied, ignore error
+  }
+};
+
+/** Backfill a column with an encrypted empty string for matching rows */
+const backfillEncryptedColumn = async (table: string, column: string, whereClause: string): Promise<void> => {
+  const rows = await getDb().execute(`SELECT id FROM ${table} WHERE ${whereClause}`);
+  const encryptedEmpty = await encrypt("");
+  for (const row of rows.rows) {
+    await getDb().execute({ sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`, args: [encryptedEmpty, row.id as number] });
   }
 };
 
@@ -196,16 +205,7 @@ export const initDb = async (): Promise<void> => {
   await runMigration(`ALTER TABLE events ADD COLUMN closes_at TEXT`);
 
   // Backfill: encrypt NULL closes_at to encrypted empty string for existing events
-  {
-    const rows = await getDb().execute(`SELECT id FROM events WHERE closes_at IS NULL`);
-    const encrypted = await encrypt("");
-    for (const row of rows.rows) {
-      await getDb().execute({
-        sql: `UPDATE events SET closes_at = ? WHERE id = ?`,
-        args: [encrypted, row.id as number],
-      });
-    }
-  }
+  await backfillEncryptedColumn("events", "closes_at", `closes_at IS NULL`);
 
   // Create users table for multi-user admin access
   await runMigration(`
@@ -304,6 +304,12 @@ export const initDb = async (): Promise<void> => {
 
   // Migration: convert event fields from "both" to "email,phone" (comma-separated format)
   await runMigration(`UPDATE events SET fields = 'email,phone' WHERE fields = 'both'`);
+
+  // Migration: add date and location columns to events (encrypted, empty string = not set)
+  for (const col of ["date", "location"]) {
+    await runMigration(`ALTER TABLE events ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
+    await backfillEncryptedColumn("events", col, `${col} = ''`);
+  }
 
   // Update the version marker
   await getDb().execute({

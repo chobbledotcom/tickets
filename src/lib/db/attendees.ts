@@ -373,6 +373,17 @@ export const getAttendeesByTokens = async (
 };
 
 /**
+ * Clear the payment_id for an attendee after a successful refund.
+ * Prevents double-refund by removing the payment reference.
+ */
+export const clearPaymentId = async (attendeeId: number): Promise<void> => {
+  await getDb().execute({
+    sql: "UPDATE attendees SET payment_id = NULL WHERE id = ?",
+    args: [attendeeId],
+  });
+};
+
+/**
  * Update an attendee's checked_in status (encrypted)
  * Caller must be authenticated admin (public key always exists after setup)
  */

@@ -869,6 +869,7 @@ describe("server (webhooks)", () => {
         id: "cs_multi_enc_err",
         payment_status: "paid",
         payment_intent: "pi_multi_enc_err",
+        amount_total: 500,
         metadata: {
           name: "Enc Error",
           email: "enc@example.com",
@@ -1869,6 +1870,7 @@ describe("server (webhooks)", () => {
         id: "cs_multi_no_att",
         payment_status: "paid",
         payment_intent: "pi_multi_no_att",
+        amount_total: 500,
         metadata: {
           name: "No Att",
           email: "noatt@example.com",
@@ -1951,7 +1953,7 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("resolvePricePaid returns amountTotal when it differs from expected price and logs mismatch", async () => {
+    test("single-ticket refunds and rejects when price changed since checkout", async () => {
       await setupStripe();
 
       const event = await createTestEvent({
@@ -1960,7 +1962,7 @@ describe("server (webhooks)", () => {
       });
 
       // amountTotal (1200) differs from expectedPrice (1000 * 1 = 1000)
-      // This covers lines 260-266 (mismatch logging) and line 268 (returning amountTotal)
+      // Price changed after checkout was created — should refund
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
       mockVerify.mockResolvedValue({
@@ -1985,7 +1987,10 @@ describe("server (webhooks)", () => {
         },
       });
 
-      const mockConsoleError = spyOn(console, "error");
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_mismatch" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
 
       try {
         const response = await handleRequest(
@@ -1996,27 +2001,24 @@ describe("server (webhooks)", () => {
         );
         expect(response.status).toBe(200);
         const json = await response.json();
-        expect(json.processed).toBe(true);
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
+        expect(json.error).toContain("changed");
 
-        // Verify mismatch was logged (lines 260-266)
-        const mismatchCall = mockConsoleError.mock.calls.find(
-          (call: unknown[]) => typeof call[0] === "string" && call[0].includes("Price mismatch"),
-        );
-        expect(mismatchCall).toBeDefined();
-
-        // Verify attendee was created with amountTotal as price (line 268)
+        // Verify no attendee was created
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
-        expect(attendees.length).toBe(1);
-        // price_paid is encrypted so we just confirm it was set
-        expect(attendees[0]?.price_paid).not.toBeNull();
+        expect(attendees.length).toBe(0);
+
+        // Verify refund was attempted
+        expect(mockRefund).toHaveBeenCalledWith("pi_mismatch");
       } finally {
         mockVerify.mockRestore();
-        mockConsoleError.mockRestore();
+        mockRefund.mockRestore();
       }
     });
 
-    test("multi-ticket webhook logs mismatch when amountTotal differs from expected total", async () => {
+    test("multi-ticket refunds and rejects when prices changed since checkout", async () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
@@ -2031,6 +2033,7 @@ describe("server (webhooks)", () => {
       });
 
       // expectedTotal = 500*1 + 300*2 = 1100, but amountTotal = 1000
+      // Price changed after checkout was created — should refund
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
       mockVerify.mockResolvedValue({
@@ -2058,7 +2061,10 @@ describe("server (webhooks)", () => {
         },
       });
 
-      const mockConsoleError = spyOn(console, "error");
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_multi_mismatch" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
 
       try {
         const response = await handleRequest(
@@ -2069,94 +2075,76 @@ describe("server (webhooks)", () => {
         );
         expect(response.status).toBe(200);
         const json = await response.json();
-        expect(json.processed).toBe(true);
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
+        expect(json.error).toContain("changed");
 
-        // Verify multi-ticket price mismatch was logged (lines 375-380)
-        const mismatchCall = mockConsoleError.mock.calls.find(
-          (call: unknown[]) => typeof call[0] === "string" && call[0].includes("Multi-ticket price mismatch"),
-        );
-        expect(mismatchCall).toBeDefined();
-      } finally {
-        mockVerify.mockRestore();
-        mockConsoleError.mockRestore();
-      }
-    });
-
-    test("multi-ticket webhook scales prices proportionally when amountTotal differs", async () => {
-      await setupStripe();
-
-      const event1 = await createTestEvent({
-        name: "Multi Scale 1",
-        maxAttendees: 50,
-        unitPrice: 600,
-      });
-      const event2 = await createTestEvent({
-        name: "Multi Scale 2",
-        maxAttendees: 50,
-        unitPrice: 400,
-      });
-
-      // expectedTotal = 600*1 + 400*1 = 1000, amountTotal = 800 (20% discount)
-      // Proportional scaling: event1 = round(800 * 600/1000) = 480
-      //                       event2 = round(800 * 400/1000) = 320
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
-        valid: true,
-        event: {
-          id: "evt_multi_scale",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_multi_scale",
-              payment_status: "paid",
-              payment_intent: "pi_multi_scale",
-              amount_total: 800,
-              metadata: {
-                name: "Scale User",
-                email: "scale@example.com",
-                multi: "1",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1 },
-                  { e: event2.id, q: 1 },
-                ]),
-              },
-            },
-          },
-        },
-      });
-
-      const mockConsoleError = spyOn(console, "error");
-
-      try {
-        const response = await handleRequest(
-          mockWebhookRequest(
-            {},
-            { "stripe-signature": "sig_valid" },
-          ),
-        );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
-
-        // Verify attendees were created for both events with price_paid set
+        // Verify no attendees were created
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         const attendees2 = await getAttendeesRaw(event2.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees2.length).toBe(1);
-        // Both should have price_paid set (encrypted, so just check non-null)
-        expect(attendees1[0]?.price_paid).not.toBeNull();
-        expect(attendees2[0]?.price_paid).not.toBeNull();
+        expect(attendees1.length).toBe(0);
+        expect(attendees2.length).toBe(0);
 
-        // Verify mismatch was logged (proportional scaling implies mismatch)
-        const mismatchCall = mockConsoleError.mock.calls.find(
-          (call: unknown[]) => typeof call[0] === "string" && call[0].includes("Multi-ticket price mismatch"),
-        );
-        expect(mismatchCall).toBeDefined();
+        // Verify refund was attempted
+        expect(mockRefund).toHaveBeenCalledWith("pi_multi_mismatch");
       } finally {
         mockVerify.mockRestore();
-        mockConsoleError.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("single-ticket redirect refunds and shows error when price changed since checkout", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      // amountTotal (800) differs from expectedPrice (1000 * 1 = 1000)
+      // Price decreased after checkout was created — should refund
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_redirect_mismatch",
+        payment_status: "paid",
+        payment_intent: "pi_redirect_mismatch",
+        amount_total: 800,
+        metadata: {
+          event_id: String(event.id),
+          name: "Redirect Mismatch",
+          email: "redirect@example.com",
+          quantity: "1",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_redirect" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_redirect_mismatch"),
+        );
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("price");
+        expect(html).toContain("changed");
+        expect(html).toContain("refunded");
+
+        // Verify no attendee was created
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(0);
+
+        // Verify refund was attempted
+        expect(mockRefund).toHaveBeenCalledWith("pi_redirect_mismatch");
+      } finally {
+        mockRetrieve.mockRestore();
+        mockRefund.mockRestore();
       }
     });
   });

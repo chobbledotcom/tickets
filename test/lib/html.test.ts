@@ -1,13 +1,13 @@
 import { describe, expect, test } from "#test-compat";
 import { CSS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
-import { adminEventPage, calculateTotalRevenue, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
+import { adminEventEditPage, adminEventPage, calculateTotalRevenue, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
-import { generateAttendeesCsv, generateCalendarCsv } from "#templates/csv.ts";
+import { type CsvEventInfo, generateAttendeesCsv, generateCalendarCsv } from "#templates/csv.ts";
 import { adminCalendarPage, type CalendarAttendeeRow } from "#templates/admin/calendar.tsx";
 import {
   paymentCancelPage,
@@ -15,7 +15,9 @@ import {
   paymentPage,
   paymentSuccessPage,
 } from "#templates/payment.tsx";
+import { eventFields } from "#templates/fields.ts";
 import { buildMultiTicketEvent, multiTicketPage, notFoundPage, ticketPage } from "#templates/public.tsx";
+import { ticketViewPage } from "#templates/tickets.tsx";
 import { testAttendee, testEvent, testEventWithCount } from "#test-utils";
 
 const TEST_CSRF_TOKEN = "test-csrf-token-abc123";
@@ -999,6 +1001,8 @@ describe("html", () => {
     const calendarAttendee = (overrides: Partial<CalendarAttendeeRow> = {}): CalendarAttendeeRow => ({
       ...testAttendee(),
       eventName: "Daily Event",
+      eventDate: "",
+      eventLocation: "",
       eventId: 1,
       date: "2026-03-15",
       ...overrides,
@@ -1098,22 +1102,40 @@ describe("html", () => {
     const calendarAttendee = (overrides: Partial<CalendarAttendeeRow> = {}): CalendarAttendeeRow => ({
       ...testAttendee(),
       eventName: "Daily Event",
+      eventDate: "",
+      eventLocation: "",
       eventId: 1,
       date: "2026-03-15",
       ...overrides,
     });
 
-    test("generates CSV header for empty attendees", () => {
+    test("generates CSV header for empty attendees (no Event Date/Location columns)", () => {
       const csv = generateCalendarCsv([]);
       expect(csv).toBe("Event,Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
-    test("includes Event name as first column", () => {
+    test("omits Event Date and Event Location columns when all empty", () => {
       const attendees = [calendarAttendee()];
       const csv = generateCalendarCsv(attendees);
       const lines = csv.split("\n");
       expect(lines[0]).toContain("Event,Date,Name");
       expect(lines[1]).toMatch(/^Daily Event,2026-03-15,/);
+    });
+
+    test("includes Event Date column when some attendees have event dates", () => {
+      const attendees = [calendarAttendee({ eventDate: "2026-06-15T14:00:00.000Z" })];
+      const csv = generateCalendarCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[0]).toContain("Event,Event Date,Date,Name");
+      expect(lines[1]).toContain("2026-06-15T14:00:00.000Z");
+    });
+
+    test("includes Event Location column when some attendees have event locations", () => {
+      const attendees = [calendarAttendee({ eventLocation: "Village Hall" })];
+      const csv = generateCalendarCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[0]).toContain("Event,Event Location,Date,Name");
+      expect(lines[1]).toContain("Village Hall");
     });
 
     test("includes Date column", () => {
@@ -1158,6 +1180,14 @@ describe("html", () => {
       expect(lines[1]).toContain("Daily Event");
       expect(lines[2]).toContain("Other Event");
     });
+
+    test("handles null date in calendar row", () => {
+      const attendees = [calendarAttendee({ date: null })];
+      const csv = generateCalendarCsv(attendees);
+      const lines = csv.split("\n");
+      // The date column should be empty when null
+      expect(lines[1]).toMatch(/^Daily Event,,/);
+    });
   });
 
   describe("admin nav Calendar link", () => {
@@ -1165,6 +1195,254 @@ describe("html", () => {
       const html = adminDashboardPage([], TEST_SESSION);
       expect(html).toContain('href="/admin/calendar"');
       expect(html).toContain("Calendar");
+    });
+  });
+
+  describe("adminEventPage event date and location", () => {
+    test("shows Event Date row when event has a date", () => {
+      const event = testEventWithCount({ date: "2026-06-15T14:00:00.000Z", attendee_count: 0 });
+      const html = adminEventPage(event, [], "localhost", TEST_SESSION);
+      expect(html).toContain("Event Date");
+      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
+    });
+
+    test("does not show Event Date row when date is empty", () => {
+      const event = testEventWithCount({ date: "", attendee_count: 0 });
+      const html = adminEventPage(event, [], "localhost", TEST_SESSION);
+      expect(html).not.toContain("Event Date");
+    });
+
+    test("shows Location row when event has a location", () => {
+      const event = testEventWithCount({ location: "Village Hall", attendee_count: 0 });
+      const html = adminEventPage(event, [], "localhost", TEST_SESSION);
+      expect(html).toContain("<th>Location</th>");
+      expect(html).toContain("Village Hall");
+    });
+
+    test("does not show Location row when location is empty", () => {
+      const event = testEventWithCount({ location: "", attendee_count: 0 });
+      const html = adminEventPage(event, [], "localhost", TEST_SESSION);
+      expect(html).not.toContain("<th>Location</th>");
+    });
+
+    test("shows both Event Date and Location when both are set", () => {
+      const event = testEventWithCount({
+        date: "2026-06-15T14:00:00.000Z",
+        location: "Town Centre",
+        attendee_count: 0,
+      });
+      const html = adminEventPage(event, [], "localhost", TEST_SESSION);
+      expect(html).toContain("Event Date");
+      expect(html).toContain("Town Centre");
+    });
+  });
+
+  describe("adminEventPage edit form pre-fills date and location", () => {
+    test("empty date shows no pre-filled value in edit form", () => {
+      const event = testEventWithCount({ date: "", attendee_count: 0 });
+      const html = adminEventEditPage(event, TEST_SESSION);
+      // The date field should render split date and time inputs
+      expect(html).toContain('name="date_date"');
+      expect(html).toContain('name="date_time"');
+    });
+
+    test("non-empty date shows formatted split values in edit form", () => {
+      const event = testEventWithCount({ date: "2026-06-15T14:00:00.000Z", attendee_count: 0 });
+      const html = adminEventEditPage(event, TEST_SESSION);
+      // Should contain split date and time values (first 16 chars of ISO split on T)
+      expect(html).toContain('value="2026-06-15"');
+      expect(html).toContain('value="14:00"');
+    });
+
+    test("pre-fills location in edit form", () => {
+      const event = testEventWithCount({ location: "Village Hall", attendee_count: 0 });
+      const html = adminEventEditPage(event, TEST_SESSION);
+      expect(html).toContain('value="Village Hall"');
+    });
+  });
+
+  describe("generateAttendeesCsv with eventInfo", () => {
+    test("includes Event Date column when eventInfo has non-empty eventDate", () => {
+      const eventInfo: CsvEventInfo = { eventDate: "2026-06-15T14:00:00.000Z", eventLocation: "" };
+      const csv = generateAttendeesCsv([], false, eventInfo);
+      expect(csv).toContain("Event Date,Name");
+      expect(csv).not.toContain("Event Location");
+    });
+
+    test("includes Event Location column when eventInfo has non-empty eventLocation", () => {
+      const eventInfo: CsvEventInfo = { eventDate: "", eventLocation: "Village Hall" };
+      const csv = generateAttendeesCsv([], false, eventInfo);
+      expect(csv).toContain("Event Location,Name");
+      expect(csv).not.toContain("Event Date");
+    });
+
+    test("includes both Event Date and Event Location columns", () => {
+      const eventInfo: CsvEventInfo = { eventDate: "2026-06-15T14:00:00.000Z", eventLocation: "Village Hall" };
+      const csv = generateAttendeesCsv([], false, eventInfo);
+      expect(csv).toContain("Event Date,Event Location,Name");
+    });
+
+    test("includes event date and location values in rows", () => {
+      const eventInfo: CsvEventInfo = { eventDate: "2026-06-15T14:00:00.000Z", eventLocation: "Village Hall" };
+      const attendees = [testAttendee()];
+      const csv = generateAttendeesCsv(attendees, false, eventInfo);
+      const lines = csv.split("\n");
+      expect(lines[1]).toContain("2026-06-15T14:00:00.000Z,Village Hall,John Doe");
+    });
+
+    test("omits Event Date and Event Location when eventInfo is undefined", () => {
+      const csv = generateAttendeesCsv([], false);
+      expect(csv).not.toContain("Event Date");
+      expect(csv).not.toContain("Event Location");
+    });
+
+    test("omits Event Date and Event Location when both are empty", () => {
+      const eventInfo: CsvEventInfo = { eventDate: "", eventLocation: "" };
+      const csv = generateAttendeesCsv([], false, eventInfo);
+      expect(csv).not.toContain("Event Date");
+      expect(csv).not.toContain("Event Location");
+    });
+  });
+
+  describe("datetime validation via eventFields date field", () => {
+    const dateField = eventFields.find((f) => f.name === "date")!;
+
+    test("accepts valid datetime value", () => {
+      const result = dateField.validate!("2026-06-15T14:00");
+      expect(result).toBeNull();
+    });
+
+    test("rejects invalid datetime value", () => {
+      const result = dateField.validate!("not-a-date");
+      expect(result).toBe("Please enter a valid date and time");
+    });
+  });
+
+  describe("ticketPage event date and location", () => {
+    const csrfToken = "test-csrf-token";
+
+    test("shows date on public ticket page when event has date", () => {
+      const event = testEventWithCount({
+        date: "2026-06-15T14:00:00.000Z",
+        attendee_count: 0,
+      });
+      const html = ticketPage(event, csrfToken);
+      expect(html).toContain("<strong>Date:</strong>");
+      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
+    });
+
+    test("does not show date on public ticket page when date is empty", () => {
+      const event = testEventWithCount({ date: "", attendee_count: 0 });
+      const html = ticketPage(event, csrfToken);
+      expect(html).not.toContain("<strong>Date:</strong>");
+    });
+
+    test("shows location on public ticket page when event has location", () => {
+      const event = testEventWithCount({
+        location: "Village Hall",
+        attendee_count: 0,
+      });
+      const html = ticketPage(event, csrfToken);
+      expect(html).toContain("<strong>Location:</strong>");
+      expect(html).toContain("Village Hall");
+    });
+
+    test("does not show location on public ticket page when location is empty", () => {
+      const event = testEventWithCount({ location: "", attendee_count: 0 });
+      const html = ticketPage(event, csrfToken);
+      expect(html).not.toContain("<strong>Location:</strong>");
+    });
+
+    test("hides date and location in iframe mode", () => {
+      const event = testEventWithCount({
+        date: "2026-06-15T14:00:00.000Z",
+        location: "Village Hall",
+        attendee_count: 0,
+      });
+      const html = ticketPage(event, csrfToken, undefined, false, true);
+      expect(html).not.toContain("<strong>Date:</strong>");
+      expect(html).not.toContain("<strong>Location:</strong>");
+    });
+  });
+
+  describe("ticketViewPage event date and location columns", () => {
+    const qrSvg = "<svg>test</svg>";
+
+    test("shows Event Date column when entry has non-empty event date", () => {
+      const entries = [
+        {
+          event: testEventWithCount({ date: "2026-06-15T14:00:00.000Z" }),
+          attendee: testAttendee(),
+        },
+      ];
+      const html = ticketViewPage(entries, qrSvg);
+      expect(html).toContain("<th>Event Date</th>");
+      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
+    });
+
+    test("does not show Event Date column when all events have empty date", () => {
+      const entries = [
+        {
+          event: testEventWithCount({ date: "" }),
+          attendee: testAttendee(),
+        },
+      ];
+      const html = ticketViewPage(entries, qrSvg);
+      expect(html).not.toContain("<th>Event Date</th>");
+    });
+
+    test("shows Location column when entry has non-empty location", () => {
+      const entries = [
+        {
+          event: testEventWithCount({ location: "Village Hall" }),
+          attendee: testAttendee(),
+        },
+      ];
+      const html = ticketViewPage(entries, qrSvg);
+      expect(html).toContain("<th>Location</th>");
+      expect(html).toContain("Village Hall");
+    });
+
+    test("does not show Location column when all events have empty location", () => {
+      const entries = [
+        {
+          event: testEventWithCount({ location: "" }),
+          attendee: testAttendee(),
+        },
+      ];
+      const html = ticketViewPage(entries, qrSvg);
+      expect(html).not.toContain("<th>Location</th>");
+    });
+
+    test("shows both Event Date and Location columns when both are present", () => {
+      const entries = [
+        {
+          event: testEventWithCount({ date: "2026-06-15T14:00:00.000Z", location: "Town Centre" }),
+          attendee: testAttendee(),
+        },
+      ];
+      const html = ticketViewPage(entries, qrSvg);
+      expect(html).toContain("<th>Event Date</th>");
+      expect(html).toContain("<th>Location</th>");
+      expect(html).toContain("Town Centre");
+    });
+
+    test("shows empty event date cell when one entry has date and another does not", () => {
+      const entries = [
+        {
+          event: testEventWithCount({ id: 1, date: "2026-06-15T14:00:00.000Z" }),
+          attendee: testAttendee({ id: 1 }),
+        },
+        {
+          event: testEventWithCount({ id: 2, date: "" }),
+          attendee: testAttendee({ id: 2 }),
+        },
+      ];
+      const html = ticketViewPage(entries, qrSvg);
+      expect(html).toContain("<th>Event Date</th>");
+      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
+      // The second row should have an empty td for event date
+      expect(html).toContain("<td></td>");
     });
   });
 });

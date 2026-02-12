@@ -21,6 +21,8 @@ export type CalendarDateOption = {
 /** Attendee row with event context for display */
 export type CalendarAttendeeRow = Attendee & {
   eventName: string;
+  eventDate: string;
+  eventLocation: string;
   eventId: number;
 };
 

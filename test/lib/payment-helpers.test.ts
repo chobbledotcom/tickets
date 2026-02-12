@@ -145,11 +145,11 @@ describe("payment-helpers", () => {
       expect(result.phone).toBe("+1234567890");
     });
 
-    test("excludes phone when null", () => {
+    test("excludes phone when undefined", () => {
       const result = buildSingleIntentMetadata(1, {
         name: "Bob",
         email: "bob@example.com",
-        phone: null,
+        phone: undefined,
         address: "",
         quantity: 1,
       });
@@ -198,6 +198,26 @@ describe("payment-helpers", () => {
         date: null,
       });
       expect("date" in result).toBe(false);
+    });
+
+    test("includes address when provided", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        address: "123 Main St",
+        quantity: 1,
+      });
+      expect(result.address).toBe("123 Main St");
+    });
+
+    test("excludes address when empty string", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        address: "",
+        quantity: 1,
+      });
+      expect("address" in result).toBe(false);
     });
   });
 

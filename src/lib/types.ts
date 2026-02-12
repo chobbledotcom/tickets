@@ -26,6 +26,8 @@ export interface Event {
   id: number;
   name: string;
   description: string;
+  date: string; // encrypted UTC ISO datetime or empty string
+  location: string; // encrypted or empty string
   slug: string;
   slug_index: string;
   created: string;
