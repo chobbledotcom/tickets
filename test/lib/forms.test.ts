@@ -163,10 +163,10 @@ describe("forms", () => {
       expect(values.price).toBeNull();
     });
 
-    test("returns null for empty optional text", () => {
+    test("returns empty string for empty optional text", () => {
       const fields: Field[] = [field({ name: "note", label: "Note" })];
       const values = expectValid(fields, { note: "" });
-      expect(values.note).toBeNull();
+      expect(values.note).toBe("");
     });
 
     test("runs custom validate function", () => {
@@ -222,14 +222,14 @@ describe("forms", () => {
       }
     });
 
-    test("returns null for empty checkbox-group", () => {
+    test("returns empty string for empty checkbox-group", () => {
       const fields: Field[] = [
         field({ name: "days", label: "Days", type: "checkbox-group" }),
       ];
       const result = validateForm(new URLSearchParams(), fields);
       expect(result.valid).toBe(true);
       if (result.valid) {
-        expect(result.values.days).toBeNull();
+        expect(result.values.days).toBe("");
       }
     });
   });

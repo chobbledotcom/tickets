@@ -192,8 +192,8 @@ const handlePaymentFlow = (
 /** Extract contact details (name, email, phone) from validated form values */
 const extractContact = (values: TicketFormValues) => ({
   name: values.name,
-  email: values.email || "",
-  phone: values.phone || "",
+  email: values.email,
+  phone: values.phone,
 });
 
 /** Parse and validate a quantity value from a raw string, capping at max */

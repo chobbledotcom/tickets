@@ -21,7 +21,7 @@ import {
 import { createHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
-import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventFields, EventType, EventWithCount } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
 import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
 import { csvResponse, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
@@ -59,26 +59,26 @@ const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: stri
 };
 
 /** Serialize comma-separated day names to JSON array string */
-const serializeBookableDays = (value: string | null): string | undefined =>
+const serializeBookableDays = (value: string): string | undefined =>
   value ? JSON.stringify(value.split(",").map((d) => d.trim()).filter((d) => d)) : undefined;
 
 /** Extract common event fields from validated form values */
 const extractCommonFields = (values: EventFormValues) => ({
-    name: values.name,
-    description: values.description || "",
-    date: values.date || "",
-    location: values.location || "",
-    maxAttendees: values.max_attendees,
-    thankYouUrl: values.thank_you_url,
-    unitPrice: values.unit_price,
-    maxQuantity: values.max_quantity,
-    webhookUrl: values.webhook_url || null,
-    fields: values.fields || "email",
-    closesAt: values.closes_at || "",
-    eventType: values.event_type || undefined,
-    bookableDays: serializeBookableDays(values.bookable_days),
-    minimumDaysBefore: values.minimum_days_before ?? 1,
-    maximumDaysAfter: values.maximum_days_after ?? 90,
+  name: values.name,
+  description: values.description,
+  date: values.date,
+  location: values.location,
+  maxAttendees: values.max_attendees,
+  thankYouUrl: values.thank_you_url || null,
+  unitPrice: values.unit_price,
+  maxQuantity: values.max_quantity,
+  webhookUrl: values.webhook_url || null,
+  fields: (values.fields || "email") as EventFields,
+  closesAt: values.closes_at,
+  eventType: (values.event_type || undefined) as EventType | undefined,
+  bookableDays: serializeBookableDays(values.bookable_days),
+  minimumDaysBefore: values.minimum_days_before ?? 1,
+  maximumDaysAfter: values.maximum_days_after ?? 90,
 });
 
 /** Extract event input from validated form (async to compute slugIndex) */

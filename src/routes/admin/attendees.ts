@@ -296,9 +296,7 @@ const handleAddAttendee = (
       );
     }
 
-    const { name, quantity, date } = validation.values;
-    const email = validation.values.email || "";
-    const phone = validation.values.phone || "";
+    const { name, email, phone, quantity, date } = validation.values;
 
     const result = await createAttendeeAtomic({
       eventId,
@@ -306,13 +304,16 @@ const handleAddAttendee = (
       email,
       quantity,
       phone,
-      date,
+      date: date || null,
     });
 
     if (!result.success) {
+      if (result.reason === "encryption_error") {
+        logError({ code: ErrorCode.ENCRYPT_FAILED, eventId, detail: "manual add attendee" });
+      }
       const errorMsg = result.reason === "capacity_exceeded"
         ? "Not enough spots available"
-        : "Failed to add attendee";
+        : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
       return redirect(
         `/admin/event/${eventId}?add_error=${encodeURIComponent(errorMsg)}#add-attendee`,
       );

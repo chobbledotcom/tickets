@@ -134,7 +134,8 @@ export const renderFields = (
   )(fields);
 
 /**
- * Parse field value to the appropriate type
+ * Parse field value to the appropriate type.
+ * Empty strings stay as "" for text fields; empty numbers become null.
  */
 const parseFieldValue = (
   field: Field,
@@ -144,7 +145,7 @@ const parseFieldValue = (
     ? trimmed
       ? Number.parseInt(trimmed, 10)
       : null
-    : trimmed || null;
+    : trimmed;
 
 /**
  * Validate a single field and return its parsed value.

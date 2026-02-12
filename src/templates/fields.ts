@@ -19,18 +19,18 @@ import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 /** Typed values from event form validation */
 export type EventFormValues = {
   name: string;
-  description: string | null;
-  date: string | null;
-  location: string | null;
+  description: string;
+  date: string;
+  location: string;
   max_attendees: number;
   max_quantity: number;
-  fields: EventFields | null;
+  fields: string;
   unit_price: number | null;
-  closes_at: string | null;
-  thank_you_url: string | null;
-  webhook_url: string | null;
-  event_type: EventType | null;
-  bookable_days: string | null;
+  closes_at: string;
+  thank_you_url: string;
+  webhook_url: string;
+  event_type: string;
+  bookable_days: string;
   minimum_days_before: number | null;
   maximum_days_after: number | null;
 };
@@ -43,17 +43,17 @@ export type EventEditFormValues = EventFormValues & {
 /** Typed values from ticket form (field presence varies by event config) */
 export type TicketFormValues = {
   name: string;
-  email: string | null;
-  phone: string | null;
+  email: string;
+  phone: string;
 };
 
 /** Typed values from admin add-attendee form */
 export type AddAttendeeFormValues = {
   name: string;
-  email: string | null;
-  phone: string | null;
+  email: string;
+  phone: string;
   quantity: number;
-  date: string | null;
+  date: string;
 };
 
 /** Typed values from login form */
@@ -67,7 +67,7 @@ export type SetupFormValues = {
   admin_username: string;
   admin_password: string;
   admin_password_confirm: string;
-  currency_code: string | null;
+  currency_code: string;
 };
 
 /** Typed values from change password form */

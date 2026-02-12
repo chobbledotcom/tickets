@@ -860,7 +860,7 @@ describe("server (admin attendees)", () => {
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
           expect(location).toContain("add_error=");
-          expect(location).toContain("Failed");
+          expect(location).toContain("Encryption");
         },
       );
     });
