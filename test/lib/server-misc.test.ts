@@ -300,7 +300,7 @@ describe("server (misc)", () => {
   describe("routes/router.ts (slug and generic param coverage)", () => {
     test("createRouter matches slug param pattern correctly", async () => {
       const { createRouter } = await import("#routes/router.ts");
-      let capturedParams: Record<string, string | undefined> = {};
+      let capturedParams: Record<string, string | number | undefined> = {};
       const router = createRouter({
         "GET /item/:slug": (_req, params) => {
           capturedParams = params;
@@ -317,7 +317,7 @@ describe("server (misc)", () => {
 
     test("createRouter matches generic (non-id non-slug) param pattern", async () => {
       const { createRouter } = await import("#routes/router.ts");
-      let capturedParams: Record<string, string | undefined> = {};
+      let capturedParams: Record<string, string | number | undefined> = {};
       const router = createRouter({
         "GET /file/:name": (_req, params) => {
           capturedParams = params;

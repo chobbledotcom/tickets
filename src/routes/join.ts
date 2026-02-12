@@ -58,7 +58,7 @@ const withValidInvite = async (
   params: RouteParams,
   handler: (code: string, user: User, username: string) => Response | Promise<Response>,
 ): Promise<Response> => {
-  const code = params.code!;
+  const code = params.code as string;
   const result = await validateInvite(code);
   return result instanceof Response ? result : handler(code, result.user, result.username);
 };

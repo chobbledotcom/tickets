@@ -5,8 +5,8 @@
 import { reduce } from "#fp";
 import type { ServerContext } from "#routes/types.ts";
 
-/** Route parameters extracted from URL patterns */
-export type RouteParams = Record<string, string | undefined>;
+/** Route parameters extracted from URL patterns (ID params are auto-parsed to numbers) */
+export type RouteParams = Record<string, string | number | undefined>;
 
 /** Route handler function signature */
 export type RouteHandlerFn = (
@@ -19,13 +19,18 @@ export type RouteHandlerFn = (
 type CompiledRoute = {
   regex: RegExp;
   paramNames: string[];
+  numericParams: Set<string>;
   handler: RouteHandlerFn;
 };
+
+/** Check if a param name refers to a numeric ID */
+const isNumericParam = (name: string): boolean =>
+  name.endsWith("Id") || name === "id";
 
 /** Param patterns by type - name ending determines pattern */
 const getParamPattern = (name: string): string => {
   // Params ending in Id match digits only (e.g., eventId, attendeeId)
-  if (name.endsWith("Id") || name === "id") return "(\\d+)";
+  if (isNumericParam(name)) return "(\\d+)";
   // Slugs match lowercase alphanumeric with hyphens
   if (name === "slug") return "([a-z0-9]+(?:-[a-z0-9]+)*)";
   // Default: match any non-slash characters
@@ -43,21 +48,25 @@ const getParamPattern = (name: string): string => {
  */
 const compilePattern = (
   pattern: string,
-): CompiledRoute["regex"] & { paramNames: string[] } => {
+): CompiledRoute["regex"] & { paramNames: string[]; numericParams: Set<string> } => {
   const paramNames: string[] = [];
+  const numericParams = new Set<string>();
 
   // Escape special regex chars except : which we use for params
   const regexStr = pattern
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     .replace(/:(\w+)/g, (_, name) => {
       paramNames.push(name);
+      if (isNumericParam(name)) numericParams.add(name);
       return getParamPattern(name);
     });
 
   const regex = new RegExp(`^${regexStr}$`) as RegExp & {
     paramNames: string[];
+    numericParams: Set<string>;
   };
   regex.paramNames = paramNames;
+  regex.numericParams = numericParams;
   return regex;
 };
 
@@ -88,6 +97,7 @@ const compileRoutes = (
       methodRoutes.push({
         regex,
         paramNames: regex.paramNames,
+        numericParams: regex.numericParams,
         handler,
       });
       compiled.set(method, methodRoutes);
@@ -101,6 +111,7 @@ const compileRoutes = (
  */
 const extractParams = (
   paramNames: string[],
+  numericParams: Set<string>,
   match: RegExpMatchArray,
 ): RouteParams => {
   const params: RouteParams = {};
@@ -108,7 +119,7 @@ const extractParams = (
     const name = paramNames[i];
     const value = match[i + 1];
     if (name !== undefined && value !== undefined) {
-      params[name] = value;
+      params[name] = numericParams.has(name) ? Number(value) : value;
     }
   }
   return params;
@@ -125,7 +136,7 @@ const tryMatchRoute = (
   if (!match) return null;
   return {
     handler: route.handler,
-    params: extractParams(route.paramNames, match),
+    params: extractParams(route.paramNames, route.numericParams, match),
   };
 };
 

@@ -6,7 +6,6 @@ import { decryptAttendees } from "#lib/db/attendees.ts";
 import { getEventWithAttendeesRaw } from "#lib/db/events.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import type { validateForm } from "#lib/forms.tsx";
-import type { RouteParams } from "#routes/router.ts";
 import { type AuthSession, getPrivateKey, notFoundResponse, requireSessionOr } from "#routes/utils.ts";
 
 /** Form field definition type */
@@ -43,10 +42,6 @@ export const csvResponse = (csv: string, filename: string): Response =>
       "content-disposition": `attachment; filename="${filename}"`,
     },
   });
-
-/** Parse event ID from params (route pattern guarantees :id exists as \d+) */
-export const parseEventId = (params: RouteParams): number =>
-  Number.parseInt(params.id!, 10);
 
 /** Get the admin private key from session (non-null assertion — callers are inside authenticated handlers) */
 export const requirePrivateKey = async (session: AuthSession): Promise<CryptoKey> =>

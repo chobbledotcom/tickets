@@ -15,9 +15,8 @@ import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import {
   defineRoutes,
   type RouteHandlerFn,
-  type RouteParams,
 } from "#routes/router.ts";
-import { parseEventId, requirePrivateKey, verifyIdentifier, withDecryptedAttendees, withEventAttendeesAuth } from "#routes/admin/utils.ts";
+import { requirePrivateKey, verifyIdentifier, withDecryptedAttendees, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
   type AuthSession,
   htmlResponse,
@@ -91,13 +90,6 @@ const withAttendeeForm = (
     withAttendee(session, eventId, attendeeId, (data) =>
       handler(data, session, form)));
 
-/** Parse event and attendee IDs from params (route pattern guarantees both exist as \d+) */
-const parseAttendeeIds = (
-  params: RouteParams,
-): { eventId: number; attendeeId: number } => ({
-  eventId: Number.parseInt(params.eventId!, 10),
-  attendeeId: Number.parseInt(params.attendeeId!, 10),
-});
 
 /** Map return_filter form value to URL suffix */
 const filterSuffix = (returnFilter: string | null): string => {
@@ -111,11 +103,9 @@ type AttendeeFormHandler = (
   data: AttendeeWithEvent, session: AuthSession, form: URLSearchParams, eventId: number, attendeeId: number,
 ) => Response | Promise<Response>;
 const attendeeFormRoute = (handler: AttendeeFormHandler): RouteHandlerFn =>
-  (request, params) => {
-    const { eventId, attendeeId } = parseAttendeeIds(params);
-    return withAttendeeForm(request, eventId, attendeeId, (data, session, form) =>
-      handler(data, session, form, eventId, attendeeId));
-  };
+  (request, params) =>
+    withAttendeeForm(request, params.eventId as number, params.attendeeId as number, (data, session, form) =>
+      handler(data, session, form, params.eventId as number, params.attendeeId as number));
 
 /** Verify confirm_name matches attendee name, returning error page on mismatch */
 const verifyAttendeeName = (
@@ -221,7 +211,6 @@ const processRefundAll = async (
   attendees: Attendee[],
   session: AuthSession,
   form: URLSearchParams,
-  eventId: number,
 ): Promise<Response> => {
   const refundable = getRefundable(attendees);
   const nameConfirmed = verifyIdentifier(event.name, form.get("confirm_name") ?? "");
@@ -259,7 +248,7 @@ const processRefundAll = async (
   }
 
   if (failedCount > 0) {
-    await logActivity(`Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`, eventId);
+    await logActivity(`Bulk refund: ${refundedCount} succeeded, ${failedCount} failed for '${event.name}'`, event.id);
     return htmlResponse(
       adminRefundAllAttendeesPage(event, refundable.length, session,
         `${refundedCount} refund(s) succeeded, ${failedCount} failed. Some payments may have already been refunded.`),
@@ -267,8 +256,8 @@ const processRefundAll = async (
     );
   }
 
-  await logActivity(`Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`, eventId);
-  return redirect(`/admin/event/${eventId}`);
+  await logActivity(`Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`, event.id);
+  return redirect(`/admin/event/${event.id}`);
 };
 
 /** Handle POST /admin/event/:id/refund-all */
@@ -278,16 +267,13 @@ const handleAdminRefundAllPost = (
 ): Promise<Response> =>
   withAuthForm(request, (session, form) =>
     withDecryptedAttendees(session, eventId, (event, attendees) =>
-      processRefundAll(event, attendees, session, form, eventId)));
+      processRefundAll(event, attendees, session, form)));
 
-/** Route handler that parses attendee IDs for GET routes */
+/** Bind :eventId and :attendeeId params to a GET handler */
 const attendeeGetHandler = (
   handler: (request: Request, eventId: number, attendeeId: number) => Promise<Response>,
 ): RouteHandlerFn =>
-  (request, params) => {
-    const ids = parseAttendeeIds(params);
-    return handler(request, ids.eventId, ids.attendeeId);
-  };
+  (request, params) => handler(request, params.eventId as number, params.attendeeId as number);
 
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
@@ -298,7 +284,7 @@ export const attendeesRoutes = defineRoutes({
   "GET /admin/event/:eventId/attendee/:attendeeId/refund": attendeeGetHandler(handleAdminAttendeeRefundGet),
   "POST /admin/event/:eventId/attendee/:attendeeId/refund": attendeeRefundHandler,
   "GET /admin/event/:id/refund-all": (request, params) =>
-    handleAdminRefundAllGet(request, parseEventId(params)),
+    handleAdminRefundAllGet(request, params.id as number),
   "POST /admin/event/:id/refund-all": (request, params) =>
-    handleAdminRefundAllPost(request, parseEventId(params)),
+    handleAdminRefundAllPost(request, params.id as number),
 });
