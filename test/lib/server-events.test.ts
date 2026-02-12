@@ -1976,7 +1976,7 @@ describe("server (admin events)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Event Date");
-      expect(html).toContain("(UTC)");
+      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
       expect(html).toContain("<th>Location</th>");
       expect(html).toContain("Village Hall");
     });
@@ -2033,14 +2033,6 @@ describe("server (admin events)", () => {
       const csv = await response.text();
       expect(csv).not.toContain("Event Date");
       expect(csv).not.toContain("Event Location");
-    });
-
-    test("defaults closes_at to event date when closes_at is empty", async () => {
-      const event = await createTestEvent({ date: "2099-06-15T14:00" });
-      const { getEventWithCount } = await import("#lib/db/events.ts");
-      const saved = await getEventWithCount(event.id);
-      // closes_at should default to the event date when not explicitly set
-      expect(saved?.closes_at).toBe("2099-06-15T14:00:00.000Z");
     });
 
     test("rejects invalid event date on edit", async () => {

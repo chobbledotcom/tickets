@@ -65,14 +65,10 @@ const serializeBookableDays = (value: string | null): string | undefined =>
   value ? JSON.stringify(value.split(",").map((d) => d.trim()).filter((d) => d)) : undefined;
 
 /** Extract common event fields from validated form values */
-const extractCommonFields = (values: EventFormValues) => {
-  const date = values.date || "";
-  // Default closes_at to the event date if closes_at is empty and date is filled
-  const closesAt = values.closes_at || date || "";
-  return {
+const extractCommonFields = (values: EventFormValues) => ({
     name: values.name,
     description: values.description || "",
-    date,
+    date: values.date || "",
     location: values.location || "",
     maxAttendees: values.max_attendees,
     thankYouUrl: values.thank_you_url,
@@ -80,13 +76,12 @@ const extractCommonFields = (values: EventFormValues) => {
     maxQuantity: values.max_quantity,
     webhookUrl: values.webhook_url || null,
     fields: values.fields || "email",
-    closesAt,
+    closesAt: values.closes_at || "",
     eventType: values.event_type || undefined,
     bookableDays: serializeBookableDays(values.bookable_days),
     minimumDaysBefore: values.minimum_days_before ?? 1,
     maximumDaysAfter: values.maximum_days_after ?? 90,
-  };
-};
+});
 
 /** Extract event input from validated form (async to compute slugIndex) */
 const extractEventInput = async (

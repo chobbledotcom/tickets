@@ -1057,17 +1057,33 @@ describe("html", () => {
       ...overrides,
     });
 
-    test("generates CSV header for empty attendees", () => {
+    test("generates CSV header for empty attendees (no Event Date/Location columns)", () => {
       const csv = generateCalendarCsv([]);
-      expect(csv).toBe("Event,Event Date,Event Location,Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Event,Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
-    test("includes Event name as first column", () => {
+    test("omits Event Date and Event Location columns when all empty", () => {
       const attendees = [calendarAttendee()];
       const csv = generateCalendarCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toContain("Event,Event Date,Event Location,Date,Name");
-      expect(lines[1]).toMatch(/^Daily Event,,,2026-03-15,/);
+      expect(lines[0]).toContain("Event,Date,Name");
+      expect(lines[1]).toMatch(/^Daily Event,2026-03-15,/);
+    });
+
+    test("includes Event Date column when some attendees have event dates", () => {
+      const attendees = [calendarAttendee({ eventDate: "2026-06-15T14:00:00.000Z" })];
+      const csv = generateCalendarCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[0]).toContain("Event,Event Date,Date,Name");
+      expect(lines[1]).toContain("2026-06-15T14:00:00.000Z");
+    });
+
+    test("includes Event Location column when some attendees have event locations", () => {
+      const attendees = [calendarAttendee({ eventLocation: "Village Hall" })];
+      const csv = generateCalendarCsv(attendees);
+      const lines = csv.split("\n");
+      expect(lines[0]).toContain("Event,Event Location,Date,Name");
+      expect(lines[1]).toContain("Village Hall");
     });
 
     test("includes Date column", () => {
@@ -1118,7 +1134,7 @@ describe("html", () => {
       const csv = generateCalendarCsv(attendees);
       const lines = csv.split("\n");
       // The date column should be empty when null
-      expect(lines[1]).toContain("Daily Event,,,");
+      expect(lines[1]).toMatch(/^Daily Event,,/);
     });
   });
 
@@ -1135,8 +1151,7 @@ describe("html", () => {
       const event = testEventWithCount({ date: "2026-06-15T14:00:00.000Z", attendee_count: 0 });
       const html = adminEventPage(event, [], "localhost", TEST_SESSION);
       expect(html).toContain("Event Date");
-      expect(html).toContain("2026-06-15T14:00:00.000Z");
-      expect(html).toContain("(UTC)");
+      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
     });
 
     test("does not show Event Date row when date is empty", () => {
@@ -1261,8 +1276,7 @@ describe("html", () => {
       });
       const html = ticketPage(event, csrfToken);
       expect(html).toContain("<strong>Date:</strong>");
-      expect(html).toContain("2026-06-15T14:00:00.000Z");
-      expect(html).toContain("(UTC)");
+      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
     });
 
     test("does not show date on public ticket page when date is empty", () => {
@@ -1311,7 +1325,7 @@ describe("html", () => {
       ];
       const html = ticketViewPage(entries, qrSvg);
       expect(html).toContain("<th>Event Date</th>");
-      expect(html).toContain("2026-06-15T14:00:00.000Z");
+      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
     });
 
     test("does not show Event Date column when all events have empty date", () => {
@@ -1374,7 +1388,7 @@ describe("html", () => {
       ];
       const html = ticketViewPage(entries, qrSvg);
       expect(html).toContain("<th>Event Date</th>");
-      expect(html).toContain("2026-06-15T14:00:00.000Z");
+      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
       // The second row should have an empty td for event date
       expect(html).toContain("<td></td>");
     });

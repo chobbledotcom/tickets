@@ -54,12 +54,12 @@ const decryptDatetime = async (v: string): Promise<string> => {
 
 /** Encrypt closes_at for DB storage (null/empty → encrypted empty) */
 export const writeClosesAt = (v: string | null): Promise<string | null> =>
-  encryptDatetime((v as string) ?? "", "closes_at") as Promise<string | null>;
+  encryptDatetime((v as string) ?? "", "closes_at");
 
 /** Decrypt closes_at from DB storage (encrypted empty → null) */
 const readClosesAt = async (v: string | null): Promise<string | null> => {
   const result = await decryptDatetime(v as string);
-  return result || null;
+  return result === "" ? null : result;
 };
 
 /** Encrypt event date for DB storage */

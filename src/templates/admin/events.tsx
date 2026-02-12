@@ -3,7 +3,7 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
-import { formatDateLabel } from "#lib/dates.ts";
+import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
@@ -173,7 +173,7 @@ export const adminEventPage = (
               {event.date && (
                 <tr>
                   <th>Event Date</th>
-                  <td>{event.date} (UTC)</td>
+                  <td>{formatDatetimeLabel(event.date)}</td>
                 </tr>
               )}
               {event.location && (
@@ -225,7 +225,7 @@ export const adminEventPage = (
                 <th>Registration Closes</th>
                 <td>
                   {event.closes_at ? (
-                    <span>{event.closes_at} (UTC) <small><em>({formatCountdown(event.closes_at)})</em></small></span>
+                    <span>{formatDatetimeLabel(event.closes_at)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
                   ) : (
                     <em>No deadline</em>
                   )}

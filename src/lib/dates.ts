@@ -102,3 +102,21 @@ export const formatDateLabel = (dateStr: string): string => {
   const date = new Date(`${dateStr}T00:00:00Z`);
   return `${DAY_NAMES[date.getUTCDay()]} ${date.getUTCDate()} ${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 };
+
+/** Pad a number to two digits */
+const pad2 = (n: number): string => String(n).padStart(2, "0");
+
+/**
+ * Format an ISO datetime string for display.
+ * Returns "Monday 15 June 2026 at 14:00 UTC"
+ */
+export const formatDatetimeLabel = (iso: string): string => {
+  const d = new Date(iso);
+  const dayName = DAY_NAMES[d.getUTCDay()];
+  const day = d.getUTCDate();
+  const month = MONTH_NAMES[d.getUTCMonth()];
+  const year = d.getUTCFullYear();
+  const hours = pad2(d.getUTCHours());
+  const minutes = pad2(d.getUTCMinutes());
+  return `${dayName} ${day} ${month} ${year} at ${hours}:${minutes} UTC`;
+};

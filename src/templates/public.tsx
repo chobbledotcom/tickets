@@ -3,7 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
-import { formatDateLabel } from "#lib/dates.ts";
+import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { renderError, renderFields } from "#lib/forms.tsx";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
@@ -61,7 +61,7 @@ export const ticketPage = (
             </div>
           )}
           {event.date && (
-            <p><strong>Date:</strong> {event.date} (UTC)</p>
+            <p><strong>Date:</strong> {formatDatetimeLabel(event.date)}</p>
           )}
           {event.location && (
             <p><strong>Location:</strong> {event.location}</p>

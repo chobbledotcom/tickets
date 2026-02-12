@@ -3,7 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
-import { formatDateLabel } from "#lib/dates.ts";
+import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
@@ -26,7 +26,7 @@ export const ticketViewPage = (entries: TokenEntry[], qrSvg: string): string => 
   const rows = pipe(
     map(({ event, attendee }: TokenEntry) => {
       const dateCol = showDate ? `<td>${formatDateCol(attendee.date)}</td>` : "";
-      const eventDateCol = showEventDate ? `<td>${event.date ? event.date : ""}</td>` : "";
+      const eventDateCol = showEventDate ? `<td>${escapeHtml(event.date ? formatDatetimeLabel(event.date) : "")}</td>` : "";
       const locationCol = showLocation ? `<td>${escapeHtml(event.location)}</td>` : "";
       return `<tr><td>${escapeHtml(event.name)}</td>${eventDateCol}${locationCol}${dateCol}<td>${attendee.quantity}</td></tr>`;
     }),

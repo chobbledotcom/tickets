@@ -185,7 +185,7 @@ describe("server (public routes)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("<strong>Date:</strong>");
-      expect(html).toContain("(UTC)");
+      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
       expect(html).toContain("<strong>Location:</strong>");
       expect(html).toContain("Village Hall");
     });

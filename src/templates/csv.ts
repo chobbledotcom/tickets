@@ -49,6 +49,18 @@ const attendeeCols = (a: Attendee, domain: string): string[] => [
   escapeCsvValue(`https://${domain}/t/${a.ticket_token}`),
 ];
 
+/** Conditionally include Event Date and/or Event Location header columns */
+const eventInfoHeaders = (showDate: boolean, showLocation: boolean): string[] => [
+  ...(showDate ? ["Event Date"] : []),
+  ...(showLocation ? ["Event Location"] : []),
+];
+
+/** Conditionally include Event Date and/or Event Location row values */
+const eventInfoCols = (showDate: boolean, showLocation: boolean, date: string, location: string): string[] => [
+  ...(showDate ? [escapeCsvValue(date)] : []),
+  ...(showLocation ? [escapeCsvValue(location)] : []),
+];
+
 /** Build CSV string from header and row-building function */
 const buildCsv = <T>(header: string, toRow: (item: T, domain: string) => string[], items: T[]): string => {
   const domain = getAllowedDomain();
@@ -69,39 +81,36 @@ export const generateAttendeesCsv = (
   includeDate = false,
   eventInfo?: CsvEventInfo,
 ): string => {
-  const showEventDate = eventInfo?.eventDate !== undefined && eventInfo.eventDate !== "";
-  const showEventLocation = eventInfo?.eventLocation !== undefined && eventInfo.eventLocation !== "";
+  const showEventDate = !!eventInfo?.eventDate;
+  const showEventLocation = !!eventInfo?.eventLocation;
   const headerParts = [
     ...(includeDate ? ["Date"] : []),
-    ...(showEventDate ? ["Event Date"] : []),
-    ...(showEventLocation ? ["Event Location"] : []),
+    ...eventInfoHeaders(showEventDate, showEventLocation),
     "Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
   ];
-  const header = headerParts.join(",");
-  return buildCsv(header, (a: Attendee, domain) => [
+  return buildCsv(headerParts.join(","), (a: Attendee, domain) => [
     ...(includeDate ? [escapeCsvValue(a.date ?? "")] : []),
-    ...(showEventDate ? [escapeCsvValue(eventInfo!.eventDate)] : []),
-    ...(showEventLocation ? [escapeCsvValue(eventInfo!.eventLocation)] : []),
+    ...eventInfoCols(showEventDate, showEventLocation, eventInfo?.eventDate ?? "", eventInfo?.eventLocation ?? ""),
     ...attendeeCols(a, domain),
   ], attendees);
 };
 
-/** Build calendar row: event name, event date, event location, date, then standard attendee columns */
-const calendarRow = (a: CalendarAttendee, domain: string): string[] => [
-  escapeCsvValue(a.eventName),
-  escapeCsvValue(a.eventDate),
-  escapeCsvValue(a.eventLocation),
-  escapeCsvValue(a.date ?? ""),
-  ...attendeeCols(a, domain),
-];
-
 /**
  * Generate CSV content for calendar view (attendees across multiple daily events).
- * Includes Event name, Event Date, Event Location as the first columns, followed by Date and standard columns.
+ * Conditionally includes Event Date and Event Location columns based on data.
  */
-export const generateCalendarCsv = (attendees: CalendarAttendee[]): string =>
-  buildCsv(
-    "Event,Event Date,Event Location,Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
-    calendarRow,
-    attendees,
-  );
+export const generateCalendarCsv = (attendees: CalendarAttendee[]): string => {
+  const showEventDate = attendees.some((a) => a.eventDate !== "");
+  const showEventLocation = attendees.some((a) => a.eventLocation !== "");
+  const headerParts = [
+    "Event",
+    ...eventInfoHeaders(showEventDate, showEventLocation),
+    "Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+  ];
+  return buildCsv(headerParts.join(","), (a: CalendarAttendee, domain) => [
+    escapeCsvValue(a.eventName),
+    ...eventInfoCols(showEventDate, showEventLocation, a.eventDate, a.eventLocation),
+    escapeCsvValue(a.date ?? ""),
+    ...attendeeCols(a, domain),
+  ], attendees);
+};

@@ -59,7 +59,13 @@ const buildCalendarAttendees = (
 
   return flatMap((a: Attendee): CalendarAttendeeRow[] => {
     const event = eventById.get(a.event_id);
-    return event ? [{ ...a, eventName: event.name, eventDate: event.date, eventLocation: event.location, eventId: event.id }] : [];
+    return event ? [{
+      ...a,
+      eventName: event.name,
+      eventDate: event.date,
+      eventLocation: event.location,
+      eventId: event.id,
+    }] : [];
   })(attendees);
 };
 
