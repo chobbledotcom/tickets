@@ -151,6 +151,22 @@ describe("logger", () => {
         '[Error] E_NOT_FOUND_EVENT event=1 attendee=2 detail="inactive"',
       );
     });
+
+    test("sends ntfy notification when NTFY_URL is configured", () => {
+      Deno.env.set("NTFY_URL", "https://ntfy.sh/test-topic");
+      // deno-lint-ignore no-explicit-any
+      const fetchSpy: any = spyOn(globalThis, "fetch").mockResolvedValue(new Response());
+
+      logError({ code: ErrorCode.DB_QUERY });
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const [url, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://ntfy.sh/test-topic");
+      expect(options.body).toBe("E_DB_QUERY");
+
+      fetchSpy.mockRestore();
+      Deno.env.delete("NTFY_URL");
+    });
   });
 
   describe("logDebug", () => {
