@@ -417,7 +417,6 @@ form header {
 }
 
 input,
-label,
 select,
 textarea {
   display: block;
@@ -464,20 +463,48 @@ textarea[readonly] {
 }
 
 label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: baseline;
   font-weight: bold;
   margin-bottom: 0.2rem;
+  font-size: inherit;
+  max-width: var(--width-card-wide);
+}
+
+@media (max-width: 768px) {
+  label {
+    width: 100%;
+  }
 }
 
 label > small {
   color: #666;
-  display: block;
   font-weight: normal;
-  margin-top: 0.25rem;
+  width: 100%;
 }
 
 label > select,
 label > input {
+  flex: 1;
   margin-bottom: 0;
+}
+
+label > input[type="date"],
+label > input[type="time"] {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+label > input[type="text"],
+label > input[type="password"],
+label > input[type="email"] {
+  width: auto;
+}
+
+label > textarea {
+  width: 100%;
 }
 
 /* Popups */
