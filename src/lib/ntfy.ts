@@ -9,7 +9,7 @@ import { getEnv } from "#lib/env.ts";
 
 /**
  * Send an error notification to the configured ntfy URL
- * Fire and forget - delivery failures are silently ignored
+ * Fire and forget - delivery failures are logged but don't propagate
  */
 export const sendNtfyError = (code: string): void => {
   const ntfyUrl = getEnv("NTFY_URL");
@@ -25,6 +25,7 @@ export const sendNtfyError = (code: string): void => {
     },
     body: code,
   }).catch(() => {
-    // Silently ignore ntfy delivery failures
+    // biome-ignore lint/suspicious/noConsole: Can't use logError here (would cause infinite loop)
+    console.error("[Error] E_NTFY_SEND");
   });
 };

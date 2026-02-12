@@ -57,14 +57,19 @@ describe("ntfy", () => {
       expect(headers["Tags"]).toBe("warning");
     });
 
-    test("silently ignores fetch errors", () => {
+    test("logs error when fetch fails", async () => {
       Deno.env.set("NTFY_URL", "https://ntfy.sh/my-topic");
       fetchSpy.mockRejectedValue(new Error("Network error"));
+      const errorSpy = spyOn(console, "error");
 
-      // Should not throw
       sendNtfyError(ErrorCode.WEBHOOK_SEND);
 
+      // Wait for the rejected promise's .catch handler to run
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
       expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith("[Error] E_NTFY_SEND");
+      errorSpy.mockRestore();
     });
   });
 });
