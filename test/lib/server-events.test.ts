@@ -1880,7 +1880,7 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown shows days and hours", () => {
-      const future = new Date(nowMs() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000).toISOString();
+      const future = new Date(nowMs() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000 + 30 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("3 days and 5 hours from now");
     });
 
