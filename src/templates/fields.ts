@@ -2,7 +2,7 @@
  * Form field definitions and typed value interfaces for all forms
  */
 
-import { DAY_NAMES } from "#lib/dates.ts";
+import { DAY_NAMES, normalizeDatetime } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import type { AdminLevel, EventFields, EventType } from "#lib/types.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
@@ -20,6 +20,8 @@ import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 export type EventFormValues = {
   name: string;
   description: string | null;
+  date: string | null;
+  location: string | null;
   max_attendees: number;
   max_quantity: number;
   fields: EventFields | null;
@@ -211,18 +213,23 @@ const validateDescription = (value: string): string | null =>
     ? `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`
     : null;
 
-/**
- * Validate closes_at is a valid date if provided.
- * Normalizes datetime-local format to UTC ISO before parsing.
- */
-const validateClosesAt = (value: string): string | null => {
-  const normalized = value.length === 16 ? `${value}:00.000Z` : value;
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) {
+/** Validate a datetime-local value is a valid UTC date */
+const validateDatetimeLocal = (value: string): string | null => {
+  try {
+    normalizeDatetime(value, "date");
+    return null;
+  } catch {
     return "Please enter a valid date and time";
   }
-  return null;
 };
+
+/**
+ * Validate closes_at is a valid date if provided.
+ */
+const validateClosesAt = (value: string): string | null => validateDatetimeLocal(value);
+
+/** Validate event date is a valid UTC datetime if provided */
+const validateEventDate = (value: string): string | null => validateDatetimeLocal(value);
 
 /**
  * Event form field definitions (shared between create and edit)
@@ -243,6 +250,20 @@ export const eventFields: Field[] = [
     placeholder: "A short description of the event",
     hint: "Shown on the ticket page. HTML is allowed. Max 128 characters.",
     validate: validateDescription,
+  },
+  {
+    name: "date",
+    label: "Event Date (optional)",
+    type: "datetime-local",
+    hint: "When the event takes place. Times are in UTC.",
+    validate: validateEventDate,
+  },
+  {
+    name: "location",
+    label: "Location (optional)",
+    type: "text",
+    placeholder: "e.g. Village Hall, Main Street",
+    hint: "Where the event takes place. Shown on the ticket page.",
   },
   {
     name: "event_type",

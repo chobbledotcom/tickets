@@ -12,6 +12,17 @@ for (const el of document.querySelectorAll("[data-nav-select]")) {
   });
 }
 
+/* Auto-populate closes_at from event date when closes_at is empty */
+const dateInput = document.querySelector('input[name="date"]');
+const closesAtInput = document.querySelector('input[name="closes_at"]');
+if (dateInput && closesAtInput) {
+  dateInput.addEventListener("change", () => {
+    if (dateInput.value && !closesAtInput.value) {
+      closesAtInput.value = dateInput.value;
+    }
+  });
+}
+
 /* Stripe connection test button */
 const btn = document.getElementById("stripe-test-btn");
 if (btn) {

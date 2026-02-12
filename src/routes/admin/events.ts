@@ -65,21 +65,28 @@ const serializeBookableDays = (value: string | null): string | undefined =>
   value ? JSON.stringify(value.split(",").map((d) => d.trim()).filter((d) => d)) : undefined;
 
 /** Extract common event fields from validated form values */
-const extractCommonFields = (values: EventFormValues) => ({
-  name: values.name,
-  description: values.description || "",
-  maxAttendees: values.max_attendees,
-  thankYouUrl: values.thank_you_url,
-  unitPrice: values.unit_price,
-  maxQuantity: values.max_quantity,
-  webhookUrl: values.webhook_url || null,
-  fields: values.fields || "email",
-  closesAt: values.closes_at || "",
-  eventType: values.event_type || undefined,
-  bookableDays: serializeBookableDays(values.bookable_days),
-  minimumDaysBefore: values.minimum_days_before ?? 1,
-  maximumDaysAfter: values.maximum_days_after ?? 90,
-});
+const extractCommonFields = (values: EventFormValues) => {
+  const date = values.date || "";
+  // Default closes_at to the event date if closes_at is empty and date is filled
+  const closesAt = values.closes_at || date || "";
+  return {
+    name: values.name,
+    description: values.description || "",
+    date,
+    location: values.location || "",
+    maxAttendees: values.max_attendees,
+    thankYouUrl: values.thank_you_url,
+    unitPrice: values.unit_price,
+    maxQuantity: values.max_quantity,
+    webhookUrl: values.webhook_url || null,
+    fields: values.fields || "email",
+    closesAt,
+    eventType: values.event_type || undefined,
+    bookableDays: serializeBookableDays(values.bookable_days),
+    minimumDaysBefore: values.minimum_days_before ?? 1,
+    maximumDaysAfter: values.maximum_days_after ?? 90,
+  };
+};
 
 /** Extract event input from validated form (async to compute slugIndex) */
 const extractEventInput = async (
@@ -259,7 +266,10 @@ const handleAdminEventExport = (request: Request, eventId: number) =>
     const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
     const filteredByDate = filterByDate(attendees, dateFilter);
     const isDaily = event.event_type === "daily";
-    const csv = generateAttendeesCsv(filteredByDate, isDaily);
+    const csv = generateAttendeesCsv(filteredByDate, isDaily, {
+      eventDate: event.date,
+      eventLocation: event.location,
+    });
     const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
     const filename = dateFilter
       ? `${sanitizedName}_${dateFilter}_attendees.csv`

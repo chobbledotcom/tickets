@@ -86,6 +86,14 @@ export const getAvailableDates = (
   )(dateRange(start, end));
 };
 
+/** Normalize datetime-local "YYYY-MM-DDTHH:MM" to full UTC ISO string */
+export const normalizeDatetime = (value: string, label: string): string => {
+  const normalized = value.length === 16 ? `${value}:00.000Z` : value;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) throw new Error(`Invalid ${label}: ${value}`);
+  return date.toISOString();
+};
+
 /**
  * Format a YYYY-MM-DD date for display.
  * Returns "Monday 15 March 2026"

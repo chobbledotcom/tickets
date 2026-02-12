@@ -170,6 +170,18 @@ export const adminEventPage = (
           <div class="table-scroll">
           <table>
             <tbody>
+              {event.date && (
+                <tr>
+                  <th>Event Date</th>
+                  <td>{event.date} (UTC)</td>
+                </tr>
+              )}
+              {event.location && (
+                <tr>
+                  <th>Location</th>
+                  <td>{event.location}</td>
+                </tr>
+              )}
               <tr>
                 <th>Event Type</th>
                 <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
@@ -314,12 +326,19 @@ export const adminEventPage = (
   );
 };
 
-/** Format closes_at ISO string for datetime-local input (YYYY-MM-DDTHH:MM) */
-const formatClosesAt = (closesAt: string | null): string | null => {
-  if (!closesAt) return null;
+/** Format an ISO datetime string for datetime-local input (YYYY-MM-DDTHH:MM) */
+const formatDatetimeLocal = (iso: string | null): string | null => {
+  if (!iso) return null;
   // datetime-local expects YYYY-MM-DDTHH:MM format
-  return closesAt.slice(0, 16);
+  return iso.slice(0, 16);
 };
+
+/** Format closes_at ISO string for datetime-local input */
+const formatClosesAt = (iso: string | null): string | null => formatDatetimeLocal(iso);
+
+/** Format event date ISO string for datetime-local input (empty → null) */
+const formatEventDate = (date: string): string | null =>
+  date ? formatDatetimeLocal(date) : null;
 
 /** Convert bookable_days JSON array to comma-separated display string */
 const formatBookableDays = (json: string): string =>
@@ -328,6 +347,8 @@ const formatBookableDays = (json: string): string =>
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,
   description: event.description,
+  date: formatEventDate(event.date),
+  location: event.location,
   slug: event.slug,
   event_type: event.event_type,
   max_attendees: event.max_attendees,

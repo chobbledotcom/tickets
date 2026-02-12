@@ -258,7 +258,7 @@ describe("admin calendar", () => {
       const response = await awaitTestRequest(`/admin/calendar/export?date=${validDate}`, { cookie });
       const csv = await response.text();
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Event,Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(lines[0]).toBe("Event,Event Date,Event Location,Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain(event.name);
       expect(lines[1]).toContain(validDate);
       expect(lines[1]).toContain("User A");
@@ -310,7 +310,7 @@ describe("admin calendar", () => {
       const csv = await response.text();
       const lines = csv.split("\n");
       expect(lines).toHaveLength(1);
-      expect(lines[0]).toContain("Event,Date,Name");
+      expect(lines[0]).toContain("Event,Event Date,Event Location,Date,Name");
     });
   });
 });

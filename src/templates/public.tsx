@@ -60,6 +60,12 @@ export const ticketPage = (
               <Raw html={escapeHtml(event.description)} />
             </div>
           )}
+          {event.date && (
+            <p><strong>Date:</strong> {event.date} (UTC)</p>
+          )}
+          {event.location && (
+            <p><strong>Location:</strong> {event.location}</p>
+          )}
         </>
       )}
       <Raw html={renderError(error)} />

@@ -172,6 +172,38 @@ describe("server (public routes)", () => {
       expect(html).toContain('class="description"');
     });
 
+    test("shows date and location when event has them", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+        date: "2026-06-15T14:00",
+        location: "Village Hall",
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("<strong>Date:</strong>");
+      expect(html).toContain("(UTC)");
+      expect(html).toContain("<strong>Location:</strong>");
+      expect(html).toContain("Village Hall");
+    });
+
+    test("does not show date or location when they are empty", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).not.toContain("<strong>Date:</strong>");
+      expect(html).not.toContain("<strong>Location:</strong>");
+    });
+
     test("does not show description div when description is empty", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -1977,6 +2009,27 @@ describe("server (public routes)", () => {
       expect(location).not.toBeNull();
 
       resetStripeClient();
+    });
+
+    test("shows date and location on multi-ticket page when events have them", async () => {
+      const event1 = await createTestEvent({
+        name: "Multi Date 1",
+        maxAttendees: 50,
+        date: "2026-06-15T14:00",
+        location: "Village Hall",
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Date 2",
+        maxAttendees: 50,
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      // Event 1 has date and location, event 2 does not
+      expect(html).toContain("Multi Date 1");
+      expect(html).toContain("Multi Date 2");
     });
 
     test("computes shared dates across daily events", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "#test-compat";
-import { addDays, DAY_NAMES, formatDateLabel, getAvailableDates } from "#lib/dates.ts";
+import { addDays, DAY_NAMES, formatDateLabel, getAvailableDates, normalizeDatetime } from "#lib/dates.ts";
 import { today } from "#lib/now.ts";
 import { testEvent } from "#test-utils";
 
@@ -152,6 +152,26 @@ describe("dates", () => {
 
       const dates = getAvailableDates(event, []);
       expect(dates).toEqual([]);
+    });
+  });
+
+  describe("normalizeDatetime", () => {
+    test("normalizes datetime-local (16 chars) to full ISO string", () => {
+      const result = normalizeDatetime("2026-06-15T14:30", "date");
+      expect(result).toBe("2026-06-15T14:30:00.000Z");
+    });
+
+    test("passes through already-normalized ISO string", () => {
+      const result = normalizeDatetime("2026-06-15T14:30:00.000Z", "date");
+      expect(result).toBe("2026-06-15T14:30:00.000Z");
+    });
+
+    test("throws on invalid datetime string", () => {
+      expect(() => normalizeDatetime("not-a-date", "date")).toThrow("Invalid date");
+    });
+
+    test("includes the label in the error message", () => {
+      expect(() => normalizeDatetime("bad-value", "closes_at")).toThrow("Invalid closes_at");
     });
   });
 });
