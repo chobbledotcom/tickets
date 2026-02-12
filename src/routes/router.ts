@@ -1,14 +1,51 @@
 /**
- * Declarative router with pattern matching
+ * Declarative router with pattern matching and typed route params
  */
 
 import { reduce } from "#fp";
 import type { ServerContext } from "#routes/types.ts";
 
+// =============================================================================
+// Type-level route param inference
+// =============================================================================
+
+/** Extract path part from "METHOD /path" pattern */
+type ExtractPath<S extends string> = S extends `${string} ${infer Path}` ? Path : S;
+
+/** Recursively extract param names from a URL path pattern */
+type ExtractParamNames<Path extends string> =
+  Path extends `${string}:${infer Param}/${infer Rest}`
+    ? Param | ExtractParamNames<`/${Rest}`>
+    : Path extends `${string}:${infer Param}`
+      ? Param
+      : never;
+
+/** Infer runtime type from param name (mirrors isNumericParam convention) */
+type InferParamType<Name extends string> =
+  Name extends `${string}Id` ? number :
+  Name extends "id" ? number :
+  string;
+
+/** Build typed params object from a route pattern string */
+export type RouteParamsFor<Pattern extends string> = {
+  [K in ExtractParamNames<ExtractPath<Pattern>>]: InferParamType<K>;
+};
+
+/** Route handler with params inferred from the route pattern */
+export type TypedRouteHandler<Pattern extends string> = (
+  request: Request,
+  params: RouteParamsFor<Pattern>,
+  server?: ServerContext,
+) => Response | Promise<Response>;
+
+// =============================================================================
+// Runtime types
+// =============================================================================
+
 /** Route parameters extracted from URL patterns (ID params are auto-parsed to numbers) */
 export type RouteParams = Record<string, string | number | undefined>;
 
-/** Route handler function signature */
+/** Route handler function signature (used internally by createRouter) */
 export type RouteHandlerFn = (
   request: Request,
   params: RouteParams,
@@ -180,8 +217,9 @@ export const createRouter = (
 };
 
 /**
- * Helper to define routes with type safety
+ * Define routes with typed params inferred from route pattern strings.
+ * Params ending in "Id" or named "id" are typed as number; all others as string.
  */
-export const defineRoutes = (
-  routes: Record<string, RouteHandlerFn>,
-): Record<string, RouteHandlerFn> => routes;
+export const defineRoutes = <T extends string>(
+  routes: { [K in T]: TypedRouteHandler<K> },
+): Record<string, RouteHandlerFn> => routes as unknown as Record<string, RouteHandlerFn>;
