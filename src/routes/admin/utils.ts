@@ -2,8 +2,12 @@
  * Shared admin utilities and types
  */
 
+import { decryptAttendees } from "#lib/db/attendees.ts";
+import { getEventWithAttendeesRaw } from "#lib/db/events.ts";
+import type { Attendee, EventWithCount } from "#lib/types.ts";
 import type { validateForm } from "#lib/forms.tsx";
-import type { AuthSession } from "#routes/utils.ts";
+import type { RouteParams } from "#routes/router.ts";
+import { type AuthSession, getPrivateKey, notFoundResponse, requireSessionOr } from "#routes/utils.ts";
 
 /** Form field definition type */
 export type FormFields = Parameters<typeof validateForm>[1];
@@ -39,3 +43,36 @@ export const csvResponse = (csv: string, filename: string): Response =>
       "content-disposition": `attachment; filename="${filename}"`,
     },
   });
+
+/** Parse event ID from params (route pattern guarantees :id exists as \d+) */
+export const parseEventId = (params: RouteParams): number =>
+  Number.parseInt(params.id!, 10);
+
+/** Get the admin private key from session (non-null assertion — callers are inside authenticated handlers) */
+export const requirePrivateKey = async (session: AuthSession): Promise<CryptoKey> =>
+  (await getPrivateKey(session))!;
+
+/** Handler that receives a decrypted event with its attendees */
+type EventAttendeesHandler = (event: EventWithCount, attendees: Attendee[], session: AuthSession) => Response | Promise<Response>;
+
+/** Load event with all decrypted attendees, returning 404 response if not found */
+export const withDecryptedAttendees = async (
+  session: AuthSession,
+  eventId: number,
+  handler: EventAttendeesHandler,
+): Promise<Response> => {
+  const pk = await requirePrivateKey(session);
+  const result = await getEventWithAttendeesRaw(eventId);
+  if (!result) return notFoundResponse();
+  const attendees = await decryptAttendees(result.attendeesRaw, pk);
+  return handler(result.event, attendees, session);
+};
+
+/** Require auth then load event with all decrypted attendees */
+export const withEventAttendeesAuth = (
+  request: Request,
+  eventId: number,
+  handler: EventAttendeesHandler,
+): Promise<Response> =>
+  requireSessionOr(request, (session) =>
+    withDecryptedAttendees(session, eventId, handler));

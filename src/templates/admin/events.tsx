@@ -57,7 +57,7 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; e
   );
 };
 
-const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showDate }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter; allowedDomain: string; showDate: boolean }): string =>
+const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showDate, hasPaidEvent }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter; allowedDomain: string; showDate: boolean; hasPaidEvent: boolean }): string =>
   String(
     <tr>
       <td>
@@ -71,6 +71,12 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
       <td><a href={`https://${allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
       <td>{new Date(a.created).toLocaleString()}</td>
       <td>
+        {hasPaidEvent && a.payment_id && (
+          <a href={`/admin/event/${eventId}/attendee/${a.id}/refund`} class="danger">
+            Refund
+          </a>
+        )}
+        {" "}
         <a href={`/admin/event/${eventId}/attendee/${a.id}/delete`} class="danger">
           Delete
         </a>
@@ -126,11 +132,12 @@ export const adminEventPage = (
   const embedCode = `<iframe src="${ticketUrl}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
   const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);
+  const hasPaidEvent = event.unit_price !== null;
   const colSpan = isDaily ? 9 : 8;
   const attendeeRows =
     filteredAttendees.length > 0
       ? pipe(
-          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken: session.csrfToken, activeFilter, allowedDomain, showDate: isDaily })),
+          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken: session.csrfToken, activeFilter, allowedDomain, showDate: isDaily, hasPaidEvent })),
           joinStrings,
         )(filteredAttendees)
       : `<tr><td colspan="${colSpan}">No attendees yet</td></tr>`;
@@ -152,6 +159,9 @@ export const adminEventPage = (
             <li><a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a></li>
             <li><a href={`/admin/event/${event.id}/log`}>Log</a></li>
             <li><a href={`/admin/event/${event.id}/export${dateFilter ? `?date=${dateFilter}` : ""}`}>Export CSV</a></li>
+            {hasPaidEvent && (
+              <li><a href={`/admin/event/${event.id}/refund-all`} class="danger">Refund All</a></li>
+            )}
             {event.active === 1 ? (
               <li><a href={`/admin/event/${event.id}/deactivate`} class="danger">Deactivate</a></li>
             ) : (

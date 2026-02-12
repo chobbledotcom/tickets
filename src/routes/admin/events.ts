@@ -9,14 +9,12 @@ import {
   getEventWithActivityLog,
   logActivity,
 } from "#lib/db/activityLog.ts";
-import { decryptAttendees } from "#lib/db/attendees.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import {
   computeSlugIndex,
   deleteEvent,
   type EventInput,
   eventsTable,
-  getEventWithAttendeesRaw,
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
@@ -25,10 +23,9 @@ import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
-import { defineRoutes, type RouteParams } from "#routes/router.ts";
-import { csvResponse, getDateFilter, verifyIdentifier } from "#routes/admin/utils.ts";
+import { defineRoutes } from "#routes/router.ts";
+import { csvResponse, getDateFilter, parseEventId, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
-  getPrivateKey,
   htmlResponse,
   notFoundResponse,
   redirect,
@@ -106,29 +103,14 @@ const eventsResource = defineResource({
   nameField: "name",
 });
 
-/** Context available after auth + data fetch for event with attendees */
-type EventAttendeesContext = {
-  event: EventWithCount;
-  attendees: Attendee[];
-  session: AdminSession;
-};
-
-/**
- * Handle event with attendees - auth, fetch, then apply handler fn.
- * Uses batched query to fetch event + attendees in a single DB round-trip.
- */
+/** Handle event with attendees - auth, fetch, then apply handler fn */
 const withEventAttendees = (
   request: Request,
   eventId: number,
-  handler: (ctx: EventAttendeesContext) => Response | Promise<Response>,
+  handler: (ctx: { event: EventWithCount; attendees: Attendee[]; session: AdminSession }) => Response | Promise<Response>,
 ): Promise<Response> =>
-  requireSessionOr(request, async (session) => {
-    const privateKey = (await getPrivateKey(session))!;
-    const result = await getEventWithAttendeesRaw(eventId);
-    if (!result) return notFoundResponse();
-    const attendees = await decryptAttendees(result.attendeesRaw, privateKey);
-    return handler({ event: result.event, attendees, session });
-  });
+  withEventAttendeesAuth(request, eventId, (event, attendees, session) =>
+    handler({ event, attendees, session }));
 
 /**
  * Handle POST /admin/event (create event)
@@ -368,10 +350,6 @@ const handleAdminEventDelete = (
         const event = await getEventWithCount(eventId);
         return event ? performDelete(event) : notFoundResponse();
       });
-
-/** Parse event ID from params (route pattern guarantees :id exists as \d+) */
-const parseEventId = (params: RouteParams): number =>
-  Number.parseInt(params.id!, 10);
 
 /** Event routes */
 export const eventsRoutes = defineRoutes({
