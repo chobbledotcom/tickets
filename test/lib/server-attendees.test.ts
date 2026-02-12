@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestAttendee,
   createTestDbWithSetup,
   createTestEvent,
+  getAttendeesRaw,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -12,6 +13,7 @@ import {
   expectAdminRedirect,
   expectRedirect,
   loginAsAdmin,
+  withMocks,
 } from "#test-utils";
 
 describe("server (admin attendees)", () => {
@@ -659,6 +661,283 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Check out");
+    });
+  });
+
+  describe("POST /admin/event/:eventId/attendee (add attendee)", () => {
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+
+      const response = await handleRequest(
+        mockFormRequest(`/admin/event/${event.id}/attendee`, {
+          name: "Jane Doe",
+          email: "jane@example.com",
+          quantity: "1",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee`,
+          {
+            name: "Jane Doe",
+            email: "jane@example.com",
+            quantity: "1",
+            csrf_token: "invalid-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/999/attendee",
+          {
+            name: "Jane Doe",
+            email: "jane@example.com",
+            quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("adds attendee to email event", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, fields: "email" });
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee`,
+          {
+            name: "Jane Doe",
+            email: "jane@example.com",
+            quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain(`/admin/event/${event.id}`);
+      expect(location).toContain("added=Jane");
+
+      const attendees = await getAttendeesRaw(event.id);
+      expect(attendees.length).toBe(1);
+    });
+
+    test("adds attendee to phone event", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, fields: "phone" });
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee`,
+          {
+            name: "Phone User",
+            phone: "+1234567890",
+            quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain("added=Phone");
+
+      const attendees = await getAttendeesRaw(event.id);
+      expect(attendees.length).toBe(1);
+    });
+
+    test("adds attendee to both event", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, fields: "both" });
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee`,
+          {
+            name: "Both User",
+            email: "both@example.com",
+            phone: "+1234567890",
+            quantity: "2",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain("added=Both");
+
+      const attendees = await getAttendeesRaw(event.id);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]!.quantity).toBe(2);
+    });
+
+    test("redirects with error on validation failure", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee`,
+          {
+            name: "",
+            email: "",
+            quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain("add_error=");
+      expect(location).toContain("#add-attendee");
+    });
+
+    test("redirects with error when capacity exceeded", async () => {
+      const event = await createTestEvent({ maxAttendees: 1 });
+      await createTestAttendee(event.id, event.slug, "First", "first@example.com");
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee`,
+          {
+            name: "Second",
+            email: "second@example.com",
+            quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain("add_error=");
+      expect(location).toContain("spots");
+    });
+
+    test("redirects with error on encryption failure", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const { attendeesApi } = await import("#lib/db/attendees.ts");
+      await withMocks(
+        () => spyOn(attendeesApi, "createAttendeeAtomic").mockResolvedValue({
+          success: false,
+          reason: "encryption_error",
+        }),
+        async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              `/admin/event/${event.id}/attendee`,
+              {
+                name: "Enc Fail",
+                email: "enc@example.com",
+                quantity: "1",
+                csrf_token: csrfToken,
+              },
+              cookie,
+            ),
+          );
+          expect(response.status).toBe(302);
+          const location = response.headers.get("location")!;
+          expect(location).toContain("add_error=");
+          expect(location).toContain("Failed");
+        },
+      );
+    });
+
+    test("adds attendee to daily event with date", async () => {
+      const { addDays } = await import("#lib/dates.ts");
+      const { today } = await import("#lib/now.ts");
+      const futureDate = addDays(today(), 7);
+
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        eventType: "daily",
+        bookableDays: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+      });
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee`,
+          {
+            name: "Daily User",
+            email: "daily@example.com",
+            quantity: "1",
+            date: futureDate,
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain("added=Daily");
+
+      const attendees = await getAttendeesRaw(event.id);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]!.date).toBe(futureDate);
+    });
+
+    test("event page shows add attendee form", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Add Attendee");
+      expect(html).toContain(`/admin/event/${event.id}/attendee`);
+      expect(html).toContain("Your Name");
+      expect(html).toContain("Quantity");
+    });
+
+    test("event page shows success message when ?added param present", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?added=Jane%20Doe`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Added Jane Doe");
+    });
+
+    test("event page shows error message when ?add_error param present", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?add_error=Not%20enough%20spots`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Not enough spots");
     });
   });
 

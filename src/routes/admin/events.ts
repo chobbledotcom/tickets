@@ -41,6 +41,7 @@ import {
   adminEventEditPage,
   adminEventPage,
   adminReactivateEventPage,
+  type AddAttendeeMessage,
   type AttendeeFilter,
 } from "#templates/admin/events.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
@@ -136,6 +137,16 @@ const getCheckinMessage = (request: Request): { name: string; status: string } |
   return null;
 };
 
+/** Extract add-attendee result message from request URL */
+const getAddAttendeeMessage = (request: Request): AddAttendeeMessage => {
+  const url = new URL(request.url);
+  const added = url.searchParams.get("added");
+  if (added) return { name: added };
+  const error = url.searchParams.get("add_error");
+  if (error) return { error };
+  return null;
+};
+
 /** Filter attendees by date for daily events */
 const filterByDate = (attendees: Attendee[], date: string | null): Attendee[] =>
   date ? filter((a: Attendee) => a.date === date)(attendees) : attendees;
@@ -168,6 +179,7 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
         activeFilter,
         dateFilter,
         availableDates,
+        getAddAttendeeMessage(request),
       ),
     );
   });

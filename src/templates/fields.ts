@@ -47,6 +47,15 @@ export type TicketFormValues = {
   phone: string | null;
 };
 
+/** Typed values from admin add-attendee form */
+export type AddAttendeeFormValues = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  quantity: number;
+  date: string | null;
+};
+
 /** Typed values from login form */
 export type LoginFormValues = {
   username: string;
@@ -441,6 +450,35 @@ export const getTicketFields = (fields: EventFields): Field[] => {
     case "both":
       return [nameField, emailField, phoneField];
   }
+};
+
+/** Quantity field for admin add-attendee form */
+const addAttendeeQuantityField: Field = {
+  name: "quantity",
+  label: "Quantity",
+  type: "number",
+  required: true,
+  min: 1,
+};
+
+/** Date field for admin add-attendee form (daily events only) */
+const addAttendeeDateField: Field = {
+  name: "date",
+  label: "Date",
+  type: "date",
+  required: true,
+  validate: validateDate,
+};
+
+/**
+ * Get admin add-attendee form fields based on event config.
+ * Includes contact fields (name + email/phone per setting), quantity,
+ * and a date field for daily events.
+ */
+export const getAddAttendeeFields = (fields: EventFields, isDaily: boolean): Field[] => {
+  const result = [...getTicketFields(fields), addAttendeeQuantityField];
+  if (isDaily) result.push(addAttendeeDateField);
+  return result;
 };
 
 /**
