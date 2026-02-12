@@ -6,12 +6,47 @@
 
 import * as esbuild from "esbuild";
 import type { Plugin } from "esbuild";
+import { fromFileUrl } from "@std/path";
 import { minifyCss } from "./css-minify.ts";
+
+// --- Step 1: Build scanner.js (client bundle with jsQR) ---
+
+/** Resolve npm bare specifiers using Deno's import resolution */
+const denoNpmResolvePlugin: Plugin = {
+  name: "deno-npm-resolve",
+  setup(build) {
+    build.onResolve({ filter: /^jsqr$/ }, () => ({
+      path: fromFileUrl(import.meta.resolve("jsqr")),
+    }));
+  },
+};
+
+const scannerResult = await esbuild.build({
+  entryPoints: ["./src/client/scanner.js"],
+  outfile: "./src/static/scanner.js",
+  platform: "browser",
+  format: "iife",
+  bundle: true,
+  minify: true,
+  plugins: [denoNpmResolvePlugin],
+});
+
+if (scannerResult.errors.length > 0) {
+  console.error("Scanner build failed:");
+  for (const log of scannerResult.errors) {
+    console.error(log);
+  }
+  Deno.exit(1);
+}
+
+console.log("Scanner build complete: src/static/scanner.js");
+
+// --- Step 2: Build edge bundle ---
 
 // Build timestamp for cache-busting (seconds since epoch)
 const BUILD_TS = Math.floor(Date.now() / 1000);
 
-// Read static assets at build time for inlining
+// Read static assets at build time for inlining (scanner.js now freshly built above)
 const rawCss = await Deno.readTextFile("./src/static/mvp.css");
 const minifiedCss = await minifyCss(rawCss);
 
@@ -19,6 +54,7 @@ const STATIC_ASSETS: Record<string, string> = {
   "favicon.svg": await Deno.readTextFile("./src/static/favicon.svg"),
   "mvp.css": minifiedCss,
   "admin.js": await Deno.readTextFile("./src/static/admin.js"),
+  "scanner.js": await Deno.readTextFile("./src/static/scanner.js"),
 };
 
 /**
@@ -35,7 +71,7 @@ const inlineAssetsPlugin: Plugin = {
     }));
 
     build.onLoad({ filter: /.*/, namespace: "inline-asset-paths" }, () => ({
-      contents: `export const CSS_PATH = "/mvp.css?ts=${BUILD_TS}";\nexport const JS_PATH = "/admin.js?ts=${BUILD_TS}";`,
+      contents: `export const CSS_PATH = "/mvp.css?ts=${BUILD_TS}";\nexport const JS_PATH = "/admin.js?ts=${BUILD_TS}";\nexport const SCANNER_JS_PATH = "/scanner.js?ts=${BUILD_TS}";`,
       loader: "ts",
     }));
 
@@ -50,6 +86,7 @@ const inlineAssetsPlugin: Plugin = {
         const faviconSvg = ${JSON.stringify(STATIC_ASSETS["favicon.svg"])};
         const mvpCss = ${JSON.stringify(STATIC_ASSETS["mvp.css"])};
         const adminJs = ${JSON.stringify(STATIC_ASSETS["admin.js"])};
+        const scannerJs = ${JSON.stringify(STATIC_ASSETS["scanner.js"])};
 
         const CACHE_HEADERS = {
           "cache-control": "public, max-age=31536000, immutable",
@@ -67,6 +104,11 @@ const inlineAssetsPlugin: Plugin = {
 
         export const handleAdminJs = () =>
           new Response(adminJs, {
+            headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
+          });
+
+        export const handleScannerJs = () =>
+          new Response(scannerJs, {
             headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
           });
       `,

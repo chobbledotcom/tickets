@@ -288,7 +288,7 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
-      <Section title="Check-in">
+      <Section title="Check-in &amp; QR Scanner">
         <Q q="How does check-in work?">
           <p>
             Each ticket has a unique QR code. When an attendee arrives, they
@@ -305,6 +305,44 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             the page in a browser. Non-admin visitors see a message to show the
             code to staff. Admin visitors see the attendee's details and a
             check-in button.
+          </p>
+        </Q>
+
+        <Q q="How do I use the QR scanner?">
+          <p>
+            Open an event and click <strong>Scanner</strong>. Tap{" "}
+            <strong>Start Camera</strong> to begin (grants camera permission on
+            first use). Point the camera at an attendee's QR code and check-in
+            happens automatically. A 2-second cooldown prevents duplicate scans.
+            The scanner works best with the rear camera on mobile devices.
+          </p>
+        </Q>
+
+        <Q q="Why doesn't the scanner check people out?">
+          <p>
+            The scanner is intentionally one-way: it only checks people{" "}
+            <strong>in</strong>, never out. This prevents accidental check-outs
+            from double-scans at a busy door. To check someone out, use the
+            manual check-in page instead.
+          </p>
+        </Q>
+
+        <Q q="What if a QR code is for a different event?">
+          <p>
+            If you scan a ticket registered for a different event, you'll be
+            prompted to confirm before checking them in. This lets you handle
+            last-minute event changes without turning anyone away.
+          </p>
+        </Q>
+
+        <Q q="What do the scanner status messages mean?">
+          <p>
+            <strong>Checked in</strong> &mdash; attendee successfully checked
+            in. <strong>Already checked in</strong> &mdash; they were already
+            marked as arrived. <strong>Ticket not found</strong> &mdash; the QR
+            code doesn't match any registration.{" "}
+            <strong>Different event</strong> &mdash; the ticket belongs to
+            another event (you can force check-in if needed).
           </p>
         </Q>
       </Section>
