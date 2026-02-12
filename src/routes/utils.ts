@@ -472,3 +472,38 @@ export const requireOwnerOr = (request: Request, handler: SessionHandler): Promi
 /** Handle request with owner auth form - requires owner role + CSRF validation */
 export const withOwnerAuthForm = (request: Request, handler: FormHandler): Promise<Response> =>
   handleAuthForm(request, "owner", handler);
+
+/** Create JSON response */
+export const jsonResponse = (data: unknown, status = 200): Response =>
+  new Response(JSON.stringify(data), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
+
+type JsonHandler = (session: AuthSession, body: Record<string, unknown>) => Response | Promise<Response>;
+
+/**
+ * Handle JSON API request with auth + CSRF validation (from x-csrf-token header).
+ * Mirrors withAuthForm but for JSON endpoints.
+ * Content-type is already validated by middleware.
+ */
+export const withAuthJson = async (request: Request, handler: JsonHandler): Promise<Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) return jsonResponse({ status: "error", message: "Not authenticated" }, 401);
+
+  const csrfHeader = request.headers.get("x-csrf-token") ?? "";
+  if (!validateCsrfToken(session.csrfToken, csrfHeader)) {
+    logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "JSON API" });
+    return jsonResponse({ status: "error", message: "Forbidden" }, 403);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    logError({ code: ErrorCode.VALIDATION_FORM, detail: "Malformed JSON body" });
+    return jsonResponse({ status: "error", message: "Invalid request body" }, 400);
+  }
+
+  return handler(session, body);
+};
