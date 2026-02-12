@@ -12,8 +12,9 @@ import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 //
 // Each interface describes the shape returned by validateForm<T>() for a
 // specific set of field definitions.  Required text fields produce `string`,
-// optional text fields produce `string | null`, required number fields
-// produce `number`, and optional number fields produce `number | null`.
+// optional text fields produce `string` (empty string when absent),
+// required number fields produce `number`, and optional number fields
+// produce `number | null`.
 // ---------------------------------------------------------------------------
 
 /** Typed values from event form validation */
@@ -24,12 +25,12 @@ export type EventFormValues = {
   location: string;
   max_attendees: number;
   max_quantity: number;
-  fields: string;
+  fields: EventFields | "";
   unit_price: number | null;
   closes_at: string;
   thank_you_url: string;
   webhook_url: string;
-  event_type: string;
+  event_type: EventType | "";
   bookable_days: string;
   minimum_days_before: number | null;
   maximum_days_after: number | null;

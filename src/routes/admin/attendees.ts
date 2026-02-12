@@ -304,7 +304,7 @@ const handleAddAttendee = (
       email,
       quantity,
       phone,
-      date: date || null,
+      date: isDaily ? date : null,
     });
 
     if (!result.success) {

@@ -120,17 +120,30 @@ const DateSelector = ({ basePath, activeFilter, dateFilter, dates }: { basePath:
   return `<select data-nav-select>${options}</select>`;
 };
 
-export const adminEventPage = (
-  event: EventWithCount,
-  attendees: Attendee[],
-  allowedDomain: string,
-  session: AdminSession,
-  checkinMessage?: CheckinMessage,
-  activeFilter: AttendeeFilter = "all",
-  dateFilter: string | null = null,
-  availableDates: DateOption[] = [],
-  addAttendeeMessage: AddAttendeeMessage = null,
-): string => {
+/** Options for rendering the admin event detail page */
+export type AdminEventPageOptions = {
+  event: EventWithCount;
+  attendees: Attendee[];
+  allowedDomain: string;
+  session: AdminSession;
+  checkinMessage?: CheckinMessage;
+  activeFilter?: AttendeeFilter;
+  dateFilter?: string | null;
+  availableDates?: DateOption[];
+  addAttendeeMessage?: AddAttendeeMessage;
+};
+
+export const adminEventPage = ({
+  event,
+  attendees,
+  allowedDomain,
+  session,
+  checkinMessage,
+  activeFilter = "all",
+  dateFilter = null,
+  availableDates = [],
+  addAttendeeMessage = null,
+}: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const iframeHeight = event.fields === "both" ? "24rem" : "18rem";
   const embedCode = `<iframe src="${ticketUrl}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
@@ -339,14 +352,14 @@ export const adminEventPage = (
 
         <article>
           <h2 id="add-attendee">Add Attendee</h2>
-          {"name" in (addAttendeeMessage ?? {}) && (
+          {addAttendeeMessage && "name" in addAttendeeMessage && (
             <p class="checkin-message-in">
-              Added {(addAttendeeMessage as { name: string }).name}
+              Added {addAttendeeMessage.name}
             </p>
           )}
-          {"error" in (addAttendeeMessage ?? {}) && (
+          {addAttendeeMessage && "error" in addAttendeeMessage && (
             <p class="error">
-              {(addAttendeeMessage as { error: string }).error}
+              {addAttendeeMessage.error}
             </p>
           )}
           <form method="POST" action={`/admin/event/${event.id}/attendee`}>

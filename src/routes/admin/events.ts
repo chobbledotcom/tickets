@@ -21,7 +21,7 @@ import {
 import { createHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
-import type { AdminSession, Attendee, EventFields, EventType, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
 import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
 import { csvResponse, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
@@ -73,9 +73,9 @@ const extractCommonFields = (values: EventFormValues) => ({
   unitPrice: values.unit_price,
   maxQuantity: values.max_quantity,
   webhookUrl: values.webhook_url || null,
-  fields: (values.fields || "email") as EventFields,
+  fields: values.fields || "email",
   closesAt: values.closes_at,
-  eventType: (values.event_type || undefined) as EventType | undefined,
+  eventType: values.event_type || undefined,
   bookableDays: serializeBookableDays(values.bookable_days),
   minimumDaysBefore: values.minimum_days_before ?? 1,
   maximumDaysAfter: values.maximum_days_after ?? 90,
@@ -170,17 +170,17 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
     const availableDates = event.event_type === "daily" ? getUniqueDates(attendees) : [];
     const filteredByDate = filterByDate(attendees, dateFilter);
     return htmlResponse(
-      adminEventPage(
+      adminEventPage({
         event,
-        filteredByDate,
-        getAllowedDomain(),
+        attendees: filteredByDate,
+        allowedDomain: getAllowedDomain(),
         session,
-        getCheckinMessage(request),
+        checkinMessage: getCheckinMessage(request),
         activeFilter,
         dateFilter,
         availableDates,
-        getAddAttendeeMessage(request),
-      ),
+        addAttendeeMessage: getAddAttendeeMessage(request),
+      }),
     );
   });
 };

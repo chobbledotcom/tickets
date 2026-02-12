@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import { attendeesApi } from "#lib/db/attendees.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -838,7 +839,6 @@ describe("server (admin attendees)", () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { cookie, csrfToken } = await loginAsAdmin();
 
-      const { attendeesApi } = await import("#lib/db/attendees.ts");
       await withMocks(
         () => spyOn(attendeesApi, "createAttendeeAtomic").mockResolvedValue({
           success: false,
