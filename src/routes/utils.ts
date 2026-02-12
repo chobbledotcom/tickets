@@ -476,6 +476,29 @@ export const requireOwnerOr = (request: Request, handler: SessionHandler): Promi
 export const withOwnerAuthForm = (request: Request, handler: FormHandler): Promise<Response> =>
   handleAuthForm(request, "owner", handler);
 
+/** Handler function that receives session and multipart FormData */
+type MultipartFormHandler = (session: AuthSession, formData: FormData) => Response | Promise<Response>;
+
+/**
+ * Handle multipart form request with auth + CSRF validation.
+ * Parses request body as FormData (multipart/form-data) instead of URLSearchParams.
+ */
+export const withAuthMultipartForm = async (
+  request: Request,
+  handler: MultipartFormHandler,
+): Promise<Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) return redirect("/admin");
+
+  const formData = await request.formData();
+  const csrfToken = (formData.get("csrf_token") as string) || "";
+  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
+    return htmlResponse("Invalid CSRF token", 403);
+  }
+
+  return handler(session, formData);
+};
+
 /** Create JSON response */
 export const jsonResponse = (data: unknown, status = 200): Response =>
   new Response(JSON.stringify(data), {

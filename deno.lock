@@ -5,6 +5,8 @@
     "jsr:@std/internal@^1.0.12": "1.0.12",
     "jsr:@std/path@1": "1.1.4",
     "npm:@bunny.net/edgescript-sdk@0.12": "0.12.0_hono@4.11.5",
+    "npm:@bunny.net/storage-sdk@*": "0.2.2",
+    "npm:@bunny.net/storage-sdk@0.2": "0.2.2",
     "npm:@libsql/client@0.17": "0.17.0",
     "npm:esbuild@0.20": "0.20.2",
     "npm:jscpd@*": "4.0.8",
@@ -153,6 +155,13 @@
       "dependencies": [
         "@hono/node-server",
         "hono"
+      ]
+    },
+    "@bunny.net/storage-sdk@0.2.2": {
+      "integrity": "sha512-LhL9veq1np022kLdGilvvq5R3fBfFb/aeTT8J6doYQGInNwf3Innv/HpeRMz+FujpXlHCFLl0J9OefcS7+xRCQ==",
+      "dependencies": [
+        "dotenv",
+        "zod"
       ]
     },
     "@colors/colors@1.5.0": {
@@ -618,6 +627,9 @@
     },
     "doctypes@1.1.0": {
       "integrity": "sha512-LLBi6pEqS6Do3EKQ3J0NqHWV5hhb78Pi8vvESYwyOy2c31ZEZVdtitdzsQsKb7878PEERhzUk0ftqGhG6Mz+pQ=="
+    },
+    "dotenv@16.6.1": {
+      "integrity": "sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow=="
     },
     "dunder-proto@1.0.1": {
       "integrity": "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==",
@@ -1484,6 +1496,9 @@
         "y18n",
         "yargs-parser"
       ]
+    },
+    "zod@3.25.76": {
+      "integrity": "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="
     }
   },
   "workspace": {
@@ -1491,6 +1506,7 @@
       "jsr:@std/assert@1",
       "jsr:@std/path@1",
       "npm:@bunny.net/edgescript-sdk@0.12",
+      "npm:@bunny.net/storage-sdk@0.2",
       "npm:@libsql/client@0.17",
       "npm:esbuild@0.20",
       "npm:jsqr@^1.4.0",

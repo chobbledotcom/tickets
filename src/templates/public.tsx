@@ -6,10 +6,17 @@ import { map, pipe } from "#fp";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { renderError, renderFields } from "#lib/forms.tsx";
+import { getImageCdnUrl } from "#lib/storage.ts";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
+
+/** Render event image HTML if image_url is set */
+export const renderEventImage = (event: { image_url: string | null; name: string }): string =>
+  event.image_url
+    ? `<img src="${escapeHtml(getImageCdnUrl(event.image_url))}" alt="${escapeHtml(event.name)}" style="max-width: 100%; border-radius: 4px; margin-bottom: 1rem;" />`
+    : "";
 
 /** Render a date selector dropdown for daily events */
 const renderDateSelector = (dates: string[]): string =>
@@ -60,6 +67,7 @@ export const ticketPage = (
     <Layout title={event.name} bodyClass={iframe ? "iframe" : undefined}>
       {!iframe && (
         <>
+          <Raw html={renderEventImage(event)} />
           <h1>{event.name}</h1>
           {event.description && (
             <div class="description">
@@ -148,10 +156,12 @@ const renderMultiEventDescription = (description: string): string =>
 const renderMultiEventRow = (info: MultiTicketEvent): string => {
   const { event, isSoldOut, isClosed, maxPurchasable } = info;
   const fieldName = `quantity_${event.id}`;
+  const imageHtml = renderEventImage(event);
 
   if (isClosed) {
     return `
       <div class="multi-ticket-row sold-out">
+        ${imageHtml}
         <label>${escapeHtml(event.name)}</label>
         <span class="sold-out-label">Registration Closed</span>
       </div>
@@ -161,6 +171,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
   if (isSoldOut) {
     return `
       <div class="multi-ticket-row sold-out">
+        ${imageHtml}
         <label>${escapeHtml(event.name)}</label>
         ${renderMultiEventDescription(event.description)}
         <span class="sold-out-label">Sold Out</span>
@@ -174,6 +185,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
 
   return `
     <div class="multi-ticket-row">
+      ${imageHtml}
       <label for="${fieldName}">${escapeHtml(event.name)}</label>
       ${renderMultiEventDescription(event.description)}
       <select name="${fieldName}" id="${fieldName}">

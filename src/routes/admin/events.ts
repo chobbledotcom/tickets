@@ -26,11 +26,13 @@ import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts"
 import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
 import { csvResponse, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
+  getSearchParam,
   htmlResponse,
   notFoundResponse,
   redirect,
   requireSessionOr,
   withAuthForm,
+  withAuthMultipartForm,
   withEventPage,
 } from "#routes/utils.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
@@ -44,6 +46,13 @@ import {
   type AddAttendeeMessage,
   type AttendeeFilter,
 } from "#templates/admin/events.tsx";
+import {
+  deleteImage,
+  formatImageError,
+  isStorageEnabled,
+  uploadImage,
+  validateImage,
+} from "#lib/storage.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
 
@@ -180,6 +189,7 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
         dateFilter,
         availableDates,
         addAttendeeMessage: getAddAttendeeMessage(request),
+        imageError: getSearchParam(request, "image_error"),
       }),
     );
   });
@@ -356,6 +366,67 @@ const handleAdminEventDelete = (
         return event ? performDelete(event) : notFoundResponse();
       });
 
+/** Handle POST /admin/event/:id/image (upload event image) */
+const handleImageUpload = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  withAuthMultipartForm(request, async (_session, formData) => {
+    if (!isStorageEnabled()) {
+      return htmlResponse("Image storage is not configured", 400);
+    }
+
+    const event = await getEventWithCount(eventId);
+    if (!event) return notFoundResponse();
+
+    const file = formData.get("image") as File | null;
+    if (!file || file.size === 0) {
+      return redirect(`/admin/event/${eventId}`);
+    }
+
+    const data = new Uint8Array(await file.arrayBuffer());
+    const validation = validateImage(data, file.type);
+    if (!validation.valid) {
+      return redirect(`/admin/event/${eventId}?image_error=${encodeURIComponent(formatImageError(validation.error))}`);
+    }
+
+    // Delete old image if present
+    if (event.image_url) {
+      try {
+        await deleteImage(event.image_url);
+      } catch {
+        // Old image may already be gone
+      }
+    }
+
+    const filename = await uploadImage(data, validation.detectedType);
+    await eventsTable.update(eventId, { imageUrl: filename });
+    await logActivity(`Image uploaded for '${event.name}'`, event);
+    return redirect(`/admin/event/${eventId}`);
+  });
+
+/** Handle POST /admin/event/:id/image/delete (delete event image) */
+const handleImageDelete = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  withAuthForm(request, async () => {
+    const event = await getEventWithCount(eventId);
+    if (!event) return notFoundResponse();
+
+    if (event.image_url) {
+      try {
+        await deleteImage(event.image_url);
+      } catch {
+        // Image may already be gone from storage
+      }
+      await eventsTable.update(eventId, { imageUrl: null });
+      await logActivity(`Image removed for '${event.name}'`, event);
+    }
+
+    return redirect(`/admin/event/${eventId}`);
+  });
+
 /** Bind :id param to an event handler */
 type EventHandler = (request: Request, eventId: number) => Response | Promise<Response>;
 const eventRoute = (handler: EventHandler): RouteHandlerFn =>
@@ -372,6 +443,8 @@ export const eventsRoutes = defineRoutes({
   "POST /admin/event/:id/edit": eventRoute(handleAdminEventEditPost),
   "GET /admin/event/:id/export": eventRoute(handleAdminEventExport),
   "GET /admin/event/:id/log": eventRoute(handleAdminEventLog),
+  "POST /admin/event/:id/image": eventRoute(handleImageUpload),
+  "POST /admin/event/:id/image/delete": eventRoute(handleImageDelete),
   "GET /admin/event/:id/deactivate": eventRoute(handleAdminEventDeactivateGet),
   "POST /admin/event/:id/deactivate": eventRoute(handleAdminEventDeactivatePost),
   "GET /admin/event/:id/reactivate": eventRoute(handleAdminEventReactivateGet),
