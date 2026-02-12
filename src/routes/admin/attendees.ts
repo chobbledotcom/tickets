@@ -6,11 +6,13 @@ import { filter } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   clearPaymentId,
+  createAttendeeAtomic,
   decryptAttendeeOrNull,
   deleteAttendee,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
-import { getEventWithAttendeeRaw } from "#lib/db/events.ts";
+import { getEventWithAttendeeRaw, getEventWithCount } from "#lib/db/events.ts";
+import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
@@ -32,6 +34,7 @@ import {
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,
 } from "#templates/admin/attendees.tsx";
+import { type AddAttendeeFormValues, getAddAttendeeFields } from "#templates/fields.ts";
 
 /** Attendee with event data */
 type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
@@ -274,6 +277,55 @@ const handleAdminRefundAllPost = (
     withDecryptedAttendees(session, eventId, (event, attendees) =>
       processRefundAll(event, attendees, session, form)));
 
+/** Handle POST /admin/event/:eventId/attendee (add attendee manually) */
+const handleAddAttendee = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  withAuthForm(request, async (_session, form) => {
+    const event = await getEventWithCount(eventId);
+    if (!event) return notFoundResponse();
+
+    const isDaily = event.event_type === "daily";
+    const fields = getAddAttendeeFields(event.fields, isDaily);
+    const validation = validateForm<AddAttendeeFormValues>(form, fields);
+
+    if (!validation.valid) {
+      return redirect(
+        `/admin/event/${eventId}?add_error=${encodeURIComponent(validation.error)}#add-attendee`,
+      );
+    }
+
+    const { name, email, phone, address, quantity, date } = validation.values;
+
+    const result = await createAttendeeAtomic({
+      eventId,
+      name,
+      email: email || "",
+      quantity,
+      phone: phone || "",
+      address: address || "",
+      date: isDaily ? date : null,
+    });
+
+    if (!result.success) {
+      if (result.reason === "encryption_error") {
+        logError({ code: ErrorCode.ENCRYPT_FAILED, eventId, detail: "manual add attendee" });
+      }
+      const errorMsg = result.reason === "capacity_exceeded"
+        ? "Not enough spots available"
+        : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
+      return redirect(
+        `/admin/event/${eventId}?add_error=${encodeURIComponent(errorMsg)}#add-attendee`,
+      );
+    }
+
+    await logActivity(`Attendee '${name}' added manually`, eventId);
+    return redirect(
+      `/admin/event/${eventId}?added=${encodeURIComponent(name)}#add-attendee`,
+    );
+  });
+
 /** Bind :eventId and :attendeeId params to a GET handler */
 const attendeeGetHandler = (
   handler: (request: Request, eventId: number, attendeeId: number) => Promise<Response>,
@@ -283,6 +335,8 @@ const attendeeGetHandler = (
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
   "GET /admin/event/:eventId/attendee/:attendeeId/delete": attendeeGetHandler(handleAdminAttendeeDeleteGet),
+  "POST /admin/event/:eventId/attendee": (request, params) =>
+    handleAddAttendee(request, params.eventId as number),
   "POST /admin/event/:eventId/attendee/:attendeeId/delete": attendeeDeleteHandler,
   "DELETE /admin/event/:eventId/attendee/:attendeeId/delete": attendeeDeleteHandler,
   "POST /admin/event/:eventId/attendee/:attendeeId/checkin": attendeeCheckinHandler,

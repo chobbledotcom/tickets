@@ -118,6 +118,16 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
+        <Q q="How do I manually add an attendee?">
+          <p>
+            Open the event page and scroll down to <strong>Add Attendee</strong>.
+            Fill in the name and contact details, set the quantity, and submit.
+            The attendee is added directly without needing to go through the
+            booking form or payment flow. Useful for walk-ins, comps, or manual
+            corrections.
+          </p>
+        </Q>
+
         <Q q="How do I set a custom redirect after booking?">
           <p>
             When creating or editing an event, enter a URL in the "thank you

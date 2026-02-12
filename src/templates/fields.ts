@@ -12,25 +12,26 @@ import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 //
 // Each interface describes the shape returned by validateForm<T>() for a
 // specific set of field definitions.  Required text fields produce `string`,
-// optional text fields produce `string | null`, required number fields
-// produce `number`, and optional number fields produce `number | null`.
+// optional text fields produce `string` (empty string when absent),
+// required number fields produce `number`, and optional number fields
+// produce `number | null`.
 // ---------------------------------------------------------------------------
 
 /** Typed values from event form validation */
 export type EventFormValues = {
   name: string;
-  description: string | null;
-  date: string | null;
-  location: string | null;
+  description: string;
+  date: string;
+  location: string;
   max_attendees: number;
   max_quantity: number;
-  fields: EventFields | null;
+  fields: EventFields | "";
   unit_price: number | null;
-  closes_at: string | null;
-  thank_you_url: string | null;
-  webhook_url: string | null;
-  event_type: EventType | null;
-  bookable_days: string | null;
+  closes_at: string;
+  thank_you_url: string;
+  webhook_url: string;
+  event_type: EventType | "";
+  bookable_days: string;
   minimum_days_before: number | null;
   maximum_days_after: number | null;
 };
@@ -48,6 +49,16 @@ export type TicketFormValues = {
   address: string | null;
 };
 
+/** Typed values from admin add-attendee form */
+export type AddAttendeeFormValues = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  quantity: number;
+  date: string;
+};
+
 /** Typed values from login form */
 export type LoginFormValues = {
   username: string;
@@ -59,7 +70,7 @@ export type SetupFormValues = {
   admin_username: string;
   admin_password: string;
   admin_password_confirm: string;
-  currency_code: string | null;
+  currency_code: string;
 };
 
 /** Typed values from change password form */
@@ -463,6 +474,35 @@ export const parseEventFields = (fields: EventFields): ContactField[] =>
 export const getTicketFields = (fields: EventFields): Field[] => {
   const parsed = parseEventFields(fields);
   return [nameField, ...parsed.map((f) => contactFieldMap[f])];
+};
+
+/** Quantity field for admin add-attendee form */
+const addAttendeeQuantityField: Field = {
+  name: "quantity",
+  label: "Quantity",
+  type: "number",
+  required: true,
+  min: 1,
+};
+
+/** Date field for admin add-attendee form (daily events only) */
+const addAttendeeDateField: Field = {
+  name: "date",
+  label: "Date",
+  type: "date",
+  required: true,
+  validate: validateDate,
+};
+
+/**
+ * Get admin add-attendee form fields based on event config.
+ * Includes contact fields (name + email/phone per setting), quantity,
+ * and a date field for daily events.
+ */
+export const getAddAttendeeFields = (fields: EventFields, isDaily: boolean): Field[] => {
+  const result = [...getTicketFields(fields), addAttendeeQuantityField];
+  if (isDaily) result.push(addAttendeeDateField);
+  return result;
 };
 
 /**

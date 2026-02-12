@@ -9,7 +9,7 @@ import { type FieldValues, renderError, renderField, renderFields } from "#lib/f
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
-import { eventFields, parseEventFields, slugField } from "#templates/fields.ts";
+import { eventFields, getAddAttendeeFields, parseEventFields, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -102,6 +102,9 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
 /** Check-in message to display after toggling */
 export type CheckinMessage = { name: string; status: string } | null;
 
+/** Add-attendee result message */
+export type AddAttendeeMessage = { name: string } | { error: string } | null;
+
 /** Filter attendees by check-in status */
 const filterAttendees = (attendees: Attendee[], activeFilter: AttendeeFilter): Attendee[] => {
   if (activeFilter === "in") return filter((a: Attendee) => a.checked_in === "true")(attendees);
@@ -132,16 +135,30 @@ const DateSelector = ({ basePath, activeFilter, dateFilter, dates }: { basePath:
   return `<select data-nav-select>${options}</select>`;
 };
 
-export const adminEventPage = (
-  event: EventWithCount,
-  attendees: Attendee[],
-  allowedDomain: string,
-  session: AdminSession,
-  checkinMessage?: CheckinMessage,
-  activeFilter: AttendeeFilter = "all",
-  dateFilter: string | null = null,
-  availableDates: DateOption[] = [],
-): string => {
+/** Options for rendering the admin event detail page */
+export type AdminEventPageOptions = {
+  event: EventWithCount;
+  attendees: Attendee[];
+  allowedDomain: string;
+  session: AdminSession;
+  checkinMessage?: CheckinMessage;
+  activeFilter?: AttendeeFilter;
+  dateFilter?: string | null;
+  availableDates?: DateOption[];
+  addAttendeeMessage?: AddAttendeeMessage;
+};
+
+export const adminEventPage = ({
+  event,
+  attendees,
+  allowedDomain,
+  session,
+  checkinMessage,
+  activeFilter = "all",
+  dateFilter = null,
+  availableDates = [],
+  addAttendeeMessage = null,
+}: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const contactFields = parseEventFields(event.fields);
   const hasTextarea = contactFields.includes("address");
@@ -351,6 +368,25 @@ export const adminEventPage = (
               </tbody>
             </table>
           </div>
+        </article>
+
+        <article>
+          <h2 id="add-attendee">Add Attendee</h2>
+          {addAttendeeMessage && "name" in addAttendeeMessage && (
+            <p class="checkin-message-in">
+              Added {addAttendeeMessage.name}
+            </p>
+          )}
+          {addAttendeeMessage && "error" in addAttendeeMessage && (
+            <p class="error">
+              {addAttendeeMessage.error}
+            </p>
+          )}
+          <form method="POST" action={`/admin/event/${event.id}/attendee`}>
+            <input type="hidden" name="csrf_token" value={session.csrfToken} />
+            <Raw html={renderFields(getAddAttendeeFields(event.fields, event.event_type === "daily"))} />
+            <button type="submit">Add Attendee</button>
+          </form>
         </article>
     </Layout>
   );

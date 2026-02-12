@@ -41,6 +41,7 @@ import {
   adminEventEditPage,
   adminEventPage,
   adminReactivateEventPage,
+  type AddAttendeeMessage,
   type AttendeeFilter,
 } from "#templates/admin/events.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
@@ -58,26 +59,26 @@ const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: stri
 };
 
 /** Serialize comma-separated day names to JSON array string */
-const serializeBookableDays = (value: string | null): string | undefined =>
+const serializeBookableDays = (value: string): string | undefined =>
   value ? JSON.stringify(value.split(",").map((d) => d.trim()).filter((d) => d)) : undefined;
 
 /** Extract common event fields from validated form values */
 const extractCommonFields = (values: EventFormValues) => ({
-    name: values.name,
-    description: values.description || "",
-    date: values.date || "",
-    location: values.location || "",
-    maxAttendees: values.max_attendees,
-    thankYouUrl: values.thank_you_url,
-    unitPrice: values.unit_price,
-    maxQuantity: values.max_quantity,
-    webhookUrl: values.webhook_url || null,
-    fields: values.fields || "email",
-    closesAt: values.closes_at || "",
-    eventType: values.event_type || undefined,
-    bookableDays: serializeBookableDays(values.bookable_days),
-    minimumDaysBefore: values.minimum_days_before ?? 1,
-    maximumDaysAfter: values.maximum_days_after ?? 90,
+  name: values.name,
+  description: values.description,
+  date: values.date ?? "",
+  location: values.location,
+  maxAttendees: values.max_attendees,
+  thankYouUrl: values.thank_you_url || null,
+  unitPrice: values.unit_price,
+  maxQuantity: values.max_quantity,
+  webhookUrl: values.webhook_url || null,
+  fields: values.fields || "email",
+  closesAt: values.closes_at,
+  eventType: values.event_type || undefined,
+  bookableDays: serializeBookableDays(values.bookable_days),
+  minimumDaysBefore: values.minimum_days_before ?? 1,
+  maximumDaysAfter: values.maximum_days_after ?? 90,
 });
 
 /** Extract event input from validated form (async to compute slugIndex) */
@@ -136,6 +137,16 @@ const getCheckinMessage = (request: Request): { name: string; status: string } |
   return null;
 };
 
+/** Extract add-attendee result message from request URL */
+const getAddAttendeeMessage = (request: Request): AddAttendeeMessage => {
+  const url = new URL(request.url);
+  const added = url.searchParams.get("added");
+  if (added) return { name: added };
+  const error = url.searchParams.get("add_error");
+  if (error) return { error };
+  return null;
+};
+
 /** Filter attendees by date for daily events */
 const filterByDate = (attendees: Attendee[], date: string | null): Attendee[] =>
   date ? filter((a: Attendee) => a.date === date)(attendees) : attendees;
@@ -159,16 +170,17 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
     const availableDates = event.event_type === "daily" ? getUniqueDates(attendees) : [];
     const filteredByDate = filterByDate(attendees, dateFilter);
     return htmlResponse(
-      adminEventPage(
+      adminEventPage({
         event,
-        filteredByDate,
-        getAllowedDomain(),
+        attendees: filteredByDate,
+        allowedDomain: getAllowedDomain(),
         session,
-        getCheckinMessage(request),
+        checkinMessage: getCheckinMessage(request),
         activeFilter,
         dateFilter,
         availableDates,
-      ),
+        addAttendeeMessage: getAddAttendeeMessage(request),
+      }),
     );
   });
 };
