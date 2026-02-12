@@ -29,7 +29,7 @@ describe("server (embed hosts)", () => {
       const response = await awaitTestRequest("/admin/settings", { cookie });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Allowed Embed Hosts");
+      expect(html).toContain("Only allow embedding on these hosts");
       expect(html).toContain("embed_hosts");
     });
 
