@@ -32,6 +32,11 @@ const quantityOptions = (max: number): string =>
     .map((n) => `<option value="${n}">${n}</option>`)
     .join("");
 
+/** Render terms and conditions block with agreement checkbox */
+const renderTermsAndCheckbox = (terms: string): string =>
+  `<div class="terms"><p>${escapeHtml(terms)}</p></div>` +
+  `<label><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms and conditions above</label>`;
+
 /**
  * Public ticket page
  */
@@ -42,6 +47,7 @@ export const ticketPage = (
   isClosed = false,
   iframe = false,
   availableDates?: string[],
+  termsAndConditions?: string | null,
 ): string => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isFull = spotsRemaining <= 0;
@@ -90,6 +96,9 @@ export const ticketPage = (
               </>
             ) : (
               <input type="hidden" name="quantity" value="1" />
+            )}
+            {termsAndConditions && (
+              <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
             )}
             <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
           </form>
@@ -189,6 +198,7 @@ export const multiTicketPage = (
   csrfToken: string,
   error?: string,
   availableDates?: string[],
+  termsAndConditions?: string | null,
 ): string => {
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
@@ -221,6 +231,9 @@ export const multiTicketPage = (
             <Raw html={eventRows} />
           </fieldset>
 
+          {termsAndConditions && (
+            <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
+          )}
           <button type="submit">Reserve Tickets</button>
         </form>
       )}

@@ -27,6 +27,7 @@ export const adminSettingsPage = (
   squareWebhookConfigured?: boolean,
   webhookUrl?: string,
   embedHosts?: string | null,
+  termsAndConditions?: string | null,
 ): string =>
   String(
     <Layout title="Settings">
@@ -146,6 +147,20 @@ export const adminSettingsPage = (
           />
           <p><small>Use <code>*.example.com</code> to allow all subdomains. Direct visits to the booking page are always allowed.</small></p>
           <button type="submit">Save Embed Hosts</button>
+        </form>
+
+        <form method="POST" action="/admin/settings/terms">
+            <h2>Terms and Conditions</h2>
+          <p>If set, users must agree to these terms before reserving tickets.</p>
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          <label for="terms_and_conditions">Terms and Conditions</label>
+          <textarea
+            id="terms_and_conditions"
+            name="terms_and_conditions"
+            rows="4"
+            placeholder="Enter terms and conditions that attendees must agree to before registering. Leave blank to disable."
+          >{termsAndConditions ?? ""}</textarea>
+          <button type="submit">Save Terms</button>
         </form>
 
         <form method="POST" action="/admin/settings">

@@ -120,6 +120,15 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             page. The URL must use HTTPS.
           </p>
         </Q>
+
+        <Q q="How do I add terms and conditions?">
+          <p>
+            In <strong>Settings</strong>, enter your terms in the "Terms and
+            Conditions" box. When set, attendees must tick an agreement checkbox
+            before they can reserve tickets. Clear the box to remove the
+            requirement.
+          </p>
+        </Q>
       </Section>
 
       <Section title="Payments">
