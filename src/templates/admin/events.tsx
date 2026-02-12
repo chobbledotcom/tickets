@@ -3,7 +3,7 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
-import { formatDateLabel } from "#lib/dates.ts";
+import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
@@ -170,6 +170,18 @@ export const adminEventPage = (
           <div class="table-scroll">
           <table>
             <tbody>
+              {event.date && (
+                <tr>
+                  <th>Event Date</th>
+                  <td>{formatDatetimeLabel(event.date)}</td>
+                </tr>
+              )}
+              {event.location && (
+                <tr>
+                  <th>Location</th>
+                  <td>{event.location}</td>
+                </tr>
+              )}
               <tr>
                 <th>Event Type</th>
                 <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
@@ -213,7 +225,7 @@ export const adminEventPage = (
                 <th>Registration Closes</th>
                 <td>
                   {event.closes_at ? (
-                    <span>{event.closes_at} (UTC) <small><em>({formatCountdown(event.closes_at)})</em></small></span>
+                    <span>{formatDatetimeLabel(event.closes_at)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
                   ) : (
                     <em>No deadline</em>
                   )}
@@ -314,11 +326,11 @@ export const adminEventPage = (
   );
 };
 
-/** Format closes_at ISO string for datetime-local input (YYYY-MM-DDTHH:MM) */
-const formatClosesAt = (closesAt: string | null): string | null => {
-  if (!closesAt) return null;
+/** Format an ISO datetime string for datetime-local input (YYYY-MM-DDTHH:MM) */
+const formatDatetimeLocal = (iso: string | null): string | null => {
+  if (!iso) return null;
   // datetime-local expects YYYY-MM-DDTHH:MM format
-  return closesAt.slice(0, 16);
+  return iso.slice(0, 16);
 };
 
 /** Convert bookable_days JSON array to comma-separated display string */
@@ -328,6 +340,8 @@ const formatBookableDays = (json: string): string =>
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,
   description: event.description,
+  date: event.date ? formatDatetimeLocal(event.date) : null,
+  location: event.location,
   slug: event.slug,
   event_type: event.event_type,
   max_attendees: event.max_attendees,
@@ -337,7 +351,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   maximum_days_after: event.maximum_days_after,
   fields: event.fields,
   unit_price: event.unit_price,
-  closes_at: formatClosesAt(event.closes_at),
+  closes_at: formatDatetimeLocal(event.closes_at),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
 });

@@ -621,6 +621,8 @@ export const createTestEvent = (
     {
       name: input.name,
       description: input.description ?? "",
+      date: input.date ?? "",
+      location: input.location ?? "",
       max_attendees: String(input.maxAttendees),
       max_quantity: String(input.maxQuantity ?? 1),
       fields: input.fields ?? "email",
@@ -697,6 +699,8 @@ export const updateTestEvent = async (
     {
       name: updates.name ?? existing.name,
       description: updates.description ?? existing.description,
+      date: updates.date !== undefined ? updates.date : existing.date.slice(0, 16),
+      location: updates.location ?? existing.location,
       slug: updates.slug ?? existing.slug,
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
       max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
@@ -874,6 +878,8 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   id: 1,
   name: "Test Event",
   description: "",
+  date: "",
+  location: "",
   slug: "ab12c",
   slug_index: "test-event-index",
   max_attendees: 100,
