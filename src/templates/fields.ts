@@ -225,10 +225,10 @@ const validateDescription = (value: string): string | null =>
     ? `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`
     : null;
 
-/** Validate a datetime value is a valid UTC date */
+/** Validate a datetime value is parseable */
 const validateDatetime = (value: string): string | null => {
   try {
-    normalizeDatetime(value, "date");
+    normalizeDatetime(value, "date", "UTC");
     return null;
   } catch {
     return "Please enter a valid date and time";

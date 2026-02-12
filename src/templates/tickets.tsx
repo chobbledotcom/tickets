@@ -19,7 +19,7 @@ const formatDateCol = (date: string | null): string =>
  * Ticket view page - shows event name + quantity per ticket, with inline QR code
  * The QR code encodes the /checkin/... URL for admin scanning
  */
-export const ticketViewPage = (entries: TokenEntry[], qrSvg: string, tz?: string): string => {
+export const ticketViewPage = (entries: TokenEntry[], qrSvg: string, tz: string): string => {
   const showDate = entries.some((e) => e.attendee.date !== null);
   const showEventDate = entries.some((e) => e.event.date !== "");
   const showLocation = entries.some((e) => e.event.location !== "");

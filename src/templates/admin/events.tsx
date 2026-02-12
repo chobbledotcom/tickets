@@ -147,7 +147,7 @@ export type AdminEventPageOptions = {
   dateFilter?: string | null;
   availableDates?: DateOption[];
   addAttendeeMessage?: AddAttendeeMessage;
-  tz?: string;
+  tz: string;
 };
 
 export const adminEventPage = ({
@@ -399,17 +399,16 @@ export const adminEventPage = ({
  * Format an ISO datetime string for datetime-local input (YYYY-MM-DDTHH:MM).
  * When tz is provided, converts from UTC to the timezone first.
  */
-const formatDatetimeLocal = (iso: string | null, tz?: string): string | null => {
+const formatDatetimeLocal = (iso: string | null, tz: string): string | null => {
   if (!iso) return null;
-  if (tz) return utcToLocalInput(iso, tz);
-  return iso.slice(0, 16);
+  return utcToLocalInput(iso, tz);
 };
 
 /** Convert bookable_days JSON array to comma-separated display string */
 const formatBookableDays = (json: string): string =>
   (JSON.parse(json) as string[]).join(",");
 
-const eventToFieldValues = (event: EventWithCount, tz?: string): FieldValues => ({
+const eventToFieldValues = (event: EventWithCount, tz: string): FieldValues => ({
   name: event.name,
   description: event.description,
   date: event.date ? formatDatetimeLocal(event.date, tz) : null,
@@ -439,7 +438,7 @@ const eventFieldsWithAutofocus: Field[] = pipe(
 export const adminDuplicateEventPage = (
   event: EventWithCount,
   session: AdminSession,
-  tz?: string,
+  tz: string,
 ): string => {
   const values = eventToFieldValues(event, tz);
   values.name = "";
@@ -464,8 +463,8 @@ export const adminDuplicateEventPage = (
 export const adminEventEditPage = (
   event: EventWithCount,
   session: AdminSession,
-  error?: string,
-  tz?: string,
+  error: string | undefined,
+  tz: string,
 ): string =>
   String(
     <Layout title={`Edit: ${event.name}`}>

@@ -70,7 +70,7 @@ const ticketCsrfPath = (slug: string): string => `/ticket/${slug}`;
 
 /** Ticket response with CSRF cookie */
 const ticketResponseWithCookie = makeCsrfResponseBuilder(
-  (event: EventWithCount, _isClosed: boolean, _iframe: boolean, _dates?: string[], _terms?: string | null, _tz?: string) => ticketCsrfPath(event.slug),
+  (event: EventWithCount, _isClosed: boolean, _iframe: boolean, _dates: string[] | undefined, _terms: string | null | undefined, _tz: string) => ticketCsrfPath(event.slug),
   (token, error, event, isClosed, iframe, dates, terms, tz) => ticketPage(event, token, error, isClosed, iframe, dates, terms, tz),
 );
 
@@ -89,7 +89,7 @@ const validationErrorResponder = <Args extends unknown[]>(
 
 /** Ticket response without cookie - for validation errors after CSRF passed */
 const ticketResponse = validationErrorResponder(
-  (error: string, event: EventWithCount, token: string, dates?: string[], terms?: string | null, tz?: string) =>
+  (error: string, event: EventWithCount, token: string, dates: string[] | undefined, terms: string | null | undefined, tz: string) =>
     ticketPage(event, token, error, false, false, dates, terms, tz),
 );
 
@@ -183,18 +183,22 @@ const runCheckoutFlow = (
   );
 };
 
+/** Shared context for ticket page rendering */
+type TicketContext = { dates: string[] | undefined; terms: string | null | undefined; tz: string };
+
 /** Handle payment flow for single-ticket purchase */
 const handlePaymentFlow = (
   request: Request,
   event: EventWithCount,
   intent: RegistrationIntent,
   csrfToken: string,
+  ctx: TicketContext,
 ): Promise<Response> =>
   runCheckoutFlow(
     `single-ticket event=${event.id}`,
     request,
     (provider, baseUrl) => provider.createCheckoutSession(event, intent, baseUrl),
-    (msg, status) => ticketResponse(event, csrfToken)(msg, status),
+    (msg, status) => ticketResponse(event, csrfToken, undefined, ctx.terms, ctx.tz)(msg, status),
   );
 
 /** Extract contact details from validated form values */
@@ -217,7 +221,7 @@ const parseQuantity = (form: URLSearchParams, event: EventWithCount): number =>
   parseQuantityValue(form.get("quantity") || "1", event.max_quantity);
 
 /** CSRF error response for ticket page */
-const ticketCsrfError = (event: EventWithCount, terms?: string | null, tz?: string) => (token: string) =>
+const ticketCsrfError = (event: EventWithCount, terms: string | null | undefined, tz: string) => (token: string) =>
   ticketResponseWithCookie(event, false, false, undefined, terms, tz)(token)(
     "Invalid or expired form. Please try again.",
     403,
@@ -227,15 +231,15 @@ const ticketCsrfError = (event: EventWithCount, terms?: string | null, tz?: stri
 const processPaidReservation = async (
   request: Request,
   { event, token, ...contact }: ReservationParams,
-  dates?: string[],
+  ctx: TicketContext,
 ): Promise<Response> => {
   const available = await hasAvailableSpots(event.id, contact.quantity, contact.date);
   if (!available) {
-    return ticketResponse(event, token, dates)("Sorry, not enough spots available");
+    return ticketResponse(event, token, ctx.dates, ctx.terms, ctx.tz)("Sorry, not enough spots available");
   }
 
   const intent: RegistrationIntent = { eventId: event.id, ...contact };
-  return handlePaymentFlow(request, event, intent, token);
+  return handlePaymentFlow(request, event, intent, token, ctx);
 };
 
 /** Format error message for failed attendee creation */
@@ -248,13 +252,13 @@ const formatAtomicError = formatCreationError(
 /** Handle free event registration - atomic create with capacity check */
 const processFreeReservation = async (
   reservation: ReservationParams,
-  dates?: string[],
+  ctx: TicketContext,
 ): Promise<Response> => {
   const { event, quantity, token, date, ...contact } = reservation;
   const result = await createAttendeeAtomic({ eventId: event.id, ...contact, quantity, date });
 
   if (!result.success) {
-    return ticketResponse(event, token, dates)(formatAtomicError(result.reason));
+    return ticketResponse(event, token, ctx.dates, ctx.terms, ctx.tz)(formatAtomicError(result.reason));
   }
 
   await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
@@ -331,10 +335,11 @@ const processTicketReservation = async (
     date,
   };
 
+  const ctx: TicketContext = { dates, terms, tz };
   if (await requiresPayment(event)) {
-    return processPaidReservation(request, params, dates);
+    return processPaidReservation(request, params, ctx);
   }
-  return processFreeReservation(params, dates);
+  return processFreeReservation(params, ctx);
 };
 
 /**

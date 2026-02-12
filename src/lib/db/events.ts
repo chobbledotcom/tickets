@@ -42,7 +42,7 @@ export const computeSlugIndex = (slug: string): Promise<string> =>
 /** Encrypt a datetime value for DB storage (normalize non-empty, encrypt empty as-is) */
 const encryptDatetime = async (v: string, label: string): Promise<string> => {
   if (v === "") return await encrypt("");
-  return await encrypt(normalizeDatetime(v, label));
+  return await encrypt(normalizeDatetime(v, label, "UTC"));
 };
 
 /** Decrypt an encrypted datetime from DB storage (empty → empty, otherwise → ISO) */

@@ -26,7 +26,7 @@ const compileDateOptions = (
   events: EventWithCount[],
   attendeeDates: string[],
   holidays: { id: number; name: string; start_date: string; end_date: string }[],
-  tz?: string,
+  tz: string,
 ): CalendarDateOption[] => {
   const availableDates = pipe(
     flatMap((event: EventWithCount) => getAvailableDates(event, holidays, tz)),
