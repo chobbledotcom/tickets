@@ -175,6 +175,7 @@ export const adminEventPage = ({
             <li><a href={`/admin/event/${event.id}/edit`}>Edit</a></li>
             <li><a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a></li>
             <li><a href={`/admin/event/${event.id}/log`}>Log</a></li>
+            <li><a href={`/admin/event/${event.id}/scanner`}>Scanner</a></li>
             <li><a href={`/admin/event/${event.id}/export${dateFilter ? `?date=${dateFilter}` : ""}`}>Export CSV</a></li>
             {hasPaidEvent && (
               <li><a href={`/admin/event/${event.id}/refund-all`} class="danger">Refund All</a></li>

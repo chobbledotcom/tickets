@@ -191,6 +191,10 @@ const validateSingleField = (
   if (field.type === "datetime") {
     const result = getDatetimeValue(form, field.name);
     if (result === null) return { valid: false, error: DATETIME_PARTIAL_ERROR };
+    if (!result) {
+      if (field.required) return { valid: false, error: `${field.label} is required` };
+      return { valid: true, value: null };
+    }
     trimmed = result;
   } else if (field.type === "checkbox-group") {
     trimmed = form.getAll(field.name).map((v) => v.trim()).filter((v) => v).join(",");

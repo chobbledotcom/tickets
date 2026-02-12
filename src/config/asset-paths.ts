@@ -9,3 +9,6 @@ export const CSS_PATH = "/mvp.css";
 
 /** Admin JS path, cache-busted at build time */
 export const JS_PATH = "/admin.js";
+
+/** Scanner JS path, cache-busted at build time */
+export const SCANNER_JS_PATH = "/scanner.js";
