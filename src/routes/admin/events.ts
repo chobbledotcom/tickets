@@ -9,14 +9,12 @@ import {
   getEventWithActivityLog,
   logActivity,
 } from "#lib/db/activityLog.ts";
-import { decryptAttendees } from "#lib/db/attendees.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import {
   computeSlugIndex,
   deleteEvent,
   type EventInput,
   eventsTable,
-  getEventWithAttendeesRaw,
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
@@ -25,10 +23,9 @@ import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
-import { defineRoutes, type RouteParams } from "#routes/router.ts";
-import { csvResponse, getDateFilter, verifyIdentifier } from "#routes/admin/utils.ts";
+import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
+import { csvResponse, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
-  getPrivateKey,
   htmlResponse,
   notFoundResponse,
   redirect,
@@ -66,19 +63,21 @@ const serializeBookableDays = (value: string | null): string | undefined =>
 
 /** Extract common event fields from validated form values */
 const extractCommonFields = (values: EventFormValues) => ({
-  name: values.name,
-  description: values.description || "",
-  maxAttendees: values.max_attendees,
-  thankYouUrl: values.thank_you_url,
-  unitPrice: values.unit_price,
-  maxQuantity: values.max_quantity,
-  webhookUrl: values.webhook_url || null,
-  fields: values.fields || "email",
-  closesAt: values.closes_at || "",
-  eventType: values.event_type || undefined,
-  bookableDays: serializeBookableDays(values.bookable_days),
-  minimumDaysBefore: values.minimum_days_before ?? 1,
-  maximumDaysAfter: values.maximum_days_after ?? 90,
+    name: values.name,
+    description: values.description || "",
+    date: values.date || "",
+    location: values.location || "",
+    maxAttendees: values.max_attendees,
+    thankYouUrl: values.thank_you_url,
+    unitPrice: values.unit_price,
+    maxQuantity: values.max_quantity,
+    webhookUrl: values.webhook_url || null,
+    fields: values.fields || "email",
+    closesAt: values.closes_at || "",
+    eventType: values.event_type || undefined,
+    bookableDays: serializeBookableDays(values.bookable_days),
+    minimumDaysBefore: values.minimum_days_before ?? 1,
+    maximumDaysAfter: values.maximum_days_after ?? 90,
 });
 
 /** Extract event input from validated form (async to compute slugIndex) */
@@ -106,29 +105,14 @@ const eventsResource = defineResource({
   nameField: "name",
 });
 
-/** Context available after auth + data fetch for event with attendees */
-type EventAttendeesContext = {
-  event: EventWithCount;
-  attendees: Attendee[];
-  session: AdminSession;
-};
-
-/**
- * Handle event with attendees - auth, fetch, then apply handler fn.
- * Uses batched query to fetch event + attendees in a single DB round-trip.
- */
+/** Handle event with attendees - auth, fetch, then apply handler fn */
 const withEventAttendees = (
   request: Request,
   eventId: number,
-  handler: (ctx: EventAttendeesContext) => Response | Promise<Response>,
+  handler: (ctx: { event: EventWithCount; attendees: Attendee[]; session: AdminSession }) => Response | Promise<Response>,
 ): Promise<Response> =>
-  requireSessionOr(request, async (session) => {
-    const privateKey = (await getPrivateKey(session))!;
-    const result = await getEventWithAttendeesRaw(eventId);
-    if (!result) return notFoundResponse();
-    const attendees = await decryptAttendees(result.attendeesRaw, privateKey);
-    return handler({ event: result.event, attendees, session });
-  });
+  withEventAttendeesAuth(request, eventId, (event, attendees, session) =>
+    handler({ event, attendees, session }));
 
 /**
  * Handle POST /admin/event (create event)
@@ -259,7 +243,10 @@ const handleAdminEventExport = (request: Request, eventId: number) =>
     const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
     const filteredByDate = filterByDate(attendees, dateFilter);
     const isDaily = event.event_type === "daily";
-    const csv = generateAttendeesCsv(filteredByDate, isDaily);
+    const csv = generateAttendeesCsv(filteredByDate, isDaily, {
+      eventDate: event.date,
+      eventLocation: event.location,
+    });
     const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
     const filename = dateFilter
       ? `${sanitizedName}_${dateFilter}_attendees.csv`
@@ -369,41 +356,27 @@ const handleAdminEventDelete = (
         return event ? performDelete(event) : notFoundResponse();
       });
 
-/** Parse event ID from params (route pattern guarantees :id exists as \d+) */
-const parseEventId = (params: RouteParams): number =>
-  Number.parseInt(params.id!, 10);
+/** Bind :id param to an event handler */
+type EventHandler = (request: Request, eventId: number) => Response | Promise<Response>;
+const eventRoute = (handler: EventHandler): RouteHandlerFn =>
+  (request, params) => handler(request, params.id as number);
 
 /** Event routes */
 export const eventsRoutes = defineRoutes({
   "POST /admin/event": (request) => handleCreateEvent(request),
-  "GET /admin/event/:id/in": (request, params) =>
-    handleAdminEventGet(request, parseEventId(params), "in"),
-  "GET /admin/event/:id/out": (request, params) =>
-    handleAdminEventGet(request, parseEventId(params), "out"),
-  "GET /admin/event/:id": (request, params) =>
-    handleAdminEventGet(request, parseEventId(params)),
-  "GET /admin/event/:id/duplicate": (request, params) =>
-    handleAdminEventDuplicateGet(request, parseEventId(params)),
-  "GET /admin/event/:id/edit": (request, params) =>
-    handleAdminEventEditGet(request, parseEventId(params)),
-  "POST /admin/event/:id/edit": (request, params) =>
-    handleAdminEventEditPost(request, parseEventId(params)),
-  "GET /admin/event/:id/export": (request, params) =>
-    handleAdminEventExport(request, parseEventId(params)),
-  "GET /admin/event/:id/log": (request, params) =>
-    handleAdminEventLog(request, parseEventId(params)),
-  "GET /admin/event/:id/deactivate": (request, params) =>
-    handleAdminEventDeactivateGet(request, parseEventId(params)),
-  "POST /admin/event/:id/deactivate": (request, params) =>
-    handleAdminEventDeactivatePost(request, parseEventId(params)),
-  "GET /admin/event/:id/reactivate": (request, params) =>
-    handleAdminEventReactivateGet(request, parseEventId(params)),
-  "POST /admin/event/:id/reactivate": (request, params) =>
-    handleAdminEventReactivatePost(request, parseEventId(params)),
-  "GET /admin/event/:id/delete": (request, params) =>
-    handleAdminEventDeleteGet(request, parseEventId(params)),
-  "POST /admin/event/:id/delete": (request, params) =>
-    handleAdminEventDelete(request, parseEventId(params)),
-  "DELETE /admin/event/:id/delete": (request, params) =>
-    handleAdminEventDelete(request, parseEventId(params)),
+  "GET /admin/event/:id/in": eventRoute((req, id) => handleAdminEventGet(req, id, "in")),
+  "GET /admin/event/:id/out": eventRoute((req, id) => handleAdminEventGet(req, id, "out")),
+  "GET /admin/event/:id": eventRoute(handleAdminEventGet),
+  "GET /admin/event/:id/duplicate": eventRoute(handleAdminEventDuplicateGet),
+  "GET /admin/event/:id/edit": eventRoute(handleAdminEventEditGet),
+  "POST /admin/event/:id/edit": eventRoute(handleAdminEventEditPost),
+  "GET /admin/event/:id/export": eventRoute(handleAdminEventExport),
+  "GET /admin/event/:id/log": eventRoute(handleAdminEventLog),
+  "GET /admin/event/:id/deactivate": eventRoute(handleAdminEventDeactivateGet),
+  "POST /admin/event/:id/deactivate": eventRoute(handleAdminEventDeactivatePost),
+  "GET /admin/event/:id/reactivate": eventRoute(handleAdminEventReactivateGet),
+  "POST /admin/event/:id/reactivate": eventRoute(handleAdminEventReactivatePost),
+  "GET /admin/event/:id/delete": eventRoute(handleAdminEventDeleteGet),
+  "POST /admin/event/:id/delete": eventRoute(handleAdminEventDelete),
+  "DELETE /admin/event/:id/delete": eventRoute(handleAdminEventDelete),
 });

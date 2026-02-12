@@ -207,6 +207,14 @@ describe("server (misc)", () => {
     });
   });
 
+  describe("routes/admin/utils.ts (requirePrivateKey)", () => {
+    test("throws when private key is unavailable", async () => {
+      const { requirePrivateKey } = await import("#routes/admin/utils.ts");
+      const session = { token: "any-token", wrappedDataKey: null } as Parameters<typeof requirePrivateKey>[0];
+      await expect(requirePrivateKey(session)).rejects.toThrow("Private key unavailable");
+    });
+  });
+
   describe("routes/utils.ts (CSRF token validation)", () => {
     test("empty csrf_token from form falls back to empty string", async () => {
       const { cookie } = await loginAsAdmin();
@@ -300,7 +308,7 @@ describe("server (misc)", () => {
   describe("routes/router.ts (slug and generic param coverage)", () => {
     test("createRouter matches slug param pattern correctly", async () => {
       const { createRouter } = await import("#routes/router.ts");
-      let capturedParams: Record<string, string | undefined> = {};
+      let capturedParams: Record<string, string | number | undefined> = {};
       const router = createRouter({
         "GET /item/:slug": (_req, params) => {
           capturedParams = params;
@@ -317,7 +325,7 @@ describe("server (misc)", () => {
 
     test("createRouter matches generic (non-id non-slug) param pattern", async () => {
       const { createRouter } = await import("#routes/router.ts");
-      let capturedParams: Record<string, string | undefined> = {};
+      let capturedParams: Record<string, string | number | undefined> = {};
       const router = createRouter({
         "GET /file/:name": (_req, params) => {
           capturedParams = params;
