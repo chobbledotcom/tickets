@@ -491,6 +491,12 @@ label > input {
   margin-bottom: 0;
 }
 
+label > input[type="date"],
+label > input[type="time"] {
+  flex: 0 0 auto;
+  width: auto;
+}
+
 label > input[type="text"],
 label > input[type="password"],
 label > input[type="email"] {
