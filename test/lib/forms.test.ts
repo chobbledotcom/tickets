@@ -751,8 +751,10 @@ describe("forms", () => {
       const html = rendered({ name: "closes_at", label: "Closes At", type: "datetime" });
       expect(html).toContain('type="date"');
       expect(html).toContain('name="closes_at_date"');
+      expect(html).toContain('placeholder="Date"');
       expect(html).toContain('type="time"');
       expect(html).toContain('name="closes_at_time"');
+      expect(html).toContain('placeholder="Time"');
     });
 
     test("renders split inputs with value", () => {
