@@ -1189,17 +1189,17 @@ describe("html", () => {
     test("empty date shows no pre-filled value in edit form", () => {
       const event = testEventWithCount({ date: "", attendee_count: 0 });
       const html = adminEventEditPage(event, TEST_SESSION);
-      // The date field should exist with type datetime-local
-      expect(html).toContain('type="datetime-local"');
-      // No pre-filled value for the date field when empty
-      expect(html).toContain('name="date"');
+      // The date field should render split date and time inputs
+      expect(html).toContain('name="date_date"');
+      expect(html).toContain('name="date_time"');
     });
 
-    test("non-empty date shows formatted datetime-local value in edit form", () => {
+    test("non-empty date shows formatted split values in edit form", () => {
       const event = testEventWithCount({ date: "2026-06-15T14:00:00.000Z", attendee_count: 0 });
       const html = adminEventEditPage(event, TEST_SESSION);
-      // Should contain the formatted datetime-local value (first 16 chars of ISO)
-      expect(html).toContain('value="2026-06-15T14:00"');
+      // Should contain split date and time values (first 16 chars of ISO split on T)
+      expect(html).toContain('value="2026-06-15"');
+      expect(html).toContain('value="14:00"');
     });
 
     test("pre-fills location in edit form", () => {
@@ -1255,7 +1255,7 @@ describe("html", () => {
   describe("datetime validation via eventFields date field", () => {
     const dateField = eventFields.find((f) => f.name === "date")!;
 
-    test("accepts valid datetime-local value", () => {
+    test("accepts valid datetime value", () => {
       const result = dateField.validate!("2026-06-15T14:00");
       expect(result).toBeNull();
     });
