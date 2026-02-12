@@ -90,6 +90,17 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
+        <Q q="What are the event date and location fields for?">
+          <p>
+            These are optional fields you can fill in when creating or editing
+            an event. The date is when the event takes place (in UTC) and the
+            location is where it's held. Both are displayed on the attendee's
+            ticket page so they know when and where to go. For daily events,
+            attendees already pick a date when booking, so the event date field
+            is more useful for standard (one-off) events.
+          </p>
+        </Q>
+
         <Q q="What does 'max tickets per purchase' do?">
           <p>
             It controls how many tickets one person can book in a single
@@ -193,14 +204,17 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Refunds">
         <Q q="When do automatic refunds happen?">
           <p>
-            Automatic refunds only happen in one scenario: when an event sells
-            out while someone is completing payment. Their place is held for 5
-            minutes during checkout, but if another buyer fills the last spot
-            first, the slower payer is automatically refunded and shown a message
-            explaining the event is full. In multi-event bookings, if any single
-            event fails (e.g. one of the combined events is full), the entire
-            payment is refunded &mdash; not just the portion for the sold-out
-            event.
+            Automatic refunds happen in two scenarios. First, when an event
+            sells out while someone is completing payment. Their place is held
+            for 5 minutes during checkout, but if another buyer fills the last
+            spot first, the slower payer is automatically refunded and shown a
+            message explaining the event is full. Second, if an admin changes
+            the event price while someone is mid-checkout. The system detects
+            that the amount charged no longer matches the current price and
+            refunds the payment automatically. In multi-event bookings, if any
+            single event fails (e.g. one of the combined events is full or its
+            price changed), the entire payment is refunded &mdash; not just the
+            portion for the affected event.
           </p>
         </Q>
 
