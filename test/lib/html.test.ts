@@ -146,8 +146,8 @@ describe("html", () => {
       expect(html).toContain("height: 18rem");
     });
 
-    test("embed code uses 24rem height for both fields events", () => {
-      const bothEvent = testEventWithCount({ attendee_count: 2, fields: "both" });
+    test("embed code uses 24rem height for email,phone fields events", () => {
+      const bothEvent = testEventWithCount({ attendee_count: 2, fields: "email,phone" });
       const html = adminEventPage(bothEvent, [], "example.com", TEST_SESSION);
       expect(html).toContain("height: 24rem");
     });
@@ -317,8 +317,8 @@ describe("html", () => {
       expect(html).not.toContain('name="email"');
     });
 
-    test("shows both email and phone for both setting", () => {
-      const bothEvent = testEventWithCount({ attendee_count: 50, fields: "both" });
+    test("shows both email and phone for email,phone setting", () => {
+      const bothEvent = testEventWithCount({ attendee_count: 50, fields: "email,phone" });
       const html = ticketPage(bothEvent, csrfToken);
       expect(html).toContain('name="email"');
       expect(html).toContain('name="phone"');
@@ -461,7 +461,7 @@ describe("html", () => {
   describe("generateAttendeesCsv", () => {
     test("generates CSV header for empty attendees", () => {
       const csv = generateAttendeesCsv([]);
-      expect(csv).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("generates CSV with attendee data", () => {
@@ -470,7 +470,7 @@ describe("html", () => {
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(lines[0]).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain("John Doe");
       expect(lines[1]).toContain("john@example.com");
       expect(lines[1]).toContain(",2,");
@@ -517,7 +517,7 @@ describe("html", () => {
       const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(lines[0]).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain("+1 555 123 4567");
     });
 
@@ -525,7 +525,7 @@ describe("html", () => {
       const attendees = [testAttendee()];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[1]).toContain("john@example.com,,1,");
+      expect(lines[1]).toContain("john@example.com,,,1,");
     });
 
     test("generates CSV with price and transaction ID", () => {
@@ -596,7 +596,7 @@ describe("html", () => {
 
     test("includes Date column when includeDate is true", () => {
       const csv = generateAttendeesCsv([], true);
-      expect(csv).toBe("Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("includes date value in row when includeDate is true", () => {
@@ -1053,7 +1053,7 @@ describe("html", () => {
 
     test("generates CSV header for empty attendees", () => {
       const csv = generateCalendarCsv([]);
-      expect(csv).toBe("Event,Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Event,Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("includes Event name as first column", () => {

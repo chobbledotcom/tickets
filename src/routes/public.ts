@@ -125,6 +125,7 @@ type ReservationParams = {
   name: string;
   email: string;
   phone: string;
+  address: string;
   quantity: number;
   token: string;
   date: string | null;
@@ -189,11 +190,12 @@ const handlePaymentFlow = (
     (msg, status) => ticketResponse(event, csrfToken)(msg, status),
   );
 
-/** Extract contact details (name, email, phone) from validated form values */
+/** Extract contact details from validated form values */
 const extractContact = (values: TicketFormValues) => ({
   name: values.name,
   email: values.email || "",
   phone: values.phone || "",
+  address: values.address || "",
 });
 
 /** Parse and validate a quantity value from a raw string, capping at max */
@@ -241,8 +243,8 @@ const processFreeReservation = async (
   reservation: ReservationParams,
   dates?: string[],
 ): Promise<Response> => {
-  const { event, name, email, phone, quantity, token, date } = reservation;
-  const result = await createAttendeeAtomic({ eventId: event.id, name, email, quantity, phone, date });
+  const { event, name, email, phone, address, quantity, token, date } = reservation;
+  const result = await createAttendeeAtomic({ eventId: event.id, name, email, quantity, phone, address, date });
 
   if (!result.success) {
     return ticketResponse(event, token, dates)(formatAtomicError(result.reason));
@@ -492,12 +494,13 @@ const processMultiFreeReservation = async (
   name: string,
   email: string,
   phone: string,
+  address: string,
   date: string | null,
 ): Promise<{ success: true } | { success: false; error: string }> => {
   const entries: RegistrationEntry[] = [];
   for (const { event, qty } of eventsWithQuantity(events, quantities)) {
     const eventDate = event.event_type === "daily" ? date : null;
-    const result = await createAttendeeAtomic({ eventId: event.id, name, email, quantity: qty, phone, date: eventDate });
+    const result = await createAttendeeAtomic({ eventId: event.id, name, email, quantity: qty, phone, address, date: eventDate });
     if (!result.success) {
       return { success: false, error: formatAtomicError(result.reason, event.name) };
     }
@@ -538,7 +541,7 @@ const handleMultiTicketPost = (
       );
     }
 
-    const { name, email, phone } = extractContact(validation.values);
+    const { name, email, phone, address } = extractContact(validation.values);
 
     // For daily events, validate the submitted date
     let date: string | null = null;
@@ -587,7 +590,7 @@ const handleMultiTicketPost = (
         );
       }
 
-      const intent: MultiRegistrationIntent = { name, email, phone, date, items };
+      const intent: MultiRegistrationIntent = { name, email, phone, address, date, items };
       return handleMultiPaymentFlow(
         request,
         slugs,
@@ -605,6 +608,7 @@ const handleMultiTicketPost = (
       name,
       email,
       phone,
+      address,
       date,
     );
 

@@ -2,8 +2,8 @@
  * Types for the ticket reservation system
  */
 
-/** Contact fields setting for an event */
-export type EventFields = "email" | "phone" | "both";
+/** Contact fields setting for an event (comma-separated: "email", "phone", "address") */
+export type EventFields = string;
 
 /** Event type: standard (one-time) or daily (date-based booking) */
 export type EventType = "standard" | "daily";
@@ -35,6 +35,7 @@ export interface Attendee {
   name: string;
   email: string;
   phone: string;
+  address: string;
   created: string;
   payment_id: string | null;
   quantity: number;

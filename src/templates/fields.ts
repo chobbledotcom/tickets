@@ -43,6 +43,7 @@ export type TicketFormValues = {
   name: string;
   email: string | null;
   phone: string | null;
+  address: string | null;
 };
 
 /** Typed values from login form */
@@ -165,13 +166,17 @@ export const loginFields: Field[] = [
   { name: "password", label: "Password", type: "password", required: true },
 ];
 
-/** Valid event fields values */
-const VALID_EVENT_FIELDS: readonly string[] = ["email", "phone", "both"];
+/** Valid individual contact field values */
+const VALID_CONTACT_FIELDS: readonly string[] = ["email", "phone", "address"];
 
-/** Validate event fields setting */
+/** Validate event fields setting (comma-separated contact field names) */
 const validateEventFields = (value: string): string | null => {
-  if (!VALID_EVENT_FIELDS.includes(value)) {
-    return "Contact Fields must be email, phone, or both";
+  if (!value) return null; // empty is allowed (name-only collection)
+  const parts = value.split(",").map((v) => v.trim()).filter((v) => v);
+  for (const part of parts) {
+    if (!VALID_CONTACT_FIELDS.includes(part)) {
+      return `Invalid contact field: ${part}`;
+    }
   }
   return null;
 };
@@ -296,12 +301,12 @@ export const eventFields: Field[] = [
   {
     name: "fields",
     label: "Contact Fields",
-    type: "select",
+    type: "checkbox-group",
     hint: "Which contact details to collect from attendees",
     options: [
       { value: "email", label: "Email" },
       { value: "phone", label: "Phone Number" },
-      { value: "both", label: "Email & Phone Number" },
+      { value: "address", label: "Address" },
     ],
     validate: validateEventFields,
   },
@@ -410,37 +415,55 @@ const phoneField: Field = {
   validate: validatePhone,
 };
 
+/** Address field for ticket forms (textarea) */
+const addressField: Field = {
+  name: "address",
+  label: "Your Address",
+  type: "textarea",
+  required: true,
+};
+
+/** Map of contact field names to their Field definitions */
+const contactFieldMap: Record<string, Field> = {
+  email: emailField,
+  phone: phoneField,
+  address: addressField,
+};
+
 /**
  * Ticket reservation form field definitions (legacy - email only)
  */
 export const ticketFields: Field[] = [nameField, emailField];
 
+/** Parse a comma-separated fields string into individual field names */
+export const parseEventFields = (fields: EventFields): string[] =>
+  fields ? fields.split(",").map((f) => f.trim()).filter((f) => f) : [];
+
 /**
  * Get ticket form fields based on event fields setting.
- * Always includes name. Adds email and/or phone based on the setting.
+ * Always includes name. Adds contact fields based on the comma-separated setting.
  */
 export const getTicketFields = (fields: EventFields): Field[] => {
-  switch (fields) {
-    case "email":
-      return [nameField, emailField];
-    case "phone":
-      return [nameField, phoneField];
-    case "both":
-      return [nameField, emailField, phoneField];
-  }
+  const parsed = parseEventFields(fields);
+  const contactFields = parsed
+    .map((f) => contactFieldMap[f])
+    .filter((f): f is Field => f !== undefined);
+  return [nameField, ...contactFields];
 };
 
 /**
  * Determine which contact fields to collect for multiple events.
- * If all events share the same single-field setting, use that.
- * If any differ, collect both.
+ * Returns the union of all field settings across events.
  */
 export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
   if (fieldSettings.length === 0) return "email";
-  const first = fieldSettings[0]!;
-  const allSame = fieldSettings.every((f) => f === first);
-  if (allSame) return first;
-  return "both";
+  const allFields = new Set<string>();
+  for (const setting of fieldSettings) {
+    for (const f of parseEventFields(setting)) {
+      allFields.add(f);
+    }
+  }
+  return [...allFields].join(",");
 };
 
 /**

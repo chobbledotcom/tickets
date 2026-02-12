@@ -412,8 +412,8 @@ describe("forms", () => {
       expect(fields[1]!.name).toBe("phone");
     });
 
-    test("returns name, email, and phone fields for both setting", () => {
-      const fields = getTicketFields("both");
+    test("returns name, email, and phone fields for email,phone setting", () => {
+      const fields = getTicketFields("email,phone");
       expect(fields.length).toBe(3);
       expect(fields[0]!.name).toBe("name");
       expect(fields[1]!.name).toBe("email");
@@ -446,20 +446,20 @@ describe("forms", () => {
       expect(mergeEventFields(["phone", "phone"])).toBe("phone");
     });
 
-    test("returns both when all events use both", () => {
-      expect(mergeEventFields(["both", "both"])).toBe("both");
+    test("returns email,phone when all events use email,phone", () => {
+      expect(mergeEventFields(["email,phone", "email,phone"])).toBe("email,phone");
     });
 
-    test("returns both when events differ (email + phone)", () => {
-      expect(mergeEventFields(["email", "phone"])).toBe("both");
+    test("returns email,phone when events differ (email + phone)", () => {
+      expect(mergeEventFields(["email", "phone"])).toBe("email,phone");
     });
 
-    test("returns both when events differ (email + both)", () => {
-      expect(mergeEventFields(["email", "both"])).toBe("both");
+    test("returns email,phone when events differ (email + email,phone)", () => {
+      expect(mergeEventFields(["email", "email,phone"])).toBe("email,phone");
     });
 
-    test("returns both when events differ (phone + both)", () => {
-      expect(mergeEventFields(["phone", "both"])).toBe("both");
+    test("returns phone,email when events differ (phone + email,phone)", () => {
+      expect(mergeEventFields(["phone", "email,phone"])).toBe("phone,email");
     });
 
     test("returns setting for single event", () => {
@@ -469,7 +469,7 @@ describe("forms", () => {
 
   describe("eventFields Contact Fields validation", () => {
     test("validates fields select rejects invalid value", () => {
-      expectInvalid("Contact Fields must be email, phone, or both")(
+      expectInvalid("Invalid contact field: invalid")(
         eventFields,
         eventForm({ fields: "invalid" }),
       );
@@ -483,8 +483,8 @@ describe("forms", () => {
       expectValid(eventFields, eventForm({ fields: "phone" }));
     });
 
-    test("validates fields select accepts both", () => {
-      expectValid(eventFields, eventForm({ fields: "both" }));
+    test("validates fields select accepts email,phone", () => {
+      expectValid(eventFields, eventForm({ fields: "email,phone" }));
     });
   });
 
@@ -559,24 +559,24 @@ describe("forms", () => {
       expectValid(getTicketFields("phone"), { name: "John Doe", phone: "+1 555 123 4567" });
     });
 
-    test("validates both email and phone for both setting", () => {
-      expectValid(getTicketFields("both"), {
+    test("validates both email and phone for email,phone setting", () => {
+      expectValid(getTicketFields("email,phone"), {
         name: "John Doe",
         email: "john@example.com",
         phone: "+1 555 123 4567",
       });
     });
 
-    test("rejects missing phone for both setting", () => {
-      expectInvalidForm(getTicketFields("both"), {
+    test("rejects missing phone for email,phone setting", () => {
+      expectInvalidForm(getTicketFields("email,phone"), {
         name: "John Doe",
         email: "john@example.com",
         phone: "",
       });
     });
 
-    test("rejects missing email for both setting", () => {
-      expectInvalidForm(getTicketFields("both"), {
+    test("rejects missing email for email,phone setting", () => {
+      expectInvalidForm(getTicketFields("email,phone"), {
         name: "John Doe",
         email: "",
         phone: "+1 555 123 4567",

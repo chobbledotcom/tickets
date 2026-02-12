@@ -25,6 +25,7 @@ export type WebhookPayload = {
   name: string;
   email: string;
   phone: string;
+  address: string;
   price_paid: number | null;
   currency: string;
   payment_id: string | null;
@@ -51,6 +52,7 @@ export type WebhookAttendee = {
   name: string;
   email: string;
   phone: string;
+  address: string;
   payment_id?: string | null;
   price_paid?: string | null;
   ticket_token: string;
@@ -89,6 +91,7 @@ export const buildWebhookPayload = (
     name: first.attendee.name,
     email: first.attendee.email,
     phone: first.attendee.phone,
+    address: first.attendee.address,
     price_paid: hasPaidEvent ? totalPricePaid : null,
     currency,
     payment_id: first.attendee.payment_id ?? null,

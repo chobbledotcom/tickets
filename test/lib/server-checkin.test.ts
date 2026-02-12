@@ -64,7 +64,7 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("shows attendee contact details in admin view", async () => {
-      const event = await createTestEvent({ maxAttendees: 10, fields: "both" });
+      const event = await createTestEvent({ maxAttendees: 10, fields: "email,phone" });
       await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com", 1, "555-1234");
       const attendees = await getAttendeesRaw(event.id);
       const token = attendees[0]!.ticket_token;

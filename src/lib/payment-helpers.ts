@@ -53,9 +53,10 @@ export const serializeMultiItems = (
     }))(items),
   );
 
-/** Spread optional phone/date fields into metadata (only if truthy) */
-const optionalFields = (intent: { phone?: string | null; date?: string | null }): Record<string, string> => ({
+/** Spread optional phone/address/date fields into metadata (only if truthy) */
+const optionalFields = (intent: { phone?: string | null; address?: string | null; date?: string | null }): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
+  ...(intent.address ? { address: intent.address } : {}),
   ...(intent.date ? { date: intent.date } : {}),
 });
 
@@ -65,7 +66,7 @@ const optionalFields = (intent: { phone?: string | null; date?: string | null })
  */
 export const buildSingleIntentMetadata = (
   eventId: number,
-  intent: { name: string; email: string; phone?: string | null; quantity: number; date?: string | null },
+  intent: { name: string; email: string; phone?: string | null; address?: string | null; quantity: number; date?: string | null },
 ): Record<string, string> => ({
   event_id: String(eventId),
   name: intent.name,
@@ -128,6 +129,7 @@ export const extractSessionMetadata = (
   name: metadata.name!,
   email: metadata.email!,
   phone: metadata.phone,
+  address: metadata.address,
   quantity: metadata.quantity,
   multi: metadata.multi,
   date: metadata.date,

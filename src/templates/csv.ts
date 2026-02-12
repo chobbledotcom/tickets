@@ -34,6 +34,7 @@ const attendeeCols = (a: Attendee, domain: string): string[] => [
   escapeCsvValue(a.name),
   escapeCsvValue(a.email),
   escapeCsvValue(a.phone),
+  escapeCsvValue(a.address),
   String(a.quantity),
   escapeCsvValue(new Date(a.created).toISOString()),
   formatPrice(a.price_paid),
@@ -59,8 +60,8 @@ const buildCsv = <T>(header: string, toRow: (item: T, domain: string) => string[
  */
 export const generateAttendeesCsv = (attendees: Attendee[], includeDate = false): string => {
   const header = includeDate
-    ? "Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL"
-    : "Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL";
+    ? "Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL"
+    : "Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL";
   return buildCsv(header, (a: Attendee, domain) => [
     ...(includeDate ? [escapeCsvValue(a.date ?? "")] : []),
     ...attendeeCols(a, domain),
@@ -78,7 +79,7 @@ const calendarRow = (a: CalendarAttendee, domain: string): string[] => [
  */
 export const generateCalendarCsv = (attendees: CalendarAttendee[]): string =>
   buildCsv(
-    "Event,Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+    "Event,Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
     calendarRow,
     attendees,
   );

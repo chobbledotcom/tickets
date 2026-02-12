@@ -41,6 +41,9 @@ const decryptAttendee = async (
   const phone = row.phone
     ? await decryptAttendeePII(row.phone, privateKey)
     : "";
+  const address = row.address
+    ? await decryptAttendeePII(row.address, privateKey)
+    : "";
   const payment_id = row.payment_id
     ? await decryptAttendeePII(row.payment_id, privateKey)
     : null;
@@ -48,7 +51,7 @@ const decryptAttendee = async (
   const checked_in = row.checked_in
     ? await decryptAttendeePII(row.checked_in, privateKey)
     : "false";
-  return { ...row, name, email, phone, payment_id, price_paid, checked_in };
+  return { ...row, name, email, phone, address, payment_id, price_paid, checked_in };
 };
 
 /**
@@ -90,6 +93,7 @@ type EncryptedAttendeeData = {
   encryptedName: string;
   encryptedEmail: string;
   encryptedPhone: string;
+  encryptedAddress: string;
   encryptedPaymentId: string | null;
   encryptedPricePaid: string | null;
   encryptedCheckedIn: string;
@@ -100,6 +104,7 @@ const encryptAttendeeFields = async (
   name: string,
   email: string,
   phone: string,
+  address: string,
   paymentId: string | null,
   pricePaid: number | null,
 ): Promise<EncryptedAttendeeData | null> => {
@@ -114,6 +119,9 @@ const encryptAttendeeFields = async (
       : "",
     encryptedPhone: phone
       ? await encryptAttendeePII(phone, publicKeyJwk)
+      : "",
+    encryptedAddress: address
+      ? await encryptAttendeePII(address, publicKeyJwk)
       : "",
     encryptedPaymentId: paymentId
       ? await encryptAttendeePII(paymentId, publicKeyJwk)
@@ -132,6 +140,7 @@ const buildAttendeeResult = (
   name: string,
   email: string,
   phone: string,
+  address: string,
   created: string,
   paymentId: string | null,
   quantity: number,
@@ -144,6 +153,7 @@ const buildAttendeeResult = (
   name,
   email,
   phone,
+  address,
   created,
   payment_id: paymentId,
   quantity,
@@ -193,6 +203,7 @@ export type AttendeeInput = {
   paymentId?: string | null;
   quantity?: number;
   phone?: string;
+  address?: string;
   pricePaid?: number | null;
   date?: string | null;
 };
@@ -265,8 +276,8 @@ export const attendeesApi = {
   createAttendeeAtomic: async (
     input: AttendeeInput,
   ): Promise<CreateAttendeeResult> => {
-    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", pricePaid = null, date = null } = input;
-    const enc = await encryptAttendeeFields(name, email, phone, paymentId, pricePaid);
+    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", address = "", pricePaid = null, date = null } = input;
+    const enc = await encryptAttendeeFields(name, email, phone, address, paymentId, pricePaid);
     if (!enc) {
       return { success: false, reason: "encryption_error" };
     }
@@ -281,8 +292,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, created, payment_id, quantity, price_paid, checked_in, ticket_token, date)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, address, created, payment_id, quantity, price_paid, checked_in, ticket_token, date)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (
@@ -293,6 +304,7 @@ export const attendeesApi = {
         enc.encryptedName,
         enc.encryptedEmail,
         enc.encryptedPhone,
+        enc.encryptedAddress,
         enc.created,
         enc.encryptedPaymentId,
         qty,
@@ -318,6 +330,7 @@ export const attendeesApi = {
         name,
         email,
         phone,
+        address,
         enc.created,
         paymentId,
         qty,
