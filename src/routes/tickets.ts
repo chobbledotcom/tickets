@@ -4,7 +4,7 @@
  * Includes an inline SVG QR code encoding the /checkin/:tokens URL
  */
 
-import { getAllowedDomain } from "#lib/config.ts";
+import { getAllowedDomain, getTimezone } from "#lib/config.ts";
 import { generateQrSvg } from "#lib/qr.ts";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { htmlResponse } from "#routes/utils.ts";
@@ -21,7 +21,8 @@ const handleTicketView = async (_request: Request, tokens: string[]): Promise<Re
 
   const entries = await resolveEntries(result.attendees);
   const qrSvg = await generateQrSvg(buildCheckinUrl(tokens));
-  return htmlResponse(ticketViewPage(entries, qrSvg));
+  const tz = await getTimezone();
+  return htmlResponse(ticketViewPage(entries, qrSvg, tz));
 };
 
 /** Route ticket view requests */

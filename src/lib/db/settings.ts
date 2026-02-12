@@ -3,6 +3,7 @@
  */
 
 import { lazyRef } from "#fp";
+import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
 import {
   decrypt,
   deriveKEK,
@@ -43,6 +44,8 @@ export const CONFIG_KEYS = {
   EMBED_HOSTS: "embed_hosts",
   // Terms and conditions (plaintext - displayed publicly)
   TERMS_AND_CONDITIONS: "terms_and_conditions",
+  // Timezone (IANA timezone identifier, plaintext)
+  TIMEZONE: "timezone",
 } as const;
 
 /**
@@ -480,6 +483,22 @@ export const updateTermsAndConditions = async (text: string): Promise<void> => {
 };
 
 /**
+ * Get the configured timezone from database.
+ * Returns the IANA timezone identifier, defaulting to Europe/London.
+ */
+export const getTimezoneFromDb = async (): Promise<string> => {
+  const value = await getSetting(CONFIG_KEYS.TIMEZONE);
+  return value || DEFAULT_TIMEZONE;
+};
+
+/**
+ * Update the configured timezone.
+ */
+export const updateTimezone = async (tz: string): Promise<void> => {
+  await setSetting(CONFIG_KEYS.TIMEZONE, tz);
+};
+
+/**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
  */
@@ -516,4 +535,6 @@ export const settingsApi = {
   getTermsAndConditionsFromDb,
   updateTermsAndConditions,
   invalidateTermsCache,
+  getTimezoneFromDb,
+  updateTimezone,
 };

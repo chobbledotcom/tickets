@@ -19,14 +19,14 @@ const formatDateCol = (date: string | null): string =>
  * Ticket view page - shows event name + quantity per ticket, with inline QR code
  * The QR code encodes the /checkin/... URL for admin scanning
  */
-export const ticketViewPage = (entries: TokenEntry[], qrSvg: string): string => {
+export const ticketViewPage = (entries: TokenEntry[], qrSvg: string, tz?: string): string => {
   const showDate = entries.some((e) => e.attendee.date !== null);
   const showEventDate = entries.some((e) => e.event.date !== "");
   const showLocation = entries.some((e) => e.event.location !== "");
   const rows = pipe(
     map(({ event, attendee }: TokenEntry) => {
       const dateCol = showDate ? `<td>${formatDateCol(attendee.date)}</td>` : "";
-      const eventDateCol = showEventDate ? `<td>${escapeHtml(event.date ? formatDatetimeLabel(event.date) : "")}</td>` : "";
+      const eventDateCol = showEventDate ? `<td>${escapeHtml(event.date ? formatDatetimeLabel(event.date, tz) : "")}</td>` : "";
       const locationCol = showLocation ? `<td>${escapeHtml(event.location)}</td>` : "";
       return `<tr><td>${escapeHtml(event.name)}</td>${eventDateCol}${locationCol}${dateCol}<td>${attendee.quantity}</td></tr>`;
     }),

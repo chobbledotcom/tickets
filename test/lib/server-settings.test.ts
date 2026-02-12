@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { setPaymentProvider, updateTermsAndConditions } from "#lib/db/settings.ts";
+import { getTimezoneFromDb, setPaymentProvider, updateTermsAndConditions } from "#lib/db/settings.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
@@ -1045,6 +1045,76 @@ describe("server (admin settings)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("currently configured");
+    });
+  });
+
+  describe("POST /admin/settings/timezone", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/timezone", {
+          timezone: "America/New_York",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/timezone",
+          { timezone: "America/New_York", csrf_token: "invalid-csrf-token" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+    });
+
+    test("saves valid timezone", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/timezone",
+          { timezone: "America/New_York", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain("/admin/settings");
+      const saved = await getTimezoneFromDb();
+      expect(saved).toBe("America/New_York");
+    });
+
+    test("rejects empty timezone", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/timezone",
+          { timezone: "", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Timezone is required");
+    });
+
+    test("rejects invalid timezone identifier", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/timezone",
+          { timezone: "Not/A_Timezone", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Invalid timezone");
     });
   });
 

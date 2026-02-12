@@ -13,6 +13,7 @@ import {
   getSquareWebhookSignatureKeyFromDb,
   getStripeSecretKeyFromDb,
   getStripeWebhookSecretFromDb,
+  getTimezoneFromDb,
   hasSquareToken,
   hasStripeKey,
   isSetupComplete,
@@ -118,6 +119,12 @@ export const getEmbedHosts = async (): Promise<string[]> => {
   const { parseEmbedHosts } = await import("#lib/embed-hosts.ts");
   return parseEmbedHosts(raw);
 };
+
+/**
+ * Get the configured timezone (IANA identifier).
+ * Defaults to Europe/London if not set.
+ */
+export const getTimezone = (): Promise<string> => getTimezoneFromDb();
 
 /**
  * Check if initial setup has been completed

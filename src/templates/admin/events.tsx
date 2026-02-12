@@ -6,6 +6,7 @@ import { filter, map, pipe, reduce } from "#fp";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
+import { utcToLocalInput } from "#lib/timezone.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
@@ -146,6 +147,7 @@ export type AdminEventPageOptions = {
   dateFilter?: string | null;
   availableDates?: DateOption[];
   addAttendeeMessage?: AddAttendeeMessage;
+  tz?: string;
 };
 
 export const adminEventPage = ({
@@ -158,6 +160,7 @@ export const adminEventPage = ({
   dateFilter = null,
   availableDates = [],
   addAttendeeMessage = null,
+  tz,
 }: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const contactFields = parseEventFields(event.fields);
@@ -219,7 +222,7 @@ export const adminEventPage = ({
               {event.date && (
                 <tr>
                   <th>Event Date</th>
-                  <td>{formatDatetimeLabel(event.date)}</td>
+                  <td>{formatDatetimeLabel(event.date, tz)}</td>
                 </tr>
               )}
               {event.location && (
@@ -271,7 +274,7 @@ export const adminEventPage = ({
                 <th>Registration Closes</th>
                 <td>
                   {event.closes_at ? (
-                    <span>{formatDatetimeLabel(event.closes_at)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
+                    <span>{formatDatetimeLabel(event.closes_at, tz)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
                   ) : (
                     <em>No deadline</em>
                   )}
@@ -392,10 +395,13 @@ export const adminEventPage = ({
   );
 };
 
-/** Format an ISO datetime string for datetime-local input (YYYY-MM-DDTHH:MM) */
-const formatDatetimeLocal = (iso: string | null): string | null => {
+/**
+ * Format an ISO datetime string for datetime-local input (YYYY-MM-DDTHH:MM).
+ * When tz is provided, converts from UTC to the timezone first.
+ */
+const formatDatetimeLocal = (iso: string | null, tz?: string): string | null => {
   if (!iso) return null;
-  // datetime-local expects YYYY-MM-DDTHH:MM format
+  if (tz) return utcToLocalInput(iso, tz);
   return iso.slice(0, 16);
 };
 
@@ -403,10 +409,10 @@ const formatDatetimeLocal = (iso: string | null): string | null => {
 const formatBookableDays = (json: string): string =>
   (JSON.parse(json) as string[]).join(",");
 
-const eventToFieldValues = (event: EventWithCount): FieldValues => ({
+const eventToFieldValues = (event: EventWithCount, tz?: string): FieldValues => ({
   name: event.name,
   description: event.description,
-  date: event.date ? formatDatetimeLocal(event.date) : null,
+  date: event.date ? formatDatetimeLocal(event.date, tz) : null,
   location: event.location,
   slug: event.slug,
   event_type: event.event_type,
@@ -417,7 +423,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   maximum_days_after: event.maximum_days_after,
   fields: event.fields,
   unit_price: event.unit_price,
-  closes_at: formatDatetimeLocal(event.closes_at),
+  closes_at: formatDatetimeLocal(event.closes_at, tz),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
 });
@@ -433,8 +439,9 @@ const eventFieldsWithAutofocus: Field[] = pipe(
 export const adminDuplicateEventPage = (
   event: EventWithCount,
   session: AdminSession,
+  tz?: string,
 ): string => {
-  const values = eventToFieldValues(event);
+  const values = eventToFieldValues(event, tz);
   values.name = "";
 
   return String(
@@ -458,6 +465,7 @@ export const adminEventEditPage = (
   event: EventWithCount,
   session: AdminSession,
   error?: string,
+  tz?: string,
 ): string =>
   String(
     <Layout title={`Edit: ${event.name}`}>
@@ -465,7 +473,7 @@ export const adminEventEditPage = (
         <Raw html={renderError(error)} />
         <form method="POST" action={`/admin/event/${event.id}/edit`}>
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
-          <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
+          <Raw html={renderFields(eventFields, eventToFieldValues(event, tz))} />
           <Raw html={renderField(slugField, String(event.slug))} />
           <button type="submit">Save Changes</button>
         </form>

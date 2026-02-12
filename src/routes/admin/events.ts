@@ -3,8 +3,8 @@
  */
 
 import { filter } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
-import { formatDateLabel } from "#lib/dates.ts";
+import { getAllowedDomain, getTimezone } from "#lib/config.ts";
+import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
 import {
   getEventWithActivityLog,
   logActivity,
@@ -31,6 +31,7 @@ import {
   redirect,
   requireSessionOr,
   withAuthForm,
+  withEvent,
   withEventPage,
 } from "#routes/utils.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
@@ -62,31 +63,35 @@ const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: stri
 const serializeBookableDays = (value: string): string | undefined =>
   value ? JSON.stringify(value.split(",").map((d) => d.trim()).filter((d) => d)) : undefined;
 
-/** Extract common event fields from validated form values */
-const extractCommonFields = (values: EventFormValues) => ({
-  name: values.name,
-  description: values.description,
-  date: values.date ?? "",
-  location: values.location,
-  maxAttendees: values.max_attendees,
-  thankYouUrl: values.thank_you_url || null,
-  unitPrice: values.unit_price,
-  maxQuantity: values.max_quantity,
-  webhookUrl: values.webhook_url || null,
-  fields: values.fields || "email",
-  closesAt: values.closes_at,
-  eventType: values.event_type || undefined,
-  bookableDays: serializeBookableDays(values.bookable_days),
-  minimumDaysBefore: values.minimum_days_before ?? 1,
-  maximumDaysAfter: values.maximum_days_after ?? 90,
-});
+/** Extract common event fields from validated form values, normalizing datetimes to UTC */
+const extractCommonFields = async (values: EventFormValues) => {
+  const tz = await getTimezone();
+  const rawDate = values.date ?? "";
+  return {
+    name: values.name,
+    description: values.description,
+    date: rawDate ? normalizeDatetime(rawDate, "date", tz) : rawDate,
+    location: values.location,
+    maxAttendees: values.max_attendees,
+    thankYouUrl: values.thank_you_url || null,
+    unitPrice: values.unit_price,
+    maxQuantity: values.max_quantity,
+    webhookUrl: values.webhook_url || null,
+    fields: values.fields || "email",
+    closesAt: values.closes_at ? normalizeDatetime(values.closes_at, "closes_at", tz) : values.closes_at,
+    eventType: values.event_type || undefined,
+    bookableDays: serializeBookableDays(values.bookable_days),
+    minimumDaysBefore: values.minimum_days_before ?? 1,
+    maximumDaysAfter: values.maximum_days_after ?? 90,
+  };
+};
 
 /** Extract event input from validated form (async to compute slugIndex) */
 const extractEventInput = async (
   values: EventFormValues,
 ): Promise<EventInput> => {
   const { slug, slugIndex } = await generateUniqueSlug();
-  return { ...extractCommonFields(values), slug, slugIndex };
+  return { ...(await extractCommonFields(values)), slug, slugIndex };
 };
 
 /** Extract event input for update (reads slug from form, normalizes it) */
@@ -95,7 +100,7 @@ const extractEventUpdateInput = async (
 ): Promise<EventInput> => {
   const slug = normalizeSlug(values.slug);
   const slugIndex = await computeSlugIndex(slug);
-  return { ...extractCommonFields(values), slug, slugIndex };
+  return { ...(await extractCommonFields(values)), slug, slugIndex };
 };
 
 /** Events resource for REST create operations */
@@ -165,10 +170,11 @@ const getUniqueDates = (attendees: Attendee[]): { value: string; label: string }
  */
 const handleAdminEventGet = async (request: Request, eventId: number, activeFilter: AttendeeFilter = "all") => {
   await deleteAllStaleReservations();
-  return withEventAttendees(request, eventId, ({ event, attendees, session }) => {
+  return withEventAttendees(request, eventId, async ({ event, attendees, session }) => {
     const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
     const availableDates = event.event_type === "daily" ? getUniqueDates(attendees) : [];
     const filteredByDate = filterByDate(attendees, dateFilter);
+    const tz = await getTimezone();
     return htmlResponse(
       adminEventPage({
         event,
@@ -180,6 +186,7 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
         dateFilter,
         availableDates,
         addAttendeeMessage: getAddAttendeeMessage(request),
+        tz,
       }),
     );
   });
@@ -202,11 +209,22 @@ const eventErrorPage = async (
     : notFoundResponse();
 };
 
+/** Timezone-aware event page: fetches tz before rendering */
+const withEventPageTz =
+  (renderPage: (event: EventWithCount, session: AdminSession, tz: string) => string) =>
+  (request: Request, eventId: number): Promise<Response> =>
+    requireSessionOr(request, async (session) => {
+      const tz = await getTimezone();
+      return withEvent(eventId, (event) => htmlResponse(renderPage(event, session, tz)));
+    });
+
 /** Handle GET /admin/event/:id/duplicate */
-const handleAdminEventDuplicateGet = withEventPage(adminDuplicateEventPage);
+const handleAdminEventDuplicateGet = withEventPageTz(adminDuplicateEventPage);
 
 /** Handle GET /admin/event/:id/edit */
-const handleAdminEventEditGet = withEventPage(adminEventEditPage);
+const handleAdminEventEditGet = withEventPageTz(
+  (event, session, tz) => adminEventEditPage(event, session, undefined, tz),
+);
 
 /** Handle POST /admin/event/:id/edit */
 const handleAdminEventEditPost = (
@@ -216,6 +234,8 @@ const handleAdminEventEditPost = (
   withAuthForm(request, async (session, form) => {
     const existing = await getEventWithCount(eventId);
     if (!existing) return notFoundResponse();
+
+    const tz = await getTimezone();
 
     // Build a resource that includes the slug field and validates uniqueness
     const updateResource = defineResource({
@@ -232,7 +252,7 @@ const handleAdminEventEditPost = (
     const result = await updateResource.update(eventId, form);
     if (result.ok) return redirect(`/admin/event/${result.row.id}`);
     if ("notFound" in result) return notFoundResponse();
-    return eventErrorPage(eventId, adminEventEditPage, session, result.error);
+    return eventErrorPage(eventId, (e, s, err) => adminEventEditPage(e, s, err, tz), session, result.error);
   });
 
 /**

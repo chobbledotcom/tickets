@@ -48,6 +48,7 @@ export const ticketPage = (
   iframe = false,
   availableDates?: string[],
   termsAndConditions?: string | null,
+  tz?: string,
 ): string => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isFull = spotsRemaining <= 0;
@@ -67,7 +68,7 @@ export const ticketPage = (
             </div>
           )}
           {event.date && (
-            <p><strong>Date:</strong> {formatDatetimeLabel(event.date)}</p>
+            <p><strong>Date:</strong> {formatDatetimeLabel(event.date, tz)}</p>
           )}
           {event.location && (
             <p><strong>Location:</strong> {event.location}</p>

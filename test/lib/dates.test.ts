@@ -173,6 +173,16 @@ describe("dates", () => {
     test("includes the label in the error message", () => {
       expect(() => normalizeDatetime("bad-value", "closes_at")).toThrow("Invalid closes_at");
     });
+
+    test("converts datetime-local to UTC using timezone", () => {
+      // 14:30 BST (June) = 13:30 UTC
+      const result = normalizeDatetime("2026-06-15T14:30", "date", "Europe/London");
+      expect(result).toBe("2026-06-15T13:30:00.000Z");
+    });
+
+    test("throws with label when timezone conversion gets invalid value", () => {
+      expect(() => normalizeDatetime("not-a-date", "date", "UTC")).toThrow("Invalid date");
+    });
   });
 
   describe("formatDatetimeLabel", () => {
