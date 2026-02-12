@@ -1,5 +1,5 @@
 import { describe, expect, test } from "#test-compat";
-import { addDays, DAY_NAMES, formatDateLabel, getAvailableDates } from "#lib/dates.ts";
+import { addDays, DAY_NAMES, formatDateLabel, formatDatetimeLabel, getAvailableDates, normalizeDatetime } from "#lib/dates.ts";
 import { today } from "#lib/now.ts";
 import { testEvent } from "#test-utils";
 
@@ -152,6 +152,46 @@ describe("dates", () => {
 
       const dates = getAvailableDates(event, []);
       expect(dates).toEqual([]);
+    });
+  });
+
+  describe("normalizeDatetime", () => {
+    test("normalizes datetime-local (16 chars) to full ISO string", () => {
+      const result = normalizeDatetime("2026-06-15T14:30", "date");
+      expect(result).toBe("2026-06-15T14:30:00.000Z");
+    });
+
+    test("passes through already-normalized ISO string", () => {
+      const result = normalizeDatetime("2026-06-15T14:30:00.000Z", "date");
+      expect(result).toBe("2026-06-15T14:30:00.000Z");
+    });
+
+    test("throws on invalid datetime string", () => {
+      expect(() => normalizeDatetime("not-a-date", "date")).toThrow("Invalid date");
+    });
+
+    test("includes the label in the error message", () => {
+      expect(() => normalizeDatetime("bad-value", "closes_at")).toThrow("Invalid closes_at");
+    });
+  });
+
+  describe("formatDatetimeLabel", () => {
+    test("formats ISO datetime as human-readable string", () => {
+      expect(formatDatetimeLabel("2026-06-15T14:00:00.000Z")).toBe(
+        "Monday 15 June 2026 at 14:00 UTC",
+      );
+    });
+
+    test("pads single-digit hours and minutes", () => {
+      expect(formatDatetimeLabel("2026-01-05T09:05:00.000Z")).toBe(
+        "Monday 5 January 2026 at 09:05 UTC",
+      );
+    });
+
+    test("handles midnight", () => {
+      expect(formatDatetimeLabel("2026-03-01T00:00:00.000Z")).toBe(
+        "Sunday 1 March 2026 at 00:00 UTC",
+      );
     });
   });
 });

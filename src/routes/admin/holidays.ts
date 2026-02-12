@@ -7,7 +7,7 @@ import { getAllHolidays, type HolidayInput, holidaysTable } from "#lib/db/holida
 import { validateForm } from "#lib/forms.tsx";
 import { defineResource } from "#lib/rest/resource.ts";
 import type { AdminSession, Holiday } from "#lib/types.ts";
-import { defineRoutes, type RouteHandlerFn, type RouteParams } from "#routes/router.ts";
+import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
 import { verifyIdentifier } from "#routes/admin/utils.ts";
 import {
   htmlResponse,
@@ -153,21 +153,18 @@ const handleHolidayDeletePost = (
     }),
   );
 
-/** Parse holiday ID from params */
-const parseHolidayId = (params: RouteParams): number =>
-  Number.parseInt(params.id as string, 10);
+/** Bind :id param to a holiday handler */
+type HolidayHandler = (request: Request, holidayId: number) => Response | Promise<Response>;
+const holidayRoute = (handler: HolidayHandler): RouteHandlerFn =>
+  (request, params) => handler(request, params.id as number);
 
 /** Holiday routes */
 export const holidaysRoutes = defineRoutes({
   "GET /admin/holidays": (request) => handleHolidaysGet(request),
   "GET /admin/holiday/new": (request) => handleHolidayNewGet(request),
   "POST /admin/holiday": handleHolidayCreate,
-  "GET /admin/holiday/:id/edit": (request, params) =>
-    handleHolidayEditGet(request, parseHolidayId(params)),
-  "POST /admin/holiday/:id/edit": (request, params) =>
-    handleHolidayEditPost(request, parseHolidayId(params)),
-  "GET /admin/holiday/:id/delete": (request, params) =>
-    handleHolidayDeleteGet(request, parseHolidayId(params)),
-  "POST /admin/holiday/:id/delete": (request, params) =>
-    handleHolidayDeletePost(request, parseHolidayId(params)),
+  "GET /admin/holiday/:id/edit": holidayRoute(handleHolidayEditGet),
+  "POST /admin/holiday/:id/edit": holidayRoute(handleHolidayEditPost),
+  "GET /admin/holiday/:id/delete": holidayRoute(handleHolidayDeleteGet),
+  "POST /admin/holiday/:id/delete": holidayRoute(handleHolidayDeletePost),
 });
