@@ -30,8 +30,8 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
     return sum;
   }, 0)(attendees);
 
-/** Format cents as a decimal string (e.g. 1000 -> "10.00") */
-const formatRevenue = (cents: number): string => (cents / 100).toFixed(2);
+/** Format cents as a decimal string (e.g. 1000 -> "10.00", "2999" -> "29.99") */
+export const formatCents = (cents: string | number): string => (Number(cents) / 100).toFixed(2);
 
 /** Check if event is within 10% of capacity */
 export const nearCapacity = (event: EventWithCount): boolean =>
@@ -216,7 +216,7 @@ export const adminEventPage = (
               {event.unit_price !== null && (
                 <tr>
                   <th>Total Revenue</th>
-                  <td>{formatRevenue(calculateTotalRevenue(attendees))}</td>
+                  <td>{formatCents(calculateTotalRevenue(attendees))}</td>
                 </tr>
               )}
               <tr>
