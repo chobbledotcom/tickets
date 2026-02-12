@@ -223,8 +223,8 @@ const validateDescription = (value: string): string | null =>
     ? `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`
     : null;
 
-/** Validate a datetime-local value is a valid UTC date */
-const validateDatetimeLocal = (value: string): string | null => {
+/** Validate a datetime value is a valid UTC date */
+const validateDatetime = (value: string): string | null => {
   try {
     normalizeDatetime(value, "date");
     return null;
@@ -256,9 +256,9 @@ export const eventFields: Field[] = [
   {
     name: "date",
     label: "Event Date (optional)",
-    type: "datetime-local",
+    type: "datetime",
     hint: "When the event takes place. Times are in UTC.",
-    validate: validateDatetimeLocal,
+    validate: validateDatetime,
   },
   {
     name: "location",
@@ -339,9 +339,9 @@ export const eventFields: Field[] = [
   {
     name: "closes_at",
     label: "Registration Closes At (optional)",
-    type: "datetime-local",
+    type: "datetime",
     hint: "Leave blank for no deadline. Times are in UTC.",
-    validate: validateDatetimeLocal,
+    validate: validateDatetime,
   },
   {
     name: "thank_you_url",

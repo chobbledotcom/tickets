@@ -11,7 +11,7 @@ import {
 } from "#lib/db/events.ts";
 import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
-import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache } from "#lib/db/settings.ts";
+import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, invalidateTermsCache } from "#lib/db/settings.ts";
 import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 
 /**
@@ -213,6 +213,7 @@ export const resetDb = (): void => {
   setDb(null);
   clearSetupCompleteCache();
   invalidateSettingsCache();
+  invalidateTermsCache();
   resetSessionCache();
   resetTestSession();
 };
@@ -616,12 +617,16 @@ export const createTestEvent = (
 ): Promise<Event> => {
   const input = testEventInput(overrides);
 
+  const closesAtParts = splitClosesAt(input.closesAt, null);
+  const dateParts = splitClosesAt(input.date, null);
+
   return authenticatedFormRequest(
     "/admin/event",
     {
       name: input.name,
       description: input.description ?? "",
-      date: input.date ?? "",
+      date_date: dateParts.date,
+      date_time: dateParts.time,
       location: input.location ?? "",
       max_attendees: String(input.maxAttendees),
       max_quantity: String(input.maxQuantity ?? 1),
@@ -629,7 +634,8 @@ export const createTestEvent = (
       thank_you_url: input.thankYouUrl ?? "",
       unit_price: input.unitPrice != null ? String(input.unitPrice) : "",
       webhook_url: input.webhookUrl ?? "",
-      closes_at: input.closesAt ?? "",
+      closes_at_date: closesAtParts.date,
+      closes_at_time: closesAtParts.time,
       event_type: input.eventType ?? "",
       bookable_days: input.bookableDays
         ? formatBookableDaysForForm(input.bookableDays)
@@ -675,12 +681,16 @@ const formatOptional = (
 const formatBookableDaysForForm = (json: string): string =>
   (JSON.parse(json) as string[]).join(",");
 
-/** Format closes_at for form submission (truncate existing ISO to datetime-local) */
-const formatClosesAt = (
+/** Split a closes_at value into date and time parts for form submission */
+const splitClosesAt = (
   update: string | undefined,
   existing: string | null,
-): string =>
-  update !== undefined ? update : (existing?.slice(0, 16) ?? "");
+): { date: string; time: string } => {
+  const value = update !== undefined ? update : (existing?.slice(0, 16) ?? "");
+  if (!value) return { date: "", time: "" };
+  const [date = "", time = ""] = value.split("T");
+  return { date, time };
+};
 
 /**
  * Update an event via the REST API
@@ -694,12 +704,16 @@ export const updateTestEvent = async (
     throw new Error(`Event not found: ${eventId}`);
   }
 
+  const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
+  const dateParts = splitClosesAt(updates.date, existing.date);
+
   return authenticatedFormRequest(
     `/admin/event/${eventId}/edit`,
     {
       name: updates.name ?? existing.name,
       description: updates.description ?? existing.description,
-      date: updates.date !== undefined ? updates.date : existing.date.slice(0, 16),
+      date_date: dateParts.date,
+      date_time: dateParts.time,
       location: updates.location ?? existing.location,
       slug: updates.slug ?? existing.slug,
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
@@ -708,7 +722,8 @@ export const updateTestEvent = async (
       thank_you_url: formatOptional(updates.thankYouUrl, existing.thank_you_url),
       unit_price: formatPrice(updates.unitPrice, existing.unit_price),
       webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
-      closes_at: formatClosesAt(updates.closesAt, existing.closes_at),
+      closes_at_date: closesAtParts.date,
+      closes_at_time: closesAtParts.time,
       event_type: updates.eventType ?? existing.event_type,
       bookable_days: updates.bookableDays
         ? formatBookableDaysForForm(updates.bookableDays)

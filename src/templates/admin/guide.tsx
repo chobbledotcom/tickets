@@ -82,6 +82,12 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             form, fill in their details once, and book all selected events in
             one go. If any are paid, they complete one checkout for the total.
           </p>
+          <p>
+            To generate the link, open the <strong>Multi-booking link</strong>{" "}
+            section on the <strong>Events</strong> page and tick the events you
+            want to combine. The link updates as you select, and events appear
+            in the order you tick them.
+          </p>
         </Q>
 
         <Q q="What does 'max tickets per purchase' do?">
@@ -128,6 +134,15 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             URL" field. After a successful booking or payment, attendees are
             redirected to that address instead of seeing the default confirmation
             page. The URL must use HTTPS.
+          </p>
+        </Q>
+
+        <Q q="How do I add terms and conditions?">
+          <p>
+            In <strong>Settings</strong>, enter your terms in the "Terms and
+            Conditions" box. When set, attendees must tick an agreement checkbox
+            before they can reserve tickets. Clear the box to remove the
+            requirement.
           </p>
         </Q>
       </Section>

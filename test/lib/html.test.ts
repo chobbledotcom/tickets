@@ -68,14 +68,14 @@ describe("html", () => {
 
   describe("adminDashboardPage", () => {
     test("renders empty state when no events", () => {
-      const html = adminDashboardPage([], TEST_SESSION);
+      const html = adminDashboardPage([], TEST_SESSION, "localhost");
       expect(html).toContain("Events");
       expect(html).toContain("No events yet");
     });
 
     test("renders events table", () => {
       const events = [testEventWithCount({ attendee_count: 25 })];
-      const html = adminDashboardPage(events, TEST_SESSION);
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
       expect(html).toContain("Test Event");
       expect(html).toContain("25 / 100");
       expect(html).toContain("/admin/event/1");
@@ -85,13 +85,13 @@ describe("html", () => {
       const events = [
         testEventWithCount({ name: "My Test Event" }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION);
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
       expect(html).toContain("My Test Event");
       expect(html).toContain("Event Name");
     });
 
     test("renders create event form", () => {
-      const html = adminDashboardPage([], TEST_SESSION);
+      const html = adminDashboardPage([], TEST_SESSION, "localhost");
       expect(html).toContain("Create New Event");
       expect(html).toContain('name="name"');
       expect(html).toContain('name="max_attendees"');
@@ -99,7 +99,7 @@ describe("html", () => {
     });
 
     test("includes logout link", () => {
-      const html = adminDashboardPage([], TEST_SESSION);
+      const html = adminDashboardPage([], TEST_SESSION, "localhost");
       expect(html).toContain("/admin/logout");
     });
   });
@@ -445,7 +445,7 @@ describe("html", () => {
 
   describe("adminDashboardPage unit_price field", () => {
     test("renders unit_price input field", () => {
-      const html = adminDashboardPage([], TEST_SESSION);
+      const html = adminDashboardPage([], TEST_SESSION, "localhost");
       expect(html).toContain('name="unit_price"');
       expect(html).toContain("Ticket Price");
     });
@@ -755,9 +755,87 @@ describe("html", () => {
   describe("adminDashboardPage inactive events", () => {
     test("renders inactive event with reduced opacity", () => {
       const events = [testEventWithCount({ active: 0, attendee_count: 5 })];
-      const html = adminDashboardPage(events, TEST_SESSION);
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
       expect(html).toContain("opacity: 0.5");
       expect(html).toContain("Inactive");
+    });
+  });
+
+  describe("adminDashboardPage multi-booking link", () => {
+    test("does not show multi-booking section with zero events", () => {
+      const html = adminDashboardPage([], TEST_SESSION, "localhost");
+      expect(html).not.toContain("Multi-booking link");
+    });
+
+    test("does not show multi-booking section with one active event", () => {
+      const events = [testEventWithCount({ id: 1, slug: "ab12c" })];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      expect(html).not.toContain("Multi-booking link");
+    });
+
+    test("shows multi-booking section with two active events", () => {
+      const events = [
+        testEventWithCount({ id: 1, slug: "ab12c", name: "Event A" }),
+        testEventWithCount({ id: 2, slug: "cd34e", name: "Event B" }),
+      ];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      expect(html).toContain("Multi-booking link");
+      expect(html).toContain("Event A");
+      expect(html).toContain("Event B");
+    });
+
+    test("does not count inactive events toward threshold", () => {
+      const events = [
+        testEventWithCount({ id: 1, slug: "ab12c", active: 1 }),
+        testEventWithCount({ id: 2, slug: "cd34e", active: 0 }),
+      ];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      expect(html).not.toContain("Multi-booking link");
+    });
+
+    test("excludes inactive events from checkboxes", () => {
+      const events = [
+        testEventWithCount({ id: 1, slug: "ab12c", name: "Active One", active: 1 }),
+        testEventWithCount({ id: 2, slug: "cd34e", name: "Inactive", active: 0 }),
+        testEventWithCount({ id: 3, slug: "ef56g", name: "Active Two", active: 1 }),
+      ];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      expect(html).toContain("Active One");
+      expect(html).toContain("Active Two");
+      expect(html).not.toContain('data-multi-booking-slug="cd34e"');
+    });
+
+    test("renders checkboxes with slug data attributes", () => {
+      const events = [
+        testEventWithCount({ id: 1, slug: "ab12c" }),
+        testEventWithCount({ id: 2, slug: "cd34e" }),
+      ];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      expect(html).toContain('data-multi-booking-slug="ab12c"');
+      expect(html).toContain('data-multi-booking-slug="cd34e"');
+    });
+
+    test("renders URL input with domain data attribute", () => {
+      const events = [
+        testEventWithCount({ id: 1, slug: "ab12c" }),
+        testEventWithCount({ id: 2, slug: "cd34e" }),
+      ];
+      const html = adminDashboardPage(events, TEST_SESSION, "example.com");
+      expect(html).toContain('data-domain="example.com"');
+      expect(html).toContain("data-multi-booking-url");
+      expect(html).toContain("readonly");
+      expect(html).toContain('for="multi-booking-url"');
+      expect(html).toContain('id="multi-booking-url"');
+    });
+
+    test("is collapsed by default via details element", () => {
+      const events = [
+        testEventWithCount({ id: 1, slug: "ab12c" }),
+        testEventWithCount({ id: 2, slug: "cd34e" }),
+      ];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      expect(html).toContain("<details>");
+      expect(html).toContain("<summary>");
     });
   });
 
@@ -1140,7 +1218,7 @@ describe("html", () => {
 
   describe("admin nav Calendar link", () => {
     test("admin dashboard includes Calendar link in nav", () => {
-      const html = adminDashboardPage([], TEST_SESSION);
+      const html = adminDashboardPage([], TEST_SESSION, "localhost");
       expect(html).toContain('href="/admin/calendar"');
       expect(html).toContain("Calendar");
     });
@@ -1189,17 +1267,17 @@ describe("html", () => {
     test("empty date shows no pre-filled value in edit form", () => {
       const event = testEventWithCount({ date: "", attendee_count: 0 });
       const html = adminEventEditPage(event, TEST_SESSION);
-      // The date field should exist with type datetime-local
-      expect(html).toContain('type="datetime-local"');
-      // No pre-filled value for the date field when empty
-      expect(html).toContain('name="date"');
+      // The date field should render split date and time inputs
+      expect(html).toContain('name="date_date"');
+      expect(html).toContain('name="date_time"');
     });
 
-    test("non-empty date shows formatted datetime-local value in edit form", () => {
+    test("non-empty date shows formatted split values in edit form", () => {
       const event = testEventWithCount({ date: "2026-06-15T14:00:00.000Z", attendee_count: 0 });
       const html = adminEventEditPage(event, TEST_SESSION);
-      // Should contain the formatted datetime-local value (first 16 chars of ISO)
-      expect(html).toContain('value="2026-06-15T14:00"');
+      // Should contain split date and time values (first 16 chars of ISO split on T)
+      expect(html).toContain('value="2026-06-15"');
+      expect(html).toContain('value="14:00"');
     });
 
     test("pre-fills location in edit form", () => {
@@ -1255,7 +1333,7 @@ describe("html", () => {
   describe("datetime validation via eventFields date field", () => {
     const dateField = eventFields.find((f) => f.name === "date")!;
 
-    test("accepts valid datetime-local value", () => {
+    test("accepts valid datetime value", () => {
       const result = dateField.validate!("2026-06-15T14:00");
       expect(result).toBeNull();
     });

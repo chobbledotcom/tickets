@@ -673,6 +673,77 @@ describe("forms", () => {
     });
   });
 
+  describe("renderField datetime type", () => {
+    test("renders split date and time inputs", () => {
+      const html = rendered({ name: "closes_at", label: "Closes At", type: "datetime" });
+      expect(html).toContain('type="date"');
+      expect(html).toContain('name="closes_at_date"');
+      expect(html).toContain('type="time"');
+      expect(html).toContain('name="closes_at_time"');
+    });
+
+    test("renders split inputs with value", () => {
+      const html = rendered({ name: "closes_at", label: "Closes At", type: "datetime" }, "2099-06-15T14:30");
+      expect(html).toContain('value="2099-06-15"');
+      expect(html).toContain('value="14:30"');
+    });
+
+    test("renders split inputs without value", () => {
+      const html = rendered({ name: "closes_at", label: "Closes At", type: "datetime" }, "");
+      expect(html).not.toContain("value=");
+    });
+  });
+
+  describe("validateForm datetime type", () => {
+    const datetimeField: Field[] = [
+      field({ name: "closes_at", label: "Closes At", type: "datetime" }),
+    ];
+
+    test("combines date and time into datetime string", () => {
+      const result = validateForm(
+        new URLSearchParams({ closes_at_date: "2099-06-15", closes_at_time: "14:30" }),
+        datetimeField,
+      );
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.values.closes_at).toBe("2099-06-15T14:30");
+      }
+    });
+
+    test("returns null when both date and time are empty", () => {
+      const result = validateForm(
+        new URLSearchParams({ closes_at_date: "", closes_at_time: "" }),
+        datetimeField,
+      );
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.values.closes_at).toBeNull();
+      }
+    });
+
+    test("rejects when only date is provided", () => {
+      const result = validateForm(
+        new URLSearchParams({ closes_at_date: "2099-06-15", closes_at_time: "" }),
+        datetimeField,
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Please enter both a date and time, or leave both blank");
+      }
+    });
+
+    test("rejects when only time is provided", () => {
+      const result = validateForm(
+        new URLSearchParams({ closes_at_date: "", closes_at_time: "14:30" }),
+        datetimeField,
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Please enter both a date and time, or leave both blank");
+      }
+    });
+  });
+
   describe("renderField checkbox-group type", () => {
     test("renders checkbox group with options", () => {
       const html = rendered({
