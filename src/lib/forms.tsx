@@ -77,9 +77,6 @@ const renderCheckboxGroup = (
     )
     .join("")}</fieldset>`;
 
-/**
- * Render a single form field
- */
 /** Render split date and time inputs for a datetime field */
 const renderDatetimeInputs = (
   name: string,
@@ -88,22 +85,25 @@ const renderDatetimeInputs = (
   `<input type="date" name="${escapeHtml(name)}_date"${date ? ` value="${escapeHtml(date)}"` : ""}>`
   + `<input type="time" name="${escapeHtml(name)}_time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
 
-/** Combine date and time form values into a datetime string, or return an error */
+const DATETIME_PARTIAL_ERROR = "Please enter both a date and time, or leave both blank";
+
+/** Combine date and time form values into a datetime string, or null on partial fill */
 const getDatetimeValue = (
   form: URLSearchParams,
   name: string,
-): string | { error: string } => {
+): string | null => {
   const date = (form.get(`${name}_date`) || "").trim();
   const time = (form.get(`${name}_time`) || "").trim();
   if (date && time) return `${date}T${time}`;
   if (!date && !time) return "";
-  return { error: "Please enter both a date and time, or leave both blank" };
+  return null;
 };
 
 /** Split a datetime value (YYYY-MM-DDTHH:MM) into date and time parts */
 const splitDatetime = (value: string): { date: string; time: string } => {
   if (!value) return { date: "", time: "" };
-  return { date: value.slice(0, 10), time: value.slice(11, 16) };
+  const [date = "", time = ""] = value.split("T");
+  return { date, time };
 };
 
 export const renderField = (field: Field, value: string = ""): string =>
@@ -189,7 +189,7 @@ const validateSingleField = (
 
   if (field.type === "datetime") {
     const result = getDatetimeValue(form, field.name);
-    if (typeof result === "object") return { valid: false, error: result.error };
+    if (result === null) return { valid: false, error: DATETIME_PARTIAL_ERROR };
     trimmed = result;
   } else if (field.type === "checkbox-group") {
     trimmed = form.getAll(field.name).map((v) => v.trim()).filter((v) => v).join(",");

@@ -683,7 +683,8 @@ const splitClosesAt = (
 ): { date: string; time: string } => {
   const value = update !== undefined ? update : (existing?.slice(0, 16) ?? "");
   if (!value) return { date: "", time: "" };
-  return { date: value.slice(0, 10), time: value.slice(11, 16) };
+  const [date = "", time = ""] = value.split("T");
+  return { date, time };
 };
 
 /**
