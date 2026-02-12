@@ -25,23 +25,30 @@ import { adminScannerPage } from "#templates/admin/scanner.tsx";
 /** Handle GET /admin/event/:id/scanner - render scanner page */
 const handleScannerGet = withEventPage(adminScannerPage);
 
-/** Look up attendee by token, decrypt, and resolve event */
+/** Look up attendee by token and decrypt */
 const resolveTokenAttendee = async (
   token: string,
   privateKey: CryptoKey,
-): Promise<{ attendee: Attendee; eventName: string } | null> => {
+): Promise<Attendee | null> => {
   const attendees = await getAttendeesByTokens([token]);
   const raw = attendees[0];
   if (!raw) return null;
 
-  const [decrypted] = await decryptAttendees([raw], privateKey);
-  if (!decrypted) return null;
-
-  const event = await getEventWithCount(decrypted.event_id);
-  return { attendee: decrypted, eventName: event?.name ?? "Unknown event" };
+  // decryptAttendees maps 1:1 over input, so index 0 is always present
+  return (await decryptAttendees([raw], privateKey))[0]!;
 };
 
-/** Handle POST /admin/event/:id/scan - JSON check-in API */
+/** Get event name by ID (for cross-event responses) */
+const getEventName = async (eventId: number): Promise<string> => {
+  const event = await getEventWithCount(eventId);
+  return event?.name ?? "Unknown event";
+};
+
+/**
+ * Handle POST /admin/event/:id/scan - JSON check-in API.
+ * Scanner is intentionally one-way (check-in only, no check-out) to prevent
+ * accidental check-outs from double-scans during rapid door check-in.
+ */
 const handleScanPost = (request: Request, eventId: number): Promise<Response> =>
   withAuthJson(request, async (session, body) => {
     if (typeof body.token !== "string") {
@@ -57,20 +64,18 @@ const handleScanPost = (request: Request, eventId: number): Promise<Response> =>
       return jsonResponse({ status: "error", message: "Decryption unavailable" }, 500);
     }
 
-    const resolved = await resolveTokenAttendee(token, privateKey);
-    if (!resolved) {
-      return jsonResponse({ status: "not_found" });
+    const attendee = await resolveTokenAttendee(token, privateKey);
+    if (!attendee) {
+      return jsonResponse({ status: "not_found" }, 404);
     }
-
-    const { attendee, eventName } = resolved;
 
     // Wrong event - let client prompt for confirmation
     if (attendee.event_id !== eventId && !force) {
+      const eventName = await getEventName(attendee.event_id);
       return jsonResponse({
         status: "wrong_event",
         name: attendee.name,
         eventName,
-        attendeeEventId: attendee.event_id,
       });
     }
 
@@ -79,7 +84,6 @@ const handleScanPost = (request: Request, eventId: number): Promise<Response> =>
       return jsonResponse({
         status: "already_checked_in",
         name: attendee.name,
-        eventName,
       });
     }
 
@@ -90,9 +94,11 @@ const handleScanPost = (request: Request, eventId: number): Promise<Response> =>
     return jsonResponse({
       status: "checked_in",
       name: attendee.name,
-      eventName,
     });
   });
+
+/** Pattern matching scan API paths (used by middleware for content-type validation) */
+export const SCAN_API_PATTERN = /^\/admin\/event\/\d+\/scan$/;
 
 /** Parse event ID from route params */
 const parseEventId = (params: { id?: string }): number =>

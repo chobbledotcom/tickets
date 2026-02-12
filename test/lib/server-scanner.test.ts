@@ -233,6 +233,42 @@ describe("QR Scanner", () => {
       expect(result.name).toBe("Dave");
     });
 
+    test("returns Unknown event when attendee's event is deleted", async () => {
+      const { handleRequest } = await import("#routes");
+      const { getDb } = await import("#lib/db/client.ts");
+      const eventA = await createTestEvent({ maxAttendees: 10 });
+      const eventB = await createTestEvent({ maxAttendees: 10 });
+      await createTestAttendee(eventA.id, eventA.slug, "Frank", "frank@test.com");
+      const attendees = await getAttendeesRaw(eventA.id);
+      const token = attendees[0]!.ticket_token;
+
+      const session = await loginAsAdmin();
+
+      // Point attendee at a non-existent event to simulate orphan
+      await getDb().execute({
+        sql: "PRAGMA foreign_keys = OFF",
+        args: [],
+      });
+      await getDb().execute({
+        sql: "UPDATE attendees SET event_id = 99999 WHERE ticket_token = ?",
+        args: [token],
+      });
+      await getDb().execute({
+        sql: "PRAGMA foreign_keys = ON",
+        args: [],
+      });
+
+      // Scan from event B - attendee's event_id still points to deleted event A
+      const response = await handleRequest(
+        mockScanRequest(eventB.id, { token }, session.cookie, session.csrfToken),
+      );
+
+      expect(response.status).toBe(200);
+      const result = await response.json();
+      expect(result.status).toBe("wrong_event");
+      expect(result.eventName).toBe("Unknown event");
+    });
+
     test("returns not_found for invalid token", async () => {
       const { handleRequest } = await import("#routes");
       const event = await createTestEvent({ maxAttendees: 10 });
@@ -242,7 +278,7 @@ describe("QR Scanner", () => {
         mockScanRequest(event.id, { token: "nonexistent-token" }, session.cookie, session.csrfToken),
       );
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(404);
       const result = await response.json();
       expect(result.status).toBe("not_found");
     });
@@ -289,6 +325,73 @@ describe("QR Scanner", () => {
       expect(response.status).toBe(400);
     });
 
+    test("returns 403 when x-csrf-token header is absent", async () => {
+      const { handleRequest } = await import("#routes");
+      const event = await createTestEvent({ maxAttendees: 10 });
+
+      const session = await loginAsAdmin();
+      const response = await handleRequest(
+        new Request(`http://localhost/admin/event/${event.id}/scan`, {
+          method: "POST",
+          headers: {
+            host: "localhost",
+            "content-type": "application/json",
+            cookie: session.cookie,
+          },
+          body: JSON.stringify({ token: "test" }),
+        }),
+      );
+
+      expect(response.status).toBe(403);
+    });
+
+    test("returns 400 for malformed JSON body", async () => {
+      const { handleRequest } = await import("#routes");
+      const event = await createTestEvent({ maxAttendees: 10 });
+
+      const session = await loginAsAdmin();
+      const response = await handleRequest(
+        new Request(`http://localhost/admin/event/${event.id}/scan`, {
+          method: "POST",
+          headers: {
+            host: "localhost",
+            "content-type": "application/json",
+            "x-csrf-token": session.csrfToken,
+            cookie: session.cookie,
+          },
+          body: "not valid json{{{",
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      const result = await response.json();
+      expect(result.message).toBe("Invalid request body");
+    });
+
+    test("returns 500 when private key is unavailable", async () => {
+      const { handleRequest } = await import("#routes");
+      const { getDb } = await import("#lib/db/client.ts");
+      const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
+      const event = await createTestEvent({ maxAttendees: 10 });
+
+      const session = await loginAsAdmin();
+
+      // Remove wrapped_private_key from settings to make key derivation fail
+      await getDb().execute({
+        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+        args: [],
+      });
+      invalidateSettingsCache();
+
+      const response = await handleRequest(
+        mockScanRequest(event.id, { token: "some-token" }, session.cookie, session.csrfToken),
+      );
+
+      expect(response.status).toBe(500);
+      const result = await response.json();
+      expect(result.message).toBe("Decryption unavailable");
+    });
+
     test("logs activity when checking in via scanner", async () => {
       const { handleRequest } = await import("#routes");
       const event = await createTestEvent({ maxAttendees: 10 });
@@ -312,7 +415,7 @@ describe("QR Scanner", () => {
   });
 
   describe("scanner template", () => {
-    test("contains CSRF token in data attribute", async () => {
+    test("contains CSRF token in meta tag", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const session = await loginAsAdmin();
 
@@ -322,7 +425,7 @@ describe("QR Scanner", () => {
       );
 
       const body = await response.text();
-      expect(body).toContain("data-csrf-token=");
+      expect(body).toContain('name="csrf-token"');
     });
 
     test("contains back link to event page", async () => {
@@ -340,6 +443,15 @@ describe("QR Scanner", () => {
     });
   });
 
+  describe("GET /scanner.js", () => {
+    test("serves scanner JavaScript bundle", async () => {
+      const response = await awaitTestRequest("/scanner.js");
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("application/javascript");
+    });
+  });
+
   describe("event page scanner link", () => {
     test("event admin page has scanner link", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
@@ -353,6 +465,41 @@ describe("QR Scanner", () => {
       const body = await response.text();
       expect(body).toContain(`/admin/event/${event.id}/scanner`);
       expect(body).toContain("Scanner");
+    });
+  });
+
+  describe("GET /admin/guide", () => {
+    test("renders guide page when authenticated", async () => {
+      const session = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/guide", {
+        cookie: session.cookie,
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(body).toContain("Guide");
+      expect(body).toContain("QR Scanner");
+      expect(body).toContain("How do I use the QR scanner?");
+      expect(body).toContain("scanner check people out");
+    });
+
+    test("redirects to /admin when not authenticated", async () => {
+      const response = await awaitTestRequest("/admin/guide");
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+    });
+
+    test("nav contains guide link", async () => {
+      const session = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/guide", {
+        cookie: session.cookie,
+      });
+
+      const body = await response.text();
+      expect(body).toContain('/admin/guide">Guide</a>');
     });
   });
 });

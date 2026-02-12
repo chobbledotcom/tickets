@@ -17,7 +17,7 @@ export const adminScannerPage = (
   String(
     <Layout
       title={`Scanner: ${event.name}`}
-      headExtra={`<script src="${SCANNER_JS_PATH}" defer></script>`}
+      headExtra={`<meta name="csrf-token" content="${session.csrfToken}" /><script src="${SCANNER_JS_PATH}" defer></script>`}
     >
       <AdminNav session={session} />
       <h1>Scanner</h1>
@@ -29,7 +29,6 @@ export const adminScannerPage = (
         <video
           id="scanner-video"
           data-event-id={String(event.id)}
-          data-csrf-token={session.csrfToken}
           playsinline
           muted
           style="display:none; width:100%; max-width:500px; border-radius:4px"

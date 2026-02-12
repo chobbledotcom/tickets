@@ -25,8 +25,8 @@ const adminRoutes = {
   ...eventsRoutes,
   ...attendeesRoutes,
   ...usersRoutes,
-  ...holidaysRoutes,
   ...guideRoutes,
+  ...holidaysRoutes,
   ...scannerRoutes,
 };
 

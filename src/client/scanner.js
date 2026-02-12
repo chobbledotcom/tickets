@@ -1,4 +1,4 @@
-// Browser-only code - bundled with jsQR by scripts/build-scanner.ts
+// Browser-only code - bundled with jsQR by scripts/build-edge.ts
 import jsQR from "jsqr";
 
 const COOLDOWN_MS = 2000;
@@ -69,9 +69,6 @@ const handleResult = (el, result) => {
       break;
     case "error":
       showStatus(el, result.message, "error");
-      break;
-    case "wrong_event":
-      showStatus(el, `${result.name} is for a different event`, "warning");
       break;
   }
 };
@@ -154,7 +151,19 @@ const init = () => {
   if (!video || !canvas || !statusEl || !startBtn) return;
 
   const eventId = video.dataset.eventId;
-  const csrfToken = video.dataset.csrfToken;
+  const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  const csrfToken = csrfMeta ? csrfMeta.content : "";
+
+  /** Stop all camera tracks to release the hardware */
+  const stopCamera = () => {
+    const stream = video.srcObject;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+    }
+  };
+
+  // Release camera when navigating away (including bfcache)
+  document.addEventListener("pagehide", stopCamera);
 
   startBtn.addEventListener("click", async () => {
     try {

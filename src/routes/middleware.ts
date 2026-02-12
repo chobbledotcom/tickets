@@ -5,6 +5,7 @@
 import { compact } from "#fp";
 import { getAllowedDomain, getEmbedHosts } from "#lib/config.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
+import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
 
 /**
  * Security headers for all responses
@@ -77,10 +78,11 @@ export const isWebhookPath = (path: string): boolean =>
   path === "/payment/webhook";
 
 /**
- * Check if path is a JSON API endpoint (admin scanner)
+ * Check if path is a JSON API endpoint.
+ * Patterns are exported from their respective route modules.
  */
 export const isJsonApiPath = (path: string): boolean =>
-  /^\/admin\/event\/\d+\/scan$/.test(path);
+  SCAN_API_PATTERN.test(path);
 
 /**
  * Validate Content-Type for POST requests
