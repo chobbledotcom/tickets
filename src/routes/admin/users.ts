@@ -18,7 +18,7 @@ import {
 import { validateForm } from "#lib/forms.tsx";
 import { getAllowedDomain } from "#lib/config.ts";
 import { nowMs } from "#lib/now.ts";
-import { defineRoutes, type RouteParams } from "#routes/router.ts";
+import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
 import {
   type AuthSession,
   generateSecureToken,
@@ -158,9 +158,8 @@ const withUserAction = (
   });
 
 /** Route handler that delegates to withUserAction with parsed ID */
-const userActionRoute = (handler: UserActionHandler) =>
-  (request: Request, params: RouteParams): Promise<Response> =>
-    withUserAction(request, Number(params.id), handler);
+const userActionRoute = (handler: UserActionHandler): RouteHandlerFn =>
+  (request, params) => withUserAction(request, params.id as number, handler);
 
 /**
  * Handle POST /admin/users/:id/activate
