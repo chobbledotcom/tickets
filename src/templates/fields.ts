@@ -224,14 +224,6 @@ const validateDatetimeLocal = (value: string): string | null => {
 };
 
 /**
- * Validate closes_at is a valid date if provided.
- */
-const validateClosesAt = (value: string): string | null => validateDatetimeLocal(value);
-
-/** Validate event date is a valid UTC datetime if provided */
-const validateEventDate = (value: string): string | null => validateDatetimeLocal(value);
-
-/**
  * Event form field definitions (shared between create and edit)
  */
 export const eventFields: Field[] = [
@@ -256,7 +248,7 @@ export const eventFields: Field[] = [
     label: "Event Date (optional)",
     type: "datetime-local",
     hint: "When the event takes place. Times are in UTC.",
-    validate: validateEventDate,
+    validate: validateDatetimeLocal,
   },
   {
     name: "location",
@@ -339,7 +331,7 @@ export const eventFields: Field[] = [
     label: "Registration Closes At (optional)",
     type: "datetime-local",
     hint: "Leave blank for no deadline. Times are in UTC.",
-    validate: validateClosesAt,
+    validate: validateDatetimeLocal,
   },
   {
     name: "thank_you_url",

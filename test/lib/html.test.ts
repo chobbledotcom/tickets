@@ -1171,7 +1171,7 @@ describe("html", () => {
   });
 
   describe("adminEventPage edit form pre-fills date and location", () => {
-    test("formatEventDate returns null for empty date (edit form shows no value)", () => {
+    test("empty date shows no pre-filled value in edit form", () => {
       const event = testEventWithCount({ date: "", attendee_count: 0 });
       const html = adminEventEditPage(event, TEST_SESSION);
       // The date field should exist with type datetime-local
@@ -1180,7 +1180,7 @@ describe("html", () => {
       expect(html).toContain('name="date"');
     });
 
-    test("formatEventDate returns datetime-local string for non-empty date", () => {
+    test("non-empty date shows formatted datetime-local value in edit form", () => {
       const event = testEventWithCount({ date: "2026-06-15T14:00:00.000Z", attendee_count: 0 });
       const html = adminEventEditPage(event, TEST_SESSION);
       // Should contain the formatted datetime-local value (first 16 chars of ISO)
@@ -1237,7 +1237,7 @@ describe("html", () => {
     });
   });
 
-  describe("validateEventDate via eventFields", () => {
+  describe("datetime validation via eventFields date field", () => {
     const dateField = eventFields.find((f) => f.name === "date")!;
 
     test("accepts valid datetime-local value", () => {

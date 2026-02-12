@@ -333,13 +333,6 @@ const formatDatetimeLocal = (iso: string | null): string | null => {
   return iso.slice(0, 16);
 };
 
-/** Format closes_at ISO string for datetime-local input */
-const formatClosesAt = (iso: string | null): string | null => formatDatetimeLocal(iso);
-
-/** Format event date ISO string for datetime-local input (empty → null) */
-const formatEventDate = (date: string): string | null =>
-  date ? formatDatetimeLocal(date) : null;
-
 /** Convert bookable_days JSON array to comma-separated display string */
 const formatBookableDays = (json: string): string =>
   (JSON.parse(json) as string[]).join(",");
@@ -347,7 +340,7 @@ const formatBookableDays = (json: string): string =>
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,
   description: event.description,
-  date: formatEventDate(event.date),
+  date: event.date ? formatDatetimeLocal(event.date) : null,
   location: event.location,
   slug: event.slug,
   event_type: event.event_type,
@@ -358,7 +351,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   maximum_days_after: event.maximum_days_after,
   fields: event.fields,
   unit_price: event.unit_price,
-  closes_at: formatClosesAt(event.closes_at),
+  closes_at: formatDatetimeLocal(event.closes_at),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
 });

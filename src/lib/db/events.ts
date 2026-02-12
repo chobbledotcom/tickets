@@ -39,35 +39,32 @@ export type EventInput = {
 export const computeSlugIndex = (slug: string): Promise<string> =>
   hmacHash(slug);
 
-/** Normalize and encrypt a nullable datetime-local value for DB storage (empty → null) */
-const writeNullableDatetime = (label: string) => async (v: string | null): Promise<string | null> => {
-  const str = (v as string) ?? "";
-  if (str === "") return await encrypt("") as unknown as string;
-  return await encrypt(normalizeDatetime(str, label)) as unknown as string;
-};
-
-/** Decrypt a nullable datetime value from DB storage, returning null for empty */
-const readNullableDatetime = async (v: string | null): Promise<string | null> => {
-  const str = await decrypt(v as string);
-  if (str === "") return null;
-  return new Date(str).toISOString();
-};
-
-/** Normalize and encrypt a closes_at value for DB storage */
-export const writeClosesAt = writeNullableDatetime("closes_at");
-
-/** Normalize and encrypt an event date value for DB storage (empty stays empty) */
-export const writeEventDate = async (v: string): Promise<string> => {
+/** Encrypt a datetime value for DB storage (normalize non-empty, encrypt empty as-is) */
+const encryptDatetime = async (v: string, label: string): Promise<string> => {
   if (v === "") return await encrypt("");
-  return await encrypt(normalizeDatetime(v, "date"));
+  return await encrypt(normalizeDatetime(v, label));
 };
 
-/** Decrypt an event date value from DB storage (empty stays empty) */
-const readEventDate = async (v: string): Promise<string> => {
+/** Decrypt an encrypted datetime from DB storage (empty → empty, otherwise → ISO) */
+const decryptDatetime = async (v: string): Promise<string> => {
   const str = await decrypt(v);
   if (str === "") return "";
   return new Date(str).toISOString();
 };
+
+/** Encrypt closes_at for DB storage (null/empty → encrypted empty) */
+export const writeClosesAt = (v: string | null): Promise<string | null> =>
+  encryptDatetime((v as string) ?? "", "closes_at") as Promise<string | null>;
+
+/** Decrypt closes_at from DB storage (encrypted empty → null) */
+const readClosesAt = async (v: string | null): Promise<string | null> => {
+  const result = await decryptDatetime(v as string);
+  return result || null;
+};
+
+/** Encrypt event date for DB storage */
+export const writeEventDate = (v: string): Promise<string> =>
+  encryptDatetime(v, "date");
 
 /**
  * Events table definition
@@ -80,7 +77,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     id: col.generated<number>(),
     name: col.encrypted<string>(encrypt, decrypt),
     description: { default: () => "", write: encrypt, read: decrypt },
-    date: { default: () => "", write: writeEventDate, read: readEventDate },
+    date: { default: () => "", write: writeEventDate, read: decryptDatetime },
     location: { default: () => "", write: encrypt, read: decrypt },
     slug: col.encrypted<string>(encrypt, decrypt),
     slug_index: col.simple<string>(),
@@ -92,7 +89,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     webhook_url: col.encryptedNullable<string>(encrypt, decrypt),
     active: col.withDefault(() => 1),
     fields: col.withDefault<EventFields>(() => "email"),
-    closes_at: col.transform<string | null>(writeClosesAt, readNullableDatetime),
+    closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
     event_type: col.withDefault<EventType>(() => "standard"),
     bookable_days: col.withDefault(() => DEFAULT_BOOKABLE_DAYS),
     minimum_days_before: col.withDefault(() => 1),
