@@ -794,6 +794,20 @@ describe("forms", () => {
       }
     });
 
+    test("rejects empty required datetime", () => {
+      const requiredDatetime: Field[] = [
+        field({ name: "closes_at", label: "Closes At", type: "datetime", required: true }),
+      ];
+      const result = validateForm(
+        new URLSearchParams({ closes_at_date: "", closes_at_time: "" }),
+        requiredDatetime,
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Closes At is required");
+      }
+    });
+
     test("rejects when only date is provided", () => {
       const result = validateForm(
         new URLSearchParams({ closes_at_date: "2099-06-15", closes_at_time: "" }),

@@ -82,6 +82,12 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             form, fill in their details once, and book all selected events in
             one go. If any are paid, they complete one checkout for the total.
           </p>
+          <p>
+            To generate the link, open the <strong>Multi-booking link</strong>{" "}
+            section on the <strong>Events</strong> page and tick the events you
+            want to combine. The link updates as you select, and events appear
+            in the order you tick them.
+          </p>
         </Q>
 
         <Q q="What does 'max tickets per purchase' do?">
@@ -118,6 +124,15 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             URL" field. After a successful booking or payment, attendees are
             redirected to that address instead of seeing the default confirmation
             page. The URL must use HTTPS.
+          </p>
+        </Q>
+
+        <Q q="How do I add terms and conditions?">
+          <p>
+            In <strong>Settings</strong>, enter your terms in the "Terms and
+            Conditions" box. When set, attendees must tick an agreement checkbox
+            before they can reserve tickets. Clear the box to remove the
+            requirement.
           </p>
         </Q>
       </Section>
@@ -159,9 +174,88 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How do refunds work?">
           <p>
-            Automatic refunds happen only when the event sells out during
-            payment. For all other refunds, use your payment provider's
-            dashboard (Stripe or Square) directly.
+            See the <strong>Refunds</strong> section below for full details on
+            automatic refunds, admin-issued refunds, and bulk refunds.
+          </p>
+        </Q>
+      </Section>
+
+      <Section title="Refunds">
+        <Q q="When do automatic refunds happen?">
+          <p>
+            Automatic refunds only happen in one scenario: when an event sells
+            out while someone is completing payment. Their place is held for 5
+            minutes during checkout, but if another buyer fills the last spot
+            first, the slower payer is automatically refunded and shown a message
+            explaining the event is full. In multi-event bookings, if any single
+            event fails (e.g. one of the combined events is full), the entire
+            payment is refunded &mdash; not just the portion for the sold-out
+            event.
+          </p>
+        </Q>
+
+        <Q q="How do I refund an individual attendee?">
+          <p>
+            Open the event's attendee list, find the attendee, and click{" "}
+            <strong>Refund</strong>. You'll see a confirmation page showing
+            their name, email, quantity, and the amount paid. Type the
+            attendee's name to confirm and submit. The refund is issued through
+            your payment provider (Stripe or Square) and is always a full
+            refund.
+          </p>
+        </Q>
+
+        <Q q="How do I refund all attendees for an event?">
+          <p>
+            On the event page, click <strong>Refund All</strong> in the
+            navigation bar. Type the event name to confirm. Each attendee with a
+            recorded payment is refunded one by one. If some refunds fail (e.g.
+            a payment was already refunded via the provider dashboard), you'll
+            see a summary of how many succeeded and how many failed.
+          </p>
+        </Q>
+
+        <Q q="Are partial refunds supported?">
+          <p>
+            No. The system always issues a full refund for the total amount
+            paid. If you need to issue a partial refund, do it directly through
+            your payment provider's dashboard (Stripe or Square).
+          </p>
+        </Q>
+
+        <Q q="What happens to the attendee after a refund?">
+          <p>
+            The attendee <strong>remains registered</strong>. A refund only
+            clears their payment record &mdash; it does not remove them from the
+            event. If you also want to remove them, delete the attendee
+            separately after refunding.
+          </p>
+        </Q>
+
+        <Q q="Can I refund an attendee who booked a free event?">
+          <p>
+            No. The Refund button only appears for attendees who have a recorded
+            payment. Free-event attendees have no payment to refund.
+          </p>
+        </Q>
+
+        <Q q="What if a refund fails?">
+          <p>
+            The most common reason is that the payment was already refunded
+            directly through Stripe or Square. You'll see an error message like
+            "Refund failed. The payment may have already been refunded." If your
+            payment provider is no longer configured, refunds will also fail
+            because there's no provider to process them through.
+          </p>
+        </Q>
+
+        <Q q="Can I refund the same attendee twice?">
+          <p>
+            No. After a successful refund the attendee's payment record is
+            cleared, so the Refund button no longer appears. If you attempt to
+            refund a payment that was already refunded via the provider
+            dashboard, the provider will reject it and you'll see a failure
+            message.
           </p>
         </Q>
       </Section>
@@ -194,7 +288,7 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
-      <Section title="Check-in">
+      <Section title="Check-in &amp; QR Scanner">
         <Q q="How does check-in work?">
           <p>
             Each ticket has a unique QR code. When an attendee arrives, they
@@ -211,6 +305,44 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             the page in a browser. Non-admin visitors see a message to show the
             code to staff. Admin visitors see the attendee's details and a
             check-in button.
+          </p>
+        </Q>
+
+        <Q q="How do I use the QR scanner?">
+          <p>
+            Open an event and click <strong>Scanner</strong>. Tap{" "}
+            <strong>Start Camera</strong> to begin (grants camera permission on
+            first use). Point the camera at an attendee's QR code and check-in
+            happens automatically. A 2-second cooldown prevents duplicate scans.
+            The scanner works best with the rear camera on mobile devices.
+          </p>
+        </Q>
+
+        <Q q="Why doesn't the scanner check people out?">
+          <p>
+            The scanner is intentionally one-way: it only checks people{" "}
+            <strong>in</strong>, never out. This prevents accidental check-outs
+            from double-scans at a busy door. To check someone out, use the
+            manual check-in page instead.
+          </p>
+        </Q>
+
+        <Q q="What if a QR code is for a different event?">
+          <p>
+            If you scan a ticket registered for a different event, you'll be
+            prompted to confirm before checking them in. This lets you handle
+            last-minute event changes without turning anyone away.
+          </p>
+        </Q>
+
+        <Q q="What do the scanner status messages mean?">
+          <p>
+            <strong>Checked in</strong> &mdash; attendee successfully checked
+            in. <strong>Already checked in</strong> &mdash; they were already
+            marked as arrived. <strong>Ticket not found</strong> &mdash; the QR
+            code doesn't match any registration.{" "}
+            <strong>Different event</strong> &mdash; the ticket belongs to
+            another event (you can force check-in if needed).
           </p>
         </Q>
       </Section>

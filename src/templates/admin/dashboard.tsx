@@ -2,7 +2,7 @@
  * Admin dashboard page template
  */
 
-import { map, pipe, reduce } from "#fp";
+import { filter, map, pipe, reduce } from "#fp";
 import { renderFields } from "#lib/forms.tsx";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -26,17 +26,62 @@ const EventRow = ({ e }: { e: EventWithCount }): string => {
   );
 };
 
+/** Checkbox item for multi-booking link builder */
+const MultiBookingCheckbox = ({ e }: { e: EventWithCount }): string =>
+  String(
+    <li>
+      <label>
+        <input type="checkbox" data-multi-booking-slug={e.slug} />
+        {` ${e.name}`}
+      </label>
+    </li>
+  );
+
+/** Multi-booking link builder section (only rendered when 2+ active events) */
+const multiBookingSection = (
+  activeEvents: EventWithCount[],
+  allowedDomain: string,
+): string => {
+  const checkboxes = pipe(
+    map((e: EventWithCount) => MultiBookingCheckbox({ e })),
+    joinStrings,
+  )(activeEvents);
+
+  return String(
+    <details>
+      <summary>Multi-booking link</summary>
+      <p>Select events to generate a combined booking link:</p>
+      <ul class="multi-booking-list">
+        <Raw html={checkboxes} />
+      </ul>
+      <label for="multi-booking-url">Booking link</label>
+      <input
+        type="text"
+        id="multi-booking-url"
+        readonly
+        data-select-on-click
+        data-multi-booking-url
+        data-domain={allowedDomain}
+        placeholder="Select two or more events"
+      />
+    </details>
+  );
+};
+
 /**
  * Admin dashboard page
  */
 export const adminDashboardPage = (
   events: EventWithCount[],
   session: AdminSession,
+  allowedDomain: string,
 ): string => {
   const eventRows =
     events.length > 0
       ? pipe(map((e: EventWithCount) => EventRow({ e })), joinStrings)(events)
       : '<tr><td colspan="5">No events yet</td></tr>';
+
+  const activeEvents = filter((e: EventWithCount) => e.active === 1)(events);
 
   return String(
     <Layout title="Events">
@@ -58,6 +103,10 @@ export const adminDashboardPage = (
           </tbody>
         </table>
       </div>
+
+      {activeEvents.length >= 2 && (
+        <Raw html={multiBookingSection(activeEvents, allowedDomain)} />
+      )}
 
       <br />
 
