@@ -66,7 +66,7 @@ const serializeBookableDays = (value: string): string | undefined =>
 const extractCommonFields = (values: EventFormValues) => ({
   name: values.name,
   description: values.description,
-  date: values.date,
+  date: values.date ?? "",
   location: values.location,
   maxAttendees: values.max_attendees,
   thankYouUrl: values.thank_you_url || null,
