@@ -62,7 +62,7 @@ const optionalFields = (intent: { phone?: string | null; address?: string | null
 
 /**
  * Build intent metadata for a single-event checkout.
- * Common fields: event_id, name, email, quantity, optional phone/date.
+ * Common fields: event_id, name, email, quantity, optional phone/address/date.
  */
 export const buildSingleIntentMetadata = (
   eventId: number,

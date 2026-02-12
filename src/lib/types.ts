@@ -5,6 +5,14 @@
 /** Contact fields setting for an event (comma-separated: "email", "phone", "address") */
 export type EventFields = string;
 
+/** Attendee contact details — the core PII fields collected at registration */
+export type ContactInfo = {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+};
+
 /** Event type: standard (one-time) or daily (date-based booking) */
 export type EventType = "standard" | "daily";
 
@@ -29,13 +37,9 @@ export interface Event {
   maximum_days_after: number;
 }
 
-export interface Attendee {
+export interface Attendee extends ContactInfo {
   id: number;
   event_id: number;
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
   created: string;
   payment_id: string | null;
   quantity: number;

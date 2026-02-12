@@ -123,6 +123,7 @@ describe("payment-helpers", () => {
       const result = buildSingleIntentMetadata(42, {
         name: "Alice",
         email: "alice@example.com",
+        address: "",
         quantity: 3,
       });
       expect(result).toEqual({
@@ -138,6 +139,7 @@ describe("payment-helpers", () => {
         name: "Bob",
         email: "bob@example.com",
         phone: "+1234567890",
+        address: "",
         quantity: 1,
       });
       expect(result.phone).toBe("+1234567890");
@@ -148,6 +150,7 @@ describe("payment-helpers", () => {
         name: "Bob",
         email: "bob@example.com",
         phone: null,
+        address: "",
         quantity: 1,
       });
       expect("phone" in result).toBe(false);
@@ -158,6 +161,7 @@ describe("payment-helpers", () => {
         name: "Bob",
         email: "bob@example.com",
         phone: "",
+        address: "",
         quantity: 1,
       });
       expect("phone" in result).toBe(false);
@@ -167,6 +171,7 @@ describe("payment-helpers", () => {
       const result = buildSingleIntentMetadata(99, {
         name: "X",
         email: "x@x.com",
+        address: "",
         quantity: 10,
       });
       expect(typeof result.event_id).toBe("string");
@@ -177,6 +182,7 @@ describe("payment-helpers", () => {
       const result = buildSingleIntentMetadata(1, {
         name: "Alice",
         email: "alice@example.com",
+        address: "",
         quantity: 1,
         date: "2026-02-10",
       });
@@ -187,6 +193,7 @@ describe("payment-helpers", () => {
       const result = buildSingleIntentMetadata(1, {
         name: "Alice",
         email: "alice@example.com",
+        address: "",
         quantity: 1,
         date: null,
       });
@@ -200,6 +207,7 @@ describe("payment-helpers", () => {
         name: "Alice",
         email: "alice@example.com",
         phone: "",
+        address: "",
         items: [
           { eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt-1", name: "Evt 1" },
           { eventId: 2, quantity: 1, unitPrice: 500, slug: "evt-2", name: "Evt 2" },
@@ -221,6 +229,7 @@ describe("payment-helpers", () => {
         name: "Bob",
         email: "bob@example.com",
         phone: "+1234567890",
+        address: "",
         items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
       const result = buildMultiIntentMetadata(intent);
@@ -232,6 +241,7 @@ describe("payment-helpers", () => {
         name: "Bob",
         email: "bob@example.com",
         phone: "",
+        address: "",
         items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
       const result = buildMultiIntentMetadata(intent);
@@ -243,6 +253,7 @@ describe("payment-helpers", () => {
         name: "Alice",
         email: "alice@example.com",
         phone: "",
+        address: "",
         date: "2026-02-10",
         items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
@@ -255,6 +266,7 @@ describe("payment-helpers", () => {
         name: "Alice",
         email: "alice@example.com",
         phone: "",
+        address: "",
         date: null,
         items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };

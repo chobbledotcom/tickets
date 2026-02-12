@@ -8,7 +8,7 @@
 
 import { getPaymentProvider as getConfiguredProvider } from "#lib/config.ts";
 import { logDebug } from "#lib/logger.ts";
-import type { Event } from "#lib/types.ts";
+import type { ContactInfo, Event } from "#lib/types.ts";
 
 /** Stubbable API for internal calls (testable via spyOn, like stripeApi/squareApi) */
 export const paymentsApi = {
@@ -19,12 +19,8 @@ export const paymentsApi = {
 export type PaymentProviderType = "stripe" | "square";
 
 /** Registration intent for a single event checkout */
-export type RegistrationIntent = {
+export type RegistrationIntent = ContactInfo & {
   eventId: number;
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
   quantity: number;
   date?: string | null;
 };
@@ -39,11 +35,7 @@ export type MultiRegistrationItem = {
 };
 
 /** Registration intent for multi-event checkout */
-export type MultiRegistrationIntent = {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
+export type MultiRegistrationIntent = ContactInfo & {
   date?: string | null;
   items: MultiRegistrationItem[];
 };

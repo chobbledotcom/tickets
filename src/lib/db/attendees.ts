@@ -13,7 +13,7 @@ import { getEventWithCount } from "#lib/db/events.ts";
 import { nowIso } from "#lib/now.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
 import { col, defineTable } from "#lib/db/table.ts";
-import type { Attendee } from "#lib/types.ts";
+import type { Attendee, ContactInfo } from "#lib/types.ts";
 
 /**
  * Minimal attendees table for deleteById operation
@@ -196,14 +196,10 @@ export type CreateAttendeeResult =
   | { success: false; reason: "capacity_exceeded" | "encryption_error" };
 
 /** Input for creating an attendee atomically */
-export type AttendeeInput = {
+export type AttendeeInput = Pick<ContactInfo, "name" | "email"> & Partial<Pick<ContactInfo, "phone" | "address">> & {
   eventId: number;
-  name: string;
-  email: string;
   paymentId?: string | null;
   quantity?: number;
-  phone?: string;
-  address?: string;
   pricePaid?: number | null;
   date?: string | null;
 };

@@ -8,6 +8,7 @@ import { getAllowedDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
+import type { ContactInfo } from "#lib/types.ts";
 import { nowIso } from "#lib/now.ts";
 
 /** Single ticket in the webhook payload */
@@ -20,12 +21,8 @@ export type WebhookTicket = {
 };
 
 /** Consolidated payload sent to webhook endpoints */
-export type WebhookPayload = {
+export type WebhookPayload = ContactInfo & {
   event_type: "registration.completed";
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
   price_paid: number | null;
   currency: string;
   payment_id: string | null;
@@ -46,13 +43,9 @@ export type WebhookEvent = {
 };
 
 /** Attendee data needed for webhook notifications */
-export type WebhookAttendee = {
+export type WebhookAttendee = ContactInfo & {
   id: number;
   quantity: number;
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
   payment_id?: string | null;
   price_paid?: string | null;
   ticket_token: string;

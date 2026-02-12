@@ -28,7 +28,7 @@ import {
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#lib/payments.ts";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
+import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
 import { getCurrencyCode } from "#lib/config.ts";
 import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -276,11 +276,7 @@ const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
 };
 
 /** Multi-ticket registration intent */
-type MultiIntent = {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
+type MultiIntent = ContactInfo & {
   date: string | null;
   items: MultiItem[];
 };
