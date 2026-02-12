@@ -1,6 +1,6 @@
 import { describe, expect, test } from "#test-compat";
 import { CSS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
-import { adminDashboardPage, multiBookingSection } from "#templates/admin/dashboard.tsx";
+import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminEventPage, calculateTotalRevenue, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
@@ -822,6 +822,8 @@ describe("html", () => {
       expect(html).toContain('data-domain="example.com"');
       expect(html).toContain("data-multi-booking-url");
       expect(html).toContain("readonly");
+      expect(html).toContain('for="multi-booking-url"');
+      expect(html).toContain('id="multi-booking-url"');
     });
 
     test("is collapsed by default via details element", () => {
@@ -832,38 +834,6 @@ describe("html", () => {
       const html = adminDashboardPage(events, TEST_SESSION, "localhost");
       expect(html).toContain("<details>");
       expect(html).toContain("<summary>");
-    });
-  });
-
-  describe("multiBookingSection", () => {
-    test("renders checkboxes for each event", () => {
-      const events = [
-        testEventWithCount({ id: 1, slug: "ab12c", name: "Event A" }),
-        testEventWithCount({ id: 2, slug: "cd34e", name: "Event B" }),
-      ];
-      const html = multiBookingSection(events, "example.com");
-      expect(html).toContain('data-multi-booking-slug="ab12c"');
-      expect(html).toContain('data-multi-booking-slug="cd34e"');
-      expect(html).toContain("Event A");
-      expect(html).toContain("Event B");
-    });
-
-    test("includes domain in URL input data attribute", () => {
-      const events = [
-        testEventWithCount({ id: 1, slug: "ab12c" }),
-        testEventWithCount({ id: 2, slug: "cd34e" }),
-      ];
-      const html = multiBookingSection(events, "tickets.example.com");
-      expect(html).toContain('data-domain="tickets.example.com"');
-    });
-
-    test("renders select-on-click attribute on URL input", () => {
-      const events = [
-        testEventWithCount({ id: 1, slug: "ab12c" }),
-        testEventWithCount({ id: 2, slug: "cd34e" }),
-      ];
-      const html = multiBookingSection(events, "example.com");
-      expect(html).toContain("data-select-on-click");
     });
   });
 

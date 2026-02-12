@@ -38,7 +38,7 @@ const MultiBookingCheckbox = ({ e }: { e: EventWithCount }): string =>
   );
 
 /** Multi-booking link builder section (only rendered when 2+ active events) */
-export const multiBookingSection = (
+const multiBookingSection = (
   activeEvents: EventWithCount[],
   allowedDomain: string,
 ): string => {
@@ -51,11 +51,13 @@ export const multiBookingSection = (
     <details>
       <summary>Multi-booking link</summary>
       <p>Select events to generate a combined booking link:</p>
-      <ul style="list-style: none; padding-left: 0;" data-multi-booking-list>
+      <ul class="multi-booking-list">
         <Raw html={checkboxes} />
       </ul>
+      <label for="multi-booking-url">Booking link</label>
       <input
         type="text"
+        id="multi-booking-url"
         readonly
         data-select-on-click
         data-multi-booking-url
