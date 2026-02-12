@@ -616,6 +616,8 @@ export const createTestEvent = (
 ): Promise<Event> => {
   const input = testEventInput(overrides);
 
+  const closesAtParts = splitClosesAt(input.closesAt, null);
+
   return authenticatedFormRequest(
     "/admin/event",
     {
@@ -627,7 +629,8 @@ export const createTestEvent = (
       thank_you_url: input.thankYouUrl ?? "",
       unit_price: input.unitPrice != null ? String(input.unitPrice) : "",
       webhook_url: input.webhookUrl ?? "",
-      closes_at: input.closesAt ?? "",
+      closes_at_date: closesAtParts.date,
+      closes_at_time: closesAtParts.time,
       event_type: input.eventType ?? "",
       bookable_days: input.bookableDays
         ? formatBookableDaysForForm(input.bookableDays)
@@ -673,12 +676,15 @@ const formatOptional = (
 const formatBookableDaysForForm = (json: string): string =>
   (JSON.parse(json) as string[]).join(",");
 
-/** Format closes_at for form submission (truncate existing ISO to datetime-local) */
-const formatClosesAt = (
+/** Split a closes_at value into date and time parts for form submission */
+const splitClosesAt = (
   update: string | undefined,
   existing: string | null,
-): string =>
-  update !== undefined ? update : (existing?.slice(0, 16) ?? "");
+): { date: string; time: string } => {
+  const value = update !== undefined ? update : (existing?.slice(0, 16) ?? "");
+  if (!value) return { date: "", time: "" };
+  return { date: value.slice(0, 10), time: value.slice(11, 16) };
+};
 
 /**
  * Update an event via the REST API
@@ -692,6 +698,8 @@ export const updateTestEvent = async (
     throw new Error(`Event not found: ${eventId}`);
   }
 
+  const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
+
   return authenticatedFormRequest(
     `/admin/event/${eventId}/edit`,
     {
@@ -704,7 +712,8 @@ export const updateTestEvent = async (
       thank_you_url: formatOptional(updates.thankYouUrl, existing.thank_you_url),
       unit_price: formatPrice(updates.unitPrice, existing.unit_price),
       webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
-      closes_at: formatClosesAt(updates.closesAt, existing.closes_at),
+      closes_at_date: closesAtParts.date,
+      closes_at_time: closesAtParts.time,
       event_type: updates.eventType ?? existing.event_type,
       bookable_days: updates.bookableDays
         ? formatBookableDaysForForm(updates.bookableDays)

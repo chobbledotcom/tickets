@@ -1821,7 +1821,8 @@ describe("server (admin events)", () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain('value="2099-06-15T14:30"');
+      expect(html).toContain('value="2099-06-15"');
+      expect(html).toContain('value="14:30"');
       expect(html).toContain("Registration Closes At");
     });
 
@@ -1922,7 +1923,8 @@ describe("server (admin events)", () => {
             slug: event.slug,
             max_attendees: "100",
             max_quantity: "1",
-            closes_at: "not-a-date",
+            closes_at_date: "not-a-date",
+            closes_at_time: "99:99",
             csrf_token: csrfToken,
           },
           cookie,

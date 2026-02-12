@@ -213,11 +213,10 @@ const validateDescription = (value: string): string | null =>
 
 /**
  * Validate closes_at is a valid date if provided.
- * Normalizes datetime-local format to UTC ISO before parsing.
+ * Value is always YYYY-MM-DDTHH:MM from combined date+time inputs.
  */
 const validateClosesAt = (value: string): string | null => {
-  const normalized = value.length === 16 ? `${value}:00.000Z` : value;
-  const date = new Date(normalized);
+  const date = new Date(`${value}:00.000Z`);
   if (Number.isNaN(date.getTime())) {
     return "Please enter a valid date and time";
   }
@@ -316,7 +315,7 @@ export const eventFields: Field[] = [
   {
     name: "closes_at",
     label: "Registration Closes At (optional)",
-    type: "datetime-local",
+    type: "datetime",
     hint: "Leave blank for no deadline. Times are in UTC.",
     validate: validateClosesAt,
   },
