@@ -51,6 +51,13 @@ describe("server (admin guide)", () => {
       expect(html).toContain("5 minutes");
     });
 
+    test("contains add attendee info", async () => {
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/admin/guide", { cookie });
+      const html = await response.text();
+      expect(html).toContain("Add Attendee");
+    });
+
     test("contains admin navigation", async () => {
       const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest("/admin/guide", { cookie });
