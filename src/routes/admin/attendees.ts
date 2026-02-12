@@ -16,10 +16,7 @@ import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
-import {
-  defineRoutes,
-  type RouteHandlerFn,
-} from "#routes/router.ts";
+import { defineRoutes } from "#routes/router.ts";
 import { requirePrivateKey, verifyIdentifier, withDecryptedAttendees, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
   type AuthSession,
@@ -103,15 +100,6 @@ const filterSuffix = (returnFilter: string | null): string => {
   return "";
 };
 
-/** Route handler that parses attendee IDs and wraps withAttendeeForm */
-type AttendeeFormHandler = (
-  data: AttendeeWithEvent, session: AuthSession, form: URLSearchParams, eventId: number, attendeeId: number,
-) => Response | Promise<Response>;
-const attendeeFormRoute = (handler: AttendeeFormHandler): RouteHandlerFn =>
-  (request, params) =>
-    withAttendeeForm(request, params.eventId as number, params.attendeeId as number, (data, session, form) =>
-      handler(data, session, form, params.eventId as number, params.attendeeId as number));
-
 /** Verify confirm_name matches attendee name, returning error page on mismatch */
 const verifyAttendeeName = (
   data: AttendeeWithEvent,
@@ -127,12 +115,24 @@ const verifyAttendeeName = (
   return null;
 };
 
+/** Attendee form handler that receives typed IDs */
+type AttendeeFormAction = (
+  data: AttendeeWithEvent, session: AuthSession, form: URLSearchParams,
+  eventId: number, attendeeId: number,
+) => Response | Promise<Response>;
+
+/** Create an attendee form handler with typed IDs */
+const attendeeFormAction = (handler: AttendeeFormAction) =>
+  (request: Request, eventId: number, attendeeId: number): Promise<Response> =>
+    withAttendeeForm(request, eventId, attendeeId, (data, session, form) =>
+      handler(data, session, form, eventId, attendeeId));
+
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeGetRoute((data, session) =>
   htmlResponse(adminDeleteAttendeePage(data.event, data.attendee, session)));
 
-/** Delete attendee handler with name verification */
-const attendeeDeleteHandler = attendeeFormRoute(async (data, session, form, eventId, attendeeId) => {
+/** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
+const handleAttendeeDelete = attendeeFormAction(async (data, session, form, eventId, attendeeId) => {
   const error = verifyAttendeeName(data, session, form, adminDeleteAttendeePage,
     "Attendee name does not match. Please type the exact name to confirm deletion.");
   if (error) return error;
@@ -142,8 +142,8 @@ const attendeeDeleteHandler = attendeeFormRoute(async (data, session, form, even
   return redirect(`/admin/event/${eventId}`);
 });
 
-/** Checkin toggle handler */
-const attendeeCheckinHandler = attendeeFormRoute(async (data, _session, form, eventId, attendeeId) => {
+/** Handle POST /admin/event/:eventId/attendee/:attendeeId/checkin */
+const handleAttendeeCheckin = attendeeFormAction(async (data, _session, form, eventId, attendeeId) => {
   const wasCheckedIn = data.attendee.checked_in === "true";
   const nowCheckedIn = !wasCheckedIn;
 
@@ -170,8 +170,8 @@ const handleAdminAttendeeRefundGet = attendeeGetRoute((data, session) =>
     ? htmlResponse(adminRefundAttendeePage(data.event, data.attendee, session))
     : refundError(data, session, NO_PAYMENT_ERROR));
 
-/** Refund attendee handler with name verification */
-const attendeeRefundHandler = attendeeFormRoute(async (data, session, form, eventId) => {
+/** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
+const handleAttendeeRefund = attendeeFormAction(async (data, session, form, eventId) => {
   const nameError = verifyAttendeeName(data, session, form, adminRefundAttendeePage,
     "Attendee name does not match. Please type the exact name to confirm refund.");
   if (nameError) return nameError;
@@ -327,24 +327,24 @@ const handleAddAttendee = (
     );
   });
 
-/** Bind :eventId and :attendeeId params to a GET handler */
-const attendeeGetHandler = (
-  handler: (request: Request, eventId: number, attendeeId: number) => Promise<Response>,
-): RouteHandlerFn =>
-  (request, params) => handler(request, params.eventId as number, params.attendeeId as number);
-
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
-  "GET /admin/event/:eventId/attendee/:attendeeId/delete": attendeeGetHandler(handleAdminAttendeeDeleteGet),
-  "POST /admin/event/:eventId/attendee": (request, params) =>
-    handleAddAttendee(request, params.eventId as number),
-  "POST /admin/event/:eventId/attendee/:attendeeId/delete": attendeeDeleteHandler,
-  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete": attendeeDeleteHandler,
-  "POST /admin/event/:eventId/attendee/:attendeeId/checkin": attendeeCheckinHandler,
-  "GET /admin/event/:eventId/attendee/:attendeeId/refund": attendeeGetHandler(handleAdminAttendeeRefundGet),
-  "POST /admin/event/:eventId/attendee/:attendeeId/refund": attendeeRefundHandler,
-  "GET /admin/event/:eventId/refund-all": (request, params) =>
-    handleAdminRefundAllGet(request, params.eventId as number),
-  "POST /admin/event/:eventId/refund-all": (request, params) =>
-    handleAdminRefundAllPost(request, params.eventId as number),
+  "GET /admin/event/:eventId/attendee/:attendeeId/delete": (request, { eventId, attendeeId }) =>
+    handleAdminAttendeeDeleteGet(request, eventId, attendeeId),
+  "POST /admin/event/:eventId/attendee": (request, { eventId }) =>
+    handleAddAttendee(request, eventId),
+  "POST /admin/event/:eventId/attendee/:attendeeId/delete": (request, { eventId, attendeeId }) =>
+    handleAttendeeDelete(request, eventId, attendeeId),
+  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete": (request, { eventId, attendeeId }) =>
+    handleAttendeeDelete(request, eventId, attendeeId),
+  "POST /admin/event/:eventId/attendee/:attendeeId/checkin": (request, { eventId, attendeeId }) =>
+    handleAttendeeCheckin(request, eventId, attendeeId),
+  "GET /admin/event/:eventId/attendee/:attendeeId/refund": (request, { eventId, attendeeId }) =>
+    handleAdminAttendeeRefundGet(request, eventId, attendeeId),
+  "POST /admin/event/:eventId/attendee/:attendeeId/refund": (request, { eventId, attendeeId }) =>
+    handleAttendeeRefund(request, eventId, attendeeId),
+  "GET /admin/event/:id/refund-all": (request, { id }) =>
+    handleAdminRefundAllGet(request, id),
+  "POST /admin/event/:id/refund-all": (request, { id }) =>
+    handleAdminRefundAllPost(request, id),
 });
