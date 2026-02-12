@@ -1111,3 +1111,33 @@ export const deleteTestHoliday = async (
 
 export type { HolidayInput };
 
+/**
+ * Create a paid test attendee directly via createAttendeeAtomic.
+ * Use this instead of createTestAttendee when you need a payment_id on the attendee.
+ */
+export const createPaidTestAttendee = async (
+  eventId: number,
+  name: string,
+  email: string,
+  paymentId: string,
+  pricePaid = 500,
+  quantity = 1,
+): Promise<Attendee> => {
+  const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+  const result = await createAttendeeAtomic({
+    eventId,
+    name,
+    email,
+    paymentId,
+    quantity,
+    pricePaid,
+  });
+  // success is guaranteed when event capacity is available
+  return (result as { success: true; attendee: Attendee }).attendee;
+};
+
+import type { PaymentProviderType } from "#lib/payments.ts";
+
+/** Mock return type for getConfiguredProvider */
+export const mockProviderType = (type: PaymentProviderType): PaymentProviderType | null => type;
+
