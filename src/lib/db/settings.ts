@@ -433,11 +433,33 @@ export const updateEmbedHosts = async (hosts: string): Promise<void> => {
 };
 
 /**
- * Get terms and conditions text from database
- * Returns null if not configured
+ * Permanent in-memory cache for terms and conditions.
+ * Terms change rarely, so we cache until explicitly re-saved.
  */
-export const getTermsAndConditionsFromDb = (): Promise<string | null> =>
-  getSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS);
+const [getTermsCache, setTermsCache] = lazyRef<{ loaded: boolean; value: string | null }>(
+  () => ({ loaded: false, value: null }),
+);
+
+/** Clear the terms cache (called on update and test reset) */
+export const invalidateTermsCache = (): void => {
+  setTermsCache(null);
+};
+
+/** Max length for terms and conditions text */
+export const MAX_TERMS_LENGTH = 1024;
+
+/**
+ * Get terms and conditions text from database.
+ * Cached permanently until updateTermsAndConditions is called.
+ * Returns null if not configured.
+ */
+export const getTermsAndConditionsFromDb = async (): Promise<string | null> => {
+  const cached = getTermsCache();
+  if (cached.loaded) return cached.value;
+  const value = await getSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS);
+  setTermsCache({ loaded: true, value });
+  return value;
+};
 
 /**
  * Update terms and conditions text
@@ -450,9 +472,11 @@ export const updateTermsAndConditions = async (text: string): Promise<void> => {
       args: [CONFIG_KEYS.TERMS_AND_CONDITIONS],
     });
     invalidateSettingsCache();
+    invalidateTermsCache();
     return;
   }
   await setSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS, text);
+  invalidateTermsCache();
 };
 
 /**
@@ -491,4 +515,5 @@ export const settingsApi = {
   updateEmbedHosts,
   getTermsAndConditionsFromDb,
   updateTermsAndConditions,
+  invalidateTermsCache,
 };

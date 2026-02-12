@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import { updateTermsAndConditions } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -2007,7 +2008,6 @@ describe("server (public routes)", () => {
 
   describe("terms and conditions (single ticket)", () => {
     test("shows terms checkbox when terms are configured", async () => {
-      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
       await updateTermsAndConditions("I agree to the event rules.");
 
       const event = await createTestEvent({ maxAttendees: 50 });
@@ -2016,6 +2016,7 @@ describe("server (public routes)", () => {
       const html = await response.text();
       expect(html).toContain("agree_terms");
       expect(html).toContain("I agree to the event rules.");
+      expect(html).toContain("I agree to the terms and conditions above");
     });
 
     test("does not show terms checkbox when no terms configured", async () => {
@@ -2027,7 +2028,6 @@ describe("server (public routes)", () => {
     });
 
     test("rejects submission without agreeing to terms", async () => {
-      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
       await updateTermsAndConditions("You must accept the rules.");
 
       const event = await createTestEvent({ maxAttendees: 50 });
@@ -2041,7 +2041,6 @@ describe("server (public routes)", () => {
     });
 
     test("accepts submission when terms are agreed to", async () => {
-      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
       await updateTermsAndConditions("You must accept the rules.");
 
       const event = await createTestEvent({
@@ -2071,7 +2070,6 @@ describe("server (public routes)", () => {
 
   describe("terms and conditions (multi-ticket)", () => {
     test("shows terms checkbox on multi-ticket page when configured", async () => {
-      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
       await updateTermsAndConditions("Multi-event terms apply.");
 
       const event1 = await createTestEvent({ name: "TC Multi 1", maxAttendees: 50 });
@@ -2086,7 +2084,6 @@ describe("server (public routes)", () => {
     });
 
     test("rejects multi-ticket submission without agreeing to terms", async () => {
-      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
       await updateTermsAndConditions("Must agree to policy.");
 
       const event1 = await createTestEvent({ name: "TC Multi Rej 1", maxAttendees: 50 });
@@ -2116,7 +2113,6 @@ describe("server (public routes)", () => {
     });
 
     test("accepts multi-ticket submission when terms are agreed to", async () => {
-      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
       await updateTermsAndConditions("Must agree to policy.");
 
       const event1 = await createTestEvent({ name: "TC Multi Ok 1", maxAttendees: 50 });

@@ -32,9 +32,10 @@ const quantityOptions = (max: number): string =>
     .map((n) => `<option value="${n}">${n}</option>`)
     .join("");
 
-/** Render terms and conditions checkbox */
-const renderTermsCheckbox = (terms: string): string =>
-  `<label><input type="checkbox" name="agree_terms" value="1" required> ${escapeHtml(terms)}</label>`;
+/** Render terms and conditions block with agreement checkbox */
+const renderTermsAndCheckbox = (terms: string): string =>
+  `<div class="terms"><p>${escapeHtml(terms)}</p></div>` +
+  `<label><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms and conditions above</label>`;
 
 /**
  * Public ticket page
@@ -91,7 +92,7 @@ export const ticketPage = (
               <input type="hidden" name="quantity" value="1" />
             )}
             {termsAndConditions && (
-              <Raw html={renderTermsCheckbox(termsAndConditions)} />
+              <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
             )}
             <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
           </form>
@@ -225,7 +226,7 @@ export const multiTicketPage = (
           </fieldset>
 
           {termsAndConditions && (
-            <Raw html={renderTermsCheckbox(termsAndConditions)} />
+            <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
           )}
           <button type="submit">Reserve Tickets</button>
         </form>

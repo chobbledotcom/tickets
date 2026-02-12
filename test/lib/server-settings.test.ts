@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { setPaymentProvider } from "#lib/db/settings.ts";
+import { setPaymentProvider, updateTermsAndConditions } from "#lib/db/settings.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
@@ -899,6 +899,44 @@ describe("server (admin settings)", () => {
       expect(decodeURIComponent(location)).toContain("Terms and conditions updated");
     });
 
+    test("rejects terms exceeding max length", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/terms",
+          {
+            terms_and_conditions: "x".repeat(1025),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("1024 characters or fewer");
+    });
+
+    test("accepts terms at exactly max length", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/terms",
+          {
+            terms_and_conditions: "x".repeat(1024),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Terms and conditions updated");
+    });
+
     test("clears terms when empty", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -958,7 +996,6 @@ describe("server (admin settings)", () => {
     });
 
     test("settings page shows current terms when configured", async () => {
-      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
       await updateTermsAndConditions("You must be 18 or older.");
 
       const { cookie } = await loginAsAdmin();

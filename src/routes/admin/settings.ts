@@ -9,6 +9,7 @@ import {
   getPaymentProviderFromDb,
   getStripeWebhookEndpointId,
   getTermsAndConditionsFromDb,
+  MAX_TERMS_LENGTH,
   hasSquareToken,
   hasStripeKey,
   setPaymentProvider,
@@ -333,9 +334,16 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
 /**
  * Handle POST /admin/settings/terms - owner only
  */
-const handleTermsPost = settingsRoute(async (form) => {
+const handleTermsPost = settingsRoute(async (form, errorPage) => {
   const raw = form.get("terms_and_conditions") ?? "";
   const trimmed = raw.trim();
+
+  if (trimmed.length > MAX_TERMS_LENGTH) {
+    return errorPage(
+      `Terms must be ${MAX_TERMS_LENGTH} characters or fewer (currently ${trimmed.length})`,
+      400,
+    );
+  }
 
   await updateTermsAndConditions(trimmed);
 
