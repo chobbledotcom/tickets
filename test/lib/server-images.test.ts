@@ -4,10 +4,12 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   loginAsAdmin,
+  mockRequest,
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";
 import { storageApi } from "#lib/storage.ts";
+import { encryptBytes } from "#lib/crypto.ts";
 import { eventsTable, getEventWithCount } from "#lib/db/events.ts";
 
 /** JPEG magic bytes for a valid test image */
@@ -284,6 +286,208 @@ describe("server (event images)", () => {
         cookie,
       );
       const response = await handleRequest(request);
+      expect(response.status).toBe(404);
+    });
+
+    test("succeeds even when storage delete throws", async () => {
+      const event = await createTestEvent();
+      const { cookie, csrfToken } = await loginAsAdmin();
+      await eventsTable.update(event.id, { imageUrl: "failing.jpg" });
+
+      const spy = spyOn(storageApi, "connectZone");
+      spy.mockReturnValue({
+        _tag: "StorageZone" as const,
+        region: "de" as never,
+        accessKey: "mock-key",
+        name: "testzone",
+      });
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (): Promise<Response> => {
+        return Promise.reject(new Error("CDN unreachable"));
+      };
+
+      try {
+        const request = formPostRequest(
+          `/admin/event/${event.id}/image/delete`,
+          { csrf_token: csrfToken },
+          cookie,
+        );
+        const response = await handleRequest(request);
+        expect(response.status).toBe(302);
+        const updated = await getEventWithCount(event.id);
+        expect(updated?.image_url).toBeNull();
+      } finally {
+        globalThis.fetch = originalFetch;
+        spy.mockRestore();
+      }
+    });
+  });
+
+  describe("POST /admin/event/:id/image (error paths)", () => {
+    test("succeeds even when old image delete throws", async () => {
+      const event = await createTestEvent();
+      const { cookie, csrfToken } = await loginAsAdmin();
+      await eventsTable.update(event.id, { imageUrl: "old-failing.jpg" });
+
+      const spy = spyOn(storageApi, "connectZone");
+      spy.mockReturnValue({
+        _tag: "StorageZone" as const,
+        region: "de" as never,
+        accessKey: "mock-key",
+        name: "testzone",
+      });
+      const originalFetch = globalThis.fetch;
+      let callCount = 0;
+      globalThis.fetch = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        callCount++;
+        // First call is the delete of old image — make it fail
+        if (url.includes("old-failing.jpg")) {
+          return Promise.reject(new Error("CDN delete failed"));
+        }
+        // Upload call succeeds
+        if (url.includes("storage.bunnycdn.com")) {
+          return Promise.resolve(new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), { status: 201 }));
+        }
+        return originalFetch(input, init);
+      };
+
+      try {
+        const request = imageUploadRequest(
+          `/admin/event/${event.id}/image`,
+          csrfToken,
+          JPEG_HEADER,
+          "new.jpg",
+          "image/jpeg",
+          cookie,
+        );
+        const response = await handleRequest(request);
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
+        const updated = await getEventWithCount(event.id);
+        expect(updated?.image_url).toMatch(/\.jpg$/);
+      } finally {
+        globalThis.fetch = originalFetch;
+        spy.mockRestore();
+      }
+    });
+
+    test("redirects to /admin when not authenticated", async () => {
+      const event = await createTestEvent();
+      const request = imageUploadRequest(
+        `/admin/event/${event.id}/image`,
+        "fake-csrf",
+        JPEG_HEADER,
+        "test.jpg",
+        "image/jpeg",
+        "",
+      );
+      const response = await handleRequest(request);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+    });
+
+    test("returns 403 when CSRF token is invalid", async () => {
+      const event = await createTestEvent();
+      const { cookie } = await loginAsAdmin();
+      const request = imageUploadRequest(
+        `/admin/event/${event.id}/image`,
+        "wrong-csrf-token",
+        JPEG_HEADER,
+        "test.jpg",
+        "image/jpeg",
+        cookie,
+      );
+      const response = await handleRequest(request);
+      expect(response.status).toBe(403);
+    });
+
+    test("returns 403 when CSRF token is missing from form", async () => {
+      const event = await createTestEvent();
+      const { cookie } = await loginAsAdmin();
+      const formData = new FormData();
+      // deno-lint-ignore no-explicit-any
+      const blob = new Blob([JPEG_HEADER as any], { type: "image/jpeg" });
+      formData.append("image", blob, "test.jpg");
+      const request = new Request(`http://localhost/admin/event/${event.id}/image`, {
+        method: "POST",
+        body: formData,
+        headers: { cookie, host: "localhost" },
+      });
+      const response = await handleRequest(request);
+      expect(response.status).toBe(403);
+    });
+  });
+
+  describe("GET /image/:filename (proxy route)", () => {
+    test("serves decrypted image with correct content type", async () => {
+      const imageData = JPEG_HEADER;
+      const encrypted = await encryptBytes(imageData);
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (input: string | URL | Request): Promise<Response> => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        if (url.includes("b-cdn.net")) {
+          // deno-lint-ignore no-explicit-any
+          return Promise.resolve(new Response(encrypted as any, { status: 200 }));
+        }
+        return originalFetch(input);
+      };
+
+      try {
+        const response = await handleRequest(mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg"));
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toBe("image/jpeg");
+        expect(response.headers.get("cache-control")).toContain("immutable");
+        const body = new Uint8Array(await response.arrayBuffer());
+        expect(body).toEqual(imageData);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    test("returns 404 when CDN returns error", async () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (input: string | URL | Request): Promise<Response> => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        if (url.includes("b-cdn.net")) {
+          return Promise.resolve(new Response("Not Found", { status: 404 }));
+        }
+        return originalFetch(input);
+      };
+
+      try {
+        const response = await handleRequest(mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg"));
+        expect(response.status).toBe(404);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    test("returns 404 for unknown extension", async () => {
+      const response = await handleRequest(mockRequest("/image/abc123-def4-5678-9abc-def012345678.bmp"));
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 when storage is not enabled", async () => {
+      Deno.env.delete("STORAGE_ZONE_NAME");
+      Deno.env.delete("STORAGE_ZONE_KEY");
+      const response = await handleRequest(mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg"));
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 for non-GET method", async () => {
+      const request = new Request("http://localhost/image/abc123-def4-5678-9abc-def012345678.jpg", {
+        method: "POST",
+        body: "test",
+        headers: { "content-type": "application/x-www-form-urlencoded", host: "localhost" },
+      });
+      const response = await handleRequest(request);
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 for filename without extension", async () => {
+      const response = await handleRequest(mockRequest("/image/abcdef123456"));
       expect(response.status).toBe(404);
     });
   });

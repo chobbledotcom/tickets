@@ -241,6 +241,39 @@ export const decrypt = async (encrypted: string): Promise<string> => {
   return symmetricDecrypt(encrypted, key);
 };
 
+/** AES-GCM IV length in bytes */
+const AES_GCM_IV_LENGTH = 12;
+
+/**
+ * Encrypt binary data with AES-256-GCM.
+ * Returns raw bytes: 12-byte IV + ciphertext (includes GCM auth tag).
+ * Used for encrypting image files before CDN storage.
+ */
+export const encryptBytes = async (data: Uint8Array): Promise<Uint8Array> => {
+  const key = await importEncryptionKey();
+  const iv = getRandomBytes(AES_GCM_IV_LENGTH);
+  const ciphertext = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, data as BufferSource),
+  );
+  const result = new Uint8Array(AES_GCM_IV_LENGTH + ciphertext.byteLength);
+  result.set(iv);
+  result.set(ciphertext, AES_GCM_IV_LENGTH);
+  return result;
+};
+
+/**
+ * Decrypt binary data encrypted with encryptBytes().
+ * Expects raw bytes: 12-byte IV + ciphertext (with GCM auth tag).
+ */
+export const decryptBytes = async (encrypted: Uint8Array): Promise<Uint8Array> => {
+  const key = await importEncryptionKey();
+  const iv = encrypted.slice(0, AES_GCM_IV_LENGTH);
+  const ciphertext = encrypted.slice(AES_GCM_IV_LENGTH);
+  return new Uint8Array(
+    await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, ciphertext as BufferSource),
+  );
+};
+
 /**
  * Clear the cached encryption key (useful for testing)
  */

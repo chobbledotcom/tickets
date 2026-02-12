@@ -6,7 +6,7 @@ import { filter, map, pipe, reduce } from "#fp";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
-import { getImageCdnUrl, isStorageEnabled } from "#lib/storage.ts";
+import { getImageProxyUrl, isStorageEnabled } from "#lib/storage.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
@@ -340,7 +340,7 @@ export const adminEventPage = ({
             {imageError && <Raw html={renderError(imageError)} />}
             {event.image_url ? (
               <div>
-                <img src={getImageCdnUrl(event.image_url)} alt={event.name} style="max-width: 300px; border-radius: 4px;" />
+                <img src={getImageProxyUrl(event.image_url)} alt={event.name} style="max-width: 300px; border-radius: 4px;" />
                 <form method="POST" action={`/admin/event/${event.id}/image/delete`} style="margin-top: 0.5rem;">
                   <input type="hidden" name="csrf_token" value={session.csrfToken} />
                   <button type="submit" class="secondary">Remove Image</button>

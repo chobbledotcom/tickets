@@ -3,10 +3,13 @@ import {
   detectImageType,
   formatImageError,
   generateImageFilename,
-  getImageCdnUrl,
+  getImageProxyUrl,
+  getMimeTypeFromFilename,
   isStorageEnabled,
+  storageApi,
   validateImage,
 } from "#lib/storage.ts";
+import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
 
 describe("storage", () => {
   beforeEach(() => {
@@ -41,11 +44,35 @@ describe("storage", () => {
     });
   });
 
-  describe("getImageCdnUrl", () => {
-    test("constructs CDN URL from zone name and filename", () => {
-      Deno.env.set("STORAGE_ZONE_NAME", "myzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "mykey");
-      expect(getImageCdnUrl("abc123.jpg")).toBe("https://myzone.b-cdn.net/abc123.jpg");
+  describe("getImageProxyUrl", () => {
+    test("returns proxy path for filename", () => {
+      expect(getImageProxyUrl("abc123.jpg")).toBe("/image/abc123.jpg");
+    });
+  });
+
+  describe("getMimeTypeFromFilename", () => {
+    test("returns MIME type for .jpg", () => {
+      expect(getMimeTypeFromFilename("abc.jpg")).toBe("image/jpeg");
+    });
+
+    test("returns MIME type for .png", () => {
+      expect(getMimeTypeFromFilename("abc.png")).toBe("image/png");
+    });
+
+    test("returns MIME type for .gif", () => {
+      expect(getMimeTypeFromFilename("abc.gif")).toBe("image/gif");
+    });
+
+    test("returns MIME type for .webp", () => {
+      expect(getMimeTypeFromFilename("abc.webp")).toBe("image/webp");
+    });
+
+    test("returns null for unknown extension", () => {
+      expect(getMimeTypeFromFilename("abc.bmp")).toBeNull();
+    });
+
+    test("returns null for no extension", () => {
+      expect(getMimeTypeFromFilename("abc")).toBeNull();
     });
   });
 
@@ -194,6 +221,57 @@ describe("storage", () => {
       const jpeg = new Uint8Array([0xFF, 0xD8, 0xFF]);
       expect(validateImage(jpeg, "image/svg+xml").valid).toBe(false);
       expect(validateImage(jpeg, "application/pdf").valid).toBe(false);
+    });
+  });
+
+  describe("connectZone", () => {
+    test("creates a StorageZone with configured credentials", () => {
+      Deno.env.set("STORAGE_ZONE_NAME", "myzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "mykey");
+      const zone = storageApi.connectZone();
+      expect(zone._tag).toBe("StorageZone");
+      expect(zone.name).toBe("myzone");
+      expect(zone.accessKey).toBe("mykey");
+    });
+
+    test("uses Falkenstein region by default", () => {
+      Deno.env.set("STORAGE_ZONE_NAME", "myzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "mykey");
+      const zone = storageApi.connectZone();
+      expect(String(zone.region)).toBe("de");
+    });
+
+    test("uses custom region when STORAGE_ZONE_REGION is set", () => {
+      Deno.env.set("STORAGE_ZONE_NAME", "myzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "mykey");
+      Deno.env.set("STORAGE_ZONE_REGION", "ny");
+      const zone = storageApi.connectZone();
+      expect(String(zone.region)).toBe("ny");
+      Deno.env.delete("STORAGE_ZONE_REGION");
+    });
+  });
+
+  describe("encryptBytes / decryptBytes", () => {
+    test("round-trips binary data through encrypt then decrypt", async () => {
+      const original = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46]);
+      const encrypted = await encryptBytes(original);
+      // Encrypted data should be larger (12 byte IV + 16 byte auth tag)
+      expect(encrypted.byteLength).toBeGreaterThan(original.byteLength);
+      // Encrypted data should not start with original magic bytes
+      expect(encrypted[0]).not.toBe(0xFF);
+      const decrypted = await decryptBytes(encrypted);
+      expect(decrypted).toEqual(original);
+    });
+
+    test("produces different ciphertext for same input", async () => {
+      const data = new Uint8Array([1, 2, 3, 4, 5]);
+      const a = await encryptBytes(data);
+      const b = await encryptBytes(data);
+      // Different IVs mean different ciphertext
+      expect(a).not.toEqual(b);
+      // But both decrypt to the same value
+      expect(await decryptBytes(a)).toEqual(data);
+      expect(await decryptBytes(b)).toEqual(data);
     });
   });
 });

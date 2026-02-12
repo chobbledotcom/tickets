@@ -6,7 +6,7 @@ import { map, pipe } from "#fp";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { renderError, renderFields } from "#lib/forms.tsx";
-import { getImageCdnUrl } from "#lib/storage.ts";
+import { getImageProxyUrl } from "#lib/storage.ts";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
@@ -15,7 +15,7 @@ import { escapeHtml, Layout } from "#templates/layout.tsx";
 /** Render event image HTML if image_url is set */
 export const renderEventImage = (event: { image_url: string | null; name: string }): string =>
   event.image_url
-    ? `<img src="${escapeHtml(getImageCdnUrl(event.image_url))}" alt="${escapeHtml(event.name)}" style="max-width: 100%; border-radius: 4px; margin-bottom: 1rem;" />`
+    ? `<img src="${escapeHtml(getImageProxyUrl(event.image_url))}" alt="${escapeHtml(event.name)}" style="max-width: 100%; border-radius: 4px; margin-bottom: 1rem;" />`
     : "";
 
 /** Render a date selector dropdown for daily events */

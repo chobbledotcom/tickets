@@ -1543,10 +1543,10 @@ describe("html", () => {
         cleanupStorage();
       });
 
-      test("renders img tag with CDN URL when image_url is set", () => {
+      test("renders img tag with proxy URL when image_url is set", () => {
         setupStorage();
         const html = renderEventImage({ image_url: "abc123.jpg", name: "Test Event" });
-        expect(html).toContain("https://testzone.b-cdn.net/abc123.jpg");
+        expect(html).toContain("/image/abc123.jpg");
         expect(html).toContain('alt="Test Event"');
         expect(html).toContain("border-radius: 4px");
         cleanupStorage();
@@ -1566,7 +1566,7 @@ describe("html", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "event-img.jpg" });
         const html = ticketPage(event, TEST_CSRF_TOKEN);
-        expect(html).toContain("https://testzone.b-cdn.net/event-img.jpg");
+        expect(html).toContain("/image/event-img.jpg");
         expect(html).toContain("border-radius: 4px");
         cleanupStorage();
       });
@@ -1575,7 +1575,7 @@ describe("html", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: null });
         const html = ticketPage(event, TEST_CSRF_TOKEN);
-        expect(html).not.toContain("b-cdn.net");
+        expect(html).not.toContain("/image/");
         cleanupStorage();
       });
 
@@ -1596,8 +1596,8 @@ describe("html", () => {
           buildMultiTicketEvent(testEventWithCount({ id: 2, name: "Event B", image_url: "img-b.jpg" })),
         ];
         const html = multiTicketPage(events, ["slug-a", "slug-b"], TEST_CSRF_TOKEN);
-        expect(html).toContain("https://testzone.b-cdn.net/img-a.jpg");
-        expect(html).toContain("https://testzone.b-cdn.net/img-b.jpg");
+        expect(html).toContain("/image/img-a.jpg");
+        expect(html).toContain("/image/img-b.jpg");
         cleanupStorage();
       });
 
@@ -1607,7 +1607,7 @@ describe("html", () => {
           buildMultiTicketEvent(testEventWithCount({ id: 1, name: "Event A", image_url: null })),
         ];
         const html = multiTicketPage(events, ["slug-a"], TEST_CSRF_TOKEN);
-        expect(html).not.toContain("b-cdn.net");
+        expect(html).not.toContain("/image/");
         cleanupStorage();
       });
     });
@@ -1624,7 +1624,7 @@ describe("html", () => {
           },
         ];
         const html = ticketViewPage(entries, qrSvg);
-        expect(html).toContain("https://testzone.b-cdn.net/ticket-img.jpg");
+        expect(html).toContain("/image/ticket-img.jpg");
         cleanupStorage();
       });
 
@@ -1637,7 +1637,7 @@ describe("html", () => {
           },
         ];
         const html = ticketViewPage(entries, qrSvg);
-        expect(html).not.toContain("b-cdn.net");
+        expect(html).not.toContain("/image/");
         cleanupStorage();
       });
     });
@@ -1647,7 +1647,7 @@ describe("html", () => {
         setupStorage();
         const events = [testEventWithCount({ image_url: "thumb.jpg" })];
         const html = adminDashboardPage(events, TEST_SESSION, "localhost");
-        expect(html).toContain("https://testzone.b-cdn.net/thumb.jpg");
+        expect(html).toContain("/image/thumb.jpg");
         expect(html).toContain("object-fit: cover");
         cleanupStorage();
       });
@@ -1656,7 +1656,7 @@ describe("html", () => {
         setupStorage();
         const events = [testEventWithCount({ image_url: null })];
         const html = adminDashboardPage(events, TEST_SESSION, "localhost");
-        expect(html).not.toContain("b-cdn.net");
+        expect(html).not.toContain('src="/image/');
         cleanupStorage();
       });
     });
@@ -1677,7 +1677,7 @@ describe("html", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "current.jpg" });
         const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
-        expect(html).toContain("https://testzone.b-cdn.net/current.jpg");
+        expect(html).toContain("/image/current.jpg");
         expect(html).toContain("Remove Image");
         expect(html).toContain("/image/delete");
         cleanupStorage();

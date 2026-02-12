@@ -4,7 +4,7 @@
 
 import { filter, map, pipe, reduce } from "#fp";
 import { renderFields } from "#lib/forms.tsx";
-import { getImageCdnUrl } from "#lib/storage.ts";
+import { getImageProxyUrl } from "#lib/storage.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { eventFields } from "#templates/fields.ts";
@@ -16,7 +16,7 @@ const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 /** Render a small inline thumbnail for event rows */
 const eventThumbnail = (e: EventWithCount): string =>
   e.image_url
-    ? `<img src="${escapeHtml(getImageCdnUrl(e.image_url))}" alt="" style="width: 2rem; height: 2rem; border-radius: 4px; object-fit: cover; vertical-align: middle; margin-right: 0.5rem;" />`
+    ? `<img src="${escapeHtml(getImageProxyUrl(e.image_url))}" alt="" style="width: 2rem; height: 2rem; border-radius: 4px; object-fit: cover; vertical-align: middle; margin-right: 0.5rem;" />`
     : "";
 
 const EventRow = ({ e }: { e: EventWithCount }): string => {

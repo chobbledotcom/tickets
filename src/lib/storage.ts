@@ -2,9 +2,11 @@
  * Bunny CDN storage integration for event images.
  * Uses @bunny.net/storage-sdk to upload/delete images.
  * Only enabled when STORAGE_ZONE_NAME and STORAGE_ZONE_KEY env vars are set.
+ * Images are encrypted with DB_ENCRYPTION_KEY before upload.
  */
 
 import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
+import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
 import { getEnv } from "#lib/env.ts";
 
 /** Maximum image file size in bytes (256KB) */
@@ -34,6 +36,14 @@ const MIME_EXTENSIONS: Record<string, string> = {
   "image/webp": ".webp",
 };
 
+/** Reverse map: extension → MIME type */
+const EXT_MIME_TYPES: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+};
+
 /**
  * Check if image storage is enabled (both env vars are set)
  */
@@ -44,12 +54,27 @@ export const isStorageEnabled = (): boolean => {
 };
 
 /**
- * Get the CDN URL for a stored image filename.
- * Uses the storage zone name to construct the b-cdn.net URL.
+ * Get the proxy URL path for serving a decrypted image.
+ * Images are encrypted on CDN, so they must be served through the proxy.
  */
-export const getImageCdnUrl = (filename: string): string => {
+export const getImageProxyUrl = (filename: string): string =>
+  `/image/${filename}`;
+
+/**
+ * Get the direct CDN URL for a stored file (used internally for download).
+ */
+const getCdnUrl = (filename: string): string => {
   const zoneName = getEnv("STORAGE_ZONE_NAME") as string;
   return `https://${zoneName}.b-cdn.net/${filename}`;
+};
+
+/**
+ * Get the MIME type for an image filename from its extension.
+ */
+export const getMimeTypeFromFilename = (filename: string): string | null => {
+  const dotIndex = filename.lastIndexOf(".");
+  if (dotIndex === -1) return null;
+  return EXT_MIME_TYPES[filename.slice(dotIndex)] ?? null;
 };
 
 /**
@@ -113,7 +138,7 @@ export const formatImageError = (error: ImageValidationError): string => {
 
 /** Generate a random filename with the correct extension */
 export const generateImageFilename = (detectedType: string): string => {
-  const ext = MIME_EXTENSIONS[detectedType] ?? ".bin";
+  const ext = MIME_EXTENSIONS[detectedType];
   return `${crypto.randomUUID()}${ext}`;
 };
 
@@ -135,6 +160,7 @@ export const storageApi = {
 
 /**
  * Upload an image to Bunny storage.
+ * Encrypts the image bytes before uploading.
  * Returns the filename (without path) on success.
  */
 export const uploadImage = async (
@@ -142,19 +168,32 @@ export const uploadImage = async (
   detectedType: string,
 ): Promise<string> => {
   const filename = generateImageFilename(detectedType);
+  const encrypted = await encryptBytes(data);
   const sz = storageApi.connectZone();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      controller.enqueue(data);
+      controller.enqueue(encrypted);
       controller.close();
     },
   });
   // Cast needed: Deno's ReadableStream and Node's stream/web types differ slightly
   // deno-lint-ignore no-explicit-any
   await BunnyStorageSDK.file.upload(sz, `/${filename}`, stream as any, {
-    contentType: detectedType,
+    contentType: "application/octet-stream",
   });
   return filename;
+};
+
+/**
+ * Download and decrypt an image from Bunny CDN.
+ * Returns the decrypted image bytes, or null if not found.
+ */
+export const downloadImage = async (filename: string): Promise<Uint8Array | null> => {
+  const url = getCdnUrl(filename);
+  const response = await fetch(url);
+  if (!response.ok) return null;
+  const encrypted = new Uint8Array(await response.arrayBuffer());
+  return decryptBytes(encrypted);
 };
 
 /**
