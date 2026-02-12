@@ -99,68 +99,68 @@ type EncryptedAttendeeData = {
   encryptedCheckedIn: string;
 };
 
+/** Input for encrypting attendee fields */
+type EncryptInput = ContactInfo & {
+  paymentId: string | null;
+  pricePaid: number | null;
+};
+
 /** Encrypt attendee fields, returning null if key not configured */
 const encryptAttendeeFields = async (
-  name: string,
-  email: string,
-  phone: string,
-  address: string,
-  paymentId: string | null,
-  pricePaid: number | null,
+  input: EncryptInput,
 ): Promise<EncryptedAttendeeData | null> => {
   const publicKeyJwk = await getPublicKey();
   if (!publicKeyJwk) return null;
 
   return {
     created: nowIso(),
-    encryptedName: await encryptAttendeePII(name, publicKeyJwk),
-    encryptedEmail: email
-      ? await encryptAttendeePII(email, publicKeyJwk)
+    encryptedName: await encryptAttendeePII(input.name, publicKeyJwk),
+    encryptedEmail: input.email
+      ? await encryptAttendeePII(input.email, publicKeyJwk)
       : "",
-    encryptedPhone: phone
-      ? await encryptAttendeePII(phone, publicKeyJwk)
+    encryptedPhone: input.phone
+      ? await encryptAttendeePII(input.phone, publicKeyJwk)
       : "",
-    encryptedAddress: address
-      ? await encryptAttendeePII(address, publicKeyJwk)
+    encryptedAddress: input.address
+      ? await encryptAttendeePII(input.address, publicKeyJwk)
       : "",
-    encryptedPaymentId: paymentId
-      ? await encryptAttendeePII(paymentId, publicKeyJwk)
+    encryptedPaymentId: input.paymentId
+      ? await encryptAttendeePII(input.paymentId, publicKeyJwk)
       : null,
-    encryptedPricePaid: pricePaid !== null
-      ? await encrypt(String(pricePaid))
+    encryptedPricePaid: input.pricePaid !== null
+      ? await encrypt(String(input.pricePaid))
       : null,
     encryptedCheckedIn: await encryptAttendeePII("false", publicKeyJwk),
   };
 };
 
+/** Input for building an Attendee result from an insert */
+type BuildAttendeeInput = ContactInfo & {
+  insertId: number | bigint | undefined;
+  eventId: number;
+  created: string;
+  paymentId: string | null;
+  quantity: number;
+  pricePaid: number | null;
+  ticketToken: string;
+  date: string | null;
+};
+
 /** Build plain Attendee object from insert result */
-const buildAttendeeResult = (
-  insertId: number | bigint | undefined,
-  eventId: number,
-  name: string,
-  email: string,
-  phone: string,
-  address: string,
-  created: string,
-  paymentId: string | null,
-  quantity: number,
-  pricePaid: number | null,
-  ticketToken: string,
-  date: string | null,
-): Attendee => ({
-  id: Number(insertId),
-  event_id: eventId,
-  name,
-  email,
-  phone,
-  address,
-  created,
-  payment_id: paymentId,
-  quantity,
-  price_paid: pricePaid !== null ? String(pricePaid) : null,
+const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
+  id: Number(input.insertId),
+  event_id: input.eventId,
+  name: input.name,
+  email: input.email,
+  phone: input.phone,
+  address: input.address,
+  created: input.created,
+  payment_id: input.paymentId,
+  quantity: input.quantity,
+  price_paid: input.pricePaid !== null ? String(input.pricePaid) : null,
   checked_in: "false",
-  ticket_token: ticketToken,
-  date,
+  ticket_token: input.ticketToken,
+  date: input.date,
 });
 
 /**
@@ -273,7 +273,7 @@ export const attendeesApi = {
     input: AttendeeInput,
   ): Promise<CreateAttendeeResult> => {
     const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", address = "", pricePaid = null, date = null } = input;
-    const enc = await encryptAttendeeFields(name, email, phone, address, paymentId, pricePaid);
+    const enc = await encryptAttendeeFields({ name, email, phone, address, paymentId, pricePaid });
     if (!enc) {
       return { success: false, reason: "encryption_error" };
     }
@@ -320,20 +320,20 @@ export const attendeesApi = {
 
     return {
       success: true,
-      attendee: buildAttendeeResult(
-        insertResult.lastInsertRowid,
+      attendee: buildAttendeeResult({
+        insertId: insertResult.lastInsertRowid,
         eventId,
         name,
         email,
         phone,
         address,
-        enc.created,
+        created: enc.created,
         paymentId,
-        qty,
+        quantity: qty,
         pricePaid,
         ticketToken,
         date,
-      ),
+      }),
     };
   },
 };

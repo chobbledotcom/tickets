@@ -12,6 +12,7 @@ import type {
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#lib/payments.ts";
+import type { ContactInfo } from "#lib/types.ts";
 
 /** Safely execute async operation, returning null on error */
 export const safeAsync = async <T>(
@@ -54,11 +55,17 @@ export const serializeMultiItems = (
   );
 
 /** Spread optional phone/address/date fields into metadata (only if truthy) */
-const optionalFields = (intent: { phone?: string | null; address?: string | null; date?: string | null }): Record<string, string> => ({
+const optionalFields = (intent: Partial<Pick<ContactInfo, "phone" | "address">> & { date?: string | null }): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
   ...(intent.date ? { date: intent.date } : {}),
 });
+
+/** Single-event checkout intent for metadata building */
+type SingleIntentMetadata = Pick<ContactInfo, "name" | "email"> & Partial<Pick<ContactInfo, "phone" | "address">> & {
+  quantity: number;
+  date?: string | null;
+};
 
 /**
  * Build intent metadata for a single-event checkout.
@@ -66,7 +73,7 @@ const optionalFields = (intent: { phone?: string | null; address?: string | null
  */
 export const buildSingleIntentMetadata = (
   eventId: number,
-  intent: { name: string; email: string; phone?: string | null; address?: string | null; quantity: number; date?: string | null },
+  intent: SingleIntentMetadata,
 ): Record<string, string> => ({
   event_id: String(eventId),
   name: intent.name,

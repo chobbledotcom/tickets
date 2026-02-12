@@ -239,8 +239,8 @@ const processFreeReservation = async (
   reservation: ReservationParams,
   dates?: string[],
 ): Promise<Response> => {
-  const { event, name, email, phone, address, quantity, token, date } = reservation;
-  const result = await createAttendeeAtomic({ eventId: event.id, name, email, quantity, phone, address, date });
+  const { event, quantity, token, date, ...contact } = reservation;
+  const result = await createAttendeeAtomic({ eventId: event.id, ...contact, quantity, date });
 
   if (!result.success) {
     return ticketResponse(event, token, dates)(formatAtomicError(result.reason));
@@ -535,7 +535,6 @@ const handleMultiTicketPost = (
     }
 
     const contact = extractContact(validation.values);
-    const { name, email, phone, address } = contact;
 
     // For daily events, validate the submitted date
     let date: string | null = null;
@@ -584,7 +583,7 @@ const handleMultiTicketPost = (
         );
       }
 
-      const intent: MultiRegistrationIntent = { name, email, phone, address, date, items };
+      const intent: MultiRegistrationIntent = { ...contact, date, items };
       return handleMultiPaymentFlow(
         request,
         slugs,

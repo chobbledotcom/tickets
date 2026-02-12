@@ -1,7 +1,7 @@
 import { describe, expect, test } from "#test-compat";
 import { CSS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
-import { adminEventPage, calculateTotalRevenue, nearCapacity } from "#templates/admin/events.tsx";
+import { adminEventPage, calculateTotalRevenue, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
@@ -146,10 +146,22 @@ describe("html", () => {
       expect(html).toContain("height: 18rem");
     });
 
-    test("embed code uses 24rem height for email,phone fields events", () => {
+    test("embed code uses 22rem height for email,phone fields events", () => {
       const bothEvent = testEventWithCount({ attendee_count: 2, fields: "email,phone" });
       const html = adminEventPage(bothEvent, [], "example.com", TEST_SESSION);
-      expect(html).toContain("height: 24rem");
+      expect(html).toContain("height: 22rem");
+    });
+
+    test("embed code uses 20rem height for address-only events", () => {
+      const addressEvent = testEventWithCount({ attendee_count: 2, fields: "address" });
+      const html = adminEventPage(addressEvent, [], "example.com", TEST_SESSION);
+      expect(html).toContain("height: 20rem");
+    });
+
+    test("embed code uses 28rem height for email,phone,address events", () => {
+      const allFieldsEvent = testEventWithCount({ attendee_count: 2, fields: "email,phone,address" });
+      const html = adminEventPage(allFieldsEvent, [], "example.com", TEST_SESSION);
+      expect(html).toContain("height: 28rem");
     });
 
     test("embed code uses 18rem height for phone-only events", () => {
@@ -855,6 +867,46 @@ describe("html", () => {
     test("returns true when fully sold out", () => {
       const event = testEventWithCount({ attendee_count: 100, max_attendees: 100 });
       expect(nearCapacity(event)).toBe(true);
+    });
+  });
+
+  describe("formatAddressInline", () => {
+    test("returns empty string for empty input", () => {
+      expect(formatAddressInline("")).toBe("");
+    });
+
+    test("returns single line unchanged", () => {
+      expect(formatAddressInline("123 Main St")).toBe("123 Main St");
+    });
+
+    test("joins multiple lines with comma-space", () => {
+      expect(formatAddressInline("123 Main St\nSpringfield\nIL 62701")).toBe(
+        "123 Main St, Springfield, IL 62701",
+      );
+    });
+
+    test("handles Windows line endings (CRLF)", () => {
+      expect(formatAddressInline("123 Main St\r\nSpringfield")).toBe(
+        "123 Main St, Springfield",
+      );
+    });
+
+    test("does not double-comma when line ends with comma", () => {
+      expect(formatAddressInline("123 Main St,\nSpringfield")).toBe(
+        "123 Main St, Springfield",
+      );
+    });
+
+    test("trims whitespace from lines", () => {
+      expect(formatAddressInline("  123 Main St  \n  Springfield  ")).toBe(
+        "123 Main St, Springfield",
+      );
+    });
+
+    test("skips blank lines", () => {
+      expect(formatAddressInline("123 Main St\n\n\nSpringfield")).toBe(
+        "123 Main St, Springfield",
+      );
     });
   });
 

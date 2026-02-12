@@ -2,7 +2,13 @@
  * Types for the ticket reservation system
  */
 
-/** Contact fields setting for an event (comma-separated: "email", "phone", "address") */
+/** Individual contact field name */
+export type ContactField = "email" | "phone" | "address";
+
+/** All valid contact field names (runtime array matching the ContactField union) */
+export const CONTACT_FIELDS: readonly ContactField[] = ["email", "phone", "address"] as const;
+
+/** Contact fields setting for an event (comma-separated ContactField names, or empty for name-only) */
 export type EventFields = string;
 
 /** Attendee contact details — the core PII fields collected at registration */

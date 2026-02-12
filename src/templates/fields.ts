@@ -4,7 +4,7 @@
 
 import { DAY_NAMES } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
-import type { AdminLevel, EventFields, EventType } from "#lib/types.ts";
+import { CONTACT_FIELDS, type AdminLevel, type ContactField, type EventFields, type EventType } from "#lib/types.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 
 // ---------------------------------------------------------------------------
@@ -166,15 +166,12 @@ export const loginFields: Field[] = [
   { name: "password", label: "Password", type: "password", required: true },
 ];
 
-/** Valid individual contact field values */
-const VALID_CONTACT_FIELDS: readonly string[] = ["email", "phone", "address"];
-
 /** Validate event fields setting (comma-separated contact field names) */
 const validateEventFields = (value: string): string | null => {
   if (!value) return null; // empty is allowed (name-only collection)
   const parts = value.split(",").map((v) => v.trim()).filter((v) => v);
   for (const part of parts) {
-    if (!VALID_CONTACT_FIELDS.includes(part)) {
+    if (!(CONTACT_FIELDS as readonly string[]).includes(part)) {
       return `Invalid contact field: ${part}`;
     }
   }
@@ -415,29 +412,37 @@ const phoneField: Field = {
   validate: validatePhone,
 };
 
+/** Max length for address field (must fit in payment metadata) */
+const MAX_ADDRESS_LENGTH = 250;
+
+/** Validate address length */
+export const validateAddress = (value: string): string | null =>
+  value.length > MAX_ADDRESS_LENGTH
+    ? `Address must be ${MAX_ADDRESS_LENGTH} characters or fewer`
+    : null;
+
 /** Address field for ticket forms (textarea) */
 const addressField: Field = {
   name: "address",
   label: "Your Address",
   type: "textarea",
   required: true,
+  validate: validateAddress,
 };
 
 /** Map of contact field names to their Field definitions */
-const contactFieldMap: Record<string, Field> = {
+const contactFieldMap: Record<ContactField, Field> = {
   email: emailField,
   phone: phoneField,
   address: addressField,
 };
 
-/**
- * Ticket reservation form field definitions (legacy - email only)
- */
-export const ticketFields: Field[] = [nameField, emailField];
-
-/** Parse a comma-separated fields string into individual field names */
-export const parseEventFields = (fields: EventFields): string[] =>
-  fields ? fields.split(",").map((f) => f.trim()).filter((f) => f) : [];
+/** Parse a comma-separated fields string into individual ContactField names */
+export const parseEventFields = (fields: EventFields): ContactField[] =>
+  fields
+    ? (fields.split(",").map((f) => f.trim()).filter((f): f is ContactField =>
+        (CONTACT_FIELDS as readonly string[]).includes(f)))
+    : [];
 
 /**
  * Get ticket form fields based on event fields setting.
@@ -445,15 +450,12 @@ export const parseEventFields = (fields: EventFields): string[] =>
  */
 export const getTicketFields = (fields: EventFields): Field[] => {
   const parsed = parseEventFields(fields);
-  const contactFields = parsed
-    .map((f) => contactFieldMap[f])
-    .filter((f): f is Field => f !== undefined);
-  return [nameField, ...contactFields];
+  return [nameField, ...parsed.map((f) => contactFieldMap[f])];
 };
 
 /**
  * Determine which contact fields to collect for multiple events.
- * Returns the union of all field settings across events.
+ * Returns the union of all field settings, sorted by canonical CONTACT_FIELDS order.
  */
 export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
   if (fieldSettings.length === 0) return "email";
@@ -463,7 +465,7 @@ export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
       allFields.add(f);
     }
   }
-  return [...allFields].join(",");
+  return CONTACT_FIELDS.filter((f) => allFields.has(f)).join(",");
 };
 
 /**

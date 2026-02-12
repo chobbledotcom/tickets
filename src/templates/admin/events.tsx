@@ -9,7 +9,7 @@ import { type FieldValues, renderError, renderField, renderFields } from "#lib/f
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
-import { eventFields, slugField } from "#templates/fields.ts";
+import { eventFields, parseEventFields, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -137,7 +137,10 @@ export const adminEventPage = (
   availableDates: DateOption[] = [],
 ): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
-  const iframeHeight = event.fields.includes(",") ? "24rem" : "18rem";
+  const contactFields = parseEventFields(event.fields);
+  const hasTextarea = contactFields.includes("address");
+  const inputCount = contactFields.filter((f) => f !== "address").length;
+  const iframeHeight = `${14 + inputCount * 4 + (hasTextarea ? 6 : 0)}rem`;
   const embedCode = `<iframe src="${ticketUrl}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
   const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);

@@ -11,7 +11,7 @@ import {
   getTicketFields,
   holidayFields,
   mergeEventFields,
-  ticketFields,
+  validateAddress,
   validateBookableDays,
   validateDate,
   validatePhone,
@@ -313,13 +313,13 @@ describe("forms", () => {
   describe("ticketFields validation", () => {
     test("validates email format", () => {
       expectInvalid("Please enter a valid email address")(
-        ticketFields,
+        getTicketFields("email"),
         { name: "John Doe", email: "not-an-email" },
       );
     });
 
     test("accepts valid email", () => {
-      expectValid(ticketFields, { name: "John Doe", email: "john@example.com" });
+      expectValid(getTicketFields("email"), { name: "John Doe", email: "john@example.com" });
     });
   });
 
@@ -397,6 +397,26 @@ describe("forms", () => {
     });
   });
 
+  describe("validateAddress", () => {
+    test("accepts short address", () => {
+      expect(validateAddress("123 Main St")).toBeNull();
+    });
+
+    test("accepts address at max length (250)", () => {
+      expect(validateAddress("a".repeat(250))).toBeNull();
+    });
+
+    test("rejects address exceeding max length", () => {
+      expect(validateAddress("a".repeat(251))).toBe(
+        "Address must be 250 characters or fewer",
+      );
+    });
+
+    test("accepts multi-line address within limit", () => {
+      expect(validateAddress("123 Main St\nApt 4\nSpringfield, IL 62701")).toBeNull();
+    });
+  });
+
   describe("getTicketFields", () => {
     test("returns name and email fields for email setting", () => {
       const fields = getTicketFields("email");
@@ -431,6 +451,43 @@ describe("forms", () => {
       expect(emailField.validate).toBeDefined();
       expect(emailField.required).toBe(true);
     });
+
+    test("returns name and address fields for address setting", () => {
+      const fields = getTicketFields("address");
+      expect(fields.length).toBe(2);
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("address");
+    });
+
+    test("returns all four contact fields for email,phone,address setting", () => {
+      const fields = getTicketFields("email,phone,address");
+      expect(fields.length).toBe(4);
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("email");
+      expect(fields[2]!.name).toBe("phone");
+      expect(fields[3]!.name).toBe("address");
+    });
+
+    test("address field has validation", () => {
+      const addrField = getTicketFields("address")[1]!;
+      expect(addrField.validate).toBeDefined();
+      expect(addrField.required).toBe(true);
+      expect(addrField.type).toBe("textarea");
+    });
+
+    test("ignores unknown field names in comma-separated setting", () => {
+      const fields = getTicketFields("email,bogus,phone");
+      expect(fields.length).toBe(3);
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("email");
+      expect(fields[2]!.name).toBe("phone");
+    });
+
+    test("returns only name for empty fields setting", () => {
+      const fields = getTicketFields("");
+      expect(fields.length).toBe(1);
+      expect(fields[0]!.name).toBe("name");
+    });
   });
 
   describe("mergeEventFields", () => {
@@ -458,12 +515,20 @@ describe("forms", () => {
       expect(mergeEventFields(["email", "email,phone"])).toBe("email,phone");
     });
 
-    test("returns phone,email when events differ (phone + email,phone)", () => {
-      expect(mergeEventFields(["phone", "email,phone"])).toBe("phone,email");
+    test("returns email,phone when events differ (phone + email,phone)", () => {
+      expect(mergeEventFields(["phone", "email,phone"])).toBe("email,phone");
     });
 
     test("returns setting for single event", () => {
       expect(mergeEventFields(["phone"])).toBe("phone");
+    });
+
+    test("returns email,phone,address for all fields combined", () => {
+      expect(mergeEventFields(["email", "phone,address"])).toBe("email,phone,address");
+    });
+
+    test("sorts output in canonical CONTACT_FIELDS order", () => {
+      expect(mergeEventFields(["address", "email"])).toBe("email,address");
     });
   });
 
@@ -485,6 +550,14 @@ describe("forms", () => {
 
     test("validates fields select accepts email,phone", () => {
       expectValid(eventFields, eventForm({ fields: "email,phone" }));
+    });
+
+    test("validates fields select accepts address", () => {
+      expectValid(eventFields, eventForm({ fields: "address" }));
+    });
+
+    test("validates fields select accepts email,phone,address", () => {
+      expectValid(eventFields, eventForm({ fields: "email,phone,address" }));
     });
   });
 
