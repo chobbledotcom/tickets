@@ -165,7 +165,10 @@ export const paymentErrorResponse = (message: string, status = 400): Response =>
  * Create redirect response
  */
 export const redirect = (url: string, cookie?: string): Response => {
-  const headers: HeadersInit = { location: url };
+  const headers: HeadersInit = {
+    location: url,
+    "content-type": "text/html; charset=utf-8",
+  };
   if (cookie) {
     headers["set-cookie"] = cookie;
   }

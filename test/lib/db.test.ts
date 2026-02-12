@@ -1599,25 +1599,27 @@ describe("db", () => {
   });
 
   describe("attendees - edge cases", () => {
-    test("decryptAttendees handles empty email and phone strings", async () => {
+    test("decryptAttendees handles empty email, phone, and address strings", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
 
-      // Create attendee with empty email/phone via createAttendeeAtomic
+      // Create attendee with empty email/phone/address via createAttendeeAtomic
       const result = await createAttendeeAtomic({
         eventId: event.id,
         name: "NoContact Person",
         email: "", // empty email
         quantity: 1,
         phone: "", // empty phone
+        address: "", // empty address
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.attendee.email).toBe("");
         expect(result.attendee.phone).toBe("");
+        expect(result.attendee.address).toBe("");
       }
 
       // Decrypt and verify empty strings come back correctly
@@ -1627,6 +1629,33 @@ describe("db", () => {
       expect(attendees.length).toBe(1);
       expect(attendees[0]?.email).toBe("");
       expect(attendees[0]?.phone).toBe("");
+      expect(attendees[0]?.address).toBe("");
+    });
+
+    test("encrypts and decrypts non-empty address", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Address Person",
+        email: "addr@example.com",
+        quantity: 1,
+        address: "123 Main St\nSpringfield\nIL 62701",
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.attendee.address).toBe("123 Main St\nSpringfield\nIL 62701");
+      }
+
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendees(raw, privateKey);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]?.address).toBe("123 Main St\nSpringfield\nIL 62701");
     });
 
     test("createAttendeeAtomic stores and returns price_paid when provided", async () => {

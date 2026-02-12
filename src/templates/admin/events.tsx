@@ -9,7 +9,7 @@ import { type FieldValues, renderError, renderField, renderFields } from "#lib/f
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
-import { eventFields, getAddAttendeeFields, slugField } from "#templates/fields.ts";
+import { eventFields, getAddAttendeeFields, parseEventFields, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -36,6 +36,20 @@ export const formatCents = (cents: string | number): string => (Number(cents) / 
 /** Check if event is within 10% of capacity */
 export const nearCapacity = (event: EventWithCount): boolean =>
   event.attendee_count >= event.max_attendees * 0.9;
+
+/** Format a multi-line address for inline display */
+export const formatAddressInline = (address: string): string => {
+  if (!address) return "";
+  return address
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line)
+    .reduce((acc, line) => {
+      if (!acc) return line;
+      // If previous part already ends with comma, just add space
+      return acc.endsWith(",") ? `${acc} ${line}` : `${acc}, ${line}`;
+    }, "");
+};
 
 
 const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter }): string => {
@@ -67,6 +81,7 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
       <td>{a.name}</td>
       <td>{a.email || ""}</td>
       <td>{a.phone || ""}</td>
+      <td>{formatAddressInline(a.address)}</td>
       <td>{a.quantity}</td>
       <td><a href={`https://${allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
       <td>{new Date(a.created).toLocaleString()}</td>
@@ -145,7 +160,10 @@ export const adminEventPage = ({
   addAttendeeMessage = null,
 }: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
-  const iframeHeight = event.fields === "both" ? "24rem" : "18rem";
+  const contactFields = parseEventFields(event.fields);
+  const hasTextarea = contactFields.includes("address");
+  const inputCount = contactFields.filter((f) => f !== "address").length;
+  const iframeHeight = `${14 + inputCount * 4 + (hasTextarea ? 6 : 0)}rem`;
   const embedCode = `<iframe src="${ticketUrl}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
   const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);
@@ -338,6 +356,7 @@ export const adminEventPage = ({
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
+                  <th>Address</th>
                   <th>Qty</th>
                   <th>Ticket</th>
                   <th>Registered</th>

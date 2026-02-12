@@ -412,7 +412,7 @@ describe("server (admin events)", () => {
         cookie: cookie,
       });
       const csv = await response.text();
-      expect(csv).toContain("Name,Email,Phone,Quantity,Registered");
+      expect(csv).toContain("Name,Email,Phone,Address,Quantity,Registered");
       expect(csv).toContain("John Doe");
       expect(csv).toContain("john@example.com");
       expect(csv).toContain("Jane Smith");

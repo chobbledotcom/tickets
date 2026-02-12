@@ -765,7 +765,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("adds attendee to both event", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, fields: "both" });
+      const event = await createTestEvent({ maxAttendees: 100, fields: "email,phone" });
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
