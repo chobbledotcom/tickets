@@ -8,5 +8,6 @@ coverage/
 cov_profile/
 coverage_profile/
 coverage_data/
+coverage_dir/
 .jscpd-report/
 bunny-script.ts
