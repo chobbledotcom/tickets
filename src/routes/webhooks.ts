@@ -225,26 +225,9 @@ const validateAndPrice = async (
   return { ok: true, event, expectedPrice };
 };
 
-/**
- * Resolve the price to record for a single-ticket attendee.
- * Uses the actual amount charged by the payment provider (session.amountTotal).
- * Logs a warning if the actual and expected amounts differ (indicates a price
- * change occurred between checkout creation and fulfillment).
- */
-const resolvePricePaid = (
-  amountTotal: number,
-  expectedPrice: number,
-  eventId: number,
-): number => {
-  if (amountTotal !== expectedPrice) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      eventId,
-      detail: `Price mismatch: provider charged ${amountTotal} but current event price yields ${expectedPrice}`,
-    });
-  }
-  return amountTotal;
-};
+/** Check if the amount charged matches the current event price */
+const hasPriceMismatch = (amountTotal: number, expectedPrice: number): boolean =>
+  amountTotal !== expectedPrice;
 
 /** Format error for post-payment attendee creation failure */
 const formatPostPaymentError = formatCreationError(
@@ -344,27 +327,23 @@ const processMultiPaymentSession = async (
     expectedTotal += vp.expectedPrice;
   }
 
-  // Log if the actual amount charged doesn't match expected total
-  if (expectedTotal !== session.amountTotal) {
+  // Reject if event prices changed since checkout was created
+  if (hasPriceMismatch(session.amountTotal, expectedTotal)) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Multi-ticket price mismatch: provider charged ${session.amountTotal} but current event prices yield ${expectedTotal}`,
     });
+    return refundAndFail(
+      session,
+      "The price for one or more events changed while you were completing payment.",
+    );
   }
-
-  // Use actual total from provider to scale per-item prices proportionally
-  const useActualPrices = expectedTotal > 0 && session.amountTotal !== expectedTotal;
 
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   let failedEvent: EventWithCount | null = null;
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
   for (const { item, event, expectedPrice } of validatedItems) {
-    // When provider amount differs from expected, scale proportionally
-    const pricePaid = useActualPrices
-      ? Math.round(session.amountTotal * (expectedPrice / expectedTotal))
-      : expectedPrice;
-
     const result = await createAttendeeAtomic({
       eventId: item.e,
       name: intent.name,
@@ -372,7 +351,7 @@ const processMultiPaymentSession = async (
       paymentId: session.paymentReference,
       quantity: item.q,
       phone: intent.phone,
-      pricePaid,
+      pricePaid: expectedPrice,
       date: event.event_type === "daily" ? intent.date : null,
     });
 
@@ -449,11 +428,24 @@ const processPaymentSession = async (
   if (!vp.ok) return refundAndFail(session, vp.error, vp.status);
 
   const { event, expectedPrice } = vp;
-  const pricePaid = resolvePricePaid(session.amountTotal, expectedPrice, intent.eventId);
+
+  // Reject if event price changed since checkout was created
+  if (hasPriceMismatch(session.amountTotal, expectedPrice)) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      eventId: intent.eventId,
+      detail: `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
+    });
+    return refundAndFail(
+      session,
+      "The price for this event changed while you were completing payment.",
+    );
+  }
+
   const result = await createAttendeeAtomic({
     ...intent,
     paymentId: session.paymentReference,
-    pricePaid,
+    pricePaid: expectedPrice,
   });
 
   if (!result.success) {

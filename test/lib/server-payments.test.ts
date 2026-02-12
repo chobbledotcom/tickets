@@ -189,6 +189,7 @@ describe("server (payment flow)", () => {
             id: "cs_test",
             payment_status: "paid",
             payment_intent: "pi_second",
+            amount_total: 1000,
             metadata: {
               event_id: String(event.id),
               name: "Second",
@@ -499,6 +500,7 @@ describe("server (payment flow)", () => {
           id: "cs_test_paid",
           payment_status: "paid",
           payment_intent: "pi_test_123",
+          amount_total: 1000,
           metadata: {
             event_id: String(event.id),
             name: "John",
@@ -547,6 +549,7 @@ describe("server (payment flow)", () => {
           id: "cs_test_paid",
           payment_status: "paid",
           payment_intent: "pi_test_123",
+          amount_total: 1000,
           metadata: {
             event_id: String(event.id),
             name: "John",
@@ -588,6 +591,7 @@ describe("server (payment flow)", () => {
           id: "cs_test_paid",
           payment_status: "paid",
           payment_intent: "pi_test_123",
+          amount_total: 3000,
           metadata: {
             event_id: String(event.id),
             name: "John",
@@ -656,6 +660,7 @@ describe("server (payment flow)", () => {
             id: "cs_test",
             payment_status: "paid",
             payment_intent: "pi_test_123",
+            amount_total: 1000,
             metadata: {
               event_id: String(event.id),
               name: "John",
@@ -716,6 +721,7 @@ describe("server (payment flow)", () => {
         id: "cs_multi_success",
         payment_status: "paid",
         payment_intent: "pi_multi_success",
+        amount_total: 2500,
         metadata: {
           name: "Multi Payer",
           email: "multi@example.com",
@@ -876,6 +882,7 @@ describe("server (payment flow)", () => {
         id: "cs_refund_fail",
         payment_status: "paid",
         payment_intent: "pi_refund_fail",
+        amount_total: 1000,
         metadata: {
           event_id: String(event.id),
           name: "Refund Fail",
@@ -926,6 +933,7 @@ describe("server (payment flow)", () => {
         id: "cs_multi_rollback",
         payment_status: "paid",
         payment_intent: "pi_multi_rollback",
+        amount_total: 1500,
         metadata: {
           name: "Rollback User",
           email: "rollback@example.com",
@@ -977,6 +985,7 @@ describe("server (payment flow)", () => {
         id: "cs_single_thankyou",
         payment_status: "paid",
         payment_intent: "pi_single_thankyou",
+        amount_total: 500,
         metadata: {
           event_id: String(event.id),
           name: "Single",
@@ -1012,6 +1021,7 @@ describe("server (payment flow)", () => {
         id: "cs_dupe_session",
         payment_status: "paid",
         payment_intent: "pi_dupe",
+        amount_total: 1000,
         metadata: {
           event_id: String(event.id),
           name: "Dupe",
