@@ -617,12 +617,16 @@ export const createTestEvent = (
   const input = testEventInput(overrides);
 
   const closesAtParts = splitClosesAt(input.closesAt, null);
+  const dateParts = splitClosesAt(input.date, null);
 
   return authenticatedFormRequest(
     "/admin/event",
     {
       name: input.name,
       description: input.description ?? "",
+      date_date: dateParts.date,
+      date_time: dateParts.time,
+      location: input.location ?? "",
       max_attendees: String(input.maxAttendees),
       max_quantity: String(input.maxQuantity ?? 1),
       fields: input.fields ?? "email",
@@ -700,12 +704,16 @@ export const updateTestEvent = async (
   }
 
   const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
+  const dateParts = splitClosesAt(updates.date, existing.date);
 
   return authenticatedFormRequest(
     `/admin/event/${eventId}/edit`,
     {
       name: updates.name ?? existing.name,
       description: updates.description ?? existing.description,
+      date_date: dateParts.date,
+      date_time: dateParts.time,
+      location: updates.location ?? existing.location,
       slug: updates.slug ?? existing.slug,
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
       max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
@@ -884,6 +892,8 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   id: 1,
   name: "Test Event",
   description: "",
+  date: "",
+  location: "",
   slug: "ab12c",
   slug_index: "test-event-index",
   max_attendees: 100,
