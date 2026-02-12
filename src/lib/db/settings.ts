@@ -41,6 +41,8 @@ export const CONFIG_KEYS = {
   SQUARE_LOCATION_ID: "square_location_id",
   // Embed host restrictions (encrypted)
   EMBED_HOSTS: "embed_hosts",
+  // Terms and conditions (plaintext - displayed publicly)
+  TERMS_AND_CONDITIONS: "terms_and_conditions",
 } as const;
 
 /**
@@ -431,6 +433,29 @@ export const updateEmbedHosts = async (hosts: string): Promise<void> => {
 };
 
 /**
+ * Get terms and conditions text from database
+ * Returns null if not configured
+ */
+export const getTermsAndConditionsFromDb = (): Promise<string | null> =>
+  getSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS);
+
+/**
+ * Update terms and conditions text
+ * Pass empty string to clear
+ */
+export const updateTermsAndConditions = async (text: string): Promise<void> => {
+  if (text === "") {
+    await getDb().execute({
+      sql: "DELETE FROM settings WHERE key = ?",
+      args: [CONFIG_KEYS.TERMS_AND_CONDITIONS],
+    });
+    invalidateSettingsCache();
+    return;
+  }
+  await setSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS, text);
+};
+
+/**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
  */
@@ -464,4 +489,6 @@ export const settingsApi = {
   updateSquareLocationId,
   getEmbedHostsFromDb,
   updateEmbedHosts,
+  getTermsAndConditionsFromDb,
+  updateTermsAndConditions,
 };

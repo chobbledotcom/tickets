@@ -8,6 +8,7 @@ import {
   getEmbedHostsFromDb,
   getPaymentProviderFromDb,
   getStripeWebhookEndpointId,
+  getTermsAndConditionsFromDb,
   hasSquareToken,
   hasStripeKey,
   setPaymentProvider,
@@ -17,6 +18,7 @@ import {
   updateSquareLocationId,
   updateSquareWebhookSignatureKey,
   updateStripeKey,
+  updateTermsAndConditions,
   updateUserPassword,
 } from "#lib/db/settings.ts";
 import {
@@ -67,6 +69,7 @@ const getSettingsPageState = async () => {
   const squareWebhookConfigured = squareWebhookKey !== null;
   const webhookUrl = getWebhookUrl();
   const embedHosts = await getEmbedHostsFromDb();
+  const termsAndConditions = await getTermsAndConditionsFromDb();
   return {
     stripeKeyConfigured,
     paymentProvider,
@@ -74,6 +77,7 @@ const getSettingsPageState = async () => {
     squareWebhookConfigured,
     webhookUrl,
     embedHosts,
+    termsAndConditions,
   };
 };
 
@@ -94,6 +98,7 @@ const renderSettingsPage = async (
     state.squareWebhookConfigured,
     state.webhookUrl,
     state.embedHosts,
+    state.termsAndConditions,
   );
 };
 
@@ -326,6 +331,21 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
 });
 
 /**
+ * Handle POST /admin/settings/terms - owner only
+ */
+const handleTermsPost = settingsRoute(async (form) => {
+  const raw = form.get("terms_and_conditions") ?? "";
+  const trimmed = raw.trim();
+
+  await updateTermsAndConditions(trimmed);
+
+  if (trimmed === "") {
+    return redirectWithSuccess("/admin/settings", "Terms and conditions removed");
+  }
+  return redirectWithSuccess("/admin/settings", "Terms and conditions updated");
+});
+
+/**
  * Expected confirmation phrase for database reset
  */
 const RESET_DATABASE_PHRASE =
@@ -361,6 +381,7 @@ export const settingsRoutes = defineRoutes({
     handleAdminSquareWebhookPost(request),
   "POST /admin/settings/stripe/test": (request) => handleStripeTestPost(request),
   "POST /admin/settings/embed-hosts": (request) => handleEmbedHostsPost(request),
+  "POST /admin/settings/terms": (request) => handleTermsPost(request),
   "POST /admin/settings/reset-database": (request) =>
     handleResetDatabasePost(request),
 });

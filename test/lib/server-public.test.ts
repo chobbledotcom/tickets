@@ -2005,4 +2005,144 @@ describe("server (public routes)", () => {
     });
   });
 
+  describe("terms and conditions (single ticket)", () => {
+    test("shows terms checkbox when terms are configured", async () => {
+      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
+      await updateTermsAndConditions("I agree to the event rules.");
+
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("agree_terms");
+      expect(html).toContain("I agree to the event rules.");
+    });
+
+    test("does not show terms checkbox when no terms configured", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).not.toContain("agree_terms");
+    });
+
+    test("rejects submission without agreeing to terms", async () => {
+      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
+      await updateTermsAndConditions("You must accept the rules.");
+
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const response = await submitTicketForm(event.slug, {
+        name: "John Doe",
+        email: "john@example.com",
+      });
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("You must agree to the terms and conditions");
+    });
+
+    test("accepts submission when terms are agreed to", async () => {
+      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
+      await updateTermsAndConditions("You must accept the rules.");
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+      });
+      const response = await submitTicketForm(event.slug, {
+        name: "John Doe",
+        email: "john@example.com",
+        agree_terms: "1",
+      });
+      expectRedirect("https://example.com/thanks")(response);
+    });
+
+    test("succeeds without checkbox when no terms configured", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+      });
+      const response = await submitTicketForm(event.slug, {
+        name: "John Doe",
+        email: "john@example.com",
+      });
+      expectRedirect("https://example.com/thanks")(response);
+    });
+  });
+
+  describe("terms and conditions (multi-ticket)", () => {
+    test("shows terms checkbox on multi-ticket page when configured", async () => {
+      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
+      await updateTermsAndConditions("Multi-event terms apply.");
+
+      const event1 = await createTestEvent({ name: "TC Multi 1", maxAttendees: 50 });
+      const event2 = await createTestEvent({ name: "TC Multi 2", maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("agree_terms");
+      expect(html).toContain("Multi-event terms apply.");
+    });
+
+    test("rejects multi-ticket submission without agreeing to terms", async () => {
+      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
+      await updateTermsAndConditions("Must agree to policy.");
+
+      const event1 = await createTestEvent({ name: "TC Multi Rej 1", maxAttendees: 50 });
+      const event2 = await createTestEvent({ name: "TC Multi Rej 2", maxAttendees: 50 });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("You must agree to the terms and conditions");
+    });
+
+    test("accepts multi-ticket submission when terms are agreed to", async () => {
+      const { updateTermsAndConditions } = await import("#lib/db/settings.ts");
+      await updateTermsAndConditions("Must agree to policy.");
+
+      const event1 = await createTestEvent({ name: "TC Multi Ok 1", maxAttendees: 50 });
+      const event2 = await createTestEvent({ name: "TC Multi Ok 2", maxAttendees: 50 });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            agree_terms: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expectRedirect("/ticket/reserved")(response);
+    });
+  });
+
 });
