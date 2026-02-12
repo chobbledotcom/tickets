@@ -12,6 +12,7 @@ const staticDir = join(currentDir, "..", "static");
 const faviconSvg = Deno.readTextFileSync(join(staticDir, "favicon.svg"));
 const mvpCss = Deno.readTextFileSync(join(staticDir, "mvp.css"));
 const adminJs = Deno.readTextFileSync(join(staticDir, "admin.js"));
+const scannerJs = Deno.readTextFileSync(join(staticDir, "scanner.js"));
 
 /** Cache for 1 year (immutable assets) */
 const CACHE_HEADERS = {
@@ -45,6 +46,17 @@ export const handleFavicon = (): Response =>
  */
 export const handleAdminJs = (): Response =>
   new Response(adminJs, {
+    headers: {
+      "content-type": "application/javascript; charset=utf-8",
+      ...CACHE_HEADERS,
+    },
+  });
+
+/**
+ * Handle scanner.js request
+ */
+export const handleScannerJs = (): Response =>
+  new Response(scannerJs, {
     headers: {
       "content-type": "application/javascript; charset=utf-8",
       ...CACHE_HEADERS,

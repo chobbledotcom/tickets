@@ -8,6 +8,7 @@
     "npm:@libsql/client@0.17": "0.17.0",
     "npm:esbuild@0.20": "0.20.2",
     "npm:jscpd@*": "4.0.8",
+    "npm:jsqr@^1.4.0": "1.4.0",
     "npm:qrcode@^1.5.0": "1.5.4",
     "npm:square@43": "43.2.1",
     "npm:stripe@17": "17.7.0"
@@ -950,6 +951,9 @@
         "graceful-fs"
       ]
     },
+    "jsqr@1.4.0": {
+      "integrity": "sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A=="
+    },
     "jstransformer@1.0.0": {
       "integrity": "sha512-C9YK3Rf8q6VAPDCCU9fnqo3mAfOH6vUGnMcP4AQAYIEpWtfGLpwOTmZ+igtdK5y+VvI2n3CyYSzy4Qh34eq24A==",
       "dependencies": [
@@ -1489,6 +1493,7 @@
       "npm:@bunny.net/edgescript-sdk@0.12",
       "npm:@libsql/client@0.17",
       "npm:esbuild@0.20",
+      "npm:jsqr@^1.4.0",
       "npm:qrcode@^1.5.0",
       "npm:square@43",
       "npm:stripe@17"

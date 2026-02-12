@@ -14,7 +14,7 @@ import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowMs } from "#lib/now.ts";
-import type { AdminLevel, EventWithCount } from "#lib/types.ts";
+import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { paymentErrorPage } from "#templates/payment.tsx";
 import { notFoundPage } from "#templates/public.tsx";
@@ -272,6 +272,21 @@ export const withEvent = async (
   eventId: number,
   handler: EventHandler,
 ): Promise<Response> => unwrapResult(await fetchEventOr404(eventId), handler);
+
+/**
+ * Curried event page GET handler: renderPage -> (request, eventId) -> Response.
+ * Combines session auth + event fetch + HTML rendering.
+ */
+export const withEventPage =
+  (
+    renderPage: (event: EventWithCount, session: AdminSession) => string,
+  ): ((request: Request, eventId: number) => Promise<Response>) =>
+  (request, eventId) =>
+    requireSessionOr(request, (session) =>
+      withEvent(eventId, (event) =>
+        htmlResponse(renderPage(event, session)),
+      ),
+    );
 
 /**
  * Fetch event by slug or return 404 response.

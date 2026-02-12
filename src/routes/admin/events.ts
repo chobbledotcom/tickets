@@ -31,7 +31,7 @@ import {
   redirect,
   requireSessionOr,
   withAuthForm,
-  withEvent,
+  withEventPage,
 } from "#routes/utils.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
@@ -172,18 +172,6 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
     );
   });
 };
-
-/** Curried event page GET handler: renderPage -> (request, eventId) -> Response */
-const withEventPage =
-  (
-    renderPage: (event: EventWithCount, session: AdminSession) => string,
-  ): ((request: Request, eventId: number) => Promise<Response>) =>
-  (request, eventId) =>
-    requireSessionOr(request, (session) =>
-      withEvent(eventId, (event) =>
-        htmlResponse(renderPage(event, session)),
-      ),
-    );
 
 /** Render event error page or 404 */
 const eventErrorPage = async (

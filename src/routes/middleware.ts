@@ -77,6 +77,12 @@ export const isWebhookPath = (path: string): boolean =>
   path === "/payment/webhook";
 
 /**
+ * Check if path is a JSON API endpoint (admin scanner)
+ */
+export const isJsonApiPath = (path: string): boolean =>
+  /^\/admin\/event\/\d+\/scan$/.test(path);
+
+/**
  * Validate Content-Type for POST requests
  * Returns true if the request is valid (not a POST, or has correct Content-Type)
  * Webhook endpoints accept application/json, all others require form-urlencoded
@@ -87,8 +93,8 @@ export const isValidContentType = (request: Request, path: string): boolean => {
   }
   const contentType = request.headers.get("content-type") || "";
 
-  // Webhook endpoints accept JSON
-  if (isWebhookPath(path)) {
+  // Webhook and JSON API endpoints accept JSON
+  if (isWebhookPath(path) || isJsonApiPath(path)) {
     return contentType.startsWith("application/json");
   }
 

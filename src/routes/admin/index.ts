@@ -11,6 +11,7 @@ import { guideRoutes } from "#routes/admin/guide.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
 import { sessionsRoutes } from "#routes/admin/sessions.ts";
 import { settingsRoutes } from "#routes/admin/settings.ts";
+import { scannerRoutes } from "#routes/admin/scanner.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
 import { createRouter } from "#routes/router.ts";
 
@@ -26,6 +27,7 @@ const adminRoutes = {
   ...usersRoutes,
   ...holidaysRoutes,
   ...guideRoutes,
+  ...scannerRoutes,
 };
 
 /** Route admin requests using declarative router */
