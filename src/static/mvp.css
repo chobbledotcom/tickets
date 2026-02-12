@@ -821,6 +821,13 @@ form > button {
   margin: 0;
 }
 
+/* Hide daily-only fields when event type is "standard" */
+form:has(select[name="event_type"] option[value="standard"]:checked) > label:has([name="bookable_days"]),
+form:has(select[name="event_type"] option[value="standard"]:checked) > label:has([name="minimum_days_before"]),
+form:has(select[name="event_type"] option[value="standard"]:checked) > label:has([name="maximum_days_after"]) {
+  display: none;
+}
+
 /* Utility classes for strict CSP (no inline styles) */
 .hidden {
   display: none;
