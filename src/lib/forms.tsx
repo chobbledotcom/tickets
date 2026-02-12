@@ -22,7 +22,7 @@ export type FieldType =
   | "select"
   | "checkbox-group"
   | "date"
-  | "datetime-local";
+  | "datetime";
 
 export interface Field {
   name: string;
@@ -77,9 +77,35 @@ const renderCheckboxGroup = (
     )
     .join("")}</fieldset>`;
 
-/**
- * Render a single form field
- */
+/** Render split date and time inputs for a datetime field */
+const renderDatetimeInputs = (
+  name: string,
+  { date, time }: { date: string; time: string },
+): string =>
+  `<input type="date" name="${escapeHtml(name)}_date"${date ? ` value="${escapeHtml(date)}"` : ""}>`
+  + `<input type="time" name="${escapeHtml(name)}_time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
+
+const DATETIME_PARTIAL_ERROR = "Please enter both a date and time, or leave both blank";
+
+/** Combine date and time form values into a datetime string, or null on partial fill */
+const getDatetimeValue = (
+  form: URLSearchParams,
+  name: string,
+): string | null => {
+  const date = (form.get(`${name}_date`) || "").trim();
+  const time = (form.get(`${name}_time`) || "").trim();
+  if (date && time) return `${date}T${time}`;
+  if (!date && !time) return "";
+  return null;
+};
+
+/** Split a datetime value (YYYY-MM-DDTHH:MM) into date and time parts */
+const splitDatetime = (value: string): { date: string; time: string } => {
+  if (!value) return { date: "", time: "" };
+  const [date = "", time = ""] = value.split("T");
+  return { date, time };
+};
+
 export const renderField = (field: Field, value: string = ""): string =>
   String(
     <label>
@@ -100,6 +126,10 @@ export const renderField = (field: Field, value: string = ""): string =>
       ) : field.type === "checkbox-group" && field.options ? (
         <Raw
           html={renderCheckboxGroup(field.name, field.options, new Set(value ? value.split(",").map((v) => v.trim()) : []))}
+        />
+      ) : field.type === "datetime" ? (
+        <Raw
+          html={renderDatetimeInputs(field.name, splitDatetime(value))}
         />
       ) : (
         <input
@@ -134,7 +164,8 @@ export const renderFields = (
   )(fields);
 
 /**
- * Parse field value to the appropriate type
+ * Parse field value to the appropriate type.
+ * Empty strings stay as "" for text fields; empty numbers become null.
  */
 const parseFieldValue = (
   field: Field,
@@ -144,7 +175,7 @@ const parseFieldValue = (
     ? trimmed
       ? Number.parseInt(trimmed, 10)
       : null
-    : trimmed || null;
+    : trimmed;
 
 /**
  * Validate a single field and return its parsed value.
@@ -155,9 +186,21 @@ const validateSingleField = (
   form: URLSearchParams,
   field: Field,
 ): FieldValidationResult => {
-  const trimmed = field.type === "checkbox-group"
-    ? form.getAll(field.name).map((v) => v.trim()).filter((v) => v).join(",")
-    : (form.get(field.name) || "").trim();
+  let trimmed: string;
+
+  if (field.type === "datetime") {
+    const result = getDatetimeValue(form, field.name);
+    if (result === null) return { valid: false, error: DATETIME_PARTIAL_ERROR };
+    if (!result) {
+      if (field.required) return { valid: false, error: `${field.label} is required` };
+      return { valid: true, value: null };
+    }
+    trimmed = result;
+  } else if (field.type === "checkbox-group") {
+    trimmed = form.getAll(field.name).map((v) => v.trim()).filter((v) => v).join(",");
+  } else {
+    trimmed = (form.get(field.name) || "").trim();
+  }
 
   if (field.required && !trimmed) {
     return { valid: false, error: `${field.label} is required` };

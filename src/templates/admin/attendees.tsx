@@ -5,10 +5,7 @@
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
-
-/** Format cents as a display string (e.g. 2999 -> "29.99") */
-const formatPrice = (cents: string): string =>
-  (Number.parseInt(cents, 10) / 100).toFixed(2);
+import { formatCents } from "#templates/admin/events.tsx";
 
 /**
  * Admin delete attendee confirmation page
@@ -84,7 +81,7 @@ export const adminRefundAttendeePage = (
           <p><strong>Email:</strong> {attendee.email}</p>
           <p><strong>Quantity:</strong> {attendee.quantity}</p>
           {attendee.price_paid && (
-            <p><strong>Amount Paid:</strong> {formatPrice(attendee.price_paid)}</p>
+            <p><strong>Amount Paid:</strong> {formatCents(attendee.price_paid)}</p>
           )}
           <p><strong>Registered:</strong> {new Date(attendee.created).toLocaleString()}</p>
         </article>

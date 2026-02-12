@@ -764,6 +764,9 @@ button.bulk-checkout:hover {
 
 .inline {
   display: inline;
+  box-shadow: none;
+  padding: 0;
+  border: none;
 }
 
 button.link-button {
@@ -797,6 +800,12 @@ body.iframe main {
 
 body.iframe form {
   margin-bottom: 0;
+}
+
+/* Multi-booking event list */
+.multi-booking-list {
+  list-style: none;
+  padding-left: 0;
 }
 
 /* Checkbox group (used by form framework) */

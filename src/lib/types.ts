@@ -2,8 +2,22 @@
  * Types for the ticket reservation system
  */
 
-/** Contact fields setting for an event */
-export type EventFields = "email" | "phone" | "both";
+/** Individual contact field name */
+export type ContactField = "email" | "phone" | "address";
+
+/** All valid contact field names (runtime array matching the ContactField union) */
+export const CONTACT_FIELDS: readonly ContactField[] = ["email", "phone", "address"] as const;
+
+/** Contact fields setting for an event (comma-separated ContactField names, or empty for name-only) */
+export type EventFields = string;
+
+/** Attendee contact details — the core PII fields collected at registration */
+export type ContactInfo = {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+};
 
 /** Event type: standard (one-time) or daily (date-based booking) */
 export type EventType = "standard" | "daily";
@@ -12,6 +26,8 @@ export interface Event {
   id: number;
   name: string;
   description: string;
+  date: string; // encrypted UTC ISO datetime or empty string
+  location: string; // encrypted or empty string
   slug: string;
   slug_index: string;
   created: string;
@@ -29,12 +45,9 @@ export interface Event {
   maximum_days_after: number;
 }
 
-export interface Attendee {
+export interface Attendee extends ContactInfo {
   id: number;
   event_id: number;
-  name: string;
-  email: string;
-  phone: string;
   created: string;
   payment_id: string | null;
   quantity: number;

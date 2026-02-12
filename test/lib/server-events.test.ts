@@ -412,7 +412,7 @@ describe("server (admin events)", () => {
         cookie: cookie,
       });
       const csv = await response.text();
-      expect(csv).toContain("Name,Email,Phone,Quantity,Registered");
+      expect(csv).toContain("Name,Email,Phone,Address,Quantity,Registered");
       expect(csv).toContain("John Doe");
       expect(csv).toContain("john@example.com");
       expect(csv).toContain("Jane Smith");
@@ -1821,7 +1821,8 @@ describe("server (admin events)", () => {
       });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain('value="2099-06-15T14:30"');
+      expect(html).toContain('value="2099-06-15"');
+      expect(html).toContain('value="14:30"');
       expect(html).toContain("Registration Closes At");
     });
 
@@ -1880,7 +1881,7 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown shows days and hours", () => {
-      const future = new Date(nowMs() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000).toISOString();
+      const future = new Date(nowMs() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000 + 30 * 60 * 1000).toISOString();
       expect(formatCountdown(future)).toBe("3 days and 5 hours from now");
     });
 
@@ -1922,7 +1923,134 @@ describe("server (admin events)", () => {
             slug: event.slug,
             max_attendees: "100",
             max_quantity: "1",
-            closes_at: "not-a-date",
+            closes_at_date: "not-a-date",
+            closes_at_time: "99:99",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Please enter a valid date and time");
+    });
+  });
+
+  describe("event date and location", () => {
+    test("creates event with date and location", async () => {
+      const event = await createTestEvent({
+        date: "2026-06-15T14:00",
+        location: "Village Hall",
+      });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.date).toBe("2026-06-15T14:00:00.000Z");
+      expect(saved?.location).toBe("Village Hall");
+    });
+
+    test("updates event date and location", async () => {
+      const event = await createTestEvent();
+      await updateTestEvent(event.id, {
+        date: "2026-12-25T18:00",
+        location: "Town Centre",
+      });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.date).toBe("2026-12-25T18:00:00.000Z");
+      expect(updated?.location).toBe("Town Centre");
+    });
+
+    test("clears event date by setting to empty string", async () => {
+      const event = await createTestEvent({ date: "2026-06-15T14:00" });
+      await updateTestEvent(event.id, { date: "" });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.date).toBe("");
+    });
+
+    test("admin detail page shows Event Date and Location when set", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({
+        date: "2026-06-15T14:00",
+        location: "Village Hall",
+      });
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Event Date");
+      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
+      expect(html).toContain("<th>Location</th>");
+      expect(html).toContain("Village Hall");
+    });
+
+    test("admin detail page hides Event Date and Location when empty", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent();
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).not.toContain("Event Date");
+      expect(html).not.toContain("<th>Location</th>");
+    });
+
+    test("admin edit page pre-fills date as split inputs", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({ date: "2026-06-15T14:00" });
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('value="2026-06-15"');
+      expect(html).toContain('value="14:00"');
+    });
+
+    test("admin edit page pre-fills location", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({ location: "Village Hall" });
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('value="Village Hall"');
+    });
+
+    test("CSV export includes Event Date and Event Location columns", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent({
+        date: "2026-06-15T14:00",
+        location: "Village Hall",
+      });
+      await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
+      const response = await awaitTestRequest(`/admin/event/${event.id}/export`, { cookie });
+      expect(response.status).toBe(200);
+      const csv = await response.text();
+      expect(csv).toContain("Event Date");
+      expect(csv).toContain("Event Location");
+      expect(csv).toContain("Village Hall");
+    });
+
+    test("CSV export omits Event Date and Event Location when empty", async () => {
+      const { cookie } = await loginAsAdmin();
+      const event = await createTestEvent();
+      await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com");
+      const response = await awaitTestRequest(`/admin/event/${event.id}/export`, { cookie });
+      expect(response.status).toBe(200);
+      const csv = await response.text();
+      expect(csv).not.toContain("Event Date");
+      expect(csv).not.toContain("Event Location");
+    });
+
+    test("rejects invalid event date on edit", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const event = await createTestEvent();
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: event.name,
+            slug: event.slug,
+            max_attendees: "100",
+            max_quantity: "1",
+            date_date: "not-a-date",
+            date_time: "99:99",
             csrf_token: csrfToken,
           },
           cookie,

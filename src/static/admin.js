@@ -12,6 +12,43 @@ for (const el of document.querySelectorAll("[data-nav-select]")) {
   });
 }
 
+/* Multi-booking link builder: track checkbox selection order */
+const multiUrl = document.querySelector("[data-multi-booking-url]");
+if (multiUrl) {
+  const selectedSlugs = [];
+  const domain = multiUrl.dataset.domain;
+  const placeholder = multiUrl.placeholder;
+  for (const cb of document.querySelectorAll("[data-multi-booking-slug]")) {
+    cb.addEventListener("change", () => {
+      const slug = cb.dataset.multiBookingSlug;
+      if (cb.checked) {
+        selectedSlugs.push(slug);
+      } else {
+        const idx = selectedSlugs.indexOf(slug);
+        if (idx !== -1) selectedSlugs.splice(idx, 1);
+      }
+      if (selectedSlugs.length >= 2) {
+        multiUrl.value = `https://${domain}/ticket/${selectedSlugs.join("+")}`;
+        multiUrl.placeholder = "";
+      } else {
+        multiUrl.value = "";
+        multiUrl.placeholder = placeholder;
+      }
+    });
+  }
+}
+
+/* Auto-populate closes_at from event date when closes_at is empty */
+const dateInput = document.querySelector('input[name="date"]');
+const closesAtInput = document.querySelector('input[name="closes_at"]');
+if (dateInput && closesAtInput) {
+  dateInput.addEventListener("change", () => {
+    if (dateInput.value && !closesAtInput.value) {
+      closesAtInput.value = dateInput.value;
+    }
+  });
+}
+
 /* Stripe connection test button */
 const btn = document.getElementById("stripe-test-btn");
 if (btn) {

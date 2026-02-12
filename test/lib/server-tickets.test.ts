@@ -184,4 +184,35 @@ describe("ticket view (/t/:tokens)", () => {
     const body = await response.text();
     expect(body).not.toContain("<th>Date</th>");
   });
+
+  test("shows Event Date column when event has a date", async () => {
+    const event = await createTestEvent({
+      maxAttendees: 10,
+      date: "2026-06-15T14:00",
+      location: "Village Hall",
+    });
+    await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
+    const attendees = await getAttendeesRaw(event.id);
+    const token = attendees[0]!.ticket_token;
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("<th>Event Date</th>");
+    expect(body).toContain("<th>Location</th>");
+    expect(body).toContain("Village Hall");
+  });
+
+  test("does not show Event Date or Location columns when both are empty", async () => {
+    const event = await createTestEvent({ maxAttendees: 10 });
+    await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com");
+    const attendees = await getAttendeesRaw(event.id);
+    const token = attendees[0]!.ticket_token;
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).not.toContain("<th>Event Date</th>");
+    expect(body).not.toContain("<th>Location</th>");
+  });
 });

@@ -2,9 +2,9 @@
  * Form field definitions and typed value interfaces for all forms
  */
 
-import { DAY_NAMES } from "#lib/dates.ts";
+import { DAY_NAMES, normalizeDatetime } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
-import type { AdminLevel, EventFields, EventType } from "#lib/types.ts";
+import { CONTACT_FIELDS, type AdminLevel, type ContactField, type EventFields, type EventType } from "#lib/types.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 
 // ---------------------------------------------------------------------------
@@ -12,23 +12,26 @@ import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 //
 // Each interface describes the shape returned by validateForm<T>() for a
 // specific set of field definitions.  Required text fields produce `string`,
-// optional text fields produce `string | null`, required number fields
-// produce `number`, and optional number fields produce `number | null`.
+// optional text fields produce `string` (empty string when absent),
+// required number fields produce `number`, and optional number fields
+// produce `number | null`.
 // ---------------------------------------------------------------------------
 
 /** Typed values from event form validation */
 export type EventFormValues = {
   name: string;
-  description: string | null;
+  description: string;
+  date: string;
+  location: string;
   max_attendees: number;
   max_quantity: number;
-  fields: EventFields | null;
+  fields: EventFields | "";
   unit_price: number | null;
-  closes_at: string | null;
-  thank_you_url: string | null;
-  webhook_url: string | null;
-  event_type: EventType | null;
-  bookable_days: string | null;
+  closes_at: string;
+  thank_you_url: string;
+  webhook_url: string;
+  event_type: EventType | "";
+  bookable_days: string;
   minimum_days_before: number | null;
   maximum_days_after: number | null;
 };
@@ -43,6 +46,17 @@ export type TicketFormValues = {
   name: string;
   email: string | null;
   phone: string | null;
+  address: string | null;
+};
+
+/** Typed values from admin add-attendee form */
+export type AddAttendeeFormValues = {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  quantity: number;
+  date: string;
 };
 
 /** Typed values from login form */
@@ -56,7 +70,7 @@ export type SetupFormValues = {
   admin_username: string;
   admin_password: string;
   admin_password_confirm: string;
-  currency_code: string | null;
+  currency_code: string;
 };
 
 /** Typed values from change password form */
@@ -165,13 +179,13 @@ export const loginFields: Field[] = [
   { name: "password", label: "Password", type: "password", required: true },
 ];
 
-/** Valid event fields values */
-const VALID_EVENT_FIELDS: readonly string[] = ["email", "phone", "both"];
-
-/** Validate event fields setting */
+/** Validate event fields setting (comma-separated contact field names) */
 const validateEventFields = (value: string): string | null => {
-  if (!VALID_EVENT_FIELDS.includes(value)) {
-    return "Contact Fields must be email, phone, or both";
+  const parts = value.split(",").map((v) => v.trim()).filter((v) => v);
+  for (const part of parts) {
+    if (!(CONTACT_FIELDS as readonly string[]).includes(part)) {
+      return `Invalid contact field: ${part}`;
+    }
   }
   return null;
 };
@@ -211,17 +225,14 @@ const validateDescription = (value: string): string | null =>
     ? `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`
     : null;
 
-/**
- * Validate closes_at is a valid date if provided.
- * Normalizes datetime-local format to UTC ISO before parsing.
- */
-const validateClosesAt = (value: string): string | null => {
-  const normalized = value.length === 16 ? `${value}:00.000Z` : value;
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) {
+/** Validate a datetime value is a valid UTC date */
+const validateDatetime = (value: string): string | null => {
+  try {
+    normalizeDatetime(value, "date");
+    return null;
+  } catch {
     return "Please enter a valid date and time";
   }
-  return null;
 };
 
 /**
@@ -243,6 +254,20 @@ export const eventFields: Field[] = [
     placeholder: "A short description of the event",
     hint: "Shown on the ticket page. HTML is allowed. Max 128 characters.",
     validate: validateDescription,
+  },
+  {
+    name: "date",
+    label: "Event Date (optional)",
+    type: "datetime",
+    hint: "When the event takes place. Times are in UTC.",
+    validate: validateDatetime,
+  },
+  {
+    name: "location",
+    label: "Location (optional)",
+    type: "text",
+    placeholder: "e.g. Village Hall, Main Street",
+    hint: "Where the event takes place. Shown on the ticket page.",
   },
   {
     name: "event_type",
@@ -296,12 +321,12 @@ export const eventFields: Field[] = [
   {
     name: "fields",
     label: "Contact Fields",
-    type: "select",
+    type: "checkbox-group",
     hint: "Which contact details to collect from attendees",
     options: [
       { value: "email", label: "Email" },
       { value: "phone", label: "Phone Number" },
-      { value: "both", label: "Email & Phone Number" },
+      { value: "address", label: "Address" },
     ],
     validate: validateEventFields,
   },
@@ -316,9 +341,9 @@ export const eventFields: Field[] = [
   {
     name: "closes_at",
     label: "Registration Closes At (optional)",
-    type: "datetime-local",
+    type: "datetime",
     hint: "Leave blank for no deadline. Times are in UTC.",
-    validate: validateClosesAt,
+    validate: validateDatetime,
   },
   {
     name: "thank_you_url",
@@ -410,37 +435,89 @@ const phoneField: Field = {
   validate: validatePhone,
 };
 
-/**
- * Ticket reservation form field definitions (legacy - email only)
- */
-export const ticketFields: Field[] = [nameField, emailField];
+/** Max length for address field (must fit in payment metadata) */
+const MAX_ADDRESS_LENGTH = 250;
+
+/** Validate address length */
+export const validateAddress = (value: string): string | null =>
+  value.length > MAX_ADDRESS_LENGTH
+    ? `Address must be ${MAX_ADDRESS_LENGTH} characters or fewer`
+    : null;
+
+/** Address field for ticket forms (textarea) */
+const addressField: Field = {
+  name: "address",
+  label: "Your Address",
+  type: "textarea",
+  required: true,
+  validate: validateAddress,
+};
+
+/** Map of contact field names to their Field definitions */
+const contactFieldMap: Record<ContactField, Field> = {
+  email: emailField,
+  phone: phoneField,
+  address: addressField,
+};
+
+/** Parse a comma-separated fields string into individual ContactField names */
+export const parseEventFields = (fields: EventFields): ContactField[] =>
+  fields
+    ? (fields.split(",").map((f) => f.trim()).filter((f): f is ContactField =>
+        (CONTACT_FIELDS as readonly string[]).includes(f)))
+    : [];
 
 /**
  * Get ticket form fields based on event fields setting.
- * Always includes name. Adds email and/or phone based on the setting.
+ * Always includes name. Adds contact fields based on the comma-separated setting.
  */
 export const getTicketFields = (fields: EventFields): Field[] => {
-  switch (fields) {
-    case "email":
-      return [nameField, emailField];
-    case "phone":
-      return [nameField, phoneField];
-    case "both":
-      return [nameField, emailField, phoneField];
-  }
+  const parsed = parseEventFields(fields);
+  return [nameField, ...parsed.map((f) => contactFieldMap[f])];
+};
+
+/** Quantity field for admin add-attendee form */
+const addAttendeeQuantityField: Field = {
+  name: "quantity",
+  label: "Quantity",
+  type: "number",
+  required: true,
+  min: 1,
+};
+
+/** Date field for admin add-attendee form (daily events only) */
+const addAttendeeDateField: Field = {
+  name: "date",
+  label: "Date",
+  type: "date",
+  required: true,
+  validate: validateDate,
+};
+
+/**
+ * Get admin add-attendee form fields based on event config.
+ * Includes contact fields (name + email/phone per setting), quantity,
+ * and a date field for daily events.
+ */
+export const getAddAttendeeFields = (fields: EventFields, isDaily: boolean): Field[] => {
+  const result = [...getTicketFields(fields), addAttendeeQuantityField];
+  if (isDaily) result.push(addAttendeeDateField);
+  return result;
 };
 
 /**
  * Determine which contact fields to collect for multiple events.
- * If all events share the same single-field setting, use that.
- * If any differ, collect both.
+ * Returns the union of all field settings, sorted by canonical CONTACT_FIELDS order.
  */
 export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
   if (fieldSettings.length === 0) return "email";
-  const first = fieldSettings[0]!;
-  const allSame = fieldSettings.every((f) => f === first);
-  if (allSame) return first;
-  return "both";
+  const allFields = new Set<string>();
+  for (const setting of fieldSettings) {
+    for (const f of parseEventFields(setting)) {
+      allFields.add(f);
+    }
+  }
+  return CONTACT_FIELDS.filter((f) => allFields.has(f)).join(",");
 };
 
 /**

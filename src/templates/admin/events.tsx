@@ -3,13 +3,13 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
-import { formatDateLabel } from "#lib/dates.ts";
+import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
-import { eventFields, slugField } from "#templates/fields.ts";
+import { eventFields, getAddAttendeeFields, parseEventFields, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -30,12 +30,26 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
     return sum;
   }, 0)(attendees);
 
-/** Format cents as a decimal string (e.g. 1000 -> "10.00") */
-const formatRevenue = (cents: number): string => (cents / 100).toFixed(2);
+/** Format cents as a decimal string (e.g. 1000 -> "10.00", "2999" -> "29.99") */
+export const formatCents = (cents: string | number): string => (Number(cents) / 100).toFixed(2);
 
 /** Check if event is within 10% of capacity */
 export const nearCapacity = (event: EventWithCount): boolean =>
   event.attendee_count >= event.max_attendees * 0.9;
+
+/** Format a multi-line address for inline display */
+export const formatAddressInline = (address: string): string => {
+  if (!address) return "";
+  return address
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line)
+    .reduce((acc, line) => {
+      if (!acc) return line;
+      // If previous part already ends with comma, just add space
+      return acc.endsWith(",") ? `${acc} ${line}` : `${acc}, ${line}`;
+    }, "");
+};
 
 
 const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter }): string => {
@@ -67,6 +81,7 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
       <td>{a.name}</td>
       <td>{a.email || ""}</td>
       <td>{a.phone || ""}</td>
+      <td>{formatAddressInline(a.address)}</td>
       <td>{a.quantity}</td>
       <td><a href={`https://${allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
       <td>{new Date(a.created).toLocaleString()}</td>
@@ -86,6 +101,9 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
 
 /** Check-in message to display after toggling */
 export type CheckinMessage = { name: string; status: string } | null;
+
+/** Add-attendee result message */
+export type AddAttendeeMessage = { name: string } | { error: string } | null;
 
 /** Filter attendees by check-in status */
 const filterAttendees = (attendees: Attendee[], activeFilter: AttendeeFilter): Attendee[] => {
@@ -117,18 +135,35 @@ const DateSelector = ({ basePath, activeFilter, dateFilter, dates }: { basePath:
   return `<select data-nav-select>${options}</select>`;
 };
 
-export const adminEventPage = (
-  event: EventWithCount,
-  attendees: Attendee[],
-  allowedDomain: string,
-  session: AdminSession,
-  checkinMessage?: CheckinMessage,
-  activeFilter: AttendeeFilter = "all",
-  dateFilter: string | null = null,
-  availableDates: DateOption[] = [],
-): string => {
+/** Options for rendering the admin event detail page */
+export type AdminEventPageOptions = {
+  event: EventWithCount;
+  attendees: Attendee[];
+  allowedDomain: string;
+  session: AdminSession;
+  checkinMessage?: CheckinMessage;
+  activeFilter?: AttendeeFilter;
+  dateFilter?: string | null;
+  availableDates?: DateOption[];
+  addAttendeeMessage?: AddAttendeeMessage;
+};
+
+export const adminEventPage = ({
+  event,
+  attendees,
+  allowedDomain,
+  session,
+  checkinMessage,
+  activeFilter = "all",
+  dateFilter = null,
+  availableDates = [],
+  addAttendeeMessage = null,
+}: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
-  const iframeHeight = event.fields === "both" ? "24rem" : "18rem";
+  const contactFields = parseEventFields(event.fields);
+  const hasTextarea = contactFields.includes("address");
+  const inputCount = contactFields.filter((f) => f !== "address").length;
+  const iframeHeight = `${14 + inputCount * 4 + (hasTextarea ? 6 : 0)}rem`;
   const embedCode = `<iframe src="${ticketUrl}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
   const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);
@@ -158,6 +193,7 @@ export const adminEventPage = (
             <li><a href={`/admin/event/${event.id}/edit`}>Edit</a></li>
             <li><a href={`/admin/event/${event.id}/duplicate`}>Duplicate</a></li>
             <li><a href={`/admin/event/${event.id}/log`}>Log</a></li>
+            <li><a href={`/admin/event/${event.id}/scanner`}>Scanner</a></li>
             <li><a href={`/admin/event/${event.id}/export${dateFilter ? `?date=${dateFilter}` : ""}`}>Export CSV</a></li>
             {hasPaidEvent && (
               <li><a href={`/admin/event/${event.id}/refund-all`} class="danger">Refund All</a></li>
@@ -180,6 +216,18 @@ export const adminEventPage = (
           <div class="table-scroll">
           <table>
             <tbody>
+              {event.date && (
+                <tr>
+                  <th>Event Date</th>
+                  <td>{formatDatetimeLabel(event.date)}</td>
+                </tr>
+              )}
+              {event.location && (
+                <tr>
+                  <th>Location</th>
+                  <td>{event.location}</td>
+                </tr>
+              )}
               <tr>
                 <th>Event Type</th>
                 <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
@@ -216,14 +264,14 @@ export const adminEventPage = (
               {event.unit_price !== null && (
                 <tr>
                   <th>Total Revenue</th>
-                  <td>{formatRevenue(calculateTotalRevenue(attendees))}</td>
+                  <td>{formatCents(calculateTotalRevenue(attendees))}</td>
                 </tr>
               )}
               <tr>
                 <th>Registration Closes</th>
                 <td>
                   {event.closes_at ? (
-                    <span>{event.closes_at} (UTC) <small><em>({formatCountdown(event.closes_at)})</em></small></span>
+                    <span>{formatDatetimeLabel(event.closes_at)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
                   ) : (
                     <em>No deadline</em>
                   )}
@@ -308,6 +356,7 @@ export const adminEventPage = (
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
+                  <th>Address</th>
                   <th>Qty</th>
                   <th>Ticket</th>
                   <th>Registered</th>
@@ -320,15 +369,34 @@ export const adminEventPage = (
             </table>
           </div>
         </article>
+
+        <article>
+          <h2 id="add-attendee">Add Attendee</h2>
+          {addAttendeeMessage && "name" in addAttendeeMessage && (
+            <p class="checkin-message-in">
+              Added {addAttendeeMessage.name}
+            </p>
+          )}
+          {addAttendeeMessage && "error" in addAttendeeMessage && (
+            <p class="error">
+              {addAttendeeMessage.error}
+            </p>
+          )}
+          <form method="POST" action={`/admin/event/${event.id}/attendee`}>
+            <input type="hidden" name="csrf_token" value={session.csrfToken} />
+            <Raw html={renderFields(getAddAttendeeFields(event.fields, event.event_type === "daily"))} />
+            <button type="submit">Add Attendee</button>
+          </form>
+        </article>
     </Layout>
   );
 };
 
-/** Format closes_at ISO string for datetime-local input (YYYY-MM-DDTHH:MM) */
-const formatClosesAt = (closesAt: string | null): string | null => {
-  if (!closesAt) return null;
+/** Format an ISO datetime string for datetime-local input (YYYY-MM-DDTHH:MM) */
+const formatDatetimeLocal = (iso: string | null): string | null => {
+  if (!iso) return null;
   // datetime-local expects YYYY-MM-DDTHH:MM format
-  return closesAt.slice(0, 16);
+  return iso.slice(0, 16);
 };
 
 /** Convert bookable_days JSON array to comma-separated display string */
@@ -338,6 +406,8 @@ const formatBookableDays = (json: string): string =>
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,
   description: event.description,
+  date: event.date ? formatDatetimeLocal(event.date) : null,
+  location: event.location,
   slug: event.slug,
   event_type: event.event_type,
   max_attendees: event.max_attendees,
@@ -347,7 +417,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   maximum_days_after: event.maximum_days_after,
   fields: event.fields,
   unit_price: event.unit_price,
-  closes_at: formatClosesAt(event.closes_at),
+  closes_at: formatDatetimeLocal(event.closes_at),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
 });

@@ -207,6 +207,14 @@ describe("server (misc)", () => {
     });
   });
 
+  describe("routes/admin/utils.ts (requirePrivateKey)", () => {
+    test("throws when private key is unavailable", async () => {
+      const { requirePrivateKey } = await import("#routes/admin/utils.ts");
+      const session = { token: "any-token", wrappedDataKey: null } as Parameters<typeof requirePrivateKey>[0];
+      await expect(requirePrivateKey(session)).rejects.toThrow("Private key unavailable");
+    });
+  });
+
   describe("routes/utils.ts (CSRF token validation)", () => {
     test("empty csrf_token from form falls back to empty string", async () => {
       const { cookie } = await loginAsAdmin();

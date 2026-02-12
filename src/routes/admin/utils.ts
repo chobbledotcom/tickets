@@ -43,9 +43,12 @@ export const csvResponse = (csv: string, filename: string): Response =>
     },
   });
 
-/** Get the admin private key from session (non-null assertion — callers are inside authenticated handlers) */
-export const requirePrivateKey = async (session: AuthSession): Promise<CryptoKey> =>
-  (await getPrivateKey(session))!;
+/** Get the admin private key from session, throwing if unavailable */
+export const requirePrivateKey = async (session: AuthSession): Promise<CryptoKey> => {
+  const key = await getPrivateKey(session);
+  if (!key) throw new Error("Private key unavailable for session");
+  return key;
+};
 
 /** Handler that receives a decrypted event with its attendees */
 type EventAttendeesHandler = (event: EventWithCount, attendees: Attendee[], session: AuthSession) => Response | Promise<Response>;

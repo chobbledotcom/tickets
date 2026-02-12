@@ -31,7 +31,7 @@ import {
   redirect,
   requireSessionOr,
   withAuthForm,
-  withEvent,
+  withEventPage,
 } from "#routes/utils.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
@@ -41,6 +41,7 @@ import {
   adminEventEditPage,
   adminEventPage,
   adminReactivateEventPage,
+  type AddAttendeeMessage,
   type AttendeeFilter,
 } from "#templates/admin/events.tsx";
 import { generateAttendeesCsv } from "#templates/csv.ts";
@@ -58,20 +59,22 @@ const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: stri
 };
 
 /** Serialize comma-separated day names to JSON array string */
-const serializeBookableDays = (value: string | null): string | undefined =>
+const serializeBookableDays = (value: string): string | undefined =>
   value ? JSON.stringify(value.split(",").map((d) => d.trim()).filter((d) => d)) : undefined;
 
 /** Extract common event fields from validated form values */
 const extractCommonFields = (values: EventFormValues) => ({
   name: values.name,
-  description: values.description || "",
+  description: values.description,
+  date: values.date ?? "",
+  location: values.location,
   maxAttendees: values.max_attendees,
-  thankYouUrl: values.thank_you_url,
+  thankYouUrl: values.thank_you_url || null,
   unitPrice: values.unit_price,
   maxQuantity: values.max_quantity,
   webhookUrl: values.webhook_url || null,
   fields: values.fields || "email",
-  closesAt: values.closes_at || "",
+  closesAt: values.closes_at,
   eventType: values.event_type || undefined,
   bookableDays: serializeBookableDays(values.bookable_days),
   minimumDaysBefore: values.minimum_days_before ?? 1,
@@ -134,6 +137,16 @@ const getCheckinMessage = (request: Request): { name: string; status: string } |
   return null;
 };
 
+/** Extract add-attendee result message from request URL */
+const getAddAttendeeMessage = (request: Request): AddAttendeeMessage => {
+  const url = new URL(request.url);
+  const added = url.searchParams.get("added");
+  if (added) return { name: added };
+  const error = url.searchParams.get("add_error");
+  if (error) return { error };
+  return null;
+};
+
 /** Filter attendees by date for daily events */
 const filterByDate = (attendees: Attendee[], date: string | null): Attendee[] =>
   date ? filter((a: Attendee) => a.date === date)(attendees) : attendees;
@@ -157,31 +170,20 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
     const availableDates = event.event_type === "daily" ? getUniqueDates(attendees) : [];
     const filteredByDate = filterByDate(attendees, dateFilter);
     return htmlResponse(
-      adminEventPage(
+      adminEventPage({
         event,
-        filteredByDate,
-        getAllowedDomain(),
+        attendees: filteredByDate,
+        allowedDomain: getAllowedDomain(),
         session,
-        getCheckinMessage(request),
+        checkinMessage: getCheckinMessage(request),
         activeFilter,
         dateFilter,
         availableDates,
-      ),
+        addAttendeeMessage: getAddAttendeeMessage(request),
+      }),
     );
   });
 };
-
-/** Curried event page GET handler: renderPage -> (request, eventId) -> Response */
-const withEventPage =
-  (
-    renderPage: (event: EventWithCount, session: AdminSession) => string,
-  ): ((request: Request, eventId: number) => Promise<Response>) =>
-  (request, eventId) =>
-    requireSessionOr(request, (session) =>
-      withEvent(eventId, (event) =>
-        htmlResponse(renderPage(event, session)),
-      ),
-    );
 
 /** Render event error page or 404 */
 const eventErrorPage = async (
@@ -241,7 +243,10 @@ const handleAdminEventExport = (request: Request, eventId: number) =>
     const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
     const filteredByDate = filterByDate(attendees, dateFilter);
     const isDaily = event.event_type === "daily";
-    const csv = generateAttendeesCsv(filteredByDate, isDaily);
+    const csv = generateAttendeesCsv(filteredByDate, isDaily, {
+      eventDate: event.date,
+      eventLocation: event.location,
+    });
     const sanitizedName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
     const filename = dateFilter
       ? `${sanitizedName}_${dateFilter}_attendees.csv`
