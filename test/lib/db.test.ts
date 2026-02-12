@@ -1599,13 +1599,13 @@ describe("db", () => {
   });
 
   describe("attendees - edge cases", () => {
-    test("decryptAttendees handles empty email, phone, and address strings", async () => {
+    test("decryptAttendees handles empty email, phone, address, and special_instructions strings", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
 
-      // Create attendee with empty email/phone/address via createAttendeeAtomic
+      // Create attendee with empty email/phone/address/special_instructions via createAttendeeAtomic
       const result = await createAttendeeAtomic({
         eventId: event.id,
         name: "NoContact Person",
@@ -1613,6 +1613,7 @@ describe("db", () => {
         quantity: 1,
         phone: "", // empty phone
         address: "", // empty address
+        special_instructions: "", // empty special instructions
       });
 
       expect(result.success).toBe(true);
@@ -1620,6 +1621,7 @@ describe("db", () => {
         expect(result.attendee.email).toBe("");
         expect(result.attendee.phone).toBe("");
         expect(result.attendee.address).toBe("");
+        expect(result.attendee.special_instructions).toBe("");
       }
 
       // Decrypt and verify empty strings come back correctly
@@ -1630,6 +1632,33 @@ describe("db", () => {
       expect(attendees[0]?.email).toBe("");
       expect(attendees[0]?.phone).toBe("");
       expect(attendees[0]?.address).toBe("");
+      expect(attendees[0]?.special_instructions).toBe("");
+    });
+
+    test("encrypts and decrypts non-empty special_instructions", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Instructions Person",
+        email: "inst@example.com",
+        quantity: 1,
+        special_instructions: "No nuts please\nAllergic to dairy",
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.attendee.special_instructions).toBe("No nuts please\nAllergic to dairy");
+      }
+
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendees(raw, privateKey);
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]?.special_instructions).toBe("No nuts please\nAllergic to dairy");
     });
 
     test("encrypts and decrypts non-empty address", async () => {

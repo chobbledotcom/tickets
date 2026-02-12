@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add address and event date/location columns";
+export const LATEST_UPDATE = "add special_instructions column to attendees";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -310,6 +310,9 @@ export const initDb = async (): Promise<void> => {
     await runMigration(`ALTER TABLE events ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
     await backfillEncryptedColumn("events", col, `${col} = ''`);
   }
+
+  // Migration: add special_instructions column to attendees (hybrid encrypted like address)
+  await runMigration(`ALTER TABLE attendees ADD COLUMN special_instructions TEXT NOT NULL DEFAULT ''`);
 
   // Update the version marker
   await getDb().execute({

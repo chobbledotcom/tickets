@@ -153,6 +153,7 @@ describe("square", () => {
         email: "john@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         quantity: 1,
       };
       const result = await squareApi.createPaymentLink(
@@ -194,6 +195,7 @@ describe("square", () => {
         email: "john@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         quantity: 1,
       };
       const result = await squareApi.createPaymentLink(
@@ -235,6 +237,7 @@ describe("square", () => {
         email: "john@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         quantity: 1,
       };
       const result = await squareApi.createPaymentLink(
@@ -284,6 +287,7 @@ describe("square", () => {
             email: "jane@example.com",
             phone: "555-9876",
             address: "",
+            special_instructions: "",
             quantity: 3,
           };
 
@@ -369,6 +373,7 @@ describe("square", () => {
             email: "john@example.com",
             phone: "",
             address: "",
+            special_instructions: "",
             quantity: 1,
           };
 
@@ -422,6 +427,7 @@ describe("square", () => {
             email: "john@example.com",
             phone: "",
             address: "",
+            special_instructions: "",
             quantity: 1,
           };
 
@@ -474,6 +480,7 @@ describe("square", () => {
             email: "john@example.com",
             phone: "",
             address: "",
+            special_instructions: "",
             quantity: 1,
           };
 
@@ -510,6 +517,7 @@ describe("square", () => {
             email: "a".repeat(300) + "@example.com",
             phone: "",
             address: "",
+            special_instructions: "",
             quantity: 1,
           };
 
@@ -531,6 +539,7 @@ describe("square", () => {
         email: "john@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         items: [
           { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
           { eventId: 2, quantity: 2, unitPrice: 500, slug: "event-2", name: "Event 2" },
@@ -550,6 +559,7 @@ describe("square", () => {
         email: "john@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         items: [
           { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
         ],
@@ -577,6 +587,7 @@ describe("square", () => {
             email: "bob@example.com",
             phone: "",
             address: "",
+            special_instructions: "",
             items: [
               { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
             ],
@@ -607,6 +618,7 @@ describe("square", () => {
             email: "alice@example.com",
             phone: "555-1111",
             address: "",
+            special_instructions: "",
             items: [
               { eventId: 10, quantity: 2, unitPrice: 1500, slug: "workshop-a", name: "Workshop A" },
               { eventId: 20, quantity: 1, unitPrice: 3000, slug: "gala-dinner", name: "Gala Dinner" },
@@ -680,6 +692,7 @@ describe("square", () => {
             email: "alice@example.com",
             phone: "",
             address: "",
+            special_instructions: "",
             items,
           };
 
@@ -1312,6 +1325,7 @@ describe("square", () => {
             email: "john@example.com",
             phone: "",
             address: "",
+            special_instructions: "",
             quantity: 1,
           };
 
@@ -1343,6 +1357,7 @@ describe("square", () => {
             email: "john@example.com",
             phone: "",
             address: "",
+            special_instructions: "",
             items: [
               { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
             ],

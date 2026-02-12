@@ -54,15 +54,16 @@ export const serializeMultiItems = (
     }))(items),
   );
 
-/** Spread optional phone/address/date fields into metadata (only if truthy) */
-const optionalFields = (intent: Partial<Pick<ContactInfo, "phone" | "address">> & { date?: string | null }): Record<string, string> => ({
+/** Spread optional phone/address/special_instructions/date fields into metadata (only if truthy) */
+const optionalFields = (intent: Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">> & { date?: string | null }): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
+  ...(intent.special_instructions ? { special_instructions: intent.special_instructions } : {}),
   ...(intent.date ? { date: intent.date } : {}),
 });
 
 /** Single-event checkout intent for metadata building */
-type SingleIntentMetadata = Pick<ContactInfo, "name" | "email"> & Partial<Pick<ContactInfo, "phone" | "address">> & {
+type SingleIntentMetadata = Pick<ContactInfo, "name" | "email"> & Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">> & {
   quantity: number;
   date?: string | null;
 };
@@ -137,6 +138,7 @@ export const extractSessionMetadata = (
   email: metadata.email!,
   phone: metadata.phone,
   address: metadata.address,
+  special_instructions: metadata.special_instructions,
   quantity: metadata.quantity,
   multi: metadata.multi,
   date: metadata.date,
