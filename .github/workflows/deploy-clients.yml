@@ -1,0 +1,44 @@
+name: Deploy to Clients
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubicloud-standard-16
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install dependencies
+        run: deno install --allow-scripts
+
+      - name: Build edge script
+        run: deno task build:edge
+
+      - name: Deploy to clients
+        env:
+          BUNNY_SCRIPT_DATA: ${{ secrets.BUNNY_SCRIPT_DATA }}
+        run: |
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            script_id="${line%%|*}"
+            api_key="${line#*|}"
+            echo "Deploying to script $script_id..."
+            curl -s --fail-with-body \
+              -X POST "https://api.bunny.net/compute/script/${script_id}/code" \
+              -H "AccessKey: ${api_key}" \
+              -H "Content-Type: application/javascript" \
+              --data-binary @bunny-script.ts \
+              && echo " ✓ Deployed to $script_id" \
+              || { echo " ✗ Failed to deploy to $script_id"; exit 1; }
+          done <<< "$BUNNY_SCRIPT_DATA"
