@@ -28,7 +28,7 @@ import {
   type ValidatedPaymentSession,
   type WebhookEvent,
 } from "#lib/payments.ts";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
+import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
 import { getCurrencyCode } from "#lib/config.ts";
 import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -56,6 +56,7 @@ const extractIntent = (
   name: session.metadata.name,
   email: session.metadata.email,
   phone: session.metadata.phone ?? "",
+  address: session.metadata.address ?? "",
   quantity: Number.parseInt(session.metadata.quantity || "1", 10),
   date: session.metadata.date ?? null,
 });
@@ -258,10 +259,7 @@ const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
 };
 
 /** Multi-ticket registration intent */
-type MultiIntent = {
-  name: string;
-  email: string;
-  phone: string;
+type MultiIntent = ContactInfo & {
   date: string | null;
   items: MultiItem[];
 };
@@ -280,6 +278,7 @@ const extractMultiIntent = (
     name: metadata.name,
     email: metadata.email,
     phone: metadata.phone ?? "",
+    address: metadata.address ?? "",
     date: metadata.date ?? null,
     items,
   };
@@ -351,6 +350,7 @@ const processMultiPaymentSession = async (
       paymentId: session.paymentReference,
       quantity: item.q,
       phone: intent.phone,
+      address: intent.address,
       pricePaid: expectedPrice,
       date: event.event_type === "daily" ? intent.date : null,
     });

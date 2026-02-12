@@ -29,6 +29,7 @@ const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee
   name: "Jane Doe",
   email: "jane@example.com",
   phone: "555-1234",
+  address: "",
   ticket_token: "test-token-42",
   date: null,
   ...overrides,

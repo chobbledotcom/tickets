@@ -16,7 +16,7 @@ import {
   type MultiRegistrationItem,
   type RegistrationIntent,
 } from "#lib/payments.ts";
-import type { EventFields, EventWithCount } from "#lib/types.ts";
+import type { ContactInfo, EventFields, EventWithCount } from "#lib/types.ts";
 import { logDebug } from "#lib/logger.ts";
 import {
   logAndNotifyMultiRegistration,
@@ -130,11 +130,8 @@ const requiresPayment = async (
 };
 
 /** Common parameters for reservation processing */
-type ReservationParams = {
+type ReservationParams = ContactInfo & {
   event: EventWithCount;
-  name: string;
-  email: string;
-  phone: string;
   quantity: number;
   token: string;
   date: string | null;
@@ -199,11 +196,12 @@ const handlePaymentFlow = (
     (msg, status) => ticketResponse(event, csrfToken)(msg, status),
   );
 
-/** Extract contact details (name, email, phone) from validated form values */
-const extractContact = (values: TicketFormValues) => ({
+/** Extract contact details from validated form values */
+const extractContact = (values: TicketFormValues): ContactInfo => ({
   name: values.name,
   email: values.email || "",
   phone: values.phone || "",
+  address: values.address || "",
 });
 
 /** Parse and validate a quantity value from a raw string, capping at max */
@@ -251,8 +249,8 @@ const processFreeReservation = async (
   reservation: ReservationParams,
   dates?: string[],
 ): Promise<Response> => {
-  const { event, name, email, phone, quantity, token, date } = reservation;
-  const result = await createAttendeeAtomic({ eventId: event.id, name, email, quantity, phone, date });
+  const { event, quantity, token, date, ...contact } = reservation;
+  const result = await createAttendeeAtomic({ eventId: event.id, ...contact, quantity, date });
 
   if (!result.success) {
     return ticketResponse(event, token, dates)(formatAtomicError(result.reason));
@@ -507,15 +505,13 @@ const getMultiTicketFieldsSetting = (events: MultiTicketEvent[]): EventFields =>
 const processMultiFreeReservation = async (
   events: MultiTicketEvent[],
   quantities: Map<number, number>,
-  name: string,
-  email: string,
-  phone: string,
+  contact: ContactInfo,
   date: string | null,
 ): Promise<{ success: true } | { success: false; error: string }> => {
   const entries: RegistrationEntry[] = [];
   for (const { event, qty } of eventsWithQuantity(events, quantities)) {
     const eventDate = event.event_type === "daily" ? date : null;
-    const result = await createAttendeeAtomic({ eventId: event.id, name, email, quantity: qty, phone, date: eventDate });
+    const result = await createAttendeeAtomic({ eventId: event.id, ...contact, quantity: qty, date: eventDate });
     if (!result.success) {
       return { success: false, error: formatAtomicError(result.reason, event.name) };
     }
@@ -564,7 +560,7 @@ const handleMultiTicketPost = (
       );
     }
 
-    const { name, email, phone } = extractContact(validation.values);
+    const contact = extractContact(validation.values);
 
     // For daily events, validate the submitted date
     let date: string | null = null;
@@ -613,7 +609,7 @@ const handleMultiTicketPost = (
         );
       }
 
-      const intent: MultiRegistrationIntent = { name, email, phone, date, items };
+      const intent: MultiRegistrationIntent = { ...contact, date, items };
       return handleMultiPaymentFlow(
         request,
         slugs,
@@ -628,9 +624,7 @@ const handleMultiTicketPost = (
     const result = await processMultiFreeReservation(
       activeEvents,
       quantities,
-      name,
-      email,
-      phone,
+      contact,
       date,
     );
 

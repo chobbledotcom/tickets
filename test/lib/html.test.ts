@@ -1,7 +1,7 @@
 import { describe, expect, test } from "#test-compat";
 import { CSS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
-import { adminEventEditPage, adminEventPage, calculateTotalRevenue, nearCapacity } from "#templates/admin/events.tsx";
+import { adminEventEditPage, adminEventPage, calculateTotalRevenue, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
@@ -148,10 +148,22 @@ describe("html", () => {
       expect(html).toContain("height: 18rem");
     });
 
-    test("embed code uses 24rem height for both fields events", () => {
-      const bothEvent = testEventWithCount({ attendee_count: 2, fields: "both" });
+    test("embed code uses 22rem height for email,phone fields events", () => {
+      const bothEvent = testEventWithCount({ attendee_count: 2, fields: "email,phone" });
       const html = adminEventPage(bothEvent, [], "example.com", TEST_SESSION);
-      expect(html).toContain("height: 24rem");
+      expect(html).toContain("height: 22rem");
+    });
+
+    test("embed code uses 20rem height for address-only events", () => {
+      const addressEvent = testEventWithCount({ attendee_count: 2, fields: "address" });
+      const html = adminEventPage(addressEvent, [], "example.com", TEST_SESSION);
+      expect(html).toContain("height: 20rem");
+    });
+
+    test("embed code uses 28rem height for email,phone,address events", () => {
+      const allFieldsEvent = testEventWithCount({ attendee_count: 2, fields: "email,phone,address" });
+      const html = adminEventPage(allFieldsEvent, [], "example.com", TEST_SESSION);
+      expect(html).toContain("height: 28rem");
     });
 
     test("embed code uses 18rem height for phone-only events", () => {
@@ -319,8 +331,8 @@ describe("html", () => {
       expect(html).not.toContain('name="email"');
     });
 
-    test("shows both email and phone for both setting", () => {
-      const bothEvent = testEventWithCount({ attendee_count: 50, fields: "both" });
+    test("shows both email and phone for email,phone setting", () => {
+      const bothEvent = testEventWithCount({ attendee_count: 50, fields: "email,phone" });
       const html = ticketPage(bothEvent, csrfToken);
       expect(html).toContain('name="email"');
       expect(html).toContain('name="phone"');
@@ -463,7 +475,7 @@ describe("html", () => {
   describe("generateAttendeesCsv", () => {
     test("generates CSV header for empty attendees", () => {
       const csv = generateAttendeesCsv([]);
-      expect(csv).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("generates CSV with attendee data", () => {
@@ -472,7 +484,7 @@ describe("html", () => {
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(lines[0]).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain("John Doe");
       expect(lines[1]).toContain("john@example.com");
       expect(lines[1]).toContain(",2,");
@@ -519,7 +531,7 @@ describe("html", () => {
       const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(lines[0]).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain("+1 555 123 4567");
     });
 
@@ -527,7 +539,7 @@ describe("html", () => {
       const attendees = [testAttendee()];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[1]).toContain("john@example.com,,1,");
+      expect(lines[1]).toContain("john@example.com,,,1,");
     });
 
     test("generates CSV with price and transaction ID", () => {
@@ -598,7 +610,7 @@ describe("html", () => {
 
     test("includes Date column when includeDate is true", () => {
       const csv = generateAttendeesCsv([], true);
-      expect(csv).toBe("Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("includes date value in row when includeDate is true", () => {
@@ -938,6 +950,46 @@ describe("html", () => {
     });
   });
 
+  describe("formatAddressInline", () => {
+    test("returns empty string for empty input", () => {
+      expect(formatAddressInline("")).toBe("");
+    });
+
+    test("returns single line unchanged", () => {
+      expect(formatAddressInline("123 Main St")).toBe("123 Main St");
+    });
+
+    test("joins multiple lines with comma-space", () => {
+      expect(formatAddressInline("123 Main St\nSpringfield\nIL 62701")).toBe(
+        "123 Main St, Springfield, IL 62701",
+      );
+    });
+
+    test("handles Windows line endings (CRLF)", () => {
+      expect(formatAddressInline("123 Main St\r\nSpringfield")).toBe(
+        "123 Main St, Springfield",
+      );
+    });
+
+    test("does not double-comma when line ends with comma", () => {
+      expect(formatAddressInline("123 Main St,\nSpringfield")).toBe(
+        "123 Main St, Springfield",
+      );
+    });
+
+    test("trims whitespace from lines", () => {
+      expect(formatAddressInline("  123 Main St  \n  Springfield  ")).toBe(
+        "123 Main St, Springfield",
+      );
+    });
+
+    test("skips blank lines", () => {
+      expect(formatAddressInline("123 Main St\n\n\nSpringfield")).toBe(
+        "123 Main St, Springfield",
+      );
+    });
+  });
+
   describe("Breadcrumb", () => {
     test("renders breadcrumb link with label", () => {
       const html = String(Breadcrumb({ href: "/admin/", label: "Back to Events" }));
@@ -1137,7 +1189,7 @@ describe("html", () => {
 
     test("generates CSV header for empty attendees (no Event Date/Location columns)", () => {
       const csv = generateCalendarCsv([]);
-      expect(csv).toBe("Event,Date,Name,Email,Phone,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Event,Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("omits Event Date and Event Location columns when all empty", () => {

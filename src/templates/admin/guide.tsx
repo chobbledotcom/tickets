@@ -48,9 +48,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             From the <strong>Events</strong> page, fill in the form at the
             bottom. Give your event a name, set the capacity, and choose which
-            contact details to collect (email, phone, or both). You can leave
-            the price blank for free events. Once created, share the booking
-            link with your attendees.
+            contact details to collect (any combination of email, phone, and
+            postal address). You can leave the price blank for free events.
+            Once created, share the booking link with your attendees.
           </p>
         </Q>
 
@@ -377,8 +377,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Data &amp; Privacy">
         <Q q="How is attendee data protected?">
           <p>
-            All personal information (names, email addresses, phone numbers) is
-            encrypted before being stored. Even if the database were
+            All personal information (names, email addresses, phone numbers,
+            postal addresses) is encrypted before being stored. Even if the database were
             compromised, the data cannot be read without the encryption keys.
             Data is only decrypted when an authenticated admin views it.
           </p>
@@ -397,8 +397,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         <Q q="Can I export attendee data?">
           <p>
             Yes. On any event's attendee list, click <strong>Export CSV</strong>.
-            The export includes name, email, phone, quantity, registration date,
-            amount paid, check-in status, and ticket link. For daily events, you
+            The export includes name, email, phone, address, quantity,
+            registration date, amount paid, check-in status, and ticket link. For daily events, you
             can filter by date before exporting.
           </p>
         </Q>

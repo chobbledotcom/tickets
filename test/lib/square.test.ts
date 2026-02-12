@@ -152,6 +152,7 @@ describe("square", () => {
         name: "John Doe",
         email: "john@example.com",
         phone: "",
+        address: "",
         quantity: 1,
       };
       const result = await squareApi.createPaymentLink(
@@ -192,6 +193,7 @@ describe("square", () => {
         name: "John",
         email: "john@example.com",
         phone: "",
+        address: "",
         quantity: 1,
       };
       const result = await squareApi.createPaymentLink(
@@ -232,6 +234,7 @@ describe("square", () => {
         name: "John",
         email: "john@example.com",
         phone: "",
+        address: "",
         quantity: 1,
       };
       const result = await squareApi.createPaymentLink(
@@ -280,6 +283,7 @@ describe("square", () => {
             name: "Jane Smith",
             email: "jane@example.com",
             phone: "555-9876",
+            address: "",
             quantity: 3,
           };
 
@@ -364,6 +368,7 @@ describe("square", () => {
             name: "John",
             email: "john@example.com",
             phone: "",
+            address: "",
             quantity: 1,
           };
 
@@ -416,6 +421,7 @@ describe("square", () => {
             name: "John",
             email: "john@example.com",
             phone: "",
+            address: "",
             quantity: 1,
           };
 
@@ -467,6 +473,7 @@ describe("square", () => {
             name: "A".repeat(300),
             email: "john@example.com",
             phone: "",
+            address: "",
             quantity: 1,
           };
 
@@ -502,6 +509,7 @@ describe("square", () => {
             name: "John",
             email: "a".repeat(300) + "@example.com",
             phone: "",
+            address: "",
             quantity: 1,
           };
 
@@ -522,6 +530,7 @@ describe("square", () => {
         name: "John Doe",
         email: "john@example.com",
         phone: "",
+        address: "",
         items: [
           { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
           { eventId: 2, quantity: 2, unitPrice: 500, slug: "event-2", name: "Event 2" },
@@ -540,6 +549,7 @@ describe("square", () => {
         name: "John Doe",
         email: "john@example.com",
         phone: "",
+        address: "",
         items: [
           { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
         ],
@@ -566,6 +576,7 @@ describe("square", () => {
             name: "Bob Missing",
             email: "bob@example.com",
             phone: "",
+            address: "",
             items: [
               { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
             ],
@@ -595,6 +606,7 @@ describe("square", () => {
             name: "Alice Wonder",
             email: "alice@example.com",
             phone: "555-1111",
+            address: "",
             items: [
               { eventId: 10, quantity: 2, unitPrice: 1500, slug: "workshop-a", name: "Workshop A" },
               { eventId: 20, quantity: 1, unitPrice: 3000, slug: "gala-dinner", name: "Gala Dinner" },
@@ -667,6 +679,7 @@ describe("square", () => {
             name: "Alice",
             email: "alice@example.com",
             phone: "",
+            address: "",
             items,
           };
 
@@ -1298,6 +1311,7 @@ describe("square", () => {
             name: "John",
             email: "john@example.com",
             phone: "",
+            address: "",
             quantity: 1,
           };
 
@@ -1328,6 +1342,7 @@ describe("square", () => {
             name: "John",
             email: "john@example.com",
             phone: "",
+            address: "",
             items: [
               { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-1", name: "Event 1" },
             ],
