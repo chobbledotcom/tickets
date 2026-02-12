@@ -3,7 +3,10 @@
  *
  * - Request logging: logs method, path (slugs redacted), status, duration
  * - Error logging: logs classified error codes without PII
+ * - Ntfy notifications: optional error pings to a configured ntfy URL
  */
+
+import { sendNtfyError } from "#lib/ntfy.ts";
 
 /**
  * Error codes for classified error logging
@@ -137,6 +140,8 @@ export const logError = (context: ErrorContext): void => {
 
   // biome-ignore lint/suspicious/noConsole: Intentional error logging
   console.error(parts.join(" "));
+
+  sendNtfyError(code);
 };
 
 /**
