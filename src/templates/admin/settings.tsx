@@ -132,7 +132,7 @@ export const adminSettingsPage = (
         )}
 
         <form method="POST" action="/admin/settings/embed-hosts">
-            <h2>Allowed Embed Hosts</h2>
+            <h2>Only allow embedding on these hosts</h2>
           <p>Restrict which websites can embed your booking forms in an iframe. Leave blank to allow embedding from any site.</p>
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="embed_hosts">Hosts (comma-separated)</label>
