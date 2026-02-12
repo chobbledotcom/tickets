@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { setPaymentProvider } from "#lib/db/settings.ts";
+import { setPaymentProvider, updateTermsAndConditions } from "#lib/db/settings.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
@@ -849,6 +849,161 @@ describe("server (admin settings)", () => {
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("Confirmation phrase does not match");
+    });
+  });
+
+  describe("POST /admin/settings/terms", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/terms", {
+          terms_and_conditions: "You must agree to our policy.",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/terms",
+          {
+            terms_and_conditions: "Some terms",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
+    test("saves terms and conditions", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/terms",
+          {
+            terms_and_conditions: "By registering you agree to our event policy.",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Terms and conditions updated");
+    });
+
+    test("rejects terms exceeding max length", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/terms",
+          {
+            terms_and_conditions: "x".repeat(10_241),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("10240 characters or fewer");
+    });
+
+    test("accepts terms at exactly max length", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/terms",
+          {
+            terms_and_conditions: "x".repeat(10_240),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Terms and conditions updated");
+    });
+
+    test("clears terms when empty", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // First save some terms
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/terms",
+          {
+            terms_and_conditions: "Some terms",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      // Now clear them
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/terms",
+          {
+            terms_and_conditions: "",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Terms and conditions removed");
+    });
+
+    test("handles missing terms field gracefully", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/terms",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Terms and conditions removed");
+    });
+
+    test("settings page shows terms and conditions section", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Terms and Conditions");
+      expect(html).toContain("terms_and_conditions");
+    });
+
+    test("settings page shows current terms when configured", async () => {
+      await updateTermsAndConditions("You must be 18 or older.");
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("You must be 18 or older.");
     });
   });
 

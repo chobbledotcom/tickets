@@ -147,6 +147,8 @@ describe("stripe", () => {
         slug_index: "test-event-index",
         name: "Test Event",
         description: "Test Description",
+        date: "",
+        location: "",
         created: new Date().toISOString(),
         max_attendees: 50,
         thank_you_url: "https://example.com/thanks",
@@ -166,6 +168,7 @@ describe("stripe", () => {
         name: "John Doe",
         email: "john@example.com",
         phone: "",
+        address: "",
         quantity: 1,
       };
 
@@ -193,6 +196,8 @@ describe("stripe", () => {
         slug_index: "test-event-index",
         name: "Test Event",
         description: "Test Description",
+        date: "",
+        location: "",
         created: new Date().toISOString(),
         max_attendees: 50,
         thank_you_url: "https://example.com/thanks",
@@ -213,6 +218,7 @@ describe("stripe", () => {
         name: "John Doe",
         email: "john@example.com",
         phone: "",
+        address: "",
         quantity: 2,
       };
 
@@ -247,6 +253,8 @@ describe("stripe", () => {
         slug_index: "test-event-index",
         name: "Test",
         description: "Desc",
+        date: "",
+        location: "",
         created: new Date().toISOString(),
         max_attendees: 50,
         thank_you_url: "https://example.com",
@@ -266,6 +274,7 @@ describe("stripe", () => {
         name: "John",
         email: "john@example.com",
         phone: "",
+        address: "",
         quantity: 1,
       };
       const result = await createCheckoutSessionWithIntent(
@@ -284,6 +293,8 @@ describe("stripe", () => {
         slug_index: "test-event-index",
         name: "Test",
         description: "Desc",
+        date: "",
+        location: "",
         created: new Date().toISOString(),
         max_attendees: 50,
         thank_you_url: "https://example.com",
@@ -303,6 +314,7 @@ describe("stripe", () => {
         name: "John",
         email: "john@example.com",
         phone: "",
+        address: "",
         quantity: 1,
       };
       const result = await createCheckoutSessionWithIntent(
@@ -758,6 +770,7 @@ describe("stripe", () => {
         name: "John Doe",
         email: "john@example.com",
         phone: "+44 7700 900000",
+        address: "",
         quantity: 1,
       };
 
@@ -783,6 +796,7 @@ describe("stripe", () => {
         name: "No Email User",
         email: "",
         phone: "+44 7700 900000",
+        address: "",
         quantity: 1,
       };
 
@@ -806,6 +820,7 @@ describe("stripe", () => {
         name: "Jane Doe",
         email: "jane@example.com",
         phone: "+44 7700 900001",
+        address: "",
         items: [
           { eventId: 1, quantity: 2, unitPrice: 1000, slug: "event-a", name: "Event A" },
           { eventId: 2, quantity: 1, unitPrice: 2000, slug: "event-b", name: "Event B" },
@@ -826,6 +841,7 @@ describe("stripe", () => {
         name: "Jane Doe",
         email: "jane@example.com",
         phone: "",
+        address: "",
         items: [
           { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-a", name: "Event A" },
         ],
@@ -845,6 +861,7 @@ describe("stripe", () => {
         name: "No Email Multi",
         email: "",
         phone: "+44 7700 900002",
+        address: "",
         items: [
           { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-a", name: "Event A" },
           { eventId: 2, quantity: 2, unitPrice: 2000, slug: "event-b", name: "Event B" },
@@ -1311,6 +1328,7 @@ describe("stripe-provider", () => {
           name: "John",
           email: "john@example.com",
           phone: "",
+          address: "",
           quantity: 1,
         };
 
@@ -1342,6 +1360,7 @@ describe("stripe-provider", () => {
           name: "John",
           email: "john@example.com",
           phone: "",
+          address: "",
           quantity: 1,
         };
 
@@ -1676,6 +1695,7 @@ describe("stripe-provider", () => {
           name: "Jane",
           email: "jane@example.com",
           phone: "",
+          address: "",
           items: [{ eventId: 1, quantity: 1, unitPrice: 1000, slug: "evt", name: "Evt" }],
         };
         const result = await stripePaymentProvider.createMultiCheckoutSession(

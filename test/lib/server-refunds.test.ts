@@ -3,10 +3,12 @@ import { spyOn } from "#test-compat";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
+  createPaidTestAttendee,
   createTestAttendee,
   createTestDbWithSetup,
   createTestEvent,
   mockFormRequest,
+  mockProviderType,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
@@ -92,22 +94,12 @@ describe("server (admin refunds)", () => {
 
     test("shows refund confirmation page for paid attendee", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      // Create attendee with payment_id via the atomic API
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        eventId: event.id,
-        name: "Jane Smith",
-        email: "jane@example.com",
-        paymentId: "pi_test_123",
-        quantity: 1,
-        pricePaid: 500,
-      });
-      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = await createPaidTestAttendee(event.id, "Jane Smith", "jane@example.com", "pi_test_123");
 
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${result.attendee.id}/refund`,
+        `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
         { cookie },
       );
       expect(response.status).toBe(200);
@@ -134,22 +126,13 @@ describe("server (admin refunds)", () => {
 
     test("rejects invalid CSRF token", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        eventId: event.id,
-        name: "John Doe",
-        email: "john@example.com",
-        paymentId: "pi_test_456",
-        quantity: 1,
-        pricePaid: 500,
-      });
-      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_456");
 
       const { cookie } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${result.attendee.id}/refund`,
+          `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
           { confirm_name: "John Doe", csrf_token: "invalid-token" },
           cookie,
         ),
@@ -159,22 +142,13 @@ describe("server (admin refunds)", () => {
 
     test("rejects mismatched attendee name", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        eventId: event.id,
-        name: "John Doe",
-        email: "john@example.com",
-        paymentId: "pi_test_789",
-        quantity: 1,
-        pricePaid: 500,
-      });
-      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_789");
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${result.attendee.id}/refund`,
+          `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
           { confirm_name: "Wrong Name", csrf_token: csrfToken },
           cookie,
         ),
@@ -204,22 +178,13 @@ describe("server (admin refunds)", () => {
 
     test("returns error when no payment provider configured", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        eventId: event.id,
-        name: "John Doe",
-        email: "john@example.com",
-        paymentId: "pi_test_noprov",
-        quantity: 1,
-        pricePaid: 500,
-      });
-      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_noprov");
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${result.attendee.id}/refund`,
+          `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
           { confirm_name: "John Doe", csrf_token: csrfToken },
           cookie,
         ),
@@ -231,28 +196,19 @@ describe("server (admin refunds)", () => {
 
     test("successfully refunds attendee payment", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        eventId: event.id,
-        name: "John Doe",
-        email: "john@example.com",
-        paymentId: "pi_test_success",
-        quantity: 1,
-        pricePaid: 500,
-      });
-      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_success");
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue("stripe" as ReturnType<typeof paymentsApi.getConfiguredProvider> extends Promise<infer T> ? T : never),
+        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
         async () => {
           const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
           const mockRefund = spyOn(stripePaymentProvider, "refundPayment").mockResolvedValue(true);
           try {
             const response = await handleRequest(
               mockFormRequest(
-                `/admin/event/${event.id}/attendee/${result.attendee.id}/refund`,
+                `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
                 { confirm_name: "John Doe", csrf_token: csrfToken },
                 cookie,
               ),
@@ -269,28 +225,19 @@ describe("server (admin refunds)", () => {
 
     test("shows error when refund fails", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        eventId: event.id,
-        name: "John Doe",
-        email: "john@example.com",
-        paymentId: "pi_test_fail",
-        quantity: 1,
-        pricePaid: 500,
-      });
-      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_fail");
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue("stripe" as ReturnType<typeof paymentsApi.getConfiguredProvider> extends Promise<infer T> ? T : never),
+        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
         async () => {
           const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
           const mockRefund = spyOn(stripePaymentProvider, "refundPayment").mockResolvedValue(false);
           try {
             const response = await handleRequest(
               mockFormRequest(
-                `/admin/event/${event.id}/attendee/${result.attendee.id}/refund`,
+                `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
                 { confirm_name: "John Doe", csrf_token: csrfToken },
                 cookie,
               ),
@@ -307,22 +254,13 @@ describe("server (admin refunds)", () => {
 
     test("handles missing confirm_name field", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      const result = await createAttendeeAtomic({
-        eventId: event.id,
-        name: "John Doe",
-        email: "john@example.com",
-        paymentId: "pi_test_missing",
-        quantity: 1,
-        pricePaid: 500,
-      });
-      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_missing");
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${result.attendee.id}/refund`,
+          `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
           { csrf_token: csrfToken },
           cookie,
         ),
@@ -370,15 +308,7 @@ describe("server (admin refunds)", () => {
 
     test("shows refund all confirmation page with refundable count", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      await createAttendeeAtomic({
-        eventId: event.id,
-        name: "Paid User",
-        email: "paid@example.com",
-        paymentId: "pi_paid_1",
-        quantity: 1,
-        pricePaid: 500,
-      });
+      await createPaidTestAttendee(event.id, "Paid User", "paid@example.com", "pi_paid_1");
       // Also add a free attendee (no payment_id)
       await createTestAttendee(event.id, event.slug, "Free User", "free@example.com");
 
@@ -423,15 +353,7 @@ describe("server (admin refunds)", () => {
 
     test("rejects mismatched event name", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      await createAttendeeAtomic({
-        eventId: event.id,
-        name: "John Doe",
-        email: "john@example.com",
-        paymentId: "pi_refundall_1",
-        quantity: 1,
-        pricePaid: 500,
-      });
+      await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_refundall_1");
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -449,15 +371,7 @@ describe("server (admin refunds)", () => {
 
     test("rejects when confirm_name is missing", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      await createAttendeeAtomic({
-        eventId: event.id,
-        name: "John Doe",
-        email: "john@example.com",
-        paymentId: "pi_refundall_missing",
-        quantity: 1,
-        pricePaid: 500,
-      });
+      await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_refundall_missing");
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -493,15 +407,7 @@ describe("server (admin refunds)", () => {
 
     test("returns error when no payment provider configured", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      await createAttendeeAtomic({
-        eventId: event.id,
-        name: "John Doe",
-        email: "john@example.com",
-        paymentId: "pi_noprov_all",
-        quantity: 1,
-        pricePaid: 500,
-      });
+      await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_noprov_all");
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -519,28 +425,13 @@ describe("server (admin refunds)", () => {
 
     test("successfully refunds all attendees", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      await createAttendeeAtomic({
-        eventId: event.id,
-        name: "User One",
-        email: "one@example.com",
-        paymentId: "pi_all_1",
-        quantity: 1,
-        pricePaid: 500,
-      });
-      await createAttendeeAtomic({
-        eventId: event.id,
-        name: "User Two",
-        email: "two@example.com",
-        paymentId: "pi_all_2",
-        quantity: 1,
-        pricePaid: 500,
-      });
+      await createPaidTestAttendee(event.id, "User One", "one@example.com", "pi_all_1");
+      await createPaidTestAttendee(event.id, "User Two", "two@example.com", "pi_all_2");
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue("stripe" as ReturnType<typeof paymentsApi.getConfiguredProvider> extends Promise<infer T> ? T : never),
+        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
         async () => {
           const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
           const mockRefund = spyOn(stripePaymentProvider, "refundPayment").mockResolvedValue(true);
@@ -564,29 +455,14 @@ describe("server (admin refunds)", () => {
 
     test("reports partial failure when some refunds fail", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      await createAttendeeAtomic({
-        eventId: event.id,
-        name: "Good User",
-        email: "good@example.com",
-        paymentId: "pi_partial_ok",
-        quantity: 1,
-        pricePaid: 500,
-      });
-      await createAttendeeAtomic({
-        eventId: event.id,
-        name: "Bad User",
-        email: "bad@example.com",
-        paymentId: "pi_partial_fail",
-        quantity: 1,
-        pricePaid: 500,
-      });
+      await createPaidTestAttendee(event.id, "Good User", "good@example.com", "pi_partial_ok");
+      await createPaidTestAttendee(event.id, "Bad User", "bad@example.com", "pi_partial_fail");
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
       let callNum = 0;
       await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue("stripe" as ReturnType<typeof paymentsApi.getConfiguredProvider> extends Promise<infer T> ? T : never),
+        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
         async () => {
           const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
           const mockRefund = spyOn(stripePaymentProvider, "refundPayment").mockImplementation(() => {
@@ -617,15 +493,7 @@ describe("server (admin refunds)", () => {
   describe("event page UI", () => {
     test("shows Refund link for paid attendees on paid events", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
-      await createAttendeeAtomic({
-        eventId: event.id,
-        name: "Paid User",
-        email: "paid@example.com",
-        paymentId: "pi_ui_1",
-        quantity: 1,
-        pricePaid: 500,
-      });
+      await createPaidTestAttendee(event.id, "Paid User", "paid@example.com", "pi_ui_1");
 
       const { cookie } = await loginAsAdmin();
 

@@ -2,6 +2,7 @@
  * Admin dashboard route
  */
 
+import { getAllowedDomain } from "#lib/config.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -21,7 +22,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) =>
-      htmlResponse(adminDashboardPage(await getAllEvents(), session)),
+      htmlResponse(adminDashboardPage(await getAllEvents(), session, getAllowedDomain())),
     () => loginResponse(),
   );
 

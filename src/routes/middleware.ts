@@ -5,6 +5,7 @@
 import { compact } from "#fp";
 import { getAllowedDomain, getEmbedHosts } from "#lib/config.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
+import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
 
 /**
  * Security headers for all responses
@@ -77,6 +78,13 @@ export const isWebhookPath = (path: string): boolean =>
   path === "/payment/webhook";
 
 /**
+ * Check if path is a JSON API endpoint.
+ * Patterns are exported from their respective route modules.
+ */
+export const isJsonApiPath = (path: string): boolean =>
+  SCAN_API_PATTERN.test(path);
+
+/**
  * Validate Content-Type for POST requests
  * Returns true if the request is valid (not a POST, or has correct Content-Type)
  * Webhook endpoints accept application/json, all others require form-urlencoded
@@ -87,8 +95,8 @@ export const isValidContentType = (request: Request, path: string): boolean => {
   }
   const contentType = request.headers.get("content-type") || "";
 
-  // Webhook endpoints accept JSON
-  if (isWebhookPath(path)) {
+  // Webhook and JSON API endpoints accept JSON
+  if (isWebhookPath(path) || isJsonApiPath(path)) {
     return contentType.startsWith("application/json");
   }
 

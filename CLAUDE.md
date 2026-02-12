@@ -90,6 +90,7 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 
 - `PORT` - Server port (defaults to 3000, local dev only)
 - `WEBHOOK_URL` - Global webhook URL for registration notifications (sends in addition to per-event webhook URLs)
+- `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g. `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal or encrypted data.
 
 ### Stripe Configuration
 

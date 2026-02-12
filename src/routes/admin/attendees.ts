@@ -2,8 +2,10 @@
  * Admin attendee management routes
  */
 
+import { filter } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
+  clearPaymentId,
   decryptAttendeeOrNull,
   deleteAttendee,
   updateCheckedIn,
@@ -31,7 +33,7 @@ import {
 /** Attendee with event data */
 type AttendeeWithEvent = { attendee: Attendee; event: EventWithCount };
 
-/** No-payment error message */
+/** Refund error messages */
 const NO_PAYMENT_ERROR = "This attendee has no payment to refund.";
 const NO_PROVIDER_ERROR = "No payment provider configured.";
 const NO_REFUNDABLE_ERROR = "No attendees have payments to refund.";
@@ -122,6 +124,7 @@ const attendeeFormAction = (handler: AttendeeFormAction) =>
     withAttendeeForm(request, eventId, attendeeId, (data, session, form) =>
       handler(data, session, form, eventId, attendeeId));
 
+
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeGetRoute((data, session) =>
   htmlResponse(adminDeleteAttendeePage(data.event, data.attendee, session)));
@@ -185,13 +188,13 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
     return refundError(data, session, REFUND_FAILED_ERROR);
   }
 
+  await clearPaymentId(data.attendee.id);
   await logActivity(`Refund issued for attendee '${data.attendee.name}'`, eventId);
   return redirect(`/admin/event/${eventId}`);
 });
 
 /** Filter attendees that have a payment_id (refundable) */
-const getRefundable = (attendees: Attendee[]): Attendee[] =>
-  attendees.filter((a) => a.payment_id !== null);
+const getRefundable = filter((a: Attendee) => a.payment_id !== null);
 
 /** Handle GET /admin/event/:id/refund-all */
 const handleAdminRefundAllGet = (
@@ -232,11 +235,14 @@ const processRefundAll = async (
       adminRefundAllAttendeesPage(event, refundable.length, session, NO_PROVIDER_ERROR), 400);
   }
 
+  // TODO: Refunds are sequential to avoid overwhelming payment providers.
+  // For large events, consider batching with Promise.all in chunks.
   let refundedCount = 0;
   let failedCount = 0;
   for (const attendee of refundable) {
     const refunded = await provider.refundPayment(attendee.payment_id!);
     if (refunded) {
+      await clearPaymentId(attendee.id);
       refundedCount++;
     } else {
       failedCount++;
@@ -283,8 +289,8 @@ export const attendeesRoutes = defineRoutes({
     handleAdminAttendeeRefundGet(request, eventId, attendeeId),
   "POST /admin/event/:eventId/attendee/:attendeeId/refund": (request, { eventId, attendeeId }) =>
     handleAttendeeRefund(request, eventId, attendeeId),
-  "GET /admin/event/:id/refund-all": (request, { id }) =>
-    handleAdminRefundAllGet(request, id),
-  "POST /admin/event/:id/refund-all": (request, { id }) =>
-    handleAdminRefundAllPost(request, id),
+  "GET /admin/event/:eventId/refund-all": (request, { eventId }) =>
+    handleAdminRefundAllGet(request, eventId),
+  "POST /admin/event/:eventId/refund-all": (request, { eventId }) =>
+    handleAdminRefundAllPost(request, eventId),
 });
