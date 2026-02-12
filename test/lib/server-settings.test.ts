@@ -906,7 +906,7 @@ describe("server (admin settings)", () => {
         mockFormRequest(
           "/admin/settings/terms",
           {
-            terms_and_conditions: "x".repeat(1025),
+            terms_and_conditions: "x".repeat(10_241),
             csrf_token: csrfToken,
           },
           cookie,
@@ -915,7 +915,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(400);
       const html = await response.text();
-      expect(html).toContain("1024 characters or fewer");
+      expect(html).toContain("10240 characters or fewer");
     });
 
     test("accepts terms at exactly max length", async () => {
@@ -925,7 +925,7 @@ describe("server (admin settings)", () => {
         mockFormRequest(
           "/admin/settings/terms",
           {
-            terms_and_conditions: "x".repeat(1024),
+            terms_and_conditions: "x".repeat(10_240),
             csrf_token: csrfToken,
           },
           cookie,

@@ -446,7 +446,7 @@ export const invalidateTermsCache = (): void => {
 };
 
 /** Max length for terms and conditions text */
-export const MAX_TERMS_LENGTH = 1024;
+export const MAX_TERMS_LENGTH = 10_240;
 
 /**
  * Get terms and conditions text from database.
