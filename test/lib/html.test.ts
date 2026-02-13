@@ -142,34 +142,34 @@ describe("html", () => {
       expect(html).toContain("readonly");
     });
 
-    test("embed code uses 18rem height for email-only events", () => {
+    test("embed code uses 15rem height for email-only events", () => {
       const emailEvent = testEventWithCount({ attendee_count: 2, fields: "email" });
       const html = adminEventPage({ event: emailEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 18rem");
+      expect(html).toContain("height: 15rem");
     });
 
-    test("embed code uses 22rem height for email,phone fields events", () => {
+    test("embed code uses 19rem height for email,phone fields events", () => {
       const bothEvent = testEventWithCount({ attendee_count: 2, fields: "email,phone" });
       const html = adminEventPage({ event: bothEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 22rem");
+      expect(html).toContain("height: 19rem");
     });
 
-    test("embed code uses 20rem height for address-only events", () => {
+    test("embed code uses 17rem height for address-only events", () => {
       const addressEvent = testEventWithCount({ attendee_count: 2, fields: "address" });
       const html = adminEventPage({ event: addressEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 20rem");
+      expect(html).toContain("height: 17rem");
     });
 
-    test("embed code uses 28rem height for email,phone,address events", () => {
+    test("embed code uses 25rem height for email,phone,address events", () => {
       const allFieldsEvent = testEventWithCount({ attendee_count: 2, fields: "email,phone,address" });
       const html = adminEventPage({ event: allFieldsEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 28rem");
+      expect(html).toContain("height: 25rem");
     });
 
-    test("embed code uses 18rem height for phone-only events", () => {
+    test("embed code uses 15rem height for phone-only events", () => {
       const phoneEvent = testEventWithCount({ attendee_count: 2, fields: "phone" });
       const html = adminEventPage({ event: phoneEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 18rem");
+      expect(html).toContain("height: 15rem");
     });
 
     test("renders empty attendees state", () => {
