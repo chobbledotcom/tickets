@@ -42,16 +42,11 @@ export const adminSettingsPage = (
           <p>All dates and times will be interpreted and displayed in this timezone.</p>
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="timezone">IANA Timezone</label>
-          <input
-            type="text"
-            id="timezone"
-            name="timezone"
-            value={timezone ?? "Europe/London"}
-            placeholder="Europe/London"
-            autocomplete="off"
-            required
-          />
-          <p><small>Use an IANA timezone identifier such as <code>Europe/London</code>, <code>America/New_York</code>, or <code>Asia/Tokyo</code>.</small></p>
+          <select id="timezone" name="timezone" required>
+            {Intl.supportedValuesOf("timeZone").map((tz: string) => (
+              <option value={tz} selected={tz === (timezone ?? "Europe/London")}>{tz}</option>
+            ))}
+          </select>
           <button type="submit">Save Timezone</button>
         </form>
 
