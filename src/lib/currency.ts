@@ -25,7 +25,7 @@ export const loadCurrencyCode = async (): Promise<string> => {
 /** Get the number of decimal places for a currency code */
 export const getDecimalPlaces = (currencyCode: string): number =>
   new Intl.NumberFormat("en", { style: "currency", currency: currencyCode })
-    .resolvedOptions().minimumFractionDigits;
+    .resolvedOptions().minimumFractionDigits ?? 2;
 
 /**
  * Format an amount in minor units (pence/cents) as a currency string.
