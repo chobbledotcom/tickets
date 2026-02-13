@@ -910,6 +910,27 @@ describe("html", () => {
       expect(html).toContain("<details>");
       expect(html).toContain("<summary>");
     });
+
+    test("renders embed code input", () => {
+      const events = [
+        testEventWithCount({ id: 1, slug: "ab12c", fields: "email" }),
+        testEventWithCount({ id: 2, slug: "cd34e", fields: "email,phone" }),
+      ];
+      const html = adminDashboardPage(events, TEST_SESSION, "example.com");
+      expect(html).toContain("data-multi-booking-embed");
+      expect(html).toContain('for="multi-booking-embed"');
+      expect(html).toContain('id="multi-booking-embed"');
+    });
+
+    test("checkboxes include data-fields attribute for embed code generation", () => {
+      const events = [
+        testEventWithCount({ id: 1, slug: "ab12c", fields: "email" }),
+        testEventWithCount({ id: 2, slug: "cd34e", fields: "email,phone" }),
+      ];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      expect(html).toContain('data-fields="email"');
+      expect(html).toContain('data-fields="email,phone"');
+    });
   });
 
   describe("calculateTotalRevenue", () => {
