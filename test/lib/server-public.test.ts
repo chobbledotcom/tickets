@@ -266,13 +266,14 @@ describe("server (public routes)", () => {
       expect(html).toContain("A &lt;b&gt;great&lt;/b&gt; event");
     });
 
-    test("sets SameSite=None on CSRF cookie in iframe mode", async () => {
+    test("sets SameSite=None and Partitioned on CSRF cookie in iframe mode", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}?iframe=true`),
       );
       const cookie = response.headers.get("set-cookie") || "";
       expect(cookie).toContain("SameSite=None");
+      expect(cookie).toContain("Partitioned");
       expect(cookie).not.toContain("SameSite=Strict");
     });
 
@@ -284,6 +285,7 @@ describe("server (public routes)", () => {
       const cookie = response.headers.get("set-cookie") || "";
       expect(cookie).toContain("SameSite=Strict");
       expect(cookie).not.toContain("SameSite=None");
+      expect(cookie).not.toContain("Partitioned");
     });
 
     test("form action includes ?iframe=true in iframe mode", async () => {
@@ -323,7 +325,7 @@ describe("server (public routes)", () => {
       expect(response.status).toBe(302);
     });
 
-    test("CSRF error response uses SameSite=None in iframe mode", async () => {
+    test("CSRF error response uses SameSite=None and Partitioned in iframe mode", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
       const response = await handleRequest(
         mockFormRequest(
@@ -335,6 +337,7 @@ describe("server (public routes)", () => {
       expect(response.status).toBe(403);
       const cookie = response.headers.get("set-cookie") || "";
       expect(cookie).toContain("SameSite=None");
+      expect(cookie).toContain("Partitioned");
     });
   });
 
@@ -609,6 +612,40 @@ describe("server (public routes)", () => {
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
       expect(response.status).toBe(404);
+    });
+
+    test("sets SameSite=None and Partitioned on CSRF cookie in iframe mode", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}?iframe=true`),
+      );
+      const cookie = response.headers.get("set-cookie") || "";
+      expect(cookie).toContain("SameSite=None");
+      expect(cookie).toContain("Partitioned");
+      expect(cookie).not.toContain("SameSite=Strict");
+    });
+
+    test("sets SameSite=Strict on CSRF cookie without iframe", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      const cookie = response.headers.get("set-cookie") || "";
+      expect(cookie).toContain("SameSite=Strict");
+      expect(cookie).not.toContain("SameSite=None");
+      expect(cookie).not.toContain("Partitioned");
+    });
+
+    test("form action includes ?iframe=true in iframe mode", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}?iframe=true`),
+      );
+      const html = await response.text();
+      expect(html).toContain(`action="/ticket/${event1.slug}+${event2.slug}?iframe=true"`);
     });
   });
 

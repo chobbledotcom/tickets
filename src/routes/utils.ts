@@ -408,9 +408,9 @@ export type CsrfFormResult =
 /** Default cookie name for public form CSRF tokens */
 const DEFAULT_CSRF_COOKIE = "csrf_token";
 
-/** Generate CSRF cookie string. Uses SameSite=None when embedded in a cross-site iframe. */
+/** Generate CSRF cookie string. Uses SameSite=None + Partitioned when embedded in a cross-site iframe. */
 export const csrfCookie = (token: string, path: string, cookieName?: string, iframe = false): string =>
-  `${cookieName ?? DEFAULT_CSRF_COOKIE}=${token}; HttpOnly; Secure; SameSite=${iframe ? "None" : "Strict"}; Path=${path}; Max-Age=3600`;
+  `${cookieName ?? DEFAULT_CSRF_COOKIE}=${token}; HttpOnly; Secure; SameSite=${iframe ? "None" : "Strict"}; Path=${path}; Max-Age=3600${iframe ? "; Partitioned" : ""}`;
 
 /**
  * Parse form with CSRF validation (double-submit cookie pattern)
