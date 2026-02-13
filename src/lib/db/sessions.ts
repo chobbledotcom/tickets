@@ -3,7 +3,7 @@
  */
 
 import { hashSessionToken } from "#lib/crypto.ts";
-import { executeByField, getDb, queryOne } from "#lib/db/client.ts";
+import { executeByField, getDb, queryAll, queryOne } from "#lib/db/client.ts";
 
 import type { Session } from "#lib/types.ts";
 
@@ -126,12 +126,10 @@ export const deleteAllSessions = async (): Promise<void> => {
 /**
  * Get all sessions ordered by expiration (newest first)
  */
-export const getAllSessions = async (): Promise<Session[]> => {
-  const result = await getDb().execute(
+export const getAllSessions = (): Promise<Session[]> =>
+  queryAll<Session>(
     "SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions ORDER BY expires DESC",
   );
-  return result.rows as unknown as Session[];
-};
 
 /**
  * Delete all sessions except the current one

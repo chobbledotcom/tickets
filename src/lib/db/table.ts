@@ -10,7 +10,7 @@
 
 import type { InValue } from "@libsql/client";
 import { compact, filter, mapAsync, reduce } from "#fp";
-import { getDb, queryOne } from "#lib/db/client.ts";
+import { getDb, queryAll, queryOne } from "#lib/db/client.ts";
 
 /**
  * Column definition for a table
@@ -336,8 +336,7 @@ export const defineTable = <Row, Input = Row>(config: {
 
   // Find all implementation
   const findAll = async (): Promise<Row[]> => {
-    const result = await getDb().execute(`SELECT * FROM ${name}`);
-    const rows = result.rows as unknown as Row[];
+    const rows = await queryAll<Row>(`SELECT * FROM ${name}`);
     return mapAsync(fromDb)(rows);
   };
 

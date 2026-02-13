@@ -825,6 +825,10 @@ button.link-button.checkout {
 }
 
 /* Iframe embed mode */
+body.iframe {
+  padding: 0.5rem;
+}
+
 body.iframe main {
   padding: 0;
 }

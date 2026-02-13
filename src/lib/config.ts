@@ -18,7 +18,7 @@ import {
   hasStripeKey,
   isSetupComplete,
 } from "#lib/db/settings.ts";
-import { getEnv } from "#lib/env.ts";
+import { getEnv, requireEnv } from "#lib/env.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 
 /**
@@ -106,7 +106,7 @@ export const getCurrencyCode = (): Promise<string> => {
  * This is a required configuration that hardens origin validation
  */
 export const getAllowedDomain = (): string => {
-  return getEnv("ALLOWED_DOMAIN") as string;
+  return requireEnv("ALLOWED_DOMAIN");
 };
 
 /**

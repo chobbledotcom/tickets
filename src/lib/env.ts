@@ -24,3 +24,15 @@ export function getEnv(key: string): string | undefined {
   // In Bunny Edge production, process.env is always available (handled above)
   return Deno!.env.get(key);
 }
+
+/**
+ * Get a required environment variable, throwing if not set.
+ * Use this instead of `getEnv(key) as string` when the variable must exist.
+ */
+export function requireEnv(key: string): string {
+  const value = getEnv(key);
+  if (value === undefined) {
+    throw new Error(`Required environment variable ${key} is not set`);
+  }
+  return value;
+}

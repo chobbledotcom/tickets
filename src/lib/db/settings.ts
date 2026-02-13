@@ -15,7 +15,7 @@ import {
   unwrapKey,
   wrapKey,
 } from "#lib/crypto.ts";
-import { getDb } from "#lib/db/client.ts";
+import { getDb, queryAll } from "#lib/db/client.ts";
 import { nowMs } from "#lib/now.ts";
 import { deleteAllSessions } from "#lib/db/sessions.ts";
 import { createUser } from "#lib/db/users.ts";
@@ -73,11 +73,10 @@ const isCacheValid = (): boolean => {
  * Load every setting row into the in-memory cache with a single query.
  */
 export const loadAllSettings = async (): Promise<Map<string, string>> => {
-  const result = await getDb().execute("SELECT key, value FROM settings");
+  const rows = await queryAll<Settings>("SELECT key, value FROM settings");
   const cache = new Map<string, string>();
-  for (const row of result.rows) {
-    const { key, value } = row as unknown as Settings;
-    cache.set(key, value);
+  for (const row of rows) {
+    cache.set(row.key, row.value);
   }
   setSettingsCacheState({ entries: cache, time: nowMs() });
   return cache;

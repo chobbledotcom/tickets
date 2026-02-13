@@ -29,13 +29,29 @@ export const getDb = (): Client => dbGetter();
  */
 export const setDb = (client: Client | null): void => dbSetter(client);
 
+/** Cast libsql ResultSet rows to a typed array (single centralized assertion) */
+export const resultRows = <T>(result: ResultSet): T[] =>
+  result.rows as unknown as T[];
+
 /** Query single row, returning null if not found */
 export const queryOne = async <T>(
   sql: string,
   args: InValue[],
 ): Promise<T | null> => {
   const result = await getDb().execute({ sql, args });
-  return result.rows.length === 0 ? null : (result.rows[0] as unknown as T);
+  const rows = resultRows<T>(result);
+  return rows.length === 0 ? null : rows[0]!;
+};
+
+/** Query all rows, returning a typed array */
+export const queryAll = async <T>(
+  sql: string,
+  args?: InValue[],
+): Promise<T[]> => {
+  const result = args
+    ? await getDb().execute({ sql, args })
+    : await getDb().execute(sql);
+  return resultRows<T>(result);
 };
 
 /** Execute delete by field */

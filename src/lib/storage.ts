@@ -7,7 +7,7 @@
 
 import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
 import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
-import { getEnv } from "#lib/env.ts";
+import { getEnv, requireEnv } from "#lib/env.ts";
 
 /** Maximum image file size in bytes (256KB) */
 const MAX_IMAGE_SIZE = 256 * 1024;
@@ -44,7 +44,7 @@ export const getImageProxyUrl = (filename: string): string =>
  * Get the direct CDN URL for a stored file (used internally for download).
  */
 const getCdnUrl = (filename: string): string => {
-  const zoneName = getEnv("STORAGE_ZONE_NAME") as string;
+  const zoneName = requireEnv("STORAGE_ZONE_NAME");
   return `https://${zoneName}.b-cdn.net/${filename}`;
 };
 
@@ -112,8 +112,8 @@ export const generateImageFilename = (detectedType: string): string => {
 
 /** Connect to the Bunny storage zone */
 const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
-  const zoneName = getEnv("STORAGE_ZONE_NAME") as string;
-  const zoneKey = getEnv("STORAGE_ZONE_KEY") as string;
+  const zoneName = requireEnv("STORAGE_ZONE_NAME");
+  const zoneKey = requireEnv("STORAGE_ZONE_KEY");
   return BunnyStorageSDK.zone.connect_with_accesskey(
     BunnyStorageSDK.regions.StorageRegion.Falkenstein,
     zoneName,
