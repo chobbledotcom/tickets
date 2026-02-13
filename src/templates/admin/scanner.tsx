@@ -33,7 +33,6 @@ export const adminScannerPage = (
           muted
           style="display:none; width:100%; max-width:500px; border-radius:4px"
         ></video>
-        <canvas id="scanner-canvas" style="display:none"></canvas>
 
         <button id="scanner-start" type="button">
           Start Camera
