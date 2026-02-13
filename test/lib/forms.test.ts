@@ -298,16 +298,16 @@ describe("forms", () => {
     });
 
     test("validates description rejects values exceeding max length", () => {
-      const longDescription = "a".repeat(129);
+      const longDescription = "a".repeat(257);
       expectInvalid(
-        "Description must be 128 characters or fewer",
+        "Description must be 256 characters or fewer",
       )(eventFields, eventForm({ description: longDescription }));
     });
 
     test("validates description accepts values within max length", () => {
       expectValid(
         eventFields,
-        eventForm({ description: "a".repeat(128) }),
+        eventForm({ description: "a".repeat(256) }),
       );
     });
 
@@ -315,10 +315,10 @@ describe("forms", () => {
       expectValid(eventFields, eventForm({ description: "" }));
     });
 
-    test("description field has maxlength of 128", () => {
+    test("description field has maxlength of 256", () => {
       const descField = eventFields.find((f) => f.name === "description");
       expect(descField).toBeDefined();
-      expect(descField!.maxlength).toBe(128);
+      expect(descField!.maxlength).toBe(256);
     });
   });
 
