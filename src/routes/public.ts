@@ -388,11 +388,19 @@ const multiTicketResponseWithCookie = makeCsrfResponseBuilder<
   (_slugs, _events, _dates, _terms, iframe) => iframe,
 );
 
-/** Multi-ticket response without cookie (for validation errors) */
-const multiTicketResponse = validationErrorResponder(
-  (error: string, slugs: string[], events: MultiTicketEvent[], token: string, dates: string[] | undefined, terms: string | null | undefined, iframe: boolean) =>
-    multiTicketPage(events, slugs, token, error, dates, terms, iframe),
-);
+/** Shared rendering context for multi-ticket error responses */
+type MultiTicketRenderContext = {
+  slugs: string[];
+  events: MultiTicketEvent[];
+  token: string;
+  dates: string[] | undefined;
+  terms: string | null | undefined;
+  iframe: boolean;
+};
+
+/** Multi-ticket error response (for validation errors after CSRF passed) */
+const multiTicketResponse = ({ events, slugs, token, dates, terms, iframe }: MultiTicketRenderContext) =>
+  errorResponse((error) => multiTicketPage(events, slugs, token, error, dates, terms, iframe));
 
 /** Load and validate active events for multi-ticket, return 404 if none */
 const withActiveMultiEvents = async (
@@ -508,18 +516,14 @@ const anyRequiresPayment = async (
 /** Handle payment flow for multi-ticket purchase */
 const handleMultiPaymentFlow = (
   request: Request,
-  slugs: string[],
-  events: MultiTicketEvent[],
   intent: MultiRegistrationIntent,
-  csrfToken: string,
-  dates: string[] | undefined,
-  iframe: boolean,
+  ctx: MultiTicketRenderContext,
 ): Promise<Response> =>
   runCheckoutFlow(
     `multi-ticket items=${intent.items.length}`,
     request,
     (provider, baseUrl) => provider.createMultiCheckoutSession(intent, baseUrl),
-    (msg, status) => multiTicketResponse(slugs, events, csrfToken, dates, undefined, iframe)(msg, status),
+    (msg, status) => multiTicketResponse(ctx)(msg, status),
   );
 
 /** Determine merged fields setting for multi-ticket events */
@@ -555,6 +559,7 @@ const handleMultiTicketPost = (
     const currentToken = getFormToken(request);
     const { dates, terms } = await getMultiTicketContext(activeEvents);
     const iframe = isIframeRequest(request.url);
+    const renderCtx: MultiTicketRenderContext = { slugs, events: activeEvents, token: currentToken, dates, terms, iframe };
 
     // CSRF validation
     const csrfError = (token: string) =>
@@ -573,14 +578,14 @@ const handleMultiTicketPost = (
     const fields = getTicketFields(fieldsSetting);
     const validation = validateForm<TicketFormValues>(form, fields);
     if (!validation.valid) {
-      return multiTicketResponse(slugs, activeEvents, currentToken, dates, terms, iframe)(
+      return multiTicketResponse(renderCtx)(
         validation.error,
       );
     }
 
     // Validate terms and conditions acceptance if configured
     if (terms && form.get("agree_terms") !== "1") {
-      return multiTicketResponse(slugs, activeEvents, currentToken, dates, terms, iframe)(
+      return multiTicketResponse(renderCtx)(
         "You must agree to the terms and conditions",
       );
     }
@@ -592,7 +597,7 @@ const handleMultiTicketPost = (
     if (dates) {
       date = validateSubmittedDate(form, dates);
       if (!date) {
-        return multiTicketResponse(slugs, activeEvents, currentToken, dates, terms, iframe)(
+        return multiTicketResponse(renderCtx)(
           "Please select a valid date",
         );
       }
@@ -602,7 +607,7 @@ const handleMultiTicketPost = (
     for (const { event, isClosed } of activeEvents) {
       const selectedQty = Number.parseInt(form.get(`quantity_${event.id}`) || "0", 10);
       if (isClosed && selectedQty > 0) {
-        return multiTicketResponse(slugs, activeEvents, currentToken, dates, terms, iframe)(
+        return multiTicketResponse(renderCtx)(
           REGISTRATION_CLOSED_SUBMIT_MESSAGE,
         );
       }
@@ -616,7 +621,7 @@ const handleMultiTicketPost = (
       Array.from(quantities.values()),
     );
     if (totalQuantity === 0) {
-      return multiTicketResponse(slugs, activeEvents, currentToken, dates, terms, iframe)(
+      return multiTicketResponse(renderCtx)(
         "Please select at least one ticket",
       );
     }
@@ -629,21 +634,13 @@ const handleMultiTicketPost = (
       // Check availability before creating checkout session
       const available = await checkMultiAvailability(activeEvents, quantities, date);
       if (!available) {
-        return multiTicketResponse(slugs, activeEvents, currentToken, dates, terms, iframe)(
+        return multiTicketResponse(renderCtx)(
           "Sorry, some tickets are no longer available",
         );
       }
 
       const intent: MultiRegistrationIntent = { ...contact, date, items };
-      return handleMultiPaymentFlow(
-        request,
-        slugs,
-        activeEvents,
-        intent,
-        currentToken,
-        dates,
-        iframe,
-      );
+      return handleMultiPaymentFlow(request, intent, renderCtx);
     }
 
     // Free registration
@@ -655,7 +652,7 @@ const handleMultiTicketPost = (
     );
 
     if (!result.success) {
-      return multiTicketResponse(slugs, activeEvents, currentToken, dates, terms, iframe)(result.error);
+      return multiTicketResponse(renderCtx)(result.error);
     }
 
     return redirect("/ticket/reserved");
