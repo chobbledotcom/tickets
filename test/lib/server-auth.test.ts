@@ -405,4 +405,80 @@ describe("server (admin auth)", () => {
     });
   });
 
+  describe("login → logout → login cycle (blank screen test)", () => {
+    test("shows content on initial login, after logout, and on re-login", async () => {
+      // Step 1: Login and verify dashboard content is present (not blank)
+      const loginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
+      );
+      expectAdminRedirect(loginResponse);
+      const cookie = loginResponse.headers.get("set-cookie");
+      expect(cookie).toBeTruthy();
+
+      // Step 2: Follow redirect to /admin after login
+      const dashboardAfterLogin = await awaitTestRequest("/admin/", { cookie: cookie! });
+      expect(dashboardAfterLogin.status).toBe(200);
+      const dashboardHtml = await dashboardAfterLogin.text();
+      // Verify content is rendered (should contain "Events" table header)
+      expect(dashboardHtml).toContain("Events");
+      expect(dashboardHtml.length).toBeGreaterThan(100); // Not blank
+
+      // Step 3: Logout
+      const logoutResponse = await awaitTestRequest("/admin/logout", { cookie: cookie! });
+      expectAdminRedirect(logoutResponse);
+      expect(logoutResponse.headers.get("set-cookie")).toContain("Max-Age=0");
+
+      // Step 4: Follow redirect to /admin after logout - should show login page
+      const loginPageAfterLogout = await handleRequest(mockRequest("/admin/"));
+      expect(loginPageAfterLogout.status).toBe(200);
+      const loginHtml = await loginPageAfterLogout.text();
+      // Verify login page is rendered (not blank)
+      expect(loginHtml).toContain("Login");
+      expect(loginHtml.length).toBeGreaterThan(100); // Not blank
+
+      // Step 5: Login again
+      const reloginResponse = await handleRequest(
+        mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
+      );
+      expectAdminRedirect(reloginResponse);
+      const newCookie = reloginResponse.headers.get("set-cookie");
+      expect(newCookie).toBeTruthy();
+
+      // Step 6: Follow redirect to /admin after re-login - should show dashboard
+      const dashboardAfterRelogin = await awaitTestRequest("/admin/", { cookie: newCookie! });
+      expect(dashboardAfterRelogin.status).toBe(200);
+      const dashboardRehtml = await dashboardAfterRelogin.text();
+      // Verify content is rendered (should contain "Events" table header)
+      expect(dashboardRehtml).toContain("Events");
+      expect(dashboardRehtml.length).toBeGreaterThan(100); // Not blank
+    });
+
+    test("dashboard always contains expected content structure", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+
+      // Verify key content elements that should never be blank
+      expect(html).toContain("Events"); // Page title
+      expect(html).toContain("<table"); // Table structure
+      expect(html).toContain("Event Name"); // Table header
+      expect(html.length).toBeGreaterThan(500); // Substantial content
+    });
+
+    test("login page always contains expected content structure", async () => {
+      const response = await handleRequest(mockRequest("/admin/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+
+      // Verify key content elements of login page
+      expect(html).toContain("Login");
+      expect(html).toContain("<form");
+      expect(html).toContain("username");
+      expect(html).toContain("password");
+      expect(html.length).toBeGreaterThan(200); // Substantial content
+    });
+  });
+
 });
