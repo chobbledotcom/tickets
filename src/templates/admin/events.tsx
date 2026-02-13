@@ -6,12 +6,13 @@ import { filter, map, pipe, reduce } from "#fp";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
+import { buildEmbedCode } from "#lib/embed.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
 import { renderEventImage } from "#templates/public.tsx";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
-import { eventFields, getAddAttendeeFields, parseEventFields, slugField } from "#templates/fields.ts";
+import { eventFields, getAddAttendeeFields, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -166,11 +167,7 @@ export const adminEventPage = ({
 }: AdminEventPageOptions): string => {
   const storageEnabled = isStorageEnabled();
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
-  const contactFields = parseEventFields(event.fields);
-  const textareaCount = ["address", "special_instructions"].filter((f) => contactFields.includes(f as "address" | "special_instructions")).length;
-  const inputCount = contactFields.filter((f) => f !== "address" && f !== "special_instructions").length;
-  const iframeHeight = `${14 + inputCount * 4 + textareaCount * 6}rem`;
-  const embedCode = `<iframe src="${ticketUrl}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
+  const embedCode = buildEmbedCode(ticketUrl, event.fields);
   const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);
   const hasPaidEvent = event.unit_price !== null;

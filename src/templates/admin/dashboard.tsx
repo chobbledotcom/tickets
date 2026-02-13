@@ -3,10 +3,11 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
+import { computeIframeHeight } from "#lib/embed.ts";
 import { renderFields } from "#lib/forms.tsx";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { eventFields } from "#templates/fields.ts";
+import { eventFields, mergeEventFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { renderEventImage } from "#templates/public.tsx";
@@ -48,6 +49,11 @@ const multiBookingSection = (
     joinStrings,
   )(activeEvents);
 
+  const mergedFields = mergeEventFields(
+    map((e: EventWithCount) => e.fields)(activeEvents),
+  );
+  const iframeHeight = computeIframeHeight(mergedFields);
+
   return String(
     <details>
       <summary>Multi-booking link</summary>
@@ -63,6 +69,16 @@ const multiBookingSection = (
         data-select-on-click
         data-multi-booking-url
         data-domain={allowedDomain}
+        placeholder="Select two or more events"
+      />
+      <label for="multi-booking-embed">Embed code</label>
+      <input
+        type="text"
+        id="multi-booking-embed"
+        readonly
+        data-select-on-click
+        data-multi-booking-embed
+        data-iframe-height={iframeHeight}
         placeholder="Select two or more events"
       />
     </details>

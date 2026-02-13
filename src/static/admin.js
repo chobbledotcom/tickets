@@ -15,9 +15,12 @@ for (const el of document.querySelectorAll("[data-nav-select]")) {
 /* Multi-booking link builder: track checkbox selection order */
 const multiUrl = document.querySelector("[data-multi-booking-url]");
 if (multiUrl) {
+  const multiEmbed = document.querySelector("[data-multi-booking-embed]");
   const selectedSlugs = [];
   const domain = multiUrl.dataset.domain;
-  const placeholder = multiUrl.placeholder;
+  const iframeHeight = multiEmbed.dataset.iframeHeight;
+  const urlPlaceholder = multiUrl.placeholder;
+  const embedPlaceholder = multiEmbed.placeholder;
   for (const cb of document.querySelectorAll("[data-multi-booking-slug]")) {
     cb.addEventListener("change", () => {
       const slug = cb.dataset.multiBookingSlug;
@@ -28,11 +31,16 @@ if (multiUrl) {
         if (idx !== -1) selectedSlugs.splice(idx, 1);
       }
       if (selectedSlugs.length >= 2) {
-        multiUrl.value = `https://${domain}/ticket/${selectedSlugs.join("+")}`;
+        const url = `https://${domain}/ticket/${selectedSlugs.join("+")}`;
+        multiUrl.value = url;
         multiUrl.placeholder = "";
+        multiEmbed.value = `<iframe src="${url}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
+        multiEmbed.placeholder = "";
       } else {
         multiUrl.value = "";
-        multiUrl.placeholder = placeholder;
+        multiUrl.placeholder = urlPlaceholder;
+        multiEmbed.value = "";
+        multiEmbed.placeholder = embedPlaceholder;
       }
     });
   }
