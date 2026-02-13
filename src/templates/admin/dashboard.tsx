@@ -77,6 +77,7 @@ export const adminDashboardPage = (
   events: EventWithCount[],
   session: AdminSession,
   allowedDomain: string,
+  imageError?: string | null,
 ): string => {
   const eventRows =
     events.length > 0
@@ -90,6 +91,10 @@ export const adminDashboardPage = (
   return String(
     <Layout title="Events">
       <AdminNav session={session} />
+
+      {imageError && (
+        <p class="error">Event created but image was not saved: {imageError}</p>
+      )}
 
       <div class="table-scroll">
         <table>

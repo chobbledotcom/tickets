@@ -48,6 +48,7 @@ import {
 } from "#templates/admin/events.tsx";
 import {
   deleteImage,
+  type ImageValidationError,
   isStorageEnabled,
   uploadImage,
   validateImage,
@@ -123,19 +124,26 @@ const eventsResource = defineResource({
   nameField: "name",
 });
 
-/** Process image from multipart form and attach to event */
+/** User-facing messages for image validation errors */
+const IMAGE_ERROR_MESSAGES: Record<ImageValidationError, string> = {
+  too_large: "Image exceeds the 256KB size limit",
+  invalid_type: "Image must be a JPEG, PNG, GIF, or WebP file",
+  invalid_content: "File does not appear to be a valid image",
+};
+
+/** Process image from multipart form and attach to event. Returns error message if validation fails. */
 const processFormImage = async (
   formData: FormData,
   eventId: number,
   existingImageUrl?: string,
-): Promise<void> => {
-  if (!isStorageEnabled()) return;
+): Promise<string | null> => {
+  if (!isStorageEnabled()) return null;
   const file = formData.get("image") as File | null;
-  if (!file || file.size === 0) return;
+  if (!file || file.size === 0) return null;
 
   const data = new Uint8Array(await file.arrayBuffer());
   const validation = validateImage(data, file.type);
-  if (!validation.valid) return;
+  if (!validation.valid) return IMAGE_ERROR_MESSAGES[validation.error];
 
   if (existingImageUrl) {
     await tryDeleteImage(existingImageUrl, eventId, "old image cleanup");
@@ -144,6 +152,7 @@ const processFormImage = async (
   const filename = await uploadImage(data, validation.detectedType);
   await eventsTable.update(eventId, { imageUrl: filename });
   await logActivity(`Image uploaded for event`, eventId);
+  return null;
 };
 
 /** Handle event with attendees - auth, fetch, then apply handler fn */
@@ -164,7 +173,10 @@ const handleCreateEvent = (request: Request): Promise<Response> =>
     const result = await eventsResource.create(form);
     if (!result.ok) return redirect("/admin");
     await logActivity(`Event '${result.row.name}' created`, result.row);
-    await processFormImage(formData, result.row.id);
+    const imageError = await processFormImage(formData, result.row.id);
+    if (imageError) {
+      return redirect(`/admin?image_error=${encodeURIComponent(imageError)}`);
+    }
     return redirect("/admin");
   });
 
@@ -211,6 +223,7 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
     const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
     const availableDates = event.event_type === "daily" ? getUniqueDates(attendees) : [];
     const filteredByDate = filterByDate(attendees, dateFilter);
+    const imageError = new URL(request.url).searchParams.get("image_error");
     return htmlResponse(
       adminEventPage({
         event,
@@ -222,6 +235,7 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
         dateFilter,
         availableDates,
         addAttendeeMessage: getAddAttendeeMessage(request),
+        imageError,
       }),
     );
   });
@@ -275,8 +289,9 @@ const handleAdminEventEditPost = (
 
     const result = await updateResource.update(eventId, form);
     if (result.ok) {
-      await processFormImage(formData, eventId, existing.image_url);
-      return redirect(`/admin/event/${result.row.id}`);
+      const imageError = await processFormImage(formData, eventId, existing.image_url);
+      const imageErrorParam = imageError ? `?image_error=${encodeURIComponent(imageError)}` : "";
+      return redirect(`/admin/event/${result.row.id}${imageErrorParam}`);
     }
     if ("notFound" in result) return notFoundResponse();
     return eventErrorPage(eventId, adminEventEditPage, session, result.error);

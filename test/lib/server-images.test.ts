@@ -125,7 +125,7 @@ describe("server (event images)", () => {
       expect(updated?.image_url).toBe("");
     });
 
-    test("ignores invalid image types silently", async () => {
+    test("redirects with image error for invalid image type", async () => {
       const event = await createTestEvent();
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -139,8 +139,53 @@ describe("server (event images)", () => {
       await withStorageMock(async () => {
         const response = await handleRequest(request);
         expect(response.status).toBe(302);
+        const location = response.headers.get("location") ?? "";
+        expect(location).toContain("image_error=");
+        expect(decodeURIComponent(location)).toContain("JPEG, PNG, GIF, or WebP");
         const updated = await getEventWithCount(event.id);
         expect(updated?.image_url).toBe("");
+      });
+    });
+
+    test("redirects with image error for oversized image", async () => {
+      const event = await createTestEvent();
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const oversized = new Uint8Array(257 * 1024);
+      oversized[0] = 0xFF; oversized[1] = 0xD8; oversized[2] = 0xFF;
+      const fields = await editFormData(event.id, csrfToken);
+      const request = mockMultipartRequest(
+        `/admin/event/${event.id}/edit`,
+        fields,
+        cookie,
+        { fieldName: "image", name: "big.jpg", data: oversized, contentType: "image/jpeg" },
+      );
+      await withStorageMock(async () => {
+        const response = await handleRequest(request);
+        expect(response.status).toBe(302);
+        const location = response.headers.get("location") ?? "";
+        expect(location).toContain("image_error=");
+        expect(decodeURIComponent(location)).toContain("256KB");
+      });
+    });
+
+    test("redirects with image error for mismatched magic bytes", async () => {
+      const event = await createTestEvent();
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const fields = await editFormData(event.id, csrfToken);
+      const request = mockMultipartRequest(
+        `/admin/event/${event.id}/edit`,
+        fields,
+        cookie,
+        { fieldName: "image", name: "fake.jpg", data: new Uint8Array([0x00, 0x00, 0x00, 0x00]), contentType: "image/jpeg" },
+      );
+      await withStorageMock(async () => {
+        const response = await handleRequest(request);
+        expect(response.status).toBe(302);
+        const location = response.headers.get("location") ?? "";
+        expect(location).toContain("image_error=");
+        expect(decodeURIComponent(location)).toContain("valid image");
       });
     });
 
@@ -262,6 +307,90 @@ describe("server (event images)", () => {
         expect(created).not.toBeUndefined();
         expect(created?.image_url).toMatch(/\.jpg$/);
       });
+    });
+
+    test("redirects with image error when creating event with invalid image", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await withStorageMock(async () => {
+        const request = mockMultipartRequest(
+          "/admin/event",
+          {
+            csrf_token: csrfToken,
+            name: "Bad Image Event",
+            description: "",
+            date_date: "",
+            date_time: "",
+            location: "",
+            max_attendees: "50",
+            max_quantity: "1",
+            fields: "email",
+            thank_you_url: "",
+            unit_price: "",
+            webhook_url: "",
+            closes_at_date: "",
+            closes_at_time: "",
+            event_type: "standard",
+            bookable_days: "Monday,Tuesday,Wednesday,Thursday,Friday",
+            minimum_days_before: "",
+            maximum_days_after: "",
+          },
+          cookie,
+          { fieldName: "image", name: "test.pdf", data: new Uint8Array([0x25, 0x50, 0x44, 0x46]), contentType: "application/pdf" },
+        );
+        const response = await handleRequest(request);
+        expect(response.status).toBe(302);
+        const location = response.headers.get("location") ?? "";
+        expect(location).toContain("/admin?image_error=");
+        expect(decodeURIComponent(location)).toContain("JPEG, PNG, GIF, or WebP");
+
+        const { getAllEvents } = await import("#lib/db/events.ts");
+        const events = await getAllEvents();
+        const created = events.find((e) => e.name === "Bad Image Event");
+        expect(created).not.toBeUndefined();
+        expect(created?.image_url).toBe("");
+      });
+    });
+  });
+
+  describe("image error messages in rendered pages", () => {
+    test("displays image error on admin dashboard", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockRequest("/admin?image_error=Image+exceeds+the+256KB+size+limit", { headers: { cookie } }),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Event created but image was not saved");
+      expect(html).toContain("256KB");
+    });
+
+    test("displays image error on event detail page", async () => {
+      const event = await createTestEvent();
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockRequest(
+          `/admin/event/${event.id}?image_error=Image+must+be+a+JPEG%2C+PNG%2C+GIF%2C+or+WebP+file`,
+          { headers: { cookie } },
+        ),
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Event saved but image was not uploaded");
+      expect(html).toContain("JPEG, PNG, GIF, or WebP");
+    });
+
+    test("does not display image error when query param is absent", async () => {
+      const event = await createTestEvent();
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockRequest(`/admin/event/${event.id}`, { headers: { cookie } }),
+      );
+      const html = await response.text();
+      expect(html).not.toContain("image was not uploaded");
     });
   });
 

@@ -149,6 +149,7 @@ export type AdminEventPageOptions = {
   dateFilter?: string | null;
   availableDates?: DateOption[];
   addAttendeeMessage?: AddAttendeeMessage;
+  imageError?: string | null;
 };
 
 export const adminEventPage = ({
@@ -161,6 +162,7 @@ export const adminEventPage = ({
   dateFilter = null,
   availableDates = [],
   addAttendeeMessage = null,
+  imageError = null,
 }: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const contactFields = parseEventFields(event.fields);
@@ -212,6 +214,10 @@ export const adminEventPage = ({
 
         {event.active !== 1 && (
           <div class="error">This event is deactivated and cannot be booked</div>
+        )}
+
+        {imageError && (
+          <p class="error">Event saved but image was not uploaded: {imageError}</p>
         )}
 
         <article>
