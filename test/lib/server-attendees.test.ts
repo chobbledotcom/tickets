@@ -717,4 +717,176 @@ describe("server (admin attendees)", () => {
     });
   });
 
+  describe("GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook", () => {
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const response = await handleRequest(
+        mockRequest(`/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        "/admin/event/999/attendee/1/resend-webhook",
+        { cookie: cookie },
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 for non-existent attendee", async () => {
+      await createTestEvent({ maxAttendees: 100 });
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        "/admin/event/1/attendee/999/resend-webhook",
+        { cookie: cookie },
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("shows resend webhook confirmation page when authenticated", async () => {
+      const { response } = await adminEventPage(
+        ctx => `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-webhook`,
+      )();
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Re-send Webhook");
+      expect(html).toContain("John Doe");
+      expect(html).toContain("type their name");
+    });
+
+    test("shows amount paid on resend webhook page for paid attendee", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+
+      // Create attendee with price_paid using createAttendeeAtomic
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Jane Paid",
+        email: "jane@example.com",
+        quantity: 1,
+        pricePaid: 1000,
+        paymentId: "pi_test",
+      });
+
+      if (!result.success) {
+        throw new Error("Failed to create attendee");
+      }
+
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/attendee/${result.attendee.id}/resend-webhook`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Re-send Webhook");
+      expect(html).toContain("Jane Paid");
+      expect(html).toContain("Amount Paid");
+    });
+  });
+
+  describe("POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook", () => {
+    const resendWebhookAction = adminAttendeeAction("resend-webhook");
+
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const response = await handleRequest(
+        mockFormRequest(`/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`, {
+          confirm_name: "John Doe",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns 404 for non-existent event", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/999/attendee/1/resend-webhook",
+          {
+            confirm_name: "John Doe",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 for non-existent attendee", async () => {
+      await createTestEvent({ maxAttendees: 100 });
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/event/1/attendee/999/resend-webhook",
+          {
+            confirm_name: "John Doe",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const { response } = await resendWebhookAction({ confirm_name: "John Doe", csrf_token: "invalid-token" })();
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid CSRF token");
+    });
+
+    test("rejects mismatched attendee name", async () => {
+      const { response } = await resendWebhookAction({ confirm_name: "Wrong Name" })();
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("does not match");
+    });
+
+    test("re-sends webhook with matching name", async () => {
+      const webhookFetch = spyOn(globalThis, "fetch");
+      webhookFetch.mockResolvedValue(new Response(null, { status: 200 }));
+
+      const { response, event } = await resendWebhookAction({ confirm_name: "John Doe" })({
+        webhookUrl: "https://example.com/webhook",
+      });
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
+
+      // Verify webhook was sent
+      expect(webhookFetch).toHaveBeenCalled();
+      webhookFetch.mockRestore();
+    });
+
+    test("logs activity when webhook is re-sent", async () => {
+      const webhookFetch = spyOn(globalThis, "fetch");
+      webhookFetch.mockResolvedValue(new Response(null, { status: 200 }));
+
+      const { response, event } = await resendWebhookAction({ confirm_name: "John Doe" })({
+        webhookUrl: "https://example.com/webhook",
+      });
+      expect(response.status).toBe(302);
+
+      // Verify activity was logged
+      const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
+      const logs = await getEventActivityLog(event.id);
+      const resendLog = logs.find((l: { message: string }) => l.message.includes("Webhook re-sent"));
+      expect(resendLog).toBeDefined();
+      expect(resendLog?.message).toContain("John Doe");
+      webhookFetch.mockRestore();
+    });
+  });
+
 });
