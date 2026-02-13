@@ -405,52 +405,67 @@ describe("server (admin auth)", () => {
     });
   });
 
-  describe("login → logout → login cycle (blank screen test)", () => {
-    test("shows content on initial login, after logout, and on re-login", async () => {
-      // Step 1: Login and verify dashboard content is present (not blank)
-      const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
-      );
-      expectAdminRedirect(loginResponse);
-      const cookie = loginResponse.headers.get("set-cookie");
-      expect(cookie).toBeTruthy();
+  describe("session expiration (blank screen test)", () => {
+    test("expired session shows login page, not blank screen", async () => {
+      // Step 1: Login and get a valid session
+      const { cookie } = await loginAsAdmin();
+      const token = cookie.split("=")[1]?.split(";")[0] || "";
+      expect(token).not.toBe("");
 
-      // Step 2: Follow redirect to /admin after login
-      const dashboardAfterLogin = await awaitTestRequest("/admin/", { cookie: cookie! });
-      expect(dashboardAfterLogin.status).toBe(200);
-      const dashboardHtml = await dashboardAfterLogin.text();
-      // Verify content is rendered (should contain "Events" table header)
+      // Verify dashboard loads with content
+      const dashboardResponse = await awaitTestRequest("/admin/", { cookie });
+      expect(dashboardResponse.status).toBe(200);
+      const dashboardHtml = await dashboardResponse.text();
       expect(dashboardHtml).toContain("Events");
       expect(dashboardHtml.length).toBeGreaterThan(100); // Not blank
 
-      // Step 3: Logout
-      const logoutResponse = await awaitTestRequest("/admin/logout", { cookie: cookie! });
-      expectAdminRedirect(logoutResponse);
-      expect(logoutResponse.headers.get("set-cookie")).toContain("Max-Age=0");
+      // Step 2: Expire the session by setting expiry time in the past
+      const { getDb } = await import("#lib/db/client.ts");
+      const pastTime = Date.now() - 1000; // 1 second ago
+      await getDb().execute({
+        sql: "UPDATE sessions SET expires = ? WHERE token = ?",
+        args: [pastTime, token],
+      });
 
-      // Step 4: Follow redirect to /admin after logout - should show login page
-      const loginPageAfterLogout = await handleRequest(mockRequest("/admin/"));
-      expect(loginPageAfterLogout.status).toBe(200);
-      const loginHtml = await loginPageAfterLogout.text();
-      // Verify login page is rendered (not blank)
-      expect(loginHtml).toContain("Login");
-      expect(loginHtml.length).toBeGreaterThan(100); // Not blank
+      // Step 3: Make request with expired session cookie
+      const expiredResponse = await awaitTestRequest("/admin/", { cookie });
+      expect(expiredResponse.status).toBe(200);
+      const expiredHtml = await expiredResponse.text();
 
-      // Step 5: Login again
-      const reloginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
-      );
-      expectAdminRedirect(reloginResponse);
-      const newCookie = reloginResponse.headers.get("set-cookie");
-      expect(newCookie).toBeTruthy();
+      // Verify we get login page, not blank screen
+      expect(expiredHtml).toContain("Login");
+      expect(expiredHtml.length).toBeGreaterThan(100); // Not blank
+      expect(expiredHtml).not.toContain("Events"); // Should not show dashboard
 
-      // Step 6: Follow redirect to /admin after re-login - should show dashboard
-      const dashboardAfterRelogin = await awaitTestRequest("/admin/", { cookie: newCookie! });
-      expect(dashboardAfterRelogin.status).toBe(200);
-      const dashboardRehtml = await dashboardAfterRelogin.text();
-      // Verify content is rendered (should contain "Events" table header)
-      expect(dashboardRehtml).toContain("Events");
-      expect(dashboardRehtml.length).toBeGreaterThan(100); // Not blank
+      // Step 4: Verify session was deleted from database
+      const { getSession } = await import("#lib/db/sessions.ts");
+      const deletedSession = await getSession(token);
+      expect(deletedSession).toBeNull();
+    });
+
+    test("multiple requests with expired session consistently show login page", async () => {
+      // Login and expire the session
+      const { cookie } = await loginAsAdmin();
+      const token = cookie.split("=")[1]?.split(";")[0] || "";
+
+      const { getDb } = await import("#lib/db/client.ts");
+      const pastTime = Date.now() - 1000;
+      await getDb().execute({
+        sql: "UPDATE sessions SET expires = ? WHERE token = ?",
+        args: [pastTime, token],
+      });
+
+      // Make multiple requests with the same expired cookie
+      for (let i = 0; i < 3; i++) {
+        const response = await awaitTestRequest("/admin/", { cookie });
+        expect(response.status).toBe(200);
+        const html = await response.text();
+
+        // Each request should show login page, not blank
+        expect(html).toContain("Login");
+        expect(html.length).toBeGreaterThan(100);
+        expect(html).not.toContain("Events");
+      }
     });
 
     test("dashboard always contains expected content structure", async () => {
