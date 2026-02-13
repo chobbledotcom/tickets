@@ -1,5 +1,5 @@
 import { getDb } from "#lib/db/client.ts";
-import { CONFIG_KEYS, getSetting, setSetting } from "#lib/db/settings.ts";
+import { CONFIG_KEYS, getSetting, invalidateSettingsCache, setSetting } from "#lib/db/settings.ts";
 import { decrypt, encrypt } from "#lib/crypto.ts";
 
 /**
@@ -43,6 +43,7 @@ export async function updateBusinessEmail(email: string): Promise<void> {
       sql: "DELETE FROM settings WHERE key = ?",
       args: [CONFIG_KEYS.BUSINESS_EMAIL],
     });
+    invalidateSettingsCache();
     return;
   }
 

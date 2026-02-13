@@ -432,6 +432,7 @@ export const updateEmbedHosts = async (hosts: string): Promise<void> => {
       sql: "DELETE FROM settings WHERE key = ?",
       args: [CONFIG_KEYS.EMBED_HOSTS],
     });
+    invalidateSettingsCache();
     return;
   }
   const encrypted = await encrypt(hosts);
@@ -446,7 +447,7 @@ export const MAX_TERMS_LENGTH = 10_240;
  * Returns null if not configured.
  */
 export const getTermsAndConditionsFromDb = async (): Promise<string | null> => {
-  return getSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS);
+  return await getSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS);
 };
 
 /**
