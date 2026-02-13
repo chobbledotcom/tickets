@@ -612,10 +612,11 @@ export const resetTestSession = (): void => {
 };
 
 /**
- * Execute an authenticated form request expecting a redirect.
+ * Execute an authenticated request expecting a redirect.
  * Handles session management, CSRF tokens, and status validation.
  */
-const authenticatedFormRequest = async <T>(
+const authenticatedRequest = async <T>(
+  buildRequest: (path: string, data: Record<string, string>, cookie: string) => Request,
   path: string,
   formData: Record<string, string>,
   onSuccess: () => Promise<T>,
@@ -625,7 +626,7 @@ const authenticatedFormRequest = async <T>(
   const { handleRequest } = await import("#routes");
 
   const response = await handleRequest(
-    mockFormRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
+    buildRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
   );
 
   if (response.status !== 302) {
@@ -635,30 +636,21 @@ const authenticatedFormRequest = async <T>(
   return onSuccess();
 };
 
-/**
- * Execute an authenticated multipart form request expecting a redirect.
- * Like authenticatedFormRequest but sends multipart/form-data for handlers
- * that accept file uploads (event create/edit).
- */
-const authenticatedMultipartFormRequest = async <T>(
+/** Authenticated URL-encoded form request (deactivate, holidays, etc.) */
+const authenticatedFormRequest = <T>(
   path: string,
   formData: Record<string, string>,
   onSuccess: () => Promise<T>,
   errorContext: string,
-): Promise<T> => {
-  const session = await getTestSession();
-  const { handleRequest } = await import("#routes");
+): Promise<T> => authenticatedRequest(mockFormRequest, path, formData, onSuccess, errorContext);
 
-  const response = await handleRequest(
-    mockMultipartRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
-  );
-
-  if (response.status !== 302) {
-    throw new Error(`Failed to ${errorContext}: ${response.status}`);
-  }
-
-  return onSuccess();
-};
+/** Authenticated multipart form request (event create/edit with file uploads) */
+const authenticatedMultipartFormRequest = <T>(
+  path: string,
+  formData: Record<string, string>,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+): Promise<T> => authenticatedRequest(mockMultipartRequest, path, formData, onSuccess, errorContext);
 
 /**
  * Create an event via the REST API
