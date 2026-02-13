@@ -105,7 +105,7 @@ type EncryptedAttendeeData = {
   ticketTokenIndex: string;
 };
 
-/** Input for encrypting attendee fields */
+/** Input for encrypting attendee fields - all ContactInfo fields are guaranteed to be strings */
 type EncryptInput = ContactInfo & {
   paymentId: string | null;
   pricePaid: number | null;
@@ -123,10 +123,10 @@ const encryptAttendeeFields = async (
   return {
     created: nowIso(),
     encryptedName: await encryptAttendeePII(input.name, publicKeyJwk),
-    encryptedEmail: await encryptAttendeePII(input.email || "", publicKeyJwk),
-    encryptedPhone: await encryptAttendeePII(input.phone || "", publicKeyJwk),
-    encryptedAddress: await encryptAttendeePII(input.address || "", publicKeyJwk),
-    encryptedSpecialInstructions: await encryptAttendeePII(input.special_instructions || "", publicKeyJwk),
+    encryptedEmail: await encryptAttendeePII(input.email, publicKeyJwk),
+    encryptedPhone: await encryptAttendeePII(input.phone, publicKeyJwk),
+    encryptedAddress: await encryptAttendeePII(input.address, publicKeyJwk),
+    encryptedSpecialInstructions: await encryptAttendeePII(input.special_instructions, publicKeyJwk),
     encryptedPaymentId: input.paymentId
       ? await encryptAttendeePII(input.paymentId, publicKeyJwk)
       : null,
@@ -279,7 +279,9 @@ export const attendeesApi = {
     input: AttendeeInput,
   ): Promise<CreateAttendeeResult> => {
     const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", address = "", special_instructions = "", pricePaid = null, date = null } = input;
-    const enc = await encryptAttendeeFields({ name, email, phone, address, special_instructions, paymentId, pricePaid });
+    // Ensure all ContactInfo fields are strings (convert undefined to empty string)
+    const contactInfo = { name, email, phone, address, special_instructions };
+    const enc = await encryptAttendeeFields({ ...contactInfo, paymentId, pricePaid });
     if (!enc) {
       return { success: false, reason: "encryption_error" };
     }

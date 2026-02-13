@@ -9,6 +9,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   getAttendeesRaw,
+  getPlaintextTokenFromAttendee,
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";

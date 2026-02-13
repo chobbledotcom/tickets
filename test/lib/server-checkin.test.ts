@@ -11,6 +11,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   getAttendeesRaw,
+  getPlaintextTokenFromAttendee,
   loginAsAdmin,
   mockFormRequest,
   resetDb,

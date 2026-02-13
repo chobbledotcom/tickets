@@ -31,6 +31,18 @@ const backfillEncryptedColumn = async (table: string, column: string, whereClaus
   }
 };
 
+/** Backfill a column with a hybrid-encrypted empty string for matching rows */
+const backfillHybridEncryptedColumn = async (table: string, column: string, whereClause: string): Promise<void> => {
+  const publicKey = await getPublicKey();
+  if (!publicKey) return;
+
+  const rows = await queryAll<{ id: number }>(`SELECT id FROM ${table} WHERE ${whereClause}`);
+  const encryptedEmpty = await encryptAttendeePII("", publicKey);
+  for (const row of rows) {
+    await getDb().execute({ sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`, args: [encryptedEmpty, row.id] });
+  }
+};
+
 /**
  * Check if database is already up to date by reading from settings table
  */
@@ -322,56 +334,10 @@ export const initDb = async (): Promise<void> => {
   await runMigration(`ALTER TABLE attendees ADD COLUMN ticket_token_index TEXT`);
 
   // Backfill: encrypt empty PII fields with encrypted empty strings
-  {
-    const pubKey = await getPublicKey();
-    if (pubKey) {
-      const encryptedEmptyPII = await encryptAttendeePII("", pubKey);
-
-      // Backfill empty email fields
-      const emptyEmails = await queryAll<{ id: number }>(
-        `SELECT id FROM attendees WHERE email = ''`
-      );
-      for (const row of emptyEmails) {
-        await getDb().execute({
-          sql: `UPDATE attendees SET email = ? WHERE id = ?`,
-          args: [encryptedEmptyPII, row.id],
-        });
-      }
-
-      // Backfill empty phone fields
-      const emptyPhones = await queryAll<{ id: number }>(
-        `SELECT id FROM attendees WHERE phone = ''`
-      );
-      for (const row of emptyPhones) {
-        await getDb().execute({
-          sql: `UPDATE attendees SET phone = ? WHERE id = ?`,
-          args: [encryptedEmptyPII, row.id],
-        });
-      }
-
-      // Backfill empty address fields
-      const emptyAddresses = await queryAll<{ id: number }>(
-        `SELECT id FROM attendees WHERE address = ''`
-      );
-      for (const row of emptyAddresses) {
-        await getDb().execute({
-          sql: `UPDATE attendees SET address = ? WHERE id = ?`,
-          args: [encryptedEmptyPII, row.id],
-        });
-      }
-
-      // Backfill empty special_instructions fields
-      const emptyInstructions = await queryAll<{ id: number }>(
-        `SELECT id FROM attendees WHERE special_instructions = ''`
-      );
-      for (const row of emptyInstructions) {
-        await getDb().execute({
-          sql: `UPDATE attendees SET special_instructions = ? WHERE id = ?`,
-          args: [encryptedEmptyPII, row.id],
-        });
-      }
-    }
-  }
+  await backfillHybridEncryptedColumn("attendees", "email", `email = ''`);
+  await backfillHybridEncryptedColumn("attendees", "phone", `phone = ''`);
+  await backfillHybridEncryptedColumn("attendees", "address", `address = ''`);
+  await backfillHybridEncryptedColumn("attendees", "special_instructions", `special_instructions = ''`);
 
   // Backfill: encrypt existing plaintext ticket_token values and generate HMAC indexes
   {
