@@ -393,7 +393,7 @@ const setupWebhookEndpointImpl = async (
     };
   } catch (err) {
     logError({ code: ErrorCode.STRIPE_WEBHOOK_SETUP, detail: sanitizeErrorDetail(err) });
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return { success: false, error: (err as Error).message };
   }
 };
 

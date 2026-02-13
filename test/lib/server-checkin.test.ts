@@ -181,6 +181,56 @@ describe("check-in (/checkin/:tokens)", () => {
       expect(body).toContain("<th>Date</th>");
     });
 
+    test("shows empty date cell for standard event when combined with daily event", async () => {
+      const dailyEvent = await createTestEvent({
+        maxAttendees: 10,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 30,
+      });
+      const standardEvent = await createTestEvent({ maxAttendees: 10 });
+      const date = "2026-02-15";
+      const dailyResult = await createAttendeeAtomic({
+        eventId: dailyEvent.id,
+        name: "Zara",
+        email: "zara@test.com",
+        date,
+      });
+      if (!dailyResult.success) throw new Error("Failed to create attendee");
+      await createTestAttendee(standardEvent.id, standardEvent.slug, "Alice", "alice@test.com");
+      const standardAttendees = await getAttendeesRaw(standardEvent.id);
+      const tokenA = dailyResult.attendee.ticket_token;
+      const tokenB = standardAttendees[0]!.ticket_token;
+
+      const session = await loginAsAdmin();
+      const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
+        cookie: session.cookie,
+      });
+      const body = await response.text();
+      expect(body).toContain("<th>Date</th>");
+      expect(body).toContain(formatDateLabel(date));
+      // Standard event attendee has no date - empty cell rendered
+      expect(body).toContain("Alice");
+    });
+
+    test("renders empty email and phone for attendee without contact details", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "NoContact",
+        email: "",
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+
+      const session = await loginAsAdmin();
+      const response = await awaitTestRequest(`/checkin/${result.attendee.ticket_token}`, {
+        cookie: session.cookie,
+      });
+      const body = await response.text();
+      expect(body).toContain("NoContact");
+    });
+
     test("does not show date column for standard event in admin view", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");

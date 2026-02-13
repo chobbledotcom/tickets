@@ -57,15 +57,15 @@ const buildCalendarAttendees = (
     new Map<number, EventWithCount>(),
   )(events);
 
-  return flatMap((a: Attendee): CalendarAttendeeRow[] => {
-    const event = eventById.get(a.event_id);
-    return event ? [{
+  return map((a: Attendee): CalendarAttendeeRow => {
+    const event = eventById.get(a.event_id)!;
+    return {
       ...a,
       eventName: event.name,
       eventDate: event.date,
       eventLocation: event.location,
       eventId: event.id,
-    }] : [];
+    };
   })(attendees);
 };
 
