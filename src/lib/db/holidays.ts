@@ -5,7 +5,7 @@
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import type { InStatement } from "@libsql/client";
-import { getDb } from "#lib/db/client.ts";
+import { getDb, resultRows } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 import type { Holiday } from "#lib/types.ts";
 
@@ -32,7 +32,7 @@ export const holidaysTable = defineTable<Holiday, HolidayInput>({
 const queryHolidays = async (stmt: InStatement): Promise<Holiday[]> => {
   const result = await getDb().execute(stmt);
   return Promise.all(
-    (result.rows as unknown as Holiday[]).map((row) => holidaysTable.fromDb(row)),
+    resultRows<Holiday>(result).map((row) => holidaysTable.fromDb(row)),
   );
 };
 
