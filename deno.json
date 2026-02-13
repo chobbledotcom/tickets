@@ -39,6 +39,7 @@
     "square": "npm:square@^43.0.0",
     "esbuild": "npm:esbuild@^0.20.0",
     "@bunny.net/edgescript-sdk": "npm:@bunny.net/edgescript-sdk@^0.12.0",
+    "@internationalized/date": "npm:@internationalized/date@^3.8.0",
     "@bunny.net/storage-sdk": "npm:@bunny.net/storage-sdk@^0.2.0",
     "jsqr": "npm:jsqr@^1.4.0",
     "qrcode": "npm:qrcode@^1.5.0",

@@ -181,8 +181,8 @@ const main = async (): Promise<void> => {
       Deno.exit(1);
     }
 
-    const failures: string[] = [];
-    const branchWarnings: string[] = [];
+    const lineFailures: string[] = [];
+    const branchFailures: string[] = [];
 
     for (const record of records) {
       const sfMatch = record.match(/SF:(.*)/);
@@ -196,39 +196,43 @@ const main = async (): Promise<void> => {
         const hit = parseInt(lhMatch[1]);
         const found = parseInt(lfMatch[1]);
         if (hit < found) {
-          failures.push(`${file}: ${hit}/${found} lines covered`);
+          lineFailures.push(`${file}: ${hit}/${found} lines covered`);
         }
       }
 
-      // Branch coverage: BRH (branches hit) / BRF (branches found) — advisory
+      // Branch coverage: BRH (branches hit) / BRF (branches found)
       const brhMatch = record.match(/BRH:(\d+)/);
       const brfMatch = record.match(/BRF:(\d+)/);
       if (brhMatch && brfMatch) {
         const hit = parseInt(brhMatch[1]);
         const found = parseInt(brfMatch[1]);
         if (hit < found) {
-          branchWarnings.push(`${file}: ${hit}/${found} branches covered`);
+          branchFailures.push(`${file}: ${hit}/${found} branches covered`);
         }
       }
     }
 
-    if (branchWarnings.length > 0) {
-      console.log("\nBranch coverage gaps (advisory):");
-      for (const w of branchWarnings) console.log(`  ${w}`);
-    }
+    const failures = [...lineFailures, ...branchFailures];
 
     if (failures.length > 0) {
-      console.error("\nLine coverage is not 100%. Files below 100%:");
-      for (const f of failures) console.error(`  ${f}`);
+      if (lineFailures.length > 0) {
+        console.error("\nLine coverage is not 100%:");
+        for (const f of lineFailures) console.error(`  ${f}`);
+      }
+      if (branchFailures.length > 0) {
+        console.error("\nBranch coverage is not 100%:");
+        for (const f of branchFailures) console.error(`  ${f}`);
+      }
       console.error("\nTest quality rules:");
       console.error("  - 100% line coverage is required");
+      console.error("  - 100% branch coverage is required");
       console.error("  - Test outcomes not implementations");
       console.error("  - Test-only exports are forbidden");
       console.error("  - Tautological tests are forbidden");
       Deno.exit(1);
     }
 
-    console.log("\nAll files have 100% line coverage");
+    console.log("\nAll files have 100% line and branch coverage");
   }
 
   Deno.exit(0);

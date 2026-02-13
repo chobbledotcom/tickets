@@ -29,16 +29,39 @@ jobs:
         env:
           BUNNY_SCRIPT_DATA: ${{ secrets.BUNNY_SCRIPT_DATA }}
         run: |
+          code=$(jq -Rs '{"Code": .}' bunny-script.ts)
           while IFS= read -r line; do
             [ -z "$line" ] && continue
             script_id="${line%%|*}"
             api_key="${line#*|}"
             echo "Deploying to script $script_id..."
-            curl -s --fail-with-body \
+            response=$(curl -s --fail-with-body -w "\n%{http_code}" \
               -X POST "https://api.bunny.net/compute/script/${script_id}/code" \
               -H "AccessKey: ${api_key}" \
-              -H "Content-Type: application/javascript" \
-              --data-binary @bunny-script.ts \
-              && echo " ✓ Deployed to $script_id" \
-              || { echo " ✗ Failed to deploy to $script_id"; exit 1; }
+              -H "Content-Type: application/json" \
+              -d "$code")
+            status_code=$(echo "$response" | tail -1)
+            body=$(echo "$response" | sed '$d')
+            if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
+              echo " ✓ Code uploaded to $script_id (HTTP $status_code)"
+            else
+              echo " ✗ Failed to upload code to $script_id (HTTP $status_code)"
+              echo "   Response: $body"
+              exit 1
+            fi
+            echo "  Publishing script $script_id..."
+            response=$(curl -s --fail-with-body -w "\n%{http_code}" \
+              -X POST "https://api.bunny.net/compute/script/${script_id}/publish" \
+              -H "AccessKey: ${api_key}" \
+              -H "Content-Type: application/json" \
+              -d '{}')
+            status_code=$(echo "$response" | tail -1)
+            body=$(echo "$response" | sed '$d')
+            if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
+              echo " ✓ Published $script_id (HTTP $status_code)"
+            else
+              echo " ✗ Failed to publish $script_id (HTTP $status_code)"
+              echo "   Response: $body"
+              exit 1
+            fi
           done <<< "$BUNNY_SCRIPT_DATA"

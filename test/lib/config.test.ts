@@ -8,6 +8,7 @@ import {
   getSquareWebhookSignatureKey,
   getStripePublishableKey,
   getStripeSecretKey,
+  getTz,
   isPaymentsEnabled,
   isSetupComplete,
 } from "#lib/config.ts";
@@ -264,5 +265,10 @@ describe("payments", () => {
     expect(provider).not.toBeNull();
     expect(provider?.type).toBe("square");
   });
+
+  test("getTz returns default timezone when cache is empty", () => {
+    expect(getTz()).toBe("Europe/London");
+  });
+
 
 });

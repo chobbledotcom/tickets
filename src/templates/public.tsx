@@ -3,6 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { getTz } from "#lib/config.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { renderError, renderFields } from "#lib/forms.tsx";
@@ -50,12 +51,13 @@ const renderTermsAndCheckbox = (terms: string): string =>
 export const ticketPage = (
   event: EventWithCount,
   csrfToken: string,
-  error?: string,
-  isClosed = false,
-  iframe = false,
-  availableDates?: string[],
-  termsAndConditions?: string | null,
+  error: string | undefined,
+  isClosed: boolean,
+  iframe: boolean,
+  availableDates: string[] | undefined,
+  termsAndConditions: string | null | undefined,
 ): string => {
+  const tz = getTz();
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isFull = spotsRemaining <= 0;
   const maxPurchasable = Math.min(event.max_quantity, spotsRemaining);
@@ -75,7 +77,7 @@ export const ticketPage = (
             </div>
           )}
           {event.date && (
-            <p><strong>Date:</strong> {formatDatetimeLabel(event.date)}</p>
+            <p><strong>Date:</strong> {formatDatetimeLabel(event.date, tz)}</p>
           )}
           {event.location && (
             <p><strong>Location:</strong> {event.location}</p>

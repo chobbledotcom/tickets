@@ -6,7 +6,9 @@ import { filter, map, pipe, reduce } from "#fp";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
+import { getTz } from "#lib/config.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
+import { utcToLocalInput } from "#lib/timezone.ts";
 import { renderEventImage } from "#templates/public.tsx";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -164,6 +166,7 @@ export const adminEventPage = ({
   addAttendeeMessage = null,
   imageError = null,
 }: AdminEventPageOptions): string => {
+  const tz = getTz();
   const storageEnabled = isStorageEnabled();
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const contactFields = parseEventFields(event.fields);
@@ -225,7 +228,7 @@ export const adminEventPage = ({
               {event.date && (
                 <tr>
                   <th>Event Date</th>
-                  <td>{formatDatetimeLabel(event.date)}</td>
+                  <td>{formatDatetimeLabel(event.date, tz)}</td>
                 </tr>
               )}
               {event.location && (
@@ -277,7 +280,7 @@ export const adminEventPage = ({
                 <th>Registration Closes</th>
                 <td>
                   {event.closes_at ? (
-                    <span>{formatDatetimeLabel(event.closes_at)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
+                    <span>{formatDatetimeLabel(event.closes_at, tz)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
                   ) : (
                     <em>No deadline</em>
                   )}
@@ -425,8 +428,7 @@ export const adminEventPage = ({
 /** Format an ISO datetime string for datetime-local input (YYYY-MM-DDTHH:MM) */
 const formatDatetimeLocal = (iso: string | null): string | null => {
   if (!iso) return null;
-  // datetime-local expects YYYY-MM-DDTHH:MM format
-  return iso.slice(0, 16);
+  return utcToLocalInput(iso, getTz());
 };
 
 /** Convert bookable_days JSON array to comma-separated display string */
