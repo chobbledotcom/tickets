@@ -1799,7 +1799,12 @@ describe("db", () => {
       const a1 = await createTestAttendee(event.id, event.slug, "Tok1", "tok1@example.com");
       const a2 = await createTestAttendee(event.id, event.slug, "Tok2", "tok2@example.com");
 
-      const results = await getAttendeesByTokens([a2.ticket_token, a1.ticket_token]);
+      // Get plaintext tokens for lookups (ticket_token in DB is encrypted)
+      const { getPlaintextTokenFromAttendee } = await import("#test-utils");
+      const token1 = await getPlaintextTokenFromAttendee(a1);
+      const token2 = await getPlaintextTokenFromAttendee(a2);
+
+      const results = await getAttendeesByTokens([token2, token1]);
       expect(results.length).toBe(2);
       expect(results[0]?.id).toBe(a2.id);
       expect(results[1]?.id).toBe(a1.id);

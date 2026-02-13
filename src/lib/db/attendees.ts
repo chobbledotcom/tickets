@@ -7,7 +7,7 @@
  */
 
 import { map } from "#fp";
-import { decrypt, decryptAttendeePII, encrypt, encryptAttendeePII, generateTicketToken } from "#lib/crypto.ts";
+import { computeTicketTokenIndex, decrypt, decryptAttendeePII, encrypt, encryptAttendeePII, generateTicketToken } from "#lib/crypto.ts";
 import { getDb, inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { nowIso } from "#lib/now.ts";
@@ -54,7 +54,8 @@ const decryptAttendee = async (
   const checked_in = row.checked_in
     ? await decryptAttendeePII(row.checked_in, privateKey)
     : "false";
-  return { ...row, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in };
+  const ticket_token = await decryptAttendeePII(row.ticket_token, privateKey);
+  return { ...row, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, ticket_token };
 };
 
 /**
@@ -99,6 +100,9 @@ type EncryptedAttendeeData = {
   encryptedPaymentId: string | null;
   encryptedPricePaid: string | null;
   encryptedCheckedIn: string;
+  ticketToken: string;
+  encryptedTicketToken: string;
+  ticketTokenIndex: string;
 };
 
 /** Input for encrypting attendee fields */
@@ -114,21 +118,15 @@ const encryptAttendeeFields = async (
   const publicKeyJwk = await getPublicKey();
   if (!publicKeyJwk) return null;
 
+  const ticketToken = generateTicketToken();
+
   return {
     created: nowIso(),
     encryptedName: await encryptAttendeePII(input.name, publicKeyJwk),
-    encryptedEmail: input.email
-      ? await encryptAttendeePII(input.email, publicKeyJwk)
-      : "",
-    encryptedPhone: input.phone
-      ? await encryptAttendeePII(input.phone, publicKeyJwk)
-      : "",
-    encryptedAddress: input.address
-      ? await encryptAttendeePII(input.address, publicKeyJwk)
-      : "",
-    encryptedSpecialInstructions: input.special_instructions
-      ? await encryptAttendeePII(input.special_instructions, publicKeyJwk)
-      : "",
+    encryptedEmail: await encryptAttendeePII(input.email || "", publicKeyJwk),
+    encryptedPhone: await encryptAttendeePII(input.phone || "", publicKeyJwk),
+    encryptedAddress: await encryptAttendeePII(input.address || "", publicKeyJwk),
+    encryptedSpecialInstructions: await encryptAttendeePII(input.special_instructions || "", publicKeyJwk),
     encryptedPaymentId: input.paymentId
       ? await encryptAttendeePII(input.paymentId, publicKeyJwk)
       : null,
@@ -136,6 +134,9 @@ const encryptAttendeeFields = async (
       ? await encrypt(String(input.pricePaid))
       : null,
     encryptedCheckedIn: await encryptAttendeePII("false", publicKeyJwk),
+    ticketToken,
+    encryptedTicketToken: await encryptAttendeePII(ticketToken, publicKeyJwk),
+    ticketTokenIndex: await computeTicketTokenIndex(ticketToken),
   };
 };
 
@@ -148,6 +149,7 @@ type BuildAttendeeInput = ContactInfo & {
   quantity: number;
   pricePaid: number | null;
   ticketToken: string;
+  ticketTokenIndex: string;
   date: string | null;
 };
 
@@ -166,6 +168,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   price_paid: input.pricePaid !== null ? String(input.pricePaid) : null,
   checked_in: "false",
   ticket_token: input.ticketToken,
+  ticket_token_index: input.ticketTokenIndex,
   date: input.date,
 });
 
@@ -281,8 +284,6 @@ export const attendeesApi = {
       return { success: false, reason: "encryption_error" };
     }
 
-    const ticketToken = generateTicketToken();
-
     // For daily events with a date, check capacity per-date; otherwise check total
     const capacityFilter = date
       ? "SELECT COALESCE(SUM(quantity), 0) FROM attendees WHERE event_id = ? AND date = ?"
@@ -291,8 +292,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, ticket_token, date)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, ticket_token, ticket_token_index, date)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (
@@ -310,7 +311,8 @@ export const attendeesApi = {
         qty,
         enc.encryptedPricePaid,
         enc.encryptedCheckedIn,
-        ticketToken,
+        enc.encryptedTicketToken,
+        enc.ticketTokenIndex,
         date,
         ...capacityArgs,
         qty,
@@ -336,7 +338,8 @@ export const attendeesApi = {
         paymentId,
         quantity: qty,
         pricePaid,
-        ticketToken,
+        ticketToken: enc.ticketToken,
+        ticketTokenIndex: enc.ticketTokenIndex,
         date,
       }),
     };
@@ -362,18 +365,25 @@ export const checkBatchAvailability = (
 ): Promise<boolean> => attendeesApi.checkBatchAvailability(items, date);
 
 /**
- * Get attendees by ticket tokens (plaintext, no decryption needed for token lookup)
+ * Get attendees by ticket tokens (plaintext tokens, looked up via HMAC index)
  * Returns attendees in the same order as the input tokens.
  */
 export const getAttendeesByTokens = async (
   tokens: string[],
 ): Promise<(Attendee | null)[]> => {
+  // Compute HMAC index for each token
+  const tokenIndexes = await Promise.all(map((t: string) => computeTicketTokenIndex(t))(tokens));
+
   const rows = await queryAll<Attendee>(
-    `SELECT * FROM attendees WHERE ticket_token IN (${inPlaceholders(tokens)})`,
-    tokens,
+    `SELECT * FROM attendees WHERE ticket_token_index IN (${inPlaceholders(tokenIndexes)})`,
+    tokenIndexes,
   );
-  const byToken = new Map(map((r: Attendee) => [r.ticket_token, r] as const)(rows));
-  return map((t: string) => byToken.get(t) ?? null)(tokens);
+
+  // Build a map from token index to attendee
+  const byTokenIndex = new Map(map((r: Attendee) => [r.ticket_token_index, r] as const)(rows));
+
+  // Return attendees in the same order as input tokens
+  return map((idx: string) => byTokenIndex.get(idx) ?? null)(tokenIndexes);
 };
 
 /**

@@ -82,7 +82,8 @@ describe("check-in (/checkin/:tokens)", () => {
       const eventB = await createTestEvent({ maxAttendees: 10 });
       await createTestAttendee(eventB.id, eventB.slug, "Carol", "carol@test.com");
       const attendeesB = await getAttendeesRaw(eventB.id);
-      const tokenB = attendeesB[0]!.ticket_token;
+      // Decrypt the ticket_token to get the plaintext version
+      const tokenB = await getPlaintextTokenFromAttendee(attendeesB[0]!);
 
       const session = await loginAsAdmin();
       const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {

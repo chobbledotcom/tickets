@@ -39,7 +39,8 @@ describe("ticket view (/t/:tokens)", () => {
     const eventB = await createTestEvent({ maxAttendees: 10 });
     await createTestAttendee(eventB.id, eventB.slug, "Bob", "bob@test.com", 2);
     const attendeesB = await getAttendeesRaw(eventB.id);
-    const tokenB = attendeesB[0]!.ticket_token;
+    // Decrypt the ticket_token to get the plaintext version
+    const tokenB = await getPlaintextTokenFromAttendee(attendeesB[0]!);
 
     const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
     expect(response.status).toBe(200);
