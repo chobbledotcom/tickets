@@ -57,6 +57,35 @@ const STATIC_ASSETS: Record<string, string> = {
   "scanner.js": await Deno.readTextFile("./src/static/scanner.js"),
 };
 
+/** Map of bare specifiers to esm.sh CDN URLs for edge runtime */
+const ESM_SH_EXTERNALS: Record<string, string> = {
+  "@bunny.net/edgescript-sdk":
+    "https://esm.sh/@bunny.net/edgescript-sdk@0.11.0",
+  "@libsql/client/web": "https://esm.sh/@libsql/client@0.6.0/web",
+  "@libsql/client": "https://esm.sh/@libsql/client@0.6.0/web",
+  "qrcode": "https://esm.sh/qrcode@1.5.0",
+  "stripe": "https://esm.sh/stripe@17.0.0",
+  "square": "https://esm.sh/square@43.0.0",
+};
+
+/** Rewrite bare package imports to esm.sh URLs and mark them external */
+const esmShExternalsPlugin: Plugin = {
+  name: "esm-sh-externals",
+  setup(build) {
+    const filter = new RegExp(
+      "^(" +
+        Object.keys(ESM_SH_EXTERNALS)
+          .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+          .join("|") +
+        ")$",
+    );
+    build.onResolve({ filter }, (args) => ({
+      path: ESM_SH_EXTERNALS[args.path]!,
+      external: true,
+    }));
+  },
+};
+
 /**
  * Plugin to inline static assets and handle Deno-specific imports
  * Replaces Deno.readTextFileSync calls with pre-read content
@@ -133,15 +162,7 @@ const result = await esbuild.build({
   format: "esm",
   minify: true,
   bundle: true,
-  plugins: [inlineAssetsPlugin],
-  external: [
-    "@bunny.net/edgescript-sdk",
-    "@libsql/client",
-    "@libsql/client/web",
-    "qrcode",
-    "stripe",
-    "square",
-  ],
+  plugins: [esmShExternalsPlugin, inlineAssetsPlugin],
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
 
@@ -162,35 +183,7 @@ try {
   Deno.exit(1);
 }
 
-// Rewrite package imports to esm.sh URLs for edge runtime
-// Note: Both @libsql/client and @libsql/client/web get rewritten to the web version
-const finalContent = content
-  .replace(
-    /from\s*["']@bunny\.net\/edgescript-sdk["']/g,
-    'from"https://esm.sh/@bunny.net/edgescript-sdk@0.11.0"',
-  )
-  .replace(
-    /from\s*["']@libsql\/client\/web["']/g,
-    'from"https://esm.sh/@libsql/client@0.6.0/web"',
-  )
-  .replace(
-    /from\s*["']@libsql\/client["']/g,
-    'from"https://esm.sh/@libsql/client@0.6.0/web"',
-  )
-  .replace(
-    /\bimport\(\s*["']qrcode["']\s*\)/g,
-    'import("https://esm.sh/qrcode@1.5.0")',
-  )
-  .replace(
-    /\bimport\(\s*["']stripe["']\s*\)/g,
-    'import("https://esm.sh/stripe@17.0.0")',
-  )
-  .replace(
-    /\bimport\(\s*["']square["']\s*\)/g,
-    'import("https://esm.sh/square@43.0.0")',
-  );
-
-await Deno.writeTextFile("./bunny-script.ts", finalContent);
+await Deno.writeTextFile("./bunny-script.ts", content);
 
 console.log("Build complete: bunny-script.ts");
 
