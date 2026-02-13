@@ -23,7 +23,7 @@
   --width-card: 285px;
   --width-card-medium: 460px;
   --width-card-wide: 800px;
-  --width-content: 800px;
+  --width-content: 1300px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -602,6 +602,10 @@ table thead tr:first-child th:first-child {
 
 table thead tr:first-child th:last-child {
   border-top-right-radius: var(--border-radius);
+}
+
+table > th > label {
+  text-align: var(--justify-important);
 }
 
 table thead th:first-child,
