@@ -9,9 +9,11 @@ import {
   createAttendeeAtomic,
   decryptAttendeeOrNull,
   deleteAttendee,
+  updateAttendee,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
-import { getEventWithAttendeeRaw, getEventWithCount } from "#lib/db/events.ts";
+import { queryOne } from "#lib/db/client.ts";
+import { getAllEvents, getEventWithAttendeeRaw, getEventWithCount } from "#lib/db/events.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
@@ -28,6 +30,7 @@ import {
 } from "#routes/utils.ts";
 import {
   adminDeleteAttendeePage,
+  adminEditAttendeePage,
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,
 } from "#templates/admin/attendees.tsx";
@@ -327,8 +330,127 @@ const handleAddAttendee = (
     );
   });
 
+/** Get all events (active + the current event), uniquified */
+const getEventsForSelector = async (currentEventId: number): Promise<EventWithCount[]> => {
+  const allEvents = await getAllEvents();
+  const currentEvent = allEvents.find((e) => e.id === currentEventId);
+  const activeEvents = filter((e: EventWithCount) => e.active === 1)(allEvents);
+
+  // Build unique list: current event + active events
+  const eventIds = new Set<number>();
+  const uniqueEvents: EventWithCount[] = [];
+
+  if (currentEvent) {
+    eventIds.add(currentEvent.id);
+    uniqueEvents.push(currentEvent);
+  }
+
+  for (const event of activeEvents) {
+    if (!eventIds.has(event.id)) {
+      eventIds.add(event.id);
+      uniqueEvents.push(event);
+    }
+  }
+
+  return uniqueEvents;
+};
+
+/** Load attendee with all events for edit page */
+const loadAttendeeForEdit = async (
+  session: AuthSession,
+  attendeeId: number,
+): Promise<{ attendee: Attendee; event: EventWithCount; allEvents: EventWithCount[] } | null> => {
+  const pk = await requirePrivateKey(session);
+  const attendeeRaw = await queryOne<Attendee>("SELECT * FROM attendees WHERE id = ?", [attendeeId]);
+
+  if (!attendeeRaw) return null;
+
+  const attendee = await decryptAttendeeOrNull(attendeeRaw, pk);
+  if (!attendee) return null;
+
+  const event = await getEventWithCount(attendee.event_id);
+  if (!event) return null;
+
+  const allEvents = await getEventsForSelector(event.id);
+
+  return { attendee, event, allEvents };
+};
+
+/** Handle GET /admin/attendees/:attendeeId */
+const handleEditAttendeeGet = (
+  request: Request,
+  attendeeId: number,
+): Promise<Response> =>
+  requireSessionOr(request, async (session) => {
+    const data = await loadAttendeeForEdit(session, attendeeId);
+    if (!data) return notFoundResponse();
+
+    return htmlResponse(adminEditAttendeePage(
+      data.event,
+      data.attendee,
+      data.allEvents,
+      session,
+    ));
+  });
+
+/** Handle POST /admin/attendees/:attendeeId */
+const handleEditAttendeePost = (
+  request: Request,
+  attendeeId: number,
+): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const data = await loadAttendeeForEdit(session, attendeeId);
+    if (!data) return notFoundResponse();
+
+    const name = form.get("name") ?? "";
+    const email = form.get("email") ?? "";
+    const phone = form.get("phone") ?? "";
+    const address = form.get("address") ?? "";
+    const special_instructions = form.get("special_instructions") ?? "";
+    const event_id = Number.parseInt(form.get("event_id") ?? "0", 10);
+
+    if (!name.trim()) {
+      return htmlResponse(adminEditAttendeePage(
+        data.event,
+        data.attendee,
+        data.allEvents,
+        session,
+        "Name is required",
+      ), 400);
+    }
+
+    if (!event_id) {
+      return htmlResponse(adminEditAttendeePage(
+        data.event,
+        data.attendee,
+        data.allEvents,
+        session,
+        "Event is required",
+      ), 400);
+    }
+
+    await updateAttendee(attendeeId, {
+      name,
+      email,
+      phone,
+      address,
+      special_instructions,
+      event_id,
+    });
+
+    await logActivity(`Attendee '${name}' updated`, event_id);
+
+    return redirect(
+      `/admin/event/${event_id}?edited=${encodeURIComponent(name)}#attendees`,
+    );
+  });
+
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
+  "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
+    handleEditAttendeeGet(request, attendeeId),
+  "POST /admin/attendees/:attendeeId": (request, { attendeeId }) =>
+    handleEditAttendeePost(request, attendeeId),
   "GET /admin/event/:eventId/attendee/:attendeeId/delete": (request, { eventId, attendeeId }) =>
     handleAdminAttendeeDeleteGet(request, eventId, attendeeId),
   "POST /admin/event/:eventId/attendee": (request, { eventId }) =>

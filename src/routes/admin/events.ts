@@ -202,6 +202,8 @@ const getAddAttendeeMessage = (request: Request): AddAttendeeMessage => {
   const url = new URL(request.url);
   const added = url.searchParams.get("added");
   if (added) return { name: added };
+  const edited = url.searchParams.get("edited");
+  if (edited) return { edited };
   const error = url.searchParams.get("add_error");
   if (error) return { error };
   return null;
