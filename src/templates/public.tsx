@@ -213,10 +213,11 @@ export const multiTicketPage = (
   error?: string,
   availableDates?: string[],
   termsAndConditions?: string | null,
+  iframe = false,
 ): string => {
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
-  const formAction = `/ticket/${slugs.join("+")}`;
+  const formAction = `/ticket/${slugs.join("+")}${iframe ? "?iframe=true" : ""}`;
   const fieldsSetting = getMultiTicketFieldsSetting(events);
   const fields: Field[] = getTicketFields(fieldsSetting);
   const hasDaily = events.some((e) => e.event.event_type === "daily");
@@ -227,7 +228,7 @@ export const multiTicketPage = (
   )(events);
 
   return String(
-    <Layout title="Reserve Tickets">
+    <Layout title="Reserve Tickets" bodyClass={iframe ? "iframe" : undefined}>
       <Raw html={renderError(error)} />
 
       {allUnavailable ? (

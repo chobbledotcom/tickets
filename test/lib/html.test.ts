@@ -1118,6 +1118,25 @@ describe("html", () => {
       expect(html).toContain("Rule one<br>Rule two");
       expect(html).toContain('name="agree_terms"');
     });
+
+    test("appends ?iframe=true to form action in iframe mode", () => {
+      const events = [
+        buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
+      ];
+      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN, undefined, undefined, undefined, true);
+      expect(html).toContain('action="/ticket/ab12c?iframe=true"');
+      expect(html).toContain('class="iframe"');
+    });
+
+    test("does not append ?iframe=true without iframe mode", () => {
+      const events = [
+        buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
+      ];
+      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN);
+      expect(html).toContain('action="/ticket/ab12c"');
+      expect(html).not.toContain("?iframe=true");
+      expect(html).not.toContain('class="iframe"');
+    });
   });
 
   describe("adminSettingsPage", () => {
