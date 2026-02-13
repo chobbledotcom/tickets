@@ -417,7 +417,7 @@ describe("html", () => {
     });
 
     test("does not render terms when not provided", () => {
-      const html = ticketPage(event, csrfToken);
+      const html = ticketPage(event, csrfToken, undefined, false, false, undefined, undefined);
       expect(html).not.toContain('class="terms"');
       expect(html).not.toContain('name="agree_terms"');
     });
