@@ -10,6 +10,7 @@ import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { ContactInfo } from "#lib/types.ts";
 import { nowIso } from "#lib/now.ts";
+import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -29,6 +30,7 @@ export type WebhookPayload = ContactInfo & {
   ticket_url: string;
   tickets: WebhookTicket[];
   timestamp: string;
+  business_email: string | null;
 };
 
 /** Event data needed for webhook notifications */
@@ -67,10 +69,10 @@ const buildTicketUrl = (entries: RegistrationEntry[]): string => {
 /**
  * Build a consolidated webhook payload from registration entries
  */
-export const buildWebhookPayload = (
+export const buildWebhookPayload = async (
   entries: RegistrationEntry[],
   currency: string,
-): WebhookPayload => {
+): Promise<WebhookPayload> => {
   const first = entries[0]!;
   const totalPricePaid = entries.reduce((sum, { attendee }) => {
     if (attendee.price_paid) return sum + Number.parseInt(attendee.price_paid, 10);
@@ -78,6 +80,7 @@ export const buildWebhookPayload = (
   }, 0);
 
   const hasPaidEvent = entries.some(({ event }) => event.unit_price !== null);
+  const businessEmail = await getBusinessEmailFromDb();
 
   return {
     event_type: "registration.completed",
@@ -98,6 +101,7 @@ export const buildWebhookPayload = (
       date: attendee.date,
     })),
     timestamp: nowIso(),
+    business_email: businessEmail,
   };
 };
 
@@ -134,7 +138,7 @@ export const sendRegistrationWebhooks = async (
   ]));
   if (webhookUrls.length === 0) return;
 
-  const payload = buildWebhookPayload(entries, currency);
+  const payload = await buildWebhookPayload(entries, currency);
   for (const url of webhookUrls) {
     await sendWebhook(url, payload);
   }
