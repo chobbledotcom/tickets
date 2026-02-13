@@ -11,7 +11,7 @@ import { renderEventImage } from "#templates/public.tsx";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
-import { eventFields, getAddAttendeeFields, parseEventFields, slugField } from "#templates/fields.ts";
+import { eventFields, getAddAttendeeFields, imageField, parseEventFields, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -149,7 +149,6 @@ export type AdminEventPageOptions = {
   dateFilter?: string | null;
   availableDates?: DateOption[];
   addAttendeeMessage?: AddAttendeeMessage;
-  imageError?: string | null;
 };
 
 export const adminEventPage = ({
@@ -162,9 +161,7 @@ export const adminEventPage = ({
   dateFilter = null,
   availableDates = [],
   addAttendeeMessage = null,
-  imageError = null,
 }: AdminEventPageOptions): string => {
-  const storageEnabled = isStorageEnabled();
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const contactFields = parseEventFields(event.fields);
   const textareaCount = ["address", "special_instructions"].filter((f) => contactFields.includes(f as "address" | "special_instructions")).length;
@@ -336,29 +333,6 @@ export const adminEventPage = ({
           </div>
         </article>
 
-        {storageEnabled && (
-          <article>
-            <h2>Event Image</h2>
-            {imageError && <Raw html={renderError(imageError)} />}
-            {event.image_url ? (
-              <form method="POST" action={`/admin/event/${event.id}/image/delete`}>
-                <Raw html={renderEventImage(event, "event-image-preview")} />
-                <input type="hidden" name="csrf_token" value={session.csrfToken} />
-                <button type="submit" class="secondary">Remove Image</button>
-              </form>
-            ) : (
-              <form method="POST" action={`/admin/event/${event.id}/image`} enctype="multipart/form-data">
-                <input type="hidden" name="csrf_token" value={session.csrfToken} />
-                <label>
-                  {"Upload Image (JPEG, PNG, GIF, WebP \u2014 max 256KB)"}
-                  <input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp" required />
-                </label>
-                <button type="submit">Upload</button>
-              </form>
-            )}
-          </article>
-        )}
-
         <article>
           <h2 id="attendees">Attendees</h2>
           {checkinMessage && (
@@ -464,6 +438,8 @@ export const adminDuplicateEventPage = (
   event: EventWithCount,
   session: AdminSession,
 ): string => {
+  const storageEnabled = isStorageEnabled();
+  const fields = storageEnabled ? [...eventFieldsWithAutofocus, imageField] : eventFieldsWithAutofocus;
   const values = eventToFieldValues(event);
   values.name = "";
 
@@ -472,9 +448,9 @@ export const adminDuplicateEventPage = (
       <AdminNav session={session} />
         <h2>Duplicate Event</h2>
         <p>Creating a new event based on <strong>{event.name}</strong>.</p>
-        <form method="POST" action="/admin/event">
+        <form method="POST" action="/admin/event" enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
-          <Raw html={renderFields(eventFieldsWithAutofocus, values)} />
+          <Raw html={renderFields(fields, values)} />
           <button type="submit">Create Event</button>
         </form>
     </Layout>
@@ -490,36 +466,25 @@ export const adminEventEditPage = (
   error?: string,
 ): string => {
   const storageEnabled = isStorageEnabled();
+  const fields = storageEnabled ? [...eventFields, imageField] : eventFields;
   return String(
     <Layout title={`Edit: ${event.name}`}>
       <AdminNav session={session} />
         <Raw html={renderError(error)} />
-        <form method="POST" action={`/admin/event/${event.id}/edit`}>
+        <form method="POST" action={`/admin/event/${event.id}/edit`} enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
-          <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
+          <Raw html={renderFields(fields, eventToFieldValues(event))} />
           <Raw html={renderField(slugField, String(event.slug))} />
+          {storageEnabled && event.image_url && (
+            <Raw html={renderEventImage(event, "event-image-full")} />
+          )}
           <button type="submit">Save Changes</button>
         </form>
-        {storageEnabled && (
-          <article>
-            <h2>Event Image</h2>
-            {event.image_url ? (
-              <form method="POST" action={`/admin/event/${event.id}/image/delete`}>
-                <Raw html={renderEventImage(event, "event-image-preview")} />
-                <input type="hidden" name="csrf_token" value={session.csrfToken} />
-                <button type="submit" class="secondary">Remove Image</button>
-              </form>
-            ) : (
-              <form method="POST" action={`/admin/event/${event.id}/image`} enctype="multipart/form-data">
-                <input type="hidden" name="csrf_token" value={session.csrfToken} />
-                <label>
-                  {"Upload Image (JPEG, PNG, GIF, WebP \u2014 max 256KB)"}
-                  <input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp" required />
-                </label>
-                <button type="submit">Upload</button>
-              </form>
-            )}
-          </article>
+        {storageEnabled && event.image_url && (
+          <form method="POST" action={`/admin/event/${event.id}/image/delete`}>
+            <input type="hidden" name="csrf_token" value={session.csrfToken} />
+            <button type="submit" class="secondary">Remove Image</button>
+          </form>
         )}
     </Layout>
   );

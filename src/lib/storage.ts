@@ -104,18 +104,6 @@ export const validateImage = (
   return { valid: true, detectedType };
 };
 
-/** Format a validation error as a human-readable message */
-export const formatImageError = (error: ImageValidationError): string => {
-  switch (error) {
-    case "too_large":
-      return "Image must be less than 256KB";
-    case "invalid_type":
-      return "Only JPEG, PNG, GIF, and WebP images are allowed";
-    case "invalid_content":
-      return "File does not appear to be a valid image";
-  }
-};
-
 /** Generate a random filename with the correct extension */
 export const generateImageFilename = (detectedType: string): string => {
   const ext = MIME_TO_EXT[detectedType];

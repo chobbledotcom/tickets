@@ -1,7 +1,7 @@
 import { describe, expect, test } from "#test-compat";
 import { CSS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
-import { adminEventEditPage, adminEventPage, calculateTotalRevenue, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
+import { adminDuplicateEventPage, adminEventEditPage, adminEventPage, calculateTotalRevenue, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
@@ -1662,54 +1662,24 @@ describe("html", () => {
     });
 
     describe("adminEventPage image section", () => {
-      test("shows upload form when storage enabled and no image", () => {
+      test("does not show image upload on detail page", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "" });
         const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
-        expect(html).toContain("Event Image");
-        expect(html).toContain('type="file"');
-        expect(html).toContain('name="image"');
-        expect(html).toContain("Upload");
-        cleanupStorage();
-      });
-
-      test("shows current image and remove button when image is set", () => {
-        setupStorage();
-        const event = testEventWithCount({ image_url: "current.jpg" });
-        const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
-        expect(html).toContain("/image/current.jpg");
-        expect(html).toContain("Remove Image");
-        expect(html).toContain("/image/delete");
-        cleanupStorage();
-      });
-
-      test("does not show image section when storage is not enabled", () => {
-        cleanupStorage();
-        const event = testEventWithCount({ image_url: "" });
-        const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
-        expect(html).not.toContain("Event Image");
         expect(html).not.toContain('type="file"');
-      });
-
-      test("shows image error when provided", () => {
-        setupStorage();
-        const event = testEventWithCount({ image_url: "" });
-        const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION, imageError: "Image must be less than 256KB" });
-        expect(html).toContain("Image must be less than 256KB");
-        expect(html).toContain('class="error"');
+        expect(html).not.toContain('name="image"');
         cleanupStorage();
       });
     });
 
     describe("adminEventEditPage image section", () => {
-      test("shows upload form when storage enabled and no image", () => {
+      test("shows image upload field when storage enabled", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "" });
         const html = adminEventEditPage(event, TEST_SESSION);
-        expect(html).toContain("Event Image");
         expect(html).toContain('type="file"');
         expect(html).toContain('name="image"');
-        expect(html).toContain("Upload");
+        expect(html).toContain("multipart/form-data");
         cleanupStorage();
       });
 
@@ -1723,11 +1693,57 @@ describe("html", () => {
         cleanupStorage();
       });
 
-      test("does not show image section when storage is not enabled", () => {
+      test("does not show image field when storage is not enabled", () => {
         cleanupStorage();
         const event = testEventWithCount({ image_url: "" });
         const html = adminEventEditPage(event, TEST_SESSION);
-        expect(html).not.toContain("Event Image");
+        expect(html).not.toContain('type="file"');
+        expect(html).not.toContain('name="image"');
+      });
+
+      test("shows full-width image preview when event has image", () => {
+        setupStorage();
+        const event = testEventWithCount({ image_url: "preview.jpg" });
+        const html = adminEventEditPage(event, TEST_SESSION);
+        expect(html).toContain("event-image-full");
+        expect(html).toContain("/image/preview.jpg");
+        cleanupStorage();
+      });
+    });
+
+    describe("adminDuplicateEventPage image section", () => {
+      test("shows image upload field when storage enabled", () => {
+        setupStorage();
+        const event = testEventWithCount({ image_url: "" });
+        const html = adminDuplicateEventPage(event, TEST_SESSION);
+        expect(html).toContain('type="file"');
+        expect(html).toContain('name="image"');
+        expect(html).toContain("multipart/form-data");
+        cleanupStorage();
+      });
+
+      test("does not show image field when storage is not enabled", () => {
+        cleanupStorage();
+        const event = testEventWithCount({ image_url: "" });
+        const html = adminDuplicateEventPage(event, TEST_SESSION);
+        expect(html).not.toContain('type="file"');
+        expect(html).not.toContain('name="image"');
+      });
+    });
+
+    describe("adminDashboardPage create form image section", () => {
+      test("shows image upload field on create form when storage enabled", () => {
+        setupStorage();
+        const html = adminDashboardPage([], TEST_SESSION, "localhost");
+        expect(html).toContain('type="file"');
+        expect(html).toContain('name="image"');
+        expect(html).toContain("multipart/form-data");
+        cleanupStorage();
+      });
+
+      test("does not show image field on create form when storage is not enabled", () => {
+        cleanupStorage();
+        const html = adminDashboardPage([], TEST_SESSION, "localhost");
         expect(html).not.toContain('type="file"');
       });
     });

@@ -272,6 +272,34 @@ export const mockFormRequest = (
 };
 
 /**
+ * Create a mock multipart POST request with optional file upload.
+ * Text fields are added as form entries, and an optional file is appended.
+ */
+export const mockMultipartRequest = (
+  path: string,
+  data: Record<string, string>,
+  cookie?: string,
+  file?: { name: string; fieldName: string; data: Uint8Array; contentType: string },
+): Request => {
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(data)) {
+    formData.append(key, value);
+  }
+  if (file) {
+    // deno-lint-ignore no-explicit-any
+    const blob = new Blob([file.data as any], { type: file.contentType });
+    formData.append(file.fieldName, blob, file.name);
+  }
+  const headers: HeadersInit = { host: "localhost" };
+  if (cookie) headers.cookie = cookie;
+  return new Request(`http://localhost${path}`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+};
+
+/**
  * Wait for a specified number of milliseconds
  */
 export const wait = (ms: number): Promise<void> =>
@@ -608,6 +636,31 @@ const authenticatedFormRequest = async <T>(
 };
 
 /**
+ * Execute an authenticated multipart form request expecting a redirect.
+ * Like authenticatedFormRequest but sends multipart/form-data for handlers
+ * that accept file uploads (event create/edit).
+ */
+const authenticatedMultipartFormRequest = async <T>(
+  path: string,
+  formData: Record<string, string>,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+): Promise<T> => {
+  const session = await getTestSession();
+  const { handleRequest } = await import("#routes");
+
+  const response = await handleRequest(
+    mockMultipartRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
+  );
+
+  if (response.status !== 302) {
+    throw new Error(`Failed to ${errorContext}: ${response.status}`);
+  }
+
+  return onSuccess();
+};
+
+/**
  * Create an event via the REST API
  * This is the preferred way to create test events as it exercises production code.
  * Slugs are auto-generated, so we look up the event by querying the latest one.
@@ -620,7 +673,7 @@ export const createTestEvent = (
   const closesAtParts = splitClosesAt(input.closesAt, null);
   const dateParts = splitClosesAt(input.date, null);
 
-  return authenticatedFormRequest(
+  return authenticatedMultipartFormRequest(
     "/admin/event",
     {
       name: input.name,
@@ -707,7 +760,7 @@ export const updateTestEvent = async (
   const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
   const dateParts = splitClosesAt(updates.date, existing.date);
 
-  return authenticatedFormRequest(
+  return authenticatedMultipartFormRequest(
     `/admin/event/${eventId}/edit`,
     {
       name: updates.name ?? existing.name,

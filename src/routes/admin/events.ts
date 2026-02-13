@@ -19,7 +19,6 @@ import {
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
-import { createHandler } from "#lib/rest/handlers.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
@@ -27,7 +26,7 @@ import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts"
 import { defineRoutes } from "#routes/router.ts";
 import { csvResponse, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
-  getSearchParam,
+  formDataToParams,
   htmlResponse,
   notFoundResponse,
   redirect,
@@ -49,7 +48,6 @@ import {
 } from "#templates/admin/events.tsx";
 import {
   deleteImage,
-  formatImageError,
   isStorageEnabled,
   uploadImage,
   validateImage,
@@ -125,6 +123,29 @@ const eventsResource = defineResource({
   nameField: "name",
 });
 
+/** Process image from multipart form and attach to event */
+const processFormImage = async (
+  formData: FormData,
+  eventId: number,
+  existingImageUrl?: string,
+): Promise<void> => {
+  if (!isStorageEnabled()) return;
+  const file = formData.get("image") as File | null;
+  if (!file || file.size === 0) return;
+
+  const data = new Uint8Array(await file.arrayBuffer());
+  const validation = validateImage(data, file.type);
+  if (!validation.valid) return;
+
+  if (existingImageUrl) {
+    await tryDeleteImage(existingImageUrl, eventId, "old image cleanup");
+  }
+
+  const filename = await uploadImage(data, validation.detectedType);
+  await eventsTable.update(eventId, { imageUrl: filename });
+  await logActivity(`Image uploaded for event`, eventId);
+};
+
 /** Handle event with attendees - auth, fetch, then apply handler fn */
 const withEventAttendees = (
   request: Request,
@@ -137,13 +158,15 @@ const withEventAttendees = (
 /**
  * Handle POST /admin/event (create event)
  */
-const handleCreateEvent = createHandler(eventsResource, {
-  onSuccess: async (row) => {
-    await logActivity(`Event '${row.name}' created`, row);
+const handleCreateEvent = (request: Request): Promise<Response> =>
+  withAuthMultipartForm(request, async (_session, formData) => {
+    const form = formDataToParams(formData);
+    const result = await eventsResource.create(form);
+    if (!result.ok) return redirect("/admin");
+    await logActivity(`Event '${result.row.name}' created`, result.row);
+    await processFormImage(formData, result.row.id);
     return redirect("/admin");
-  },
-  onError: () => redirect("/admin"),
-});
+  });
 
 /** Extract check-in message params from request URL */
 const getCheckinMessage = (request: Request): { name: string; status: string } | null => {
@@ -199,7 +222,6 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
         dateFilter,
         availableDates,
         addAttendeeMessage: getAddAttendeeMessage(request),
-        imageError: getSearchParam(request, "image_error"),
       }),
     );
   });
@@ -233,9 +255,11 @@ const handleAdminEventEditPost = (
   request: Request,
   eventId: number,
 ): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
+  withAuthMultipartForm(request, async (session, formData) => {
     const existing = await getEventWithCount(eventId);
     if (!existing) return notFoundResponse();
+
+    const form = formDataToParams(formData);
 
     // Build a resource that includes the slug field and validates uniqueness
     const updateResource = defineResource({
@@ -250,7 +274,10 @@ const handleAdminEventEditPost = (
     });
 
     const result = await updateResource.update(eventId, form);
-    if (result.ok) return redirect(`/admin/event/${result.row.id}`);
+    if (result.ok) {
+      await processFormImage(formData, eventId, existing.image_url);
+      return redirect(`/admin/event/${result.row.id}`);
+    }
     if ("notFound" in result) return notFoundResponse();
     return eventErrorPage(eventId, adminEventEditPage, session, result.error);
   });
@@ -376,41 +403,6 @@ const handleAdminEventDelete = (
         return event ? performDelete(event) : notFoundResponse();
       });
 
-/** Handle POST /admin/event/:id/image (upload event image) */
-const handleImageUpload = (
-  request: Request,
-  eventId: number,
-): Promise<Response> =>
-  withAuthMultipartForm(request, async (_session, formData) => {
-    if (!isStorageEnabled()) {
-      return htmlResponse("Image storage is not configured", 400);
-    }
-
-    const event = await getEventWithCount(eventId);
-    if (!event) return notFoundResponse();
-
-    const file = formData.get("image") as File | null;
-    if (!file || file.size === 0) {
-      return redirect(`/admin/event/${eventId}`);
-    }
-
-    const data = new Uint8Array(await file.arrayBuffer());
-    const validation = validateImage(data, file.type);
-    if (!validation.valid) {
-      return redirect(`/admin/event/${eventId}?image_error=${encodeURIComponent(formatImageError(validation.error))}`);
-    }
-
-    // Delete old image if present
-    if (event.image_url) {
-      await tryDeleteImage(event.image_url, event.id, "old image cleanup");
-    }
-
-    const filename = await uploadImage(data, validation.detectedType);
-    await eventsTable.update(eventId, { imageUrl: filename });
-    await logActivity(`Image uploaded for '${event.name}'`, event);
-    return redirect(`/admin/event/${eventId}`);
-  });
-
 /** Handle POST /admin/event/:id/image/delete (delete event image) */
 const handleImageDelete = (
   request: Request,
@@ -440,7 +432,6 @@ export const eventsRoutes = defineRoutes({
   "POST /admin/event/:id/edit": (request, { id }) => handleAdminEventEditPost(request, id),
   "GET /admin/event/:id/export": (request, { id }) => handleAdminEventExport(request, id),
   "GET /admin/event/:id/log": (request, { id }) => handleAdminEventLog(request, id),
-  "POST /admin/event/:id/image": (request, { id }) => handleImageUpload(request, id),
   "POST /admin/event/:id/image/delete": (request, { id }) => handleImageDelete(request, id),
   "GET /admin/event/:id/deactivate": (request, { id }) => handleAdminEventDeactivateGet(request, id),
   "POST /admin/event/:id/deactivate": (request, { id }) => handleAdminEventDeactivatePost(request, id),

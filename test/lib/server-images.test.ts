@@ -4,36 +4,17 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   loginAsAdmin,
+  mockMultipartRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  updateTestEvent,
 } from "#test-utils";
 import { encryptBytes } from "#lib/crypto.ts";
 import { eventsTable, getEventWithCount } from "#lib/db/events.ts";
 
 /** JPEG magic bytes for a valid test image */
 const JPEG_HEADER = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]);
-
-/** Create a multipart image upload request with authentication */
-const imageUploadRequest = (
-  path: string,
-  csrfToken: string,
-  imageData: Uint8Array,
-  filename: string,
-  contentType: string,
-  cookie: string,
-): Request => {
-  const formData = new FormData();
-  formData.append("csrf_token", csrfToken);
-  // deno-lint-ignore no-explicit-any
-  const blob = new Blob([imageData as any], { type: contentType });
-  formData.append("image", blob, filename);
-  return new Request(`http://localhost${path}`, {
-    method: "POST",
-    body: formData,
-    headers: { cookie, host: "localhost" },
-  });
-};
 
 /** Create a form POST request with cookie */
 const formPostRequest = (
@@ -75,6 +56,33 @@ const withStorageMock = async (
   }
 };
 
+/** Build form data for event edit with all required fields */
+const editFormData = async (eventId: number, csrfToken: string): Promise<Record<string, string>> => {
+  const event = await getEventWithCount(eventId);
+  if (!event) throw new Error(`Event not found: ${eventId}`);
+  return {
+    csrf_token: csrfToken,
+    name: event.name,
+    description: event.description,
+    date_date: "",
+    date_time: "",
+    location: event.location,
+    max_attendees: String(event.max_attendees),
+    max_quantity: String(event.max_quantity),
+    fields: event.fields || "email",
+    thank_you_url: event.thank_you_url ?? "",
+    unit_price: event.unit_price != null ? String(event.unit_price) : "",
+    webhook_url: event.webhook_url ?? "",
+    closes_at_date: "",
+    closes_at_time: "",
+    event_type: event.event_type,
+    bookable_days: JSON.parse(event.bookable_days).join(","),
+    minimum_days_before: String(event.minimum_days_before),
+    maximum_days_after: String(event.maximum_days_after),
+    slug: event.slug,
+  };
+};
+
 describe("server (event images)", () => {
   beforeEach(async () => {
     resetTestSlugCounter();
@@ -89,98 +97,64 @@ describe("server (event images)", () => {
     Deno.env.delete("STORAGE_ZONE_KEY");
   });
 
-  describe("POST /admin/event/:id/image", () => {
-    test("returns 400 when storage is not configured", async () => {
+  describe("POST /admin/event/:id/edit (image upload via edit form)", () => {
+    test("ignores image when storage is not configured", async () => {
       Deno.env.delete("STORAGE_ZONE_NAME");
       Deno.env.delete("STORAGE_ZONE_KEY");
       const event = await createTestEvent();
       const { cookie, csrfToken } = await loginAsAdmin();
 
-      const request = imageUploadRequest(
-        `/admin/event/${event.id}/image`,
-        csrfToken,
-        JPEG_HEADER,
-        "test.jpg",
-        "image/jpeg",
+      const fields = await editFormData(event.id, csrfToken);
+      const request = mockMultipartRequest(
+        `/admin/event/${event.id}/edit`,
+        fields,
         cookie,
+        { fieldName: "image", name: "test.jpg", data: JPEG_HEADER, contentType: "image/jpeg" },
       );
       const response = await handleRequest(request);
-      expect(response.status).toBe(400);
-      const text = await response.text();
-      expect(text).toContain("Image storage is not configured");
+      expect(response.status).toBe(302);
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.image_url).toBe("");
     });
 
-    test("redirects when no file is uploaded", async () => {
+    test("updates event without image when no file is uploaded", async () => {
+      const event = await createTestEvent();
+      await updateTestEvent(event.id, { name: "Updated Name" });
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.name).toBe("Updated Name");
+      expect(updated?.image_url).toBe("");
+    });
+
+    test("ignores invalid image types silently", async () => {
       const event = await createTestEvent();
       const { cookie, csrfToken } = await loginAsAdmin();
 
-      const formData = new FormData();
-      formData.append("csrf_token", csrfToken);
-      const request = new Request(`http://localhost/admin/event/${event.id}/image`, {
-        method: "POST",
-        body: formData,
-        headers: { cookie, host: "localhost" },
+      const fields = await editFormData(event.id, csrfToken);
+      const request = mockMultipartRequest(
+        `/admin/event/${event.id}/edit`,
+        fields,
+        cookie,
+        { fieldName: "image", name: "test.pdf", data: new Uint8Array([0x25, 0x50, 0x44, 0x46]), contentType: "application/pdf" },
+      );
+      await withStorageMock(async () => {
+        const response = await handleRequest(request);
+        expect(response.status).toBe(302);
+        const updated = await getEventWithCount(event.id);
+        expect(updated?.image_url).toBe("");
       });
-
-      const response = await handleRequest(request);
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
     });
 
-    test("redirects with error when file is too large", async () => {
-      const event = await createTestEvent();
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const largeData = new Uint8Array(256 * 1024 + 1);
-      largeData[0] = 0xFF;
-      largeData[1] = 0xD8;
-      largeData[2] = 0xFF;
-
-      const request = imageUploadRequest(
-        `/admin/event/${event.id}/image`,
-        csrfToken,
-        largeData,
-        "huge.jpg",
-        "image/jpeg",
-        cookie,
-      );
-      const response = await handleRequest(request);
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location") || "";
-      expect(location).toContain("image_error=");
-      expect(decodeURIComponent(location)).toContain("256KB");
-    });
-
-    test("redirects with error when file type is invalid", async () => {
-      const event = await createTestEvent();
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const request = imageUploadRequest(
-        `/admin/event/${event.id}/image`,
-        csrfToken,
-        new Uint8Array([0x25, 0x50, 0x44, 0x46]),
-        "test.pdf",
-        "application/pdf",
-        cookie,
-      );
-      const response = await handleRequest(request);
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location") || "";
-      expect(location).toContain("image_error=");
-    });
-
-    test("uploads image and updates event", async () => {
+    test("uploads image and updates event via edit form", async () => {
       const event = await createTestEvent();
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await withStorageMock(async () => {
-        const request = imageUploadRequest(
-          `/admin/event/${event.id}/image`,
-          csrfToken,
-          JPEG_HEADER,
-          "photo.jpg",
-          "image/jpeg",
+        const fields = await editFormData(event.id, csrfToken);
+        const request = mockMultipartRequest(
+          `/admin/event/${event.id}/edit`,
+          fields,
           cookie,
+          { fieldName: "image", name: "photo.jpg", data: JPEG_HEADER, contentType: "image/jpeg" },
         );
         const response = await handleRequest(request);
         expect(response.status).toBe(302);
@@ -192,41 +166,101 @@ describe("server (event images)", () => {
       });
     });
 
-    test("returns 404 for non-existent event", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const request = imageUploadRequest(
-        "/admin/event/9999/image",
-        csrfToken,
-        JPEG_HEADER,
-        "photo.jpg",
-        "image/jpeg",
-        cookie,
-      );
-      const response = await handleRequest(request);
-      expect(response.status).toBe(404);
-    });
-
-    test("deletes old image when uploading new one", async () => {
+    test("deletes old image when uploading new one via edit form", async () => {
       const event = await createTestEvent();
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await eventsTable.update(event.id, { imageUrl: "old-image.jpg" });
 
       await withStorageMock(async (fetchCalls) => {
-        const request = imageUploadRequest(
-          `/admin/event/${event.id}/image`,
-          csrfToken,
-          JPEG_HEADER,
-          "new-photo.jpg",
-          "image/jpeg",
+        const fields = await editFormData(event.id, csrfToken);
+        const request = mockMultipartRequest(
+          `/admin/event/${event.id}/edit`,
+          fields,
           cookie,
+          { fieldName: "image", name: "new-photo.jpg", data: JPEG_HEADER, contentType: "image/jpeg" },
         );
         const response = await handleRequest(request);
         expect(response.status).toBe(302);
 
         const deleteCall = fetchCalls.find((url) => url.includes("old-image.jpg"));
         expect(deleteCall).not.toBeUndefined();
+      });
+    });
+
+    test("succeeds even when old image delete throws", async () => {
+      const event = await createTestEvent();
+      const { cookie, csrfToken } = await loginAsAdmin();
+      await eventsTable.update(event.id, { imageUrl: "old-failing.jpg" });
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        if (url.includes("old-failing.jpg")) {
+          return Promise.reject(new Error("CDN delete failed"));
+        }
+        if (url.includes("storage.bunnycdn.com")) {
+          return Promise.resolve(new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), { status: 201 }));
+        }
+        return originalFetch(input, init);
+      };
+
+      try {
+        const fields = await editFormData(event.id, csrfToken);
+        const request = mockMultipartRequest(
+          `/admin/event/${event.id}/edit`,
+          fields,
+          cookie,
+          { fieldName: "image", name: "new.jpg", data: JPEG_HEADER, contentType: "image/jpeg" },
+        );
+        const response = await handleRequest(request);
+        expect(response.status).toBe(302);
+        const updated = await getEventWithCount(event.id);
+        expect(updated?.image_url).toMatch(/\.jpg$/);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+  });
+
+  describe("POST /admin/event (image upload via create form)", () => {
+    test("uploads image when creating a new event", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await withStorageMock(async () => {
+        const request = mockMultipartRequest(
+          "/admin/event",
+          {
+            csrf_token: csrfToken,
+            name: "Image Test Event",
+            description: "",
+            date_date: "",
+            date_time: "",
+            location: "",
+            max_attendees: "50",
+            max_quantity: "1",
+            fields: "email",
+            thank_you_url: "",
+            unit_price: "",
+            webhook_url: "",
+            closes_at_date: "",
+            closes_at_time: "",
+            event_type: "standard",
+            bookable_days: "Monday,Tuesday,Wednesday,Thursday,Friday",
+            minimum_days_before: "",
+            maximum_days_after: "",
+          },
+          cookie,
+          { fieldName: "image", name: "photo.jpg", data: JPEG_HEADER, contentType: "image/jpeg" },
+        );
+        const response = await handleRequest(request);
+        expect(response.status).toBe(302);
+
+        const { getAllEvents } = await import("#lib/db/events.ts");
+        const events = await getAllEvents();
+        const created = events.find((e) => e.name === "Image Test Event");
+        expect(created).not.toBeUndefined();
+        expect(created?.image_url).toMatch(/\.jpg$/);
       });
     });
   });
@@ -302,92 +336,6 @@ describe("server (event images)", () => {
       } finally {
         globalThis.fetch = originalFetch;
       }
-    });
-  });
-
-  describe("POST /admin/event/:id/image (error paths)", () => {
-    test("succeeds even when old image delete throws", async () => {
-      const event = await createTestEvent();
-      const { cookie, csrfToken } = await loginAsAdmin();
-      await eventsTable.update(event.id, { imageUrl: "old-failing.jpg" });
-
-      const originalFetch = globalThis.fetch;
-      globalThis.fetch = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-        // Delete of old image fails
-        if (url.includes("old-failing.jpg")) {
-          return Promise.reject(new Error("CDN delete failed"));
-        }
-        // Upload call succeeds
-        if (url.includes("storage.bunnycdn.com")) {
-          return Promise.resolve(new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), { status: 201 }));
-        }
-        return originalFetch(input, init);
-      };
-
-      try {
-        const request = imageUploadRequest(
-          `/admin/event/${event.id}/image`,
-          csrfToken,
-          JPEG_HEADER,
-          "new.jpg",
-          "image/jpeg",
-          cookie,
-        );
-        const response = await handleRequest(request);
-        expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
-        const updated = await getEventWithCount(event.id);
-        expect(updated?.image_url).toMatch(/\.jpg$/);
-      } finally {
-        globalThis.fetch = originalFetch;
-      }
-    });
-
-    test("redirects to /admin when not authenticated", async () => {
-      const event = await createTestEvent();
-      const request = imageUploadRequest(
-        `/admin/event/${event.id}/image`,
-        "fake-csrf",
-        JPEG_HEADER,
-        "test.jpg",
-        "image/jpeg",
-        "",
-      );
-      const response = await handleRequest(request);
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
-    });
-
-    test("returns 403 when CSRF token is invalid", async () => {
-      const event = await createTestEvent();
-      const { cookie } = await loginAsAdmin();
-      const request = imageUploadRequest(
-        `/admin/event/${event.id}/image`,
-        "wrong-csrf-token",
-        JPEG_HEADER,
-        "test.jpg",
-        "image/jpeg",
-        cookie,
-      );
-      const response = await handleRequest(request);
-      expect(response.status).toBe(403);
-    });
-
-    test("returns 403 when CSRF token is missing from form", async () => {
-      const event = await createTestEvent();
-      const { cookie } = await loginAsAdmin();
-      const formData = new FormData();
-      // deno-lint-ignore no-explicit-any
-      const blob = new Blob([JPEG_HEADER as any], { type: "image/jpeg" });
-      formData.append("image", blob, "test.jpg");
-      const request = new Request(`http://localhost/admin/event/${event.id}/image`, {
-        method: "POST",
-        body: formData,
-        headers: { cookie, host: "localhost" },
-      });
-      const response = await handleRequest(request);
-      expect(response.status).toBe(403);
     });
   });
 
