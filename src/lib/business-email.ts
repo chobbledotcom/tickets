@@ -1,6 +1,5 @@
-import { lazyRef } from "#fp";
 import { getDb } from "#lib/db/client.ts";
-import { CONFIG_KEYS } from "#lib/db/settings.ts";
+import { CONFIG_KEYS, getSetting, setSetting } from "#lib/db/settings.ts";
 import { decrypt, encrypt } from "#lib/crypto.ts";
 
 /**
@@ -23,63 +22,27 @@ export function normalizeBusinessEmail(email: string): string {
 }
 
 /**
- * Gets the business email from the database (async, with permanent cache).
- * Returns decrypted email.
+ * Gets the business email from the database (uses settings cache).
+ * Returns decrypted email or empty string if not set.
  */
 export async function getBusinessEmailFromDb(): Promise<string> {
-  const cached = getBusinessEmailCache();
-  if (cached !== "") return cached;
-
-  const db = getDb();
-  const result = await db.execute({
-    sql: "SELECT value FROM settings WHERE key = ?",
-    args: [CONFIG_KEYS.BUSINESS_EMAIL],
-  });
-
-  const row = result.rows[0];
-  if (!row?.value) {
-    setBusinessEmailCache("");
-    return "";
-  }
-
-  const decrypted = await decrypt(row.value as string);
-  setBusinessEmailCache(decrypted);
-  return decrypted;
-}
-
-// Lazy reference for permanent caching
-const [getBusinessEmailCache, setBusinessEmailCache] = lazyRef<string>(() => "");
-
-/**
- * Gets the cached business email (synchronous).
- * Safe to call from templates.
- */
-export function getBusinessEmailCached(): string {
-  return getBusinessEmailCache();
+  const value = await getSetting(CONFIG_KEYS.BUSINESS_EMAIL);
+  if (!value) return "";
+  return decrypt(value);
 }
 
 /**
- * Invalidate the business email cache (for testing or after external updates).
- */
-export function invalidateBusinessEmailCache(): void {
-  setBusinessEmailCache("");
-}
-
-/**
- * Updates the business email in the database and invalidates the cache.
+ * Updates the business email in the database and invalidates the settings cache.
  * Pass empty string to clear the business email.
  * Email is encrypted at rest.
  */
 export async function updateBusinessEmail(email: string): Promise<void> {
-  const db = getDb();
-
   // Empty string = clear the setting
   if (email.trim() === "") {
-    await db.execute({
+    await getDb().execute({
       sql: "DELETE FROM settings WHERE key = ?",
       args: [CONFIG_KEYS.BUSINESS_EMAIL],
     });
-    setBusinessEmailCache("");
     return;
   }
 
@@ -90,12 +53,5 @@ export async function updateBusinessEmail(email: string): Promise<void> {
   }
 
   const encrypted = await encrypt(normalized);
-  await db.execute({
-    sql: `INSERT INTO settings (key, value) VALUES (?, ?)
-          ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    args: [CONFIG_KEYS.BUSINESS_EMAIL, encrypted],
-  });
-
-  // Update cache with decrypted value
-  setBusinessEmailCache(normalized);
+  await setSetting(CONFIG_KEYS.BUSINESS_EMAIL, encrypted);
 }

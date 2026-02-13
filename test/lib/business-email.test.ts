@@ -4,10 +4,9 @@ import {
   isValidBusinessEmail,
   normalizeBusinessEmail,
   getBusinessEmailFromDb,
-  getBusinessEmailCached,
   updateBusinessEmail,
-  invalidateBusinessEmailCache,
 } from "#lib/business-email.ts";
+import { invalidateSettingsCache } from "#lib/db/settings.ts";
 
 describe("business-email", () => {
   beforeEach(async () => {
@@ -172,31 +171,20 @@ describe("business-email", () => {
     });
   });
 
-  describe("getBusinessEmailCached", () => {
-    test("returns empty string when no email is cached", () => {
-      const result = getBusinessEmailCached();
-      expect(result).toBe("");
-    });
-
-    test("returns cached email after it is set", async () => {
+  describe("settings cache integration", () => {
+    test("uses settings cache for reads", async () => {
       await updateBusinessEmail("cached@example.com");
-      const result = getBusinessEmailCached();
-      expect(result).toBe("cached@example.com");
-    });
-  });
+      const first = await getBusinessEmailFromDb();
+      expect(first).toBe("cached@example.com");
 
-  describe("invalidateBusinessEmailCache", () => {
-    test("clears the cache", async () => {
-      await updateBusinessEmail("test@example.com");
-      expect(getBusinessEmailCached()).toBe("test@example.com");
-
-      invalidateBusinessEmailCache();
-      expect(getBusinessEmailCached()).toBe("");
+      // Second read should use cache
+      const second = await getBusinessEmailFromDb();
+      expect(second).toBe("cached@example.com");
     });
 
-    test("forces getBusinessEmailFromDb to decrypt from database", async () => {
+    test("invalidateSettingsCache forces decrypt from database", async () => {
       await updateBusinessEmail("encrypted@example.com");
-      invalidateBusinessEmailCache();
+      invalidateSettingsCache();
 
       const result = await getBusinessEmailFromDb();
       expect(result).toBe("encrypted@example.com");

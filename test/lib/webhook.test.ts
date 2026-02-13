@@ -53,10 +53,10 @@ describe("webhook", () => {
 
   describe("buildWebhookPayload", () => {
     beforeEach(async () => {
-      const { invalidateBusinessEmailCache } = await import("#lib/business-email.ts");
+      const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
       await resetDb();
       await createTestDbWithSetup();
-      invalidateBusinessEmailCache();
+      invalidateSettingsCache();
     });
 
     test("builds payload for a single free event", async () => {
