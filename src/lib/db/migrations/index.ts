@@ -22,25 +22,23 @@ const runMigration = async (sql: string): Promise<void> => {
   }
 };
 
-/** Backfill a column with an encrypted empty string for matching rows */
-const backfillEncryptedColumn = async (table: string, column: string, whereClause: string): Promise<void> => {
+/** Backfill a column with an encrypted value for matching rows */
+const backfillColumn = async (table: string, column: string, whereClause: string, encryptedValue: string): Promise<void> => {
   const rows = await queryAll<{ id: number }>(`SELECT id FROM ${table} WHERE ${whereClause}`);
-  const encryptedEmpty = await encrypt("");
   for (const row of rows) {
-    await getDb().execute({ sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`, args: [encryptedEmpty, row.id] });
+    await getDb().execute({ sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`, args: [encryptedValue, row.id] });
   }
 };
 
-/** Backfill a column with a hybrid-encrypted empty string for matching rows */
+/** Backfill a column with a symmetrically encrypted empty string */
+const backfillEncryptedColumn = async (table: string, column: string, whereClause: string): Promise<void> =>
+  backfillColumn(table, column, whereClause, await encrypt(""));
+
+/** Backfill a column with a hybrid-encrypted empty string */
 const backfillHybridEncryptedColumn = async (table: string, column: string, whereClause: string): Promise<void> => {
   const publicKey = await getPublicKey();
   if (!publicKey) return;
-
-  const rows = await queryAll<{ id: number }>(`SELECT id FROM ${table} WHERE ${whereClause}`);
-  const encryptedEmpty = await encryptAttendeePII("", publicKey);
-  for (const row of rows) {
-    await getDb().execute({ sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`, args: [encryptedEmpty, row.id] });
-  }
+  await backfillColumn(table, column, whereClause, await encryptAttendeePII("", publicKey));
 };
 
 /**
