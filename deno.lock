@@ -5,6 +5,7 @@
     "jsr:@std/internal@^1.0.12": "1.0.12",
     "jsr:@std/path@1": "1.1.4",
     "npm:@bunny.net/edgescript-sdk@0.12": "0.12.0_hono@4.11.5",
+    "npm:@internationalized/date@^3.8.0": "3.11.0",
     "npm:@libsql/client@0.17": "0.17.0",
     "npm:esbuild@0.20": "0.20.2",
     "npm:jscpd@*": "4.0.8",
@@ -279,6 +280,12 @@
         "hono"
       ]
     },
+    "@internationalized/date@3.11.0": {
+      "integrity": "sha512-BOx5huLAWhicM9/ZFs84CzP+V3gBW6vlpM02yzsdYC7TGlZJX1OJiEEHcSayF00Z+3jLlm4w79amvSt6RqKN3Q==",
+      "dependencies": [
+        "@swc/helpers"
+      ]
+    },
     "@jscpd/badge-reporter@4.0.4": {
       "integrity": "sha512-I9b4MmLXPM2vo0SxSUWnNGKcA4PjQlD3GzXvFK60z43cN/EIdLbOq3FVwCL+dg2obUqGXKIzAm7EsDFTg0D+mQ==",
       "dependencies": [
@@ -419,6 +426,12 @@
       "dependencies": [
         "@nodelib/fs.scandir",
         "fastq"
+      ]
+    },
+    "@swc/helpers@0.5.18": {
+      "integrity": "sha512-TXTnIcNJQEKwThMMqBXsZ4VGAza6bvN4pa41Rkqoio6QBKMvo+5lexeTMScGCIxtzgQJzElcvIltani+adC5PQ==",
+      "dependencies": [
+        "tslib"
       ]
     },
     "@types/node@14.18.63": {
@@ -1491,6 +1504,7 @@
       "jsr:@std/assert@1",
       "jsr:@std/path@1",
       "npm:@bunny.net/edgescript-sdk@0.12",
+      "npm:@internationalized/date@^3.8.0",
       "npm:@libsql/client@0.17",
       "npm:esbuild@0.20",
       "npm:jsqr@^1.4.0",

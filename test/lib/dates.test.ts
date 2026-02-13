@@ -164,8 +164,8 @@ describe("dates", () => {
       expect(result).toBe("2026-06-15T14:30:00.000Z");
     });
 
-    test("passes through already-normalized ISO string", () => {
-      const result = normalizeDatetime("2026-06-15T14:30:00.000Z", "date", TZ);
+    test("handles datetime with seconds", () => {
+      const result = normalizeDatetime("2026-06-15T14:30:00", "date", TZ);
       expect(result).toBe("2026-06-15T14:30:00.000Z");
     });
 

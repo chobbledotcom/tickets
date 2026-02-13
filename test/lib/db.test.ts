@@ -2175,11 +2175,11 @@ describe("db", () => {
       expect(decrypted).toBe("");
     });
 
-    test("normalizes datetime-local format to full ISO", async () => {
+    test("encrypts datetime-local string as-is (normalization happens upstream)", async () => {
       const { decrypt } = await import("#lib/crypto.ts");
       const result = await writeClosesAt("2099-06-15T14:30");
       const decrypted = await decrypt(result as unknown as string);
-      expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
+      expect(decrypted).toBe("2099-06-15T14:30");
     });
 
     test("handles already-normalized ISO string", async () => {
@@ -2187,10 +2187,6 @@ describe("db", () => {
       const result = await writeClosesAt("2099-06-15T14:30:00.000Z");
       const decrypted = await decrypt(result as unknown as string);
       expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
-    });
-
-    test("throws on invalid datetime string", async () => {
-      await expect(writeClosesAt("not-a-date")).rejects.toThrow("Invalid closes_at");
     });
   });
 
@@ -2204,11 +2200,11 @@ describe("db", () => {
       expect(decrypted).toBe("");
     });
 
-    test("normalizes datetime-local format to full ISO", async () => {
+    test("encrypts datetime-local string as-is (normalization happens upstream)", async () => {
       const { decrypt } = await import("#lib/crypto.ts");
       const result = await writeEventDate("2026-06-15T14:00");
       const decrypted = await decrypt(result);
-      expect(decrypted).toBe("2026-06-15T14:00:00.000Z");
+      expect(decrypted).toBe("2026-06-15T14:00");
     });
 
     test("handles already-normalized ISO string", async () => {
@@ -2216,10 +2212,6 @@ describe("db", () => {
       const result = await writeEventDate("2026-06-15T14:00:00.000Z");
       const decrypted = await decrypt(result);
       expect(decrypted).toBe("2026-06-15T14:00:00.000Z");
-    });
-
-    test("throws on invalid datetime string", async () => {
-      await expect(writeEventDate("not-a-date")).rejects.toThrow("Invalid date");
     });
   });
 

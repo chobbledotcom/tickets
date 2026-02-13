@@ -2,6 +2,7 @@ import { describe, expect, test } from "#test-compat";
 import {
   DEFAULT_TIMEZONE,
   formatDatetimeInTz,
+  isValidDatetime,
   isValidTimezone,
   localToUtc,
   todayInTz,
@@ -77,11 +78,20 @@ describe("timezone", () => {
       expect(() => localToUtc("not-a-date", "UTC")).toThrow("Invalid datetime");
     });
 
-    test("handles DST spring-forward boundary (non-existent local time)", () => {
-      // 2026-03-29 01:30 Europe/London doesn't exist (clocks skip from 01:00 to 02:00)
-      // The function should still return a valid UTC result
+    test("handles DST spring-forward gap with 'compatible' disambiguation", () => {
+      // 2026-03-29 01:30 Europe/London doesn't exist (clocks skip from 01:00 GMT to 02:00 BST)
+      // 'compatible' maps to the later (post-transition) interpretation: 02:30 BST = 01:30 UTC
       const result = localToUtc("2026-03-29T01:30", "Europe/London");
-      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(result).toBe("2026-03-29T01:30:00.000Z");
+    });
+
+    test("handles DST fall-back overlap with 'compatible' disambiguation", () => {
+      // 2026-10-25 01:30 Europe/London exists twice:
+      //   01:30 BST (earlier) = 00:30 UTC
+      //   01:30 GMT (later)   = 01:30 UTC
+      // 'compatible' picks the earlier occurrence during fall-back
+      const result = localToUtc("2026-10-25T01:30", "Europe/London");
+      expect(result).toBe("2026-10-25T00:30:00.000Z");
     });
   });
 
@@ -165,6 +175,24 @@ describe("timezone", () => {
 
     test("rejects random string", () => {
       expect(isValidTimezone("not-a-timezone")).toBe(false);
+    });
+  });
+
+  describe("isValidDatetime", () => {
+    test("accepts valid datetime-local format", () => {
+      expect(isValidDatetime("2026-06-15T14:30")).toBe(true);
+    });
+
+    test("accepts datetime with seconds", () => {
+      expect(isValidDatetime("2026-06-15T14:30:00")).toBe(true);
+    });
+
+    test("rejects invalid datetime", () => {
+      expect(isValidDatetime("not-a-date")).toBe(false);
+    });
+
+    test("rejects empty string", () => {
+      expect(isValidDatetime("")).toBe(false);
     });
   });
 

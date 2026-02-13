@@ -3,7 +3,6 @@
  */
 
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
-import { normalizeDatetime } from "#lib/dates.ts";
 import { executeByField, getDb, inPlaceholders, queryBatch, queryOne } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 import { nowIso } from "#lib/now.ts";
@@ -39,10 +38,10 @@ export type EventInput = {
 export const computeSlugIndex = (slug: string): Promise<string> =>
   hmacHash(slug);
 
-/** Encrypt a datetime value for DB storage (normalize non-empty, encrypt empty as-is) */
-const encryptDatetime = async (v: string, label: string): Promise<string> => {
+/** Encrypt a datetime value for DB storage (already normalized to UTC by the route handler) */
+const encryptDatetime = async (v: string): Promise<string> => {
   if (v === "") return await encrypt("");
-  return await encrypt(normalizeDatetime(v, label, "UTC"));
+  return await encrypt(v);
 };
 
 /** Decrypt an encrypted datetime from DB storage (empty → empty, otherwise → ISO) */
@@ -54,7 +53,7 @@ const decryptDatetime = async (v: string): Promise<string> => {
 
 /** Encrypt closes_at for DB storage (null/empty → encrypted empty) */
 export const writeClosesAt = (v: string | null): Promise<string | null> =>
-  encryptDatetime((v as string) ?? "", "closes_at");
+  encryptDatetime((v as string) ?? "");
 
 /** Decrypt closes_at from DB storage (encrypted empty → null) */
 const readClosesAt = async (v: string | null): Promise<string | null> => {
@@ -64,7 +63,7 @@ const readClosesAt = async (v: string | null): Promise<string | null> => {
 
 /** Encrypt event date for DB storage */
 export const writeEventDate = (v: string): Promise<string> =>
-  encryptDatetime(v, "date");
+  encryptDatetime(v);
 
 /**
  * Events table definition
