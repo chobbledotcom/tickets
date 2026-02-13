@@ -35,6 +35,26 @@ describe("currency", () => {
     test("returns 3 for KWD", () => {
       expect(getDecimalPlaces("KWD")).toBe(3);
     });
+
+    test("falls back to 2 when minimumFractionDigits is undefined", () => {
+      const OrigNumberFormat = Intl.NumberFormat;
+      // deno-lint-ignore no-global-assign
+      Intl = {
+        ...Intl,
+        NumberFormat: class extends OrigNumberFormat {
+          override resolvedOptions() {
+            const opts = super.resolvedOptions();
+            return { ...opts, minimumFractionDigits: undefined as unknown as number };
+          }
+        } as typeof Intl.NumberFormat,
+      };
+      try {
+        expect(getDecimalPlaces("GBP")).toBe(2);
+      } finally {
+        // deno-lint-ignore no-global-assign
+        Intl = { ...Intl, NumberFormat: OrigNumberFormat };
+      }
+    });
   });
 
   describe("formatCurrency", () => {
