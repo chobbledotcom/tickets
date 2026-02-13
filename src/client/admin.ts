@@ -66,6 +66,72 @@ if (dateInput && closesAtInput) {
   });
 }
 
+/* Stripe checkout popup: opens Stripe in a new window when embedded in an iframe */
+const checkoutPopup = document.querySelector<HTMLElement>("[data-checkout-popup]");
+if (checkoutPopup) {
+  const checkoutUrl = checkoutPopup.dataset.checkoutPopup!;
+  const waitingEl = checkoutPopup.querySelector<HTMLElement>("[data-checkout-waiting]")!;
+  const resultEl = checkoutPopup.querySelector<HTMLElement>("[data-checkout-result]")!;
+  const openLink = checkoutPopup.querySelector<HTMLAnchorElement>("[data-open-checkout]")!;
+  let popup: Window | null = null;
+
+  const showResult = (html: string) => {
+    waitingEl.hidden = true;
+    resultEl.innerHTML = html;
+    resultEl.hidden = false;
+  };
+
+  // Listen for postMessage from the popup success/cancel page
+  window.addEventListener("message", (e) => {
+    if (e.origin !== location.origin) return;
+    if (e.data?.type === "payment-success") {
+      showResult('<div class="success"><p>Payment successful! Your ticket has been confirmed.</p></div>');
+    } else if (e.data?.type === "payment-cancel") {
+      showResult(
+        `<p>Payment was cancelled.</p><p><a href="${checkoutUrl}" target="_blank" rel="noopener">Try again</a></p>`,
+      );
+    }
+  });
+
+  // Track popup and detect when it closes without completing
+  const pollPopup = () => {
+    if (!popup || popup.closed) {
+      // Only show closed message if no result was already shown
+      if (resultEl.hidden) {
+        waitingEl.hidden = true;
+        openLink.parentElement!.hidden = false;
+      }
+      return;
+    }
+    setTimeout(pollPopup, 500);
+  };
+
+  openLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    popup = window.open(checkoutUrl, "_blank", "noopener=no");
+    if (popup) {
+      openLink.parentElement!.hidden = true;
+      waitingEl.hidden = false;
+      pollPopup();
+    }
+    // If popup blocked, the link href+target="_blank" serves as fallback
+  });
+}
+
+/* Payment result pages: notify opener iframe via postMessage when in a popup */
+const paymentResult = document.querySelector<HTMLElement>("[data-payment-result]");
+if (paymentResult && window.opener) {
+  const result = paymentResult.dataset.paymentResult;
+  try {
+    window.opener.postMessage(
+      { type: result === "success" ? "payment-success" : "payment-cancel" },
+      location.origin,
+    );
+  } catch {
+    // opener may be cross-origin or closed
+  }
+}
+
 /* Stripe connection test button */
 const btn = document.getElementById("stripe-test-btn") as HTMLButtonElement | null;
 if (btn) {

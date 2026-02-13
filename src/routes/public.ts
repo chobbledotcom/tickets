@@ -38,7 +38,7 @@ import {
   withActiveEventBySlug,
 } from "#routes/utils.ts";
 import { getTicketFields, mergeEventFields, type TicketFormValues } from "#templates/fields.ts";
-import { reservationSuccessPage } from "#templates/payment.tsx";
+import { checkoutPopupPage, reservationSuccessPage } from "#templates/payment.tsx";
 import {
   buildMultiTicketEvent,
   type MultiTicketEvent,
@@ -142,11 +142,16 @@ type ReservationParams = ContactInfo & {
   date: string | null;
 };
 
-/** Try to redirect to checkout, or return error using provided handler */
+/** Try to redirect to checkout, or return error using provided handler.
+ * When iframe=true, returns a popup page instead of redirect since Stripe cannot run in iframes. */
 const tryCheckoutRedirect = <T>(
   sessionUrl: string | undefined | null,
+  iframe: boolean,
   errorHandler: () => T,
-): Response | T => (sessionUrl ? redirect(sessionUrl) : errorHandler());
+): Response | T => {
+  if (!sessionUrl) return errorHandler();
+  return iframe ? htmlResponse(checkoutPopupPage(sessionUrl)) : redirect(sessionUrl);
+};
 
 /** Get active payment provider or return an error response */
 const withPaymentProvider = async (
@@ -157,10 +162,12 @@ const withPaymentProvider = async (
   return provider ? fn(provider) : onMissing();
 };
 
-/** Generic checkout flow: resolve provider, create session, redirect or show error */
+/** Generic checkout flow: resolve provider, create session, redirect or show error.
+ * When iframe=true, opens checkout in a popup window instead of redirect. */
 const runCheckoutFlow = (
   label: string,
   request: Request,
+  iframe: boolean,
   createSession: (
     provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object,
     baseUrl: string,
@@ -179,7 +186,7 @@ const runCheckoutFlow = (
       logDebug("Payment", `Creating checkout session baseUrl=${baseUrl}`);
       const result = await createSession(provider, baseUrl);
       logDebug("Payment", `Checkout result for ${label}: ${result ? `url=${result.checkoutUrl}` : "null"}`);
-      return tryCheckoutRedirect(result?.checkoutUrl, () => {
+      return tryCheckoutRedirect(result?.checkoutUrl, iframe, () => {
         logDebug("Payment", `Checkout redirect failed for ${label}: no session URL`);
         return onError("Failed to create payment session. Please try again.", 500);
       });
@@ -201,6 +208,7 @@ const handlePaymentFlow = (
   runCheckoutFlow(
     `single-ticket event=${event.id}`,
     request,
+    ctx.iframe,
     (provider, baseUrl) => provider.createCheckoutSession(event, intent, baseUrl),
     (msg, status) => ticketResponse(event, csrfToken, ctx.iframe, undefined, ctx.terms)(msg, status),
   );
@@ -518,6 +526,7 @@ const handleMultiPaymentFlow = (
   runCheckoutFlow(
     `multi-ticket items=${intent.items.length}`,
     request,
+    iframe,
     (provider, baseUrl) => provider.createMultiCheckoutSession(intent, baseUrl),
     (msg, status) => multiTicketResponse(slugs, events, csrfToken, dates, undefined, iframe)(msg, status),
   );
