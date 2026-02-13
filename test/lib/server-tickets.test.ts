@@ -9,7 +9,6 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   getAttendeesRaw,
-  getPlaintextTokenFromAttendee,
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";
@@ -37,11 +36,7 @@ describe("ticket view (/t/:tokens)", () => {
 
   test("displays tickets for multiple valid tokens", async () => {
     const { event: eventA, token: tokenA } = await createTestAttendeeWithToken("Bob", "bob@test.com");
-    const eventB = await createTestEvent({ maxAttendees: 10 });
-    await createTestAttendee(eventB.id, eventB.slug, "Bob", "bob@test.com", 2);
-    const attendeesB = await getAttendeesRaw(eventB.id);
-    // Decrypt the ticket_token to get the plaintext version
-    const tokenB = await getPlaintextTokenFromAttendee(attendeesB[0]!);
+    const { event: eventB, token: tokenB } = await createTestAttendeeWithToken("Bob", "bob@test.com", {}, 2);
 
     const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
     expect(response.status).toBe(200);

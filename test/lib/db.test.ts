@@ -1796,13 +1796,11 @@ describe("db", () => {
 
     test("getAttendeesByTokens returns attendees in token order", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      const a1 = await createTestAttendee(event.id, event.slug, "Tok1", "tok1@example.com");
-      const a2 = await createTestAttendee(event.id, event.slug, "Tok2", "tok2@example.com");
 
-      // Get plaintext tokens for lookups (ticket_token in DB is encrypted)
-      const { getPlaintextTokenFromAttendee } = await import("#test-utils");
-      const token1 = await getPlaintextTokenFromAttendee(a1);
-      const token2 = await getPlaintextTokenFromAttendee(a2);
+      // Create attendees directly and get plaintext tokens (matches production flow)
+      const { createTestAttendeeDirect } = await import("#test-utils");
+      const { attendee: a1, token: token1 } = await createTestAttendeeDirect(event.id, "Tok1", "tok1@example.com");
+      const { attendee: a2, token: token2 } = await createTestAttendeeDirect(event.id, "Tok2", "tok2@example.com");
 
       const results = await getAttendeesByTokens([token2, token1]);
       expect(results.length).toBe(2);

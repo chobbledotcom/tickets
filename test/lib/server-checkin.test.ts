@@ -10,8 +10,6 @@ import {
   createTestAttendeeWithToken,
   createTestDbWithSetup,
   createTestEvent,
-  getAttendeesRaw,
-  getPlaintextTokenFromAttendee,
   loginAsAdmin,
   mockFormRequest,
   resetDb,
@@ -80,11 +78,7 @@ describe("check-in (/checkin/:tokens)", () => {
 
     test("shows multiple attendees from different events", async () => {
       const { event: eventA, token: tokenA } = await createTestAttendeeWithToken("Carol", "carol@test.com");
-      const eventB = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(eventB.id, eventB.slug, "Carol", "carol@test.com");
-      const attendeesB = await getAttendeesRaw(eventB.id);
-      // Decrypt the ticket_token to get the plaintext version
-      const tokenB = await getPlaintextTokenFromAttendee(attendeesB[0]!);
+      const { event: eventB, token: tokenB } = await createTestAttendeeWithToken("Carol", "carol@test.com");
 
       const session = await loginAsAdmin();
       const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
