@@ -29,7 +29,7 @@ jobs:
         env:
           BUNNY_SCRIPT_DATA: ${{ secrets.BUNNY_SCRIPT_DATA }}
         run: |
-          code=$(jq -Rs '{"Code": .}' bunny-script.ts)
+          jq -Rs '{"Code": .}' bunny-script.ts > /tmp/code-payload.json
           while IFS= read -r line; do
             [ -z "$line" ] && continue
             script_id="${line%%|*}"
@@ -39,7 +39,7 @@ jobs:
               -X POST "https://api.bunny.net/compute/script/${script_id}/code" \
               -H "AccessKey: ${api_key}" \
               -H "Content-Type: application/json" \
-              -d "$code")
+              -d @/tmp/code-payload.json)
             status_code=$(echo "$response" | tail -1)
             body=$(echo "$response" | sed '$d')
             if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
