@@ -97,6 +97,8 @@ On first launch, visit `/setup/` to set admin credentials and currency. Payment 
 | `DB_ENCRYPTION_KEY` | Yes | 32-byte base64-encoded AES-256 key |
 | `ALLOWED_DOMAIN` | Yes | Domain for security validation |
 | `PORT` | No | Local dev server port (default: 3000) |
+| `STORAGE_ZONE_NAME` | No | Bunny CDN storage zone name (required for image uploads) |
+| `STORAGE_ZONE_KEY` | No | Bunny CDN storage zone access key (required for image uploads) |
 | `WEBHOOK_URL` | No | Global webhook URL for all registrations |
 | `NTFY_URL` | No | Ntfy endpoint for error notifications (sends domain + error code only) |
 
@@ -108,7 +110,7 @@ Builds to a single JavaScript file for Bunny Edge Scripting:
 deno task build:edge
 ```
 
-Configure `DB_URL`, `DB_TOKEN`, `DB_ENCRYPTION_KEY`, and `ALLOWED_DOMAIN` as Bunny native secrets. GitHub Actions secrets: `BUNNY_SCRIPT_ID`, `BUNNY_ACCESS_KEY`.
+Configure `DB_URL`, `DB_TOKEN`, `DB_ENCRYPTION_KEY`, and `ALLOWED_DOMAIN` as Bunny native secrets. For image uploads, also configure `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY`. GitHub Actions secrets: `BUNNY_SCRIPT_ID`, `BUNNY_ACCESS_KEY`.
 
 Database schema auto-migrates on first request.
 
