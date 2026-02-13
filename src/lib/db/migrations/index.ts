@@ -347,17 +347,6 @@ export const initDb = async (): Promise<void> => {
       );
 
       for (const attendee of attendees) {
-        // Check if token is already encrypted (starts with "hyb:1:")
-        const isEncrypted = attendee.ticket_token.startsWith("hyb:1:");
-
-        if (isEncrypted) {
-          // Token is already encrypted, just generate the index from... wait, we can't decrypt it
-          // This means we need to generate a NEW token for already-encrypted tokens
-          // But that would break existing URLs. This is a problem.
-          // Let's assume all existing tokens are plaintext since this is the first migration
-          continue;
-        }
-
         // Token is plaintext - encrypt it and generate index
         const plaintextToken = attendee.ticket_token;
         const encryptedToken = await encryptAttendeePII(plaintextToken, pubKey);

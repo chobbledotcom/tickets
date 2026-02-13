@@ -6,7 +6,6 @@ import {
   adminGet,
   awaitTestRequest,
   createDailyTestEvent,
-  createTestAttendee,
   createTestAttendeeWithToken,
   createTestDbWithSetup,
   createTestEvent,
