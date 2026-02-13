@@ -16,6 +16,8 @@ import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import { logAndNotifyRegistration } from "#lib/webhook.ts";
+import { getCurrencyCode } from "#lib/config.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { requirePrivateKey, verifyIdentifier, withDecryptedAttendees, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
@@ -30,6 +32,7 @@ import {
   adminDeleteAttendeePage,
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,
+  adminResendWebhookPage,
 } from "#templates/admin/attendees.tsx";
 import { type AddAttendeeFormValues, getAddAttendeeFields } from "#templates/fields.ts";
 
@@ -327,6 +330,24 @@ const handleAddAttendee = (
     );
   });
 
+/** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook */
+const handleAdminResendWebhookGet = attendeeGetRoute((data, session) =>
+  htmlResponse(adminResendWebhookPage(data.event, data.attendee, session)));
+
+/** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook */
+const handleResendWebhook = attendeeFormAction(async (data, session, form, eventId) => {
+  const error = verifyAttendeeName(data, session, form, adminResendWebhookPage,
+    "Attendee name does not match. Please type the exact name to confirm.");
+  if (error) return error;
+
+  const currency = await getCurrencyCode();
+  await Promise.all([
+    logAndNotifyRegistration(data.event, data.attendee, currency),
+    logActivity(`Webhook re-sent for attendee '${data.attendee.name}'`, eventId),
+  ]);
+  return redirect(`/admin/event/${eventId}`);
+});
+
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
   "GET /admin/event/:eventId/attendee/:attendeeId/delete": (request, { eventId, attendeeId }) =>
@@ -347,4 +368,8 @@ export const attendeesRoutes = defineRoutes({
     handleAdminRefundAllGet(request, id),
   "POST /admin/event/:id/refund-all": (request, { id }) =>
     handleAdminRefundAllPost(request, id),
+  "GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook": (request, { eventId, attendeeId }) =>
+    handleAdminResendWebhookGet(request, eventId, attendeeId),
+  "POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook": (request, { eventId, attendeeId }) =>
+    handleResendWebhook(request, eventId, attendeeId),
 });
