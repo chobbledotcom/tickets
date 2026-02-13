@@ -230,7 +230,7 @@ describe("server (admin events)", () => {
       expect(html).toContain("Duplicate Event");
       expect(html).toContain("Original Event");
       expect(html).toContain('value="75"');
-      expect(html).toContain('value="2000"');
+      expect(html).toContain('value="20.00"');
       expect(html).toContain('value="https://example.com/thanks"');
       expect(html).toContain('value="https://example.com/webhook"');
       // Name field should be empty (not pre-filled)
@@ -502,7 +502,7 @@ describe("server (admin events)", () => {
       expect(html).toContain("Edit:");
       expect(html).toContain('value="Test Event"');
       expect(html).toContain('value="100"');
-      expect(html).toContain('value="1500"');
+      expect(html).toContain('value="15.00"');
       expect(html).toContain('value="https://example.com/thanks"');
       expect(html).toContain(`value="${event.slug}"`);
       expect(html).toContain("Slug");
@@ -618,7 +618,7 @@ describe("server (admin events)", () => {
             max_attendees: "200",
             max_quantity: "5",
             thank_you_url: "https://example.com/updated",
-            unit_price: "2000",
+            unit_price: "20.00",
             csrf_token: csrfToken,
           },
           cookie,
@@ -1251,7 +1251,7 @@ describe("server (admin events)", () => {
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
-            unit_price: "1000",
+            unit_price: "10.00",
             csrf_token: csrfToken,
           },
           cookie,

@@ -258,6 +258,9 @@ describe("code quality", () => {
       "lib/db/attendees.ts:getAttendee",
       // Event activity log fetch for tests (production uses batched getEventWithActivityLog)
       "lib/db/activityLog.ts:getEventActivityLog",
+      // Reset cached currency code between tests
+      "lib/currency.ts:setCurrencyCodeForTest",
+      "lib/currency.ts:resetCurrencyCode",
     ];
 
     /**

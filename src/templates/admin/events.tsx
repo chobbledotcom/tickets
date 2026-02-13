@@ -3,6 +3,7 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
+import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
@@ -32,8 +33,6 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
     return sum;
   }, 0)(attendees);
 
-/** Format cents as a decimal string (e.g. 1000 -> "10.00", "2999" -> "29.99") */
-export const formatCents = (cents: string | number): string => (Number(cents) / 100).toFixed(2);
 
 /** Check if event is within 10% of capacity */
 export const nearCapacity = (event: EventWithCount): boolean =>
@@ -270,7 +269,7 @@ export const adminEventPage = ({
               {event.unit_price !== null && (
                 <tr>
                   <th>Total Revenue</th>
-                  <td>{formatCents(calculateTotalRevenue(attendees))}</td>
+                  <td>{formatCurrency(calculateTotalRevenue(attendees))}</td>
                 </tr>
               )}
               <tr>
@@ -446,7 +445,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   minimum_days_before: event.minimum_days_before,
   maximum_days_after: event.maximum_days_after,
   fields: event.fields,
-  unit_price: event.unit_price,
+  unit_price: event.unit_price !== null ? toMajorUnits(event.unit_price) : null,
   closes_at: formatDatetimeLocal(event.closes_at),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,

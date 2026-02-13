@@ -32,6 +32,7 @@ export interface Field {
   placeholder?: string;
   hint?: string;
   min?: number;
+  step?: number;
   pattern?: string;
   autofocus?: boolean;
   validate?: (value: string) => string | null;
@@ -139,6 +140,7 @@ export const renderField = (field: Field, value: string = ""): string =>
           required={field.required}
           placeholder={field.placeholder}
           min={field.min}
+          step={field.step}
           pattern={field.pattern}
           autofocus={field.autofocus}
         />
@@ -173,7 +175,9 @@ const parseFieldValue = (
 ): string | number | null =>
   field.type === "number"
     ? trimmed
-      ? Number.parseInt(trimmed, 10)
+      ? (field.step != null && field.step % 1 !== 0
+          ? Number.parseFloat(trimmed)
+          : Number.parseInt(trimmed, 10))
       : null
     : trimmed;
 

@@ -127,7 +127,7 @@ const validateSafeUrl = (value: string): string | null => {
  * Validate price is non-negative
  */
 const validateNonNegativePrice = (value: string): string | null => {
-  const num = Number.parseInt(value, 10);
+  const num = Number.parseFloat(value);
   if (Number.isNaN(num) || num < 0) {
     return "Price must be 0 or greater";
   }
@@ -330,10 +330,11 @@ export const eventFields: Field[] = [
   },
   {
     name: "unit_price",
-    label: "Ticket Price (in pence/cents, leave empty for free)",
+    label: "Ticket Price (leave empty for free)",
     type: "number",
     min: 0,
-    placeholder: "e.g. 1000 for 10.00",
+    step: 0.01,
+    placeholder: "e.g. 10.00",
     validate: validateNonNegativePrice,
   },
   {

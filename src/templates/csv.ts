@@ -4,6 +4,7 @@
 
 import { map, pipe, reduce } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
+import { toMajorUnits } from "#lib/currency.ts";
 import type { Attendee } from "#lib/types.ts";
 
 /** Attendee with associated event info for calendar CSV */
@@ -25,10 +26,10 @@ const escapeCsvValue = (value: string): string => {
   return value;
 };
 
-/** Format price in cents as decimal string (e.g. 1000 -> "10.00") */
+/** Format price in minor units as decimal string using configured currency */
 const formatPrice = (pricePaid: string | null): string => {
   if (pricePaid === null) return "";
-  return (Number.parseInt(pricePaid, 10) / 100).toFixed(2);
+  return toMajorUnits(Number.parseInt(pricePaid, 10));
 };
 
 /** Format checked_in value as Yes/No */

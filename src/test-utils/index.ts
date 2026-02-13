@@ -4,6 +4,7 @@
 
 import { type Client, createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
+import { resetCurrencyCode, setCurrencyCodeForTest, toMajorUnits } from "#lib/currency.ts";
 import { setDb } from "#lib/db/client.ts";
 import {
   getEventWithCount,
@@ -167,10 +168,12 @@ export const createTestDbWithSetup = async (
         });
       }
     }
+    setCurrencyCodeForTest(currency);
     return;
   }
 
   await completeSetup(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, currency);
+  setCurrencyCodeForTest(currency);
 
   // Snapshot settings AND users for reuse
   const result = await cachedClient!.execute("SELECT key, value FROM settings");
@@ -216,6 +219,7 @@ export const resetDb = (): void => {
   invalidateTermsCache();
   resetSessionCache();
   resetTestSession();
+  resetCurrencyCode();
 };
 
 /**
@@ -632,7 +636,7 @@ export const createTestEvent = (
       max_quantity: String(input.maxQuantity ?? 1),
       fields: input.fields ?? "email",
       thank_you_url: input.thankYouUrl ?? "",
-      unit_price: input.unitPrice != null ? String(input.unitPrice) : "",
+      unit_price: input.unitPrice != null ? priceFormValue(input.unitPrice) : "",
       webhook_url: input.webhookUrl ?? "",
       closes_at_date: closesAtParts.date,
       closes_at_time: closesAtParts.time,
@@ -657,17 +661,21 @@ export const createTestEvent = (
   );
 };
 
-/** Format optional price field for form submission */
+/** Convert a price in minor units to the form value in major units */
+export const priceFormValue = (minorUnits: number): string =>
+  toMajorUnits(minorUnits);
+
+/** Format optional price field for form submission (converts minor → major units) */
 const formatPrice = (
   update: number | null | undefined,
   existing: number | null,
 ): string =>
   update !== undefined
     ? update != null
-      ? String(update)
+      ? priceFormValue(update)
       : ""
     : existing != null
-      ? String(existing)
+      ? priceFormValue(existing)
       : "";
 
 /** Format optional nullable string field for form submission */
