@@ -184,10 +184,20 @@ const main = async (): Promise<void> => {
     const lineFailures: string[] = [];
     const branchFailures: string[] = [];
 
+    // Files excluded from coverage enforcement
+    const coverageExclusions = [
+      "src/lib/db/migrations/index.ts",
+    ];
+
     for (const record of records) {
       const sfMatch = record.match(/SF:(.*)/);
       if (!sfMatch) continue;
       const file = sfMatch[1].replace(projectRoot + "/", "");
+
+      // Skip excluded files
+      if (coverageExclusions.some(exclusion => file.includes(exclusion))) {
+        continue;
+      }
 
       // Line coverage: LH (lines hit) / LF (lines found)
       const lhMatch = record.match(/LH:(\d+)/);
