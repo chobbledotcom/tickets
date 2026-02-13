@@ -37,22 +37,15 @@ describe("currency", () => {
     });
 
     test("falls back to 2 when minimumFractionDigits is undefined", () => {
-      const OrigNumberFormat = Intl.NumberFormat;
-      // deno-lint-ignore no-global-assign
-      Intl = {
-        ...Intl,
-        NumberFormat: class extends OrigNumberFormat {
-          override resolvedOptions() {
-            const opts = super.resolvedOptions();
-            return { ...opts, minimumFractionDigits: undefined as unknown as number };
-          }
-        } as typeof Intl.NumberFormat,
+      const orig = Intl.NumberFormat.prototype.resolvedOptions;
+      Intl.NumberFormat.prototype.resolvedOptions = function () {
+        const opts = orig.call(this);
+        return { ...opts, minimumFractionDigits: undefined as unknown as number };
       };
       try {
         expect(getDecimalPlaces("GBP")).toBe(2);
       } finally {
-        // deno-lint-ignore no-global-assign
-        Intl = { ...Intl, NumberFormat: OrigNumberFormat };
+        Intl.NumberFormat.prototype.resolvedOptions = orig;
       }
     });
   });
