@@ -6,66 +6,70 @@ import { map, pipe } from "#fp";
 import { getTz } from "#lib/config.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { renderEventImage } from "#templates/public.tsx";
 import type { TokenEntry } from "#routes/token-utils.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Re-export for backwards compatibility */
 export type { TokenEntry as TicketEntry };
 
-/** Format a date cell value: formatted label or empty string */
-const formatDateCol = (date: string | null): string =>
-  date ? formatDateLabel(date) : "";
+/** Ticket card with individual QR code */
+export type TicketCard = {
+  entry: TokenEntry;
+  qrSvg: string;
+};
+
+/** Pluralize ticket count */
+const ticketCount = (count: number): string =>
+  count === 1 ? "1 Ticket" : `${count} Tickets`;
+
+/** Render a single ticket card */
+const renderTicketCard = ({ entry, qrSvg }: TicketCard): string => {
+  const { event, attendee } = entry;
+  const tz = getTz();
+
+  const eventDateHtml = event.date
+    ? `<div class="ticket-card-date">${escapeHtml(formatDatetimeLabel(event.date, tz))}</div>`
+    : "";
+
+  const locationHtml = event.location
+    ? `<div class="ticket-card-location">${escapeHtml(event.location)}</div>`
+    : "";
+
+  const attendeeDateHtml = attendee.date
+    ? `<div class="ticket-card-date">Booking Date: ${escapeHtml(formatDateLabel(attendee.date))}</div>`
+    : "";
+
+  const quantityHtml = attendee.quantity > 1
+    ? `<div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>`
+    : "";
+
+  return `
+    <div class="ticket-card">
+      <div class="ticket-card-name">${escapeHtml(event.name)}</div>
+      ${eventDateHtml}
+      ${locationHtml}
+      ${attendeeDateHtml}
+      ${quantityHtml}
+      <div class="ticket-card-qr">${qrSvg}</div>
+    </div>
+  `;
+};
 
 /**
- * Ticket view page - shows event name + quantity per ticket, with inline QR code
- * The QR code encodes the /checkin/... URL for admin scanning
+ * Ticket view page - shows individual cards for each ticket with its own QR code
+ * The QR code encodes the /checkin/:token URL for admin scanning
  */
-export const ticketViewPage = (entries: TokenEntry[], qrSvg: string): string => {
-  const tz = getTz();
-  const showDate = entries.some((e) => e.attendee.date !== null);
-  const showEventDate = entries.some((e) => e.event.date !== "");
-  const showLocation = entries.some((e) => e.event.location !== "");
-  const rows = pipe(
-    map(({ event, attendee }: TokenEntry) => {
-      const dateCol = showDate ? `<td>${formatDateCol(attendee.date)}</td>` : "";
-      const eventDateCol = showEventDate ? `<td>${escapeHtml(event.date ? formatDatetimeLabel(event.date, tz) : "")}</td>` : "";
-      const locationCol = showLocation ? `<td>${escapeHtml(event.location)}</td>` : "";
-      return `<tr><td>${escapeHtml(event.name)}</td>${eventDateCol}${locationCol}${dateCol}<td>${attendee.quantity}</td></tr>`;
-    }),
-    (r: string[]) => r.join(""),
-  )(entries);
-
-  const hasImages = entries.some((e) => e.event.image_url !== "");
-  const imageRows = hasImages
-    ? pipe(
-        map(({ event }: TokenEntry) => renderEventImage(event)),
-        (imgs: string[]) => imgs.join(""),
-      )(entries)
-    : "";
+export const ticketViewPage = (cards: TicketCard[]): string => {
+  const cardHtml = pipe(
+    map(renderTicketCard),
+    (c: string[]) => c.join(""),
+  )(cards);
 
   return String(
     <Layout title="Your Tickets">
-      <h1>Your Tickets</h1>
-      {hasImages && <Raw html={imageRows} />}
-      <div class="text-center">
-        <Raw html={qrSvg} />
-      </div>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Event</th>
-              {showEventDate && <th>Event Date</th>}
-              {showLocation && <th>Location</th>}
-              {showDate && <th>Date</th>}
-              <th>Quantity</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={rows} />
-          </tbody>
-        </table>
+      <h1>{ticketCount(cards.length)}</h1>
+      <div class="ticket-slider">
+        <Raw html={cardHtml} />
       </div>
     </Layout>
   );
