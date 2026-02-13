@@ -3,7 +3,7 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
-import { computeIframeHeight } from "#lib/embed.ts";
+import { buildEmbedTemplate, EMBED_URL_PLACEHOLDER } from "#lib/embed.ts";
 import { renderFields } from "#lib/forms.tsx";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -52,7 +52,7 @@ const multiBookingSection = (
   const mergedFields = mergeEventFields(
     map((e: EventWithCount) => e.fields)(activeEvents),
   );
-  const iframeHeight = computeIframeHeight(mergedFields);
+  const embedTemplate = buildEmbedTemplate(mergedFields);
 
   return String(
     <details>
@@ -78,7 +78,8 @@ const multiBookingSection = (
         readonly
         data-select-on-click
         data-multi-booking-embed
-        data-iframe-height={iframeHeight}
+        data-embed-template={embedTemplate}
+        data-embed-placeholder={EMBED_URL_PLACEHOLDER}
         placeholder="Select two or more events"
       />
     </details>

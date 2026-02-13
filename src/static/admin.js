@@ -18,9 +18,10 @@ if (multiUrl) {
   const multiEmbed = document.querySelector("[data-multi-booking-embed]");
   const selectedSlugs = [];
   const domain = multiUrl.dataset.domain;
-  const iframeHeight = multiEmbed.dataset.iframeHeight;
+  const embedTemplate = multiEmbed.dataset.embedTemplate;
+  const embedPlaceholder = multiEmbed.dataset.embedPlaceholder;
   const urlPlaceholder = multiUrl.placeholder;
-  const embedPlaceholder = multiEmbed.placeholder;
+  const inputPlaceholder = multiEmbed.placeholder;
   for (const cb of document.querySelectorAll("[data-multi-booking-slug]")) {
     cb.addEventListener("change", () => {
       const slug = cb.dataset.multiBookingSlug;
@@ -34,13 +35,13 @@ if (multiUrl) {
         const url = `https://${domain}/ticket/${selectedSlugs.join("+")}`;
         multiUrl.value = url;
         multiUrl.placeholder = "";
-        multiEmbed.value = `<iframe src="${url}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
+        multiEmbed.value = embedTemplate.replaceAll(embedPlaceholder, url);
         multiEmbed.placeholder = "";
       } else {
         multiUrl.value = "";
         multiUrl.placeholder = urlPlaceholder;
         multiEmbed.value = "";
-        multiEmbed.placeholder = embedPlaceholder;
+        multiEmbed.placeholder = inputPlaceholder;
       }
     });
   }

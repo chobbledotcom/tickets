@@ -1,5 +1,10 @@
 import { describe, expect, test } from "#test-compat";
-import { buildEmbedCode, computeIframeHeight } from "#lib/embed.ts";
+import {
+  buildEmbedCode,
+  buildEmbedTemplate,
+  computeIframeHeight,
+  EMBED_URL_PLACEHOLDER,
+} from "#lib/embed.ts";
 
 describe("embed", () => {
   describe("computeIframeHeight", () => {
@@ -36,12 +41,27 @@ describe("embed", () => {
     });
   });
 
+  describe("buildEmbedTemplate", () => {
+    test("produces iframe with placeholder URL and computed height", () => {
+      const result = buildEmbedTemplate("email");
+      expect(result).toContain(`${EMBED_URL_PLACEHOLDER}?iframe=true`);
+      expect(result).toContain("height: 18rem");
+      expect(result).toContain("loading=\"lazy\"");
+    });
+
+    test("uses height from fields setting", () => {
+      const result = buildEmbedTemplate("email,phone,address");
+      expect(result).toContain("height: 28rem");
+    });
+  });
+
   describe("buildEmbedCode", () => {
-    test("produces iframe with url, iframe param, and computed height", () => {
+    test("replaces placeholder with actual url", () => {
       const result = buildEmbedCode("https://example.com/ticket/test", "email");
       expect(result).toBe(
         '<iframe src="https://example.com/ticket/test?iframe=true" loading="lazy" style="border: none; width: 100%; height: 18rem">Loading..</iframe>',
       );
+      expect(result).not.toContain(EMBED_URL_PLACEHOLDER);
     });
 
     test("uses height from merged fields", () => {

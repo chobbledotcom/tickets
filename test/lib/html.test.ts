@@ -850,7 +850,7 @@ describe("html", () => {
       expect(html).toContain("<summary>");
     });
 
-    test("renders embed code input with pre-computed iframe height", () => {
+    test("renders embed code input with pre-computed embed template", () => {
       const events = [
         testEventWithCount({ id: 1, slug: "ab12c", fields: "email" }),
         testEventWithCount({ id: 2, slug: "cd34e", fields: "email,phone" }),
@@ -859,16 +859,17 @@ describe("html", () => {
       expect(html).toContain("data-multi-booking-embed");
       expect(html).toContain('for="multi-booking-embed"');
       expect(html).toContain('id="multi-booking-embed"');
-      expect(html).toContain('data-iframe-height="22rem"');
+      expect(html).toContain("data-embed-template");
+      expect(html).toContain("height: 22rem");
     });
 
-    test("embed code input uses merged fields height across all active events", () => {
+    test("embed template uses merged fields height across all active events", () => {
       const events = [
         testEventWithCount({ id: 1, slug: "ab12c", fields: "email" }),
         testEventWithCount({ id: 2, slug: "cd34e", fields: "phone,address" }),
       ];
       const html = adminDashboardPage(events, TEST_SESSION, "localhost");
-      expect(html).toContain('data-iframe-height="28rem"');
+      expect(html).toContain("height: 28rem");
     });
   });
 
