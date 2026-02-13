@@ -643,8 +643,8 @@ describe("server (admin attendees)", () => {
 
     test("adds attendee to daily event with date", async () => {
       const { addDays } = await import("#lib/dates.ts");
-      const { today } = await import("#lib/now.ts");
-      const futureDate = addDays(today(), 7);
+      const { todayInTz } = await import("#lib/timezone.ts");
+      const futureDate = addDays(todayInTz("UTC"), 7);
 
       const event = await createTestEvent({
         maxAttendees: 100,

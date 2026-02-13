@@ -9,6 +9,7 @@ import {
   getPaymentProviderFromDb,
   getStripeWebhookEndpointId,
   getTermsAndConditionsFromDb,
+  getTimezoneFromDb,
   MAX_TERMS_LENGTH,
   hasSquareToken,
   hasStripeKey,
@@ -20,12 +21,14 @@ import {
   updateSquareWebhookSignatureKey,
   updateStripeKey,
   updateTermsAndConditions,
+  updateTimezone,
   updateUserPassword,
 } from "#lib/db/settings.ts";
 import {
   getSquareWebhookSignatureKey,
   getAllowedDomain,
 } from "#lib/config.ts";
+import { isValidTimezone } from "#lib/timezone.ts";
 import { validateEmbedHosts, parseEmbedHosts } from "#lib/embed-hosts.ts";
 import { resetDatabase } from "#lib/db/migrations/index.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
@@ -71,6 +74,7 @@ const getSettingsPageState = async () => {
   const webhookUrl = getWebhookUrl();
   const embedHosts = await getEmbedHostsFromDb();
   const termsAndConditions = await getTermsAndConditionsFromDb();
+  const timezone = await getTimezoneFromDb();
   return {
     stripeKeyConfigured,
     paymentProvider,
@@ -79,6 +83,7 @@ const getSettingsPageState = async () => {
     webhookUrl,
     embedHosts,
     termsAndConditions,
+    timezone,
   };
 };
 
@@ -100,6 +105,7 @@ const renderSettingsPage = async (
     state.webhookUrl,
     state.embedHosts,
     state.termsAndConditions,
+    state.timezone,
   );
 };
 
@@ -353,6 +359,25 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
   return redirectWithSuccess("/admin/settings", "Terms and conditions updated");
 });
 
+/** Validate and save timezone from form submission */
+const processTimezoneForm: SettingsFormHandler = async (form, errorPage) => {
+  const trimmed = (form.get("timezone") || "").trim();
+
+  if (trimmed === "") {
+    return errorPage("Timezone is required", 400);
+  }
+
+  if (!isValidTimezone(trimmed)) {
+    return errorPage(`Invalid timezone: ${trimmed}`, 400);
+  }
+
+  await updateTimezone(trimmed);
+  return redirectWithSuccess("/admin/settings", "Timezone updated");
+};
+
+/** Handle POST /admin/settings/timezone - owner only */
+const handleTimezonePost = settingsRoute(processTimezoneForm);
+
 /**
  * Expected confirmation phrase for database reset
  */
@@ -390,6 +415,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/stripe/test": (request) => handleStripeTestPost(request),
   "POST /admin/settings/embed-hosts": (request) => handleEmbedHostsPost(request),
   "POST /admin/settings/terms": (request) => handleTermsPost(request),
+  "POST /admin/settings/timezone": (request) => handleTimezonePost(request),
   "POST /admin/settings/reset-database": (request) =>
     handleResetDatabasePost(request),
 });

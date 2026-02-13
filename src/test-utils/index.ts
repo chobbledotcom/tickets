@@ -11,7 +11,7 @@ import {
 } from "#lib/db/events.ts";
 import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
-import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, invalidateTermsCache } from "#lib/db/settings.ts";
+import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, invalidateTermsCache, updateTimezone } from "#lib/db/settings.ts";
 import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 
 /**
@@ -171,6 +171,9 @@ export const createTestDbWithSetup = async (
   }
 
   await completeSetup(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, currency);
+
+  // Default timezone to UTC for tests so datetime-local values pass through unchanged
+  await updateTimezone("UTC");
 
   // Snapshot settings AND users for reuse
   const result = await cachedClient!.execute("SELECT key, value FROM settings");

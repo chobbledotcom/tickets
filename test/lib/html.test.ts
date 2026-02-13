@@ -253,14 +253,18 @@ describe("html", () => {
   describe("ticketPage", () => {
     const event = testEventWithCount({ attendee_count: 50 });
     const csrfToken = "test-csrf-token";
+    const renderTicket = (
+      ev: Parameters<typeof ticketPage>[0],
+      opts?: { error?: string; isClosed?: boolean; iframe?: boolean; dates?: string[]; terms?: string | null },
+    ) => ticketPage(ev, csrfToken, opts?.error, opts?.isClosed ?? false, opts?.iframe ?? false, opts?.dates, opts?.terms);
 
     test("renders page title", () => {
-      const html = ticketPage(event, csrfToken);
+      const html = renderTicket(event);
       expect(html).toContain("Test Event");
     });
 
     test("renders registration form when spots available", () => {
-      const html = ticketPage(event, csrfToken);
+      const html = renderTicket(event);
       expect(html).toContain('action="/ticket/ab12c"');
       expect(html).toContain('name="name"');
       expect(html).toContain('name="email"');
@@ -268,26 +272,26 @@ describe("html", () => {
     });
 
     test("includes CSRF token in form", () => {
-      const html = ticketPage(event, csrfToken);
+      const html = renderTicket(event);
       expect(html).toContain('name="csrf_token"');
       expect(html).toContain(`value="${csrfToken}"`);
     });
 
     test("shows error when provided", () => {
-      const html = ticketPage(event, csrfToken, "Name and email are required");
+      const html = renderTicket(event, { error: "Name and email are required" });
       expect(html).toContain("Name and email are required");
       expect(html).toContain('class="error"');
     });
 
     test("shows full message when no spots", () => {
       const fullEvent = testEventWithCount({ attendee_count: 100 });
-      const html = ticketPage(fullEvent, csrfToken);
+      const html = renderTicket(fullEvent);
       expect(html).toContain("this event is full");
       expect(html).not.toContain(">Reserve Ticket</button>");
     });
 
     test("displays event name as header", () => {
-      const html = ticketPage(event, csrfToken);
+      const html = renderTicket(event);
       expect(html).toContain("<h1>Test Event</h1>");
     });
 
@@ -296,7 +300,7 @@ describe("html", () => {
         max_quantity: 5,
         attendee_count: 0,
       });
-      const html = ticketPage(multiTicketEvent, csrfToken);
+      const html = renderTicket(multiTicketEvent);
       expect(html).toContain("Number of Tickets");
       expect(html).toContain('name="quantity"');
       expect(html).toContain('<option value="1">1</option>');
@@ -309,14 +313,14 @@ describe("html", () => {
         max_quantity: 10,
         attendee_count: 97, // Only 3 spots remaining
       });
-      const html = ticketPage(limitedEvent, csrfToken);
+      const html = renderTicket(limitedEvent);
       expect(html).toContain("Number of Tickets");
       expect(html).toContain('<option value="3">3</option>');
       expect(html).not.toContain('<option value="4">4</option>');
     });
 
     test("hides quantity selector when max_quantity is 1", () => {
-      const html = ticketPage(event, csrfToken); // max_quantity is 1
+      const html = renderTicket(event); // max_quantity is 1
       expect(html).not.toContain("Number of Tickets");
       expect(html).toContain('type="hidden" name="quantity" value="1"');
       expect(html).toContain("Reserve Ticket"); // Singular
@@ -325,7 +329,7 @@ describe("html", () => {
 
     test("shows phone field for phone-only events", () => {
       const phoneEvent = testEventWithCount({ attendee_count: 50, fields: "phone" });
-      const html = ticketPage(phoneEvent, csrfToken);
+      const html = renderTicket(phoneEvent);
       expect(html).toContain('name="phone"');
       expect(html).toContain("Your Phone Number");
       expect(html).not.toContain('name="email"');
@@ -333,20 +337,20 @@ describe("html", () => {
 
     test("shows both email and phone for email,phone setting", () => {
       const bothEvent = testEventWithCount({ attendee_count: 50, fields: "email,phone" });
-      const html = ticketPage(bothEvent, csrfToken);
+      const html = renderTicket(bothEvent);
       expect(html).toContain('name="email"');
       expect(html).toContain('name="phone"');
     });
 
     test("shows only email for email setting", () => {
-      const html = ticketPage(event, csrfToken);
+      const html = renderTicket(event);
       expect(html).toContain('name="email"');
       expect(html).not.toContain('name="phone"');
     });
 
     test("hides header and description in iframe mode", () => {
       const eventWithDesc = testEventWithCount({ attendee_count: 50, description: "A great event" });
-      const html = ticketPage(eventWithDesc, csrfToken, undefined, false, true);
+      const html = renderTicket(eventWithDesc, { iframe: true });
       expect(html).not.toContain("<h1>");
       expect(html).not.toContain("A great event");
       expect(html).toContain('class="iframe"');
@@ -355,7 +359,7 @@ describe("html", () => {
 
     test("shows header and description when not in iframe mode", () => {
       const eventWithDesc = testEventWithCount({ attendee_count: 50, description: "A great event" });
-      const html = ticketPage(eventWithDesc, csrfToken, undefined, false, false);
+      const html = renderTicket(eventWithDesc);
       expect(html).toContain("<h1>Test Event</h1>");
       expect(html).toContain("A great event");
       expect(html).not.toContain('class="iframe"');
@@ -1302,7 +1306,7 @@ describe("html", () => {
       const event = testEventWithCount({ date: "2026-06-15T14:00:00.000Z", attendee_count: 0 });
       const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).toContain("Event Date");
-      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
+      expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
     });
 
     test("does not show Event Date row when date is empty", () => {
@@ -1339,7 +1343,7 @@ describe("html", () => {
   describe("adminEventPage edit form pre-fills date and location", () => {
     test("empty date shows no pre-filled value in edit form", () => {
       const event = testEventWithCount({ date: "", attendee_count: 0 });
-      const html = adminEventEditPage(event, TEST_SESSION);
+      const html = adminEventEditPage(event, TEST_SESSION, undefined);
       // The date field should render split date and time inputs
       expect(html).toContain('name="date_date"');
       expect(html).toContain('name="date_time"');
@@ -1347,15 +1351,15 @@ describe("html", () => {
 
     test("non-empty date shows formatted split values in edit form", () => {
       const event = testEventWithCount({ date: "2026-06-15T14:00:00.000Z", attendee_count: 0 });
-      const html = adminEventEditPage(event, TEST_SESSION);
-      // Should contain split date and time values (first 16 chars of ISO split on T)
+      const html = adminEventEditPage(event, TEST_SESSION, undefined);
+      // Should contain split date and time values converted to Europe/London (BST = UTC+1)
       expect(html).toContain('value="2026-06-15"');
-      expect(html).toContain('value="14:00"');
+      expect(html).toContain('value="15:00"');
     });
 
     test("pre-fills location in edit form", () => {
       const event = testEventWithCount({ location: "Village Hall", attendee_count: 0 });
-      const html = adminEventEditPage(event, TEST_SESSION);
+      const html = adminEventEditPage(event, TEST_SESSION, undefined);
       expect(html).toContain('value="Village Hall"');
     });
   });
@@ -1419,20 +1423,24 @@ describe("html", () => {
 
   describe("ticketPage event date and location", () => {
     const csrfToken = "test-csrf-token";
+    const renderTicket = (
+      ev: Parameters<typeof ticketPage>[0],
+      opts?: { iframe?: boolean },
+    ) => ticketPage(ev, csrfToken, undefined, false, opts?.iframe ?? false, undefined, undefined);
 
     test("shows date on public ticket page when event has date", () => {
       const event = testEventWithCount({
         date: "2026-06-15T14:00:00.000Z",
         attendee_count: 0,
       });
-      const html = ticketPage(event, csrfToken);
+      const html = renderTicket(event);
       expect(html).toContain("<strong>Date:</strong>");
-      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
+      expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
     });
 
     test("does not show date on public ticket page when date is empty", () => {
       const event = testEventWithCount({ date: "", attendee_count: 0 });
-      const html = ticketPage(event, csrfToken);
+      const html = renderTicket(event);
       expect(html).not.toContain("<strong>Date:</strong>");
     });
 
@@ -1441,14 +1449,14 @@ describe("html", () => {
         location: "Village Hall",
         attendee_count: 0,
       });
-      const html = ticketPage(event, csrfToken);
+      const html = renderTicket(event);
       expect(html).toContain("<strong>Location:</strong>");
       expect(html).toContain("Village Hall");
     });
 
     test("does not show location on public ticket page when location is empty", () => {
       const event = testEventWithCount({ location: "", attendee_count: 0 });
-      const html = ticketPage(event, csrfToken);
+      const html = renderTicket(event);
       expect(html).not.toContain("<strong>Location:</strong>");
     });
 
@@ -1458,7 +1466,7 @@ describe("html", () => {
         location: "Village Hall",
         attendee_count: 0,
       });
-      const html = ticketPage(event, csrfToken, undefined, false, true);
+      const html = renderTicket(event, { iframe: true });
       expect(html).not.toContain("<strong>Date:</strong>");
       expect(html).not.toContain("<strong>Location:</strong>");
     });
@@ -1476,7 +1484,7 @@ describe("html", () => {
       ];
       const html = ticketViewPage(entries, qrSvg);
       expect(html).toContain("<th>Event Date</th>");
-      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
+      expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
     });
 
     test("does not show Event Date column when all events have empty date", () => {
@@ -1539,7 +1547,7 @@ describe("html", () => {
       ];
       const html = ticketViewPage(entries, qrSvg);
       expect(html).toContain("<th>Event Date</th>");
-      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
+      expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
       // The second row should have an empty td for event date
       expect(html).toContain("<td></td>");
     });
@@ -1586,7 +1594,7 @@ describe("html", () => {
       test("shows event image when image_url is set", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "event-img.jpg" });
-        const html = ticketPage(event, TEST_CSRF_TOKEN);
+        const html = ticketPage(event, TEST_CSRF_TOKEN, undefined, false, false, undefined, null);
         expect(html).toContain("/image/event-img.jpg");
         expect(html).toContain('class="event-image"');
         cleanupStorage();
@@ -1595,7 +1603,7 @@ describe("html", () => {
       test("does not show image when image_url is null", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "" });
-        const html = ticketPage(event, TEST_CSRF_TOKEN);
+        const html = ticketPage(event, TEST_CSRF_TOKEN, undefined, false, false, undefined, null);
         expect(html).not.toContain("/image/");
         cleanupStorage();
       });
@@ -1603,7 +1611,7 @@ describe("html", () => {
       test("does not show image in iframe mode", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "event-img.jpg" });
-        const html = ticketPage(event, TEST_CSRF_TOKEN, undefined, false, true);
+        const html = ticketPage(event, TEST_CSRF_TOKEN, undefined, false, true, undefined, null);
         expect(html).not.toContain("event-img.jpg");
         cleanupStorage();
       });

@@ -9,9 +9,6 @@
 /** Current time as a Date */
 export const now = (): Date => new Date();
 
-/** Today's date as YYYY-MM-DD */
-export const today = (): string => new Date().toISOString().slice(0, 10);
-
 /** Full ISO-8601 timestamp for created/logged_at fields */
 export const nowIso = (): string => new Date().toISOString();
 

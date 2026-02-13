@@ -45,6 +45,21 @@ describe("server (misc)", () => {
         expect(response.headers.get("x-frame-options")).toBeNull();
       });
 
+      test("multi-slug ticket page does NOT have X-Frame-Options (embeddable)", async () => {
+        const event1 = await createTestEvent({
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com",
+        });
+        const event2 = await createTestEvent({
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com",
+        });
+        const response = await handleRequest(
+          mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+        );
+        expect(response.headers.get("x-frame-options")).toBeNull();
+      });
+
       test("payment pages have X-Frame-Options: DENY", async () => {
         const response = await handleRequest(mockRequest("/payment/success"));
         expect(response.headers.get("x-frame-options")).toBe("DENY");
@@ -76,6 +91,21 @@ describe("server (misc)", () => {
         });
         const response = await handleRequest(
           mockRequest(`/ticket/${event.slug}`),
+        );
+        expect(response.headers.get("content-security-policy")).toBe(baseCsp);
+      });
+
+      test("multi-slug ticket page allows embedding (no frame-ancestors)", async () => {
+        const event1 = await createTestEvent({
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com",
+        });
+        const event2 = await createTestEvent({
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com",
+        });
+        const response = await handleRequest(
+          mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
         );
         expect(response.headers.get("content-security-policy")).toBe(baseCsp);
       });
