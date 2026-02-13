@@ -81,6 +81,11 @@ describe("forms", () => {
       expect(html).toContain('pattern="[A-Z]{3}"');
     });
 
+    test("renders maxlength attribute", () => {
+      const html = rendered({ name: "desc", label: "Description", maxlength: 128 });
+      expect(html).toContain('maxlength="128"');
+    });
+
     test("renders textarea for textarea type", () => {
       const html = rendered({ name: "description", label: "Description", type: "textarea" });
       expect(html).toContain("<textarea");
@@ -308,6 +313,12 @@ describe("forms", () => {
 
     test("validates description accepts empty value", () => {
       expectValid(eventFields, eventForm({ description: "" }));
+    });
+
+    test("description field has maxlength of 128", () => {
+      const descField = eventFields.find((f) => f.name === "description");
+      expect(descField).toBeDefined();
+      expect(descField!.maxlength).toBe(128);
     });
   });
 

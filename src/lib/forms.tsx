@@ -32,6 +32,7 @@ export interface Field {
   placeholder?: string;
   hint?: string;
   min?: number;
+  maxlength?: number;
   pattern?: string;
   autofocus?: boolean;
   validate?: (value: string) => string | null;
@@ -139,6 +140,7 @@ export const renderField = (field: Field, value: string = ""): string =>
           required={field.required}
           placeholder={field.placeholder}
           min={field.min}
+          maxlength={field.maxlength}
           pattern={field.pattern}
           autofocus={field.autofocus}
         />

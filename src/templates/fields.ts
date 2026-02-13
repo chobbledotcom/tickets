@@ -250,6 +250,7 @@ export const eventFields: Field[] = [
     type: "text",
     placeholder: "A short description of the event",
     hint: "Shown on the ticket page. HTML is allowed. Max 128 characters.",
+    maxlength: MAX_DESCRIPTION_LENGTH,
     validate: validateDescription,
   },
   {
