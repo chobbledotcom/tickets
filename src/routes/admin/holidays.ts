@@ -7,7 +7,7 @@ import { getAllHolidays, type HolidayInput, holidaysTable } from "#lib/db/holida
 import { validateForm } from "#lib/forms.tsx";
 import { defineResource } from "#lib/rest/resource.ts";
 import type { AdminSession, Holiday } from "#lib/types.ts";
-import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
+import { defineRoutes } from "#routes/router.ts";
 import { verifyIdentifier } from "#routes/admin/utils.ts";
 import {
   htmlResponse,
@@ -64,7 +64,7 @@ const handleHolidayNewGet = (request: Request): Promise<Response> =>
   );
 
 /** Handle POST /admin/holiday (create) */
-const handleHolidayCreate: RouteHandlerFn = (request) =>
+const handleHolidayCreate = (request: Request) =>
   withOwnerAuthForm(request, async (session, form) => {
     const result = await holidaysResource.create(form);
     if (result.ok) {
@@ -153,18 +153,13 @@ const handleHolidayDeletePost = (
     }),
   );
 
-/** Bind :id param to a holiday handler */
-type HolidayHandler = (request: Request, holidayId: number) => Response | Promise<Response>;
-const holidayRoute = (handler: HolidayHandler): RouteHandlerFn =>
-  (request, params) => handler(request, params.id as number);
-
 /** Holiday routes */
 export const holidaysRoutes = defineRoutes({
   "GET /admin/holidays": (request) => handleHolidaysGet(request),
   "GET /admin/holiday/new": (request) => handleHolidayNewGet(request),
   "POST /admin/holiday": handleHolidayCreate,
-  "GET /admin/holiday/:id/edit": holidayRoute(handleHolidayEditGet),
-  "POST /admin/holiday/:id/edit": holidayRoute(handleHolidayEditPost),
-  "GET /admin/holiday/:id/delete": holidayRoute(handleHolidayDeleteGet),
-  "POST /admin/holiday/:id/delete": holidayRoute(handleHolidayDeletePost),
+  "GET /admin/holiday/:id/edit": (request, { id }) => handleHolidayEditGet(request, id),
+  "POST /admin/holiday/:id/edit": (request, { id }) => handleHolidayEditPost(request, id),
+  "GET /admin/holiday/:id/delete": (request, { id }) => handleHolidayDeleteGet(request, id),
+  "POST /admin/holiday/:id/delete": (request, { id }) => handleHolidayDeletePost(request, id),
 });

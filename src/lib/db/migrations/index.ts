@@ -311,6 +311,9 @@ export const initDb = async (): Promise<void> => {
     await backfillEncryptedColumn("events", col, `${col} = ''`);
   }
 
+  // Migration: add special_instructions column to attendees (hybrid encrypted like address)
+  await runMigration(`ALTER TABLE attendees ADD COLUMN special_instructions TEXT NOT NULL DEFAULT ''`);
+
   // Migration: add image_url column to events (encrypted, empty string = no image)
   await runMigration(`ALTER TABLE events ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`);
   await backfillEncryptedColumn("events", "image_url", `image_url = ''`);

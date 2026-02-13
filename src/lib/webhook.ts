@@ -85,6 +85,7 @@ export const buildWebhookPayload = (
     email: first.attendee.email,
     phone: first.attendee.phone,
     address: first.attendee.address,
+    special_instructions: first.attendee.special_instructions,
     price_paid: hasPaidEvent ? totalPricePaid : null,
     currency,
     payment_id: first.attendee.payment_id ?? null,

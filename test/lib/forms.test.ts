@@ -12,6 +12,7 @@ import {
   holidayFields,
   mergeEventFields,
   validateAddress,
+  validateSpecialInstructions,
   validateBookableDays,
   validateDate,
   validatePhone,
@@ -417,6 +418,26 @@ describe("forms", () => {
     });
   });
 
+  describe("validateSpecialInstructions", () => {
+    test("accepts short special instructions", () => {
+      expect(validateSpecialInstructions("No nuts please")).toBeNull();
+    });
+
+    test("accepts special instructions at max length (250)", () => {
+      expect(validateSpecialInstructions("a".repeat(250))).toBeNull();
+    });
+
+    test("rejects special instructions exceeding max length", () => {
+      expect(validateSpecialInstructions("a".repeat(251))).toBe(
+        "Special instructions must be 250 characters or fewer",
+      );
+    });
+
+    test("accepts multi-line special instructions within limit", () => {
+      expect(validateSpecialInstructions("Line 1\nLine 2\nLine 3")).toBeNull();
+    });
+  });
+
   describe("getTicketFields", () => {
     test("returns name and email fields for email setting", () => {
       const fields = getTicketFields("email");
@@ -475,6 +496,30 @@ describe("forms", () => {
       expect(addrField.type).toBe("textarea");
     });
 
+    test("returns name and special_instructions fields for special_instructions setting", () => {
+      const fields = getTicketFields("special_instructions");
+      expect(fields.length).toBe(2);
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("special_instructions");
+    });
+
+    test("special_instructions field has validation", () => {
+      const field = getTicketFields("special_instructions")[1]!;
+      expect(field.validate).toBeDefined();
+      expect(field.required).toBe(true);
+      expect(field.type).toBe("textarea");
+    });
+
+    test("returns all five contact fields for email,phone,address,special_instructions setting", () => {
+      const fields = getTicketFields("email,phone,address,special_instructions");
+      expect(fields.length).toBe(5);
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("email");
+      expect(fields[2]!.name).toBe("phone");
+      expect(fields[3]!.name).toBe("address");
+      expect(fields[4]!.name).toBe("special_instructions");
+    });
+
     test("ignores unknown field names in comma-separated setting", () => {
       const fields = getTicketFields("email,bogus,phone");
       expect(fields.length).toBe(3);
@@ -530,6 +575,10 @@ describe("forms", () => {
     test("sorts output in canonical CONTACT_FIELDS order", () => {
       expect(mergeEventFields(["address", "email"])).toBe("email,address");
     });
+
+    test("includes special_instructions when merged", () => {
+      expect(mergeEventFields(["email,special_instructions", "phone"])).toBe("email,phone,special_instructions");
+    });
   });
 
   describe("eventFields Contact Fields validation", () => {
@@ -558,6 +607,14 @@ describe("forms", () => {
 
     test("validates fields select accepts email,phone,address", () => {
       expectValid(eventFields, eventForm({ fields: "email,phone,address" }));
+    });
+
+    test("validates fields select accepts special_instructions", () => {
+      expectValid(eventFields, eventForm({ fields: "special_instructions" }));
+    });
+
+    test("validates fields select accepts email,phone,address,special_instructions", () => {
+      expectValid(eventFields, eventForm({ fields: "email,phone,address,special_instructions" }));
     });
   });
 
@@ -751,8 +808,10 @@ describe("forms", () => {
       const html = rendered({ name: "closes_at", label: "Closes At", type: "datetime" });
       expect(html).toContain('type="date"');
       expect(html).toContain('name="closes_at_date"');
+      expect(html).toContain('placeholder="Date"');
       expect(html).toContain('type="time"');
       expect(html).toContain('name="closes_at_time"');
+      expect(html).toContain('placeholder="Time"');
     });
 
     test("renders split inputs with value", () => {

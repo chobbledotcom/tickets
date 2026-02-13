@@ -57,6 +57,7 @@ const extractIntent = (
   email: session.metadata.email,
   phone: session.metadata.phone ?? "",
   address: session.metadata.address ?? "",
+  special_instructions: session.metadata.special_instructions ?? "",
   quantity: Number.parseInt(session.metadata.quantity || "1", 10),
   date: session.metadata.date ?? null,
 });
@@ -279,6 +280,7 @@ const extractMultiIntent = (
     email: metadata.email,
     phone: metadata.phone ?? "",
     address: metadata.address ?? "",
+    special_instructions: metadata.special_instructions ?? "",
     date: metadata.date ?? null,
     items,
   };
@@ -351,6 +353,7 @@ const processMultiPaymentSession = async (
       quantity: item.q,
       phone: intent.phone,
       address: intent.address,
+      special_instructions: intent.special_instructions,
       pricePaid: expectedPrice,
       date: event.event_type === "daily" ? intent.date : null,
     });
