@@ -48,7 +48,7 @@ export const getSecurityHeaders = (
  * Paths are normalized to strip trailing slashes
  */
 export const isEmbeddablePath = (path: string): boolean =>
-  /^\/ticket\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path);
+  /^\/ticket\/[a-z0-9]+(?:-[a-z0-9]+)*(?:\+[a-z0-9]+(?:-[a-z0-9]+)*)*$/.test(path);
 
 /**
  * Extract hostname from Host header (removes port if present)
