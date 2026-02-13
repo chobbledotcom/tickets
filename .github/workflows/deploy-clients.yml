@@ -28,16 +28,16 @@ jobs:
       - name: Deploy to clients
         env:
           BUNNY_SCRIPT_DATA: ${{ secrets.BUNNY_SCRIPT_DATA }}
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
         run: |
           jq -Rs '{"Code": .}' bunny-script.ts > /tmp/code-payload.json
-          while IFS= read -r line; do
-            [ -z "$line" ] && continue
-            script_id="${line%%|*}"
-            api_key="${line#*|}"
+          IFS='|' read -ra script_ids <<< "$BUNNY_SCRIPT_DATA"
+          for script_id in "${script_ids[@]}"; do
+            [ -z "$script_id" ] && continue
             echo "Deploying to script $script_id..."
             response=$(curl -s -w "\n%{http_code}" \
               -X POST "https://api.bunny.net/compute/script/${script_id}/code" \
-              -H "AccessKey: ${api_key}" \
+              -H "AccessKey: ${BUNNY_ACCESS_KEY}" \
               -H "Content-Type: application/json" \
               -d @/tmp/code-payload.json)
             status_code=$(echo "$response" | tail -1)
@@ -52,7 +52,7 @@ jobs:
             echo "  Publishing script $script_id..."
             response=$(curl -s -w "\n%{http_code}" \
               -X POST "https://api.bunny.net/compute/script/${script_id}/publish" \
-              -H "AccessKey: ${api_key}" \
+              -H "AccessKey: ${BUNNY_ACCESS_KEY}" \
               -H "Content-Type: application/json" \
               -d '{}')
             status_code=$(echo "$response" | tail -1)
@@ -64,4 +64,4 @@ jobs:
               echo "   Response: $body"
               exit 1
             fi
-          done <<< "$BUNNY_SCRIPT_DATA"
+          done
