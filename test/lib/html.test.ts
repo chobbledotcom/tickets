@@ -248,6 +248,40 @@ describe("html", () => {
       expect(html).toContain('href="https://mysite.com/t/abc123"');
       expect(html).toContain("abc123");
     });
+
+    test("renders empty date cell for attendee without date on daily event", () => {
+      const dailyEvent = testEventWithCount({ event_type: "daily", attendee_count: 1 });
+      const attendees = [testAttendee({ date: null })];
+      const html = adminEventPage({ event: dailyEvent, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).toContain("<th>Date</th>");
+    });
+
+    test("shows unlimited booking window when maximum_days_after is 0", () => {
+      const dailyEvent = testEventWithCount({ event_type: "daily", maximum_days_after: 0 });
+      const html = adminEventPage({ event: dailyEvent, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).toContain("unlimited");
+    });
+
+    test("shows numeric booking window when maximum_days_after is nonzero", () => {
+      const dailyEvent = testEventWithCount({ event_type: "daily", maximum_days_after: 30 });
+      const html = adminEventPage({ event: dailyEvent, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).toContain("to 30 days");
+      expect(html).not.toContain("unlimited");
+    });
+
+    test("shows danger-text for daily event at capacity with date filter", () => {
+      const dailyEvent = testEventWithCount({ event_type: "daily", attendee_count: 0, max_attendees: 2 });
+      const attendees = [testAttendee(), testAttendee({ id: 2, name: "Jane" })];
+      const html = adminEventPage({
+        event: dailyEvent,
+        attendees,
+        allowedDomain: "localhost",
+        session: TEST_SESSION,
+        dateFilter: "2026-03-15",
+      });
+      expect(html).toContain('class="danger-text"');
+      expect(html).toContain("0 remain");
+    });
   });
 
   describe("ticketPage", () => {
@@ -1171,6 +1205,12 @@ describe("html", () => {
     test("includes Calendar link in admin nav", () => {
       const html = adminCalendarPage([], "localhost", TEST_SESSION, null, []);
       expect(html).toContain('href="/admin/calendar"');
+    });
+
+    test("renders empty string for attendee without email", () => {
+      const attendees = [calendarAttendee({ email: "" })];
+      const html = adminCalendarPage(attendees, "localhost", TEST_SESSION, "2026-03-15", []);
+      expect(html).toContain("John Doe");
     });
 
     test("escapes attendee data", () => {

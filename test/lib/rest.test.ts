@@ -252,6 +252,18 @@ describe("rest/resource", () => {
       const resource = await insertRow(createTestResource(), originalRowData);
       expectResultError("Name is required")(await resource.update(1, new URLSearchParams({ name: "" })));
     });
+
+    test("returns notFound when row deleted between existence check and update", async () => {
+      const resource = await insertRow(createTestResource(), originalRowData);
+      const origUpdate = resource.table.update;
+      resource.table.update = () => Promise.resolve(null);
+      try {
+        const result = await resource.update(1, new URLSearchParams({ name: "Updated", value: "200" }));
+        expectResultNotFound(result);
+      } finally {
+        resource.table.update = origUpdate;
+      }
+    });
   });
 
   describe("delete", () => {
