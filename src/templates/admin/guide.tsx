@@ -476,5 +476,41 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
       </Section>
+
+      <Section title="Customizing Your Site">
+        <Q q="Can I customize this system?">
+          <p>
+            Absolutely. This is open-source software, so you have full control.
+            You can{" "}
+            <a href="https://github.com/chobble-mirror/tickets">
+              grab the code from GitHub
+            </a>{" "}
+            and host it yourself on Bunny Edge Scripting or any compatible
+            platform. The README has deployment instructions to get you started.
+          </p>
+        </Q>
+
+        <Q q="Can you customize it for me?">
+          <p>
+            Yes. I offer customization at a transparent flat rate &mdash; see{" "}
+            <a href="https://chobble.com/prices">chobble.com/prices</a> for
+            current pricing. I can help you with custom features, branding,
+            event image design, hosting setup, or whatever you need. You'll own
+            the code outright, and I can show you how to maintain it yourself or
+            handle updates for you. Over 20 years building web systems means I
+            can usually solve problems quickly and clearly.
+          </p>
+        </Q>
+
+        <Q q="Do you help with hosting and images?">
+          <p>
+            Yes to both. I can set you up on your own Bunny CDN account (or
+            another host) and handle the technical configuration. I also design
+            event images if you need them &mdash; clean, professional graphics
+            that match your brand. Get in touch and we'll figure out exactly
+            what you need.
+          </p>
+        </Q>
+      </Section>
     </Layout>
   );
