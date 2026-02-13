@@ -57,15 +57,30 @@ const STATIC_ASSETS: Record<string, string> = {
   "scanner.js": await Deno.readTextFile("./src/static/scanner.js"),
 };
 
+// Read package versions from deno.json (single source of truth)
+const denoConfig = JSON.parse(await Deno.readTextFile("./deno.json"));
+const imports: Record<string, string> = denoConfig.imports;
+
+/** Extract version from npm specifier, e.g. "npm:stripe@^17.0.0" -> "^17.0.0" */
+function npmVersion(key: string): string {
+  const spec = imports[key];
+  if (!spec) throw new Error(`Missing deno.json import: ${key}`);
+  const match = spec.match(/@([^@]+)$/);
+  if (!match) throw new Error(`Cannot parse version from: ${spec}`);
+  return match[1];
+}
+
 /** Map of bare specifiers to esm.sh CDN URLs for edge runtime */
 const ESM_SH_EXTERNALS: Record<string, string> = {
   "@bunny.net/edgescript-sdk":
-    "https://esm.sh/@bunny.net/edgescript-sdk@0.11.0",
-  "@libsql/client/web": "https://esm.sh/@libsql/client@0.6.0/web",
-  "@libsql/client": "https://esm.sh/@libsql/client@0.6.0/web",
-  "qrcode": "https://esm.sh/qrcode@1.5.0",
-  "stripe": "https://esm.sh/stripe@17.0.0",
-  "square": "https://esm.sh/square@43.0.0",
+    `https://esm.sh/@bunny.net/edgescript-sdk@${npmVersion("@bunny.net/edgescript-sdk")}`,
+  "@libsql/client/web":
+    `https://esm.sh/@libsql/client@${npmVersion("@libsql/client")}/web`,
+  "@libsql/client":
+    `https://esm.sh/@libsql/client@${npmVersion("@libsql/client")}/web`,
+  "qrcode": `https://esm.sh/qrcode@${npmVersion("qrcode")}`,
+  "stripe": `https://esm.sh/stripe@${npmVersion("stripe")}`,
+  "square": `https://esm.sh/square@${npmVersion("square")}`,
 };
 
 /** Rewrite bare package imports to esm.sh URLs and mark them external */
