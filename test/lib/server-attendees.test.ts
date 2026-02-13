@@ -717,6 +717,476 @@ describe("server (admin attendees)", () => {
     });
   });
 
+  describe("GET /admin/attendees/:attendeeId", () => {
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const response = await handleRequest(
+        mockRequest(`/admin/attendees/${attendee.id}`),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns 404 for non-existent attendee", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        "/admin/attendees/999",
+        { cookie },
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("shows edit form with prefilled attendee data", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "John Doe",
+        email: "john@example.com",
+        phone: "555-1234",
+        address: "123 Main St",
+        special_instructions: "VIP guest",
+        quantity: 1,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = result.attendee;
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Edit Attendee");
+      expect(html).toContain("John Doe");
+      expect(html).toContain("john@example.com");
+      expect(html).toContain("555-1234");
+      expect(html).toContain("123 Main St");
+      expect(html).toContain("VIP guest");
+    });
+
+    test("shows event selector with current event selected", async () => {
+      const event = await createTestEvent({ name: "Current Event", maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Current Event");
+      expect(html).toContain(`<option value="${event.id}" selected>`);
+    });
+
+    test("includes active events in selector", async () => {
+      const event1 = await createTestEvent({ name: "Event 1", maxAttendees: 100 });
+      await createTestEvent({ name: "Event 2", maxAttendees: 100, active: 1 });
+      const attendee = await createTestAttendee(event1.id, event1.slug, "John Doe", "john@example.com");
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Event 1");
+      expect(html).toContain("Event 2");
+    });
+  });
+
+  describe("POST /admin/attendees/:attendeeId", () => {
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+
+      const response = await handleRequest(
+        mockFormRequest(`/admin/attendees/${attendee.id}`, {
+          name: "Jane Doe",
+          email: "jane@example.com",
+          phone: "",
+          address: "",
+          special_instructions: "",
+          event_id: String(event.id),
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns 404 for non-existent attendee", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/attendees/999",
+          {
+            name: "Jane Doe",
+            email: "jane@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "Jane Doe",
+            email: "jane@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            csrf_token: "invalid-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid CSRF token");
+    });
+
+    test("rejects empty name", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "",
+            email: "jane@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Name is required");
+    });
+
+    test("rejects whitespace-only name", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "   ",
+            email: "jane@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Name is required");
+    });
+
+    test("rejects missing event_id", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "Jane Doe",
+            email: "jane@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: "0",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Event is required");
+    });
+
+    test("updates attendee with new data", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "Jane Doe",
+            email: "jane@example.com",
+            phone: "555-9999",
+            address: "456 Oak Ave",
+            special_instructions: "Wheelchair access",
+            event_id: String(event.id),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?edited=Jane%20Doe#attendees`);
+
+      // Verify the edit form shows the updated data
+      const editResponse = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      expect(editResponse.status).toBe(200);
+      const html = await editResponse.text();
+      expect(html).toContain("Jane Doe");
+      expect(html).toContain("jane@example.com");
+      expect(html).toContain("555-9999");
+      expect(html).toContain("456 Oak Ave");
+      expect(html).toContain("Wheelchair access");
+    });
+
+    test("allows moving attendee to different event", async () => {
+      const event1 = await createTestEvent({ name: "Event 1", maxAttendees: 100 });
+      const event2 = await createTestEvent({ name: "Event 2", maxAttendees: 100 });
+      const attendee = await createTestAttendee(event1.id, event1.slug, "John Doe", "john@example.com");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event2.id),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`/admin/event/${event2.id}?edited=John%20Doe#attendees`);
+
+      // Verify attendee was moved to event2 by checking the raw attendee data
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const updated = await getAttendeeRaw(attendee.id);
+      expect(updated).not.toBeNull();
+      expect(updated!.event_id).toBe(event2.id);
+    });
+
+    test("event page shows edit success message", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?edited=Jane%20Doe`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Updated Jane Doe");
+    });
+
+    test("attendee table shows edit link", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain(`/admin/attendees/${attendee.id}`);
+      expect(html).toContain("Edit");
+    });
+
+    test("shows current event and active events in selector", async () => {
+      const event1 = await createTestEvent({ name: "Event 1", maxAttendees: 100, active: 1 });
+      await createTestEvent({ name: "Event 2", maxAttendees: 100, active: 1 });
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        eventId: event1.id,
+        name: "John Doe",
+        email: "john@example.com",
+        quantity: 1,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = result.attendee;
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Event 1");
+      expect(html).toContain("Event 2");
+      expect(html).toContain(`<option value="${event1.id}" selected>`);
+    });
+
+    test("shows edit form with empty email field", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "John Doe",
+        email: "",
+        quantity: 1,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = result.attendee;
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('type="email"');
+      expect(html).toContain('name="email"');
+    });
+
+    test("shows inactive event label in selector", async () => {
+      const inactiveEvent = await createTestEvent({ name: "Inactive Event", maxAttendees: 100 });
+
+      // Manually set event to inactive
+      const { getDb } = await import("#lib/db/client.ts");
+      await getDb().execute({
+        sql: "UPDATE events SET active = 0 WHERE id = ?",
+        args: [inactiveEvent.id],
+      });
+
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        eventId: inactiveEvent.id,
+        name: "John Doe",
+        email: "john@example.com",
+        quantity: 1,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = result.attendee;
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Inactive Event");
+      expect(html).toContain("(inactive)");
+    });
+
+    test("updates attendee with empty email", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "John Doe",
+        email: "john@example.com",
+        quantity: 1,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = result.attendee;
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+    });
+
+    test("updates attendee with all non-empty fields", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "John Doe",
+        email: "john@example.com",
+        phone: "555-1234",
+        address: "123 Main St",
+        special_instructions: "VIP",
+        quantity: 1,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = result.attendee;
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "Jane Smith",
+            email: "jane@example.com",
+            phone: "555-9999",
+            address: "456 Oak Ave",
+            special_instructions: "Special access needed",
+            event_id: String(event.id),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?edited=Jane%20Smith#attendees`);
+    });
+  });
+
   describe("GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });

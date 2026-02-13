@@ -407,3 +407,43 @@ export const updateCheckedIn = async (
     args: [encryptedValue, attendeeId],
   });
 };
+
+/** Input for updating an attendee */
+export type UpdateAttendeeInput = {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  special_instructions: string;
+  event_id: number;
+};
+
+/**
+ * Update an attendee's information (encrypted fields)
+ * Caller must be authenticated admin (public key always exists after setup)
+ */
+export const updateAttendee = async (
+  attendeeId: number,
+  input: UpdateAttendeeInput,
+): Promise<void> => {
+  const publicKeyJwk = (await getPublicKey())!;
+
+  const encryptedName = await encryptAttendeePII(input.name, publicKeyJwk);
+  const encryptedEmail = input.email
+    ? await encryptAttendeePII(input.email, publicKeyJwk)
+    : "";
+  const encryptedPhone = input.phone
+    ? await encryptAttendeePII(input.phone, publicKeyJwk)
+    : "";
+  const encryptedAddress = input.address
+    ? await encryptAttendeePII(input.address, publicKeyJwk)
+    : "";
+  const encryptedSpecialInstructions = input.special_instructions
+    ? await encryptAttendeePII(input.special_instructions, publicKeyJwk)
+    : "";
+
+  await getDb().execute({
+    sql: "UPDATE attendees SET name = ?, email = ?, phone = ?, address = ?, special_instructions = ?, event_id = ? WHERE id = ?",
+    args: [encryptedName, encryptedEmail, encryptedPhone, encryptedAddress, encryptedSpecialInstructions, input.event_id, attendeeId],
+  });
+};
