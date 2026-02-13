@@ -28,7 +28,7 @@ export type EventFormValues = {
   max_attendees: number;
   max_quantity: number;
   fields: EventFields | "";
-  unit_price: number | null;
+  unit_price: string;
   closes_at: string;
   thank_you_url: string;
   webhook_url: string;
@@ -328,9 +328,8 @@ export const eventFields: Field[] = [
   {
     name: "unit_price",
     label: "Ticket Price (leave empty for free)",
-    type: "number",
-    min: 0,
-    step: 0.01,
+    type: "text",
+    inputmode: "decimal",
     placeholder: "e.g. 10.00",
     validate: validateNonNegativePrice,
   },

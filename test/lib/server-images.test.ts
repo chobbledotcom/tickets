@@ -11,6 +11,7 @@ import {
   updateTestEvent,
 } from "#test-utils";
 import { encryptBytes } from "#lib/crypto.ts";
+import { toMajorUnits } from "#lib/currency.ts";
 import { eventsTable, getEventWithCount } from "#lib/db/events.ts";
 
 /** JPEG magic bytes for a valid test image */
@@ -71,7 +72,7 @@ const editFormData = async (eventId: number, csrfToken: string): Promise<Record<
     max_quantity: String(event.max_quantity),
     fields: event.fields || "email",
     thank_you_url: event.thank_you_url ?? "",
-    unit_price: event.unit_price != null ? String(event.unit_price) : "",
+    unit_price: event.unit_price != null ? toMajorUnits(event.unit_price) : "",
     webhook_url: event.webhook_url ?? "",
     closes_at_date: "",
     closes_at_time: "",

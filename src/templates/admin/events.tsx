@@ -424,7 +424,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   minimum_days_before: event.minimum_days_before,
   maximum_days_after: event.maximum_days_after,
   fields: event.fields,
-  unit_price: event.unit_price !== null ? toMajorUnits(event.unit_price) : null,
+  unit_price: event.unit_price !== null ? toMajorUnits(event.unit_price) : "",
   closes_at: formatDatetimeLocal(event.closes_at),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,

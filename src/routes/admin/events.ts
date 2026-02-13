@@ -92,7 +92,7 @@ const extractCommonFields = (values: EventFormValues) => {
     location: values.location,
     maxAttendees: values.max_attendees,
     thankYouUrl: values.thank_you_url || null,
-    unitPrice: values.unit_price !== null ? toMinorUnits(values.unit_price) : null,
+    unitPrice: values.unit_price ? toMinorUnits(Number.parseFloat(values.unit_price)) : null,
     maxQuantity: values.max_quantity,
     webhookUrl: values.webhook_url || null,
     fields: values.fields || "email",
