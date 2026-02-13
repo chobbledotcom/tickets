@@ -104,6 +104,10 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
         <a href={`/admin/event/${eventId}/attendee/${a.id}/delete`} class="danger">
           Delete
         </a>
+        {" "}
+        <a href={`/admin/event/${eventId}/attendee/${a.id}/resend-webhook`}>
+          Re-send Webhook
+        </a>
       </td>
     </tr>
   );

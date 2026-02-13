@@ -247,3 +247,54 @@ export const adminEditAttendeePage = (
         </form>
     </Layout>
   );
+
+/**
+ * Admin re-send webhook confirmation page
+ */
+export const adminResendWebhookPage = (
+  event: EventWithCount,
+  attendee: Attendee,
+  session: AdminSession,
+  error?: string,
+): string =>
+  String(
+    <Layout title={`Re-send Webhook: ${attendee.name}`}>
+      <AdminNav session={session} />
+        {error && <div class="error">{error}</div>}
+
+        <article>
+          <aside>
+            <p><strong>Note:</strong> This will re-send the registration webhook for this attendee to all configured webhook URLs.</p>
+          </aside>
+        </article>
+
+        <article>
+          <h2>Attendee Details</h2>
+          <p><strong>Name:</strong> {attendee.name}</p>
+          <p><strong>Email:</strong> {attendee.email}</p>
+          <p><strong>Quantity:</strong> {attendee.quantity}</p>
+          {attendee.price_paid && (
+            <p><strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}</p>
+          )}
+          <p><strong>Registered:</strong> {new Date(attendee.created).toLocaleString()}</p>
+        </article>
+
+        <p>To re-send the webhook for this attendee, you must type their name "{attendee.name}" into the box below:</p>
+
+        <form method="POST" action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`}>
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          <label for="confirm_name">Attendee name</label>
+          <input
+            type="text"
+            id="confirm_name"
+            name="confirm_name"
+            placeholder={attendee.name}
+            autocomplete="off"
+            required
+          />
+          <button type="submit">
+            Re-send Webhook
+          </button>
+        </form>
+    </Layout>
+  );
