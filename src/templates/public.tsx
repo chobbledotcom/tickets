@@ -91,7 +91,7 @@ export const ticketPage = (
       ) : isFull ? (
           <div class="error">Sorry, this event is full.</div>
       ) : (
-          <form method="POST" action={`/ticket/${event.slug}`}>
+          <form method="POST" action={`/ticket/${event.slug}${iframe ? "?iframe=true" : ""}`}>
             <input type="hidden" name="csrf_token" value={csrfToken} />
             <Raw html={renderFields(fields)} />
             {isDaily && availableDates && (
