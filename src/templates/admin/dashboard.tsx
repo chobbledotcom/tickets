@@ -3,11 +3,10 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
-import { buildEmbedTemplate, EMBED_URL_PLACEHOLDER } from "#lib/embed.ts";
 import { renderFields } from "#lib/forms.tsx";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { eventFields, mergeEventFields } from "#templates/fields.ts";
+import { eventFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { renderEventImage } from "#templates/public.tsx";
@@ -33,7 +32,7 @@ const MultiBookingCheckbox = ({ e }: { e: EventWithCount }): string =>
   String(
     <li>
       <label>
-        <input type="checkbox" data-multi-booking-slug={e.slug} />
+        <input type="checkbox" data-multi-booking-slug={e.slug} data-fields={e.fields} />
         {` ${e.name}`}
       </label>
     </li>
@@ -48,11 +47,6 @@ const multiBookingSection = (
     map((e: EventWithCount) => MultiBookingCheckbox({ e })),
     joinStrings,
   )(activeEvents);
-
-  const mergedFields = mergeEventFields(
-    map((e: EventWithCount) => e.fields)(activeEvents),
-  );
-  const embedTemplate = buildEmbedTemplate(mergedFields);
 
   return String(
     <details>
@@ -78,8 +72,6 @@ const multiBookingSection = (
         readonly
         data-select-on-click
         data-multi-booking-embed
-        data-embed-template={embedTemplate}
-        data-embed-placeholder={EMBED_URL_PLACEHOLDER}
         placeholder="Select two or more events"
       />
     </details>

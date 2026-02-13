@@ -22,15 +22,8 @@ export const computeIframeHeight = (fields: EventFields): string => {
   return `${BASE_HEIGHT + inputs * INPUT_HEIGHT + textareas * TEXTAREA_HEIGHT}rem`;
 };
 
-/** Placeholder used in embed code templates so the client can swap in the real URL */
-export const EMBED_URL_PLACEHOLDER = "EMBED_URL";
-
 /** Build a complete iframe embed code snippet for a ticket URL */
-export const buildEmbedCode = (url: string, fields: EventFields): string =>
-  buildEmbedTemplate(fields).replace(EMBED_URL_PLACEHOLDER, url);
-
-/** Build an embed code template with a placeholder URL (for client-side URL substitution) */
-export const buildEmbedTemplate = (fields: EventFields): string => {
+export const buildEmbedCode = (url: string, fields: EventFields): string => {
   const height = computeIframeHeight(fields);
-  return `<iframe src="${EMBED_URL_PLACEHOLDER}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${height}">Loading..</iframe>`;
+  return `<iframe src="${url}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${height}">Loading..</iframe>`;
 };
