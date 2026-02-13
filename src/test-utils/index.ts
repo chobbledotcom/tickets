@@ -876,37 +876,6 @@ export const createTestAttendee = async (
  */
 export { getAttendeesRaw };
 
-/**
- * Get the plaintext ticket token from a raw (encrypted) attendee
- * This is a test utility for decrypting tokens to use in lookups
- */
-export const getPlaintextTokenFromAttendee = async (attendee: Attendee): Promise<string> => {
-  const { cookie } = await getTestSession();
-  const { extractSessionTokenFromCookie } = await import("#lib/session-cookie.ts");
-  const sessionToken = extractSessionTokenFromCookie(cookie);
-  if (!sessionToken) throw new Error("Failed to get session token");
-
-  const { getSession } = await import("#lib/db/sessions.ts");
-  const session = await getSession(sessionToken);
-  if (!session || !session.wrapped_data_key) {
-    throw new Error("Failed to get session with wrapped data key");
-  }
-
-  const { getWrappedPrivateKey } = await import("#lib/db/settings.ts");
-  const wrappedPrivateKey = await getWrappedPrivateKey();
-  if (!wrappedPrivateKey) throw new Error("Failed to get wrapped private key");
-
-  const { getPrivateKeyFromSession } = await import("#lib/crypto.ts");
-  const privateKey = await getPrivateKeyFromSession(
-    sessionToken,
-    session.wrapped_data_key,
-    wrappedPrivateKey,
-  );
-
-  const { decryptAttendeePII } = await import("#lib/crypto.ts");
-  return await decryptAttendeePII(attendee.ticket_token, privateKey);
-};
-
 // ---------------------------------------------------------------------------
 // FP-style curried assertion helpers
 // These are data-last / pipe-compatible helpers for common test assertions.
