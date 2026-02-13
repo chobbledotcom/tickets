@@ -147,7 +147,7 @@ describe("currency", () => {
       expect(code).toBe("USD");
     });
 
-    test("caches the result on subsequent calls", async () => {
+    test("returns consistent result on subsequent calls", async () => {
       const first = await loadCurrencyCode();
       const second = await loadCurrencyCode();
       expect(first).toBe("USD");

@@ -2,29 +2,25 @@
  * Currency formatting utilities
  *
  * Uses Intl.NumberFormat to format prices with correct decimal places
- * and currency symbols. The currency code is loaded once from the
- * database and cached permanently (it's a sitewide setting).
+ * and currency symbols. The currency code is loaded from settings
+ * (already cached by the settings module) and stored for sync access
+ * by JSX templates.
  */
 
-import { lazyRef } from "#fp";
 import { getCurrencyCode } from "#lib/config.ts";
 
-const [getCachedCode, setCachedCode] = lazyRef<string | null>(() => null);
+/** Sync-accessible currency code, populated by loadCurrencyCode() */
+const state = { code: "GBP" };
 
 /**
- * Load currency code from database and cache permanently.
- * Safe to call multiple times — only the first call hits the DB.
+ * Load currency code from settings into sync-accessible state.
+ * Called once per request in routes/index.ts before templates render.
+ * Settings are already cached so this is cheap on repeat calls.
  */
 export const loadCurrencyCode = async (): Promise<string> => {
-  const cached = getCachedCode();
-  if (cached !== null) return cached;
-  const code = await getCurrencyCode();
-  setCachedCode(code);
-  return code;
+  state.code = await getCurrencyCode();
+  return state.code;
 };
-
-/** Get the cached currency code, falling back to GBP if not yet loaded */
-const code = (): string => getCachedCode() ?? "GBP";
 
 /** Get the number of decimal places for a currency code */
 export const getDecimalPlaces = (currencyCode: string): number =>
@@ -36,10 +32,9 @@ export const getDecimalPlaces = (currencyCode: string): number =>
  * e.g. formatCurrency(1050) → "£10.50" (when currency is GBP)
  */
 export const formatCurrency = (minorUnits: number | string): string => {
-  const c = code();
-  const places = getDecimalPlaces(c);
+  const places = getDecimalPlaces(state.code);
   const divisor = 10 ** places;
-  return new Intl.NumberFormat("en", { style: "currency", currency: c })
+  return new Intl.NumberFormat("en", { style: "currency", currency: state.code })
     .format(Number(minorUnits) / divisor);
 };
 
@@ -48,7 +43,7 @@ export const formatCurrency = (minorUnits: number | string): string => {
  * e.g. toMinorUnits(10.50) → 1050 (for GBP)
  */
 export const toMinorUnits = (majorUnits: number): number => {
-  const places = getDecimalPlaces(code());
+  const places = getDecimalPlaces(state.code);
   return Math.round(majorUnits * (10 ** places));
 };
 
@@ -57,17 +52,16 @@ export const toMinorUnits = (majorUnits: number): number => {
  * e.g. toMajorUnits(1050) → "10.50" (for GBP)
  */
 export const toMajorUnits = (minorUnits: number): string => {
-  const c = code();
-  const places = getDecimalPlaces(c);
+  const places = getDecimalPlaces(state.code);
   return (minorUnits / (10 ** places)).toFixed(places);
 };
 
-/** For testing: set the cached currency code directly */
+/** For testing: set the currency code directly */
 export const setCurrencyCodeForTest = (c: string): void => {
-  setCachedCode(c);
+  state.code = c;
 };
 
-/** For testing: reset the cached currency code */
+/** For testing: reset the currency code to default */
 export const resetCurrencyCode = (): void => {
-  setCachedCode(null);
+  state.code = "GBP";
 };
