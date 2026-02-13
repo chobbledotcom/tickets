@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "encrypt attendee PII fields and ticket_token with HMAC index";
+export const LATEST_UPDATE = "fix attendee records with invalid empty string values in hybrid-encrypted fields";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -356,6 +356,55 @@ export const initDb = async (): Promise<void> => {
           sql: `UPDATE attendees SET ticket_token = ?, ticket_token_index = ? WHERE id = ?`,
           args: [encryptedToken, tokenIndex, attendee.id],
         });
+      }
+    }
+  }
+
+  // Migration: fix attendee records with invalid empty string values in hybrid-encrypted fields
+  // Some records may have '' instead of properly encrypted values, causing "Invalid hybrid encrypted data format" errors
+  // Note: ticket_token empty strings are already handled by earlier migrations
+  {
+    const pubKey = await getPublicKey();
+    if (pubKey) {
+      // Get all attendees with empty strings in hybrid-encrypted fields (excluding ticket_token)
+      const invalidAttendees = await queryAll<{ id: number; name: string; email: string; phone: string; address: string; special_instructions: string; checked_in: string }>(
+        `SELECT id, name, email, phone, address, special_instructions, checked_in
+         FROM attendees
+         WHERE name = '' OR email = '' OR phone = '' OR address = '' OR special_instructions = '' OR checked_in = ''`
+      );
+
+      for (const attendee of invalidAttendees) {
+        // Encrypt empty strings for each field that has an empty value
+        const updates: { field: string; value: string }[] = [];
+
+        if (attendee.name === '') {
+          updates.push({ field: 'name', value: await encryptAttendeePII('', pubKey) });
+        }
+        if (attendee.email === '') {
+          updates.push({ field: 'email', value: await encryptAttendeePII('', pubKey) });
+        }
+        if (attendee.phone === '') {
+          updates.push({ field: 'phone', value: await encryptAttendeePII('', pubKey) });
+        }
+        if (attendee.address === '') {
+          updates.push({ field: 'address', value: await encryptAttendeePII('', pubKey) });
+        }
+        if (attendee.special_instructions === '') {
+          updates.push({ field: 'special_instructions', value: await encryptAttendeePII('', pubKey) });
+        }
+        if (attendee.checked_in === '') {
+          updates.push({ field: 'checked_in', value: await encryptAttendeePII('false', pubKey) });
+        }
+
+        // Apply all updates for this attendee
+        if (updates.length > 0) {
+          const setClause = updates.map(u => `${u.field} = ?`).join(', ');
+          const values = updates.map(u => u.value);
+          await getDb().execute({
+            sql: `UPDATE attendees SET ${setClause} WHERE id = ?`,
+            args: [...values, attendee.id],
+          });
+        }
       }
     }
   }
