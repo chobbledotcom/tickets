@@ -14,7 +14,7 @@ import {
 } from "#lib/crypto.ts";
 import { getDb, queryAll, queryOne } from "#lib/db/client.ts";
 import { now } from "#lib/now.ts";
-import type { AdminLevel, User } from "#lib/types.ts";
+import { isAdminLevel, type AdminLevel, type User } from "#lib/types.ts";
 
 /** Shared user creation logic */
 const insertUser = async (opts: {
@@ -138,7 +138,10 @@ export const verifyUserPassword = async (
  */
 export const decryptAdminLevel = async (user: User): Promise<AdminLevel> => {
   const level = await decrypt(user.admin_level);
-  return level as AdminLevel;
+  if (!isAdminLevel(level)) {
+    throw new Error(`Invalid admin level: ${level}`);
+  }
+  return level;
 };
 
 /**

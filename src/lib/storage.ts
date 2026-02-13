@@ -139,9 +139,7 @@ export const uploadImage = async (
       controller.close();
     },
   });
-  // SDK types expect Node's ReadableStream, but Deno's global ReadableStream works at runtime
-  // deno-lint-ignore no-explicit-any
-  await BunnyStorageSDK.file.upload(sz, `/${filename}`, stream as any, {
+  await BunnyStorageSDK.file.upload(sz, `/${filename}`, stream, {
     contentType: "application/octet-stream",
   });
   return filename;

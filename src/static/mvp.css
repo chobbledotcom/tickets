@@ -936,3 +936,62 @@ button.secondary:hover {
     --color-secondary-hover: #aaa;
   }
 }
+
+/* Ticket slider */
+.ticket-slider {
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 1rem 0;
+  margin: 2rem 0;
+}
+
+.ticket-card {
+  flex: 0 0 auto;
+  width: min(25rem, 100%);
+  padding: 0.5rem;
+  border-radius: var(--border-radius);
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
+  scroll-snap-align: start;
+  background: var(--color-bg);
+  border: 1px solid var(--color-bg-secondary);
+}
+
+.ticket-card-name {
+  font-weight: bold;
+  font-size: 1.1em;
+  margin-bottom: 0.5rem;
+}
+
+.ticket-card-date {
+  font-style: italic;
+  margin-bottom: 0.25rem;
+  color: var(--color-text-secondary);
+}
+
+.ticket-card-location {
+  margin-bottom: 0.25rem;
+}
+
+.ticket-card-quantity {
+  margin-bottom: 0.5rem;
+}
+
+.ticket-card-qr {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.ticket-card-qr svg {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[color-mode="user"] .ticket-card {
+    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+  }
+}

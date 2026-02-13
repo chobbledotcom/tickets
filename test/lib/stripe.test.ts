@@ -1548,6 +1548,61 @@ describe("stripe-provider", () => {
       }
     });
 
+    test("returns null when amount_total is null", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: "cs_null_amount",
+        payment_status: "paid",
+        payment_intent: "pi_null_amount",
+        amount_total: null,
+        metadata: {
+          name: "Null Amount User",
+          email: "nullamount@example.com",
+          event_id: "1",
+          quantity: "1",
+        },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_null_amount");
+        expect(result).toBeNull();
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
+
+    test("falls back to unpaid for invalid payment_status", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
+      retrieveSpy.mockResolvedValue({
+        id: "cs_bad_status",
+        payment_status: "completed",
+        payment_intent: "pi_bad_status",
+        amount_total: 1000,
+        metadata: {
+          name: "Bad Status User",
+          email: "badstatus@example.com",
+          event_id: "1",
+          quantity: "1",
+        },
+      } as never);
+
+      try {
+        const result = await stripePaymentProvider.retrieveSession("cs_bad_status");
+        expect(result).not.toBeNull();
+        expect(result?.paymentStatus).toBe("unpaid");
+      } finally {
+        retrieveSpy.mockRestore();
+      }
+    });
+
     test("casts amount_total to number", async () => {
       await updateStripeKey("sk_test_mock");
       const client = await getStripeClient();

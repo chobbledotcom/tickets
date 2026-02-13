@@ -3,15 +3,29 @@ import {
   buildMultiIntentMetadata,
   buildSingleIntentMetadata,
   createWithClient,
+  errorMessage,
   extractSessionMetadata,
   hasRequiredSessionMetadata,
   safeAsync,
   serializeMultiItems,
   toCheckoutResult,
 } from "#lib/payment-helpers.ts";
+import { isPaymentStatus } from "#lib/payments.ts";
 import { ErrorCode } from "#lib/logger.ts";
 
 describe("payment-helpers", () => {
+  describe("errorMessage", () => {
+    test("returns message from Error instance", () => {
+      expect(errorMessage(new Error("something broke"))).toBe("something broke");
+    });
+
+    test("returns 'Unknown error' for non-Error values", () => {
+      expect(errorMessage("string error")).toBe("Unknown error");
+      expect(errorMessage(42)).toBe("Unknown error");
+      expect(errorMessage(null)).toBe("Unknown error");
+    });
+  });
+
   describe("safeAsync", () => {
     test("returns the resolved value on success", async () => {
       const result = await safeAsync(
@@ -445,6 +459,28 @@ describe("payment-helpers", () => {
         items: "[]",
       };
       expect(hasRequiredSessionMetadata(metadata)).toBe(false);
+    });
+  });
+
+  describe("isPaymentStatus", () => {
+    test("returns true for 'paid'", () => {
+      expect(isPaymentStatus("paid")).toBe(true);
+    });
+
+    test("returns true for 'unpaid'", () => {
+      expect(isPaymentStatus("unpaid")).toBe(true);
+    });
+
+    test("returns true for 'no_payment_required'", () => {
+      expect(isPaymentStatus("no_payment_required")).toBe(true);
+    });
+
+    test("returns false for invalid status string", () => {
+      expect(isPaymentStatus("completed")).toBe(false);
+    });
+
+    test("returns false for empty string", () => {
+      expect(isPaymentStatus("")).toBe(false);
     });
   });
 

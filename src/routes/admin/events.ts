@@ -143,8 +143,9 @@ const processFormImage = async (
   existingImageUrl?: string,
 ): Promise<string | null> => {
   if (!isStorageEnabled()) return null;
-  const file = formData.get("image") as File | null;
-  if (!file || file.size === 0) return null;
+  const entry = formData.get("image");
+  if (!(entry instanceof File) || entry.size === 0) return null;
+  const file = entry;
 
   const data = new Uint8Array(await file.arrayBuffer());
   const validation = validateImage(data, file.type);

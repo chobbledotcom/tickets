@@ -5,7 +5,7 @@
 import { DAY_NAMES } from "#lib/dates.ts";
 import { isValidDatetime } from "#lib/timezone.ts";
 import type { Field } from "#lib/forms.tsx";
-import { CONTACT_FIELDS, type AdminLevel, type ContactField, type EventFields, type EventType } from "#lib/types.ts";
+import { isContactField, isEventType, type AdminLevel, type ContactField, type EventFields, type EventType } from "#lib/types.ts";
 import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 
@@ -182,19 +182,16 @@ export const loginFields: Field[] = [
 const validateEventFields = (value: string): string | null => {
   const parts = value.split(",").map((v) => v.trim()).filter((v) => v);
   for (const part of parts) {
-    if (!(CONTACT_FIELDS as readonly string[]).includes(part)) {
+    if (!isContactField(part)) {
       return `Invalid contact field: ${part}`;
     }
   }
   return null;
 };
 
-/** Valid event type values */
-const VALID_EVENT_TYPES: EventType[] = ["standard", "daily"];
-
 /** Validate event type setting */
 const validateEventType = (value: string): string | null => {
-  if (!VALID_EVENT_TYPES.includes(value as EventType)) {
+  if (!isEventType(value)) {
     return "Event Type must be standard or daily";
   }
   return null;
@@ -203,12 +200,16 @@ const validateEventType = (value: string): string | null => {
 /** Valid day names for bookable_days (Monday-first for display) */
 export const VALID_DAY_NAMES = [...DAY_NAMES.slice(1), DAY_NAMES[0]!];
 
+/** Check if a string is a valid day name */
+const isValidDayName = (s: string): boolean =>
+  (VALID_DAY_NAMES as readonly string[]).includes(s);
+
 /** Validate bookable days (comma-separated day names) */
 export const validateBookableDays = (value: string): string | null => {
   const days = value.split(",").map((d) => d.trim()).filter((d) => d);
   if (days.length === 0) return "At least one day is required";
   for (const day of days) {
-    if (!(VALID_DAY_NAMES as readonly string[]).includes(day)) {
+    if (!isValidDayName(day)) {
       return `Invalid day: ${day}. Use: ${VALID_DAY_NAMES.join(", ")}`;
     }
   }

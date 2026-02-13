@@ -151,7 +151,7 @@ export const memoize = <T extends (...args: Parameters<T>) => ReturnType<T>>(
   return ((...args: Parameters<T>): ReturnType<T> => {
     const key = JSON.stringify(args);
     if (cache.has(key)) {
-      return cache.get(key) as ReturnType<T>;
+      return cache.get(key)!;
     }
     const result = fn(...args);
     cache.set(key, result);

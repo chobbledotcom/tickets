@@ -1039,6 +1039,27 @@ describe("server (multi-user admin)", () => {
       expect(valid).toBe(false);
     });
 
+    test("decryptAdminLevel throws when admin_level decrypts to invalid value", async () => {
+      const { hmacHash } = await import("#lib/crypto.ts");
+      const usernameIdx = await hmacHash("badlevel-user");
+      await getDb().execute({
+        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          await encrypt("badlevel-user"),
+          usernameIdx,
+          "",
+          null,
+          await encrypt("superadmin"),
+          null,
+          null,
+        ],
+      });
+
+      const user = await getUserByUsername("badlevel-user");
+      await expect(decryptAdminLevel(user!)).rejects.toThrow("Invalid admin level");
+    });
+
     test("isInviteValid returns false when invite_expiry decrypts to empty string", async () => {
       const { hmacHash } = await import("#lib/crypto.ts");
       const usernameIdx = await hmacHash("empty-expiry-user");
