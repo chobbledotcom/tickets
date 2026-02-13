@@ -63,6 +63,8 @@ import {
   getPublicKey,
   getSetting,
   getStripeSecretKeyFromDb,
+  getTimezoneCached,
+  getTimezoneFromDb,
   getWrappedPrivateKey,
   hasStripeKey,
   invalidateSettingsCache,
@@ -70,6 +72,7 @@ import {
   setPaymentProvider,
   setSetting,
   updateStripeKey,
+  updateTimezone,
 } from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import { deriveKEK, unwrapKey } from "#lib/crypto.ts";
@@ -1966,6 +1969,53 @@ describe("db", () => {
     });
   });
 
+  describe("timezone cache", () => {
+    test("getTimezoneCached returns default when no cache exists", () => {
+      invalidateSettingsCache();
+      expect(getTimezoneCached()).toBe("Europe/London");
+    });
+
+    test("getTimezoneFromDb returns default when no timezone is stored", async () => {
+      // Remove the timezone setting that createTestDbWithSetup inserted
+      await getDb().execute({ sql: "DELETE FROM settings WHERE key = ?", args: [CONFIG_KEYS.TIMEZONE] });
+      invalidateSettingsCache();
+      const value = await getTimezoneFromDb();
+      expect(value).toBe("Europe/London");
+    });
+
+    test("getTimezoneCached reads default from TTL cache when no timezone is stored", async () => {
+      // Remove the timezone setting that createTestDbWithSetup inserted
+      await getDb().execute({ sql: "DELETE FROM settings WHERE key = ?", args: [CONFIG_KEYS.TIMEZONE] });
+      invalidateSettingsCache();
+      // Load the settings cache (without timezone key)
+      await getSetting(CONFIG_KEYS.TIMEZONE);
+      // Permanent cache should not be set, so it reads from TTL cache
+      // TTL cache has no timezone key → falls back to default
+      expect(getTimezoneCached()).toBe("Europe/London");
+    });
+
+    test("getTimezoneCached returns value after getTimezoneFromDb populates cache", async () => {
+      await updateTimezone("America/New_York");
+      invalidateSettingsCache();
+      const value = await getTimezoneFromDb();
+      expect(value).toBe("America/New_York");
+      expect(getTimezoneCached()).toBe("America/New_York");
+    });
+
+    test("getTimezoneCached reads from TTL cache when permanent cache is empty", async () => {
+      await updateTimezone("Asia/Tokyo");
+      invalidateSettingsCache();
+      // Force TTL cache to load by calling getSetting
+      await getSetting(CONFIG_KEYS.TIMEZONE);
+      expect(getTimezoneCached()).toBe("Asia/Tokyo");
+    });
+
+    test("updateTimezone updates the permanent cache immediately", async () => {
+      await updateTimezone("Pacific/Auckland");
+      expect(getTimezoneCached()).toBe("Pacific/Auckland");
+    });
+  });
+
   describe("table utilities - non-generated primary key", () => {
     test("insert with non-generated primary key uses empty initial row", async () => {
       const { col, defineTable } = await import("#lib/db/table.ts");
@@ -2204,11 +2254,11 @@ describe("db", () => {
       expect(decrypted).toBe("");
     });
 
-    test("normalizes datetime-local format to full ISO", async () => {
+    test("encrypts datetime-local string as-is (normalization happens upstream)", async () => {
       const { decrypt } = await import("#lib/crypto.ts");
       const result = await writeClosesAt("2099-06-15T14:30");
       const decrypted = await decrypt(result as unknown as string);
-      expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
+      expect(decrypted).toBe("2099-06-15T14:30");
     });
 
     test("handles already-normalized ISO string", async () => {
@@ -2216,10 +2266,6 @@ describe("db", () => {
       const result = await writeClosesAt("2099-06-15T14:30:00.000Z");
       const decrypted = await decrypt(result as unknown as string);
       expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
-    });
-
-    test("throws on invalid datetime string", async () => {
-      await expect(writeClosesAt("not-a-date")).rejects.toThrow("Invalid closes_at");
     });
   });
 
@@ -2233,11 +2279,11 @@ describe("db", () => {
       expect(decrypted).toBe("");
     });
 
-    test("normalizes datetime-local format to full ISO", async () => {
+    test("encrypts datetime-local string as-is (normalization happens upstream)", async () => {
       const { decrypt } = await import("#lib/crypto.ts");
       const result = await writeEventDate("2026-06-15T14:00");
       const decrypted = await decrypt(result);
-      expect(decrypted).toBe("2026-06-15T14:00:00.000Z");
+      expect(decrypted).toBe("2026-06-15T14:00");
     });
 
     test("handles already-normalized ISO string", async () => {
@@ -2245,10 +2291,6 @@ describe("db", () => {
       const result = await writeEventDate("2026-06-15T14:00:00.000Z");
       const decrypted = await decrypt(result);
       expect(decrypted).toBe("2026-06-15T14:00:00.000Z");
-    });
-
-    test("throws on invalid datetime string", async () => {
-      await expect(writeEventDate("not-a-date")).rejects.toThrow("Invalid date");
     });
   });
 

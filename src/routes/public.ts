@@ -3,7 +3,7 @@
  */
 
 import { compact, filter, map, pipe, reduce } from "#fp";
-import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
+import { getCurrencyCode, getTz, isPaymentsEnabled } from "#lib/config.ts";
 import { getTermsAndConditionsFromDb } from "#lib/db/settings.ts";
 import { getAvailableDates } from "#lib/dates.ts";
 import { checkBatchAvailability, createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
@@ -70,7 +70,7 @@ const ticketCsrfPath = (slug: string): string => `/ticket/${slug}`;
 
 /** Ticket response with CSRF cookie */
 const ticketResponseWithCookie = makeCsrfResponseBuilder(
-  (event: EventWithCount, _isClosed: boolean, _iframe: boolean, _dates?: string[], _terms?: string | null) => ticketCsrfPath(event.slug),
+  (event: EventWithCount, _isClosed: boolean, _iframe: boolean, _dates: string[] | undefined, _terms: string | null | undefined) => ticketCsrfPath(event.slug),
   (token, error, event, isClosed, iframe, dates, terms) => ticketPage(event, token, error, isClosed, iframe, dates, terms),
 );
 
@@ -89,7 +89,7 @@ const validationErrorResponder = <Args extends unknown[]>(
 
 /** Ticket response without cookie - for validation errors after CSRF passed */
 const ticketResponse = validationErrorResponder(
-  (error: string, event: EventWithCount, token: string, dates?: string[], terms?: string | null) =>
+  (error: string, event: EventWithCount, token: string, dates: string[] | undefined, terms: string | null | undefined) =>
     ticketPage(event, token, error, false, false, dates, terms),
 );
 
@@ -101,10 +101,11 @@ const isIframeRequest = (url: string): boolean =>
  * Handle GET /ticket/:slug
  */
 /** Compute available dates for a daily event, or undefined for standard */
-const computeDatesForEvent = async (event: EventWithCount): Promise<string[] | undefined> =>
-  event.event_type === "daily"
-    ? getAvailableDates(event, await getActiveHolidays())
-    : undefined;
+const computeDatesForEvent = async (event: EventWithCount): Promise<string[] | undefined> => {
+  if (event.event_type !== "daily") return undefined;
+  const tz = getTz();
+  return getAvailableDates(event, await getActiveHolidays(tz), tz);
+};
 
 export const handleTicketGet = (slug: string, request: Request): Promise<Response> =>
   withActiveEventBySlug(slug, async (event) => {
@@ -182,18 +183,22 @@ const runCheckoutFlow = (
   );
 };
 
+/** Shared context for ticket page rendering */
+type TicketContext = { dates: string[] | undefined; terms: string | null | undefined };
+
 /** Handle payment flow for single-ticket purchase */
 const handlePaymentFlow = (
   request: Request,
   event: EventWithCount,
   intent: RegistrationIntent,
   csrfToken: string,
+  ctx: TicketContext,
 ): Promise<Response> =>
   runCheckoutFlow(
     `single-ticket event=${event.id}`,
     request,
     (provider, baseUrl) => provider.createCheckoutSession(event, intent, baseUrl),
-    (msg, status) => ticketResponse(event, csrfToken)(msg, status),
+    (msg, status) => ticketResponse(event, csrfToken, undefined, ctx.terms)(msg, status),
   );
 
 /** Extract contact details from validated form values */
@@ -217,7 +222,7 @@ const parseQuantity = (form: URLSearchParams, event: EventWithCount): number =>
   parseQuantityValue(form.get("quantity") || "1", event.max_quantity);
 
 /** CSRF error response for ticket page */
-const ticketCsrfError = (event: EventWithCount, terms?: string | null) => (token: string) =>
+const ticketCsrfError = (event: EventWithCount, terms: string | null | undefined) => (token: string) =>
   ticketResponseWithCookie(event, false, false, undefined, terms)(token)(
     "Invalid or expired form. Please try again.",
     403,
@@ -227,15 +232,15 @@ const ticketCsrfError = (event: EventWithCount, terms?: string | null) => (token
 const processPaidReservation = async (
   request: Request,
   { event, token, ...contact }: ReservationParams,
-  dates?: string[],
+  ctx: TicketContext,
 ): Promise<Response> => {
   const available = await hasAvailableSpots(event.id, contact.quantity, contact.date);
   if (!available) {
-    return ticketResponse(event, token, dates)("Sorry, not enough spots available");
+    return ticketResponse(event, token, ctx.dates, ctx.terms)("Sorry, not enough spots available");
   }
 
   const intent: RegistrationIntent = { eventId: event.id, ...contact };
-  return handlePaymentFlow(request, event, intent, token);
+  return handlePaymentFlow(request, event, intent, token, ctx);
 };
 
 /** Format error message for failed attendee creation */
@@ -248,13 +253,13 @@ const formatAtomicError = formatCreationError(
 /** Handle free event registration - atomic create with capacity check */
 const processFreeReservation = async (
   reservation: ReservationParams,
-  dates?: string[],
+  ctx: TicketContext,
 ): Promise<Response> => {
   const { event, quantity, token, date, ...contact } = reservation;
   const result = await createAttendeeAtomic({ eventId: event.id, ...contact, quantity, date });
 
   if (!result.success) {
-    return ticketResponse(event, token, dates)(formatAtomicError(result.reason));
+    return ticketResponse(event, token, ctx.dates, ctx.terms)(formatAtomicError(result.reason));
   }
 
   await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
@@ -313,7 +318,8 @@ const processTicketReservation = async (
   let date: string | null = null;
   let dates: string[] | undefined;
   if (event.event_type === "daily") {
-    dates = getAvailableDates(event, await getActiveHolidays());
+    const tz = getTz();
+    dates = getAvailableDates(event, await getActiveHolidays(tz), tz);
     date = validateSubmittedDate(form, dates);
     if (!date) {
       return ticketResponse(event, currentToken, dates, terms)("Please select a valid date");
@@ -330,10 +336,11 @@ const processTicketReservation = async (
     date,
   };
 
+  const ctx: TicketContext = { dates, terms };
   if (await requiresPayment(event)) {
-    return processPaidReservation(request, params, dates);
+    return processPaidReservation(request, params, ctx);
   }
-  return processFreeReservation(params, dates);
+  return processFreeReservation(params, ctx);
 };
 
 /**
@@ -393,17 +400,24 @@ const withActiveMultiEvents = async (
 const computeSharedDates = async (events: MultiTicketEvent[]): Promise<string[] | undefined> => {
   const dailyEvents = events.filter((e) => e.event.event_type === "daily");
   if (dailyEvents.length === 0) return undefined;
-  const holidays = await getActiveHolidays();
-  const dateSets = dailyEvents.map((e) => new Set(getAvailableDates(e.event, holidays)));
+  const tz = getTz();
+  const holidays = await getActiveHolidays(tz);
+  const dateSets = dailyEvents.map((e) => new Set(getAvailableDates(e.event, holidays, tz)));
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
+};
+
+/** Fetch shared context for multi-ticket pages: dates, terms */
+const getMultiTicketContext = async (activeEvents: MultiTicketEvent[]) => {
+  const dates = await computeSharedDates(activeEvents);
+  const terms = await getTermsAndConditionsFromDb();
+  return { dates, terms };
 };
 
 /** Handle GET for multi-ticket page */
 const handleMultiTicketGet = (slugs: string[]): Promise<Response> =>
   withActiveMultiEvents(slugs, async (activeEvents) => {
     const token = generateSecureToken();
-    const dates = await computeSharedDates(activeEvents);
-    const terms = await getTermsAndConditionsFromDb();
+    const { dates, terms } = await getMultiTicketContext(activeEvents);
     return multiTicketResponseWithCookie(slugs, activeEvents, dates, terms)(token)();
   });
 
@@ -529,8 +543,7 @@ const handleMultiTicketPost = (
 ): Promise<Response> =>
   withActiveMultiEvents(slugs, async (activeEvents) => {
     const currentToken = getFormToken(request);
-    const dates = await computeSharedDates(activeEvents);
-    const terms = await getTermsAndConditionsFromDb();
+    const { dates, terms } = await getMultiTicketContext(activeEvents);
 
     // CSRF validation
     const csrfError = (token: string) =>

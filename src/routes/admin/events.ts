@@ -3,8 +3,8 @@
  */
 
 import { filter } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
-import { formatDateLabel } from "#lib/dates.ts";
+import { getAllowedDomain, getTz } from "#lib/config.ts";
+import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
 import {
   getEventWithActivityLog,
   logActivity,
@@ -81,24 +81,28 @@ const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: stri
 const serializeBookableDays = (value: string): string | undefined =>
   value ? JSON.stringify(value.split(",").map((d) => d.trim()).filter((d) => d)) : undefined;
 
-/** Extract common event fields from validated form values */
-const extractCommonFields = (values: EventFormValues) => ({
-  name: values.name,
-  description: values.description,
-  date: values.date ?? "",
-  location: values.location,
-  maxAttendees: values.max_attendees,
-  thankYouUrl: values.thank_you_url || null,
-  unitPrice: values.unit_price,
-  maxQuantity: values.max_quantity,
-  webhookUrl: values.webhook_url || null,
-  fields: values.fields || "email",
-  closesAt: values.closes_at,
-  eventType: values.event_type || undefined,
-  bookableDays: serializeBookableDays(values.bookable_days),
-  minimumDaysBefore: values.minimum_days_before ?? 1,
-  maximumDaysAfter: values.maximum_days_after ?? 90,
-});
+/** Extract common event fields from validated form values, normalizing datetimes to UTC */
+const extractCommonFields = (values: EventFormValues) => {
+  const tz = getTz();
+  const rawDate = values.date ?? "";
+  return {
+    name: values.name,
+    description: values.description,
+    date: rawDate ? normalizeDatetime(rawDate, "date", tz) : rawDate,
+    location: values.location,
+    maxAttendees: values.max_attendees,
+    thankYouUrl: values.thank_you_url || null,
+    unitPrice: values.unit_price,
+    maxQuantity: values.max_quantity,
+    webhookUrl: values.webhook_url || null,
+    fields: values.fields || "email",
+    closesAt: values.closes_at ? normalizeDatetime(values.closes_at, "closes_at", tz) : values.closes_at,
+    eventType: values.event_type || undefined,
+    bookableDays: serializeBookableDays(values.bookable_days),
+    minimumDaysBefore: values.minimum_days_before ?? 1,
+    maximumDaysAfter: values.maximum_days_after ?? 90,
+  };
+};
 
 /** Extract event input from validated form (async to compute slugIndex) */
 const extractEventInput = async (

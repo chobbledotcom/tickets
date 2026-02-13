@@ -13,6 +13,7 @@ import {
   getSquareWebhookSignatureKeyFromDb,
   getStripeSecretKeyFromDb,
   getStripeWebhookSecretFromDb,
+  getTimezoneCached,
   hasSquareToken,
   hasStripeKey,
   isSetupComplete,
@@ -118,6 +119,13 @@ export const getEmbedHosts = async (): Promise<string[]> => {
   const { parseEmbedHosts } = await import("#lib/embed-hosts.ts");
   return parseEmbedHosts(raw);
 };
+
+/**
+ * Get the configured timezone synchronously from cache.
+ * Safe to call from synchronous code (templates, helpers) because
+ * the settings cache is populated by middleware on every request.
+ */
+export const getTz = (): string => getTimezoneCached();
 
 /**
  * Check if initial setup has been completed
