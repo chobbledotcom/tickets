@@ -1093,6 +1093,42 @@ describe("server (admin attendees)", () => {
       );
       expect(response.status).toBe(302);
     });
+
+    test("updates attendee with all non-empty fields", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "John Doe",
+        email: "john@example.com",
+        phone: "555-1234",
+        address: "123 Main St",
+        special_instructions: "VIP",
+        quantity: 1,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = result.attendee;
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "Jane Smith",
+            email: "jane@example.com",
+            phone: "555-9999",
+            address: "456 Oak Ave",
+            special_instructions: "Special access needed",
+            event_id: String(event.id),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?edited=Jane%20Smith#attendees`);
+    });
   });
 
 });
