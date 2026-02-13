@@ -503,7 +503,7 @@ export const withAuthMultipartForm = async (
   if (!session) return redirect("/admin");
 
   const formData = await request.formData();
-  const csrfToken = (formData.get("csrf_token") as string) || "";
+  const csrfToken = String(formData.get("csrf_token") ?? "");
   if (!validateCsrfToken(session.csrfToken, csrfToken)) {
     return htmlResponse("Invalid CSRF token", 403);
   }

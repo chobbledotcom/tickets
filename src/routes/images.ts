@@ -20,7 +20,7 @@ const handleImageRequest = async (filename: string): Promise<Response> => {
   const data = await downloadImage(filename);
   if (!data) return notFoundResponse();
 
-  return new Response(data.buffer as BodyInit, {
+  return new Response(new Uint8Array(data).buffer as ArrayBuffer, {
     headers: {
       "content-type": mimeType,
       "cache-control": IMAGE_CACHE_CONTROL,

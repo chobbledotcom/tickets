@@ -458,18 +458,20 @@ const parseMultiQuantities = (
   return quantities;
 };
 
+/** Event with selected quantity */
+type EventQty = { event: EventWithCount; qty: number };
+
 /** Filter events to those with selected quantity, returning event and quantity */
 const eventsWithQuantity = (
   events: MultiTicketEvent[],
   quantities: Map<number, number>,
-): Array<{ event: EventWithCount; qty: number }> =>
-  pipe(
-    map(({ event }: MultiTicketEvent) => ({
-      event,
-      qty: quantities.get(event.id) ?? 0,
-    })),
-    filter(({ qty }) => qty > 0),
-  )(events) as Array<{ event: EventWithCount; qty: number }>;
+): EventQty[] => {
+  const withQty: EventQty[] = map(({ event }: MultiTicketEvent) => ({
+    event,
+    qty: quantities.get(event.id) ?? 0,
+  }))(events);
+  return filter(({ qty }: EventQty) => qty > 0)(withQty);
+};
 
 /** Check if all selected events have available spots (single efficient query) */
 const checkMultiAvailability = (
@@ -489,20 +491,19 @@ const checkMultiAvailability = (
 const buildMultiRegistrationItems = (
   events: MultiTicketEvent[],
   quantities: Map<number, number>,
-): MultiRegistrationItem[] =>
-  pipe(
-    filter(({ event }: MultiTicketEvent) => {
-      const qty = quantities.get(event.id);
-      return qty !== undefined && qty > 0;
-    }),
-    map(({ event }: MultiTicketEvent) => ({
-      eventId: event.id,
-      quantity: quantities.get(event.id)!,
-      unitPrice: event.unit_price ?? 0,
-      slug: event.slug,
-      name: event.name,
-    })),
-  )(events) as MultiRegistrationItem[];
+): MultiRegistrationItem[] => {
+  const selected = filter(({ event }: MultiTicketEvent) => {
+    const qty = quantities.get(event.id);
+    return qty !== undefined && qty > 0;
+  })(events);
+  return map(({ event }: MultiTicketEvent) => ({
+    eventId: event.id,
+    quantity: quantities.get(event.id)!,
+    unitPrice: event.unit_price ?? 0,
+    slug: event.slug,
+    name: event.name,
+  }))(selected);
+};
 
 /** Check if any selected event requires payment */
 const anyRequiresPayment = async (

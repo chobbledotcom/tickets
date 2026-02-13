@@ -30,7 +30,6 @@ import type { Event } from "#lib/types.ts";
 import type {
   MultiRegistrationIntent,
   PaymentProvider,
-  PaymentProviderType,
   RegistrationIntent,
   ValidatedPaymentSession,
   WebhookSetupResult,
@@ -39,7 +38,7 @@ import type {
 
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
-  type: "square" as PaymentProviderType,
+  type: "square",
 
   checkoutCompletedEventType: "payment.updated",
 
@@ -113,7 +112,7 @@ export const squarePaymentProvider: PaymentProvider = {
     // Square webhook setup is manual - user creates subscription in dashboard
     // and provides the signature key. This method is a no-op for Square.
     return Promise.resolve({
-      success: false as const,
+      success: false,
       error: "Square webhooks must be configured manually in the Square Developer Dashboard",
     });
   },

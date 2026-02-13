@@ -60,10 +60,17 @@ export type SessionMetadata = {
   date?: string;
 };
 
+/** Valid payment status values */
+export type PaymentStatus = "paid" | "unpaid" | "no_payment_required";
+
+/** Type guard: check if a string is a valid PaymentStatus */
+export const isPaymentStatus = (s: string): s is PaymentStatus =>
+  s === "paid" || s === "unpaid" || s === "no_payment_required";
+
 /** A validated payment session returned after checkout completion */
 export type ValidatedPaymentSession = {
   id: string;
-  paymentStatus: "paid" | "unpaid" | "no_payment_required";
+  paymentStatus: PaymentStatus;
   paymentReference: string | null;
   /** Total amount charged in smallest currency unit (cents), from the payment provider */
   amountTotal: number;
