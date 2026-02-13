@@ -70,11 +70,14 @@ const makeCsrfResponseBuilder =
 const ticketCsrfPath = (slug: string): string => `/ticket/${slug}`;
 
 /** Ticket response with CSRF cookie */
-const ticketResponseWithCookie = makeCsrfResponseBuilder(
-  (event: EventWithCount, _isClosed: boolean, _iframe: boolean, _dates: string[] | undefined, _terms: string | null | undefined) => ticketCsrfPath(event.slug),
-  (token, error, event, isClosed, iframe, dates, terms) => ticketPage(event, token, error, isClosed, iframe, dates, terms),
-  (_event, _isClosed, iframe) => iframe,
-);
+const ticketResponseWithCookie =
+  (event: EventWithCount, isClosed: boolean, iframe: boolean, dates: string[] | undefined, terms: string | null | undefined) =>
+  (token: string) =>
+  (error?: string, status = 200) =>
+    htmlResponseWithCookie(csrfCookie(token, ticketCsrfPath(event.slug), undefined, iframe))(
+      ticketPage(event, token, error, isClosed, iframe, dates, terms),
+      status,
+    );
 
 /** Curried error response: render(error) → (error, status) → Response */
 const errorResponse =
