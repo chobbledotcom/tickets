@@ -4,6 +4,7 @@
 
 import { filter } from "#fp";
 import { getAllowedDomain, getTz } from "#lib/config.ts";
+import { toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
 import {
   getEventWithActivityLog,
@@ -91,7 +92,7 @@ const extractCommonFields = (values: EventFormValues) => {
     location: values.location,
     maxAttendees: values.max_attendees,
     thankYouUrl: values.thank_you_url || null,
-    unitPrice: values.unit_price,
+    unitPrice: values.unit_price ? toMinorUnits(Number.parseFloat(values.unit_price)) : null,
     maxQuantity: values.max_quantity,
     webhookUrl: values.webhook_url || null,
     fields: values.fields || "email",

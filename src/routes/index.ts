@@ -5,6 +5,7 @@
 
 import { once } from "#fp";
 import { isSetupComplete } from "#lib/config.ts";
+import { loadCurrencyCode } from "#lib/currency.ts";
 import { createRequestTimer, logRequest } from "#lib/logger.ts";
 import {
   applySecurityHeaders,
@@ -154,6 +155,7 @@ const handleRequestInternal = async (
     return redirect("/setup");
   }
 
+  await loadCurrencyCode();
   return (await routeMainApp(request, path, method, server))!;
 };
 

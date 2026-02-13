@@ -28,7 +28,7 @@ export type EventFormValues = {
   max_attendees: number;
   max_quantity: number;
   fields: EventFields | "";
-  unit_price: number | null;
+  unit_price: string;
   closes_at: string;
   thank_you_url: string;
   webhook_url: string;
@@ -129,7 +129,7 @@ const validateSafeUrl = (value: string): string | null => {
  * Validate price is non-negative
  */
 const validateNonNegativePrice = (value: string): string | null => {
-  const num = Number.parseInt(value, 10);
+  const num = Number.parseFloat(value);
   if (Number.isNaN(num) || num < 0) {
     return "Price must be 0 or greater";
   }
@@ -327,10 +327,10 @@ export const eventFields: Field[] = [
   },
   {
     name: "unit_price",
-    label: "Ticket Price (in pence/cents, leave empty for free)",
-    type: "number",
-    min: 0,
-    placeholder: "e.g. 1000 for 10.00",
+    label: "Ticket Price (leave empty for free)",
+    type: "text",
+    inputmode: "decimal",
+    placeholder: "e.g. 10.00",
     validate: validateNonNegativePrice,
   },
   {
