@@ -396,12 +396,12 @@ const handleEditAttendeePost = (
     const data = await loadAttendeeForEdit(session, attendeeId);
     if (!data) return notFoundResponse();
 
-    const name = form.get("name") ?? "";
-    const email = form.get("email") ?? "";
-    const phone = form.get("phone") ?? "";
-    const address = form.get("address") ?? "";
-    const special_instructions = form.get("special_instructions") ?? "";
-    const event_id = Number.parseInt(form.get("event_id") ?? "0", 10);
+    const name = form.get("name")!;
+    const email = form.get("email")!;
+    const phone = form.get("phone")!;
+    const address = form.get("address")!;
+    const special_instructions = form.get("special_instructions")!;
+    const event_id = Number.parseInt(form.get("event_id")!, 10);
 
     if (!name.trim()) {
       return htmlResponse(adminEditAttendeePage(
