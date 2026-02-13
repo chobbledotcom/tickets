@@ -4,7 +4,9 @@ import {
   isValidBusinessEmail,
   normalizeBusinessEmail,
   getBusinessEmailFromDb,
+  getBusinessEmailCached,
   updateBusinessEmail,
+  invalidateBusinessEmailCache,
 } from "#lib/business-email.ts";
 
 describe("business-email", () => {
@@ -167,6 +169,37 @@ describe("business-email", () => {
 
     test("throws on email without TLD", async () => {
       await expect(updateBusinessEmail("test@example")).rejects.toThrow("Invalid business email format");
+    });
+  });
+
+  describe("getBusinessEmailCached", () => {
+    test("returns empty string when no email is cached", () => {
+      const result = getBusinessEmailCached();
+      expect(result).toBe("");
+    });
+
+    test("returns cached email after it is set", async () => {
+      await updateBusinessEmail("cached@example.com");
+      const result = getBusinessEmailCached();
+      expect(result).toBe("cached@example.com");
+    });
+  });
+
+  describe("invalidateBusinessEmailCache", () => {
+    test("clears the cache", async () => {
+      await updateBusinessEmail("test@example.com");
+      expect(getBusinessEmailCached()).toBe("test@example.com");
+
+      invalidateBusinessEmailCache();
+      expect(getBusinessEmailCached()).toBe("");
+    });
+
+    test("forces getBusinessEmailFromDb to decrypt from database", async () => {
+      await updateBusinessEmail("encrypted@example.com");
+      invalidateBusinessEmailCache();
+
+      const result = await getBusinessEmailFromDb();
+      expect(result).toBe("encrypted@example.com");
     });
   });
 });
