@@ -527,10 +527,9 @@ describe("html", () => {
       expect(html).toContain('data-open-checkout');
     });
 
-    test("includes waiting and result elements", () => {
+    test("includes waiting element for popup state", () => {
       const html = checkoutPopupPage("https://checkout.stripe.com/session123");
       expect(html).toContain("data-checkout-waiting");
-      expect(html).toContain("data-checkout-result");
     });
 
     test("uses iframe body class", () => {

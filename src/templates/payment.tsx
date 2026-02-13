@@ -102,7 +102,6 @@ export const checkoutPopupPage = (checkoutUrl: string): string =>
             <p>Completing payment in the other window...</p>
             <p><a href={checkoutUrl} target="_blank" rel="noopener"><small>Click here if the payment window didn't open</small></a></p>
           </div>
-          <div data-checkout-result hidden></div>
         </div>
     </Layout>
   );
