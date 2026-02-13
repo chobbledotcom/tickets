@@ -488,8 +488,9 @@ export const adminEventEditPage = (
   event: EventWithCount,
   session: AdminSession,
   error?: string,
-): string =>
-  String(
+): string => {
+  const storageEnabled = isStorageEnabled();
+  return String(
     <Layout title={`Edit: ${event.name}`}>
       <AdminNav session={session} />
         <Raw html={renderError(error)} />
@@ -499,8 +500,30 @@ export const adminEventEditPage = (
           <Raw html={renderField(slugField, String(event.slug))} />
           <button type="submit">Save Changes</button>
         </form>
+        {storageEnabled && (
+          <article>
+            <h2>Event Image</h2>
+            {event.image_url ? (
+              <form method="POST" action={`/admin/event/${event.id}/image/delete`}>
+                <Raw html={renderEventImage(event, "event-image-preview")} />
+                <input type="hidden" name="csrf_token" value={session.csrfToken} />
+                <button type="submit" class="secondary">Remove Image</button>
+              </form>
+            ) : (
+              <form method="POST" action={`/admin/event/${event.id}/image`} enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value={session.csrfToken} />
+                <label>
+                  {"Upload Image (JPEG, PNG, GIF, WebP \u2014 max 256KB)"}
+                  <input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp" required />
+                </label>
+                <button type="submit">Upload</button>
+              </form>
+            )}
+          </article>
+        )}
     </Layout>
   );
+};
 
 /**
  * Admin delete event confirmation page

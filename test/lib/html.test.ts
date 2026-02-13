@@ -1700,5 +1700,36 @@ describe("html", () => {
         cleanupStorage();
       });
     });
+
+    describe("adminEventEditPage image section", () => {
+      test("shows upload form when storage enabled and no image", () => {
+        setupStorage();
+        const event = testEventWithCount({ image_url: "" });
+        const html = adminEventEditPage(event, TEST_SESSION);
+        expect(html).toContain("Event Image");
+        expect(html).toContain('type="file"');
+        expect(html).toContain('name="image"');
+        expect(html).toContain("Upload");
+        cleanupStorage();
+      });
+
+      test("shows current image and remove button when image is set", () => {
+        setupStorage();
+        const event = testEventWithCount({ image_url: "current.jpg" });
+        const html = adminEventEditPage(event, TEST_SESSION);
+        expect(html).toContain("/image/current.jpg");
+        expect(html).toContain("Remove Image");
+        expect(html).toContain("/image/delete");
+        cleanupStorage();
+      });
+
+      test("does not show image section when storage is not enabled", () => {
+        cleanupStorage();
+        const event = testEventWithCount({ image_url: "" });
+        const html = adminEventEditPage(event, TEST_SESSION);
+        expect(html).not.toContain("Event Image");
+        expect(html).not.toContain('type="file"');
+      });
+    });
   });
 });
