@@ -216,7 +216,7 @@ export const validateBookableDays = (value: string): string | null => {
 };
 
 /** Max length for event description */
-const MAX_DESCRIPTION_LENGTH = 128;
+const MAX_DESCRIPTION_LENGTH = 256;
 
 /** Validate description length */
 const validateDescription = (value: string): string | null =>
@@ -245,7 +245,8 @@ export const eventFields: Field[] = [
     label: "Description (optional)",
     type: "text",
     placeholder: "A short description of the event",
-    hint: "Shown on the ticket page. HTML is allowed. Max 128 characters.",
+    hint: "Shown on the ticket page. HTML is allowed. Max 256 characters.",
+    maxlength: MAX_DESCRIPTION_LENGTH,
     validate: validateDescription,
   },
   {

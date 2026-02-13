@@ -42,7 +42,7 @@ const quantityOptions = (max: number): string =>
 
 /** Render terms and conditions block with agreement checkbox */
 const renderTermsAndCheckbox = (terms: string): string =>
-  `<div class="terms"><p>${escapeHtml(terms)}</p></div>` +
+  `<div class="terms"><p>${escapeHtml(terms).replace(/\r\n|\r|\n/g, "<br>")}</p></div>` +
   `<label><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms and conditions above</label>`;
 
 /**

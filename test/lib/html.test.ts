@@ -398,6 +398,29 @@ describe("html", () => {
       expect(html).toContain("A great event");
       expect(html).not.toContain('class="iframe"');
     });
+
+    test("renders terms and conditions with checkbox", () => {
+      const html = ticketPage(event, csrfToken, undefined, false, false, undefined, "No refunds allowed");
+      expect(html).toContain("No refunds allowed");
+      expect(html).toContain('class="terms"');
+      expect(html).toContain('name="agree_terms"');
+    });
+
+    test("preserves line breaks in terms and conditions", () => {
+      const html = ticketPage(event, csrfToken, undefined, false, false, undefined, "Line one\nLine two\nLine three");
+      expect(html).toContain("Line one<br>Line two<br>Line three");
+    });
+
+    test("preserves carriage return line feeds in terms and conditions", () => {
+      const html = ticketPage(event, csrfToken, undefined, false, false, undefined, "Line one\r\nLine two");
+      expect(html).toContain("Line one<br>Line two");
+    });
+
+    test("does not render terms when not provided", () => {
+      const html = ticketPage(event, csrfToken, undefined, false, false, undefined, undefined);
+      expect(html).not.toContain('class="terms"');
+      expect(html).not.toContain('name="agree_terms"');
+    });
   });
 
   describe("notFoundPage", () => {
@@ -1085,6 +1108,15 @@ describe("html", () => {
       const html = multiTicketPage(events, ["ab12c", "cd34e"], TEST_CSRF_TOKEN);
       expect(html).toContain("Sorry, all events are sold out.");
       expect(html).not.toContain("Reserve Tickets</button>");
+    });
+
+    test("preserves line breaks in terms and conditions", () => {
+      const events = [
+        buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
+      ];
+      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN, undefined, undefined, "Rule one\nRule two");
+      expect(html).toContain("Rule one<br>Rule two");
+      expect(html).toContain('name="agree_terms"');
     });
   });
 
