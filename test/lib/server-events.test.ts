@@ -3,7 +3,7 @@ import type { InStatement } from "@libsql/client";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
 import { addDays } from "#lib/dates.ts";
-import { today } from "#lib/now.ts";
+import { todayInTz } from "#lib/timezone.ts";
 
 import { handleRequest } from "#routes";
 import {
@@ -2299,8 +2299,8 @@ describe("server (admin events)", () => {
   });
 
   describe("daily event admin view (Phase 4)", () => {
-    const validDate1 = addDays(today(), 1);
-    const validDate2 = addDays(today(), 2);
+    const validDate1 = addDays(todayInTz("UTC"), 1);
+    const validDate2 = addDays(todayInTz("UTC"), 2);
 
     const createDailyEventWithAttendees = async () => {
       const event = await createTestEvent({

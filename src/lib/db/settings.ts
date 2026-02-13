@@ -3,6 +3,7 @@
  */
 
 import { lazyRef } from "#fp";
+import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
 import {
   decrypt,
   deriveKEK,
@@ -43,6 +44,8 @@ export const CONFIG_KEYS = {
   EMBED_HOSTS: "embed_hosts",
   // Terms and conditions (plaintext - displayed publicly)
   TERMS_AND_CONDITIONS: "terms_and_conditions",
+  // Timezone (IANA timezone identifier, plaintext)
+  TIMEZONE: "timezone",
 } as const;
 
 /**
@@ -82,9 +85,11 @@ export const loadAllSettings = async (): Promise<Map<string, string>> => {
 
 /**
  * Invalidate the settings cache (for testing or after writes).
+ * Also clears the permanent timezone cache since it derives from settings.
  */
 export const invalidateSettingsCache = (): void => {
   setSettingsCacheState(null);
+  invalidateTimezoneCache();
 };
 
 /**
@@ -480,6 +485,57 @@ export const updateTermsAndConditions = async (text: string): Promise<void> => {
 };
 
 /**
+ * Permanent timezone cache. Timezone changes very rarely, so we cache it
+ * indefinitely and update on explicit changes via updateTimezone().
+ */
+const [getTzCache, setTzCache] = lazyRef<string | null>(() => null);
+
+/**
+ * Get the configured timezone from database.
+ * Returns the IANA timezone identifier, defaulting to Europe/London.
+ * Also populates the permanent timezone cache for sync access via getTimezoneCached().
+ */
+export const getTimezoneFromDb = async (): Promise<string> => {
+  const cached = getTzCache();
+  if (cached !== null) return cached;
+  const value = await getSetting(CONFIG_KEYS.TIMEZONE);
+  const tz = value || DEFAULT_TIMEZONE;
+  setTzCache(tz);
+  return tz;
+};
+
+/**
+ * Get the configured timezone synchronously.
+ * Reads from the permanent cache, falling back to the TTL settings cache,
+ * then to the default timezone. Safe to call from synchronous template code
+ * because the middleware populates the settings cache on every request.
+ */
+export const getTimezoneCached = (): string => {
+  const cached = getTzCache();
+  if (cached !== null) return cached;
+  const state = getSettingsCacheState();
+  if (state.entries !== null) {
+    const value = state.entries.get(CONFIG_KEYS.TIMEZONE) || DEFAULT_TIMEZONE;
+    setTzCache(value);
+    return value;
+  }
+  return DEFAULT_TIMEZONE;
+};
+
+/** Clear the permanent timezone cache (called by invalidateSettingsCache) */
+const invalidateTimezoneCache = (): void => {
+  setTzCache(null);
+};
+
+/**
+ * Update the configured timezone.
+ */
+export const updateTimezone = async (tz: string): Promise<void> => {
+  await setSetting(CONFIG_KEYS.TIMEZONE, tz);
+  setTzCache(tz);
+};
+
+/**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
  */
@@ -516,4 +572,6 @@ export const settingsApi = {
   getTermsAndConditionsFromDb,
   updateTermsAndConditions,
   invalidateTermsCache,
+  getTimezoneFromDb,
+  updateTimezone,
 };

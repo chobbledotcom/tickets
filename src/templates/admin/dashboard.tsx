@@ -33,7 +33,7 @@ const MultiBookingCheckbox = ({ e }: { e: EventWithCount }): string =>
   String(
     <li>
       <label>
-        <input type="checkbox" data-multi-booking-slug={e.slug} />
+        <input type="checkbox" data-multi-booking-slug={e.slug} data-fields={e.fields} />
         {` ${e.name}`}
       </label>
     </li>
@@ -64,6 +64,15 @@ const multiBookingSection = (
         data-select-on-click
         data-multi-booking-url
         data-domain={allowedDomain}
+        placeholder="Select two or more events"
+      />
+      <label for="multi-booking-embed">Embed code</label>
+      <input
+        type="text"
+        id="multi-booking-embed"
+        readonly
+        data-select-on-click
+        data-multi-booking-embed
         placeholder="Select two or more events"
       />
     </details>

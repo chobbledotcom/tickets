@@ -9,7 +9,11 @@ import type { Plugin } from "esbuild";
 import { fromFileUrl } from "@std/path";
 import { minifyCss } from "./css-minify.ts";
 
-// --- Step 1: Build scanner.js (client bundle with jsQR) ---
+// Read deno.json import map (used by both client and edge builds)
+const denoConfig = JSON.parse(await Deno.readTextFile("./deno.json"));
+const denoImports: Record<string, string> = denoConfig.imports;
+
+// --- Step 1a: Build scanner.js (client bundle with jsQR) ---
 
 /** Resolve npm bare specifiers using Deno's import resolution */
 const denoNpmResolvePlugin: Plugin = {
@@ -41,12 +45,54 @@ if (scannerResult.errors.length > 0) {
 
 console.log("Scanner build complete: src/static/scanner.js");
 
+// --- Step 1b: Build admin.js (client bundle with shared embed logic) ---
+
+/** Resolve #-prefixed imports using the deno.json import map */
+const projectRoot = fromFileUrl(new URL("..", import.meta.url));
+const denoImportMapPlugin: Plugin = {
+  name: "deno-import-map",
+  setup(build) {
+    build.onResolve({ filter: /^#/ }, (args) => {
+      for (const [key, value] of Object.entries(denoImports)) {
+        if (typeof value !== "string" || !value.startsWith("./")) continue;
+        if (key.endsWith("/") && args.path.startsWith(key)) {
+          return { path: projectRoot + value.slice(2) + args.path.slice(key.length) };
+        }
+        if (args.path === key) {
+          return { path: projectRoot + value.slice(2) };
+        }
+      }
+      return undefined;
+    });
+  },
+};
+
+const adminResult = await esbuild.build({
+  entryPoints: ["./src/client/admin.ts"],
+  outfile: "./src/static/admin.js",
+  platform: "browser",
+  format: "iife",
+  bundle: true,
+  minify: true,
+  plugins: [denoImportMapPlugin],
+});
+
+if (adminResult.errors.length > 0) {
+  console.error("Admin build failed:");
+  for (const log of adminResult.errors) {
+    console.error(log);
+  }
+  Deno.exit(1);
+}
+
+console.log("Admin build complete: src/static/admin.js");
+
 // --- Step 2: Build edge bundle ---
 
 // Build timestamp for cache-busting (seconds since epoch)
 const BUILD_TS = Math.floor(Date.now() / 1000);
 
-// Read static assets at build time for inlining (scanner.js now freshly built above)
+// Read static assets at build time for inlining (client bundles freshly built above)
 const rawCss = await Deno.readTextFile("./src/static/mvp.css");
 const minifiedCss = await minifyCss(rawCss);
 
@@ -56,10 +102,6 @@ const STATIC_ASSETS: Record<string, string> = {
   "admin.js": await Deno.readTextFile("./src/static/admin.js"),
   "scanner.js": await Deno.readTextFile("./src/static/scanner.js"),
 };
-
-// Derive esm.sh externals from deno.json npm imports (single source of truth)
-const denoConfig = JSON.parse(await Deno.readTextFile("./deno.json"));
-const denoImports: Record<string, string> = denoConfig.imports;
 
 // Edge subpath overrides (e.g., use web-compatible libsql client)
 const EDGE_SUBPATHS: Record<string, string> = {

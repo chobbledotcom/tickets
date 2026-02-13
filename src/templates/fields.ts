@@ -2,9 +2,11 @@
  * Form field definitions and typed value interfaces for all forms
  */
 
-import { DAY_NAMES, normalizeDatetime } from "#lib/dates.ts";
+import { DAY_NAMES } from "#lib/dates.ts";
+import { isValidDatetime } from "#lib/timezone.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CONTACT_FIELDS, type AdminLevel, type ContactField, type EventFields, type EventType } from "#lib/types.ts";
+import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 
 // ---------------------------------------------------------------------------
@@ -222,15 +224,9 @@ const validateDescription = (value: string): string | null =>
     ? `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`
     : null;
 
-/** Validate a datetime value is a valid UTC date */
-const validateDatetime = (value: string): string | null => {
-  try {
-    normalizeDatetime(value, "date");
-    return null;
-  } catch {
-    return "Please enter a valid date and time";
-  }
-};
+/** Validate a datetime value is parseable */
+const validateDatetime = (value: string): string | null =>
+  isValidDatetime(value) ? null : "Please enter a valid date and time";
 
 /**
  * Event form field definitions (shared between create and edit)
@@ -485,12 +481,7 @@ const contactFieldMap: Record<ContactField, Field> = {
   special_instructions: specialInstructionsField,
 };
 
-/** Parse a comma-separated fields string into individual ContactField names */
-export const parseEventFields = (fields: EventFields): ContactField[] =>
-  fields
-    ? (fields.split(",").map((f) => f.trim()).filter((f): f is ContactField =>
-        (CONTACT_FIELDS as readonly string[]).includes(f)))
-    : [];
+export { mergeEventFields, parseEventFields };
 
 /**
  * Get ticket form fields based on event fields setting.
@@ -530,20 +521,6 @@ export const getAddAttendeeFields = (fields: EventFields, isDaily: boolean): Fie
   return result;
 };
 
-/**
- * Determine which contact fields to collect for multiple events.
- * Returns the union of all field settings, sorted by canonical CONTACT_FIELDS order.
- */
-export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
-  if (fieldSettings.length === 0) return "email";
-  const allFields = new Set<string>();
-  for (const setting of fieldSettings) {
-    for (const f of parseEventFields(setting)) {
-      allFields.add(f);
-    }
-  }
-  return CONTACT_FIELDS.filter((f) => allFields.has(f)).join(",");
-};
 
 /**
  * Setup form field definitions
