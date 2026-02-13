@@ -2,7 +2,7 @@
 /** Admin page behaviors - bundled by build-edge.ts for strict CSP */
 
 import { buildEmbedCode } from "#lib/embed.ts";
-import { mergeEventFields } from "#templates/fields.ts";
+import { mergeEventFields } from "#lib/event-fields.ts";
 
 /* Select-on-click: auto-select input contents when clicked */
 for (const el of document.querySelectorAll<HTMLInputElement>("[data-select-on-click]")) {
