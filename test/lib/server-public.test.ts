@@ -1560,6 +1560,100 @@ describe("server (public routes)", () => {
     });
   });
 
+  describe("iframe checkout popup (Stripe cannot run in iframes)", () => {
+    afterEach(() => {
+      resetStripeClient();
+    });
+
+    test("returns popup page instead of redirect for single-ticket paid event in iframe", async () => {
+      await setupStripe();
+      const event = await createTestEvent({
+        name: "Iframe Paid Single",
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const path = `/ticket/${event.slug}?iframe=true`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          { name: "John Doe", email: "john@example.com", csrf_token: csrfToken },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("data-checkout-popup");
+      expect(html).toContain("Pay Now");
+      expect(html).toContain('target="_blank"');
+    });
+
+    test("returns 302 redirect for single-ticket paid event without iframe", async () => {
+      await setupStripe();
+      const event = await createTestEvent({
+        name: "Non-iframe Paid Single",
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const response = await submitTicketForm(event.slug, {
+        name: "John Doe",
+        email: "john@example.com",
+      });
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location");
+      expect(location).not.toBeNull();
+      expect(location?.startsWith("https://")).toBe(true);
+    });
+
+    test("returns popup page for multi-ticket paid event in iframe", async () => {
+      await setupStripe();
+      const event1 = await createTestEvent({
+        name: "Iframe Multi 1",
+        maxAttendees: 50,
+        unitPrice: 500,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        name: "Iframe Multi 2",
+        maxAttendees: 50,
+        unitPrice: 1000,
+        maxQuantity: 5,
+      });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}?iframe=true`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          path,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("data-checkout-popup");
+      expect(html).toContain("Pay Now");
+      expect(html).toContain('target="_blank"');
+    });
+  });
+
   describe("routes/public.ts (withPaymentProvider onMissing single-ticket)", () => {
     afterEach(() => {
       resetStripeClient();

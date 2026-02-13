@@ -10,6 +10,7 @@ import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { type CsvEventInfo, generateAttendeesCsv, generateCalendarCsv } from "#templates/csv.ts";
 import { adminCalendarPage, type CalendarAttendeeRow } from "#templates/admin/calendar.tsx";
 import {
+  checkoutPopupPage,
   paymentCancelPage,
   paymentErrorPage,
   paymentPage,
@@ -484,6 +485,17 @@ describe("html", () => {
       expect(html).toContain('http-equiv="refresh"');
       expect(html).toContain("3;url=https://example.com/thanks");
     });
+
+    test("includes data-payment-result attribute for popup postMessage", () => {
+      const html = paymentSuccessPage(event, null);
+      expect(html).toContain('data-payment-result="success"');
+    });
+
+    test("renders without redirect when thankYouUrl is null", () => {
+      const html = paymentSuccessPage(event, null);
+      expect(html).not.toContain('http-equiv="refresh"');
+      expect(html).not.toContain("redirected");
+    });
   });
 
   describe("paymentCancelPage", () => {
@@ -494,6 +506,41 @@ describe("html", () => {
       expect(html).toContain("Payment Cancelled");
       expect(html).toContain("/ticket/ab12c");
       expect(html).toContain("Try again");
+    });
+
+    test("includes data-payment-result attribute for popup postMessage", () => {
+      const html = paymentCancelPage(event, "/ticket/ab12c");
+      expect(html).toContain('data-payment-result="cancel"');
+    });
+  });
+
+  describe("checkoutPopupPage", () => {
+    test("renders checkout URL in data attribute", () => {
+      const html = checkoutPopupPage("https://checkout.stripe.com/session123");
+      expect(html).toContain('data-checkout-popup="https://checkout.stripe.com/session123"');
+    });
+
+    test("renders Pay Now link with target _blank", () => {
+      const html = checkoutPopupPage("https://checkout.stripe.com/session123");
+      expect(html).toContain('target="_blank"');
+      expect(html).toContain("Pay Now");
+      expect(html).toContain('data-open-checkout');
+    });
+
+    test("includes waiting element for popup state", () => {
+      const html = checkoutPopupPage("https://checkout.stripe.com/session123");
+      expect(html).toContain("data-checkout-waiting");
+    });
+
+    test("uses iframe body class", () => {
+      const html = checkoutPopupPage("https://checkout.stripe.com/session123");
+      expect(html).toContain('class="iframe"');
+    });
+
+    test("escapes checkout URL", () => {
+      const html = checkoutPopupPage('https://evil.com/"onload="alert(1)');
+      expect(html).toContain("&quot;");
+      expect(html).not.toContain('"onload="');
     });
   });
 
