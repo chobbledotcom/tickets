@@ -6,7 +6,7 @@ import type { EventFields } from "#lib/types.ts";
 import { parseEventFields } from "#lib/event-fields.ts";
 
 const TEXTAREA_FIELDS: readonly string[] = ["address", "special_instructions"];
-const BASE_HEIGHT = 14;
+const BASE_HEIGHT = 11;
 const INPUT_HEIGHT = 4;
 const TEXTAREA_HEIGHT = 6;
 

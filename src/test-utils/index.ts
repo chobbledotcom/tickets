@@ -1172,6 +1172,67 @@ export const deleteTestHoliday = async (
 export type { HolidayInput };
 
 /**
+ * Create an attendee and return both the attendee and their ticket token.
+ * Combines createTestAttendee + getAttendeesRaw into a single call.
+ */
+export const createTestAttendeeWithToken = async (
+  name: string,
+  email: string,
+  eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+  quantity = 1,
+  phone = "",
+): Promise<{ event: Event; attendee: Attendee; token: string }> => {
+  const event = await createTestEvent({ maxAttendees: 10, ...eventOverrides });
+  const attendee = await createTestAttendee(event.id, event.slug, name, email, quantity, phone);
+  const attendees = await getAttendeesRaw(event.id);
+  return { event, attendee, token: attendees[0]!.ticket_token };
+};
+
+/**
+ * Perform an admin POST with form data (auto-login + auto-CSRF).
+ * Logs in as admin, injects the CSRF token, and submits the form.
+ * To test invalid CSRF, include csrf_token in data to override the default.
+ */
+export const adminFormPost = async (
+  path: string,
+  data: Record<string, string> = {},
+): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
+  const { cookie, csrfToken } = await loginAsAdmin();
+  const { handleRequest } = await import("#routes");
+  const response = await handleRequest(
+    mockFormRequest(path, { csrf_token: csrfToken, ...data }, cookie),
+  );
+  return { response, cookie, csrfToken };
+};
+
+/**
+ * Perform an authenticated admin GET request (auto-login).
+ */
+export const adminGet = async (
+  path: string,
+): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
+  const { cookie, csrfToken } = await loginAsAdmin();
+  const response = await awaitTestRequest(path, { cookie });
+  return { response, cookie, csrfToken };
+};
+
+const allDays = JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
+
+/**
+ * Create a daily event with all days bookable. Reduces boilerplate in calendar tests.
+ */
+export const createDailyTestEvent = (
+  overrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+) =>
+  createTestEvent({
+    eventType: "daily",
+    bookableDays: allDays,
+    minimumDaysBefore: 0,
+    maximumDaysAfter: 14,
+    ...overrides,
+  });
+
+/**
  * Create a paid test attendee directly via createAttendeeAtomic.
  * Use this instead of createTestAttendee when you need a payment_id on the attendee.
  */

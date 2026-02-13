@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 
 import { handleRequest } from "#routes";
 import {
+  adminFormPost,
+  adminGet,
+  awaitTestRequest,
   createTestDbWithSetup,
   createTestHoliday,
   deleteTestHoliday,
@@ -87,21 +90,12 @@ describe("server (admin holidays)", () => {
       const managerCookie = loginResponse.headers.get("set-cookie") ?? "";
 
       // Manager tries to access holidays
-      const response = await handleRequest(
-        new Request("http://localhost/admin/holidays", {
-          headers: { host: "localhost", cookie: managerCookie },
-        }),
-      );
+      const response = await awaitTestRequest("/admin/holidays", { cookie: managerCookie });
       expect(response.status).toBe(403);
     });
 
     test("shows empty holidays list", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        new Request("http://localhost/admin/holidays", {
-          headers: { host: "localhost", cookie },
-        }),
-      );
+      const { response } = await adminGet("/admin/holidays");
       expectStatus(200)(response);
       const body = await response.text();
       expect(body).toContain("Holidays");
@@ -110,12 +104,7 @@ describe("server (admin holidays)", () => {
 
     test("shows holidays in table when present", async () => {
       const holiday = await createTestHoliday({ name: "Christmas", startDate: "2026-12-25", endDate: "2026-12-26" });
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        new Request("http://localhost/admin/holidays", {
-          headers: { host: "localhost", cookie },
-        }),
-      );
+      const { response } = await adminGet("/admin/holidays");
       expectStatus(200)(response);
       const body = await response.text();
       expect(body).toContain("Christmas");
@@ -133,12 +122,7 @@ describe("server (admin holidays)", () => {
     });
 
     test("shows create holiday form", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        new Request("http://localhost/admin/holiday/new", {
-          headers: { host: "localhost", cookie },
-        }),
-      );
+      const { response } = await adminGet("/admin/holiday/new");
       expectStatus(200)(response);
       const body = await response.text();
       expect(body).toContain("Add Holiday");
@@ -183,75 +167,55 @@ describe("server (admin holidays)", () => {
     });
 
     test("rejects missing name", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest("/admin/holiday", {
-          name: "",
-          start_date: "2026-12-25",
-          end_date: "2026-12-25",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost("/admin/holiday", {
+        name: "",
+        start_date: "2026-12-25",
+        end_date: "2026-12-25",
+      });
       expectStatus(400)(response);
       const body = await response.text();
       expect(body).toContain("Holiday Name is required");
     });
 
     test("rejects missing start_date", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest("/admin/holiday", {
-          name: "Test",
-          start_date: "",
-          end_date: "2026-12-25",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost("/admin/holiday", {
+        name: "Test",
+        start_date: "",
+        end_date: "2026-12-25",
+      });
       expectStatus(400)(response);
       const body = await response.text();
       expect(body).toContain("Start Date is required");
     });
 
     test("rejects missing end_date", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest("/admin/holiday", {
-          name: "Test",
-          start_date: "2026-12-25",
-          end_date: "",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost("/admin/holiday", {
+        name: "Test",
+        start_date: "2026-12-25",
+        end_date: "",
+      });
       expectStatus(400)(response);
       const body = await response.text();
       expect(body).toContain("End Date is required");
     });
 
     test("rejects invalid date format", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest("/admin/holiday", {
-          name: "Test",
-          start_date: "not-a-date",
-          end_date: "2026-12-25",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost("/admin/holiday", {
+        name: "Test",
+        start_date: "not-a-date",
+        end_date: "2026-12-25",
+      });
       expectStatus(400)(response);
       const body = await response.text();
       expect(body).toContain("valid date");
     });
 
     test("rejects end_date before start_date", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest("/admin/holiday", {
-          name: "Test",
-          start_date: "2026-12-26",
-          end_date: "2026-12-25",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost("/admin/holiday", {
+        name: "Test",
+        start_date: "2026-12-26",
+        end_date: "2026-12-25",
+      });
       expectStatus(400)(response);
       const body = await response.text();
       expect(body).toContain("End date must be on or after the start date");
@@ -267,12 +231,7 @@ describe("server (admin holidays)", () => {
 
     test("shows edit form with pre-filled values", async () => {
       const holiday = await createTestHoliday({ name: "Christmas", startDate: "2026-12-25", endDate: "2026-12-26" });
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        new Request(`http://localhost/admin/holiday/${holiday.id}/edit`, {
-          headers: { host: "localhost", cookie },
-        }),
-      );
+      const { response } = await adminGet(`/admin/holiday/${holiday.id}/edit`);
       expectStatus(200)(response);
       const body = await response.text();
       expect(body).toContain("Edit Holiday");
@@ -282,12 +241,7 @@ describe("server (admin holidays)", () => {
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        new Request("http://localhost/admin/holiday/999/edit", {
-          headers: { host: "localhost", cookie },
-        }),
-      );
+      const { response } = await adminGet("/admin/holiday/999/edit");
       expectStatus(404)(response);
     });
   });
@@ -316,44 +270,32 @@ describe("server (admin holidays)", () => {
 
     test("rejects end_date before start_date on edit", async () => {
       const holiday = await createTestHoliday();
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest(`/admin/holiday/${holiday.id}/edit`, {
-          name: "Test",
-          start_date: "2026-12-26",
-          end_date: "2026-12-25",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost(`/admin/holiday/${holiday.id}/edit`, {
+        name: "Test",
+        start_date: "2026-12-26",
+        end_date: "2026-12-25",
+      });
       expectStatus(400)(response);
       const body = await response.text();
       expect(body).toContain("End date must be on or after the start date");
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest("/admin/holiday/999/edit", {
-          name: "Test",
-          start_date: "2026-12-25",
-          end_date: "2026-12-25",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost("/admin/holiday/999/edit", {
+        name: "Test",
+        start_date: "2026-12-25",
+        end_date: "2026-12-25",
+      });
       expectStatus(404)(response);
     });
 
     test("rejects invalid form data on edit", async () => {
       const holiday = await createTestHoliday();
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest(`/admin/holiday/${holiday.id}/edit`, {
-          name: "",
-          start_date: "2026-12-25",
-          end_date: "2026-12-25",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost(`/admin/holiday/${holiday.id}/edit`, {
+        name: "",
+        start_date: "2026-12-25",
+        end_date: "2026-12-25",
+      });
       expectStatus(400)(response);
       const body = await response.text();
       expect(body).toContain("Holiday Name is required");
@@ -369,12 +311,7 @@ describe("server (admin holidays)", () => {
 
     test("shows delete confirmation page", async () => {
       const holiday = await createTestHoliday({ name: "Christmas" });
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        new Request(`http://localhost/admin/holiday/${holiday.id}/delete`, {
-          headers: { host: "localhost", cookie },
-        }),
-      );
+      const { response } = await adminGet(`/admin/holiday/${holiday.id}/delete`);
       expectStatus(200)(response);
       const body = await response.text();
       expect(body).toContain("Delete Holiday");
@@ -383,12 +320,7 @@ describe("server (admin holidays)", () => {
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        new Request("http://localhost/admin/holiday/999/delete", {
-          headers: { host: "localhost", cookie },
-        }),
-      );
+      const { response } = await adminGet("/admin/holiday/999/delete");
       expectStatus(404)(response);
     });
   });
@@ -416,13 +348,9 @@ describe("server (admin holidays)", () => {
 
     test("rejects deletion with wrong name", async () => {
       const holiday = await createTestHoliday({ name: "Christmas" });
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest(`/admin/holiday/${holiday.id}/delete`, {
-          confirm_identifier: "Wrong Name",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost(`/admin/holiday/${holiday.id}/delete`, {
+        confirm_identifier: "Wrong Name",
+      });
       expectStatus(400)(response);
       const body = await response.text();
       expect(body).toContain("Holiday name does not match");
@@ -435,37 +363,24 @@ describe("server (admin holidays)", () => {
 
     test("name confirmation is case-insensitive", async () => {
       const holiday = await createTestHoliday({ name: "Christmas Day" });
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest(`/admin/holiday/${holiday.id}/delete`, {
-          confirm_identifier: "christmas day",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost(`/admin/holiday/${holiday.id}/delete`, {
+        confirm_identifier: "christmas day",
+      });
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/holidays");
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest("/admin/holiday/999/delete", {
-          confirm_identifier: "Test",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost("/admin/holiday/999/delete", {
+        confirm_identifier: "Test",
+      });
       expectStatus(404)(response);
     });
   });
 
   describe("nav link", () => {
     test("holidays link visible to owners", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        new Request("http://localhost/admin/holidays", {
-          headers: { host: "localhost", cookie },
-        }),
-      );
+      const { response } = await adminGet("/admin/holidays");
       const body = await response.text();
       expect(body).toContain("/admin/holidays");
       expect(body).toContain("Holidays");
@@ -475,12 +390,7 @@ describe("server (admin holidays)", () => {
   describe("activity logging", () => {
     test("logs holiday creation", async () => {
       await createTestHoliday({ name: "Logged Holiday" });
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        new Request("http://localhost/admin/log", {
-          headers: { host: "localhost", cookie },
-        }),
-      );
+      const { response } = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Logged Holiday");
       expect(body).toContain("created");
@@ -489,12 +399,7 @@ describe("server (admin holidays)", () => {
     test("logs holiday update", async () => {
       const holiday = await createTestHoliday({ name: "Before Update" });
       await updateTestHoliday(holiday.id, { name: "After Update" });
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        new Request("http://localhost/admin/log", {
-          headers: { host: "localhost", cookie },
-        }),
-      );
+      const { response } = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("After Update");
       expect(body).toContain("updated");
@@ -503,12 +408,7 @@ describe("server (admin holidays)", () => {
     test("logs holiday deletion", async () => {
       const holiday = await createTestHoliday({ name: "Deleted Holiday" });
       await deleteTestHoliday(holiday.id);
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        new Request("http://localhost/admin/log", {
-          headers: { host: "localhost", cookie },
-        }),
-      );
+      const { response } = await adminGet("/admin/log");
       const body = await response.text();
       expect(body).toContain("Deleted Holiday");
       expect(body).toContain("deleted");
@@ -549,27 +449,18 @@ describe("server (admin holidays)", () => {
 
   describe("holidayErrorPage fallback", () => {
     test("returns 404 when holiday not found during edit error", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      // Submit invalid form for a non-existent holiday to trigger holidayErrorPage with null holiday
-      const response = await handleRequest(
-        mockFormRequest("/admin/holiday/999/edit", {
-          name: "",
-          start_date: "2026-12-25",
-          end_date: "2026-12-25",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost("/admin/holiday/999/edit", {
+        name: "",
+        start_date: "2026-12-25",
+        end_date: "2026-12-25",
+      });
       expectStatus(404)(response);
     });
 
     test("returns 404 when holiday not found during delete error", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest("/admin/holiday/999/delete", {
-          confirm_identifier: "Wrong",
-          csrf_token: csrfToken,
-        }, cookie),
-      );
+      const { response } = await adminFormPost("/admin/holiday/999/delete", {
+        confirm_identifier: "Wrong",
+      });
       expectStatus(404)(response);
     });
   });

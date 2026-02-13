@@ -35,7 +35,7 @@ jobs:
             script_id="${line%%|*}"
             api_key="${line#*|}"
             echo "Deploying to script $script_id..."
-            response=$(curl -s --fail-with-body -w "\n%{http_code}" \
+            response=$(curl -s -w "\n%{http_code}" \
               -X POST "https://api.bunny.net/compute/script/${script_id}/code" \
               -H "AccessKey: ${api_key}" \
               -H "Content-Type: application/json" \
@@ -50,7 +50,7 @@ jobs:
               exit 1
             fi
             echo "  Publishing script $script_id..."
-            response=$(curl -s --fail-with-body -w "\n%{http_code}" \
+            response=$(curl -s -w "\n%{http_code}" \
               -X POST "https://api.bunny.net/compute/script/${script_id}/publish" \
               -H "AccessKey: ${api_key}" \
               -H "Content-Type: application/json" \

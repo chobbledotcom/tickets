@@ -826,7 +826,10 @@ body.iframe main {
 }
 
 body.iframe form {
+  border: none;
+  box-shadow: none;
   margin-bottom: 0;
+  padding: 0;
 }
 
 /* Multi-booking event list */
