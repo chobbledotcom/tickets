@@ -46,8 +46,8 @@ export const CONFIG_KEYS = {
   TERMS_AND_CONDITIONS: "terms_and_conditions",
   // Timezone (IANA timezone identifier, plaintext)
   TIMEZONE: "timezone",
-  // Business email (plaintext)
-  business_email: "business_email",
+  // Business email (encrypted)
+  BUSINESS_EMAIL: "business_email",
 } as const;
 
 /**

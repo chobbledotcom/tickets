@@ -1,6 +1,7 @@
 import { lazyRef } from "#fp";
 import { getDb } from "#lib/db/client.ts";
 import { CONFIG_KEYS } from "#lib/db/settings.ts";
+import { decrypt, encrypt } from "#lib/crypto.ts";
 
 /**
  * Validates a basic email format: something@something.something
@@ -23,6 +24,7 @@ export function normalizeBusinessEmail(email: string): string {
 
 /**
  * Gets the business email from the database (async, with permanent cache).
+ * Returns decrypted email.
  */
 export async function getBusinessEmailFromDb(): Promise<string> {
   const cached = getBusinessEmailCache();
@@ -31,13 +33,18 @@ export async function getBusinessEmailFromDb(): Promise<string> {
   const db = getDb();
   const result = await db.execute({
     sql: "SELECT value FROM settings WHERE key = ?",
-    args: [CONFIG_KEYS.business_email],
+    args: [CONFIG_KEYS.BUSINESS_EMAIL],
   });
 
   const row = result.rows[0];
-  const value = row?.value ? (row.value as string) : "";
-  setBusinessEmailCache(value);
-  return value;
+  if (!row?.value) {
+    setBusinessEmailCache("");
+    return "";
+  }
+
+  const decrypted = await decrypt(row.value as string);
+  setBusinessEmailCache(decrypted);
+  return decrypted;
 }
 
 // Lazy reference for permanent caching
@@ -54,6 +61,7 @@ export function getBusinessEmailCached(): string {
 /**
  * Updates the business email in the database and invalidates the cache.
  * Pass empty string to clear the business email.
+ * Email is encrypted at rest.
  */
 export async function updateBusinessEmail(email: string): Promise<void> {
   const db = getDb();
@@ -62,7 +70,7 @@ export async function updateBusinessEmail(email: string): Promise<void> {
   if (email.trim() === "") {
     await db.execute({
       sql: "DELETE FROM settings WHERE key = ?",
-      args: [CONFIG_KEYS.business_email],
+      args: [CONFIG_KEYS.BUSINESS_EMAIL],
     });
     setBusinessEmailCache("");
     return;
@@ -74,12 +82,13 @@ export async function updateBusinessEmail(email: string): Promise<void> {
     throw new Error("Invalid business email format");
   }
 
+  const encrypted = await encrypt(normalized);
   await db.execute({
     sql: `INSERT INTO settings (key, value) VALUES (?, ?)
           ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    args: [CONFIG_KEYS.business_email, normalized],
+    args: [CONFIG_KEYS.BUSINESS_EMAIL, encrypted],
   });
 
-  // Update cache with new value
+  // Update cache with decrypted value
   setBusinessEmailCache(normalized);
 }
