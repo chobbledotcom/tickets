@@ -55,11 +55,12 @@ const decryptDatetime = async (v: string): Promise<string> => {
 
 /** Encrypt closes_at for DB storage (null/empty → encrypted empty) */
 export const writeClosesAt = (v: string | null): Promise<string | null> =>
-  encryptDatetime((v as string) ?? "");
+  encryptDatetime(v ?? "");
 
 /** Decrypt closes_at from DB storage (encrypted empty → null) */
 const readClosesAt = async (v: string | null): Promise<string | null> => {
-  const result = await decryptDatetime(v as string);
+  // DB column is NOT NULL (writeClosesAt always encrypts), so v is always a string
+  const result = await decryptDatetime(v!);
   return result === "" ? null : result;
 };
 
@@ -133,16 +134,8 @@ export const deleteEvent = async (eventId: number): Promise<void> => {
   await eventsTable.deleteById(eventId);
 };
 
-/** Decrypt event fields after raw query (for JOIN queries) */
-const decryptEventWithCount = async (
-  row: EventWithCount,
-): Promise<EventWithCount> => {
-  const event = await eventsTable.fromDb(row as unknown as Event);
-  return { ...event, attendee_count: row.attendee_count };
-};
-
-/** Decrypt raw event row and add attendee count */
-const decryptEventRow = async (
+/** Decrypt event fields and attach an attendee count */
+const decryptAndAttachCount = async (
   row: Event,
   attendeeCount: number,
 ): Promise<EventWithCount> => {
@@ -166,7 +159,7 @@ const queryEventsWithCounts = async (
      GROUP BY e.id
      ORDER BY e.created DESC, e.id DESC`,
   );
-  return Promise.all(rows.map(decryptEventWithCount));
+  return Promise.all(rows.map((row) => decryptAndAttachCount(row, row.attendee_count)));
 };
 
 /**
@@ -191,7 +184,7 @@ export const getEventWithCount = async (
      GROUP BY e.id`,
     [id],
   );
-  return row ? decryptEventWithCount(row) : null;
+  return row ? decryptAndAttachCount(row, row.attendee_count) : null;
 };
 
 /**
@@ -210,7 +203,7 @@ export const getEventWithCountBySlug = async (
      GROUP BY e.id`,
     [slugIndex],
   );
-  return row ? decryptEventWithCount(row) : null;
+  return row ? decryptAndAttachCount(row, row.attendee_count) : null;
 };
 
 /** Result type for combined event + attendees query */
@@ -238,7 +231,7 @@ export const getEventWithAttendeesRaw = async (
 
   const attendeesRaw = resultRows<Attendee>(attendeesResult!);
   const count = attendeesRaw.reduce((sum, a) => sum + a.quantity, 0);
-  return { event: await decryptEventRow(eventRow, count), attendeesRaw };
+  return { event: await decryptAndAttachCount(eventRow, count), attendeesRaw };
 };
 
 /**
@@ -302,7 +295,7 @@ export const getEventWithAttendeeRaw = async (
 
   const count = resultRows<{ count: number }>(countResult!)[0]!.count;
   return {
-    event: await decryptEventRow(eventRow, count),
+    event: await decryptAndAttachCount(eventRow, count),
     attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null,
   };
 };
@@ -330,7 +323,7 @@ export const getEventsBySlugsBatch = async (
     slugIndices,
   );
 
-  const decryptedEvents = await Promise.all(rows.map(decryptEventWithCount));
+  const decryptedEvents = await Promise.all(rows.map((row) => decryptAndAttachCount(row, row.attendee_count)));
 
   // Create a map of slug_index -> event for ordering
   const eventBySlugIndex = new Map<string, EventWithCount>();

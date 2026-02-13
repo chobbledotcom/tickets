@@ -1900,6 +1900,56 @@ describe("server (webhooks)", () => {
       }
     });
 
+    test("webhook treats invalid payment_status as unpaid", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_bad_status",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_bad_status",
+              payment_status: "completed", // invalid status, should fall back to "unpaid"
+              payment_intent: "pi_bad_status",
+              amount_total: 1000,
+              metadata: {
+                event_id: String(event.id),
+                name: "Bad Status",
+                email: "badstatus@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        // "completed" is not a valid payment status, so paymentStatus defaults to "unpaid"
+        // This means the session is treated as unpaid and returns a pending acknowledgement
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        expect(json.status).toBe("pending");
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
     test("webhook extracts amount_total as number from event data", async () => {
       await setupStripe();
 

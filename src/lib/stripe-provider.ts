@@ -11,15 +11,14 @@ import {
   hasRequiredSessionMetadata,
   toCheckoutResult,
 } from "#lib/payment-helpers.ts";
-import type {
-  MultiRegistrationIntent,
-  PaymentProvider,
-  PaymentProviderType,
-  RegistrationIntent,
-  ValidatedPaymentSession,
-  WebhookEvent,
-  WebhookSetupResult,
-  WebhookVerifyResult,
+import {
+  isPaymentStatus,
+  type MultiRegistrationIntent,
+  type PaymentProvider,
+  type RegistrationIntent,
+  type ValidatedPaymentSession,
+  type WebhookSetupResult,
+  type WebhookVerifyResult,
 } from "#lib/payments.ts";
 import {
   createCheckoutSessionWithIntent,
@@ -32,7 +31,7 @@ import {
 
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
-  type: "stripe" as PaymentProviderType,
+  type: "stripe",
 
   checkoutCompletedEventType: "checkout.session.completed",
 
@@ -65,12 +64,14 @@ export const stripePaymentProvider: PaymentProvider = {
       return null;
     }
 
+    if (amount_total === null) return null;
+
     return {
       id,
-      paymentStatus: payment_status as ValidatedPaymentSession["paymentStatus"],
+      paymentStatus: isPaymentStatus(payment_status) ? payment_status : "unpaid",
       paymentReference:
         typeof payment_intent === "string" ? payment_intent : null,
-      amountTotal: amount_total!,
+      amountTotal: amount_total,
       metadata: extractSessionMetadata(metadata),
     };
   },
@@ -85,7 +86,7 @@ export const stripePaymentProvider: PaymentProvider = {
     }
     return {
       valid: true,
-      event: result.event as WebhookEvent,
+      event: result.event,
     };
   },
 

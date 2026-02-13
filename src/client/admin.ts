@@ -129,8 +129,8 @@ if (paymentResult && window.opener) {
 }
 
 /* Stripe connection test button */
-const btn = document.getElementById("stripe-test-btn") as HTMLButtonElement | null;
-if (btn) {
+const btn = document.getElementById("stripe-test-btn");
+if (btn instanceof HTMLButtonElement) {
   btn.addEventListener("click", async () => {
     const resultDiv = document.getElementById("stripe-test-result")!;
     btn.disabled = true;
@@ -138,9 +138,8 @@ if (btn) {
     resultDiv.style.display = "none";
     resultDiv.className = "";
     try {
-      const csrfToken = (btn
-        .closest("form")!
-        .querySelector('input[name="csrf_token"]') as HTMLInputElement).value;
+      const csrfInput = btn.closest("form")?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
+      const csrfToken = csrfInput?.value ?? "";
       const res = await fetch("/admin/settings/stripe/test", {
         method: "POST",
         credentials: "same-origin",
@@ -172,7 +171,7 @@ if (btn) {
       resultDiv.style.display = "block";
       resultDiv.style.whiteSpace = "pre-wrap";
     } catch (e) {
-      resultDiv.textContent = `Connection test failed: ${(e as Error).message}`;
+      resultDiv.textContent = `Connection test failed: ${e instanceof Error ? e.message : "Unknown error"}`;
       resultDiv.className = "error";
       resultDiv.style.display = "block";
     }

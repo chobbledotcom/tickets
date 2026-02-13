@@ -8,16 +8,17 @@
 
 declare const Deno: { env: { get(key: string): string | undefined } } | undefined;
 
+/** Augment globalThis to include optional process.env (Bunny Edge runtime) */
+declare const process: { env: Record<string, string | undefined> } | undefined;
+
 /**
  * Get an environment variable value
  * Checks process.env first (Bunny Edge), falls back to Deno.env (local dev)
  */
 export function getEnv(key: string): string | undefined {
   // Try process.env first (available in Bunny Edge via node:process)
-  // deno-lint-ignore no-explicit-any
-  const processEnv = (globalThis as any).process?.env;
-  if (processEnv && key in processEnv) {
-    return processEnv[key];
+  if (typeof process !== "undefined" && process?.env && key in process.env) {
+    return process.env[key];
   }
 
   // Fall back to Deno.env for local development

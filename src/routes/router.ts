@@ -85,7 +85,7 @@ const getParamPattern = (name: string): string => {
  */
 const compilePattern = (
   pattern: string,
-): CompiledRoute["regex"] & { paramNames: string[]; numericParams: Set<string> } => {
+): { regex: RegExp; paramNames: string[]; numericParams: Set<string> } => {
   const paramNames: string[] = [];
   const numericParams = new Set<string>();
 
@@ -98,13 +98,11 @@ const compilePattern = (
       return getParamPattern(name);
     });
 
-  const regex = new RegExp(`^${regexStr}$`) as RegExp & {
-    paramNames: string[];
-    numericParams: Set<string>;
+  return {
+    regex: new RegExp(`^${regexStr}$`),
+    paramNames,
+    numericParams,
   };
-  regex.paramNames = paramNames;
-  regex.numericParams = numericParams;
-  return regex;
 };
 
 /**
@@ -129,14 +127,9 @@ const compileRoutes = (
   reduce(
     (compiled: Map<string, CompiledRoute[]>, [pattern, handler]: [string, RouteHandlerFn]) => {
       const { method, path } = parseRoutePattern(pattern);
-      const regex = compilePattern(path);
+      const { regex, paramNames, numericParams } = compilePattern(path);
       const methodRoutes = compiled.get(method) ?? [];
-      methodRoutes.push({
-        regex,
-        paramNames: regex.paramNames,
-        numericParams: regex.numericParams,
-        handler,
-      });
+      methodRoutes.push({ regex, paramNames, numericParams, handler });
       compiled.set(method, methodRoutes);
       return compiled;
     },

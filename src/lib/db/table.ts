@@ -110,12 +110,12 @@ export const toSnakeCase = (s: string): string =>
  * Build input key mapping from DB columns
  * snake_case DB column → camelCase input key
  */
-export const buildInputKeyMap = <Row>(
-  columns: (keyof Row)[],
+export const buildInputKeyMap = (
+  columns: string[],
 ): Record<string, string> =>
   reduce(
-    (acc, col) => {
-      acc[col as string] = toCamelCase(col as string);
+    (acc: Record<string, string>, col: string) => {
+      acc[col] = toCamelCase(col);
       return acc;
     },
     {} as Record<string, string>,
@@ -202,7 +202,7 @@ export const defineTable = <Row, Input = Row>(config: {
   // Build column lists
   const allColumns = Object.keys(schema) as (keyof Row & string)[];
   const inputColumns = allColumns.filter((col) => !schema[col].generated);
-  const inputKeyMap = buildInputKeyMap<Row>(inputColumns);
+  const inputKeyMap = buildInputKeyMap(inputColumns);
 
   // Get input value for a column (inputKeyMap always has entry for inputColumns)
   const getInputValue = (

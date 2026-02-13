@@ -45,7 +45,7 @@ export const addDays = (dateStr: string, days: number): string => {
 
 /** Get the day name for a YYYY-MM-DD date string */
 const getDayName = (dateStr: string): string =>
-  DAY_NAMES[new Date(`${dateStr}T00:00:00Z`).getUTCDay()] as string;
+  DAY_NAMES[new Date(`${dateStr}T00:00:00Z`).getUTCDay()]!;
 
 /** Check if a date falls within any holiday range (inclusive) */
 const isHoliday = (dateStr: string, holidays: Holiday[]): boolean =>
@@ -72,7 +72,8 @@ export const getAvailableDates = (
   holidays: Holiday[],
   tz: string,
 ): string[] => {
-  const bookableDays = JSON.parse(event.bookable_days) as string[];
+  const parsed: unknown = JSON.parse(event.bookable_days);
+  const bookableDays: string[] = Array.isArray(parsed) ? parsed : [];
   const todayStr = todayInTz(tz);
   const start = addDays(todayStr, event.minimum_days_before);
   const maxDays =
