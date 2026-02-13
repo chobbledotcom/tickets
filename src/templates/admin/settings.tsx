@@ -29,7 +29,7 @@ export const adminSettingsPage = (
   embedHosts?: string | null,
   termsAndConditions?: string | null,
   timezone?: string,
-  businessEmail?: string | null,
+  businessEmail?: string,
 ): string =>
   String(
     <Layout title="Settings">

@@ -24,9 +24,9 @@ export function normalizeBusinessEmail(email: string): string {
 /**
  * Gets the business email from the database (async, with permanent cache).
  */
-export async function getBusinessEmailFromDb(): Promise<string | null> {
+export async function getBusinessEmailFromDb(): Promise<string> {
   const cached = getBusinessEmailCache();
-  if (cached !== null) return cached;
+  if (cached !== "") return cached;
 
   const db = getDb();
   const result = await db.execute({
@@ -34,19 +34,20 @@ export async function getBusinessEmailFromDb(): Promise<string | null> {
     args: [CONFIG_KEYS.business_email],
   });
 
-  const value = result.rows.length > 0 ? (result.rows[0].value as string) : null;
+  const row = result.rows[0];
+  const value = row?.value ? (row.value as string) : "";
   setBusinessEmailCache(value);
   return value;
 }
 
 // Lazy reference for permanent caching
-const [getBusinessEmailCache, setBusinessEmailCache] = lazyRef<string | null>(() => null);
+const [getBusinessEmailCache, setBusinessEmailCache] = lazyRef<string>(() => "");
 
 /**
  * Gets the cached business email (synchronous).
  * Safe to call from templates.
  */
-export function getBusinessEmailCached(): string | null {
+export function getBusinessEmailCached(): string {
   return getBusinessEmailCache();
 }
 
@@ -63,7 +64,7 @@ export async function updateBusinessEmail(email: string): Promise<void> {
       sql: "DELETE FROM settings WHERE key = ?",
       args: [CONFIG_KEYS.business_email],
     });
-    setBusinessEmailCache(null);
+    setBusinessEmailCache("");
     return;
   }
 
@@ -79,6 +80,6 @@ export async function updateBusinessEmail(email: string): Promise<void> {
     args: [CONFIG_KEYS.business_email, normalized],
   });
 
-  // Invalidate cache
-  setBusinessEmailCache(null);
+  // Update cache with new value
+  setBusinessEmailCache(normalized);
 }

@@ -74,7 +74,7 @@ describe("webhook", () => {
       expect(payload.tickets[0]!.quantity).toBe(1);
       expect(payload.tickets[0]!.date).toBeNull();
       expect(payload.timestamp).toBeDefined();
-      expect(payload.business_email).toBeNull();
+      expect(payload.business_email).toBe("");
     });
 
     test("builds payload for a single paid event with price_paid on attendee", async () => {
@@ -183,7 +183,7 @@ describe("webhook", () => {
       expect(payload.business_email).toBe("contact@example.com");
     });
 
-    test("includes null business_email when not set", async () => {
+    test("includes empty business_email when not set", async () => {
       await resetDb();
       await createTestDbWithSetup();
 
@@ -193,7 +193,7 @@ describe("webhook", () => {
 
       const payload = await buildWebhookPayload(entries, "GBP");
 
-      expect(payload.business_email).toBeNull();
+      expect(payload.business_email).toBe("");
     });
   });
 

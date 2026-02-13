@@ -30,7 +30,7 @@ export type WebhookPayload = ContactInfo & {
   ticket_url: string;
   tickets: WebhookTicket[];
   timestamp: string;
-  business_email: string | null;
+  business_email: string;
 };
 
 /** Event data needed for webhook notifications */

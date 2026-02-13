@@ -101,9 +101,9 @@ describe("business-email", () => {
   });
 
   describe("getBusinessEmailFromDb", () => {
-    test("returns null when no business email is set", async () => {
+    test("returns empty string when no business email is set", async () => {
       const result = await getBusinessEmailFromDb();
-      expect(result).toBe(null);
+      expect(result).toBe("");
     });
 
     test("returns business email after it is set", async () => {
@@ -143,14 +143,14 @@ describe("business-email", () => {
       await updateBusinessEmail("test@example.com");
       await updateBusinessEmail("");
       const result = await getBusinessEmailFromDb();
-      expect(result).toBe(null);
+      expect(result).toBe("");
     });
 
     test("clears email when given whitespace only", async () => {
       await updateBusinessEmail("test@example.com");
       await updateBusinessEmail("   ");
       const result = await getBusinessEmailFromDb();
-      expect(result).toBe(null);
+      expect(result).toBe("");
     });
 
     test("throws on invalid email format", async () => {
