@@ -53,7 +53,7 @@ export const ticketPage = (
   csrfToken: string,
   error: string | undefined,
   isClosed: boolean,
-  iframe: boolean,
+  inIframe: boolean,
   availableDates: string[] | undefined,
   termsAndConditions: string | null | undefined,
 ): string => {
@@ -66,8 +66,8 @@ export const ticketPage = (
   const isDaily = event.event_type === "daily";
 
   return String(
-    <Layout title={event.name} bodyClass={iframe ? "iframe" : undefined}>
-      {!iframe && (
+    <Layout title={event.name} bodyClass={inIframe ? "iframe" : undefined}>
+      {!inIframe && (
         <>
           <Raw html={renderEventImage(event)} />
           <h1>{event.name}</h1>
@@ -91,7 +91,7 @@ export const ticketPage = (
       ) : isFull ? (
           <div class="error">Sorry, this event is full.</div>
       ) : (
-          <form method="POST" action={`/ticket/${event.slug}${iframe ? "?iframe=true" : ""}`}>
+          <form method="POST" action={`/ticket/${event.slug}${inIframe ? "?iframe=true" : ""}`}>
             <input type="hidden" name="csrf_token" value={csrfToken} />
             <Raw html={renderFields(fields)} />
             {isDaily && availableDates && (
@@ -213,11 +213,11 @@ export const multiTicketPage = (
   error?: string,
   availableDates?: string[],
   termsAndConditions?: string | null,
-  iframe = false,
+  inIframe = false,
 ): string => {
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
-  const formAction = `/ticket/${slugs.join("+")}${iframe ? "?iframe=true" : ""}`;
+  const formAction = `/ticket/${slugs.join("+")}${inIframe ? "?iframe=true" : ""}`;
   const fieldsSetting = getMultiTicketFieldsSetting(events);
   const fields: Field[] = getTicketFields(fieldsSetting);
   const hasDaily = events.some((e) => e.event.event_type === "daily");
@@ -228,7 +228,7 @@ export const multiTicketPage = (
   )(events);
 
   return String(
-    <Layout title="Reserve Tickets" bodyClass={iframe ? "iframe" : undefined}>
+    <Layout title="Reserve Tickets" bodyClass={inIframe ? "iframe" : undefined}>
       <Raw html={renderError(error)} />
 
       {allUnavailable ? (

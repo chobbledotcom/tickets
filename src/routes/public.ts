@@ -74,8 +74,8 @@ const ticketResponseWithCookie = makeCsrfResponseBuilder<
   [EventWithCount, boolean, boolean, string[] | undefined, string | null | undefined]
 >(
   (event) => ticketCsrfPath(event.slug),
-  (token, error, event, isClosed, iframe, dates, terms) => ticketPage(event, token, error, isClosed, iframe, dates, terms),
-  (_ev, _cl, iframe) => iframe,
+  (token, error, event, isClosed, inIframe, dates, terms) => ticketPage(event, token, error, isClosed, inIframe, dates, terms),
+  (_ev, _cl, inIframe) => inIframe,
 );
 
 /** Curried error response: render(error) → (error, status) → Response */
@@ -93,8 +93,8 @@ const validationErrorResponder = <Args extends unknown[]>(
 
 /** Ticket response without cookie - for validation errors after CSRF passed */
 const ticketResponse = validationErrorResponder(
-  (error: string, event: EventWithCount, token: string, iframe: boolean, dates: string[] | undefined, terms: string | null | undefined) =>
-    ticketPage(event, token, error, false, iframe, dates, terms),
+  (error: string, event: EventWithCount, token: string, inIframe: boolean, dates: string[] | undefined, terms: string | null | undefined) =>
+    ticketPage(event, token, error, false, inIframe, dates, terms),
 );
 
 /** Check if request URL has ?iframe=true */
@@ -115,10 +115,10 @@ export const handleTicketGet = (slug: string, request: Request): Promise<Respons
   withActiveEventBySlug(slug, async (event) => {
     const token = generateSecureToken();
     const closed = isRegistrationClosed(event);
-    const iframe = isIframeRequest(request.url);
+    const inIframe = isIframeRequest(request.url);
     const dates = await computeDatesForEvent(event);
     const terms = await getTermsAndConditionsFromDb();
-    return ticketResponseWithCookie(event, closed, iframe, dates, terms)(token)();
+    return ticketResponseWithCookie(event, closed, inIframe, dates, terms)(token)();
   });
 
 /**
@@ -146,11 +146,11 @@ type ReservationParams = ContactInfo & {
  * When iframe=true, returns a popup page instead of redirect since Stripe cannot run in iframes. */
 const tryCheckoutRedirect = <T>(
   sessionUrl: string | undefined | null,
-  iframe: boolean,
+  inIframe: boolean,
   errorHandler: () => T,
 ): Response | T => {
   if (!sessionUrl) return errorHandler();
-  return iframe ? htmlResponse(checkoutPopupPage(sessionUrl)) : redirect(sessionUrl);
+  return inIframe ? htmlResponse(checkoutPopupPage(sessionUrl)) : redirect(sessionUrl);
 };
 
 /** Get active payment provider or return an error response */
@@ -167,7 +167,7 @@ const withPaymentProvider = async (
 const runCheckoutFlow = (
   label: string,
   request: Request,
-  iframe: boolean,
+  inIframe: boolean,
   createSession: (
     provider: Awaited<ReturnType<typeof getActivePaymentProvider>> & object,
     baseUrl: string,
@@ -186,7 +186,7 @@ const runCheckoutFlow = (
       logDebug("Payment", `Creating checkout session baseUrl=${baseUrl}`);
       const result = await createSession(provider, baseUrl);
       logDebug("Payment", `Checkout result for ${label}: ${result ? `url=${result.checkoutUrl}` : "null"}`);
-      return tryCheckoutRedirect(result?.checkoutUrl, iframe, () => {
+      return tryCheckoutRedirect(result?.checkoutUrl, inIframe, () => {
         logDebug("Payment", `Checkout redirect failed for ${label}: no session URL`);
         return onError("Failed to create payment session. Please try again.", 500);
       });
@@ -195,7 +195,7 @@ const runCheckoutFlow = (
 };
 
 /** Shared context for ticket page rendering */
-type TicketContext = { dates: string[] | undefined; terms: string | null | undefined; iframe: boolean };
+type TicketContext = { dates: string[] | undefined; terms: string | null | undefined; inIframe: boolean };
 
 /** Handle payment flow for single-ticket purchase */
 const handlePaymentFlow = (
@@ -208,9 +208,9 @@ const handlePaymentFlow = (
   runCheckoutFlow(
     `single-ticket event=${event.id}`,
     request,
-    ctx.iframe,
+    ctx.inIframe,
     (provider, baseUrl) => provider.createCheckoutSession(event, intent, baseUrl),
-    (msg, status) => ticketResponse(event, csrfToken, ctx.iframe, undefined, ctx.terms)(msg, status),
+    (msg, status) => ticketResponse(event, csrfToken, ctx.inIframe, undefined, ctx.terms)(msg, status),
   );
 
 /** Extract contact details from validated form values */
@@ -234,8 +234,8 @@ const parseQuantity = (form: URLSearchParams, event: EventWithCount): number =>
   parseQuantityValue(form.get("quantity") || "1", event.max_quantity);
 
 /** CSRF error response for ticket page */
-const ticketCsrfError = (event: EventWithCount, iframe: boolean, terms: string | null | undefined) => (token: string) =>
-  ticketResponseWithCookie(event, false, iframe, undefined, terms)(token)(
+const ticketCsrfError = (event: EventWithCount, inIframe: boolean, terms: string | null | undefined) => (token: string) =>
+  ticketResponseWithCookie(event, false, inIframe, undefined, terms)(token)(
     "Invalid or expired form. Please try again.",
     403,
   );
@@ -248,7 +248,7 @@ const processPaidReservation = async (
 ): Promise<Response> => {
   const available = await hasAvailableSpots(event.id, contact.quantity, contact.date);
   if (!available) {
-    return ticketResponse(event, token, ctx.iframe, ctx.dates, ctx.terms)("Sorry, not enough spots available");
+    return ticketResponse(event, token, ctx.inIframe, ctx.dates, ctx.terms)("Sorry, not enough spots available");
   }
 
   const intent: RegistrationIntent = { eventId: event.id, ...contact };
@@ -271,7 +271,7 @@ const processFreeReservation = async (
   const result = await createAttendeeAtomic({ eventId: event.id, ...contact, quantity, date });
 
   if (!result.success) {
-    return ticketResponse(event, token, ctx.iframe, ctx.dates, ctx.terms)(formatAtomicError(result.reason));
+    return ticketResponse(event, token, ctx.inIframe, ctx.dates, ctx.terms)(formatAtomicError(result.reason));
   }
 
   await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
@@ -305,26 +305,26 @@ const processTicketReservation = async (
 ): Promise<Response> => {
   const currentToken = getFormToken(request);
   const terms = await getTermsAndConditionsFromDb();
-  const iframe = isIframeRequest(request.url);
+  const inIframe = isIframeRequest(request.url);
 
-  const csrfResult = await requireCsrfForm(request, ticketCsrfError(event, iframe, terms));
+  const csrfResult = await requireCsrfForm(request, ticketCsrfError(event, inIframe, terms));
   if (!csrfResult.ok) return csrfResult.response;
 
   // Check if registration has closed since the form was loaded
   if (isRegistrationClosed(event)) {
-    return ticketResponse(event, currentToken, iframe, undefined, terms)(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
+    return ticketResponse(event, currentToken, inIframe, undefined, terms)(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
   }
 
   const { form } = csrfResult;
   const fields = getTicketFields(event.fields);
   const validation = validateForm<TicketFormValues>(form, fields);
   if (!validation.valid) {
-    return ticketResponse(event, currentToken, iframe, undefined, terms)(validation.error);
+    return ticketResponse(event, currentToken, inIframe, undefined, terms)(validation.error);
   }
 
   // Validate terms and conditions acceptance if configured
   if (terms && form.get("agree_terms") !== "1") {
-    return ticketResponse(event, currentToken, iframe, undefined, terms)("You must agree to the terms and conditions");
+    return ticketResponse(event, currentToken, inIframe, undefined, terms)("You must agree to the terms and conditions");
   }
 
   // For daily events, validate the submitted date against available dates
@@ -335,7 +335,7 @@ const processTicketReservation = async (
     dates = getAvailableDates(event, await getActiveHolidays(tz), tz);
     date = validateSubmittedDate(form, dates);
     if (!date) {
-      return ticketResponse(event, currentToken, iframe, dates, terms)("Please select a valid date");
+      return ticketResponse(event, currentToken, inIframe, dates, terms)("Please select a valid date");
     }
   }
 
@@ -349,7 +349,7 @@ const processTicketReservation = async (
     date,
   };
 
-  const ctx: TicketContext = { dates, terms, iframe };
+  const ctx: TicketContext = { dates, terms, inIframe };
   if (await requiresPayment(event)) {
     return processPaidReservation(request, params, ctx);
   }
@@ -392,8 +392,8 @@ const multiTicketResponseWithCookie = makeCsrfResponseBuilder<
   [string[], MultiTicketEvent[], string[] | undefined, string | null | undefined, boolean]
 >(
   (slugs) => multiTicketCsrfPath(slugs),
-  (token, error, slugs, events, dates, terms, iframe) => multiTicketPage(events, slugs, token, error, dates, terms, iframe),
-  (_slugs, _events, _dates, _terms, iframe) => iframe,
+  (token, error, slugs, events, dates, terms, inIframe) => multiTicketPage(events, slugs, token, error, dates, terms, inIframe),
+  (_slugs, _events, _dates, _terms, inIframe) => inIframe,
 );
 
 /** Shared rendering context for multi-ticket error responses */
@@ -403,12 +403,12 @@ type MultiTicketRenderContext = {
   token: string;
   dates: string[];
   terms: string;
-  iframe: boolean;
+  inIframe: boolean;
 };
 
 /** Multi-ticket error response (for validation errors after CSRF passed) */
-const multiTicketResponse = ({ events, slugs, token, dates, terms, iframe }: MultiTicketRenderContext) =>
-  errorResponse((error) => multiTicketPage(events, slugs, token, error, dates, terms, iframe));
+const multiTicketResponse = ({ events, slugs, token, dates, terms, inIframe }: MultiTicketRenderContext) =>
+  errorResponse((error) => multiTicketPage(events, slugs, token, error, dates, terms, inIframe));
 
 /** Load and validate active events for multi-ticket, return 404 if none */
 const withActiveMultiEvents = async (
@@ -441,9 +441,9 @@ const getMultiTicketContext = async (activeEvents: MultiTicketEvent[]): Promise<
 const handleMultiTicketGet = (slugs: string[], request: Request): Promise<Response> =>
   withActiveMultiEvents(slugs, async (activeEvents) => {
     const token = generateSecureToken();
-    const iframe = isIframeRequest(request.url);
+    const inIframe = isIframeRequest(request.url);
     const { dates, terms } = await getMultiTicketContext(activeEvents);
-    return multiTicketResponseWithCookie(slugs, activeEvents, dates, terms, iframe)(token)();
+    return multiTicketResponseWithCookie(slugs, activeEvents, dates, terms, inIframe)(token)();
   });
 
 /** Parse quantity values from multi-ticket form */
@@ -530,7 +530,7 @@ const handleMultiPaymentFlow = (
   runCheckoutFlow(
     `multi-ticket items=${intent.items.length}`,
     request,
-    iframe,
+    ctx.inIframe,
     (provider, baseUrl) => provider.createMultiCheckoutSession(intent, baseUrl),
     (msg, status) => multiTicketResponse(ctx)(msg, status),
   );
@@ -567,12 +567,12 @@ const handleMultiTicketPost = (
   withActiveMultiEvents(slugs, async (activeEvents) => {
     const currentToken = getFormToken(request);
     const { dates, terms } = await getMultiTicketContext(activeEvents);
-    const iframe = isIframeRequest(request.url);
-    const renderCtx: MultiTicketRenderContext = { slugs, events: activeEvents, token: currentToken, dates, terms, iframe };
+    const inIframe = isIframeRequest(request.url);
+    const renderCtx: MultiTicketRenderContext = { slugs, events: activeEvents, token: currentToken, dates, terms, inIframe };
 
     // CSRF validation
     const csrfError = (token: string) =>
-      multiTicketResponseWithCookie(slugs, activeEvents, dates, terms, iframe)(token)(
+      multiTicketResponseWithCookie(slugs, activeEvents, dates, terms, inIframe)(token)(
         "Invalid or expired form. Please try again.",
         403,
       );
