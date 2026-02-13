@@ -8,7 +8,7 @@
 
 import { map } from "#fp";
 import { decrypt, decryptAttendeePII, encrypt, encryptAttendeePII, generateTicketToken } from "#lib/crypto.ts";
-import { getDb, inPlaceholders, queryOne } from "#lib/db/client.ts";
+import { getDb, inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { nowIso } from "#lib/now.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
@@ -61,13 +61,11 @@ const decryptAttendee = async (
  * Get attendees for an event without decrypting PII
  * Used for tests and operations that don't need decrypted data
  */
-export const getAttendeesRaw = async (eventId: number): Promise<Attendee[]> => {
-  const result = await getDb().execute({
-    sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
-    args: [eventId],
-  });
-  return result.rows as unknown as Attendee[];
-};
+export const getAttendeesRaw = (eventId: number): Promise<Attendee[]> =>
+  queryAll<Attendee>(
+    "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
+    [eventId],
+  );
 
 /**
  * Decrypt a list of raw attendees.
@@ -220,11 +218,11 @@ export const getDateAttendeeCount = async (
   eventId: number,
   date: string,
 ): Promise<number> => {
-  const result = await getDb().execute({
-    sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ? AND date = ?",
-    args: [eventId, date],
-  });
-  return (result.rows[0] as unknown as { count: number }).count;
+  const rows = await queryAll<{ count: number }>(
+    "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ? AND date = ?",
+    [eventId, date],
+  );
+  return rows[0]!.count;
 };
 
 /** Stubbable API for testing atomic operations */
@@ -240,20 +238,17 @@ export const attendeesApi = {
   ): Promise<boolean> => {
     if (items.length === 0) return true;
     const eventIds = items.map((i) => i.eventId);
-    const result = await getDb().execute({
-      sql: `SELECT e.id, e.max_attendees,
+    const rows = await queryAll<{ id: number; max_attendees: number; current_count: number }>(
+      `SELECT e.id, e.max_attendees,
               COALESCE(SUM(a.quantity), 0) as current_count
             FROM events e
             LEFT JOIN attendees a ON a.event_id = e.id
               AND (e.event_type != 'daily' OR a.date = ?)
             WHERE e.id IN (${inPlaceholders(eventIds)})
             GROUP BY e.id`,
-      args: [date ?? null, ...eventIds],
-    });
-    const counts = new Map(
-      (result.rows as unknown as Array<{ id: number; max_attendees: number; current_count: number }>)
-        .map((r) => [r.id, r]),
+      [date ?? null, ...eventIds],
     );
+    const counts = new Map(rows.map((r) => [r.id, r]));
     return items.every((item) => {
       const row = counts.get(item.eventId);
       return row ? row.current_count + item.quantity <= row.max_attendees : false;
@@ -373,11 +368,10 @@ export const checkBatchAvailability = (
 export const getAttendeesByTokens = async (
   tokens: string[],
 ): Promise<(Attendee | null)[]> => {
-  const result = await getDb().execute({
-    sql: `SELECT * FROM attendees WHERE ticket_token IN (${inPlaceholders(tokens)})`,
-    args: tokens,
-  });
-  const rows = result.rows as unknown as Attendee[];
+  const rows = await queryAll<Attendee>(
+    `SELECT * FROM attendees WHERE ticket_token IN (${inPlaceholders(tokens)})`,
+    tokens,
+  );
   const byToken = new Map(map((r: Attendee) => [r.ticket_token, r] as const)(rows));
   return map((t: string) => byToken.get(t) ?? null)(tokens);
 };

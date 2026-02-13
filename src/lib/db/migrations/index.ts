@@ -3,7 +3,7 @@
  */
 
 import { encrypt, encryptAttendeePII, generateTicketToken, hmacHash } from "#lib/crypto.ts";
-import { getDb } from "#lib/db/client.ts";
+import { getDb, queryAll } from "#lib/db/client.ts";
 import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 
 /**
@@ -24,10 +24,10 @@ const runMigration = async (sql: string): Promise<void> => {
 
 /** Backfill a column with an encrypted empty string for matching rows */
 const backfillEncryptedColumn = async (table: string, column: string, whereClause: string): Promise<void> => {
-  const rows = await getDb().execute(`SELECT id FROM ${table} WHERE ${whereClause}`);
+  const rows = await queryAll<{ id: number }>(`SELECT id FROM ${table} WHERE ${whereClause}`);
   const encryptedEmpty = await encrypt("");
-  for (const row of rows.rows) {
-    await getDb().execute({ sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`, args: [encryptedEmpty, row.id as number] });
+  for (const row of rows) {
+    await getDb().execute({ sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`, args: [encryptedEmpty, row.id] });
   }
 };
 
@@ -231,8 +231,8 @@ export const initDb = async (): Promise<void> => {
   {
     const existingPasswordHash = await getSetting("admin_password");
     const existingWrappedDataKey = await getSetting("wrapped_data_key");
-    const userCount = await getDb().execute("SELECT COUNT(*) as count FROM users");
-    const hasNoUsers = (userCount.rows[0] as unknown as { count: number }).count === 0;
+    const userCountRows = await queryAll<{ count: number }>("SELECT COUNT(*) as count FROM users");
+    const hasNoUsers = userCountRows[0]!.count === 0;
 
     if (existingPasswordHash && hasNoUsers) {
       const username = "admin";
@@ -266,11 +266,11 @@ export const initDb = async (): Promise<void> => {
 
   // Backfill existing attendees with random tokens
   {
-    const rows = await getDb().execute(`SELECT id FROM attendees WHERE ticket_token = ''`);
-    for (const row of rows.rows) {
+    const rows = await queryAll<{ id: number }>(`SELECT id FROM attendees WHERE ticket_token = ''`);
+    for (const row of rows) {
       await getDb().execute({
         sql: `UPDATE attendees SET ticket_token = ? WHERE id = ?`,
-        args: [generateTicketToken(), row.id as number],
+        args: [generateTicketToken(), row.id],
       });
     }
   }
