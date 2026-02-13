@@ -9,6 +9,7 @@ import {
   getEventWithActivityLog,
   logActivity,
 } from "#lib/db/activityLog.ts";
+import { ErrorCode, logError } from "#lib/logger.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import {
   computeSlugIndex,
@@ -26,11 +27,13 @@ import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts"
 import { defineRoutes } from "#routes/router.ts";
 import { csvResponse, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
+  getSearchParam,
   htmlResponse,
   notFoundResponse,
   redirect,
   requireSessionOr,
   withAuthForm,
+  withAuthMultipartForm,
   withEventPage,
 } from "#routes/utils.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
@@ -44,8 +47,24 @@ import {
   type AddAttendeeMessage,
   type AttendeeFilter,
 } from "#templates/admin/events.tsx";
+import {
+  deleteImage,
+  formatImageError,
+  isStorageEnabled,
+  uploadImage,
+  validateImage,
+} from "#lib/storage.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
+
+/** Try to delete an image from CDN storage, logging errors on failure */
+const tryDeleteImage = async (filename: string, eventId: number, detail: string): Promise<void> => {
+  try {
+    await deleteImage(filename);
+  } catch {
+    logError({ code: ErrorCode.STORAGE_DELETE, eventId, detail });
+  }
+};
 
 /** Generate a unique slug, retrying on collision */
 const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: string; slugIndex: string }> => {
@@ -180,6 +199,7 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
         dateFilter,
         availableDates,
         addAttendeeMessage: getAddAttendeeMessage(request),
+        imageError: getSearchParam(request, "image_error"),
       }),
     );
   });
@@ -356,6 +376,59 @@ const handleAdminEventDelete = (
         return event ? performDelete(event) : notFoundResponse();
       });
 
+/** Handle POST /admin/event/:id/image (upload event image) */
+const handleImageUpload = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  withAuthMultipartForm(request, async (_session, formData) => {
+    if (!isStorageEnabled()) {
+      return htmlResponse("Image storage is not configured", 400);
+    }
+
+    const event = await getEventWithCount(eventId);
+    if (!event) return notFoundResponse();
+
+    const file = formData.get("image") as File | null;
+    if (!file || file.size === 0) {
+      return redirect(`/admin/event/${eventId}`);
+    }
+
+    const data = new Uint8Array(await file.arrayBuffer());
+    const validation = validateImage(data, file.type);
+    if (!validation.valid) {
+      return redirect(`/admin/event/${eventId}?image_error=${encodeURIComponent(formatImageError(validation.error))}`);
+    }
+
+    // Delete old image if present
+    if (event.image_url) {
+      await tryDeleteImage(event.image_url, event.id, "old image cleanup");
+    }
+
+    const filename = await uploadImage(data, validation.detectedType);
+    await eventsTable.update(eventId, { imageUrl: filename });
+    await logActivity(`Image uploaded for '${event.name}'`, event);
+    return redirect(`/admin/event/${eventId}`);
+  });
+
+/** Handle POST /admin/event/:id/image/delete (delete event image) */
+const handleImageDelete = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  withAuthForm(request, async () => {
+    const event = await getEventWithCount(eventId);
+    if (!event) return notFoundResponse();
+
+    if (event.image_url) {
+      await tryDeleteImage(event.image_url, event.id, "image removal");
+      await eventsTable.update(eventId, { imageUrl: "" });
+      await logActivity(`Image removed for '${event.name}'`, event);
+    }
+
+    return redirect(`/admin/event/${eventId}`);
+  });
+
 /** Event routes */
 export const eventsRoutes = defineRoutes({
   "POST /admin/event": (request) => handleCreateEvent(request),
@@ -367,6 +440,8 @@ export const eventsRoutes = defineRoutes({
   "POST /admin/event/:id/edit": (request, { id }) => handleAdminEventEditPost(request, id),
   "GET /admin/event/:id/export": (request, { id }) => handleAdminEventExport(request, id),
   "GET /admin/event/:id/log": (request, { id }) => handleAdminEventLog(request, id),
+  "POST /admin/event/:id/image": (request, { id }) => handleImageUpload(request, id),
+  "POST /admin/event/:id/image/delete": (request, { id }) => handleImageDelete(request, id),
   "GET /admin/event/:id/deactivate": (request, { id }) => handleAdminEventDeactivateGet(request, id),
   "POST /admin/event/:id/deactivate": (request, { id }) => handleAdminEventDeactivatePost(request, id),
   "GET /admin/event/:id/reactivate": (request, { id }) => handleAdminEventReactivateGet(request, id),

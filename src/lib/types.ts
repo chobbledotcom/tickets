@@ -44,6 +44,7 @@ export interface Event {
   bookable_days: string;
   minimum_days_before: number;
   maximum_days_after: number;
+  image_url: string;
 }
 
 export interface Attendee extends ContactInfo {

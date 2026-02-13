@@ -162,6 +162,7 @@ describe("stripe", () => {
         bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
         minimum_days_before: 1,
         maximum_days_after: 90,
+        image_url: "",
       };
       const intent = {
         eventId: 1,
@@ -212,6 +213,7 @@ describe("stripe", () => {
         bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
         minimum_days_before: 1,
         maximum_days_after: 90,
+        image_url: "",
       };
 
       const intent = {
@@ -270,6 +272,7 @@ describe("stripe", () => {
         bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
         minimum_days_before: 1,
         maximum_days_after: 90,
+        image_url: "",
       };
       const intent = {
         eventId: 1,
@@ -311,6 +314,7 @@ describe("stripe", () => {
         bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
         minimum_days_before: 1,
         maximum_days_after: 90,
+        image_url: "",
       };
       const intent = {
         eventId: 1,

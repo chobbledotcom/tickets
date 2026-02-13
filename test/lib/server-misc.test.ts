@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { handleRequest } from "#routes";
+import { handleRequest, isValidContentType } from "#routes";
 import {
   createTestDb,
   createTestDbWithSetup,
@@ -146,6 +146,18 @@ describe("server (misc)", () => {
       expect(response.status).toBe(400);
       const text = await response.text();
       expect(text).toContain("Invalid Content-Type");
+    });
+
+    test("accepts POST requests with multipart/form-data Content-Type", () => {
+      const request = new Request("http://localhost/admin/login", {
+        method: "POST",
+        headers: {
+          host: "localhost",
+          "content-type": "multipart/form-data; boundary=----test",
+        },
+        body: "------test--",
+      });
+      expect(isValidContentType(request, "/admin/login")).toBe(true);
     });
   });
 

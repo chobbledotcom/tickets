@@ -9,6 +9,7 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { eventFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { renderEventImage } from "#templates/public.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -17,7 +18,7 @@ const EventRow = ({ e }: { e: EventWithCount }): string => {
   const rowStyle = isInactive ? 'opacity: 0.5;' : '';
   return String(
     <tr style={rowStyle || undefined}>
-      <td><a href={`/admin/event/${e.id}`}>{e.name}</a></td>
+      <td><Raw html={renderEventImage(e, "event-thumbnail")} /><a href={`/admin/event/${e.id}`}>{e.name}</a></td>
       <td>{e.description}</td>
       <td>{isInactive ? "Inactive" : "Active"}</td>
       <td>{e.attendee_count} / {e.max_attendees}</td>

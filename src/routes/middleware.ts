@@ -100,8 +100,9 @@ export const isValidContentType = (request: Request, path: string): boolean => {
     return contentType.startsWith("application/json");
   }
 
-  // All other POST endpoints require form-urlencoded
-  return contentType.startsWith("application/x-www-form-urlencoded");
+  // All other POST endpoints require form-urlencoded or multipart (for file uploads)
+  return contentType.startsWith("application/x-www-form-urlencoded") ||
+    contentType.startsWith("multipart/form-data");
 };
 
 /**

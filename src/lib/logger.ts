@@ -56,6 +56,9 @@ export const ErrorCode = {
   VALIDATION_FORM: "E_VALIDATION_FORM",
   VALIDATION_CONTENT_TYPE: "E_VALIDATION_CONTENT_TYPE",
 
+  // Storage errors
+  STORAGE_DELETE: "E_STORAGE_DELETE",
+
   // Webhook errors
   WEBHOOK_SEND: "E_WEBHOOK_SEND",
 
