@@ -9,6 +9,7 @@ import {
   getEventWithActivityLog,
   logActivity,
 } from "#lib/db/activityLog.ts";
+import { ErrorCode, logError } from "#lib/logger.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import {
   computeSlugIndex,
@@ -55,6 +56,15 @@ import {
 } from "#lib/storage.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
+
+/** Try to delete an image from CDN storage, logging errors on failure */
+const tryDeleteImage = async (filename: string, eventId: number, detail: string): Promise<void> => {
+  try {
+    await deleteImage(filename);
+  } catch {
+    logError({ code: ErrorCode.STORAGE_DELETE, eventId, detail });
+  }
+};
 
 /** Generate a unique slug, retrying on collision */
 const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: string; slugIndex: string }> => {
@@ -392,11 +402,7 @@ const handleImageUpload = (
 
     // Delete old image if present
     if (event.image_url) {
-      try {
-        await deleteImage(event.image_url);
-      } catch {
-        // Old image may already be gone
-      }
+      await tryDeleteImage(event.image_url, event.id, "old image cleanup");
     }
 
     const filename = await uploadImage(data, validation.detectedType);
@@ -415,12 +421,8 @@ const handleImageDelete = (
     if (!event) return notFoundResponse();
 
     if (event.image_url) {
-      try {
-        await deleteImage(event.image_url);
-      } catch {
-        // Image may already be gone from storage
-      }
-      await eventsTable.update(eventId, { imageUrl: null });
+      await tryDeleteImage(event.image_url, event.id, "image removal");
+      await eventsTable.update(eventId, { imageUrl: "" });
       await logActivity(`Image removed for '${event.name}'`, event);
     }
 

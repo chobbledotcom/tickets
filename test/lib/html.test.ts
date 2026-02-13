@@ -1538,7 +1538,7 @@ describe("html", () => {
     describe("renderEventImage", () => {
       test("returns empty string when image_url is null", () => {
         setupStorage();
-        const html = renderEventImage({ image_url: null, name: "Test" });
+        const html = renderEventImage({ image_url: "", name: "Test" });
         expect(html).toBe("");
         cleanupStorage();
       });
@@ -1548,7 +1548,7 @@ describe("html", () => {
         const html = renderEventImage({ image_url: "abc123.jpg", name: "Test Event" });
         expect(html).toContain("/image/abc123.jpg");
         expect(html).toContain('alt="Test Event"');
-        expect(html).toContain("border-radius: 4px");
+        expect(html).toContain('class="event-image"');
         cleanupStorage();
       });
 
@@ -1567,13 +1567,13 @@ describe("html", () => {
         const event = testEventWithCount({ image_url: "event-img.jpg" });
         const html = ticketPage(event, TEST_CSRF_TOKEN);
         expect(html).toContain("/image/event-img.jpg");
-        expect(html).toContain("border-radius: 4px");
+        expect(html).toContain('class="event-image"');
         cleanupStorage();
       });
 
       test("does not show image when image_url is null", () => {
         setupStorage();
-        const event = testEventWithCount({ image_url: null });
+        const event = testEventWithCount({ image_url: "" });
         const html = ticketPage(event, TEST_CSRF_TOKEN);
         expect(html).not.toContain("/image/");
         cleanupStorage();
@@ -1604,7 +1604,7 @@ describe("html", () => {
       test("does not show images when image_url is null", () => {
         setupStorage();
         const events = [
-          buildMultiTicketEvent(testEventWithCount({ id: 1, name: "Event A", image_url: null })),
+          buildMultiTicketEvent(testEventWithCount({ id: 1, name: "Event A", image_url: "" })),
         ];
         const html = multiTicketPage(events, ["slug-a"], TEST_CSRF_TOKEN);
         expect(html).not.toContain("/image/");
@@ -1632,7 +1632,7 @@ describe("html", () => {
         setupStorage();
         const entries = [
           {
-            event: testEventWithCount({ id: 1, image_url: null }),
+            event: testEventWithCount({ id: 1, image_url: "" }),
             attendee: testAttendee({ id: 1 }),
           },
         ];
@@ -1648,13 +1648,13 @@ describe("html", () => {
         const events = [testEventWithCount({ image_url: "thumb.jpg" })];
         const html = adminDashboardPage(events, TEST_SESSION, "localhost");
         expect(html).toContain("/image/thumb.jpg");
-        expect(html).toContain("object-fit: cover");
+        expect(html).toContain('class="event-thumbnail"');
         cleanupStorage();
       });
 
       test("does not show thumbnail when event has no image_url", () => {
         setupStorage();
-        const events = [testEventWithCount({ image_url: null })];
+        const events = [testEventWithCount({ image_url: "" })];
         const html = adminDashboardPage(events, TEST_SESSION, "localhost");
         expect(html).not.toContain('src="/image/');
         cleanupStorage();
@@ -1664,7 +1664,7 @@ describe("html", () => {
     describe("adminEventPage image section", () => {
       test("shows upload form when storage enabled and no image", () => {
         setupStorage();
-        const event = testEventWithCount({ image_url: null });
+        const event = testEventWithCount({ image_url: "" });
         const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
         expect(html).toContain("Event Image");
         expect(html).toContain('type="file"');
@@ -1685,7 +1685,7 @@ describe("html", () => {
 
       test("does not show image section when storage is not enabled", () => {
         cleanupStorage();
-        const event = testEventWithCount({ image_url: null });
+        const event = testEventWithCount({ image_url: "" });
         const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
         expect(html).not.toContain("Event Image");
         expect(html).not.toContain('type="file"');
@@ -1693,7 +1693,7 @@ describe("html", () => {
 
       test("shows image error when provided", () => {
         setupStorage();
-        const event = testEventWithCount({ image_url: null });
+        const event = testEventWithCount({ image_url: "" });
         const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION, imageError: "Image must be less than 256KB" });
         expect(html).toContain("Image must be less than 256KB");
         expect(html).toContain('class="error"');

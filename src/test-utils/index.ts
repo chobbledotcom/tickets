@@ -910,7 +910,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
   minimum_days_before: 0,
   maximum_days_after: 0,
-  image_url: null,
+  image_url: "",
   ...overrides,
 });
 

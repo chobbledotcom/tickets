@@ -4,27 +4,21 @@
 
 import { filter, map, pipe, reduce } from "#fp";
 import { renderFields } from "#lib/forms.tsx";
-import { getImageProxyUrl } from "#lib/storage.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { eventFields } from "#templates/fields.ts";
-import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { renderEventImage } from "#templates/public.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
-
-/** Render a small inline thumbnail for event rows */
-const eventThumbnail = (e: EventWithCount): string =>
-  e.image_url
-    ? `<img src="${escapeHtml(getImageProxyUrl(e.image_url))}" alt="" style="width: 2rem; height: 2rem; border-radius: 4px; object-fit: cover; vertical-align: middle; margin-right: 0.5rem;" />`
-    : "";
 
 const EventRow = ({ e }: { e: EventWithCount }): string => {
   const isInactive = e.active !== 1;
   const rowStyle = isInactive ? 'opacity: 0.5;' : '';
   return String(
     <tr style={rowStyle || undefined}>
-      <td><Raw html={eventThumbnail(e)} /><a href={`/admin/event/${e.id}`}>{e.name}</a></td>
+      <td><Raw html={renderEventImage(e, "event-thumbnail")} /><a href={`/admin/event/${e.id}`}>{e.name}</a></td>
       <td>{e.description}</td>
       <td>{isInactive ? "Inactive" : "Active"}</td>
       <td>{e.attendee_count} / {e.max_attendees}</td>

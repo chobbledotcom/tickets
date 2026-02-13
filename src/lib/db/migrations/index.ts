@@ -311,8 +311,9 @@ export const initDb = async (): Promise<void> => {
     await backfillEncryptedColumn("events", col, `${col} = ''`);
   }
 
-  // Migration: add image_url column to events (nullable, NOT encrypted - public CDN URL)
-  await runMigration(`ALTER TABLE events ADD COLUMN image_url TEXT DEFAULT NULL`);
+  // Migration: add image_url column to events (encrypted, empty string = no image)
+  await runMigration(`ALTER TABLE events ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`);
+  await backfillEncryptedColumn("events", "image_url", `image_url = ''`);
 
   // Update the version marker
   await getDb().execute({

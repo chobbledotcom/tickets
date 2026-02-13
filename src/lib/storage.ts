@@ -146,16 +146,11 @@ export const generateImageFilename = (detectedType: string): string => {
 const connectZone = (): BunnyStorageSDK.zone.StorageZone => {
   const zoneName = getEnv("STORAGE_ZONE_NAME") as string;
   const zoneKey = getEnv("STORAGE_ZONE_KEY") as string;
-  const regionEnv = getEnv("STORAGE_ZONE_REGION");
-  const region = regionEnv
-    ? (regionEnv as BunnyStorageSDK.regions.StorageRegion)
-    : BunnyStorageSDK.regions.StorageRegion.Falkenstein;
-  return BunnyStorageSDK.zone.connect_with_accesskey(region, zoneName, zoneKey);
-};
-
-/** Stubbable API for testing */
-export const storageApi = {
-  connectZone,
+  return BunnyStorageSDK.zone.connect_with_accesskey(
+    BunnyStorageSDK.regions.StorageRegion.Falkenstein,
+    zoneName,
+    zoneKey,
+  );
 };
 
 /**
@@ -169,7 +164,7 @@ export const uploadImage = async (
 ): Promise<string> => {
   const filename = generateImageFilename(detectedType);
   const encrypted = await encryptBytes(data);
-  const sz = storageApi.connectZone();
+  const sz = connectZone();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       controller.enqueue(encrypted);
@@ -200,6 +195,6 @@ export const downloadImage = async (filename: string): Promise<Uint8Array | null
  * Delete an image from Bunny storage.
  */
 export const deleteImage = async (filename: string): Promise<void> => {
-  const sz = storageApi.connectZone();
+  const sz = connectZone();
   await BunnyStorageSDK.file.remove(sz, `/${filename}`);
 };

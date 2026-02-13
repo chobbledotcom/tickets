@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { handleRequest } from "#routes";
 import {
   createTestDbWithSetup,
@@ -8,7 +8,6 @@ import {
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";
-import { storageApi } from "#lib/storage.ts";
 import { encryptBytes } from "#lib/crypto.ts";
 import { eventsTable, getEventWithCount } from "#lib/db/events.ts";
 
@@ -54,24 +53,16 @@ const formPostRequest = (
   });
 };
 
-/** Mock the storage zone and intercept Bunny API fetch calls */
+/** Mock fetch to intercept Bunny CDN API calls */
 const withStorageMock = async (
   fn: (fetchCalls: string[]) => Promise<void>,
 ): Promise<void> => {
-  const spy = spyOn(storageApi, "connectZone");
-  spy.mockReturnValue({
-    _tag: "StorageZone" as const,
-    region: "de" as never,
-    accessKey: "mock-key",
-    name: "testzone",
-  });
-
   const originalFetch = globalThis.fetch;
   const fetchCalls: string[] = [];
   globalThis.fetch = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     fetchCalls.push(url);
-    if (url.includes("storage.bunnycdn.com")) {
+    if (url.includes("storage.bunnycdn.com") || url.includes("b-cdn.net")) {
       return Promise.resolve(new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), { status: 201 }));
     }
     return originalFetch(input, init);
@@ -81,7 +72,6 @@ const withStorageMock = async (
     await fn(fetchCalls);
   } finally {
     globalThis.fetch = originalFetch;
-    spy.mockRestore();
   }
 };
 
@@ -197,7 +187,7 @@ describe("server (event images)", () => {
         expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
 
         const updated = await getEventWithCount(event.id);
-        expect(updated?.image_url).not.toBeNull();
+        expect(updated?.image_url).not.toBe("");
         expect(updated?.image_url).toMatch(/\.jpg$/);
       });
     });
@@ -259,7 +249,7 @@ describe("server (event images)", () => {
         expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
 
         const updated = await getEventWithCount(event.id);
-        expect(updated?.image_url).toBeNull();
+        expect(updated?.image_url).toBe("");
       });
     });
 
@@ -294,13 +284,6 @@ describe("server (event images)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
       await eventsTable.update(event.id, { imageUrl: "failing.jpg" });
 
-      const spy = spyOn(storageApi, "connectZone");
-      spy.mockReturnValue({
-        _tag: "StorageZone" as const,
-        region: "de" as never,
-        accessKey: "mock-key",
-        name: "testzone",
-      });
       const originalFetch = globalThis.fetch;
       globalThis.fetch = (): Promise<Response> => {
         return Promise.reject(new Error("CDN unreachable"));
@@ -315,10 +298,9 @@ describe("server (event images)", () => {
         const response = await handleRequest(request);
         expect(response.status).toBe(302);
         const updated = await getEventWithCount(event.id);
-        expect(updated?.image_url).toBeNull();
+        expect(updated?.image_url).toBe("");
       } finally {
         globalThis.fetch = originalFetch;
-        spy.mockRestore();
       }
     });
   });
@@ -329,19 +311,10 @@ describe("server (event images)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
       await eventsTable.update(event.id, { imageUrl: "old-failing.jpg" });
 
-      const spy = spyOn(storageApi, "connectZone");
-      spy.mockReturnValue({
-        _tag: "StorageZone" as const,
-        region: "de" as never,
-        accessKey: "mock-key",
-        name: "testzone",
-      });
       const originalFetch = globalThis.fetch;
-      let callCount = 0;
       globalThis.fetch = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
         const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-        callCount++;
-        // First call is the delete of old image — make it fail
+        // Delete of old image fails
         if (url.includes("old-failing.jpg")) {
           return Promise.reject(new Error("CDN delete failed"));
         }
@@ -368,7 +341,6 @@ describe("server (event images)", () => {
         expect(updated?.image_url).toMatch(/\.jpg$/);
       } finally {
         globalThis.fetch = originalFetch;
-        spy.mockRestore();
       }
     });
 

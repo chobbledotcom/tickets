@@ -34,7 +34,7 @@ export const ticketViewPage = (entries: TokenEntry[], qrSvg: string): string => 
     (r: string[]) => r.join(""),
   )(entries);
 
-  const hasImages = entries.some((e) => e.event.image_url !== null);
+  const hasImages = entries.some((e) => e.event.image_url !== "");
   const imageRows = hasImages
     ? pipe(
         map(({ event }: TokenEntry) => renderEventImage(event)),

@@ -13,9 +13,9 @@ import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
 /** Render event image HTML if image_url is set */
-export const renderEventImage = (event: { image_url: string | null; name: string }): string =>
+export const renderEventImage = (event: { image_url: string; name: string }, className = "event-image"): string =>
   event.image_url
-    ? `<img src="${escapeHtml(getImageProxyUrl(event.image_url))}" alt="${escapeHtml(event.name)}" style="max-width: 100%; border-radius: 4px; margin-bottom: 1rem;" />`
+    ? `<img src="${escapeHtml(getImageProxyUrl(event.image_url))}" alt="${escapeHtml(event.name)}" class="${className}" />`
     : "";
 
 /** Render a date selector dropdown for daily events */

@@ -146,7 +146,7 @@ describe("square", () => {
         bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
         minimum_days_before: 1,
         maximum_days_after: 90,
-        image_url: null,
+        image_url: "",
       };
       const intent = {
         eventId: 1,
@@ -188,7 +188,7 @@ describe("square", () => {
         bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
         minimum_days_before: 1,
         maximum_days_after: 90,
-        image_url: null,
+        image_url: "",
       };
       const intent = {
         eventId: 1,
@@ -230,7 +230,7 @@ describe("square", () => {
         bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
         minimum_days_before: 1,
         maximum_days_after: 90,
-        image_url: null,
+        image_url: "",
       };
       const intent = {
         eventId: 1,
@@ -280,7 +280,7 @@ describe("square", () => {
             bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
             minimum_days_before: 1,
             maximum_days_after: 90,
-            image_url: null,
+            image_url: "",
           };
           const intent = {
             eventId: 7,
@@ -366,7 +366,7 @@ describe("square", () => {
             bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
             minimum_days_before: 1,
             maximum_days_after: 90,
-            image_url: null,
+            image_url: "",
           };
           const intent = {
             eventId: 1,
@@ -420,7 +420,7 @@ describe("square", () => {
             bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
             minimum_days_before: 1,
             maximum_days_after: 90,
-            image_url: null,
+            image_url: "",
           };
           const intent = {
             eventId: 1,
@@ -473,7 +473,7 @@ describe("square", () => {
             bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
             minimum_days_before: 1,
             maximum_days_after: 90,
-            image_url: null,
+            image_url: "",
           };
           const intent = {
             eventId: 1,
@@ -1312,7 +1312,7 @@ describe("square", () => {
             bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
             minimum_days_before: 1,
             maximum_days_after: 90,
-            image_url: null,
+            image_url: "",
           };
           const intent = {
             eventId: 1,

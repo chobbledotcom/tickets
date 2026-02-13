@@ -6,7 +6,6 @@ import {
   getImageProxyUrl,
   getMimeTypeFromFilename,
   isStorageEnabled,
-  storageApi,
   validateImage,
 } from "#lib/storage.ts";
 import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
@@ -221,33 +220,6 @@ describe("storage", () => {
       const jpeg = new Uint8Array([0xFF, 0xD8, 0xFF]);
       expect(validateImage(jpeg, "image/svg+xml").valid).toBe(false);
       expect(validateImage(jpeg, "application/pdf").valid).toBe(false);
-    });
-  });
-
-  describe("connectZone", () => {
-    test("creates a StorageZone with configured credentials", () => {
-      Deno.env.set("STORAGE_ZONE_NAME", "myzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "mykey");
-      const zone = storageApi.connectZone();
-      expect(zone._tag).toBe("StorageZone");
-      expect(zone.name).toBe("myzone");
-      expect(zone.accessKey).toBe("mykey");
-    });
-
-    test("uses Falkenstein region by default", () => {
-      Deno.env.set("STORAGE_ZONE_NAME", "myzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "mykey");
-      const zone = storageApi.connectZone();
-      expect(String(zone.region)).toBe("de");
-    });
-
-    test("uses custom region when STORAGE_ZONE_REGION is set", () => {
-      Deno.env.set("STORAGE_ZONE_NAME", "myzone");
-      Deno.env.set("STORAGE_ZONE_KEY", "mykey");
-      Deno.env.set("STORAGE_ZONE_REGION", "ny");
-      const zone = storageApi.connectZone();
-      expect(String(zone.region)).toBe("ny");
-      Deno.env.delete("STORAGE_ZONE_REGION");
     });
   });
 
