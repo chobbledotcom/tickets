@@ -12,37 +12,17 @@ import { getEnv } from "#lib/env.ts";
 /** Maximum image file size in bytes (256KB) */
 const MAX_IMAGE_SIZE = 256 * 1024;
 
-/** Allowed image MIME types */
-const ALLOWED_IMAGE_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-];
+/** Supported image types — single source of truth for mime, extension, and magic bytes */
+const IMAGE_TYPES = [
+  { mime: "image/jpeg", ext: ".jpg", magic: [0xFF, 0xD8, 0xFF] },
+  { mime: "image/png", ext: ".png", magic: [0x89, 0x50, 0x4E, 0x47] },
+  { mime: "image/gif", ext: ".gif", magic: [0x47, 0x49, 0x46, 0x38] },
+  { mime: "image/webp", ext: ".webp", magic: [0x52, 0x49, 0x46, 0x46] },
+] as const;
 
-/** Magic byte signatures for image validation */
-const MAGIC_BYTES: Array<{ type: string; bytes: number[] }> = [
-  { type: "image/jpeg", bytes: [0xFF, 0xD8, 0xFF] },
-  { type: "image/png", bytes: [0x89, 0x50, 0x4E, 0x47] },
-  { type: "image/gif", bytes: [0x47, 0x49, 0x46, 0x38] },
-  { type: "image/webp", bytes: [0x52, 0x49, 0x46, 0x46] },
-];
-
-/** File extension for a given MIME type */
-const MIME_EXTENSIONS: Record<string, string> = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/gif": ".gif",
-  "image/webp": ".webp",
-};
-
-/** Reverse map: extension → MIME type */
-const EXT_MIME_TYPES: Record<string, string> = {
-  ".jpg": "image/jpeg",
-  ".png": "image/png",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-};
+/** Derived lookups */
+const MIME_TO_EXT = Object.fromEntries(IMAGE_TYPES.map((t) => [t.mime, t.ext]));
+const EXT_TO_MIME = Object.fromEntries(IMAGE_TYPES.map((t) => [t.ext, t.mime]));
 
 /**
  * Check if image storage is enabled (both env vars are set)
@@ -74,7 +54,7 @@ const getCdnUrl = (filename: string): string => {
 export const getMimeTypeFromFilename = (filename: string): string | null => {
   const dotIndex = filename.lastIndexOf(".");
   if (dotIndex === -1) return null;
-  return EXT_MIME_TYPES[filename.slice(dotIndex)] ?? null;
+  return EXT_TO_MIME[filename.slice(dotIndex)] ?? null;
 };
 
 /**
@@ -82,9 +62,9 @@ export const getMimeTypeFromFilename = (filename: string): string | null => {
  * Returns the MIME type if matched, null otherwise.
  */
 export const detectImageType = (data: Uint8Array): string | null => {
-  for (const { type, bytes } of MAGIC_BYTES) {
-    if (data.length >= bytes.length && bytes.every((b, i) => data[i] === b)) {
-      return type;
+  for (const { mime, magic } of IMAGE_TYPES) {
+    if (data.length >= magic.length && magic.every((b, i) => data[i] === b)) {
+      return mime;
     }
   }
   return null;
@@ -112,7 +92,7 @@ export const validateImage = (
     return { valid: false, error: "too_large" };
   }
 
-  if (!ALLOWED_IMAGE_TYPES.includes(contentType)) {
+  if (!IMAGE_TYPES.some((t) => t.mime === contentType)) {
     return { valid: false, error: "invalid_type" };
   }
 
@@ -138,7 +118,7 @@ export const formatImageError = (error: ImageValidationError): string => {
 
 /** Generate a random filename with the correct extension */
 export const generateImageFilename = (detectedType: string): string => {
-  const ext = MIME_EXTENSIONS[detectedType];
+  const ext = MIME_TO_EXT[detectedType];
   return `${crypto.randomUUID()}${ext}`;
 };
 
