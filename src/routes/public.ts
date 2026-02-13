@@ -393,8 +393,8 @@ type MultiTicketRenderContext = {
   slugs: string[];
   events: MultiTicketEvent[];
   token: string;
-  dates: string[] | undefined;
-  terms: string | null | undefined;
+  dates: string[];
+  terms: string;
   iframe: boolean;
 };
 
@@ -423,10 +423,10 @@ const computeSharedDates = async (events: MultiTicketEvent[]): Promise<string[] 
 };
 
 /** Fetch shared context for multi-ticket pages: dates, terms */
-const getMultiTicketContext = async (activeEvents: MultiTicketEvent[]) => {
+const getMultiTicketContext = async (activeEvents: MultiTicketEvent[]): Promise<{ dates: string[]; terms: string }> => {
   const dates = await computeSharedDates(activeEvents);
   const terms = await getTermsAndConditionsFromDb();
-  return { dates, terms };
+  return { dates: dates ?? [], terms: terms ?? "" };
 };
 
 /** Handle GET for multi-ticket page */
@@ -594,7 +594,7 @@ const handleMultiTicketPost = (
 
     // For daily events, validate the submitted date
     let date: string | null = null;
-    if (dates) {
+    if (dates.length > 0) {
       date = validateSubmittedDate(form, dates);
       if (!date) {
         return multiTicketResponse(renderCtx)(
