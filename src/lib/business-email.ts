@@ -59,6 +59,13 @@ export function getBusinessEmailCached(): string {
 }
 
 /**
+ * Invalidate the business email cache (for testing or after external updates).
+ */
+export function invalidateBusinessEmailCache(): void {
+  setBusinessEmailCache("");
+}
+
+/**
  * Updates the business email in the database and invalidates the cache.
  * Pass empty string to clear the business email.
  * Email is encrypted at rest.

@@ -52,6 +52,13 @@ describe("webhook", () => {
   });
 
   describe("buildWebhookPayload", () => {
+    beforeEach(async () => {
+      const { invalidateBusinessEmailCache } = await import("#lib/business-email.ts");
+      await resetDb();
+      await createTestDbWithSetup();
+      invalidateBusinessEmailCache();
+    });
+
     test("builds payload for a single free event", async () => {
       const entries: RegistrationEntry[] = [
         { event: makeEvent(), attendee: makeAttendee() },
@@ -170,8 +177,6 @@ describe("webhook", () => {
 
     test("includes business_email when set", async () => {
       const { updateBusinessEmail } = await import("#lib/business-email.ts");
-      await resetDb();
-      await createTestDbWithSetup();
       await updateBusinessEmail("contact@example.com");
 
       const entries: RegistrationEntry[] = [
@@ -184,9 +189,6 @@ describe("webhook", () => {
     });
 
     test("includes empty business_email when not set", async () => {
-      await resetDb();
-      await createTestDbWithSetup();
-
       const entries: RegistrationEntry[] = [
         { event: makeEvent(), attendee: makeAttendee() },
       ];
