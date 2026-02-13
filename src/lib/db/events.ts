@@ -32,6 +32,7 @@ export type EventInput = {
   bookableDays?: string;
   minimumDaysBefore?: number;
   maximumDaysAfter?: number;
+  imageUrl?: string;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -93,6 +94,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     bookable_days: col.withDefault(() => DEFAULT_BOOKABLE_DAYS),
     minimum_days_before: col.withDefault(() => 1),
     maximum_days_after: col.withDefault(() => 90),
+    image_url: { default: () => "", write: encrypt, read: decrypt },
   },
 });
 

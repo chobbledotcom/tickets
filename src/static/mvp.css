@@ -417,7 +417,6 @@ form header {
 }
 
 input,
-label,
 select,
 textarea {
   display: block;
@@ -464,20 +463,48 @@ textarea[readonly] {
 }
 
 label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: baseline;
   font-weight: bold;
   margin-bottom: 0.2rem;
+  font-size: inherit;
+  max-width: var(--width-card-wide);
+}
+
+@media (max-width: 768px) {
+  label {
+    width: 100%;
+  }
 }
 
 label > small {
   color: #666;
-  display: block;
   font-weight: normal;
-  margin-top: 0.25rem;
+  width: 100%;
 }
 
 label > select,
 label > input {
+  flex: 1;
   margin-bottom: 0;
+}
+
+label > input[type="date"],
+label > input[type="time"] {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+label > input[type="text"],
+label > input[type="password"],
+label > input[type="email"] {
+  width: auto;
+}
+
+label > textarea {
+  width: 100%;
 }
 
 /* Popups */
@@ -855,4 +882,46 @@ form:has(select[name="event_type"] option[value="standard"]:checked) > label:has
 .description-compact {
   font-size: 0.9em;
   margin: 0.25rem 0 0.5rem;
+}
+
+/* Event images */
+.event-image {
+  max-width: 100%;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.event-thumbnail {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 4px;
+  object-fit: cover;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+}
+
+.event-image-preview {
+  max-width: 300px;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+/* Secondary button */
+button.secondary {
+  --color-secondary: #6c757d;
+  --color-secondary-hover: #565e64;
+  background-color: var(--color-secondary);
+  border-color: var(--color-secondary);
+}
+
+button.secondary:hover {
+  background-color: var(--color-secondary-hover);
+  border-color: var(--color-secondary-hover);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[color-mode="user"] button.secondary {
+    --color-secondary: #888;
+    --color-secondary-hover: #aaa;
+  }
 }

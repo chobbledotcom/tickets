@@ -11,7 +11,6 @@ import {
 } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import type { RouteParams } from "#routes/router.ts";
 import {
   csrfCookie,
   generateSecureToken,
@@ -55,10 +54,9 @@ const validateInvite = async (code: string): Promise<
 
 /** Run handler with validated invite, returning error response if invalid */
 const withValidInvite = async (
-  params: RouteParams,
+  code: string,
   handler: (code: string, user: User, username: string) => Response | Promise<Response>,
 ): Promise<Response> => {
-  const code = params.code as string;
   const result = await validateInvite(code);
   return result instanceof Response ? result : handler(code, result.user, result.username);
 };
@@ -66,8 +64,8 @@ const withValidInvite = async (
 /**
  * Handle GET /join/:code
  */
-const handleJoinGet = (_request: Request, params: RouteParams): Promise<Response> =>
-  withValidInvite(params, (code, _user, username) => {
+const handleJoinGet = (_request: Request, code: string): Promise<Response> =>
+  withValidInvite(code, (code, _user, username) => {
     const csrfToken = generateSecureToken();
     return htmlResponseWithCookie(csrfCookie(csrfToken, `/join/${code}`, JOIN_CSRF_COOKIE))(
       joinPage(code, username, undefined, csrfToken),
@@ -77,8 +75,8 @@ const handleJoinGet = (_request: Request, params: RouteParams): Promise<Response
 /**
  * Handle POST /join/:code
  */
-const handleJoinPost = (request: Request, params: RouteParams): Promise<Response> =>
-  withValidInvite(params, async (code, user, username) => {
+const handleJoinPost = (request: Request, code: string): Promise<Response> =>
+  withValidInvite(code, async (code, user, username) => {
     const csrf = await requireCsrfForm(
       request,
       (newToken) =>
@@ -130,8 +128,8 @@ const handleJoinComplete = (): Response =>
 /** Join routes */
 const joinRoutes = defineRoutes({
   "GET /join/complete": () => handleJoinComplete(),
-  "GET /join/:code": (request, params) => handleJoinGet(request, params),
-  "POST /join/:code": (request, params) => handleJoinPost(request, params),
+  "GET /join/:code": (request, { code }) => handleJoinGet(request, code),
+  "POST /join/:code": (request, { code }) => handleJoinPost(request, code),
 });
 
 export const routeJoin = createRouter(joinRoutes);

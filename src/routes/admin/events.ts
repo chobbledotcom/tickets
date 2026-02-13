@@ -9,6 +9,7 @@ import {
   getEventWithActivityLog,
   logActivity,
 } from "#lib/db/activityLog.ts";
+import { ErrorCode, logError } from "#lib/logger.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import {
   computeSlugIndex,
@@ -23,14 +24,16 @@ import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
-import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
+import { defineRoutes } from "#routes/router.ts";
 import { csvResponse, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
+  getSearchParam,
   htmlResponse,
   notFoundResponse,
   redirect,
   requireSessionOr,
   withAuthForm,
+  withAuthMultipartForm,
   withEvent,
   withEventPage,
 } from "#routes/utils.ts";
@@ -45,8 +48,24 @@ import {
   type AddAttendeeMessage,
   type AttendeeFilter,
 } from "#templates/admin/events.tsx";
+import {
+  deleteImage,
+  formatImageError,
+  isStorageEnabled,
+  uploadImage,
+  validateImage,
+} from "#lib/storage.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields, slugField } from "#templates/fields.ts";
+
+/** Try to delete an image from CDN storage, logging errors on failure */
+const tryDeleteImage = async (filename: string, eventId: number, detail: string): Promise<void> => {
+  try {
+    await deleteImage(filename);
+  } catch {
+    logError({ code: ErrorCode.STORAGE_DELETE, eventId, detail });
+  }
+};
 
 /** Generate a unique slug, retrying on collision */
 const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: string; slugIndex: string }> => {
@@ -187,6 +206,7 @@ const handleAdminEventGet = async (request: Request, eventId: number, activeFilt
         availableDates,
         addAttendeeMessage: getAddAttendeeMessage(request),
         tz,
+        imageError: getSearchParam(request, "image_error"),
       }),
     );
   });
@@ -376,27 +396,77 @@ const handleAdminEventDelete = (
         return event ? performDelete(event) : notFoundResponse();
       });
 
-/** Bind :id param to an event handler */
-type EventHandler = (request: Request, eventId: number) => Response | Promise<Response>;
-const eventRoute = (handler: EventHandler): RouteHandlerFn =>
-  (request, params) => handler(request, params.id as number);
+/** Handle POST /admin/event/:id/image (upload event image) */
+const handleImageUpload = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  withAuthMultipartForm(request, async (_session, formData) => {
+    if (!isStorageEnabled()) {
+      return htmlResponse("Image storage is not configured", 400);
+    }
+
+    const event = await getEventWithCount(eventId);
+    if (!event) return notFoundResponse();
+
+    const file = formData.get("image") as File | null;
+    if (!file || file.size === 0) {
+      return redirect(`/admin/event/${eventId}`);
+    }
+
+    const data = new Uint8Array(await file.arrayBuffer());
+    const validation = validateImage(data, file.type);
+    if (!validation.valid) {
+      return redirect(`/admin/event/${eventId}?image_error=${encodeURIComponent(formatImageError(validation.error))}`);
+    }
+
+    // Delete old image if present
+    if (event.image_url) {
+      await tryDeleteImage(event.image_url, event.id, "old image cleanup");
+    }
+
+    const filename = await uploadImage(data, validation.detectedType);
+    await eventsTable.update(eventId, { imageUrl: filename });
+    await logActivity(`Image uploaded for '${event.name}'`, event);
+    return redirect(`/admin/event/${eventId}`);
+  });
+
+/** Handle POST /admin/event/:id/image/delete (delete event image) */
+const handleImageDelete = (
+  request: Request,
+  eventId: number,
+): Promise<Response> =>
+  withAuthForm(request, async () => {
+    const event = await getEventWithCount(eventId);
+    if (!event) return notFoundResponse();
+
+    if (event.image_url) {
+      await tryDeleteImage(event.image_url, event.id, "image removal");
+      await eventsTable.update(eventId, { imageUrl: "" });
+      await logActivity(`Image removed for '${event.name}'`, event);
+    }
+
+    return redirect(`/admin/event/${eventId}`);
+  });
 
 /** Event routes */
 export const eventsRoutes = defineRoutes({
   "POST /admin/event": (request) => handleCreateEvent(request),
-  "GET /admin/event/:id/in": eventRoute((req, id) => handleAdminEventGet(req, id, "in")),
-  "GET /admin/event/:id/out": eventRoute((req, id) => handleAdminEventGet(req, id, "out")),
-  "GET /admin/event/:id": eventRoute(handleAdminEventGet),
-  "GET /admin/event/:id/duplicate": eventRoute(handleAdminEventDuplicateGet),
-  "GET /admin/event/:id/edit": eventRoute(handleAdminEventEditGet),
-  "POST /admin/event/:id/edit": eventRoute(handleAdminEventEditPost),
-  "GET /admin/event/:id/export": eventRoute(handleAdminEventExport),
-  "GET /admin/event/:id/log": eventRoute(handleAdminEventLog),
-  "GET /admin/event/:id/deactivate": eventRoute(handleAdminEventDeactivateGet),
-  "POST /admin/event/:id/deactivate": eventRoute(handleAdminEventDeactivatePost),
-  "GET /admin/event/:id/reactivate": eventRoute(handleAdminEventReactivateGet),
-  "POST /admin/event/:id/reactivate": eventRoute(handleAdminEventReactivatePost),
-  "GET /admin/event/:id/delete": eventRoute(handleAdminEventDeleteGet),
-  "POST /admin/event/:id/delete": eventRoute(handleAdminEventDelete),
-  "DELETE /admin/event/:id/delete": eventRoute(handleAdminEventDelete),
+  "GET /admin/event/:id/in": (request, { id }) => handleAdminEventGet(request, id, "in"),
+  "GET /admin/event/:id/out": (request, { id }) => handleAdminEventGet(request, id, "out"),
+  "GET /admin/event/:id": (request, { id }) => handleAdminEventGet(request, id),
+  "GET /admin/event/:id/duplicate": (request, { id }) => handleAdminEventDuplicateGet(request, id),
+  "GET /admin/event/:id/edit": (request, { id }) => handleAdminEventEditGet(request, id),
+  "POST /admin/event/:id/edit": (request, { id }) => handleAdminEventEditPost(request, id),
+  "GET /admin/event/:id/export": (request, { id }) => handleAdminEventExport(request, id),
+  "GET /admin/event/:id/log": (request, { id }) => handleAdminEventLog(request, id),
+  "POST /admin/event/:id/image": (request, { id }) => handleImageUpload(request, id),
+  "POST /admin/event/:id/image/delete": (request, { id }) => handleImageDelete(request, id),
+  "GET /admin/event/:id/deactivate": (request, { id }) => handleAdminEventDeactivateGet(request, id),
+  "POST /admin/event/:id/deactivate": (request, { id }) => handleAdminEventDeactivatePost(request, id),
+  "GET /admin/event/:id/reactivate": (request, { id }) => handleAdminEventReactivateGet(request, id),
+  "POST /admin/event/:id/reactivate": (request, { id }) => handleAdminEventReactivatePost(request, id),
+  "GET /admin/event/:id/delete": (request, { id }) => handleAdminEventDeleteGet(request, id),
+  "POST /admin/event/:id/delete": (request, { id }) => handleAdminEventDelete(request, id),
+  "DELETE /admin/event/:id/delete": (request, { id }) => handleAdminEventDelete(request, id),
 });

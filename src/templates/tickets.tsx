@@ -5,6 +5,7 @@
 import { map, pipe } from "#fp";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { renderEventImage } from "#templates/public.tsx";
 import type { TokenEntry } from "#routes/token-utils.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
@@ -33,9 +34,18 @@ export const ticketViewPage = (entries: TokenEntry[], qrSvg: string, tz: string)
     (r: string[]) => r.join(""),
   )(entries);
 
+  const hasImages = entries.some((e) => e.event.image_url !== "");
+  const imageRows = hasImages
+    ? pipe(
+        map(({ event }: TokenEntry) => renderEventImage(event)),
+        (imgs: string[]) => imgs.join(""),
+      )(entries)
+    : "";
+
   return String(
     <Layout title="Your Tickets">
       <h1>Your Tickets</h1>
+      {hasImages && <Raw html={imageRows} />}
       <div class="text-center">
         <Raw html={qrSvg} />
       </div>

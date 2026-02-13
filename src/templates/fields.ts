@@ -48,14 +48,11 @@ export type TicketFormValues = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  special_instructions: string | null;
 };
 
 /** Typed values from admin add-attendee form */
-export type AddAttendeeFormValues = {
-  name: string;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
+export type AddAttendeeFormValues = TicketFormValues & {
   quantity: number;
   date: string;
 };
@@ -322,6 +319,7 @@ export const eventFields: Field[] = [
       { value: "email", label: "Email" },
       { value: "phone", label: "Phone Number" },
       { value: "address", label: "Address" },
+      { value: "special_instructions", label: "Special Instructions" },
     ],
     validate: validateEventFields,
   },
@@ -448,11 +446,30 @@ const addressField: Field = {
   validate: validateAddress,
 };
 
+/** Max length for special instructions field (must fit in payment metadata) */
+const MAX_SPECIAL_INSTRUCTIONS_LENGTH = 250;
+
+/** Validate special instructions length */
+export const validateSpecialInstructions = (value: string): string | null =>
+  value.length > MAX_SPECIAL_INSTRUCTIONS_LENGTH
+    ? `Special instructions must be ${MAX_SPECIAL_INSTRUCTIONS_LENGTH} characters or fewer`
+    : null;
+
+/** Special instructions field for ticket forms (textarea) */
+const specialInstructionsField: Field = {
+  name: "special_instructions",
+  label: "Special Instructions",
+  type: "textarea",
+  required: true,
+  validate: validateSpecialInstructions,
+};
+
 /** Map of contact field names to their Field definitions */
 const contactFieldMap: Record<ContactField, Field> = {
   email: emailField,
   phone: phoneField,
   address: addressField,
+  special_instructions: specialInstructionsField,
 };
 
 /** Parse a comma-separated fields string into individual ContactField names */

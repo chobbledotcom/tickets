@@ -100,14 +100,10 @@ const handleScanPost = (request: Request, eventId: number): Promise<Response> =>
 /** Pattern matching scan API paths (used by middleware for content-type validation) */
 export const SCAN_API_PATTERN = /^\/admin\/event\/\d+\/scan$/;
 
-/** Parse event ID from route params */
-const parseEventId = (params: { id?: string }): number =>
-  Number.parseInt(params.id!, 10);
-
 /** Scanner routes */
 export const scannerRoutes = defineRoutes({
-  "GET /admin/event/:id/scanner": (request, params) =>
-    handleScannerGet(request, parseEventId(params)),
-  "POST /admin/event/:id/scan": (request, params) =>
-    handleScanPost(request, parseEventId(params)),
+  "GET /admin/event/:id/scanner": (request, { id }) =>
+    handleScannerGet(request, id),
+  "POST /admin/event/:id/scan": (request, { id }) =>
+    handleScanPost(request, id),
 });

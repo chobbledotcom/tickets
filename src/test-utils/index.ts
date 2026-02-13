@@ -913,6 +913,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
   minimum_days_before: 0,
   maximum_days_after: 0,
+  image_url: "",
   ...overrides,
 });
 
@@ -933,6 +934,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   email: "john@example.com",
   phone: "",
   address: "",
+  special_instructions: "",
   created: "2024-01-01T12:00:00Z",
   payment_id: null,
   quantity: 1,

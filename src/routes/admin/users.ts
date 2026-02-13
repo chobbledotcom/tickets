@@ -18,7 +18,7 @@ import {
 import { validateForm } from "#lib/forms.tsx";
 import { getAllowedDomain } from "#lib/config.ts";
 import { nowMs } from "#lib/now.ts";
-import { defineRoutes, type RouteHandlerFn } from "#routes/router.ts";
+import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
   generateSecureToken,
@@ -157,14 +157,10 @@ const withUserAction = (
     return handler(user, session, errorPage);
   });
 
-/** Route handler that delegates to withUserAction with parsed ID */
-const userActionRoute = (handler: UserActionHandler): RouteHandlerFn =>
-  (request, params) => withUserAction(request, params.id as number, handler);
-
 /**
  * Handle POST /admin/users/:id/activate
  */
-const handleUserActivate = userActionRoute(async (user, session, errorPage) => {
+const handleUserActivate: UserActionHandler = async (user, session, errorPage) => {
   // User must have a password set
   const userHasPassword = await hasPassword(user);
   if (!userHasPassword) {
@@ -193,12 +189,12 @@ const handleUserActivate = userActionRoute(async (user, session, errorPage) => {
   await activateUser(user.id, dataKey, decryptedPasswordHash);
 
   return redirectWithSuccess("/admin/users", "User activated successfully");
-});
+};
 
 /**
  * Handle POST /admin/users/:id/delete
  */
-const handleUserDelete = userActionRoute(async (user, session, errorPage) => {
+const handleUserDelete: UserActionHandler = async (user, session, errorPage) => {
   // Cannot delete the owner who is performing the action
   const adminLevel = await decryptAdminLevel(user);
   if (adminLevel === "owner" && user.id === session.userId) {
@@ -208,12 +204,12 @@ const handleUserDelete = userActionRoute(async (user, session, errorPage) => {
   await deleteUser(user.id);
 
   return redirectWithSuccess("/admin/users", "User deleted successfully");
-});
+};
 
 /** User management routes */
 export const usersRoutes = defineRoutes({
   "GET /admin/users": (request) => handleUsersGet(request),
   "POST /admin/users": (request) => handleUsersPost(request),
-  "POST /admin/users/:id/activate": handleUserActivate,
-  "POST /admin/users/:id/delete": handleUserDelete,
+  "POST /admin/users/:id/activate": (request, { id }) => withUserAction(request, id, handleUserActivate),
+  "POST /admin/users/:id/delete": (request, { id }) => withUserAction(request, id, handleUserDelete),
 });

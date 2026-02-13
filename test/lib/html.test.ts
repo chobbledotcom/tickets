@@ -16,7 +16,7 @@ import {
   paymentSuccessPage,
 } from "#templates/payment.tsx";
 import { eventFields } from "#templates/fields.ts";
-import { buildMultiTicketEvent, multiTicketPage, notFoundPage, ticketPage } from "#templates/public.tsx";
+import { buildMultiTicketEvent, multiTicketPage, notFoundPage, renderEventImage, ticketPage } from "#templates/public.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { testAttendee, testEvent, testEventWithCount } from "#test-utils";
 
@@ -479,7 +479,7 @@ describe("html", () => {
   describe("generateAttendeesCsv", () => {
     test("generates CSV header for empty attendees", () => {
       const csv = generateAttendeesCsv([]);
-      expect(csv).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("generates CSV with attendee data", () => {
@@ -488,7 +488,7 @@ describe("html", () => {
       ];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(lines[0]).toBe("Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain("John Doe");
       expect(lines[1]).toContain("john@example.com");
       expect(lines[1]).toContain(",2,");
@@ -535,7 +535,7 @@ describe("html", () => {
       const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(lines[0]).toBe("Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain("+1 555 123 4567");
     });
 
@@ -543,7 +543,7 @@ describe("html", () => {
       const attendees = [testAttendee()];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      expect(lines[1]).toContain("john@example.com,,,1,");
+      expect(lines[1]).toContain("john@example.com,,,,1,");
     });
 
     test("generates CSV with price and transaction ID", () => {
@@ -614,7 +614,7 @@ describe("html", () => {
 
     test("includes Date column when includeDate is true", () => {
       const csv = generateAttendeesCsv([], true);
-      expect(csv).toBe("Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("includes date value in row when includeDate is true", () => {
@@ -1193,7 +1193,7 @@ describe("html", () => {
 
     test("generates CSV header for empty attendees (no Event Date/Location columns)", () => {
       const csv = generateCalendarCsv([]);
-      expect(csv).toBe("Event,Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(csv).toBe("Event,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
     });
 
     test("omits Event Date and Event Location columns when all empty", () => {
@@ -1529,6 +1529,184 @@ describe("html", () => {
       expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
       // The second row should have an empty td for event date
       expect(html).toContain("<td></td>");
+    });
+  });
+
+  describe("event images", () => {
+    const setupStorage = () => {
+      Deno.env.set("STORAGE_ZONE_NAME", "testzone");
+      Deno.env.set("STORAGE_ZONE_KEY", "testkey");
+    };
+
+    const cleanupStorage = () => {
+      Deno.env.delete("STORAGE_ZONE_NAME");
+      Deno.env.delete("STORAGE_ZONE_KEY");
+    };
+
+    describe("renderEventImage", () => {
+      test("returns empty string when image_url is null", () => {
+        setupStorage();
+        const html = renderEventImage({ image_url: "", name: "Test" });
+        expect(html).toBe("");
+        cleanupStorage();
+      });
+
+      test("renders img tag with proxy URL when image_url is set", () => {
+        setupStorage();
+        const html = renderEventImage({ image_url: "abc123.jpg", name: "Test Event" });
+        expect(html).toContain("/image/abc123.jpg");
+        expect(html).toContain('alt="Test Event"');
+        expect(html).toContain('class="event-image"');
+        cleanupStorage();
+      });
+
+      test("escapes HTML in event name for alt attribute", () => {
+        setupStorage();
+        const html = renderEventImage({ image_url: "img.jpg", name: '<script>alert("xss")</script>' });
+        expect(html).not.toContain("<script>");
+        expect(html).toContain("&lt;script&gt;");
+        cleanupStorage();
+      });
+    });
+
+    describe("ticketPage with image", () => {
+      test("shows event image when image_url is set", () => {
+        setupStorage();
+        const event = testEventWithCount({ image_url: "event-img.jpg" });
+        const html = ticketPage(event, TEST_CSRF_TOKEN, undefined, false, false, undefined, null, "Europe/London");
+        expect(html).toContain("/image/event-img.jpg");
+        expect(html).toContain('class="event-image"');
+        cleanupStorage();
+      });
+
+      test("does not show image when image_url is null", () => {
+        setupStorage();
+        const event = testEventWithCount({ image_url: "" });
+        const html = ticketPage(event, TEST_CSRF_TOKEN, undefined, false, false, undefined, null, "Europe/London");
+        expect(html).not.toContain("/image/");
+        cleanupStorage();
+      });
+
+      test("does not show image in iframe mode", () => {
+        setupStorage();
+        const event = testEventWithCount({ image_url: "event-img.jpg" });
+        const html = ticketPage(event, TEST_CSRF_TOKEN, undefined, false, true, undefined, null, "Europe/London");
+        expect(html).not.toContain("event-img.jpg");
+        cleanupStorage();
+      });
+    });
+
+    describe("multiTicketPage with images", () => {
+      test("shows image before each event with image_url", () => {
+        setupStorage();
+        const events = [
+          buildMultiTicketEvent(testEventWithCount({ id: 1, name: "Event A", image_url: "img-a.jpg" })),
+          buildMultiTicketEvent(testEventWithCount({ id: 2, name: "Event B", image_url: "img-b.jpg" })),
+        ];
+        const html = multiTicketPage(events, ["slug-a", "slug-b"], TEST_CSRF_TOKEN);
+        expect(html).toContain("/image/img-a.jpg");
+        expect(html).toContain("/image/img-b.jpg");
+        cleanupStorage();
+      });
+
+      test("does not show images when image_url is null", () => {
+        setupStorage();
+        const events = [
+          buildMultiTicketEvent(testEventWithCount({ id: 1, name: "Event A", image_url: "" })),
+        ];
+        const html = multiTicketPage(events, ["slug-a"], TEST_CSRF_TOKEN);
+        expect(html).not.toContain("/image/");
+        cleanupStorage();
+      });
+    });
+
+    describe("ticketViewPage with images", () => {
+      const qrSvg = '<svg class="qr"><rect/></svg>';
+
+      test("shows event images when image_url is set", () => {
+        setupStorage();
+        const entries = [
+          {
+            event: testEventWithCount({ id: 1, image_url: "ticket-img.jpg" }),
+            attendee: testAttendee({ id: 1 }),
+          },
+        ];
+        const html = ticketViewPage(entries, qrSvg, "Europe/London");
+        expect(html).toContain("/image/ticket-img.jpg");
+        cleanupStorage();
+      });
+
+      test("does not show images when no event has image_url", () => {
+        setupStorage();
+        const entries = [
+          {
+            event: testEventWithCount({ id: 1, image_url: "" }),
+            attendee: testAttendee({ id: 1 }),
+          },
+        ];
+        const html = ticketViewPage(entries, qrSvg, "Europe/London");
+        expect(html).not.toContain("/image/");
+        cleanupStorage();
+      });
+    });
+
+    describe("adminDashboardPage with images", () => {
+      test("shows thumbnail when event has image_url", () => {
+        setupStorage();
+        const events = [testEventWithCount({ image_url: "thumb.jpg" })];
+        const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+        expect(html).toContain("/image/thumb.jpg");
+        expect(html).toContain('class="event-thumbnail"');
+        cleanupStorage();
+      });
+
+      test("does not show thumbnail when event has no image_url", () => {
+        setupStorage();
+        const events = [testEventWithCount({ image_url: "" })];
+        const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+        expect(html).not.toContain('src="/image/');
+        cleanupStorage();
+      });
+    });
+
+    describe("adminEventPage image section", () => {
+      test("shows upload form when storage enabled and no image", () => {
+        setupStorage();
+        const event = testEventWithCount({ image_url: "" });
+        const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION, tz: "Europe/London" });
+        expect(html).toContain("Event Image");
+        expect(html).toContain('type="file"');
+        expect(html).toContain('name="image"');
+        expect(html).toContain("Upload");
+        cleanupStorage();
+      });
+
+      test("shows current image and remove button when image is set", () => {
+        setupStorage();
+        const event = testEventWithCount({ image_url: "current.jpg" });
+        const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION, tz: "Europe/London" });
+        expect(html).toContain("/image/current.jpg");
+        expect(html).toContain("Remove Image");
+        expect(html).toContain("/image/delete");
+        cleanupStorage();
+      });
+
+      test("does not show image section when storage is not enabled", () => {
+        cleanupStorage();
+        const event = testEventWithCount({ image_url: "" });
+        const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION, tz: "Europe/London" });
+        expect(html).not.toContain("Event Image");
+        expect(html).not.toContain('type="file"');
+      });
+
+      test("shows image error when provided", () => {
+        setupStorage();
+        const event = testEventWithCount({ image_url: "" });
+        const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION, tz: "Europe/London", imageError: "Image must be less than 256KB" });
+        expect(html).toContain("Image must be less than 256KB");
+        expect(html).toContain('class="error"');
+        cleanupStorage();
+      });
     });
   });
 });
