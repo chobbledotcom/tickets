@@ -59,13 +59,13 @@
   },
   "lint": {
     "include": ["src/", "test/", "scripts/"],
-    "exclude": ["src/client/", "src/static/scanner.js"],
+    "exclude": ["src/client/", "src/static/admin.js", "src/static/scanner.js"],
     "rules": {
       "tags": ["recommended"]
     }
   },
   "fmt": {
     "include": ["src/", "test/", "scripts/"],
-    "exclude": ["src/client/", "src/static/scanner.js"]
+    "exclude": ["src/client/", "src/static/admin.js", "src/static/scanner.js"]
   }
 }
