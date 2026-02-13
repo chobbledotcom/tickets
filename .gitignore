@@ -8,3 +8,4 @@ coverage*/
 cov_profile/
 .jscpd-report/
 bunny-script.ts
+src/static/scanner.js
