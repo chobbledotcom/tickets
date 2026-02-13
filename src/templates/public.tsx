@@ -3,6 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { getTz } from "#lib/config.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { renderError, renderFields } from "#lib/forms.tsx";
@@ -55,8 +56,8 @@ export const ticketPage = (
   iframe: boolean,
   availableDates: string[] | undefined,
   termsAndConditions: string | null | undefined,
-  tz: string,
 ): string => {
+  const tz = getTz();
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isFull = spotsRemaining <= 0;
   const maxPurchasable = Math.min(event.max_quantity, spotsRemaining);

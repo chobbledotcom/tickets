@@ -3,7 +3,7 @@
  */
 
 import { flatMap, map, pipe, reduce, sort, unique } from "#fp";
-import { getAllowedDomain, getTimezone } from "#lib/config.ts";
+import { getAllowedDomain, getTz } from "#lib/config.ts";
 import { formatDateLabel, getAvailableDates } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendees } from "#lib/db/attendees.ts";
@@ -81,7 +81,7 @@ const withCalendarSession = (
  */
 const handleAdminCalendarGet = (request: Request) =>
   withCalendarSession(request, async (session, dateFilter) => {
-    const tz = await getTimezone();
+    const tz = getTz();
     const [events, attendeeDates, holidays] = await Promise.all([
       getAllDailyEvents(),
       getDailyEventAttendeeDates(),

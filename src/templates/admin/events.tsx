@@ -6,6 +6,7 @@ import { filter, map, pipe, reduce } from "#fp";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
+import { getTz } from "#lib/config.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
 import { utcToLocalInput } from "#lib/timezone.ts";
 import { renderEventImage } from "#templates/public.tsx";
@@ -150,7 +151,6 @@ export type AdminEventPageOptions = {
   dateFilter?: string | null;
   availableDates?: DateOption[];
   addAttendeeMessage?: AddAttendeeMessage;
-  tz: string;
   imageError?: string | null;
 };
 
@@ -164,9 +164,9 @@ export const adminEventPage = ({
   dateFilter = null,
   availableDates = [],
   addAttendeeMessage = null,
-  tz,
   imageError = null,
 }: AdminEventPageOptions): string => {
+  const tz = getTz();
   const storageEnabled = isStorageEnabled();
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const contactFields = parseEventFields(event.fields);
@@ -425,23 +425,20 @@ export const adminEventPage = ({
   );
 };
 
-/**
- * Format an ISO datetime string for datetime-local input (YYYY-MM-DDTHH:MM).
- * When tz is provided, converts from UTC to the timezone first.
- */
-const formatDatetimeLocal = (iso: string | null, tz: string): string | null => {
+/** Format an ISO datetime string for datetime-local input (YYYY-MM-DDTHH:MM) */
+const formatDatetimeLocal = (iso: string | null): string | null => {
   if (!iso) return null;
-  return utcToLocalInput(iso, tz);
+  return utcToLocalInput(iso, getTz());
 };
 
 /** Convert bookable_days JSON array to comma-separated display string */
 const formatBookableDays = (json: string): string =>
   (JSON.parse(json) as string[]).join(",");
 
-const eventToFieldValues = (event: EventWithCount, tz: string): FieldValues => ({
+const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,
   description: event.description,
-  date: event.date ? formatDatetimeLocal(event.date, tz) : null,
+  date: event.date ? formatDatetimeLocal(event.date) : null,
   location: event.location,
   slug: event.slug,
   event_type: event.event_type,
@@ -452,7 +449,7 @@ const eventToFieldValues = (event: EventWithCount, tz: string): FieldValues => (
   maximum_days_after: event.maximum_days_after,
   fields: event.fields,
   unit_price: event.unit_price,
-  closes_at: formatDatetimeLocal(event.closes_at, tz),
+  closes_at: formatDatetimeLocal(event.closes_at),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
 });
@@ -468,9 +465,8 @@ const eventFieldsWithAutofocus: Field[] = pipe(
 export const adminDuplicateEventPage = (
   event: EventWithCount,
   session: AdminSession,
-  tz: string,
 ): string => {
-  const values = eventToFieldValues(event, tz);
+  const values = eventToFieldValues(event);
   values.name = "";
 
   return String(
@@ -493,8 +489,7 @@ export const adminDuplicateEventPage = (
 export const adminEventEditPage = (
   event: EventWithCount,
   session: AdminSession,
-  error: string | undefined,
-  tz: string,
+  error?: string,
 ): string =>
   String(
     <Layout title={`Edit: ${event.name}`}>
@@ -502,7 +497,7 @@ export const adminEventEditPage = (
         <Raw html={renderError(error)} />
         <form method="POST" action={`/admin/event/${event.id}/edit`}>
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
-          <Raw html={renderFields(eventFields, eventToFieldValues(event, tz))} />
+          <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
           <Raw html={renderField(slugField, String(event.slug))} />
           <button type="submit">Save Changes</button>
         </form>

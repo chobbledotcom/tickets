@@ -3,6 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { getTz } from "#lib/config.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { renderEventImage } from "#templates/public.tsx";
@@ -20,7 +21,8 @@ const formatDateCol = (date: string | null): string =>
  * Ticket view page - shows event name + quantity per ticket, with inline QR code
  * The QR code encodes the /checkin/... URL for admin scanning
  */
-export const ticketViewPage = (entries: TokenEntry[], qrSvg: string, tz: string): string => {
+export const ticketViewPage = (entries: TokenEntry[], qrSvg: string): string => {
+  const tz = getTz();
   const showDate = entries.some((e) => e.attendee.date !== null);
   const showEventDate = entries.some((e) => e.event.date !== "");
   const showLocation = entries.some((e) => e.event.location !== "");
