@@ -3,7 +3,7 @@ import type { InStatement } from "@libsql/client";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
 import { addDays } from "#lib/dates.ts";
-import { today } from "#lib/now.ts";
+import { todayInTz } from "#lib/timezone.ts";
 
 import { handleRequest } from "#routes";
 import {
@@ -13,6 +13,7 @@ import {
   createTestEvent,
   deactivateTestEvent,
   mockFormRequest,
+  mockMultipartRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
@@ -38,7 +39,7 @@ describe("server (admin events)", () => {
   describe("POST /admin/event", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/event", {
+        mockMultipartRequest("/admin/event", {
           name: "Test Event",
           max_attendees: "100",
           max_quantity: "1",
@@ -52,7 +53,7 @@ describe("server (admin events)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
-        mockFormRequest(
+        mockMultipartRequest(
           "/admin/event",
           {
             name: "New Event",
@@ -77,7 +78,7 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await handleRequest(
-        mockFormRequest(
+        mockMultipartRequest(
           "/admin/event",
           {
             name: "New Event",
@@ -94,11 +95,31 @@ describe("server (admin events)", () => {
       expect(text).toContain("Invalid CSRF token");
     });
 
+    test("rejects missing CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockMultipartRequest(
+          "/admin/event",
+          {
+            name: "New Event",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "https://example.com/thanks",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
     test("redirects to dashboard on validation failure", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
-        mockFormRequest(
+        mockMultipartRequest(
           "/admin/event",
           {
             name: "",
@@ -124,7 +145,7 @@ describe("server (admin events)", () => {
 
       // Try to create another event with the same name (generates same slug)
       const response = await handleRequest(
-        mockFormRequest(
+        mockMultipartRequest(
           "/admin/event",
           {
             name: "Duplicate Event",
@@ -516,7 +537,7 @@ describe("server (admin events)", () => {
         thankYouUrl: "https://example.com",
       });
       const response = await handleRequest(
-        mockFormRequest("/admin/event/1/edit", {
+        mockMultipartRequest("/admin/event/1/edit", {
           name: "Updated Event",
           slug: "updated-event",
           max_attendees: "50",
@@ -2278,8 +2299,8 @@ describe("server (admin events)", () => {
   });
 
   describe("daily event admin view (Phase 4)", () => {
-    const validDate1 = addDays(today(), 1);
-    const validDate2 = addDays(today(), 2);
+    const validDate1 = addDays(todayInTz("UTC"), 1);
+    const validDate2 = addDays(todayInTz("UTC"), 2);
 
     const createDailyEventWithAttendees = async () => {
       const event = await createTestEvent({

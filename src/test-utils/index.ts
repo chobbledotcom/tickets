@@ -12,7 +12,7 @@ import {
 } from "#lib/db/events.ts";
 import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
-import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, invalidateTermsCache } from "#lib/db/settings.ts";
+import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, invalidateTermsCache, updateTimezone } from "#lib/db/settings.ts";
 import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 
 /**
@@ -175,6 +175,9 @@ export const createTestDbWithSetup = async (
   await completeSetup(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, currency);
   setCurrencyCodeForTest(currency);
 
+  // Default timezone to UTC for tests so datetime-local values pass through unchanged
+  await updateTimezone("UTC");
+
   // Snapshot settings AND users for reuse
   const result = await cachedClient!.execute("SELECT key, value FROM settings");
   cachedSetupSettings = result.rows.map((r) => ({
@@ -272,6 +275,34 @@ export const mockFormRequest = (
     method: "POST",
     headers,
     body,
+  });
+};
+
+/**
+ * Create a mock multipart POST request with optional file upload.
+ * Text fields are added as form entries, and an optional file is appended.
+ */
+export const mockMultipartRequest = (
+  path: string,
+  data: Record<string, string>,
+  cookie?: string,
+  file?: { name: string; fieldName: string; data: Uint8Array; contentType: string },
+): Request => {
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(data)) {
+    formData.append(key, value);
+  }
+  if (file) {
+    // deno-lint-ignore no-explicit-any
+    const blob = new Blob([file.data as any], { type: file.contentType });
+    formData.append(file.fieldName, blob, file.name);
+  }
+  const headers: HeadersInit = { host: "localhost" };
+  if (cookie) headers.cookie = cookie;
+  return new Request(`http://localhost${path}`, {
+    method: "POST",
+    headers,
+    body: formData,
   });
 };
 
@@ -588,10 +619,11 @@ export const resetTestSession = (): void => {
 };
 
 /**
- * Execute an authenticated form request expecting a redirect.
+ * Execute an authenticated request expecting a redirect.
  * Handles session management, CSRF tokens, and status validation.
  */
-const authenticatedFormRequest = async <T>(
+const authenticatedRequest = async <T>(
+  buildRequest: (path: string, data: Record<string, string>, cookie: string) => Request,
   path: string,
   formData: Record<string, string>,
   onSuccess: () => Promise<T>,
@@ -601,7 +633,7 @@ const authenticatedFormRequest = async <T>(
   const { handleRequest } = await import("#routes");
 
   const response = await handleRequest(
-    mockFormRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
+    buildRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
   );
 
   if (response.status !== 302) {
@@ -610,6 +642,22 @@ const authenticatedFormRequest = async <T>(
 
   return onSuccess();
 };
+
+/** Authenticated URL-encoded form request (deactivate, holidays, etc.) */
+const authenticatedFormRequest = <T>(
+  path: string,
+  formData: Record<string, string>,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+): Promise<T> => authenticatedRequest(mockFormRequest, path, formData, onSuccess, errorContext);
+
+/** Authenticated multipart form request (event create/edit with file uploads) */
+const authenticatedMultipartFormRequest = <T>(
+  path: string,
+  formData: Record<string, string>,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+): Promise<T> => authenticatedRequest(mockMultipartRequest, path, formData, onSuccess, errorContext);
 
 /**
  * Create an event via the REST API
@@ -624,7 +672,7 @@ export const createTestEvent = (
   const closesAtParts = splitClosesAt(input.closesAt, null);
   const dateParts = splitClosesAt(input.date, null);
 
-  return authenticatedFormRequest(
+  return authenticatedMultipartFormRequest(
     "/admin/event",
     {
       name: input.name,
@@ -715,7 +763,7 @@ export const updateTestEvent = async (
   const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
   const dateParts = splitClosesAt(updates.date, existing.date);
 
-  return authenticatedFormRequest(
+  return authenticatedMultipartFormRequest(
     `/admin/event/${eventId}/edit`,
     {
       name: updates.name ?? existing.name,

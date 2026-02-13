@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import {
   detectImageType,
-  formatImageError,
   generateImageFilename,
   getImageProxyUrl,
   getMimeTypeFromFilename,
@@ -163,20 +162,6 @@ describe("storage", () => {
       data[2] = 0xFF;
       const result = validateImage(data, "image/jpeg");
       expect(result.valid).toBe(true);
-    });
-  });
-
-  describe("formatImageError", () => {
-    test("formats too_large error", () => {
-      expect(formatImageError("too_large")).toBe("Image must be less than 256KB");
-    });
-
-    test("formats invalid_type error", () => {
-      expect(formatImageError("invalid_type")).toBe("Only JPEG, PNG, GIF, and WebP images are allowed");
-    });
-
-    test("formats invalid_content error", () => {
-      expect(formatImageError("invalid_content")).toBe("File does not appear to be a valid image");
     });
   });
 

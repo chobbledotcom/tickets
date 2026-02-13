@@ -22,7 +22,8 @@ export type FieldType =
   | "select"
   | "checkbox-group"
   | "date"
-  | "datetime";
+  | "datetime"
+  | "file";
 
 export interface Field {
   name: string;
@@ -33,7 +34,9 @@ export interface Field {
   hint?: string;
   min?: number;
   step?: number;
+  maxlength?: number;
   pattern?: string;
+  accept?: string;
   autofocus?: boolean;
   validate?: (value: string) => string | null;
   options?: { value: string; label: string }[];
@@ -132,6 +135,12 @@ export const renderField = (field: Field, value: string = ""): string =>
         <Raw
           html={renderDatetimeInputs(field.name, splitDatetime(value))}
         />
+      ) : field.type === "file" ? (
+        <input
+          type="file"
+          name={field.name}
+          accept={field.accept}
+        />
       ) : (
         <input
           type={field.type}
@@ -141,6 +150,7 @@ export const renderField = (field: Field, value: string = ""): string =>
           placeholder={field.placeholder}
           min={field.min}
           step={field.step}
+          maxlength={field.maxlength}
           pattern={field.pattern}
           autofocus={field.autofocus}
         />
@@ -190,6 +200,9 @@ const validateSingleField = (
   form: URLSearchParams,
   field: Field,
 ): FieldValidationResult => {
+  // File fields are handled separately via FormData, not URLSearchParams
+  if (field.type === "file") return { valid: true, value: null };
+
   let trimmed: string;
 
   if (field.type === "datetime") {

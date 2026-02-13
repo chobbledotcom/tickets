@@ -81,6 +81,11 @@ describe("forms", () => {
       expect(html).toContain('pattern="[A-Z]{3}"');
     });
 
+    test("renders maxlength attribute", () => {
+      const html = rendered({ name: "desc", label: "Description", maxlength: 128 });
+      expect(html).toContain('maxlength="128"');
+    });
+
     test("renders textarea for textarea type", () => {
       const html = rendered({ name: "description", label: "Description", type: "textarea" });
       expect(html).toContain("<textarea");
@@ -233,6 +238,17 @@ describe("forms", () => {
         expect(result.values.days).toBe("");
       }
     });
+
+    test("skips file fields in validation and returns null value", () => {
+      const fields: Field[] = [
+        field({ name: "image", label: "Image", type: "file" }),
+      ];
+      const result = validateForm(new URLSearchParams(), fields);
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.values.image).toBeNull();
+      }
+    });
   });
 
   describe("renderError", () => {
@@ -293,21 +309,27 @@ describe("forms", () => {
     });
 
     test("validates description rejects values exceeding max length", () => {
-      const longDescription = "a".repeat(129);
+      const longDescription = "a".repeat(257);
       expectInvalid(
-        "Description must be 128 characters or fewer",
+        "Description must be 256 characters or fewer",
       )(eventFields, eventForm({ description: longDescription }));
     });
 
     test("validates description accepts values within max length", () => {
       expectValid(
         eventFields,
-        eventForm({ description: "a".repeat(128) }),
+        eventForm({ description: "a".repeat(256) }),
       );
     });
 
     test("validates description accepts empty value", () => {
       expectValid(eventFields, eventForm({ description: "" }));
+    });
+
+    test("description field has maxlength of 256", () => {
+      const descField = eventFields.find((f) => f.name === "description");
+      expect(descField).toBeDefined();
+      expect(descField!.maxlength).toBe(256);
     });
   });
 
@@ -887,6 +909,21 @@ describe("forms", () => {
       if (!result.valid) {
         expect(result.error).toBe("Please enter both a date and time, or leave both blank");
       }
+    });
+  });
+
+  describe("renderField file type", () => {
+    test("renders file input with accept attribute", () => {
+      const html = rendered({
+        name: "image",
+        label: "Upload Image",
+        type: "file",
+        accept: "image/jpeg,image/png",
+      });
+      expect(html).toContain('type="file"');
+      expect(html).toContain('name="image"');
+      expect(html).toContain('accept="image/jpeg,image/png"');
+      expect(html).toContain("Upload Image");
     });
   });
 
