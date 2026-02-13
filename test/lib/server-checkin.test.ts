@@ -6,11 +6,9 @@ import {
   adminGet,
   awaitTestRequest,
   createDailyTestEvent,
-  createTestAttendee,
   createTestAttendeeWithToken,
   createTestDbWithSetup,
   createTestEvent,
-  getAttendeesRaw,
   loginAsAdmin,
   mockFormRequest,
   resetDb,
@@ -79,10 +77,7 @@ describe("check-in (/checkin/:tokens)", () => {
 
     test("shows multiple attendees from different events", async () => {
       const { event: eventA, token: tokenA } = await createTestAttendeeWithToken("Carol", "carol@test.com");
-      const eventB = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(eventB.id, eventB.slug, "Carol", "carol@test.com");
-      const attendeesB = await getAttendeesRaw(eventB.id);
-      const tokenB = attendeesB[0]!.ticket_token;
+      const { event: eventB, token: tokenB } = await createTestAttendeeWithToken("Carol", "carol@test.com");
 
       const session = await loginAsAdmin();
       const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {

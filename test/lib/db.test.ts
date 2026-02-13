@@ -1796,10 +1796,13 @@ describe("db", () => {
 
     test("getAttendeesByTokens returns attendees in token order", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      const a1 = await createTestAttendee(event.id, event.slug, "Tok1", "tok1@example.com");
-      const a2 = await createTestAttendee(event.id, event.slug, "Tok2", "tok2@example.com");
 
-      const results = await getAttendeesByTokens([a2.ticket_token, a1.ticket_token]);
+      // Create attendees directly and get plaintext tokens (matches production flow)
+      const { createTestAttendeeDirect } = await import("#test-utils");
+      const { attendee: a1, token: token1 } = await createTestAttendeeDirect(event.id, "Tok1", "tok1@example.com");
+      const { attendee: a2, token: token2 } = await createTestAttendeeDirect(event.id, "Tok2", "tok2@example.com");
+
+      const results = await getAttendeesByTokens([token2, token1]);
       expect(results.length).toBe(2);
       expect(results[0]?.id).toBe(a2.id);
       expect(results[1]?.id).toBe(a1.id);
@@ -2235,7 +2238,37 @@ describe("db", () => {
       expect(rows[0]?.ticket_token).not.toBe("");
       expect(rows[0]?.ticket_token.length).toBeGreaterThan(0);
     });
+
+    test("encrypts plaintext ticket_token and generates HMAC index during migration", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      await createTestAttendee(event.id, event.slug, "Migration User", "migration@example.com");
+
+      // Simulate pre-encryption state: set ticket_token to plaintext and NULL index
+      const plaintextToken = "plaintext-token-abc123";
+      await getDb().execute({
+        sql: "UPDATE attendees SET ticket_token = ?, ticket_token_index = NULL WHERE event_id = ?",
+        args: [plaintextToken, event.id],
+      });
+
+      // Verify plaintext state
+      const before = await getAttendeesRaw(event.id);
+      expect(before[0]?.ticket_token).toBe(plaintextToken);
+      expect(before[0]?.ticket_token_index).toBeNull();
+
+      // Clear version marker and re-run migrations
+      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      invalidateSettingsCache();
+      await initDb();
+
+      // Verify token is now encrypted and index is generated
+      const after = await getAttendeesRaw(event.id);
+      expect(after[0]?.ticket_token).not.toBe(plaintextToken);
+      expect(after[0]?.ticket_token).toContain("hyb:1:");
+      expect(after[0]?.ticket_token_index).not.toBeNull();
+      expect(after[0]?.ticket_token_index).not.toBe("");
+    });
   });
+
 
   describe("writeClosesAt", () => {
     test("encrypts empty string for no deadline", async () => {
