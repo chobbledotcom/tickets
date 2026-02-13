@@ -97,10 +97,10 @@ export const checkoutPopupPage = (checkoutUrl: string): string =>
     <Layout title="Complete Payment" bodyClass="iframe">
         <div data-checkout-popup={escapeHtml(checkoutUrl)}>
           <p>Payment is processed in a new window.</p>
-          <p><a href={checkoutUrl} target="_blank" rel="noopener" data-open-checkout><b>Pay Now</b></a></p>
+          <p><a href={checkoutUrl} target="_blank" data-open-checkout><b>Pay Now</b></a></p>
           <div data-checkout-waiting hidden>
             <p>Completing payment in the other window...</p>
-            <p><a href={checkoutUrl} target="_blank" rel="noopener"><small>Click here if the payment window didn't open</small></a></p>
+            <p><a href={checkoutUrl} target="_blank"><small>Click here if the payment window didn't open</small></a></p>
           </div>
         </div>
     </Layout>
