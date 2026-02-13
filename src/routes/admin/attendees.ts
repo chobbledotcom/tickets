@@ -362,15 +362,9 @@ const loadAttendeeForEdit = async (
 ): Promise<{ attendee: Attendee; event: EventWithCount; allEvents: EventWithCount[] } | null> => {
   const pk = await requirePrivateKey(session);
   const attendeeRaw = await queryOne<Attendee>("SELECT * FROM attendees WHERE id = ?", [attendeeId]);
-
   if (!attendeeRaw) return null;
-
-  const attendee = await decryptAttendeeOrNull(attendeeRaw, pk);
-  if (!attendee) return null;
-
-  const event = await getEventWithCount(attendee.event_id);
-  if (!event) return null;
-
+  const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
+  const event = (await getEventWithCount(attendee.event_id))!;
   const allEvents = await getEventsForSelector(event.id);
 
   return { attendee, event, allEvents };

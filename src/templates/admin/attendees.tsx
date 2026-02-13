@@ -162,12 +162,10 @@ const renderEventSelector = (
   // Build options HTML
   const options = eventIds
     .map((id) => {
-      const event = allEvents.find((e) => e.id === id);
-      if (!event) return "";
+      const event = allEvents.find((e) => e.id === id)!;
       const selected = id === currentEventId ? " selected" : "";
       return `<option value="${id}"${selected}>${event.name}${event.active !== 1 ? " (inactive)" : ""}</option>`;
     })
-    .filter((opt) => opt !== "")
     .join("");
 
   return `<label for="event_id">Event<select id="event_id" name="event_id" required>${options}</select></label>`;
