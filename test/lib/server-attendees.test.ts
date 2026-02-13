@@ -1062,6 +1062,62 @@ describe("server (admin attendees)", () => {
       expect(html).toContain(`<option value="${event1.id}" selected>`);
     });
 
+    test("shows edit form with empty email field", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "John Doe",
+        email: "",
+        quantity: 1,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = result.attendee;
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('type="email"');
+      expect(html).toContain('name="email"');
+    });
+
+    test("shows inactive event label in selector", async () => {
+      const inactiveEvent = await createTestEvent({ name: "Inactive Event", maxAttendees: 100 });
+
+      // Manually set event to inactive
+      const { getDb } = await import("#lib/db/client.ts");
+      await getDb().execute({
+        sql: "UPDATE events SET active = 0 WHERE id = ?",
+        args: [inactiveEvent.id],
+      });
+
+      const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+      const result = await createAttendeeAtomic({
+        eventId: inactiveEvent.id,
+        name: "John Doe",
+        email: "john@example.com",
+        quantity: 1,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+      const attendee = result.attendee;
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Inactive Event");
+      expect(html).toContain("(inactive)");
+    });
+
     test("updates attendee with empty email", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
