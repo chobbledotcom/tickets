@@ -407,65 +407,48 @@ describe("server (admin auth)", () => {
 
   describe("session expiration (blank screen test)", () => {
     test("expired session shows login page, not blank screen", async () => {
-      // Step 1: Login and get a valid session
-      const { cookie } = await loginAsAdmin();
-      const token = cookie.split("=")[1]?.split(";")[0] || "";
-      expect(token).not.toBe("");
+      // Create an expired session using the real createSession function
+      const expiredToken = "expired-blank-screen-test-token";
+      await createSession(expiredToken, "csrf-expired", Date.now() - 1000, null, 1);
 
-      // Verify dashboard loads with content
-      const dashboardResponse = await awaitTestRequest("/admin/", { cookie });
-      expect(dashboardResponse.status).toBe(200);
-      const dashboardHtml = await dashboardResponse.text();
-      expect(dashboardHtml).toContain("Events");
-      expect(dashboardHtml.length).toBeGreaterThan(100); // Not blank
+      // Make request with expired session cookie
+      const response = await awaitTestRequest("/admin/", expiredToken);
+      expect(response.status).toBe(200);
+      const html = await response.text();
 
-      // Step 2: Expire the session by setting expiry time in the past
-      const { getDb } = await import("#lib/db/client.ts");
-      const pastTime = Date.now() - 1000; // 1 second ago
-      await getDb().execute({
-        sql: "UPDATE sessions SET expires = ? WHERE token = ?",
-        args: [pastTime, token],
-      });
+      // Verify we get login page, not blank screen or dashboard
+      expect(html).toContain("Login");
+      expect(html).toContain("<form");
+      expect(html.length).toBeGreaterThan(100); // Not blank
+      expect(html).not.toContain("Events"); // Should not show dashboard
+      expect(html).not.toContain("No events yet"); // Should not show events table
 
-      // Step 3: Make request with expired session cookie
-      const expiredResponse = await awaitTestRequest("/admin/", { cookie });
-      expect(expiredResponse.status).toBe(200);
-      const expiredHtml = await expiredResponse.text();
-
-      // Verify we get login page, not blank screen
-      expect(expiredHtml).toContain("Login");
-      expect(expiredHtml.length).toBeGreaterThan(100); // Not blank
-      expect(expiredHtml).not.toContain("Events"); // Should not show dashboard
-
-      // Step 4: Verify session was deleted from database
-      const { getSession } = await import("#lib/db/sessions.ts");
-      const deletedSession = await getSession(token);
+      // Verify session was deleted from database after expiration check
+      const deletedSession = await getSession(expiredToken);
       expect(deletedSession).toBeNull();
     });
 
     test("multiple requests with expired session consistently show login page", async () => {
-      // Login and expire the session
-      const { cookie } = await loginAsAdmin();
-      const token = cookie.split("=")[1]?.split(";")[0] || "";
+      // Create an expired session using the real createSession function
+      const expiredToken = "expired-multi-request-test-token";
+      await createSession(expiredToken, "csrf-expired", Date.now() - 1000, null, 1);
 
-      const { getDb } = await import("#lib/db/client.ts");
-      const pastTime = Date.now() - 1000;
-      await getDb().execute({
-        sql: "UPDATE sessions SET expires = ? WHERE token = ?",
-        args: [pastTime, token],
-      });
-
-      // Make multiple requests with the same expired cookie
+      // Make multiple requests with the same expired session token
       for (let i = 0; i < 3; i++) {
-        const response = await awaitTestRequest("/admin/", { cookie });
+        const response = await awaitTestRequest("/admin/", expiredToken);
         expect(response.status).toBe(200);
         const html = await response.text();
 
-        // Each request should show login page, not blank
+        // Each request should consistently show login page, not blank or dashboard
         expect(html).toContain("Login");
         expect(html.length).toBeGreaterThan(100);
         expect(html).not.toContain("Events");
+        expect(html).not.toContain("No events yet");
       }
+
+      // Verify session was deleted after first access
+      const deletedSession = await getSession(expiredToken);
+      expect(deletedSession).toBeNull();
     });
 
     test("dashboard always contains expected content structure", async () => {

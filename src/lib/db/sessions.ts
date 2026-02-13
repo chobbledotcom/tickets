@@ -28,6 +28,12 @@ const getCachedSession = (token: string): Session | null | undefined => {
     return undefined;
   }
 
+  // Also check if the session itself has expired
+  if (entry.session && Date.now() > entry.session.expires) {
+    sessionCache.delete(token);
+    return undefined;
+  }
+
   return entry.session;
 };
 
