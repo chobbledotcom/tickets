@@ -3,13 +3,12 @@
  * Wraps the qrcode npm package to produce inline SVG strings
  */
 
+import QRCodeDefault from "qrcode";
+
 /** QR code module shape (subset of the qrcode npm package API) */
 type QRCodeModule = { toString(text: string, opts: { type: string; margin?: number }): Promise<string> };
 
-// Dynamic import trick: cast the specifier to string to prevent Deno from
-// statically analyzing it (the module is resolved at runtime via import map).
-const modulePath: string = "qrcode";
-const QRCode: QRCodeModule = (await import(modulePath)).default;
+const QRCode: QRCodeModule = QRCodeDefault;
 
 /**
  * Generate an SVG string for a QR code encoding the given text.
