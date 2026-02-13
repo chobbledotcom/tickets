@@ -46,6 +46,8 @@ export const CONFIG_KEYS = {
   TERMS_AND_CONDITIONS: "terms_and_conditions",
   // Timezone (IANA timezone identifier, plaintext)
   TIMEZONE: "timezone",
+  // Business email (encrypted)
+  BUSINESS_EMAIL: "business_email",
 } as const;
 
 /**
@@ -430,39 +432,22 @@ export const updateEmbedHosts = async (hosts: string): Promise<void> => {
       sql: "DELETE FROM settings WHERE key = ?",
       args: [CONFIG_KEYS.EMBED_HOSTS],
     });
+    invalidateSettingsCache();
     return;
   }
   const encrypted = await encrypt(hosts);
   await setSetting(CONFIG_KEYS.EMBED_HOSTS, encrypted);
 };
 
-/**
- * Permanent in-memory cache for terms and conditions.
- * Terms change rarely, so we cache until explicitly re-saved.
- */
-const [getTermsCache, setTermsCache] = lazyRef<{ loaded: boolean; value: string | null }>(
-  () => ({ loaded: false, value: null }),
-);
-
-/** Clear the terms cache (called on update and test reset) */
-export const invalidateTermsCache = (): void => {
-  setTermsCache(null);
-};
-
 /** Max length for terms and conditions text */
 export const MAX_TERMS_LENGTH = 10_240;
 
 /**
- * Get terms and conditions text from database.
- * Cached permanently until updateTermsAndConditions is called.
+ * Get terms and conditions text from database (uses settings cache).
  * Returns null if not configured.
  */
 export const getTermsAndConditionsFromDb = async (): Promise<string | null> => {
-  const cached = getTermsCache();
-  if (cached.loaded) return cached.value;
-  const value = await getSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS);
-  setTermsCache({ loaded: true, value });
-  return value;
+  return await getSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS);
 };
 
 /**
@@ -476,11 +461,9 @@ export const updateTermsAndConditions = async (text: string): Promise<void> => {
       args: [CONFIG_KEYS.TERMS_AND_CONDITIONS],
     });
     invalidateSettingsCache();
-    invalidateTermsCache();
     return;
   }
   await setSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS, text);
-  invalidateTermsCache();
 };
 
 /**
@@ -570,7 +553,6 @@ export const settingsApi = {
   updateEmbedHosts,
   getTermsAndConditionsFromDb,
   updateTermsAndConditions,
-  invalidateTermsCache,
   getTimezoneFromDb,
   updateTimezone,
 };

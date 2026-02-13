@@ -1118,4 +1118,103 @@ describe("server (admin settings)", () => {
     });
   });
 
+  describe("POST /admin/settings/business-email", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/business-email", {
+          business_email: "contact@example.com",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/business-email",
+          {
+            business_email: "contact@example.com",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid CSRF token");
+    });
+
+    test("updates business email successfully", async () => {
+      const { getBusinessEmailFromDb } = await import("#lib/business-email.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/business-email",
+          {
+            business_email: "contact@example.com",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Business email updated");
+
+      const saved = await getBusinessEmailFromDb();
+      expect(saved).toBe("contact@example.com");
+    });
+
+    test("clears business email when empty string", async () => {
+      const { getBusinessEmailFromDb, updateBusinessEmail } = await import("#lib/business-email.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // First set an email
+      await updateBusinessEmail("old@example.com");
+      expect(await getBusinessEmailFromDb()).toBe("old@example.com");
+
+      // Then clear it
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/business-email",
+          {
+            business_email: "",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Business email cleared");
+
+      const saved = await getBusinessEmailFromDb();
+      expect(saved).toBe("");
+    });
+
+    test("rejects invalid email format", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/business-email",
+          {
+            business_email: "not-an-email",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Invalid email format");
+    });
+  });
+
 });

@@ -52,12 +52,19 @@ describe("webhook", () => {
   });
 
   describe("buildWebhookPayload", () => {
-    test("builds payload for a single free event", () => {
+    beforeEach(async () => {
+      const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
+      await resetDb();
+      await createTestDbWithSetup();
+      invalidateSettingsCache();
+    });
+
+    test("builds payload for a single free event", async () => {
       const entries: RegistrationEntry[] = [
         { event: makeEvent(), attendee: makeAttendee() },
       ];
 
-      const payload = buildWebhookPayload(entries, "GBP");
+      const payload = await buildWebhookPayload(entries, "GBP");
 
       expect(payload.event_type).toBe("registration.completed");
       expect(payload.name).toBe("Jane Doe");
@@ -74,9 +81,10 @@ describe("webhook", () => {
       expect(payload.tickets[0]!.quantity).toBe(1);
       expect(payload.tickets[0]!.date).toBeNull();
       expect(payload.timestamp).toBeDefined();
+      expect(payload.business_email).toBe("");
     });
 
-    test("builds payload for a single paid event with price_paid on attendee", () => {
+    test("builds payload for a single paid event with price_paid on attendee", async () => {
       const entries: RegistrationEntry[] = [
         {
           event: makeEvent({ unit_price: 500 }),
@@ -88,7 +96,7 @@ describe("webhook", () => {
         },
       ];
 
-      const payload = buildWebhookPayload(entries, "USD");
+      const payload = await buildWebhookPayload(entries, "USD");
 
       expect(payload.price_paid).toBe(1000);
       expect(payload.payment_id).toBe("pi_abc123");
@@ -97,7 +105,7 @@ describe("webhook", () => {
       expect(payload.tickets[0]!.quantity).toBe(2);
     });
 
-    test("builds payload for multi-event entries", () => {
+    test("builds payload for multi-event entries", async () => {
       const entries: RegistrationEntry[] = [
         {
           event: makeEvent({ id: 1, name: "Event A", slug: "event-a", unit_price: 300 }),
@@ -109,7 +117,7 @@ describe("webhook", () => {
         },
       ];
 
-      const payload = buildWebhookPayload(entries, "EUR");
+      const payload = await buildWebhookPayload(entries, "EUR");
 
       expect(payload.name).toBe("Jane Doe");
       expect(payload.price_paid).toBe(1700);
@@ -123,7 +131,7 @@ describe("webhook", () => {
       expect(payload.tickets[1]!.quantity).toBe(2);
     });
 
-    test("includes date in ticket when attendee has a date", () => {
+    test("includes date in ticket when attendee has a date", async () => {
       const entries: RegistrationEntry[] = [
         {
           event: makeEvent(),
@@ -131,12 +139,12 @@ describe("webhook", () => {
         },
       ];
 
-      const payload = buildWebhookPayload(entries, "GBP");
+      const payload = await buildWebhookPayload(entries, "GBP");
 
       expect(payload.tickets[0]!.date).toBe("2025-07-15");
     });
 
-    test("includes mixed dates for multi-event with daily and standard events", () => {
+    test("includes mixed dates for multi-event with daily and standard events", async () => {
       const entries: RegistrationEntry[] = [
         {
           event: makeEvent({ id: 1, name: "Daily Event", slug: "daily-event" }),
@@ -148,13 +156,13 @@ describe("webhook", () => {
         },
       ];
 
-      const payload = buildWebhookPayload(entries, "GBP");
+      const payload = await buildWebhookPayload(entries, "GBP");
 
       expect(payload.tickets[0]!.date).toBe("2025-07-15");
       expect(payload.tickets[1]!.date).toBeNull();
     });
 
-    test("returns 0 price_paid when attendee has no price_paid on paid event", () => {
+    test("returns 0 price_paid when attendee has no price_paid on paid event", async () => {
       const entries: RegistrationEntry[] = [
         {
           event: makeEvent({ unit_price: 500 }),
@@ -162,15 +170,38 @@ describe("webhook", () => {
         },
       ];
 
-      const payload = buildWebhookPayload(entries, "GBP");
+      const payload = await buildWebhookPayload(entries, "GBP");
 
       expect(payload.price_paid).toBe(0);
+    });
+
+    test("includes business_email when set", async () => {
+      const { updateBusinessEmail } = await import("#lib/business-email.ts");
+      await updateBusinessEmail("contact@example.com");
+
+      const entries: RegistrationEntry[] = [
+        { event: makeEvent(), attendee: makeAttendee() },
+      ];
+
+      const payload = await buildWebhookPayload(entries, "GBP");
+
+      expect(payload.business_email).toBe("contact@example.com");
+    });
+
+    test("includes empty business_email when not set", async () => {
+      const entries: RegistrationEntry[] = [
+        { event: makeEvent(), attendee: makeAttendee() },
+      ];
+
+      const payload = await buildWebhookPayload(entries, "GBP");
+
+      expect(payload.business_email).toBe("");
     });
   });
 
   describe("sendWebhook", () => {
     test("sends POST request with correct payload", async () => {
-      const payload: WebhookPayload = buildWebhookPayload(
+      const payload: WebhookPayload = await buildWebhookPayload(
         [{ event: makeEvent(), attendee: makeAttendee() }],
         "GBP",
       );
@@ -192,7 +223,7 @@ describe("webhook", () => {
     test("does not throw on fetch error", async () => {
       fetchSpy.mockRejectedValue(new Error("Network error"));
 
-      const payload = buildWebhookPayload(
+      const payload = await buildWebhookPayload(
         [{ event: makeEvent(), attendee: makeAttendee() }],
         "GBP",
       );
