@@ -394,6 +394,14 @@ export const holidayFields: Field[] = [
   },
 ];
 
+/** Image upload field for event forms (appended when storage is enabled) */
+export const imageField: Field = {
+  name: "image",
+  label: "Event Image (JPEG, PNG, GIF, WebP \u2014 max 256KB)",
+  type: "file",
+  accept: "image/jpeg,image/png,image/gif,image/webp",
+};
+
 /** Slug field for event edit page only */
 export const slugField: Field = {
   name: "slug",

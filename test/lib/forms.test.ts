@@ -238,6 +238,17 @@ describe("forms", () => {
         expect(result.values.days).toBe("");
       }
     });
+
+    test("skips file fields in validation and returns null value", () => {
+      const fields: Field[] = [
+        field({ name: "image", label: "Image", type: "file" }),
+      ];
+      const result = validateForm(new URLSearchParams(), fields);
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.values.image).toBeNull();
+      }
+    });
   });
 
   describe("renderError", () => {
@@ -898,6 +909,21 @@ describe("forms", () => {
       if (!result.valid) {
         expect(result.error).toBe("Please enter both a date and time, or leave both blank");
       }
+    });
+  });
+
+  describe("renderField file type", () => {
+    test("renders file input with accept attribute", () => {
+      const html = rendered({
+        name: "image",
+        label: "Upload Image",
+        type: "file",
+        accept: "image/jpeg,image/png",
+      });
+      expect(html).toContain('type="file"');
+      expect(html).toContain('name="image"');
+      expect(html).toContain('accept="image/jpeg,image/png"');
+      expect(html).toContain("Upload Image");
     });
   });
 

@@ -192,6 +192,18 @@ export const parseFormData = async (
 };
 
 /**
+ * Extract text fields from FormData as URLSearchParams (skips File entries).
+ * Handles multi-value fields (e.g. checkbox groups) via append.
+ */
+export const formDataToParams = (formData: FormData): URLSearchParams => {
+  const params = new URLSearchParams();
+  for (const [key, value] of formData.entries()) {
+    if (typeof value === "string") params.append(key, value);
+  }
+  return params;
+};
+
+/**
  * Get base URL from request
  */
 export const getBaseUrl = (request: Request): string => {
