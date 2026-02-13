@@ -47,6 +47,9 @@ jobs:
       - name: Copy-paste detection
         run: deno task cpd
 
+      - name: Build edge script
+        run: deno task build:edge
+
       - name: Start stripe-mock
         run: |
           .bin/stripe-mock -http-port 12111 &

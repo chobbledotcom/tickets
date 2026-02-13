@@ -13,7 +13,7 @@
     "fmt": "deno fmt src test scripts",
     "typecheck": "deno check src/**/*.ts src/**/*.tsx test/**/*.ts",
     "cpd": "deno run -A npm:jscpd src --config .jscpd.json",
-    "precommit": "deno task typecheck && deno task lint && deno task cpd && deno task test:coverage"
+    "precommit": "deno task typecheck && deno task lint && deno task cpd && deno task build:edge && deno task test:coverage"
   },
   "imports": {
     "#fp": "./src/fp/index.ts",

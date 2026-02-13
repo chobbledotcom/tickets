@@ -1148,3 +1148,77 @@ import type { PaymentProviderType } from "#lib/payments.ts";
 /** Mock return type for getConfiguredProvider */
 export const mockProviderType = (type: PaymentProviderType): PaymentProviderType | null => type;
 
+// ---------------------------------------------------------------------------
+// Admin test context helpers
+// Curried helpers for common admin test patterns (event + attendee + session).
+// Eliminates the repeated setup boilerplate in admin route tests.
+// ---------------------------------------------------------------------------
+
+export type AdminTestContext = {
+  event: Event;
+  attendee: Attendee;
+  cookie: string;
+  csrfToken: string;
+};
+
+/**
+ * Creates standard admin test context: event + attendee + admin session.
+ * Use directly when tests need custom request flows beyond the curried helpers.
+ */
+export const setupAdminTest = async (
+  eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+): Promise<AdminTestContext> => {
+  const event = await createTestEvent({
+    maxAttendees: 100,
+    thankYouUrl: "https://example.com",
+    ...eventOverrides,
+  });
+  const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+  const { cookie, csrfToken } = await loginAsAdmin();
+  return { event, attendee, cookie, csrfToken };
+};
+
+/**
+ * Curried admin form POST for attendee actions.
+ * Creates event + attendee + admin session, POSTs form to the attendee action URL.
+ * csrf_token is auto-injected; include it in formData to override (e.g. "invalid-token").
+ *
+ *   const deleteAction = adminAttendeeAction("delete");
+ *   const { response } = await deleteAction({ confirm_name: "John Doe" })();
+ */
+export const adminAttendeeAction =
+  (action: string) =>
+  (formData: Record<string, string> = {}) =>
+  async (
+    eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+  ): Promise<AdminTestContext & { response: Response }> => {
+    const ctx = await setupAdminTest(eventOverrides);
+    const { handleRequest } = await import("#routes");
+    const response = await handleRequest(
+      mockFormRequest(
+        `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/${action}`,
+        { csrf_token: ctx.csrfToken, ...formData },
+        ctx.cookie,
+      ),
+    );
+    return { ...ctx, response };
+  };
+
+/**
+ * Curried admin GET for event pages with attendee setup.
+ * Creates event + attendee + admin session, GETs the specified page.
+ *
+ *   const { response } = await adminEventPage(
+ *     ctx => `/admin/event/${ctx.event.id}?checkin_status=in`,
+ *   )();
+ */
+export const adminEventPage =
+  (pathFn: (ctx: AdminTestContext) => string) =>
+  async (
+    eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+  ): Promise<AdminTestContext & { response: Response }> => {
+    const ctx = await setupAdminTest(eventOverrides);
+    const response = await awaitTestRequest(pathFn(ctx), { cookie: ctx.cookie });
+    return { ...ctx, response };
+  };
+

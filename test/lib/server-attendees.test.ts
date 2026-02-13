@@ -2,18 +2,20 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-comp
 import { attendeesApi } from "#lib/db/attendees.ts";
 import { handleRequest } from "#routes";
 import {
+  adminAttendeeAction,
+  adminEventPage,
   awaitTestRequest,
   createTestAttendee,
   createTestDbWithSetup,
   createTestEvent,
   getAttendeesRaw,
+  loginAsAdmin,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
   expectAdminRedirect,
   expectRedirect,
-  loginAsAdmin,
   withMocks,
 } from "#test-utils";
 
@@ -26,6 +28,9 @@ describe("server (admin attendees)", () => {
   afterEach(() => {
     resetDb();
   });
+
+  const deleteAction = adminAttendeeAction("delete");
+  const checkinAction = adminAttendeeAction("checkin");
 
   describe("GET /admin/event/:eventId/attendee/:attendeeId/delete", () => {
     test("redirects to login when not authenticated", async () => {
@@ -90,18 +95,9 @@ describe("server (admin attendees)", () => {
     });
 
     test("shows delete confirmation page when authenticated", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-        { cookie: cookie },
-      );
+      const { response } = await adminEventPage(
+        ctx => `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete`,
+      )();
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Delete Attendee");
@@ -164,72 +160,21 @@ describe("server (admin attendees)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-          {
-            confirm_name: "John Doe",
-            csrf_token: "invalid-token",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await deleteAction({ confirm_name: "John Doe", csrf_token: "invalid-token" })();
       expect(response.status).toBe(403);
       const html = await response.text();
       expect(html).toContain("Invalid CSRF token");
     });
 
     test("rejects mismatched attendee name", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-          {
-            confirm_name: "Wrong Name",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
+      const { response } = await deleteAction({ confirm_name: "Wrong Name" })();
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("does not match");
     });
 
     test("deletes attendee with matching name (case insensitive)", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-          {
-            confirm_name: "john doe", // lowercase
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
+      const { response, event, attendee } = await deleteAction({ confirm_name: "john doe" })();
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
 
@@ -240,24 +185,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("deletes attendee with whitespace-trimmed name", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-          {
-            confirm_name: "  John Doe  ", // with spaces
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
+      const { response } = await deleteAction({ confirm_name: "  John Doe  " })();
       expectRedirect("/admin/event/1")(response);
     });
   });
@@ -299,22 +227,8 @@ describe("server (admin attendees)", () => {
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/delete (confirm_name edge case)", () => {
     test("handles missing confirm_name field (falls back to empty string)", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // Submit without confirm_name field at all
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { response } = await deleteAction({})();
       // Empty string won't match "John Doe", so it returns 400
       expect(response.status).toBe(400);
       const html = await response.text();
@@ -380,21 +294,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: "invalid-token" },
-          cookie,
-        ),
-      );
+      const { response } = await checkinAction({ csrf_token: "invalid-token" })();
       expect(response.status).toBe(403);
     });
 
@@ -430,21 +330,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("checks in an attendee and redirects with message", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { response, event } = await checkinAction({})();
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(location).toContain(`/admin/event/${event.id}`);
@@ -454,21 +340,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("redirects to filtered page when return_filter is set", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken, return_filter: "in" },
-          cookie,
-        ),
-      );
+      const { response, event } = await checkinAction({ return_filter: "in" })();
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(location).toContain(`/admin/event/${event.id}/in?`);
@@ -476,24 +348,9 @@ describe("server (admin attendees)", () => {
     });
 
     test("redirects to out filtered page when return_filter is out", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      // Check in first, then check out with return_filter=out
+      const { event, attendee, cookie, csrfToken } = await checkinAction({})();
 
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      // Check in first
-      await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-
-      // Check out with return_filter=out
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
@@ -508,21 +365,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("redirects to unfiltered page when return_filter is all", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken, return_filter: "all" },
-          cookie,
-        ),
-      );
+      const { response, event } = await checkinAction({ return_filter: "all" })();
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(location).toContain(`/admin/event/${event.id}?`);
@@ -531,22 +374,8 @@ describe("server (admin attendees)", () => {
     });
 
     test("checks out an already checked-in attendee", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "Jane Doe", "jane@example.com");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      // First check in
-      await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      // First check in via the curried helper
+      const { event, attendee, cookie, csrfToken } = await checkinAction({})();
 
       // Then check out
       const response = await handleRequest(
@@ -562,18 +391,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("event page shows Check in button for unchecked attendee", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}`,
-        { cookie },
-      );
+      const { response } = await adminEventPage(ctx => `/admin/event/${ctx.event.id}`)();
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Check in");
@@ -581,18 +399,9 @@ describe("server (admin attendees)", () => {
     });
 
     test("event page shows check-in success message when query params present", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}?checkin_name=John%20Doe&checkin_status=in`,
-        { cookie },
-      );
+      const { response } = await adminEventPage(
+        ctx => `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=in`,
+      )();
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Checked John Doe in");
@@ -600,18 +409,9 @@ describe("server (admin attendees)", () => {
     });
 
     test("event page shows check-out message in red", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}?checkin_name=John%20Doe&checkin_status=out`,
-        { cookie },
-      );
+      const { response } = await adminEventPage(
+        ctx => `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=out`,
+      )();
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Checked John Doe out");
@@ -619,42 +419,18 @@ describe("server (admin attendees)", () => {
     });
 
     test("event page ignores invalid checkin_status param", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}?checkin_name=John%20Doe&checkin_status=invalid`,
-        { cookie },
-      );
+      const { response } = await adminEventPage(
+        ctx => `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=invalid`,
+      )();
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).not.toContain("Checked John Doe");
     });
 
     test("event page shows Check out button for checked-in attendee", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      // Check in first, then view the event page
+      const { event, cookie } = await checkinAction({})();
 
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      // Check in first
-      await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-
-      // View event page
       const response = await awaitTestRequest(
         `/admin/event/${event.id}`,
         { cookie },
