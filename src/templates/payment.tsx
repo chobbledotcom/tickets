@@ -56,10 +56,13 @@ export const paymentSuccessPage = (thankYouUrl: string | null, ticketUrl: string
 /**
  * Simple reservation success page (for free events with no thank_you_url)
  */
-export const reservationSuccessPage = (): string =>
+export const reservationSuccessPage = (ticketUrl: string | null): string =>
   String(
     <Layout title="Ticket Reserved">
         <h1>Ticket reserved successfully.</h1>
+        {ticketUrl ? (
+          <p><a href={ticketUrl} target="_blank">Click here to view your tickets</a></p>
+        ) : null}
     </Layout>
   );
 
