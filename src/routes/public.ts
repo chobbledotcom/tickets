@@ -681,7 +681,8 @@ const extractSlugFromPath = (path: string): string | null => {
 /** Handle GET /ticket/reserved - reservation success page */
 const handleReservedGet = (request: Request): Response => {
   const tokensParam = new URL(request.url).searchParams.get("tokens");
-  const tokens = tokensParam ? tokensParam.split("+").filter((t) => t.length > 0) : [];
+  const normalizedTokens = tokensParam?.replaceAll(" ", "+") ?? "";
+  const tokens = normalizedTokens.split("+").filter((t) => t.length > 0);
   const ticketUrl = tokens.length > 0 ? `/t/${tokens.join("+")}` : null;
   return htmlResponse(reservationSuccessPage(ticketUrl));
 };
