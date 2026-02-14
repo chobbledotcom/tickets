@@ -19,6 +19,7 @@ import {
   expectAdminRedirect,
   expectRedirect,
   loginAsAdmin,
+  mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -378,7 +379,7 @@ describe("server (multi-user admin)", () => {
   describe("login flow", () => {
     test("login with username and password", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/login", {
+        mockAdminLoginRequest({
           username: TEST_ADMIN_USERNAME,
           password: TEST_ADMIN_PASSWORD,
         }),
@@ -390,7 +391,7 @@ describe("server (multi-user admin)", () => {
 
     test("login with wrong username returns 401", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/login", {
+        mockAdminLoginRequest({
           username: "nonexistent",
           password: TEST_ADMIN_PASSWORD,
         }),
@@ -400,7 +401,7 @@ describe("server (multi-user admin)", () => {
 
     test("login with wrong password returns 401", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/login", {
+        mockAdminLoginRequest({
           username: TEST_ADMIN_USERNAME,
           password: "wrongpassword",
         }),
