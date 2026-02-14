@@ -275,7 +275,7 @@ const processFreeReservation = async (
   }
 
   await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
-  return redirect(event.thank_you_url || "/ticket/reserved");
+  return redirect(event.thank_you_url || `/ticket/reserved?tickets=${result.attendee.ticket_token}`);
 };
 
 /**
@@ -546,7 +546,7 @@ const processMultiFreeReservation = async (
   quantities: Map<number, number>,
   contact: ContactInfo,
   date: string | null,
-): Promise<{ success: true } | { success: false; error: string }> => {
+): Promise<{ success: true; ticketTokens: string[] } | { success: false; error: string }> => {
   const entries: RegistrationEntry[] = [];
   for (const { event, qty } of eventsWithQuantity(events, quantities)) {
     const eventDate = event.event_type === "daily" ? date : null;
@@ -557,7 +557,7 @@ const processMultiFreeReservation = async (
     entries.push({ event, attendee: result.attendee });
   }
   await logAndNotifyMultiRegistration(entries, await getCurrencyCode());
-  return { success: true };
+  return { success: true, ticketTokens: entries.map((e) => e.attendee.ticket_token) };
 };
 
 /** Handle POST for multi-ticket registration */
@@ -665,7 +665,7 @@ const handleMultiTicketPost = (
       return multiTicketResponse(renderCtx)(result.error);
     }
 
-    return redirect("/ticket/reserved");
+    return redirect(`/ticket/reserved?tickets=${result.ticketTokens.join("+")}`);
   });
 
 /** Slug pattern for extracting slug from path */
@@ -678,8 +678,12 @@ const extractSlugFromPath = (path: string): string | null => {
 };
 
 /** Handle GET /ticket/reserved - reservation success page */
-const handleReservedGet = (): Response =>
-  htmlResponse(reservationSuccessPage());
+const handleReservedGet = (request: Request): Response => {
+  const url = new URL(request.url);
+  const ticketsParam = url.searchParams.get("tickets");
+  const ticketTokens = ticketsParam ? ticketsParam.split("+") : [];
+  return htmlResponse(reservationSuccessPage(ticketTokens));
+};
 
 /** Route ticket requests - handles both single and multi-ticket */
 export const routeTicket = (
@@ -689,7 +693,7 @@ export const routeTicket = (
 ): Promise<Response | null> => {
   // Handle /ticket/reserved before slug matching
   if (path === "/ticket/reserved" && method === "GET") {
-    return Promise.resolve(handleReservedGet());
+    return Promise.resolve(handleReservedGet(request));
   }
 
   const slug = extractSlugFromPath(path);

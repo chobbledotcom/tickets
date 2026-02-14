@@ -17,6 +17,7 @@ import {
   resetDb,
   resetTestSlugCounter,
   expectRedirect,
+  expectReservedRedirect,
   setupStripe,
   submitTicketForm,
   updateTestEvent,
@@ -731,7 +732,7 @@ describe("server (public routes)", () => {
         [`quantity_${event1.id}`]: "2",
         [`quantity_${event2.id}`]: "1",
       });
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
 
       // Verify attendees were created
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -758,7 +759,7 @@ describe("server (public routes)", () => {
         [`quantity_${event1.id}`]: "1",
         [`quantity_${event2.id}`]: "0",
       });
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
 
       // Verify only event1 has an attendee
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -785,7 +786,7 @@ describe("server (public routes)", () => {
         [`quantity_${event1.id}`]: "10", // Request more than max
         [`quantity_${event2.id}`]: "0",
       });
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
 
       // Verify quantity was capped
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -823,7 +824,7 @@ describe("server (public routes)", () => {
         email: "john@example.com",
       });
       // Should redirect to success page
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
     });
   });
 
@@ -1001,7 +1002,7 @@ describe("server (public routes)", () => {
         ),
       );
 
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
 
       // Verify attendees created for both events
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1104,7 +1105,7 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
     });
 
     test("multi-ticket with invalid quantity form value falls back to 0", async () => {
@@ -1138,7 +1139,7 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
 
       // Only event2 should have an attendee
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1268,7 +1269,7 @@ describe("server (public routes)", () => {
       );
 
       // Free registration path since provider is cleared and isPaymentsEnabled returns false
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
       resetStripeClient();
     });
   });
@@ -1430,7 +1431,7 @@ describe("server (public routes)", () => {
         }, `csrf_token=${csrfToken}`),
       );
       // Should succeed for event2 only
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
     });
   });
 
@@ -1493,7 +1494,7 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
 
       // Verify only event2 got an attendee
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -2167,7 +2168,7 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
     });
 
     test("POST redirects to checkout for paid multi-ticket daily events", async () => {
@@ -2392,7 +2393,7 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expectRedirect("/ticket/reserved")(response);
+      expectReservedRedirect(response);
     });
   });
 

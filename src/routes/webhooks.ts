@@ -14,7 +14,7 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { createAttendeeAtomic, deleteAttendee } from "#lib/db/attendees.ts";
+import { createAttendeeAtomic, deleteAttendee, getAttendeeRaw } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
   finalizeSession,
@@ -128,7 +128,7 @@ const validatePaidSession = async (
 
 /** Result type for processPaymentSession */
 type PaymentResult =
-  | { success: true; attendee: Pick<Attendee, "id">; event: EventWithCount }
+  | { success: true; attendee: Pick<Attendee, "id">; event: EventWithCount; ticketTokens: string[] }
   | { success: false; error: string; status?: number; refunded?: boolean };
 
 /**
@@ -246,7 +246,9 @@ const alreadyProcessedResult = async (
 ): Promise<PaymentResult> => {
   const event = await getEventWithCount(eventId);
   if (!event) return { success: false, error: "Event not found", status: 404 };
-  return { success: true, attendee: { id: attendeeId }, event };
+  const attendee = await getAttendeeRaw(attendeeId);
+  if (!attendee) return { success: false, error: "Attendee not found", status: 404 };
+  return { success: true, attendee: { id: attendeeId }, event, ticketTokens: [attendee.ticket_token] };
 };
 
 /** Validate that a parsed value has the shape of a MultiItem */
@@ -397,6 +399,7 @@ const processMultiPaymentSession = async (
     success: true,
     attendee: firstAttendee.attendee,
     event: firstAttendee.event,
+    ticketTokens: createdAttendees.map((a) => a.attendee.ticket_token),
   };
 };
 
@@ -466,7 +469,7 @@ const processPaymentSession = async (
   await finalizeSession(sessionId, result.attendee.id);
 
   await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
-  return { success: true, attendee: result.attendee, event };
+  return { success: true, attendee: result.attendee, event, ticketTokens: [result.attendee.ticket_token] };
 };
 
 /**
@@ -506,7 +509,7 @@ const handlePaymentSuccess = withSessionId(async (sessionId) => {
   // For multi-ticket, don't redirect to thank_you_url (different events may have different URLs)
   const thankYouUrl =
     data.type === "single" ? result.event.thank_you_url : null;
-  return htmlResponse(paymentSuccessPage(result.event, thankYouUrl));
+  return htmlResponse(paymentSuccessPage(result.event, thankYouUrl, result.ticketTokens));
 });
 
 /**

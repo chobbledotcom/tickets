@@ -904,6 +904,16 @@ export const expectRedirect =
 export const expectAdminRedirect: (response: Response) => Response =
   expectRedirect("/admin");
 
+/** Assert redirect to /ticket/reserved with ticket IDs */
+export const expectReservedRedirect = (response: Response): Response => {
+  expect(response.status).toBe(302);
+  const location = response.headers.get("location");
+  expect(location).toBeTruthy();
+  expect(location?.startsWith("/ticket/reserved")).toBe(true);
+  expect(location).toContain("tickets=");
+  return response;
+};
+
 /** Assert a result object has ok:false with the expected error string. */
 export const expectResultError =
   (expectedError: string) =>

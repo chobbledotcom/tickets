@@ -475,26 +475,40 @@ describe("html", () => {
     const event = testEvent({ unit_price: 1000 });
 
     test("renders success message", () => {
-      const html = paymentSuccessPage(event, "https://example.com/thanks");
+      const html = paymentSuccessPage(event, "https://example.com/thanks", ["abc123"]);
       expect(html).toContain("Payment Successful");
       expect(html).toContain("https://example.com/thanks");
     });
 
     test("includes meta refresh redirect", () => {
-      const html = paymentSuccessPage(event, "https://example.com/thanks");
+      const html = paymentSuccessPage(event, "https://example.com/thanks", ["abc123"]);
       expect(html).toContain('http-equiv="refresh"');
       expect(html).toContain("3;url=https://example.com/thanks");
     });
 
     test("includes data-payment-result attribute for popup postMessage", () => {
-      const html = paymentSuccessPage(event, null);
+      const html = paymentSuccessPage(event, null, ["abc123"]);
       expect(html).toContain('data-payment-result="success"');
     });
 
     test("renders without redirect when thankYouUrl is null", () => {
-      const html = paymentSuccessPage(event, null);
+      const html = paymentSuccessPage(event, null, ["abc123"]);
       expect(html).not.toContain('http-equiv="refresh"');
       expect(html).not.toContain("redirected");
+    });
+
+    test("includes link to view tickets with single ticket", () => {
+      const html = paymentSuccessPage(event, null, ["abc123"]);
+      expect(html).toContain('href="/t/abc123"');
+      expect(html).toContain("Click here to view your tickets");
+      expect(html).toContain('target="_blank"');
+    });
+
+    test("includes link to view tickets with multiple tickets", () => {
+      const html = paymentSuccessPage(event, null, ["abc123", "def456", "ghi789"]);
+      expect(html).toContain('href="/t/abc123+def456+ghi789"');
+      expect(html).toContain("Click here to view your tickets");
+      expect(html).toContain('target="_blank"');
     });
   });
 

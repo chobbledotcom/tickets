@@ -32,14 +32,16 @@ export const paymentPage = (
 /**
  * Payment success page - with optional redirect
  */
-export const paymentSuccessPage = (_event: Event, thankYouUrl: string | null): string =>
-  String(
+export const paymentSuccessPage = (_event: Event, thankYouUrl: string | null, ticketTokens: string[]): string => {
+  const ticketUrl = `/t/${ticketTokens.join("+")}`;
+  return String(
     <Layout title="Payment Successful" headExtra={thankYouUrl ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(thankYouUrl)}">` : undefined}>
         <div data-payment-result="success">
           <h1>Payment Successful!</h1>
           <div class="success">
             <p>Thank you for your payment. Your ticket has been confirmed.</p>
           </div>
+          <p><a href={ticketUrl} target="_blank">Click here to view your tickets</a></p>
           {thankYouUrl ? (
             <>
               <p>You will be redirected shortly...</p>
@@ -49,16 +51,20 @@ export const paymentSuccessPage = (_event: Event, thankYouUrl: string | null): s
         </div>
     </Layout>
   );
+};
 
 /**
  * Simple reservation success page (for free events with no thank_you_url)
  */
-export const reservationSuccessPage = (): string =>
-  String(
+export const reservationSuccessPage = (ticketTokens: string[]): string => {
+  const ticketUrl = `/t/${ticketTokens.join("+")}`;
+  return String(
     <Layout title="Ticket Reserved">
         <h1>Ticket reserved successfully.</h1>
+        <p><a href={ticketUrl} target="_blank">Click here to view your tickets</a></p>
     </Layout>
   );
+};
 
 /**
  * Payment cancelled page
