@@ -14,7 +14,8 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { createAttendeeAtomic, deleteAttendee } from "#lib/db/attendees.ts";
+import { map, unique } from "#fp";
+import { createAttendeeAtomic, deleteAttendee, getAttendeesByTokens } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
   finalizeSession,
@@ -33,12 +34,14 @@ import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
 import { getCurrencyCode } from "#lib/config.ts";
 import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
+import { parseTokens } from "#routes/token-utils.ts";
 import {
   formatCreationError,
   getSearchParam,
   htmlResponse,
   isRegistrationClosed,
   paymentErrorResponse,
+  redirect,
 } from "#routes/utils.ts";
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 
@@ -128,7 +131,7 @@ const validatePaidSession = async (
 
 /** Result type for processPaymentSession */
 type PaymentResult =
-  | { success: true; attendee: Pick<Attendee, "id">; event: EventWithCount }
+  | { success: true; attendee: Pick<Attendee, "id">; event: EventWithCount; ticketTokens: string[] }
   | { success: false; error: string; status?: number; refunded?: boolean };
 
 /**
@@ -246,7 +249,7 @@ const alreadyProcessedResult = async (
 ): Promise<PaymentResult> => {
   const event = await getEventWithCount(eventId);
   if (!event) return { success: false, error: "Event not found", status: 404 };
-  return { success: true, attendee: { id: attendeeId }, event };
+  return { success: true, attendee: { id: attendeeId }, event, ticketTokens: [] };
 };
 
 /** Validate that a parsed value has the shape of a MultiItem */
@@ -397,6 +400,7 @@ const processMultiPaymentSession = async (
     success: true,
     attendee: firstAttendee.attendee,
     event: firstAttendee.event,
+    ticketTokens: map(({ attendee }: { attendee: Attendee }) => attendee.ticket_token)(createdAttendees),
   };
 };
 
@@ -466,7 +470,7 @@ const processPaymentSession = async (
   await finalizeSession(sessionId, result.attendee.id);
 
   await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
-  return { success: true, attendee: result.attendee, event };
+  return { success: true, attendee: result.attendee, event, ticketTokens: [result.attendee.ticket_token] };
 };
 
 /**
@@ -483,13 +487,9 @@ const formatPaymentError = (result: PaymentResult & { success: false }): string 
 };
 
 /**
- * Handle GET /payment/success (redirect after successful payment)
- *
- * Atomically creates attendee with capacity check. If event is full after
- * payment completed, automatically refunds and shows error.
- * Uses two-phase locking to handle duplicate requests safely.
+ * Process session_id param: validate, create attendee, redirect with tokens.
  */
-const handlePaymentSuccess = withSessionId(async (sessionId) => {
+const processSessionAndRedirect = async (sessionId: string): Promise<Response> => {
   const validation = await validatePaidSession(sessionId);
   if (!validation.ok) return validation.response;
 
@@ -503,11 +503,72 @@ const handlePaymentSuccess = withSessionId(async (sessionId) => {
     return paymentErrorResponse(formatPaymentError(result), result.status);
   }
 
-  // For multi-ticket, don't redirect to thank_you_url (different events may have different URLs)
+  // Redirect to success page with verified tokens in URL
+  // encodeURIComponent preserves + as %2B so URLSearchParams.get() decodes it back correctly
+  if (result.ticketTokens.length > 0) {
+    return redirect(`/payment/success?tokens=${encodeURIComponent(result.ticketTokens.join("+"))}`);
+  }
+
+  // Already-processed session (no tokens available) - render directly
   const thankYouUrl =
     data.type === "single" ? result.event.thank_you_url : null;
-  return htmlResponse(paymentSuccessPage(result.event, thankYouUrl));
-});
+  return htmlResponse(paymentSuccessPage(thankYouUrl, null));
+};
+
+/**
+ * Render success page from verified tokens param.
+ */
+const renderSuccessFromTokens = async (tokensParam: string): Promise<Response> => {
+  const tokens = parseTokens(tokensParam);
+  if (tokens.length === 0) {
+    return paymentErrorResponse("Invalid payment callback");
+  }
+
+  const attendeeResults = await getAttendeesByTokens(tokens);
+  const verifiedTokens: string[] = [];
+  const eventIds: number[] = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const attendee = attendeeResults[i];
+    if (attendee) {
+      verifiedTokens.push(tokens[i]!);
+      eventIds.push(attendee.event_id);
+    }
+  }
+
+  if (verifiedTokens.length === 0) {
+    return paymentErrorResponse("Invalid payment callback");
+  }
+
+  const ticketUrl = `/t/${verifiedTokens.join("+")}`;
+
+  // Only use thank_you_url for single-event purchases
+  const uniqueEventIds = unique(eventIds);
+  let thankYouUrl: string | null = null;
+  if (uniqueEventIds.length === 1) {
+    const event = await getEvent(uniqueEventIds[0]!);
+    thankYouUrl = event?.thank_you_url ?? null;
+  }
+
+  return htmlResponse(paymentSuccessPage(thankYouUrl, ticketUrl));
+};
+
+/**
+ * Handle GET /payment/success (redirect after successful payment)
+ *
+ * Two-phase flow:
+ * 1. With session_id: process payment, create attendee, redirect with tokens
+ * 2. With tokens: verify tokens against DB, render success page with ticket link
+ */
+const handlePaymentSuccess = (request: Request): Promise<Response> => {
+  const sessionId = getSearchParam(request, "session_id");
+  if (sessionId) return processSessionAndRedirect(sessionId);
+
+  const tokensParam = getSearchParam(request, "tokens");
+  if (tokensParam) return renderSuccessFromTokens(tokensParam);
+
+  return Promise.resolve(paymentErrorResponse("Invalid payment callback"));
+};
 
 /**
  * Handle GET /payment/cancel (redirect after cancelled payment)
