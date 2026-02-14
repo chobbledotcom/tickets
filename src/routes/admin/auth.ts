@@ -19,8 +19,9 @@ import type { ServerContext } from "#routes/types.ts";
 import {
   generateSecureToken,
   getClientIp,
-  parseFormData,
   redirect,
+  requireAuthForm,
+  requireCsrfForm,
   withSession,
 } from "#routes/utils.ts";
 import { loginFields, type LoginFormValues } from "#templates/fields.ts";
@@ -53,10 +54,21 @@ const createLoginSession = async (
 /**
  * Handle POST /admin/login
  */
+const LOGIN_CSRF_COOKIE = "__Host-admin_login_csrf";
+
 const handleAdminLogin = async (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
+  const csrf = await requireCsrfForm(
+    request,
+    () => loginResponse("Invalid or expired form. Please try again.", 403),
+    LOGIN_CSRF_COOKIE,
+  );
+  if (!csrf.ok) return csrf.response;
+
+  const { form } = csrf;
+
   await randomDelay();
 
   const clientIp = getClientIp(request, server);
@@ -69,7 +81,6 @@ const handleAdminLogin = async (
     );
   }
 
-  const form = await parseFormData(request);
   const validation = validateForm<LoginFormValues>(form, loginFields);
 
   if (!validation.valid) {
@@ -117,22 +128,23 @@ const handleAdminLogin = async (
 };
 
 /**
- * Handle GET /admin/logout
+ * Handle POST /admin/logout
  */
-const handleAdminLogout = (request: Request): Promise<Response> =>
-  withSession(
-    request,
-    async (session) => {
-      await deleteSession(session.token);
-      return redirect("/admin", clearSessionCookie);
-    },
-    () => redirect("/admin", clearSessionCookie),
-  );
+const handleAdminLogout = async (request: Request): Promise<Response> => {
+  const auth = await requireAuthForm(request);
+
+  if (auth.ok) {
+    await deleteSession(auth.session.token);
+  }
+
+  return redirect("/admin", clearSessionCookie);
+};
 
 /** Authentication routes */
 export const authRoutes = defineRoutes({
-  "GET /admin/login": () => redirect("/admin"),
+  "GET /admin/login": (request) =>
+    withSession(request, () => redirect("/admin"), () => loginResponse()),
   "POST /admin/login": (request, _, server) =>
     handleAdminLogin(request, server),
-  "GET /admin/logout": (request) => handleAdminLogout(request),
+  "POST /admin/logout": (request) => handleAdminLogout(request),
 });

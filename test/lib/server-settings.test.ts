@@ -13,6 +13,7 @@ import {
   expectAdminRedirect,
   expectRedirect,
   loginAsAdmin,
+  mockAdminLoginRequest,
   TEST_ADMIN_PASSWORD,
   withMocks,
 } from "#test-utils";
@@ -196,7 +197,7 @@ describe("server (admin settings)", () => {
 
       // Verify new password works
       const newLoginResponse = await handleRequest(
-        mockFormRequest("/admin/login", { username: "testadmin", password: "newpassword123" }),
+        mockAdminLoginRequest({ username: "testadmin", password: "newpassword123" }),
       );
       expectAdminRedirect(newLoginResponse);
     });
