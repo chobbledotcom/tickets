@@ -41,7 +41,7 @@ export const paymentSuccessPage = (thankYouUrl: string | null, ticketUrl: string
             <p>Thank you for your payment. Your ticket has been confirmed.</p>
           </div>
           {ticketUrl ? (
-            <p><a href={ticketUrl} target="_blank">Click here to view your tickets</a></p>
+            <p><a href={ticketUrl} target="_blank" rel="noopener noreferrer">Click here to view your tickets</a></p>
           ) : null}
           {thankYouUrl ? (
             <>

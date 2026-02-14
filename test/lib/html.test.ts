@@ -499,6 +499,7 @@ describe("html", () => {
       const html = paymentSuccessPage(null, "/t/abc123+def456");
       expect(html).toContain('href="/t/abc123+def456"');
       expect(html).toContain('target="_blank"');
+      expect(html).toContain('rel="noopener noreferrer"');
       expect(html).toContain("Click here to view your tickets");
     });
 
