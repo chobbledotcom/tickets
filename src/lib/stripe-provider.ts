@@ -70,7 +70,7 @@ export const stripePaymentProvider: PaymentProvider = {
       id,
       paymentStatus: isPaymentStatus(payment_status) ? payment_status : "unpaid",
       paymentReference:
-        typeof payment_intent === "string" ? payment_intent : null,
+        typeof payment_intent === "string" ? payment_intent : "",
       amountTotal: amount_total,
       metadata: extractSessionMetadata(metadata),
     };

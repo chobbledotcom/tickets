@@ -27,10 +27,8 @@ const escapeCsvValue = (value: string): string => {
 };
 
 /** Format price in minor units as decimal string using configured currency */
-const formatPrice = (pricePaid: string | null): string => {
-  if (pricePaid === null) return "";
-  return toMajorUnits(Number.parseInt(pricePaid, 10));
-};
+const formatPrice = (pricePaid: string): string =>
+  toMajorUnits(Number.parseInt(pricePaid, 10));
 
 /** Format checked_in value as Yes/No */
 const formatCheckedIn = (checkedIn: string): string =>
@@ -46,7 +44,7 @@ const attendeeCols = (a: Attendee, domain: string): string[] => [
   String(a.quantity),
   escapeCsvValue(new Date(a.created).toISOString()),
   formatPrice(a.price_paid),
-  escapeCsvValue(a.payment_id ?? ""),
+  escapeCsvValue(a.payment_id),
   formatCheckedIn(a.checked_in),
   escapeCsvValue(a.ticket_token),
   escapeCsvValue(`https://${domain}/t/${a.ticket_token}`),

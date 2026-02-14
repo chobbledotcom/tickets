@@ -473,7 +473,7 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("tryRefund returns false when paymentReference is null", async () => {
+    test("tryRefund returns false when paymentReference is empty", async () => {
       await setupStripe();
 
       const event = await createTestEvent({

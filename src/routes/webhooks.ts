@@ -135,7 +135,7 @@ type PaymentResult =
  * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
  * Logs an error if refund fails.
  */
-const tryRefund = async (paymentReference: string | null): Promise<boolean> => {
+const tryRefund = async (paymentReference: string): Promise<boolean> => {
   if (!paymentReference) return false;
 
   const provider = await getActivePaymentProvider();
@@ -571,7 +571,7 @@ const extractSessionFromEvent = (
     id: obj.id,
     paymentStatus: isPaymentStatus(obj.payment_status) ? obj.payment_status : "unpaid",
     paymentReference:
-      typeof obj.payment_intent === "string" ? obj.payment_intent : null,
+      typeof obj.payment_intent === "string" ? obj.payment_intent : "",
     amountTotal: obj.amount_total,
     metadata: {
       event_id: metadata.event_id as string | undefined,

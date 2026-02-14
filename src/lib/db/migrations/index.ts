@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "fix attendee records with invalid empty string values in hybrid-encrypted fields";
+export const LATEST_UPDATE = "backfill NULL price_paid and payment_id with encrypted defaults";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -416,6 +416,10 @@ export const initDb = async (): Promise<void> => {
   await runMigration(
     `CREATE UNIQUE INDEX IF NOT EXISTS idx_attendees_ticket_token_index ON attendees(ticket_token_index)`
   );
+
+  // Migration: backfill NULL price_paid with encrypted "0" and NULL payment_id with encrypted ""
+  await backfillEncryptedColumn("attendees", "price_paid", `price_paid IS NULL`);
+  await backfillHybridEncryptedColumn("attendees", "payment_id", `payment_id IS NULL`);
 
   // Update the version marker
   await getDb().execute({

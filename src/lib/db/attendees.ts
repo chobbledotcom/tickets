@@ -39,10 +39,8 @@ const decryptAttendee = async (
   const phone = await decryptAttendeePII(row.phone, privateKey);
   const address = await decryptAttendeePII(row.address, privateKey);
   const special_instructions = await decryptAttendeePII(row.special_instructions, privateKey);
-  const payment_id = row.payment_id
-    ? await decryptAttendeePII(row.payment_id, privateKey)
-    : null;
-  const price_paid = row.price_paid ? await decrypt(row.price_paid) : null;
+  const payment_id = await decryptAttendeePII(row.payment_id, privateKey);
+  const price_paid = await decrypt(row.price_paid);
   const checked_in = row.checked_in
     ? await decryptAttendeePII(row.checked_in, privateKey)
     : "false";
@@ -89,8 +87,8 @@ type EncryptedAttendeeData = {
   encryptedPhone: string;
   encryptedAddress: string;
   encryptedSpecialInstructions: string;
-  encryptedPaymentId: string | null;
-  encryptedPricePaid: string | null;
+  encryptedPaymentId: string;
+  encryptedPricePaid: string;
   encryptedCheckedIn: string;
   ticketToken: string;
   encryptedTicketToken: string;
@@ -99,8 +97,8 @@ type EncryptedAttendeeData = {
 
 /** Input for encrypting attendee fields - all ContactInfo fields are guaranteed to be strings */
 type EncryptInput = ContactInfo & {
-  paymentId: string | null;
-  pricePaid: number | null;
+  paymentId: string;
+  pricePaid: number;
 };
 
 /** Encrypt attendee fields, returning null if key not configured */
@@ -119,12 +117,8 @@ const encryptAttendeeFields = async (
     encryptedPhone: await encryptAttendeePII(input.phone, publicKeyJwk),
     encryptedAddress: await encryptAttendeePII(input.address, publicKeyJwk),
     encryptedSpecialInstructions: await encryptAttendeePII(input.special_instructions, publicKeyJwk),
-    encryptedPaymentId: input.paymentId
-      ? await encryptAttendeePII(input.paymentId, publicKeyJwk)
-      : null,
-    encryptedPricePaid: input.pricePaid !== null
-      ? await encrypt(String(input.pricePaid))
-      : null,
+    encryptedPaymentId: await encryptAttendeePII(input.paymentId, publicKeyJwk),
+    encryptedPricePaid: await encrypt(String(input.pricePaid)),
     encryptedCheckedIn: await encryptAttendeePII("false", publicKeyJwk),
     ticketToken,
     encryptedTicketToken: await encryptAttendeePII(ticketToken, publicKeyJwk),
@@ -137,9 +131,9 @@ type BuildAttendeeInput = ContactInfo & {
   insertId: number | bigint | undefined;
   eventId: number;
   created: string;
-  paymentId: string | null;
+  paymentId: string;
   quantity: number;
-  pricePaid: number | null;
+  pricePaid: number;
   ticketToken: string;
   ticketTokenIndex: string;
   date: string | null;
@@ -157,7 +151,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   created: input.created,
   payment_id: input.paymentId,
   quantity: input.quantity,
-  price_paid: input.pricePaid !== null ? String(input.pricePaid) : null,
+  price_paid: String(input.pricePaid),
   checked_in: "false",
   ticket_token: input.ticketToken,
   ticket_token_index: input.ticketTokenIndex,
@@ -199,9 +193,9 @@ export type CreateAttendeeResult =
 /** Input for creating an attendee atomically */
 export type AttendeeInput = Pick<ContactInfo, "name" | "email"> & Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">> & {
   eventId: number;
-  paymentId?: string | null;
+  paymentId?: string;
   quantity?: number;
-  pricePaid?: number | null;
+  pricePaid?: number;
   date?: string | null;
 };
 
@@ -270,7 +264,7 @@ export const attendeesApi = {
   createAttendeeAtomic: async (
     input: AttendeeInput,
   ): Promise<CreateAttendeeResult> => {
-    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", address = "", special_instructions = "", pricePaid = null, date = null } = input;
+    const { eventId, name, email, paymentId = "", quantity: qty = 1, phone = "", address = "", special_instructions = "", pricePaid = 0, date = null } = input;
     // Ensure all ContactInfo fields are strings (convert undefined to empty string)
     const contactInfo = { name, email, phone, address, special_instructions };
     const enc = await encryptAttendeeFields({ ...contactInfo, paymentId, pricePaid });
@@ -385,9 +379,11 @@ export const getAttendeesByTokens = async (
  * Prevents double-refund by removing the payment reference.
  */
 export const clearPaymentId = async (attendeeId: number): Promise<void> => {
+  const publicKeyJwk = (await getPublicKey())!;
+  const encryptedEmpty = await encryptAttendeePII("", publicKeyJwk);
   await getDb().execute({
-    sql: "UPDATE attendees SET payment_id = NULL WHERE id = ?",
-    args: [attendeeId],
+    sql: "UPDATE attendees SET payment_id = ? WHERE id = ?",
+    args: [encryptedEmpty, attendeeId],
   });
 };
 

@@ -664,12 +664,12 @@ describe("html", () => {
       expect(lines[1]).toContain("pi_abc123");
     });
 
-    test("formats price as empty when null", () => {
+    test("formats zero price and empty payment_id for free attendees", () => {
       const attendees = [testAttendee()];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      // Price and transaction ID should be empty, followed by Checked In, Token, URL
-      expect(lines[1]).toContain(",,,No,");
+      // Price should be 0.00, transaction ID empty, followed by Checked In, Token, URL
+      expect(lines[1]).toContain("0.00,,No,");
     });
 
     test("shared transaction ID across multiple attendees", () => {
