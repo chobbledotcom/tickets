@@ -76,7 +76,7 @@ export const squarePaymentProvider: PaymentProvider = {
     }
 
     // Determine payment status from order state and tenders
-    const paymentReference = order.tenders?.[0]?.paymentId ?? null;
+    const paymentReference = order.tenders?.[0]?.paymentId ?? "";
 
     // Square order state "COMPLETED" means payment is done
     const paymentStatus: ValidatedPaymentSession["paymentStatus"] =

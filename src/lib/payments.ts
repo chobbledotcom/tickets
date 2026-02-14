@@ -71,7 +71,7 @@ export const isPaymentStatus = (s: string): s is PaymentStatus =>
 export type ValidatedPaymentSession = {
   id: string;
   paymentStatus: PaymentStatus;
-  paymentReference: string | null;
+  paymentReference: string;
   /** Total amount charged in smallest currency unit (cents), from the payment provider */
   amountTotal: number;
   metadata: SessionMetadata;

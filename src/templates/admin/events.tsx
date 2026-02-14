@@ -29,12 +29,8 @@ const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 /** Calculate total revenue in cents from attendees */
 export const calculateTotalRevenue = (attendees: Attendee[]): number =>
-  reduce((sum: number, a: Attendee) => {
-    if (a.price_paid) {
-      return sum + Number.parseInt(a.price_paid, 10);
-    }
-    return sum;
-  }, 0)(attendees);
+  reduce((sum: number, a: Attendee) =>
+    sum + Number.parseInt(a.price_paid, 10), 0)(attendees);
 
 
 /** Check if event is within 10% of capacity */

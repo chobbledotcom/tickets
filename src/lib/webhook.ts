@@ -48,8 +48,8 @@ export type WebhookEvent = {
 export type WebhookAttendee = ContactInfo & {
   id: number;
   quantity: number;
-  payment_id?: string | null;
-  price_paid?: string | null;
+  payment_id: string;
+  price_paid: string;
   ticket_token: string;
   date: string | null;
 };
@@ -74,10 +74,8 @@ export const buildWebhookPayload = async (
   currency: string,
 ): Promise<WebhookPayload> => {
   const first = entries[0]!;
-  const totalPricePaid = entries.reduce((sum, { attendee }) => {
-    if (attendee.price_paid) return sum + Number.parseInt(attendee.price_paid, 10);
-    return sum;
-  }, 0);
+  const totalPricePaid = entries.reduce((sum, { attendee }) =>
+    sum + Number.parseInt(attendee.price_paid, 10), 0);
 
   const hasPaidEvent = entries.some(({ event }) => event.unit_price !== null);
   const businessEmail = await getBusinessEmailFromDb();
@@ -91,7 +89,7 @@ export const buildWebhookPayload = async (
     special_instructions: first.attendee.special_instructions,
     price_paid: hasPaidEvent ? totalPricePaid : null,
     currency,
-    payment_id: first.attendee.payment_id ?? null,
+    payment_id: first.attendee.payment_id || null,
     ticket_url: buildTicketUrl(entries),
     tickets: entries.map(({ event, attendee }) => ({
       event_name: event.name,

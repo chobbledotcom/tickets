@@ -82,7 +82,7 @@ export const adminRefundAttendeePage = (
           <p><strong>Name:</strong> {attendee.name}</p>
           <p><strong>Email:</strong> {attendee.email}</p>
           <p><strong>Quantity:</strong> {attendee.quantity}</p>
-          {attendee.price_paid && (
+          {Number.parseInt(attendee.price_paid, 10) > 0 && (
             <p><strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}</p>
           )}
           <p><strong>Registered:</strong> {new Date(attendee.created).toLocaleString()}</p>
@@ -273,7 +273,7 @@ export const adminResendWebhookPage = (
           <p><strong>Name:</strong> {attendee.name}</p>
           <p><strong>Email:</strong> {attendee.email}</p>
           <p><strong>Quantity:</strong> {attendee.quantity}</p>
-          {attendee.price_paid && (
+          {Number.parseInt(attendee.price_paid, 10) > 0 && (
             <p><strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}</p>
           )}
           <p><strong>Registered:</strong> {new Date(attendee.created).toLocaleString()}</p>

@@ -202,7 +202,7 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
 });
 
 /** Filter attendees that have a payment_id (refundable) */
-const getRefundable = filter((a: Attendee) => a.payment_id !== null);
+const getRefundable = filter((a: Attendee) => a.payment_id !== "");
 
 /** Handle GET /admin/event/:id/refund-all */
 const handleAdminRefundAllGet = (
@@ -248,7 +248,7 @@ const processRefundAll = async (
   let refundedCount = 0;
   let failedCount = 0;
   for (const attendee of refundable) {
-    const refunded = await provider.refundPayment(attendee.payment_id!);
+    const refunded = await provider.refundPayment(attendee.payment_id);
     if (refunded) {
       await clearPaymentId(attendee.id);
       refundedCount++;

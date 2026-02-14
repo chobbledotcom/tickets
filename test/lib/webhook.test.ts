@@ -31,6 +31,8 @@ const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee
   phone: "555-1234",
   address: "",
   special_instructions: "",
+  payment_id: "",
+  price_paid: "0",
   ticket_token: "test-token-42",
   date: null,
   ...overrides,
