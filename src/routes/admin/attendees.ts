@@ -343,8 +343,8 @@ export const attendeesRoutes = defineRoutes({
     handleAdminAttendeeRefundGet(request, eventId, attendeeId),
   "POST /admin/event/:eventId/attendee/:attendeeId/refund": (request, { eventId, attendeeId }) =>
     handleAttendeeRefund(request, eventId, attendeeId),
-  "GET /admin/event/:eventId/refund-all": (request, { eventId }) =>
-    handleAdminRefundAllGet(request, eventId),
-  "POST /admin/event/:eventId/refund-all": (request, { eventId }) =>
-    handleAdminRefundAllPost(request, eventId),
+  "GET /admin/event/:id/refund-all": (request, { id }) =>
+    handleAdminRefundAllGet(request, id),
+  "POST /admin/event/:id/refund-all": (request, { id }) =>
+    handleAdminRefundAllPost(request, id),
 });

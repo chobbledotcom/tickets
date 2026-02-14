@@ -496,7 +496,7 @@ describe("server (event images)", () => {
       }
     });
 
-    test("returns 404 when storage returns error", async () => {
+    test("returns 404 when file does not exist in storage", async () => {
       const originalFetch = globalThis.fetch;
       globalThis.fetch = (input: string | URL | Request): Promise<Response> => {
         const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
@@ -509,6 +509,25 @@ describe("server (event images)", () => {
       try {
         const response = await handleRequest(mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg"));
         expect(response.status).toBe(404);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    test("propagates non-404 storage errors", async () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = (input: string | URL | Request): Promise<Response> => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+        if (url.includes("storage.bunnycdn.com")) {
+          return Promise.resolve(new Response("Unauthorized", { status: 401 }));
+        }
+        return originalFetch(input);
+      };
+
+      try {
+        await expect(
+          handleRequest(mockRequest("/image/abc123-def4-5678-9abc-def012345678.jpg")),
+        ).rejects.toThrow();
       } finally {
         globalThis.fetch = originalFetch;
       }

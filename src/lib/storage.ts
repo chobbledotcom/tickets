@@ -161,11 +161,15 @@ const collectStream = async (stream: ReadableStream<Uint8Array>): Promise<Uint8A
   return result;
 };
 
+/** Check if an error is a storage SDK "file not found" error */
+const isFileNotFound = (err: unknown): boolean =>
+  err instanceof Error && err.message.startsWith("File not found:");
+
 /**
  * Download and decrypt an image from Bunny storage.
  * Uses the storage SDK directly (same as upload/delete) instead of a CDN
  * pull zone URL, which requires a separate pull zone linked to the storage zone.
- * Returns the decrypted image bytes, or null if not found.
+ * Returns the decrypted image bytes, or null if the file does not exist.
  */
 export const downloadImage = async (filename: string): Promise<Uint8Array | null> => {
   try {
@@ -173,8 +177,9 @@ export const downloadImage = async (filename: string): Promise<Uint8Array | null
     const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);
     const encrypted = await collectStream(stream);
     return decryptBytes(encrypted);
-  } catch {
-    return null;
+  } catch (err) {
+    if (isFileNotFound(err)) return null;
+    throw err;
   }
 };
 
