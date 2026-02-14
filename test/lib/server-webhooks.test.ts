@@ -6,6 +6,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   deactivateTestEvent,
+  followRedirect,
   mockRequest,
   mockWebhookRequest,
   resetDb,
@@ -458,9 +459,11 @@ describe("server (webhooks)", () => {
       >);
 
       try {
-        const response = await handleRequest(
+        const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_no_qty"),
         );
+        expect(redirectResponse.status).toBe(302);
+        const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
 
         // Verify attendee was created with quantity 1
@@ -753,9 +756,11 @@ describe("server (webhooks)", () => {
       >);
 
       try {
-        const response = await handleRequest(
+        const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_price"),
         );
+        expect(redirectResponse.status).toBe(302);
+        const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
 
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -795,9 +800,11 @@ describe("server (webhooks)", () => {
       >);
 
       try {
-        const response = await handleRequest(
+        const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_single_price"),
         );
+        expect(redirectResponse.status).toBe(302);
+        const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
 
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1673,9 +1680,11 @@ describe("server (webhooks)", () => {
       >);
 
       try {
-        const response = await handleRequest(
+        const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_free"),
         );
+        expect(redirectResponse.status).toBe(302);
+        const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
 
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1714,9 +1723,11 @@ describe("server (webhooks)", () => {
       >);
 
       try {
-        const response = await handleRequest(
+        const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_single_free"),
         );
+        expect(redirectResponse.status).toBe(302);
+        const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
 
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");

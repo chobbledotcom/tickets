@@ -904,6 +904,16 @@ export const expectRedirect =
 export const expectAdminRedirect: (response: Response) => Response =
   expectRedirect("/admin");
 
+/** Follow a 302 redirect by making a new request to the location header. */
+export const followRedirect = (
+  response: Response,
+  handler: (request: Request) => Promise<Response>,
+): Promise<Response> => {
+  expect(response.status).toBe(302);
+  const location = response.headers.get("location")!;
+  return handler(mockRequest(location));
+};
+
 /** Assert a result object has ok:false with the expected error string. */
 export const expectResultError =
   (expectedError: string) =>
