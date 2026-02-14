@@ -6,14 +6,28 @@ import { getAllowedDomain } from "#lib/config.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { htmlResponse, requireSessionOr, withSession } from "#routes/utils.ts";
+import {
+  generateSecureToken,
+  htmlResponse,
+  htmlResponseWithCookie,
+  requireSessionOr,
+  withSession,
+} from "#routes/utils.ts";
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 
+const LOGIN_CSRF_COOKIE = "admin_login_csrf";
+
 /** Login page response helper */
-export const loginResponse = (error?: string, status = 200) =>
-  htmlResponse(adminLoginPage(error), status);
+export const loginResponse = (
+  error?: string,
+  status = 200,
+  csrfToken = generateSecureToken(),
+) =>
+  htmlResponseWithCookie(
+    `__Host-${LOGIN_CSRF_COOKIE}=${csrfToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=3600`,
+  )(adminLoginPage(csrfToken, error), status);
 
 /**
  * Handle GET /admin/
@@ -23,7 +37,14 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     request,
     async (session) => {
       const imageError = new URL(request.url).searchParams.get("image_error");
-      return htmlResponse(adminDashboardPage(await getAllEvents(), session, getAllowedDomain(), imageError));
+      return htmlResponse(
+        adminDashboardPage(
+          await getAllEvents(),
+          session,
+          getAllowedDomain(),
+          imageError,
+        ),
+      );
     },
     () => loginResponse(),
   );

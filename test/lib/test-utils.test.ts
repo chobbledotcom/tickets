@@ -21,6 +21,7 @@ import {
   generateTestEventName,
   getCsrfTokenFromCookie,
   getSetupCsrfToken,
+  getAdminLoginCsrfToken,
   getTicketCsrfToken,
   invalidateTestDbCache,
   loginAsAdmin,
@@ -270,6 +271,23 @@ describe("test-utils", () => {
         "__Host-session=nonexistent-token-abc",
       );
       expect(result).toBe(null);
+    });
+  });
+
+
+  describe("getAdminLoginCsrfToken", () => {
+    test("returns null when set-cookie header is null", () => {
+      expect(getAdminLoginCsrfToken(null)).toBe(null);
+    });
+
+    test("returns null when set-cookie has no admin login csrf cookie", () => {
+      expect(getAdminLoginCsrfToken("other_cookie=value")).toBe(null);
+    });
+
+    test("extracts admin login csrf value from set-cookie header", () => {
+      expect(getAdminLoginCsrfToken("__Host-admin_login_csrf=abc123; Path=/")).toBe(
+        "abc123",
+      );
     });
   });
 
@@ -551,6 +569,21 @@ describe("test-utils", () => {
   });
 
   describe("loginAsAdmin error path", () => {
+    test("throws when login page does not provide login CSRF cookie", async () => {
+      await createTestDbWithSetup();
+      const routes = await import("#routes");
+      const handleRequestSpy = spyOn(routes, "handleRequest")
+        .mockResolvedValue(new Response("ok", { status: 200 }));
+
+      try {
+        await expect(loginAsAdmin()).rejects.toThrow(
+          "Failed to get CSRF token for admin login",
+        );
+      } finally {
+        handleRequestSpy.mockRestore?.();
+      }
+    });
+
     test("throws when CSRF token cannot be obtained from login response", async () => {
       // createTestDb without setup means no admin password exists
       // so login will fail and no session cookie is set
