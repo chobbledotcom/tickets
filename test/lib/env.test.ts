@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { getEnv } from "#lib/env.ts";
+import { getEnv, requireEnv } from "#lib/env.ts";
 import process from "node:process";
 
 describe("env", () => {
@@ -38,5 +38,18 @@ describe("env", () => {
       expect(getEnv("TEST_ENV_VAR")).toBeUndefined();
     });
 
+  });
+
+  describe("requireEnv", () => {
+    test("returns value when env var is set", () => {
+      process.env.TEST_ENV_VAR = "required_value";
+      expect(requireEnv("TEST_ENV_VAR")).toBe("required_value");
+    });
+
+    test("throws when env var is not set", () => {
+      expect(() => requireEnv("TEST_ENV_VAR")).toThrow(
+        "Required environment variable TEST_ENV_VAR is not set",
+      );
+    });
   });
 });

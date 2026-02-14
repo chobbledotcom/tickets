@@ -488,6 +488,39 @@ describe("test-utils", () => {
     });
   });
 
+  describe("createTestAttendeeDirect", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("creates an attendee directly and returns plaintext token", async () => {
+      const { createTestAttendeeDirect } = await import("#test-utils");
+      const event = await createTestEvent();
+      const { attendee, token } = await createTestAttendeeDirect(
+        event.id,
+        "Test User",
+        "test@example.com",
+      );
+      expect(attendee.id).toBeGreaterThan(0);
+      expect(attendee.event_id).toBe(event.id);
+      expect(token).toBeTruthy();
+      expect(typeof token).toBe("string");
+    });
+
+    test("throws error when capacity is exceeded", async () => {
+      const { createTestAttendeeDirect } = await import("#test-utils");
+      const event = await createTestEvent({ maxAttendees: 1 });
+
+      // Fill the event
+      await createTestAttendeeDirect(event.id, "First", "first@example.com");
+
+      // Second attendee should fail
+      await expect(
+        createTestAttendeeDirect(event.id, "Second", "second@example.com"),
+      ).rejects.toThrow("Failed to create attendee");
+    });
+  });
+
   describe("expectStatus", () => {
     test("returns the response when status matches", () => {
       const response = new Response("ok", { status: 200 });

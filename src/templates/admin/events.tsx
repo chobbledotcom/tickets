@@ -29,12 +29,8 @@ const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 /** Calculate total revenue in cents from attendees */
 export const calculateTotalRevenue = (attendees: Attendee[]): number =>
-  reduce((sum: number, a: Attendee) => {
-    if (a.price_paid) {
-      return sum + Number.parseInt(a.price_paid, 10);
-    }
-    return sum;
-  }, 0)(attendees);
+  reduce((sum: number, a: Attendee) =>
+    sum + Number.parseInt(a.price_paid, 10), 0)(attendees);
 
 
 /** Check if event is within 10% of capacity */
@@ -96,9 +92,17 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
             Refund
           </a>
         )}
+        {hasPaidEvent && a.payment_id && " "}
+        <a href={`/admin/attendees/${a.id}`}>
+          Edit
+        </a>
         {" "}
         <a href={`/admin/event/${eventId}/attendee/${a.id}/delete`} class="danger">
           Delete
+        </a>
+        {" "}
+        <a href={`/admin/event/${eventId}/attendee/${a.id}/resend-webhook`}>
+          Re-send Webhook
         </a>
       </td>
     </tr>
@@ -108,7 +112,7 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
 export type CheckinMessage = { name: string; status: string } | null;
 
 /** Add-attendee result message */
-export type AddAttendeeMessage = { name: string } | { error: string } | null;
+export type AddAttendeeMessage = { name: string } | { edited: string } | { error: string } | null;
 
 /** Filter attendees by check-in status */
 const filterAttendees = (attendees: Attendee[], activeFilter: AttendeeFilter): Attendee[] => {
@@ -384,6 +388,11 @@ export const adminEventPage = ({
           {addAttendeeMessage && "name" in addAttendeeMessage && (
             <p class="checkin-message-in">
               Added {addAttendeeMessage.name}
+            </p>
+          )}
+          {addAttendeeMessage && "edited" in addAttendeeMessage && (
+            <p class="checkin-message-in">
+              Updated {addAttendeeMessage.edited}
             </p>
           )}
           {addAttendeeMessage && "error" in addAttendeeMessage && (

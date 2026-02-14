@@ -29,6 +29,7 @@ export const adminSettingsPage = (
   embedHosts?: string | null,
   termsAndConditions?: string | null,
   timezone?: string,
+  businessEmail?: string,
 ): string =>
   String(
     <Layout title="Settings">
@@ -48,6 +49,22 @@ export const adminSettingsPage = (
             ))}
           </select>
           <button type="submit">Save Timezone</button>
+        </form>
+
+        <form method="POST" action="/admin/settings/business-email">
+            <h2>Business Email</h2>
+          <p>This email will be included in webhook notifications to identify your business.</p>
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          <label for="business_email">Business Email</label>
+          <input
+            type="email"
+            id="business_email"
+            name="business_email"
+            placeholder="contact@example.com"
+            value={businessEmail ?? ""}
+            autocomplete="email"
+          />
+          <button type="submit">Save Business Email</button>
         </form>
 
         <form method="POST" action="/admin/settings/payment-provider">

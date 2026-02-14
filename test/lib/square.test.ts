@@ -1178,7 +1178,7 @@ describe("square", () => {
           const result = await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
           expect(result!.paymentStatus).toBe("unpaid");
-          expect(result!.paymentReference).toBeNull();
+          expect(result!.paymentReference).toBe("");
         },
       );
     });

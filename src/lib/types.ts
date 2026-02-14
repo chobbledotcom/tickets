@@ -6,7 +6,11 @@
 export type ContactField = "email" | "phone" | "address" | "special_instructions";
 
 /** All valid contact field names (runtime array matching the ContactField union) */
-export const CONTACT_FIELDS: readonly ContactField[] = ["email", "phone", "address", "special_instructions"] as const;
+export const CONTACT_FIELDS: readonly ContactField[] = ["email", "phone", "address", "special_instructions"];
+
+/** Type guard: check if an arbitrary string is a valid ContactField */
+export const isContactField = (s: string): s is ContactField =>
+  (CONTACT_FIELDS as readonly string[]).includes(s);
 
 /** Contact fields setting for an event (comma-separated ContactField names, or empty for name-only) */
 export type EventFields = string;
@@ -22,6 +26,13 @@ export type ContactInfo = {
 
 /** Event type: standard (one-time) or daily (date-based booking) */
 export type EventType = "standard" | "daily";
+
+/** Valid event type values */
+const EVENT_TYPES: readonly EventType[] = ["standard", "daily"];
+
+/** Type guard: check if an arbitrary string is a valid EventType */
+export const isEventType = (s: string): s is EventType =>
+  (EVENT_TYPES as readonly string[]).includes(s);
 
 export interface Event {
   id: number;
@@ -51,11 +62,12 @@ export interface Attendee extends ContactInfo {
   id: number;
   event_id: number;
   created: string;
-  payment_id: string | null;
+  payment_id: string;
   quantity: number;
-  price_paid: string | null;
+  price_paid: string;
   checked_in: string;
   ticket_token: string;
+  ticket_token_index: string;
   date: string | null;
 }
 
@@ -74,6 +86,10 @@ export interface Session {
 
 /** Admin role levels */
 export type AdminLevel = "owner" | "manager";
+
+/** Type guard: check if a string is a valid AdminLevel */
+export const isAdminLevel = (s: string): s is AdminLevel =>
+  s === "owner" || s === "manager";
 
 /** Session data needed by admin page templates */
 export type AdminSession = {

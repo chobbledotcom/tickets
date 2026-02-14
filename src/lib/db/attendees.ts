@@ -7,8 +7,8 @@
  */
 
 import { map } from "#fp";
-import { decrypt, decryptAttendeePII, encrypt, encryptAttendeePII, generateTicketToken } from "#lib/crypto.ts";
-import { getDb, inPlaceholders, queryOne } from "#lib/db/client.ts";
+import { computeTicketTokenIndex, decrypt, decryptAttendeePII, encrypt, encryptAttendeePII, generateTicketToken } from "#lib/crypto.ts";
+import { getDb, inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
 import { nowIso } from "#lib/now.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
@@ -35,39 +35,28 @@ const decryptAttendee = async (
   privateKey: CryptoKey,
 ): Promise<Attendee> => {
   const name = await decryptAttendeePII(row.name, privateKey);
-  const email = row.email
-    ? await decryptAttendeePII(row.email, privateKey)
-    : "";
-  const phone = row.phone
-    ? await decryptAttendeePII(row.phone, privateKey)
-    : "";
-  const address = row.address
-    ? await decryptAttendeePII(row.address, privateKey)
-    : "";
-  const special_instructions = row.special_instructions
-    ? await decryptAttendeePII(row.special_instructions, privateKey)
-    : "";
-  const payment_id = row.payment_id
-    ? await decryptAttendeePII(row.payment_id, privateKey)
-    : null;
-  const price_paid = row.price_paid ? await decrypt(row.price_paid) : null;
+  const email = await decryptAttendeePII(row.email, privateKey);
+  const phone = await decryptAttendeePII(row.phone, privateKey);
+  const address = await decryptAttendeePII(row.address, privateKey);
+  const special_instructions = await decryptAttendeePII(row.special_instructions, privateKey);
+  const payment_id = await decryptAttendeePII(row.payment_id, privateKey);
+  const price_paid = await decrypt(row.price_paid);
   const checked_in = row.checked_in
     ? await decryptAttendeePII(row.checked_in, privateKey)
     : "false";
-  return { ...row, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in };
+  const ticket_token = await decryptAttendeePII(row.ticket_token, privateKey);
+  return { ...row, name, email, phone, address, special_instructions, payment_id, price_paid, checked_in, ticket_token };
 };
 
 /**
  * Get attendees for an event without decrypting PII
  * Used for tests and operations that don't need decrypted data
  */
-export const getAttendeesRaw = async (eventId: number): Promise<Attendee[]> => {
-  const result = await getDb().execute({
-    sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
-    args: [eventId],
-  });
-  return result.rows as unknown as Attendee[];
-};
+export const getAttendeesRaw = (eventId: number): Promise<Attendee[]> =>
+  queryAll<Attendee>(
+    "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC",
+    [eventId],
+  );
 
 /**
  * Decrypt a list of raw attendees.
@@ -98,15 +87,18 @@ type EncryptedAttendeeData = {
   encryptedPhone: string;
   encryptedAddress: string;
   encryptedSpecialInstructions: string;
-  encryptedPaymentId: string | null;
-  encryptedPricePaid: string | null;
+  encryptedPaymentId: string;
+  encryptedPricePaid: string;
   encryptedCheckedIn: string;
+  ticketToken: string;
+  encryptedTicketToken: string;
+  ticketTokenIndex: string;
 };
 
-/** Input for encrypting attendee fields */
+/** Input for encrypting attendee fields - all ContactInfo fields are guaranteed to be strings */
 type EncryptInput = ContactInfo & {
-  paymentId: string | null;
-  pricePaid: number | null;
+  paymentId: string;
+  pricePaid: number;
 };
 
 /** Encrypt attendee fields, returning null if key not configured */
@@ -116,28 +108,21 @@ const encryptAttendeeFields = async (
   const publicKeyJwk = await getPublicKey();
   if (!publicKeyJwk) return null;
 
+  const ticketToken = generateTicketToken();
+
   return {
     created: nowIso(),
     encryptedName: await encryptAttendeePII(input.name, publicKeyJwk),
-    encryptedEmail: input.email
-      ? await encryptAttendeePII(input.email, publicKeyJwk)
-      : "",
-    encryptedPhone: input.phone
-      ? await encryptAttendeePII(input.phone, publicKeyJwk)
-      : "",
-    encryptedAddress: input.address
-      ? await encryptAttendeePII(input.address, publicKeyJwk)
-      : "",
-    encryptedSpecialInstructions: input.special_instructions
-      ? await encryptAttendeePII(input.special_instructions, publicKeyJwk)
-      : "",
-    encryptedPaymentId: input.paymentId
-      ? await encryptAttendeePII(input.paymentId, publicKeyJwk)
-      : null,
-    encryptedPricePaid: input.pricePaid !== null
-      ? await encrypt(String(input.pricePaid))
-      : null,
+    encryptedEmail: await encryptAttendeePII(input.email, publicKeyJwk),
+    encryptedPhone: await encryptAttendeePII(input.phone, publicKeyJwk),
+    encryptedAddress: await encryptAttendeePII(input.address, publicKeyJwk),
+    encryptedSpecialInstructions: await encryptAttendeePII(input.special_instructions, publicKeyJwk),
+    encryptedPaymentId: await encryptAttendeePII(input.paymentId, publicKeyJwk),
+    encryptedPricePaid: await encrypt(String(input.pricePaid)),
     encryptedCheckedIn: await encryptAttendeePII("false", publicKeyJwk),
+    ticketToken,
+    encryptedTicketToken: await encryptAttendeePII(ticketToken, publicKeyJwk),
+    ticketTokenIndex: await computeTicketTokenIndex(ticketToken),
   };
 };
 
@@ -146,10 +131,11 @@ type BuildAttendeeInput = ContactInfo & {
   insertId: number | bigint | undefined;
   eventId: number;
   created: string;
-  paymentId: string | null;
+  paymentId: string;
   quantity: number;
-  pricePaid: number | null;
+  pricePaid: number;
   ticketToken: string;
+  ticketTokenIndex: string;
   date: string | null;
 };
 
@@ -165,9 +151,10 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   created: input.created,
   payment_id: input.paymentId,
   quantity: input.quantity,
-  price_paid: input.pricePaid !== null ? String(input.pricePaid) : null,
+  price_paid: String(input.pricePaid),
   checked_in: "false",
   ticket_token: input.ticketToken,
+  ticket_token_index: input.ticketTokenIndex,
   date: input.date,
 });
 
@@ -206,9 +193,9 @@ export type CreateAttendeeResult =
 /** Input for creating an attendee atomically */
 export type AttendeeInput = Pick<ContactInfo, "name" | "email"> & Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">> & {
   eventId: number;
-  paymentId?: string | null;
+  paymentId?: string;
   quantity?: number;
-  pricePaid?: number | null;
+  pricePaid?: number;
   date?: string | null;
 };
 
@@ -220,11 +207,11 @@ export const getDateAttendeeCount = async (
   eventId: number,
   date: string,
 ): Promise<number> => {
-  const result = await getDb().execute({
-    sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ? AND date = ?",
-    args: [eventId, date],
-  });
-  return (result.rows[0] as unknown as { count: number }).count;
+  const rows = await queryAll<{ count: number }>(
+    "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ? AND date = ?",
+    [eventId, date],
+  );
+  return rows[0]!.count;
 };
 
 /** Stubbable API for testing atomic operations */
@@ -240,20 +227,17 @@ export const attendeesApi = {
   ): Promise<boolean> => {
     if (items.length === 0) return true;
     const eventIds = items.map((i) => i.eventId);
-    const result = await getDb().execute({
-      sql: `SELECT e.id, e.max_attendees,
+    const rows = await queryAll<{ id: number; max_attendees: number; current_count: number }>(
+      `SELECT e.id, e.max_attendees,
               COALESCE(SUM(a.quantity), 0) as current_count
             FROM events e
             LEFT JOIN attendees a ON a.event_id = e.id
               AND (e.event_type != 'daily' OR a.date = ?)
             WHERE e.id IN (${inPlaceholders(eventIds)})
             GROUP BY e.id`,
-      args: [date ?? null, ...eventIds],
-    });
-    const counts = new Map(
-      (result.rows as unknown as Array<{ id: number; max_attendees: number; current_count: number }>)
-        .map((r) => [r.id, r]),
+      [date ?? null, ...eventIds],
     );
+    const counts = new Map(rows.map((r) => [r.id, r]));
     return items.every((item) => {
       const row = counts.get(item.eventId);
       return row ? row.current_count + item.quantity <= row.max_attendees : false;
@@ -280,13 +264,13 @@ export const attendeesApi = {
   createAttendeeAtomic: async (
     input: AttendeeInput,
   ): Promise<CreateAttendeeResult> => {
-    const { eventId, name, email, paymentId = null, quantity: qty = 1, phone = "", address = "", special_instructions = "", pricePaid = null, date = null } = input;
-    const enc = await encryptAttendeeFields({ name, email, phone, address, special_instructions, paymentId, pricePaid });
+    const { eventId, name, email, paymentId = "", quantity: qty = 1, phone = "", address = "", special_instructions = "", pricePaid = 0, date = null } = input;
+    // Ensure all ContactInfo fields are strings (convert undefined to empty string)
+    const contactInfo = { name, email, phone, address, special_instructions };
+    const enc = await encryptAttendeeFields({ ...contactInfo, paymentId, pricePaid });
     if (!enc) {
       return { success: false, reason: "encryption_error" };
     }
-
-    const ticketToken = generateTicketToken();
 
     // For daily events with a date, check capacity per-date; otherwise check total
     const capacityFilter = date
@@ -296,8 +280,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, ticket_token, date)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, ticket_token, ticket_token_index, date)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (
@@ -315,7 +299,8 @@ export const attendeesApi = {
         qty,
         enc.encryptedPricePaid,
         enc.encryptedCheckedIn,
-        ticketToken,
+        enc.encryptedTicketToken,
+        enc.ticketTokenIndex,
         date,
         ...capacityArgs,
         qty,
@@ -341,7 +326,8 @@ export const attendeesApi = {
         paymentId,
         quantity: qty,
         pricePaid,
-        ticketToken,
+        ticketToken: enc.ticketToken,
+        ticketTokenIndex: enc.ticketTokenIndex,
         date,
       }),
     };
@@ -367,19 +353,25 @@ export const checkBatchAvailability = (
 ): Promise<boolean> => attendeesApi.checkBatchAvailability(items, date);
 
 /**
- * Get attendees by ticket tokens (plaintext, no decryption needed for token lookup)
+ * Get attendees by ticket tokens (plaintext tokens, looked up via HMAC index)
  * Returns attendees in the same order as the input tokens.
  */
 export const getAttendeesByTokens = async (
   tokens: string[],
 ): Promise<(Attendee | null)[]> => {
-  const result = await getDb().execute({
-    sql: `SELECT * FROM attendees WHERE ticket_token IN (${inPlaceholders(tokens)})`,
-    args: tokens,
-  });
-  const rows = result.rows as unknown as Attendee[];
-  const byToken = new Map(map((r: Attendee) => [r.ticket_token, r] as const)(rows));
-  return map((t: string) => byToken.get(t) ?? null)(tokens);
+  // Compute HMAC index for each token
+  const tokenIndexes = await Promise.all(map((t: string) => computeTicketTokenIndex(t))(tokens));
+
+  const rows = await queryAll<Attendee>(
+    `SELECT * FROM attendees WHERE ticket_token_index IN (${inPlaceholders(tokenIndexes)})`,
+    tokenIndexes,
+  );
+
+  // Build a map from token index to attendee
+  const byTokenIndex = new Map(map((r: Attendee) => [r.ticket_token_index, r] as const)(rows));
+
+  // Return attendees in the same order as input tokens
+  return map((idx: string) => byTokenIndex.get(idx) ?? null)(tokenIndexes);
 };
 
 /**
@@ -387,9 +379,11 @@ export const getAttendeesByTokens = async (
  * Prevents double-refund by removing the payment reference.
  */
 export const clearPaymentId = async (attendeeId: number): Promise<void> => {
+  const publicKeyJwk = (await getPublicKey())!;
+  const encryptedEmpty = await encryptAttendeePII("", publicKeyJwk);
   await getDb().execute({
-    sql: "UPDATE attendees SET payment_id = NULL WHERE id = ?",
-    args: [attendeeId],
+    sql: "UPDATE attendees SET payment_id = ? WHERE id = ?",
+    args: [encryptedEmpty, attendeeId],
   });
 };
 
@@ -411,5 +405,45 @@ export const updateCheckedIn = async (
   await getDb().execute({
     sql: "UPDATE attendees SET checked_in = ? WHERE id = ?",
     args: [encryptedValue, attendeeId],
+  });
+};
+
+/** Input for updating an attendee */
+export type UpdateAttendeeInput = {
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  special_instructions: string;
+  event_id: number;
+};
+
+/**
+ * Update an attendee's information (encrypted fields)
+ * Caller must be authenticated admin (public key always exists after setup)
+ */
+export const updateAttendee = async (
+  attendeeId: number,
+  input: UpdateAttendeeInput,
+): Promise<void> => {
+  const publicKeyJwk = (await getPublicKey())!;
+
+  const encryptedName = await encryptAttendeePII(input.name, publicKeyJwk);
+  const encryptedEmail = input.email
+    ? await encryptAttendeePII(input.email, publicKeyJwk)
+    : "";
+  const encryptedPhone = input.phone
+    ? await encryptAttendeePII(input.phone, publicKeyJwk)
+    : "";
+  const encryptedAddress = input.address
+    ? await encryptAttendeePII(input.address, publicKeyJwk)
+    : "";
+  const encryptedSpecialInstructions = input.special_instructions
+    ? await encryptAttendeePII(input.special_instructions, publicKeyJwk)
+    : "";
+
+  await getDb().execute({
+    sql: "UPDATE attendees SET name = ?, email = ?, phone = ?, address = ?, special_instructions = ?, event_id = ? WHERE id = ?",
+    args: [encryptedName, encryptedEmail, encryptedPhone, encryptedAddress, encryptedSpecialInstructions, input.event_id, attendeeId],
   });
 };

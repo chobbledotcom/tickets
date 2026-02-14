@@ -14,6 +14,10 @@ import type {
 } from "#lib/payments.ts";
 import type { ContactInfo } from "#lib/types.ts";
 
+/** Extract a human-readable message from an unknown caught value */
+export const errorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : "Unknown error";
+
 /** Safely execute async operation, returning null on error */
 export const safeAsync = async <T>(
   fn: () => Promise<T>,

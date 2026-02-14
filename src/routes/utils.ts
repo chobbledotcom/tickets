@@ -409,8 +409,8 @@ export type CsrfFormResult =
 const DEFAULT_CSRF_COOKIE = "csrf_token";
 
 /** Generate CSRF cookie string. Uses SameSite=None + Partitioned when embedded in a cross-site iframe. */
-export const csrfCookie = (token: string, path: string, cookieName?: string, iframe = false): string =>
-  `${cookieName ?? DEFAULT_CSRF_COOKIE}=${token}; HttpOnly; Secure; SameSite=${iframe ? "None" : "Strict"}; Path=${path}; Max-Age=3600${iframe ? "; Partitioned" : ""}`;
+export const csrfCookie = (token: string, path: string, cookieName?: string, inIframe = false): string =>
+  `${cookieName ?? DEFAULT_CSRF_COOKIE}=${token}; HttpOnly; Secure; SameSite=${inIframe ? "None" : "Strict"}; Path=${path}; Max-Age=3600${inIframe ? "; Partitioned" : ""}`;
 
 /**
  * Parse form with CSRF validation (double-submit cookie pattern)
@@ -503,7 +503,7 @@ export const withAuthMultipartForm = async (
   if (!session) return redirect("/admin");
 
   const formData = await request.formData();
-  const csrfToken = (formData.get("csrf_token") as string) || "";
+  const csrfToken = String(formData.get("csrf_token") ?? "");
   if (!validateCsrfToken(session.csrfToken, csrfToken)) {
     return htmlResponse("Invalid CSRF token", 403);
   }

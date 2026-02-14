@@ -10,6 +10,7 @@ import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import { type CsvEventInfo, generateAttendeesCsv, generateCalendarCsv } from "#templates/csv.ts";
 import { adminCalendarPage, type CalendarAttendeeRow } from "#templates/admin/calendar.tsx";
 import {
+  checkoutPopupPage,
   paymentCancelPage,
   paymentErrorPage,
   paymentPage,
@@ -484,6 +485,17 @@ describe("html", () => {
       expect(html).toContain('http-equiv="refresh"');
       expect(html).toContain("3;url=https://example.com/thanks");
     });
+
+    test("includes data-payment-result attribute for popup postMessage", () => {
+      const html = paymentSuccessPage(event, null);
+      expect(html).toContain('data-payment-result="success"');
+    });
+
+    test("renders without redirect when thankYouUrl is null", () => {
+      const html = paymentSuccessPage(event, null);
+      expect(html).not.toContain('http-equiv="refresh"');
+      expect(html).not.toContain("redirected");
+    });
   });
 
   describe("paymentCancelPage", () => {
@@ -494,6 +506,41 @@ describe("html", () => {
       expect(html).toContain("Payment Cancelled");
       expect(html).toContain("/ticket/ab12c");
       expect(html).toContain("Try again");
+    });
+
+    test("includes data-payment-result attribute for popup postMessage", () => {
+      const html = paymentCancelPage(event, "/ticket/ab12c");
+      expect(html).toContain('data-payment-result="cancel"');
+    });
+  });
+
+  describe("checkoutPopupPage", () => {
+    test("renders checkout URL in data attribute", () => {
+      const html = checkoutPopupPage("https://checkout.stripe.com/session123");
+      expect(html).toContain('data-checkout-popup="https://checkout.stripe.com/session123"');
+    });
+
+    test("renders Pay Now link with target _blank", () => {
+      const html = checkoutPopupPage("https://checkout.stripe.com/session123");
+      expect(html).toContain('target="_blank"');
+      expect(html).toContain("Pay Now");
+      expect(html).toContain('data-open-checkout');
+    });
+
+    test("includes waiting element for popup state", () => {
+      const html = checkoutPopupPage("https://checkout.stripe.com/session123");
+      expect(html).toContain("data-checkout-waiting");
+    });
+
+    test("uses iframe body class", () => {
+      const html = checkoutPopupPage("https://checkout.stripe.com/session123");
+      expect(html).toContain('class="iframe"');
+    });
+
+    test("escapes checkout URL", () => {
+      const html = checkoutPopupPage('https://evil.com/"onload="alert(1)');
+      expect(html).toContain("&quot;");
+      expect(html).not.toContain('"onload="');
     });
   });
 
@@ -617,12 +664,12 @@ describe("html", () => {
       expect(lines[1]).toContain("pi_abc123");
     });
 
-    test("formats price as empty when null", () => {
+    test("formats zero price and empty payment_id for free attendees", () => {
       const attendees = [testAttendee()];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
-      // Price and transaction ID should be empty, followed by Checked In, Token, URL
-      expect(lines[1]).toContain(",,,No,");
+      // Price should be 0.00, transaction ID empty, followed by Checked In, Token, URL
+      expect(lines[1]).toContain("0.00,,No,");
     });
 
     test("shared transaction ID across multiple attendees", () => {
@@ -1563,84 +1610,101 @@ describe("html", () => {
     });
   });
 
-  describe("ticketViewPage event date and location columns", () => {
+  describe("ticketViewPage event date and location", () => {
     const qrSvg = "<svg>test</svg>";
 
-    test("shows Event Date column when entry has non-empty event date", () => {
-      const entries = [
+    test("shows event date when entry has non-empty event date", () => {
+      const cards = [
         {
-          event: testEventWithCount({ date: "2026-06-15T14:00:00.000Z" }),
-          attendee: testAttendee(),
+          entry: {
+            event: testEventWithCount({ date: "2026-06-15T14:00:00.000Z" }),
+            attendee: testAttendee(),
+          },
+          qrSvg,
         },
       ];
-      const html = ticketViewPage(entries, qrSvg);
-      expect(html).toContain("<th>Event Date</th>");
+      const html = ticketViewPage(cards);
       expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
     });
 
-    test("does not show Event Date column when all events have empty date", () => {
-      const entries = [
+    test("does not show event date when event has empty date", () => {
+      const cards = [
         {
-          event: testEventWithCount({ date: "" }),
-          attendee: testAttendee(),
+          entry: {
+            event: testEventWithCount({ date: "" }),
+            attendee: testAttendee(),
+          },
+          qrSvg,
         },
       ];
-      const html = ticketViewPage(entries, qrSvg);
-      expect(html).not.toContain("<th>Event Date</th>");
+      const html = ticketViewPage(cards);
+      expect(html).not.toContain("ticket-card-date");
     });
 
-    test("shows Location column when entry has non-empty location", () => {
-      const entries = [
+    test("shows location when entry has non-empty location", () => {
+      const cards = [
         {
-          event: testEventWithCount({ location: "Village Hall" }),
-          attendee: testAttendee(),
+          entry: {
+            event: testEventWithCount({ location: "Village Hall" }),
+            attendee: testAttendee(),
+          },
+          qrSvg,
         },
       ];
-      const html = ticketViewPage(entries, qrSvg);
-      expect(html).toContain("<th>Location</th>");
+      const html = ticketViewPage(cards);
       expect(html).toContain("Village Hall");
     });
 
-    test("does not show Location column when all events have empty location", () => {
-      const entries = [
+    test("does not show location when event has empty location", () => {
+      const cards = [
         {
-          event: testEventWithCount({ location: "" }),
-          attendee: testAttendee(),
+          entry: {
+            event: testEventWithCount({ location: "" }),
+            attendee: testAttendee(),
+          },
+          qrSvg,
         },
       ];
-      const html = ticketViewPage(entries, qrSvg);
-      expect(html).not.toContain("<th>Location</th>");
+      const html = ticketViewPage(cards);
+      expect(html).not.toContain("ticket-card-location");
     });
 
-    test("shows both Event Date and Location columns when both are present", () => {
-      const entries = [
+    test("shows both event date and location when both are present", () => {
+      const cards = [
         {
-          event: testEventWithCount({ date: "2026-06-15T14:00:00.000Z", location: "Town Centre" }),
-          attendee: testAttendee(),
+          entry: {
+            event: testEventWithCount({ date: "2026-06-15T14:00:00.000Z", location: "Town Centre" }),
+            attendee: testAttendee(),
+          },
+          qrSvg,
         },
       ];
-      const html = ticketViewPage(entries, qrSvg);
-      expect(html).toContain("<th>Event Date</th>");
-      expect(html).toContain("<th>Location</th>");
+      const html = ticketViewPage(cards);
+      expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
       expect(html).toContain("Town Centre");
     });
 
-    test("shows empty event date cell when one entry has date and another does not", () => {
-      const entries = [
+    test("shows each ticket as separate card with individual QR code", () => {
+      const cards = [
         {
-          event: testEventWithCount({ id: 1, date: "2026-06-15T14:00:00.000Z" }),
-          attendee: testAttendee({ id: 1 }),
+          entry: {
+            event: testEventWithCount({ id: 1, date: "2026-06-15T14:00:00.000Z" }),
+            attendee: testAttendee({ id: 1 }),
+          },
+          qrSvg: "<svg>qr1</svg>",
         },
         {
-          event: testEventWithCount({ id: 2, date: "" }),
-          attendee: testAttendee({ id: 2 }),
+          entry: {
+            event: testEventWithCount({ id: 2, date: "" }),
+            attendee: testAttendee({ id: 2 }),
+          },
+          qrSvg: "<svg>qr2</svg>",
         },
       ];
-      const html = ticketViewPage(entries, qrSvg);
-      expect(html).toContain("<th>Event Date</th>");
-      expect(html).toContain("Monday 15 June 2026 at 15:00 GMT+1");
-      // The second row should have an empty td for event date
-      expect(html).toContain("<td></td>");
+      const html = ticketViewPage(cards);
+      expect(html).toContain("<svg>qr1</svg>");
+      expect(html).toContain("<svg>qr2</svg>");
+      expect(html).toContain("2 Tickets");
     });
   });
 
@@ -1732,32 +1796,45 @@ describe("html", () => {
       });
     });
 
-    describe("ticketViewPage with images", () => {
+    describe("ticketViewPage ticket count", () => {
       const qrSvg = '<svg class="qr"><rect/></svg>';
 
-      test("shows event images when image_url is set", () => {
+      test("shows '1 Ticket' for single ticket", () => {
         setupStorage();
-        const entries = [
+        const cards = [
           {
-            event: testEventWithCount({ id: 1, image_url: "ticket-img.jpg" }),
-            attendee: testAttendee({ id: 1 }),
+            entry: {
+              event: testEventWithCount({ id: 1 }),
+              attendee: testAttendee({ id: 1 }),
+            },
+            qrSvg,
           },
         ];
-        const html = ticketViewPage(entries, qrSvg);
-        expect(html).toContain("/image/ticket-img.jpg");
+        const html = ticketViewPage(cards);
+        expect(html).toContain("1 Ticket");
         cleanupStorage();
       });
 
-      test("does not show images when no event has image_url", () => {
+      test("shows '2 Tickets' for multiple tickets", () => {
         setupStorage();
-        const entries = [
+        const cards = [
           {
-            event: testEventWithCount({ id: 1, image_url: "" }),
-            attendee: testAttendee({ id: 1 }),
+            entry: {
+              event: testEventWithCount({ id: 1 }),
+              attendee: testAttendee({ id: 1 }),
+            },
+            qrSvg,
+          },
+          {
+            entry: {
+              event: testEventWithCount({ id: 2 }),
+              attendee: testAttendee({ id: 2 }),
+            },
+            qrSvg,
           },
         ];
-        const html = ticketViewPage(entries, qrSvg);
-        expect(html).not.toContain("/image/");
+        const html = ticketViewPage(cards);
+        expect(html).toContain("2 Tickets");
         cleanupStorage();
       });
     });

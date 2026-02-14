@@ -9,13 +9,17 @@ import {
   createAttendeeAtomic,
   decryptAttendeeOrNull,
   deleteAttendee,
+  updateAttendee,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
-import { getEventWithAttendeeRaw, getEventWithCount } from "#lib/db/events.ts";
+import { queryOne } from "#lib/db/client.ts";
+import { getAllEvents, getEventWithAttendeeRaw, getEventWithCount } from "#lib/db/events.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import { logAndNotifyRegistration } from "#lib/webhook.ts";
+import { getCurrencyCode } from "#lib/config.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { requirePrivateKey, verifyIdentifier, withDecryptedAttendees, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
@@ -28,8 +32,10 @@ import {
 } from "#routes/utils.ts";
 import {
   adminDeleteAttendeePage,
+  adminEditAttendeePage,
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,
+  adminResendWebhookPage,
 } from "#templates/admin/attendees.tsx";
 import { type AddAttendeeFormValues, getAddAttendeeFields } from "#templates/fields.ts";
 
@@ -196,7 +202,7 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
 });
 
 /** Filter attendees that have a payment_id (refundable) */
-const getRefundable = filter((a: Attendee) => a.payment_id !== null);
+const getRefundable = filter((a: Attendee) => a.payment_id !== "");
 
 /** Handle GET /admin/event/:id/refund-all */
 const handleAdminRefundAllGet = (
@@ -242,7 +248,7 @@ const processRefundAll = async (
   let refundedCount = 0;
   let failedCount = 0;
   for (const attendee of refundable) {
-    const refunded = await provider.refundPayment(attendee.payment_id!);
+    const refunded = await provider.refundPayment(attendee.payment_id);
     if (refunded) {
       await clearPaymentId(attendee.id);
       refundedCount++;
@@ -327,8 +333,139 @@ const handleAddAttendee = (
     );
   });
 
+/** Get all events (active + the current event), uniquified */
+const getEventsForSelector = async (currentEventId: number): Promise<EventWithCount[]> => {
+  const allEvents = await getAllEvents();
+  const currentEvent = allEvents.find((e) => e.id === currentEventId);
+  const activeEvents = filter((e: EventWithCount) => e.active === 1)(allEvents);
+
+  // Build unique list: current event + active events
+  const eventIds = new Set<number>();
+  const uniqueEvents: EventWithCount[] = [];
+
+  if (currentEvent) {
+    eventIds.add(currentEvent.id);
+    uniqueEvents.push(currentEvent);
+  }
+
+  for (const event of activeEvents) {
+    if (!eventIds.has(event.id)) {
+      eventIds.add(event.id);
+      uniqueEvents.push(event);
+    }
+  }
+
+  return uniqueEvents;
+};
+
+/** Load attendee with all events for edit page */
+const loadAttendeeForEdit = async (
+  session: AuthSession,
+  attendeeId: number,
+): Promise<{ attendee: Attendee; event: EventWithCount; allEvents: EventWithCount[] } | null> => {
+  const pk = await requirePrivateKey(session);
+  const attendeeRaw = await queryOne<Attendee>("SELECT * FROM attendees WHERE id = ?", [attendeeId]);
+  if (!attendeeRaw) return null;
+  const attendee = (await decryptAttendeeOrNull(attendeeRaw, pk))!;
+  const event = (await getEventWithCount(attendee.event_id))!;
+  const allEvents = await getEventsForSelector(event.id);
+
+  return { attendee, event, allEvents };
+};
+
+/** Handle GET /admin/attendees/:attendeeId */
+const handleEditAttendeeGet = (
+  request: Request,
+  attendeeId: number,
+): Promise<Response> =>
+  requireSessionOr(request, async (session) => {
+    const data = await loadAttendeeForEdit(session, attendeeId);
+    if (!data) return notFoundResponse();
+
+    return htmlResponse(adminEditAttendeePage(
+      data.event,
+      data.attendee,
+      data.allEvents,
+      session,
+    ));
+  });
+
+/** Handle POST /admin/attendees/:attendeeId */
+const handleEditAttendeePost = (
+  request: Request,
+  attendeeId: number,
+): Promise<Response> =>
+  withAuthForm(request, async (session, form) => {
+    const data = await loadAttendeeForEdit(session, attendeeId);
+    if (!data) return notFoundResponse();
+
+    const name = form.get("name")!;
+    const email = form.get("email")!;
+    const phone = form.get("phone")!;
+    const address = form.get("address")!;
+    const special_instructions = form.get("special_instructions")!;
+    const event_id = Number.parseInt(form.get("event_id")!, 10);
+
+    if (!name.trim()) {
+      return htmlResponse(adminEditAttendeePage(
+        data.event,
+        data.attendee,
+        data.allEvents,
+        session,
+        "Name is required",
+      ), 400);
+    }
+
+    if (!event_id) {
+      return htmlResponse(adminEditAttendeePage(
+        data.event,
+        data.attendee,
+        data.allEvents,
+        session,
+        "Event is required",
+      ), 400);
+    }
+
+    await updateAttendee(attendeeId, {
+      name,
+      email,
+      phone,
+      address,
+      special_instructions,
+      event_id,
+    });
+
+    await logActivity(`Attendee '${name}' updated`, event_id);
+
+    return redirect(
+      `/admin/event/${event_id}?edited=${encodeURIComponent(name)}#attendees`,
+    );
+  });
+
+/** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook */
+const handleAdminResendWebhookGet = attendeeGetRoute((data, session) =>
+  htmlResponse(adminResendWebhookPage(data.event, data.attendee, session)));
+
+/** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook */
+const handleResendWebhook = attendeeFormAction(async (data, session, form, eventId) => {
+  const error = verifyAttendeeName(data, session, form, adminResendWebhookPage,
+    "Attendee name does not match. Please type the exact name to confirm.");
+  if (error) return error;
+
+  const currency = await getCurrencyCode();
+  await Promise.all([
+    logAndNotifyRegistration(data.event, data.attendee, currency),
+    logActivity(`Webhook re-sent for attendee '${data.attendee.name}'`, eventId),
+  ]);
+  return redirect(`/admin/event/${eventId}`);
+});
+
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
+  "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
+    handleEditAttendeeGet(request, attendeeId),
+  "POST /admin/attendees/:attendeeId": (request, { attendeeId }) =>
+    handleEditAttendeePost(request, attendeeId),
   "GET /admin/event/:eventId/attendee/:attendeeId/delete": (request, { eventId, attendeeId }) =>
     handleAdminAttendeeDeleteGet(request, eventId, attendeeId),
   "POST /admin/event/:eventId/attendee": (request, { eventId }) =>
@@ -347,4 +484,8 @@ export const attendeesRoutes = defineRoutes({
     handleAdminRefundAllGet(request, id),
   "POST /admin/event/:id/refund-all": (request, { id }) =>
     handleAdminRefundAllPost(request, id),
+  "GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook": (request, { eventId, attendeeId }) =>
+    handleAdminResendWebhookGet(request, eventId, attendeeId),
+  "POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook": (request, { eventId, attendeeId }) =>
+    handleResendWebhook(request, eventId, attendeeId),
 });

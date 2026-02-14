@@ -156,6 +156,18 @@ describe("dates", () => {
       const dates = getAvailableDates(event, [], TZ);
       expect(dates).toEqual([]);
     });
+
+    test("handles non-array bookable_days by defaulting to empty", () => {
+      const event = testEvent({
+        event_type: "daily",
+        bookable_days: JSON.stringify("not-an-array"),
+        minimum_days_before: 0,
+        maximum_days_after: 7,
+      });
+
+      const dates = getAvailableDates(event, [], TZ);
+      expect(dates).toEqual([]);
+    });
   });
 
   describe("normalizeDatetime", () => {

@@ -1796,10 +1796,13 @@ describe("db", () => {
 
     test("getAttendeesByTokens returns attendees in token order", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      const a1 = await createTestAttendee(event.id, event.slug, "Tok1", "tok1@example.com");
-      const a2 = await createTestAttendee(event.id, event.slug, "Tok2", "tok2@example.com");
 
-      const results = await getAttendeesByTokens([a2.ticket_token, a1.ticket_token]);
+      // Create attendees directly and get plaintext tokens (matches production flow)
+      const { createTestAttendeeDirect } = await import("#test-utils");
+      const { attendee: a1, token: token1 } = await createTestAttendeeDirect(event.id, "Tok1", "tok1@example.com");
+      const { attendee: a2, token: token2 } = await createTestAttendeeDirect(event.id, "Tok2", "tok2@example.com");
+
+      const results = await getAttendeesByTokens([token2, token1]);
       expect(results.length).toBe(2);
       expect(results[0]?.id).toBe(a2.id);
       expect(results[1]?.id).toBe(a1.id);
@@ -2235,7 +2238,205 @@ describe("db", () => {
       expect(rows[0]?.ticket_token).not.toBe("");
       expect(rows[0]?.ticket_token.length).toBeGreaterThan(0);
     });
+
+    test("encrypts plaintext ticket_token and generates HMAC index during migration", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      await createTestAttendee(event.id, event.slug, "Migration User", "migration@example.com");
+
+      // Simulate pre-encryption state: set ticket_token to plaintext and NULL index
+      const plaintextToken = "plaintext-token-abc123";
+      await getDb().execute({
+        sql: "UPDATE attendees SET ticket_token = ?, ticket_token_index = NULL WHERE event_id = ?",
+        args: [plaintextToken, event.id],
+      });
+
+      // Verify plaintext state
+      const before = await getAttendeesRaw(event.id);
+      expect(before[0]?.ticket_token).toBe(plaintextToken);
+      expect(before[0]?.ticket_token_index).toBeNull();
+
+      // Clear version marker and re-run migrations
+      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      invalidateSettingsCache();
+      await initDb();
+
+      // Verify token is now encrypted and index is generated
+      const after = await getAttendeesRaw(event.id);
+      expect(after[0]?.ticket_token).not.toBe(plaintextToken);
+      expect(after[0]?.ticket_token).toContain("hyb:1:");
+      expect(after[0]?.ticket_token_index).not.toBeNull();
+      expect(after[0]?.ticket_token_index).not.toBe("");
+    });
   });
+
+  describe("initDb invalid empty string migration", () => {
+    test("fixes attendee records with empty strings in hybrid-encrypted fields", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      await createTestAttendee(event.id, event.slug, "Valid User", "valid@example.com");
+
+      // Simulate corrupted state: set multiple hybrid-encrypted fields to empty strings
+      await getDb().execute({
+        sql: "UPDATE attendees SET email = '', phone = '', address = '', special_instructions = '', checked_in = '' WHERE event_id = ?",
+        args: [event.id],
+      });
+
+      // Verify corrupted state
+      const before = await getAttendeesRaw(event.id);
+      expect(before[0]?.email).toBe("");
+      expect(before[0]?.phone).toBe("");
+      expect(before[0]?.address).toBe("");
+      expect(before[0]?.special_instructions).toBe("");
+      expect(before[0]?.checked_in).toBe("");
+
+      // Clear version marker and re-run migrations
+      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      invalidateSettingsCache();
+      await initDb();
+
+      // Verify all empty strings are now encrypted
+      const after = await getAttendeesRaw(event.id);
+      expect(after[0]?.email).not.toBe("");
+      expect(after[0]?.email).toContain("hyb:1:");
+      expect(after[0]?.phone).not.toBe("");
+      expect(after[0]?.phone).toContain("hyb:1:");
+      expect(after[0]?.address).not.toBe("");
+      expect(after[0]?.address).toContain("hyb:1:");
+      expect(after[0]?.special_instructions).not.toBe("");
+      expect(after[0]?.special_instructions).toContain("hyb:1:");
+      expect(after[0]?.checked_in).not.toBe("");
+      expect(after[0]?.checked_in).toContain("hyb:1:");
+
+      // Verify they decrypt correctly
+      const privateKey = await getTestPrivateKey();
+      const decrypted = await decryptAttendees(after, privateKey);
+      expect(decrypted[0]?.email).toBe("");
+      expect(decrypted[0]?.phone).toBe("");
+      expect(decrypted[0]?.address).toBe("");
+      expect(decrypted[0]?.special_instructions).toBe("");
+      expect(decrypted[0]?.checked_in).toBe("false");
+    });
+
+    test("handles partial corruption gracefully", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      await createTestAttendee(event.id, event.slug, "Partial User", "partial@example.com");
+
+      // Simulate partially corrupted state: only some fields have empty strings
+      await getDb().execute({
+        sql: "UPDATE attendees SET email = '', phone = '' WHERE event_id = ?",
+        args: [event.id],
+      });
+
+      // Verify partially corrupted state
+      const before = await getAttendeesRaw(event.id);
+      expect(before[0]?.email).toBe("");
+      expect(before[0]?.phone).toBe("");
+      expect(before[0]?.address).not.toBe("");
+      expect(before[0]?.special_instructions).not.toBe("");
+
+      // Clear version marker and re-run migrations
+      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      invalidateSettingsCache();
+      await initDb();
+
+      // Verify only corrupted fields are fixed, others remain unchanged
+      const after = await getAttendeesRaw(event.id);
+      expect(after[0]?.email).not.toBe("");
+      expect(after[0]?.email).toContain("hyb:1:");
+      expect(after[0]?.phone).not.toBe("");
+      expect(after[0]?.phone).toContain("hyb:1:");
+
+      // Verify all fields decrypt correctly
+      const privateKey = await getTestPrivateKey();
+      const decrypted = await decryptAttendees(after, privateKey);
+      expect(decrypted[0]?.email).toBe("");
+      expect(decrypted[0]?.phone).toBe("");
+      expect(decrypted[0]?.address).toBe("");
+      expect(decrypted[0]?.special_instructions).toBe("");
+    });
+
+    test("handles name field with empty string", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      await createTestAttendee(event.id, event.slug, "Name User", "name@example.com");
+
+      // Simulate corrupted state: set name to empty string
+      await getDb().execute({
+        sql: "UPDATE attendees SET name = '' WHERE event_id = ?",
+        args: [event.id],
+      });
+
+      // Verify corrupted state
+      const before = await getAttendeesRaw(event.id);
+      expect(before[0]?.name).toBe("");
+
+      // Clear version marker and re-run migrations
+      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      invalidateSettingsCache();
+      await initDb();
+
+      // Verify name is now encrypted
+      const after = await getAttendeesRaw(event.id);
+      expect(after[0]?.name).not.toBe("");
+      expect(after[0]?.name).toContain("hyb:1:");
+
+      // Verify it decrypts correctly
+      const privateKey = await getTestPrivateKey();
+      const decrypted = await decryptAttendees(after, privateKey);
+      expect(decrypted[0]?.name).toBe("");
+    });
+
+    test("skips attendees with no empty strings", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      await createTestAttendee(event.id, event.slug, "Valid User", "valid@example.com");
+
+      // Get the encrypted values before migration
+      const before = await getAttendeesRaw(event.id);
+      const beforeName = before[0]?.name;
+      const beforeEmail = before[0]?.email;
+      const beforePhone = before[0]?.phone;
+
+      // Clear version marker and re-run migrations
+      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      invalidateSettingsCache();
+      await initDb();
+
+      // Verify values remain unchanged (no re-encryption)
+      const after = await getAttendeesRaw(event.id);
+      expect(after[0]?.name).toBe(beforeName);
+      expect(after[0]?.email).toBe(beforeEmail);
+      expect(after[0]?.phone).toBe(beforePhone);
+    });
+
+    test("handles single field with empty string", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      await createTestAttendee(event.id, event.slug, "Single Field User", "singlefield@example.com");
+
+      // Simulate corrupted state: set only checked_in to empty string
+      await getDb().execute({
+        sql: "UPDATE attendees SET checked_in = '' WHERE event_id = ?",
+        args: [event.id],
+      });
+
+      // Verify corrupted state
+      const before = await getAttendeesRaw(event.id);
+      expect(before[0]?.checked_in).toBe("");
+
+      // Clear version marker and re-run migrations
+      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      invalidateSettingsCache();
+      await initDb();
+
+      // Verify checked_in is now encrypted
+      const after = await getAttendeesRaw(event.id);
+      expect(after[0]?.checked_in).not.toBe("");
+      expect(after[0]?.checked_in).toContain("hyb:1:");
+
+      // Verify it decrypts correctly to "false"
+      const privateKey = await getTestPrivateKey();
+      const decrypted = await decryptAttendees(after, privateKey);
+      expect(decrypted[0]?.checked_in).toBe("false");
+    });
+  });
+
 
   describe("writeClosesAt", () => {
     test("encrypts empty string for no deadline", async () => {

@@ -21,7 +21,7 @@ export const constantTimeEqual = (a: string, b: string): boolean => {
 
   let result = 0;
   for (let i = 0; i < bufA.length; i++) {
-    result |= (bufA[i] as number) ^ (bufB[i] as number);
+    result |= bufA[i]! ^ bufB[i]!;
   }
   return result === 0;
 };
@@ -288,7 +288,7 @@ const PASSWORD_PREFIX = "pbkdf2";
 const constantTimeEqualBytes = (a: Uint8Array, b: Uint8Array): boolean => {
   let result = 0;
   for (let i = 0; i < a.length; i++) {
-    result |= (a[i] as number) ^ (b[i] as number);
+    result |= a[i]! ^ b[i]!;
   }
   return result === 0;
 };
@@ -340,14 +340,14 @@ export const verifyPassword = async (
     return false;
   }
 
-  const parts = storedHash.split(":") as [string, string, string, string];
+  const parts = storedHash.split(":");
   if (parts.length !== 4) {
     return false;
   }
 
-  const iterations = Number.parseInt(parts[1], 10);
-  const salt = fromBase64(parts[2]);
-  const expectedHash = fromBase64(parts[3]);
+  const iterations = Number.parseInt(parts[1]!, 10);
+  const salt = fromBase64(parts[2]!);
+  const expectedHash = fromBase64(parts[3]!);
 
   if (expectedHash.length !== PBKDF2_HASH_LENGTH) {
     return false;
@@ -402,6 +402,13 @@ export const hmacHash = async (value: string): Promise<string> => {
 
   return toBase64(new Uint8Array(signature));
 };
+
+/**
+ * Compute ticket token index using HMAC for blind lookups
+ * Similar to slug_index for events - allows lookup without decrypting
+ */
+export const computeTicketTokenIndex = (token: string): Promise<string> =>
+  hmacHash(token);
 
 /**
  * =============================================================================
@@ -706,11 +713,9 @@ export const hybridDecrypt = async (
     );
   }
 
-  const [wrappedKeyB64, ivB64, ciphertextB64] = parts as [
-    string,
-    string,
-    string,
-  ];
+  const wrappedKeyB64 = parts[0]!;
+  const ivB64 = parts[1]!;
+  const ciphertextB64 = parts[2]!;
 
   // Decrypt the AES key with RSA
   const wrappedKey = fromBase64(wrappedKeyB64);

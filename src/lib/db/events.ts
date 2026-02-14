@@ -2,8 +2,9 @@
  * Events table operations
  */
 
+import type { ResultSet } from "@libsql/client";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
-import { executeByField, getDb, inPlaceholders, queryBatch, queryOne } from "#lib/db/client.ts";
+import { executeByField, getDb, inPlaceholders, queryAll, queryBatch, queryOne, resultRows } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 import { nowIso } from "#lib/now.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
@@ -54,11 +55,12 @@ const decryptDatetime = async (v: string): Promise<string> => {
 
 /** Encrypt closes_at for DB storage (null/empty → encrypted empty) */
 export const writeClosesAt = (v: string | null): Promise<string | null> =>
-  encryptDatetime((v as string) ?? "");
+  encryptDatetime(v ?? "");
 
 /** Decrypt closes_at from DB storage (encrypted empty → null) */
 const readClosesAt = async (v: string | null): Promise<string | null> => {
-  const result = await decryptDatetime(v as string);
+  // DB column is NOT NULL (writeClosesAt always encrypts), so v is always a string
+  const result = await decryptDatetime(v!);
   return result === "" ? null : result;
 };
 
@@ -132,16 +134,8 @@ export const deleteEvent = async (eventId: number): Promise<void> => {
   await eventsTable.deleteById(eventId);
 };
 
-/** Decrypt event fields after raw query (for JOIN queries) */
-const decryptEventWithCount = async (
-  row: EventWithCount,
-): Promise<EventWithCount> => {
-  const event = await eventsTable.fromDb(row as unknown as Event);
-  return { ...event, attendee_count: row.attendee_count };
-};
-
-/** Decrypt raw event row and add attendee count */
-const decryptEventRow = async (
+/** Decrypt event fields and attach an attendee count */
+const decryptAndAttachCount = async (
   row: Event,
   attendeeCount: number,
 ): Promise<EventWithCount> => {
@@ -150,14 +144,14 @@ const decryptEventRow = async (
 };
 
 /** Extract event row from batch result, returning null if not found */
-const extractEventRow = (result: { rows: unknown[] } | undefined): Event | null =>
-  (result?.rows[0] as unknown as Event) ?? null;
+const extractEventRow = (result: ResultSet): Event | null =>
+  resultRows<Event>(result)[0] ?? null;
 
 /** Query events with attendee counts, optionally filtered by a WHERE clause */
 const queryEventsWithCounts = async (
   whereClause = "",
 ): Promise<EventWithCount[]> => {
-  const result = await getDb().execute(
+  const rows = await queryAll<EventWithCount>(
     `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
      FROM events e
      LEFT JOIN attendees a ON e.id = a.event_id
@@ -165,8 +159,7 @@ const queryEventsWithCounts = async (
      GROUP BY e.id
      ORDER BY e.created DESC, e.id DESC`,
   );
-  const rows = result.rows as unknown as EventWithCount[];
-  return Promise.all(rows.map(decryptEventWithCount));
+  return Promise.all(rows.map((row) => decryptAndAttachCount(row, row.attendee_count)));
 };
 
 /**
@@ -191,7 +184,7 @@ export const getEventWithCount = async (
      GROUP BY e.id`,
     [id],
   );
-  return row ? decryptEventWithCount(row) : null;
+  return row ? decryptAndAttachCount(row, row.attendee_count) : null;
 };
 
 /**
@@ -210,7 +203,7 @@ export const getEventWithCountBySlug = async (
      GROUP BY e.id`,
     [slugIndex],
   );
-  return row ? decryptEventWithCount(row) : null;
+  return row ? decryptAndAttachCount(row, row.attendee_count) : null;
 };
 
 /** Result type for combined event + attendees query */
@@ -233,12 +226,12 @@ export const getEventWithAttendeesRaw = async (
     { sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC", args: [id] },
   ]);
 
-  const eventRow = extractEventRow(eventResult);
+  const eventRow = extractEventRow(eventResult!);
   if (!eventRow) return null;
 
-  const attendeesRaw = attendeesResult!.rows as unknown as Attendee[];
+  const attendeesRaw = resultRows<Attendee>(attendeesResult!);
   const count = attendeesRaw.reduce((sum, a) => sum + a.quantity, 0);
-  return { event: await decryptEventRow(eventRow, count), attendeesRaw };
+  return { event: await decryptAndAttachCount(eventRow, count), attendeesRaw };
 };
 
 /**
@@ -252,31 +245,29 @@ export const getAllDailyEvents = (): Promise<EventWithCount[]> =>
  * Used for the calendar date picker (lightweight, no attendee data).
  */
 export const getDailyEventAttendeeDates = async (): Promise<string[]> => {
-  const result = await getDb().execute(
+  const rows = await queryAll<{ date: string }>(
     `SELECT DISTINCT a.date FROM attendees a
      INNER JOIN events e ON a.event_id = e.id
      WHERE e.event_type = 'daily' AND a.date IS NOT NULL
      ORDER BY a.date`,
   );
-  return (result.rows as unknown as { date: string }[]).map((r) => r.date);
+  return rows.map((r) => r.date);
 };
 
 /**
  * Get raw attendees for daily events on a specific date.
  * Bounded query: only returns attendees matching the given date.
  */
-export const getDailyEventAttendeesByDate = async (
+export const getDailyEventAttendeesByDate = (
   date: string,
-): Promise<Attendee[]> => {
-  const result = await getDb().execute({
-    sql: `SELECT a.* FROM attendees a
+): Promise<Attendee[]> =>
+  queryAll<Attendee>(
+    `SELECT a.* FROM attendees a
           INNER JOIN events e ON a.event_id = e.id
           WHERE e.event_type = 'daily' AND a.date = ?
           ORDER BY a.created DESC`,
-    args: [date],
-  });
-  return result.rows as unknown as Attendee[];
-};
+    [date],
+  );
 
 /** Result type for event + single attendee query */
 export type EventWithAttendeeRaw = {
@@ -299,13 +290,13 @@ export const getEventWithAttendeeRaw = async (
     { sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ?", args: [eventId] },
   ]);
 
-  const eventRow = extractEventRow(eventResult);
+  const eventRow = extractEventRow(eventResult!);
   if (!eventRow) return null;
 
-  const count = (countResult!.rows[0] as unknown as { count: number }).count;
+  const count = resultRows<{ count: number }>(countResult!)[0]!.count;
   return {
-    event: await decryptEventRow(eventRow, count),
-    attendeeRaw: (attendeeResult?.rows[0] as unknown as Attendee) ?? null,
+    event: await decryptAndAttachCount(eventRow, count),
+    attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null,
   };
 };
 
@@ -323,17 +314,16 @@ export const getEventsBySlugsBatch = async (
   const slugIndices = await Promise.all(slugs.map(computeSlugIndex));
 
   // Build a single query with IN clause for all slug indices
-  const result = await getDb().execute({
-    sql: `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
+  const rows = await queryAll<EventWithCount>(
+    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
           FROM events e
           LEFT JOIN attendees a ON e.id = a.event_id
           WHERE e.slug_index IN (${inPlaceholders(slugIndices)})
           GROUP BY e.id`,
-    args: slugIndices,
-  });
+    slugIndices,
+  );
 
-  const rows = result.rows as unknown as EventWithCount[];
-  const decryptedEvents = await Promise.all(rows.map(decryptEventWithCount));
+  const decryptedEvents = await Promise.all(rows.map((row) => decryptAndAttachCount(row, row.attendee_count)));
 
   // Create a map of slug_index -> event for ordering
   const eventBySlugIndex = new Map<string, EventWithCount>();

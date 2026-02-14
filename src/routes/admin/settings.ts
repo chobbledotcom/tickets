@@ -24,6 +24,7 @@ import {
   updateTimezone,
   updateUserPassword,
 } from "#lib/db/settings.ts";
+import { getBusinessEmailFromDb, updateBusinessEmail, isValidBusinessEmail } from "#lib/business-email.ts";
 import {
   getSquareWebhookSignatureKey,
   getAllowedDomain,
@@ -75,6 +76,7 @@ const getSettingsPageState = async () => {
   const embedHosts = await getEmbedHostsFromDb();
   const termsAndConditions = await getTermsAndConditionsFromDb();
   const timezone = await getTimezoneFromDb();
+  const businessEmail = await getBusinessEmailFromDb();
   return {
     stripeKeyConfigured,
     paymentProvider,
@@ -84,6 +86,7 @@ const getSettingsPageState = async () => {
     embedHosts,
     termsAndConditions,
     timezone,
+    businessEmail,
   };
 };
 
@@ -106,6 +109,7 @@ const renderSettingsPage = async (
     state.embedHosts,
     state.termsAndConditions,
     state.timezone,
+    state.businessEmail,
   );
 };
 
@@ -378,6 +382,28 @@ const processTimezoneForm: SettingsFormHandler = async (form, errorPage) => {
 /** Handle POST /admin/settings/timezone - owner only */
 const handleTimezonePost = settingsRoute(processTimezoneForm);
 
+/** Validate and save business email from form submission */
+const processBusinessEmailForm: SettingsFormHandler = async (form, errorPage) => {
+  const raw = form.get("business_email") || "";
+  const trimmed = raw.trim();
+
+  // Allow empty (clearing the business email)
+  if (trimmed === "") {
+    await updateBusinessEmail("");
+    return redirectWithSuccess("/admin/settings", "Business email cleared");
+  }
+
+  if (!isValidBusinessEmail(trimmed)) {
+    return errorPage("Invalid email format. Please use format: name@domain.com", 400);
+  }
+
+  await updateBusinessEmail(trimmed);
+  return redirectWithSuccess("/admin/settings", "Business email updated");
+};
+
+/** Handle POST /admin/settings/business-email - owner only */
+const handleBusinessEmailPost = settingsRoute(processBusinessEmailForm);
+
 /**
  * Expected confirmation phrase for database reset
  */
@@ -416,6 +442,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/embed-hosts": (request) => handleEmbedHostsPost(request),
   "POST /admin/settings/terms": (request) => handleTermsPost(request),
   "POST /admin/settings/timezone": (request) => handleTimezonePost(request),
+  "POST /admin/settings/business-email": (request) => handleBusinessEmailPost(request),
   "POST /admin/settings/reset-database": (request) =>
     handleResetDatabasePost(request),
 });

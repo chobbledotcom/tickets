@@ -36,10 +36,7 @@ describe("ticket view (/t/:tokens)", () => {
 
   test("displays tickets for multiple valid tokens", async () => {
     const { event: eventA, token: tokenA } = await createTestAttendeeWithToken("Bob", "bob@test.com");
-    const eventB = await createTestEvent({ maxAttendees: 10 });
-    await createTestAttendee(eventB.id, eventB.slug, "Bob", "bob@test.com", 2);
-    const attendeesB = await getAttendeesRaw(eventB.id);
-    const tokenB = attendeesB[0]!.ticket_token;
+    const { event: eventB, token: tokenB } = await createTestAttendeeWithToken("Bob", "bob@test.com", {}, 2);
 
     const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
     expect(response.status).toBe(200);
@@ -120,10 +117,10 @@ describe("ticket view (/t/:tokens)", () => {
 
     const body = await response.text();
     expect(body).toContain(formatDateLabel(date));
-    expect(body).toContain("<th>Date</th>");
+    expect(body).toContain("Booking Date");
   });
 
-  test("shows date for daily event and empty cell for standard event on same ticket", async () => {
+  test("shows date for daily event and shows standard event without date on same ticket page", async () => {
     const dailyEvent = await createTestEvent({
       maxAttendees: 10,
       eventType: "daily",
@@ -131,7 +128,7 @@ describe("ticket view (/t/:tokens)", () => {
       minimumDaysBefore: 0,
       maximumDaysAfter: 30,
     });
-    const { token: tokenB } = await createTestAttendeeWithToken("Mixed", "mixed@test.com");
+    const { event: standardEvent, token: tokenB } = await createTestAttendeeWithToken("Mixed", "mixed@test.com");
     const date = "2026-02-15";
     const dailyResult = await createAttendeeAtomic({
       eventId: dailyEvent.id,
@@ -147,19 +144,21 @@ describe("ticket view (/t/:tokens)", () => {
 
     const body = await response.text();
     expect(body).toContain(formatDateLabel(date));
-    expect(body).toContain("<th>Date</th>");
+    expect(body).toContain("Booking Date");
     expect(body).toContain(dailyEvent.name);
+    expect(body).toContain(standardEvent.name);
+    expect(body).toContain("2 Tickets");
   });
 
-  test("does not show date column for standard event tickets", async () => {
+  test("does not show booking date for standard event tickets", async () => {
     const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
 
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
-    expect(body).not.toContain("<th>Date</th>");
+    expect(body).not.toContain("Booking Date");
   });
 
-  test("shows Event Date column when event has a date", async () => {
+  test("shows event date and location when event has them", async () => {
     const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com", {
       date: "2026-06-15T14:00",
       location: "Village Hall",
@@ -168,18 +167,18 @@ describe("ticket view (/t/:tokens)", () => {
     const response = await awaitTestRequest(`/t/${token}`);
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).toContain("<th>Event Date</th>");
-    expect(body).toContain("<th>Location</th>");
+    expect(body).toContain("ticket-card-date");
+    expect(body).toContain("ticket-card-location");
     expect(body).toContain("Village Hall");
   });
 
-  test("does not show Event Date or Location columns when both are empty", async () => {
+  test("does not show event date or location when both are empty", async () => {
     const { token } = await createTestAttendeeWithToken("Bob", "bob@test.com");
 
     const response = await awaitTestRequest(`/t/${token}`);
     expect(response.status).toBe(200);
     const body = await response.text();
-    expect(body).not.toContain("<th>Event Date</th>");
-    expect(body).not.toContain("<th>Location</th>");
+    expect(body).not.toContain("ticket-card-date");
+    expect(body).not.toContain("ticket-card-location");
   });
 });

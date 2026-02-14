@@ -2,14 +2,14 @@
  * Database migrations
  */
 
-import { encrypt, encryptAttendeePII, generateTicketToken, hmacHash } from "#lib/crypto.ts";
-import { getDb } from "#lib/db/client.ts";
+import { computeTicketTokenIndex, encrypt, encryptAttendeePII, generateTicketToken, hmacHash } from "#lib/crypto.ts";
+import { getDb, queryAll } from "#lib/db/client.ts";
 import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add image_url column to events";
+export const LATEST_UPDATE = "backfill NULL price_paid and payment_id with encrypted defaults";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -22,13 +22,23 @@ const runMigration = async (sql: string): Promise<void> => {
   }
 };
 
-/** Backfill a column with an encrypted empty string for matching rows */
-const backfillEncryptedColumn = async (table: string, column: string, whereClause: string): Promise<void> => {
-  const rows = await getDb().execute(`SELECT id FROM ${table} WHERE ${whereClause}`);
-  const encryptedEmpty = await encrypt("");
-  for (const row of rows.rows) {
-    await getDb().execute({ sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`, args: [encryptedEmpty, row.id as number] });
+/** Backfill a column with an encrypted value for matching rows */
+const backfillColumn = async (table: string, column: string, whereClause: string, encryptedValue: string): Promise<void> => {
+  const rows = await queryAll<{ id: number }>(`SELECT id FROM ${table} WHERE ${whereClause}`);
+  for (const row of rows) {
+    await getDb().execute({ sql: `UPDATE ${table} SET ${column} = ? WHERE id = ?`, args: [encryptedValue, row.id] });
   }
+};
+
+/** Backfill a column with a symmetrically encrypted empty string */
+const backfillEncryptedColumn = async (table: string, column: string, whereClause: string): Promise<void> =>
+  backfillColumn(table, column, whereClause, await encrypt(""));
+
+/** Backfill a column with a hybrid-encrypted empty string */
+const backfillHybridEncryptedColumn = async (table: string, column: string, whereClause: string): Promise<void> => {
+  const publicKey = await getPublicKey();
+  if (!publicKey) return;
+  await backfillColumn(table, column, whereClause, await encryptAttendeePII("", publicKey));
 };
 
 /**
@@ -231,8 +241,8 @@ export const initDb = async (): Promise<void> => {
   {
     const existingPasswordHash = await getSetting("admin_password");
     const existingWrappedDataKey = await getSetting("wrapped_data_key");
-    const userCount = await getDb().execute("SELECT COUNT(*) as count FROM users");
-    const hasNoUsers = (userCount.rows[0] as unknown as { count: number }).count === 0;
+    const userCountRows = await queryAll<{ count: number }>("SELECT COUNT(*) as count FROM users");
+    const hasNoUsers = userCountRows[0]!.count === 0;
 
     if (existingPasswordHash && hasNoUsers) {
       const username = "admin";
@@ -266,11 +276,11 @@ export const initDb = async (): Promise<void> => {
 
   // Backfill existing attendees with random tokens
   {
-    const rows = await getDb().execute(`SELECT id FROM attendees WHERE ticket_token = ''`);
-    for (const row of rows.rows) {
+    const rows = await queryAll<{ id: number }>(`SELECT id FROM attendees WHERE ticket_token = ''`);
+    for (const row of rows) {
       await getDb().execute({
         sql: `UPDATE attendees SET ticket_token = ? WHERE id = ?`,
-        args: [generateTicketToken(), row.id as number],
+        args: [generateTicketToken(), row.id],
       });
     }
   }
@@ -317,6 +327,99 @@ export const initDb = async (): Promise<void> => {
   // Migration: add image_url column to events (encrypted, empty string = no image)
   await runMigration(`ALTER TABLE events ADD COLUMN image_url TEXT NOT NULL DEFAULT ''`);
   await backfillEncryptedColumn("events", "image_url", `image_url = ''`);
+
+  // Migration: add ticket_token_index column for HMAC-based lookups
+  await runMigration(`ALTER TABLE attendees ADD COLUMN ticket_token_index TEXT`);
+
+  // Backfill: encrypt empty PII fields with encrypted empty strings
+  await backfillHybridEncryptedColumn("attendees", "email", `email = ''`);
+  await backfillHybridEncryptedColumn("attendees", "phone", `phone = ''`);
+  await backfillHybridEncryptedColumn("attendees", "address", `address = ''`);
+  await backfillHybridEncryptedColumn("attendees", "special_instructions", `special_instructions = ''`);
+
+  // Backfill: encrypt existing plaintext ticket_token values and generate HMAC indexes
+  {
+    const pubKey = await getPublicKey();
+    if (pubKey) {
+      // Get all attendees that need migration (those with plaintext tokens or missing index)
+      const attendees = await queryAll<{ id: number; ticket_token: string }>(
+        `SELECT id, ticket_token FROM attendees WHERE ticket_token_index IS NULL`
+      );
+
+      for (const attendee of attendees) {
+        // Token is plaintext - encrypt it and generate index
+        const plaintextToken = attendee.ticket_token;
+        const encryptedToken = await encryptAttendeePII(plaintextToken, pubKey);
+        const tokenIndex = await computeTicketTokenIndex(plaintextToken);
+
+        await getDb().execute({
+          sql: `UPDATE attendees SET ticket_token = ?, ticket_token_index = ? WHERE id = ?`,
+          args: [encryptedToken, tokenIndex, attendee.id],
+        });
+      }
+    }
+  }
+
+  // Migration: fix attendee records with invalid empty string values in hybrid-encrypted fields
+  // Some records may have '' instead of properly encrypted values, causing "Invalid hybrid encrypted data format" errors
+  // Note: ticket_token empty strings are already handled by earlier migrations
+  {
+    const pubKey = await getPublicKey();
+    if (pubKey) {
+      // Get all attendees with empty strings in hybrid-encrypted fields (excluding ticket_token)
+      const invalidAttendees = await queryAll<{ id: number; name: string; email: string; phone: string; address: string; special_instructions: string; checked_in: string }>(
+        `SELECT id, name, email, phone, address, special_instructions, checked_in
+         FROM attendees
+         WHERE name = '' OR email = '' OR phone = '' OR address = '' OR special_instructions = '' OR checked_in = ''`
+      );
+
+      for (const attendee of invalidAttendees) {
+        // Encrypt empty strings for each field that has an empty value
+        const updates: { field: string; value: string }[] = [];
+
+        if (attendee.name === '') {
+          updates.push({ field: 'name', value: await encryptAttendeePII('', pubKey) });
+        }
+        if (attendee.email === '') {
+          updates.push({ field: 'email', value: await encryptAttendeePII('', pubKey) });
+        }
+        if (attendee.phone === '') {
+          updates.push({ field: 'phone', value: await encryptAttendeePII('', pubKey) });
+        }
+        if (attendee.address === '') {
+          updates.push({ field: 'address', value: await encryptAttendeePII('', pubKey) });
+        }
+        if (attendee.special_instructions === '') {
+          updates.push({ field: 'special_instructions', value: await encryptAttendeePII('', pubKey) });
+        }
+        if (attendee.checked_in === '') {
+          updates.push({ field: 'checked_in', value: await encryptAttendeePII('false', pubKey) });
+        }
+
+        // Apply all updates for this attendee
+        if (updates.length > 0) {
+          const setClause = updates.map(u => `${u.field} = ?`).join(', ');
+          const values = updates.map(u => u.value);
+          await getDb().execute({
+            sql: `UPDATE attendees SET ${setClause} WHERE id = ?`,
+            args: [...values, attendee.id],
+          });
+        }
+      }
+    }
+  }
+
+  // Drop old unique index on ticket_token (tokens are now encrypted, so index is not useful)
+  await runMigration(`DROP INDEX IF EXISTS idx_attendees_ticket_token`);
+
+  // Create unique index on ticket_token_index for fast HMAC-based lookups
+  await runMigration(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_attendees_ticket_token_index ON attendees(ticket_token_index)`
+  );
+
+  // Migration: backfill NULL price_paid with encrypted "0" and NULL payment_id with encrypted ""
+  await backfillEncryptedColumn("attendees", "price_paid", `price_paid IS NULL`);
+  await backfillHybridEncryptedColumn("attendees", "payment_id", `payment_id IS NULL`);
 
   // Update the version marker
   await getDb().execute({

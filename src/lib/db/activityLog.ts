@@ -6,7 +6,7 @@
  */
 
 import { decrypt, encrypt } from "#lib/crypto.ts";
-import { getDb, queryBatch } from "#lib/db/client.ts";
+import { queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
 import { eventsTable } from "#lib/db/events.ts";
 import { nowIso } from "#lib/now.ts";
 import type { Event, EventWithCount } from "#lib/types.ts";
@@ -59,11 +59,10 @@ const queryActivityLog = async (
 ): Promise<ActivityLogEntry[]> => {
   const whereClause = eventId !== null ? "WHERE event_id = ?" : "";
   const args = eventId !== null ? [eventId, limit] : [limit];
-  const result = await getDb().execute({
-    sql: `SELECT * FROM activity_log ${whereClause} ORDER BY created DESC, id DESC LIMIT ?`,
+  const rows = await queryAll<ActivityLogEntry>(
+    `SELECT * FROM activity_log ${whereClause} ORDER BY created DESC, id DESC LIMIT ?`,
     args,
-  });
-  const rows = result.rows as unknown as ActivityLogEntry[];
+  );
   return Promise.all(rows.map((row) => activityLogTable.fromDb(row)));
 };
 
@@ -110,19 +109,18 @@ export const getEventWithActivityLog = async (
     },
   ]);
 
-  const eventRow = results[0]?.rows[0] as unknown as
-    | (Event & { attendee_count: number })
-    | undefined;
+  const eventRows = resultRows<Event & { attendee_count: number }>(results[0]!);
+  const eventRow = eventRows[0];
   if (!eventRow) return null;
 
   // Decrypt event fields
-  const decryptedEvent = await eventsTable.fromDb(eventRow as unknown as Event);
+  const decryptedEvent = await eventsTable.fromDb(eventRow);
   const event: EventWithCount = {
     ...decryptedEvent,
     attendee_count: eventRow.attendee_count,
   };
 
-  const logRows = results[1]?.rows as unknown as ActivityLogEntry[];
+  const logRows = resultRows<ActivityLogEntry>(results[1]!);
   const entries = await Promise.all(
     logRows.map((row) => activityLogTable.fromDb(row)),
   );

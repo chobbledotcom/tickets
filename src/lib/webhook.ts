@@ -10,6 +10,7 @@ import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import type { ContactInfo } from "#lib/types.ts";
 import { nowIso } from "#lib/now.ts";
+import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -29,6 +30,7 @@ export type WebhookPayload = ContactInfo & {
   ticket_url: string;
   tickets: WebhookTicket[];
   timestamp: string;
+  business_email: string;
 };
 
 /** Event data needed for webhook notifications */
@@ -46,8 +48,8 @@ export type WebhookEvent = {
 export type WebhookAttendee = ContactInfo & {
   id: number;
   quantity: number;
-  payment_id?: string | null;
-  price_paid?: string | null;
+  payment_id: string;
+  price_paid: string;
   ticket_token: string;
   date: string | null;
 };
@@ -67,17 +69,16 @@ const buildTicketUrl = (entries: RegistrationEntry[]): string => {
 /**
  * Build a consolidated webhook payload from registration entries
  */
-export const buildWebhookPayload = (
+export const buildWebhookPayload = async (
   entries: RegistrationEntry[],
   currency: string,
-): WebhookPayload => {
+): Promise<WebhookPayload> => {
   const first = entries[0]!;
-  const totalPricePaid = entries.reduce((sum, { attendee }) => {
-    if (attendee.price_paid) return sum + Number.parseInt(attendee.price_paid, 10);
-    return sum;
-  }, 0);
+  const totalPricePaid = entries.reduce((sum, { attendee }) =>
+    sum + Number.parseInt(attendee.price_paid, 10), 0);
 
   const hasPaidEvent = entries.some(({ event }) => event.unit_price !== null);
+  const businessEmail = await getBusinessEmailFromDb();
 
   return {
     event_type: "registration.completed",
@@ -88,7 +89,7 @@ export const buildWebhookPayload = (
     special_instructions: first.attendee.special_instructions,
     price_paid: hasPaidEvent ? totalPricePaid : null,
     currency,
-    payment_id: first.attendee.payment_id ?? null,
+    payment_id: first.attendee.payment_id || null,
     ticket_url: buildTicketUrl(entries),
     tickets: entries.map(({ event, attendee }) => ({
       event_name: event.name,
@@ -98,6 +99,7 @@ export const buildWebhookPayload = (
       date: attendee.date,
     })),
     timestamp: nowIso(),
+    business_email: businessEmail,
   };
 };
 
@@ -134,7 +136,7 @@ export const sendRegistrationWebhooks = async (
   ]));
   if (webhookUrls.length === 0) return;
 
-  const payload = buildWebhookPayload(entries, currency);
+  const payload = await buildWebhookPayload(entries, currency);
   for (const url of webhookUrls) {
     await sendWebhook(url, payload);
   }

@@ -23,6 +23,7 @@ import {
 import { ErrorCode, logError } from "#lib/logger.ts";
 import {
   getActivePaymentProvider,
+  isPaymentStatus,
   type RegistrationIntent,
   type SessionMetadata,
   type ValidatedPaymentSession,
@@ -127,14 +128,14 @@ const validatePaidSession = async (
 
 /** Result type for processPaymentSession */
 type PaymentResult =
-  | { success: true; attendee: Attendee; event: EventWithCount }
+  | { success: true; attendee: Pick<Attendee, "id">; event: EventWithCount }
   | { success: false; error: string; status?: number; refunded?: boolean };
 
 /**
  * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
  * Logs an error if refund fails.
  */
-const tryRefund = async (paymentReference: string | null): Promise<boolean> => {
+const tryRefund = async (paymentReference: string): Promise<boolean> => {
   if (!paymentReference) return false;
 
   const provider = await getActivePaymentProvider();
@@ -245,15 +246,21 @@ const alreadyProcessedResult = async (
 ): Promise<PaymentResult> => {
   const event = await getEventWithCount(eventId);
   if (!event) return { success: false, error: "Event not found", status: 404 };
-  return { success: true, attendee: { id: attendeeId } as Attendee, event };
+  return { success: true, attendee: { id: attendeeId }, event };
 };
+
+/** Validate that a parsed value has the shape of a MultiItem */
+const isMultiItem = (v: unknown): v is MultiItem =>
+  typeof v === "object" && v !== null &&
+  typeof (v as Record<string, unknown>).e === "number" &&
+  typeof (v as Record<string, unknown>).q === "number";
 
 /** Parse multi-ticket items from metadata */
 const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
   try {
-    const parsed = JSON.parse(itemsJson);
-    if (!Array.isArray(parsed)) return null;
-    return parsed as MultiItem[];
+    const parsed: unknown = JSON.parse(itemsJson);
+    if (!Array.isArray(parsed) || !parsed.every(isMultiItem)) return null;
+    return parsed;
   } catch {
     return null;
   }
@@ -537,17 +544,6 @@ const handlePaymentCancel = withSessionId(async (sid) => {
  */
 
 /**
- * Validated webhook session data with required fields.
- */
-type WebhookSessionData = {
-  id: string;
-  payment_status: string;
-  payment_intent: string | null;
-  amount_total: number;
-  metadata: SessionMetadata;
-};
-
-/**
  * Validate webhook event data and extract session.
  * Returns null if data is invalid.
  * Supports both single-event and multi-event sessions.
@@ -556,35 +552,36 @@ type WebhookSessionData = {
 const extractSessionFromEvent = (
   event: WebhookEvent,
 ): ValidatedPaymentSession | null => {
-  const obj = event.data.object as Partial<WebhookSessionData>;
+  const obj = event.data.object;
+  const metadata = obj.metadata as Record<string, unknown> | undefined;
 
   // Validate required fields with strict type checking
   if (
     typeof obj.id !== "string" ||
     typeof obj.payment_status !== "string" ||
     typeof obj.amount_total !== "number" ||
-    !obj.metadata ||
-    typeof obj.metadata.name !== "string" ||
-    typeof obj.metadata.email !== "string"
+    !metadata ||
+    typeof metadata.name !== "string" ||
+    typeof metadata.email !== "string"
   ) {
     return null;
   }
 
   return {
     id: obj.id,
-    paymentStatus: obj.payment_status as ValidatedPaymentSession["paymentStatus"],
+    paymentStatus: isPaymentStatus(obj.payment_status) ? obj.payment_status : "unpaid",
     paymentReference:
-      typeof obj.payment_intent === "string" ? obj.payment_intent : null,
+      typeof obj.payment_intent === "string" ? obj.payment_intent : "",
     amountTotal: obj.amount_total,
     metadata: {
-      event_id: obj.metadata.event_id,
-      name: obj.metadata.name,
-      email: obj.metadata.email,
-      phone: obj.metadata.phone,
-      quantity: obj.metadata.quantity,
-      multi: obj.metadata.multi,
-      items: obj.metadata.items,
-      date: obj.metadata.date,
+      event_id: metadata.event_id as string | undefined,
+      name: metadata.name,
+      email: metadata.email,
+      phone: metadata.phone as string | undefined,
+      quantity: metadata.quantity as string | undefined,
+      multi: metadata.multi as string | undefined,
+      items: metadata.items as string | undefined,
+      date: metadata.date as string | undefined,
     },
   };
 };
@@ -653,7 +650,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   if (!session) {
     // Attempt provider-specific retrieval using order/session ID from event data
-    const obj = event.data.object as Record<string, unknown>;
+    const obj = event.data.object;
     const sessionId = extractSessionIdFromObject(obj);
 
     if (!sessionId) {

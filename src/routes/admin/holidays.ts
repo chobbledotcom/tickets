@@ -26,11 +26,11 @@ import { holidayFields } from "#templates/fields.ts";
 
 /** Extract holiday input from validated form values */
 const extractHolidayInput = (
-  values: Record<string, unknown>,
+  values: Record<string, string | number | null>,
 ): HolidayInput => ({
-  name: values.name as string,
-  startDate: values.start_date as string,
-  endDate: values.end_date as string,
+  name: String(values.name),
+  startDate: String(values.start_date),
+  endDate: String(values.end_date),
 });
 
 /** Validate end_date >= start_date */

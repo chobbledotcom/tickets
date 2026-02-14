@@ -202,15 +202,19 @@ describe("QR Scanner", () => {
 
     test("returns Unknown event when attendee's event is deleted", async () => {
       const { getDb } = await import("#lib/db/client.ts");
+      const { computeTicketTokenIndex } = await import("#lib/crypto.ts");
       const { token } = await createTestAttendeeWithToken("Frank", "frank@test.com");
       const eventB = await createTestEvent({ maxAttendees: 10 });
       const session = await loginAsAdmin();
 
+      // Compute HMAC index for lookup (ticket_token is encrypted, we use index)
+      const tokenIndex = await computeTicketTokenIndex(token);
+
       // Point attendee at a non-existent event to simulate orphan
       await getDb().execute({ sql: "PRAGMA foreign_keys = OFF", args: [] });
       await getDb().execute({
-        sql: "UPDATE attendees SET event_id = 99999 WHERE ticket_token = ?",
-        args: [token],
+        sql: "UPDATE attendees SET event_id = 99999 WHERE ticket_token_index = ?",
+        args: [tokenIndex],
       });
       await getDb().execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
 

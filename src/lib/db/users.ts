@@ -12,9 +12,9 @@ import {
   verifyPassword,
   wrapKey,
 } from "#lib/crypto.ts";
-import { getDb, queryOne } from "#lib/db/client.ts";
+import { getDb, queryAll, queryOne } from "#lib/db/client.ts";
 import { now } from "#lib/now.ts";
-import type { AdminLevel, User } from "#lib/types.ts";
+import { isAdminLevel, type AdminLevel, type User } from "#lib/types.ts";
 
 /** Shared user creation logic */
 const insertUser = async (opts: {
@@ -114,12 +114,10 @@ export const isUsernameTaken = async (username: string): Promise<boolean> => {
 /**
  * Get all users (for admin user management page)
  */
-export const getAllUsers = async (): Promise<User[]> => {
-  const result = await getDb().execute(
+export const getAllUsers = (): Promise<User[]> =>
+  queryAll<User>(
     "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC",
   );
-  return result.rows as unknown as User[];
-};
 
 /**
  * Verify a user's password (decrypt stored hash, then verify)
@@ -138,8 +136,13 @@ export const verifyUserPassword = async (
 /**
  * Decrypt a user's admin level
  */
-export const decryptAdminLevel = (user: User): Promise<AdminLevel> =>
-  decrypt(user.admin_level) as Promise<AdminLevel>;
+export const decryptAdminLevel = async (user: User): Promise<AdminLevel> => {
+  const level = await decrypt(user.admin_level);
+  if (!isAdminLevel(level)) {
+    throw new Error(`Invalid admin level: ${level}`);
+  }
+  return level;
+};
 
 /**
  * Decrypt a user's username

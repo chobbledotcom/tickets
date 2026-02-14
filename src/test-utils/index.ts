@@ -12,7 +12,7 @@ import {
 } from "#lib/db/events.ts";
 import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
-import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, invalidateTermsCache, updateTimezone } from "#lib/db/settings.ts";
+import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, updateTimezone } from "#lib/db/settings.ts";
 import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 
 /**
@@ -219,7 +219,6 @@ export const resetDb = (): void => {
   setDb(null);
   clearSetupCompleteCache();
   invalidateSettingsCache();
-  invalidateTermsCache();
   resetSessionCache();
   resetTestSession();
   resetCurrencyCode();
@@ -989,11 +988,12 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   address: "",
   special_instructions: "",
   created: "2024-01-01T12:00:00Z",
-  payment_id: null,
+  payment_id: "",
   quantity: 1,
-  price_paid: null,
+  price_paid: "0",
   checked_in: "false",
   ticket_token: "test-token-1",
+  ticket_token_index: "test-token-index-1",
   date: null,
   ...overrides,
 });
@@ -1172,6 +1172,43 @@ export const deleteTestHoliday = async (
 export type { HolidayInput };
 
 /**
+ * Create an attendee directly using createAttendeeAtomic (bypasses HTTP layer).
+ * Returns the plaintext token just like production code receives it.
+ * This matches the real-world flow where plaintext token comes from createAttendeeAtomic result.
+ */
+export const createTestAttendeeDirect = async (
+  eventId: number,
+  name: string,
+  email: string,
+  quantity = 1,
+  phone = "",
+  address = "",
+  special_instructions = "",
+): Promise<{ attendee: Attendee; token: string }> => {
+  const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
+
+  const result = await createAttendeeAtomic({
+    eventId,
+    name,
+    email,
+    phone,
+    address,
+    special_instructions,
+    quantity,
+  });
+
+  if (!result.success) {
+    throw new Error(`Failed to create attendee: ${result.reason}`);
+  }
+
+  // The token in result.attendee is plaintext, just like production!
+  return {
+    attendee: result.attendee,
+    token: result.attendee.ticket_token,
+  };
+};
+
+/**
  * Create an attendee and return both the attendee and their ticket token.
  * Combines createTestAttendee + getAttendeesRaw into a single call.
  */
@@ -1183,9 +1220,8 @@ export const createTestAttendeeWithToken = async (
   phone = "",
 ): Promise<{ event: Event; attendee: Attendee; token: string }> => {
   const event = await createTestEvent({ maxAttendees: 10, ...eventOverrides });
-  const attendee = await createTestAttendee(event.id, event.slug, name, email, quantity, phone);
-  const attendees = await getAttendeesRaw(event.id);
-  return { event, attendee, token: attendees[0]!.ticket_token };
+  const { attendee, token } = await createTestAttendeeDirect(event.id, name, email, quantity, phone);
+  return { event, attendee, token };
 };
 
 /**

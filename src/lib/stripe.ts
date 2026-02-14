@@ -19,6 +19,7 @@ import {
   buildMultiIntentMetadata,
   buildSingleIntentMetadata,
   createWithClient,
+  errorMessage,
 } from "#lib/payment-helpers.ts";
 import type {
   MultiRegistrationIntent,
@@ -45,17 +46,12 @@ type StripeCache = { client: Stripe; secretKey: string };
 export const sanitizeErrorDetail = (err: unknown): string => {
   if (!(err instanceof Error)) return "unknown";
 
-  // Stripe SDK errors have statusCode, code, and type properties
-  const stripeErr = err as {
-    statusCode?: number;
-    code?: string;
-    type?: string;
-  };
-
+  // Stripe SDK errors have statusCode, code, and type properties.
+  // Use "in" narrowing instead of a blanket type assertion.
   const parts: string[] = [];
-  if (stripeErr.statusCode) parts.push(`status=${stripeErr.statusCode}`);
-  if (stripeErr.code) parts.push(`code=${stripeErr.code}`);
-  if (stripeErr.type) parts.push(`type=${stripeErr.type}`);
+  if ("statusCode" in err && typeof err.statusCode === "number") parts.push(`status=${err.statusCode}`);
+  if ("code" in err && typeof err.code === "string") parts.push(`code=${err.code}`);
+  if ("type" in err && typeof err.type === "string") parts.push(`type=${err.type}`);
 
   return parts.length > 0 ? parts.join(" ") : err.name;
 };
@@ -156,6 +152,60 @@ const buildSessionParams = async (
     ...(cfg.email ? { customer_email: cfg.email } : {}),
     metadata: cfg.metadata,
   };
+};
+
+/**
+ * Internal implementation of webhook endpoint setup.
+ * Defined before stripeApi so it can be assigned directly.
+ */
+const setupWebhookEndpointImpl = async (
+  secretKey: string,
+  webhookUrl: string,
+  existingEndpointId?: string | null,
+): Promise<WebhookSetupResult> => {
+  try {
+    const client = await createStripeClient(secretKey);
+
+    // If we have an existing endpoint ID, try to delete it so we can recreate
+    // (update doesn't return the secret, so we need to recreate to get a fresh one)
+    if (existingEndpointId) {
+      try {
+        await client.webhookEndpoints.del(existingEndpointId);
+      } catch {
+        // Endpoint doesn't exist or can't be deleted, will create new one
+      }
+    }
+
+    // Check if a webhook already exists for this exact URL
+    const existingEndpoints = await client.webhookEndpoints.list({ limit: 100 });
+    const existingForUrl = existingEndpoints.data.find(
+      (ep) => ep.url === webhookUrl,
+    );
+
+    if (existingForUrl) {
+      // Delete existing endpoint to recreate with fresh secret
+      await client.webhookEndpoints.del(existingForUrl.id);
+    }
+
+    // Create new webhook endpoint
+    const endpoint = await client.webhookEndpoints.create({
+      url: webhookUrl,
+      enabled_events: ["checkout.session.completed"],
+    });
+
+    if (!endpoint.secret) {
+      return { success: false, error: "Stripe did not return webhook secret" };
+    }
+
+    return {
+      success: true,
+      endpointId: endpoint.id,
+      secret: endpoint.secret,
+    };
+  } catch (err) {
+    logError({ code: ErrorCode.STRIPE_WEBHOOK_SETUP, detail: sanitizeErrorDetail(err) });
+    return { success: false, error: errorMessage(err) };
+  }
 };
 
 /**
@@ -298,7 +348,7 @@ export const stripeApi: {
         mode: hasLiveKey ? "live" : "test",
       };
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = errorMessage(err);
       result.apiKey = { valid: false, error: message };
       return result;
     }
@@ -320,7 +370,7 @@ export const stripeApi: {
         enabledEvents: endpoint.enabled_events,
       };
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = errorMessage(err);
       result.webhook = { configured: false, endpointId, error: message };
       return result;
     }
@@ -329,12 +379,7 @@ export const stripeApi: {
     return result;
   },
 
-  // Placeholder - will be set after setupWebhookEndpointImpl is defined
-  setupWebhookEndpoint: null as unknown as (
-    secretKey: string,
-    webhookUrl: string,
-    existingEndpointId?: string | null,
-  ) => Promise<WebhookSetupResult>,
+  setupWebhookEndpoint: setupWebhookEndpointImpl,
 };
 
 export type {
@@ -342,63 +387,6 @@ export type {
   MultiRegistrationItem,
   MultiRegistrationIntent,
 } from "#lib/payments.ts";
-
-/**
- * Internal implementation of webhook endpoint setup.
- * Use setupWebhookEndpoint export for production code.
- */
-const setupWebhookEndpointImpl = async (
-  secretKey: string,
-  webhookUrl: string,
-  existingEndpointId?: string | null,
-): Promise<WebhookSetupResult> => {
-  try {
-    const client = await createStripeClient(secretKey);
-
-    // If we have an existing endpoint ID, try to delete it so we can recreate
-    // (update doesn't return the secret, so we need to recreate to get a fresh one)
-    if (existingEndpointId) {
-      try {
-        await client.webhookEndpoints.del(existingEndpointId);
-      } catch {
-        // Endpoint doesn't exist or can't be deleted, will create new one
-      }
-    }
-
-    // Check if a webhook already exists for this exact URL
-    const existingEndpoints = await client.webhookEndpoints.list({ limit: 100 });
-    const existingForUrl = existingEndpoints.data.find(
-      (ep) => ep.url === webhookUrl,
-    );
-
-    if (existingForUrl) {
-      // Delete existing endpoint to recreate with fresh secret
-      await client.webhookEndpoints.del(existingForUrl.id);
-    }
-
-    // Create new webhook endpoint
-    const endpoint = await client.webhookEndpoints.create({
-      url: webhookUrl,
-      enabled_events: ["checkout.session.completed"],
-    });
-
-    if (!endpoint.secret) {
-      return { success: false, error: "Stripe did not return webhook secret" };
-    }
-
-    return {
-      success: true,
-      endpointId: endpoint.id,
-      secret: endpoint.secret,
-    };
-  } catch (err) {
-    logError({ code: ErrorCode.STRIPE_WEBHOOK_SETUP, detail: sanitizeErrorDetail(err) });
-    return { success: false, error: (err as Error).message };
-  }
-};
-
-// Add setupWebhookEndpoint to stripeApi for testability
-stripeApi.setupWebhookEndpoint = setupWebhookEndpointImpl;
 
 /**
  * Create or update a webhook endpoint for the given URL.

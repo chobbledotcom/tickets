@@ -405,4 +405,78 @@ describe("server (admin auth)", () => {
     });
   });
 
+  describe("session expiration (blank screen test)", () => {
+    test("expired session shows login page, not blank screen", async () => {
+      // Create an expired session using the real createSession function
+      const expiredToken = "expired-blank-screen-test-token";
+      await createSession(expiredToken, "csrf-expired", Date.now() - 1000, null, 1);
+
+      // Make request with expired session cookie
+      const response = await awaitTestRequest("/admin/", expiredToken);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+
+      // Verify we get login page, not blank screen or dashboard
+      expect(html).toContain("Login");
+      expect(html).toContain("<form");
+      expect(html.length).toBeGreaterThan(100); // Not blank
+      expect(html).not.toContain("Events"); // Should not show dashboard
+      expect(html).not.toContain("No events yet"); // Should not show events table
+
+      // Verify session was deleted from database after expiration check
+      const deletedSession = await getSession(expiredToken);
+      expect(deletedSession).toBeNull();
+    });
+
+    test("multiple requests with expired session consistently show login page", async () => {
+      // Create an expired session using the real createSession function
+      const expiredToken = "expired-multi-request-test-token";
+      await createSession(expiredToken, "csrf-expired", Date.now() - 1000, null, 1);
+
+      // Make multiple requests with the same expired session token
+      for (let i = 0; i < 3; i++) {
+        const response = await awaitTestRequest("/admin/", expiredToken);
+        expect(response.status).toBe(200);
+        const html = await response.text();
+
+        // Each request should consistently show login page, not blank or dashboard
+        expect(html).toContain("Login");
+        expect(html.length).toBeGreaterThan(100);
+        expect(html).not.toContain("Events");
+        expect(html).not.toContain("No events yet");
+      }
+
+      // Verify session was deleted after first access
+      const deletedSession = await getSession(expiredToken);
+      expect(deletedSession).toBeNull();
+    });
+
+    test("dashboard always contains expected content structure", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+
+      // Verify key content elements that should never be blank
+      expect(html).toContain("Events"); // Page title
+      expect(html).toContain("<table"); // Table structure
+      expect(html).toContain("Event Name"); // Table header
+      expect(html.length).toBeGreaterThan(500); // Substantial content
+    });
+
+    test("login page always contains expected content structure", async () => {
+      const response = await handleRequest(mockRequest("/admin/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+
+      // Verify key content elements of login page
+      expect(html).toContain("Login");
+      expect(html).toContain("<form");
+      expect(html).toContain("username");
+      expect(html).toContain("password");
+      expect(html.length).toBeGreaterThan(200); // Substantial content
+    });
+  });
+
 });
