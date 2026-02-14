@@ -520,11 +520,8 @@ const processSessionAndRedirect = async (sessionId: string): Promise<Response> =
  */
 const renderSuccessFromTokens = async (tokensParam: string): Promise<Response> => {
   const tokens = parseTokens(tokensParam);
-  if (tokens.length === 0) {
-    return paymentErrorResponse("Invalid payment callback");
-  }
-
-  const attendeeResults = await getAttendeesByTokens(tokens);
+  const attendeeResults = tokens.length > 0
+    ? await getAttendeesByTokens(tokens) : [];
   const verifiedTokens: string[] = [];
   const eventIds: number[] = [];
 
@@ -547,7 +544,7 @@ const renderSuccessFromTokens = async (tokensParam: string): Promise<Response> =
   let thankYouUrl: string | null = null;
   if (uniqueEventIds.length === 1) {
     const event = await getEvent(uniqueEventIds[0]!);
-    thankYouUrl = event?.thank_you_url ?? null;
+    if (event) thankYouUrl = event.thank_you_url;
   }
 
   return htmlResponse(paymentSuccessPage(thankYouUrl, ticketUrl));

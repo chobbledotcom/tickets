@@ -1039,6 +1039,7 @@ describe("server (payment flow)", () => {
       const event = await createTestEvent({
         maxAttendees: 50,
         unitPrice: 1000,
+        thankYouUrl: "https://example.com/replay-thanks",
       });
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
@@ -1064,12 +1065,17 @@ describe("server (payment flow)", () => {
         );
         expect(response1.status).toBe(302);
 
-        // Second request (replay) should also succeed (idempotent)
-        // Already-processed renders directly (no tokens available)
+        // Second request (replay) should render directly (no tokens available)
         const response2 = await handleRequest(
           mockRequest("/payment/success?session_id=cs_dupe_session"),
         );
         expect(response2.status).toBe(200);
+        const html = await response2.text();
+        expect(html).toContain("Payment Successful");
+        // Already-processed single-ticket should include thank_you_url
+        expect(html).toContain("https://example.com/replay-thanks");
+        // But no ticket link (no tokens available for already-processed)
+        expect(html).not.toContain("view your tickets");
 
         // Should still only have one attendee
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -1079,10 +1085,73 @@ describe("server (payment flow)", () => {
         mockRetrieve.mockRestore();
       }
     });
+
+    test("handles multi-ticket duplicate session replay (already processed)", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Replay Multi 1",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        name: "Replay Multi 2",
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_multi_dupe",
+        payment_status: "paid",
+        payment_intent: "pi_multi_dupe",
+        amount_total: 1500,
+        metadata: {
+          name: "Multi Replay",
+          email: "multireplay@example.com",
+          multi: "1",
+          items: JSON.stringify([
+            { e: event1.id, q: 1 },
+            { e: event2.id, q: 1 },
+          ]),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        // First request should redirect with tokens
+        const response1 = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_dupe"),
+        );
+        expect(response1.status).toBe(302);
+
+        // Second request (replay) should render directly (no tokens)
+        const response2 = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_dupe"),
+        );
+        expect(response2.status).toBe(200);
+        const html = await response2.text();
+        expect(html).toContain("Payment Successful");
+        // Multi-ticket already-processed has no thank_you_url redirect
+        expect(html).not.toContain("redirected");
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
   });
 
   describe("payment success token verification", () => {
+    test("returns error for tokens param with only delimiters", async () => {
+      // %2B decodes to "+", parseTokens produces empty array, no tokens to verify
+      const response = await handleRequest(
+        mockRequest("/payment/success?tokens=%2B"),
+      );
+      expect(response.status).toBe(400);
+    });
+
     test("returns error for empty tokens param", async () => {
+      // Empty string is falsy → falls through to final error
       const response = await handleRequest(
         mockRequest("/payment/success?tokens="),
       );
