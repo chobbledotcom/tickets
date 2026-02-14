@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "backfill NULL price_paid and payment_id with encrypted defaults";
+export const LATEST_UPDATE = "ensure closes_at and ticket_token exist in base schema";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -86,7 +86,8 @@ export const initDb = async (): Promise<void> => {
       slug TEXT,
       slug_index TEXT,
       active INTEGER NOT NULL DEFAULT 1,
-      fields TEXT NOT NULL DEFAULT 'email'
+      fields TEXT NOT NULL DEFAULT 'email',
+      closes_at TEXT
     )
   `);
 
@@ -106,6 +107,7 @@ export const initDb = async (): Promise<void> => {
       payment_id TEXT,
       quantity INTEGER NOT NULL DEFAULT 1,
       phone TEXT NOT NULL DEFAULT '',
+      ticket_token TEXT NOT NULL DEFAULT '',
       FOREIGN KEY (event_id) REFERENCES events(id)
     )
   `);
