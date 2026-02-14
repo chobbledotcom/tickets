@@ -477,7 +477,7 @@ describe("server (event images)", () => {
       const originalFetch = globalThis.fetch;
       globalThis.fetch = (input: string | URL | Request): Promise<Response> => {
         const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-        if (url.includes("b-cdn.net")) {
+        if (url.includes("storage.bunnycdn.com")) {
           // deno-lint-ignore no-explicit-any
           return Promise.resolve(new Response(encrypted as any, { status: 200 }));
         }
@@ -496,11 +496,11 @@ describe("server (event images)", () => {
       }
     });
 
-    test("returns 404 when CDN returns error", async () => {
+    test("returns 404 when storage returns error", async () => {
       const originalFetch = globalThis.fetch;
       globalThis.fetch = (input: string | URL | Request): Promise<Response> => {
         const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-        if (url.includes("b-cdn.net")) {
+        if (url.includes("storage.bunnycdn.com")) {
           return Promise.resolve(new Response("Not Found", { status: 404 }));
         }
         return originalFetch(input);

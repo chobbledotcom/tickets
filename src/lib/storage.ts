@@ -41,14 +41,6 @@ export const getImageProxyUrl = (filename: string): string =>
   `/image/${filename}`;
 
 /**
- * Get the direct CDN URL for a stored file (used internally for download).
- */
-const getCdnUrl = (filename: string): string => {
-  const zoneName = getEnv("STORAGE_ZONE_NAME") as string;
-  return `https://${zoneName}.b-cdn.net/${filename}`;
-};
-
-/**
  * Get the MIME type for an image filename from its extension.
  */
 export const getMimeTypeFromFilename = (filename: string): string | null => {
@@ -148,15 +140,42 @@ export const uploadImage = async (
 };
 
 /**
- * Download and decrypt an image from Bunny CDN.
+ * Collect a ReadableStream into a single Uint8Array.
+ */
+const collectStream = async (stream: ReadableStream<Uint8Array>): Promise<Uint8Array> => {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalLength = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    totalLength += value.length;
+  }
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
+};
+
+/**
+ * Download and decrypt an image from Bunny storage.
+ * Uses the storage SDK directly (same as upload/delete) instead of a CDN
+ * pull zone URL, which requires a separate pull zone linked to the storage zone.
  * Returns the decrypted image bytes, or null if not found.
  */
 export const downloadImage = async (filename: string): Promise<Uint8Array | null> => {
-  const url = getCdnUrl(filename);
-  const response = await fetch(url);
-  if (!response.ok) return null;
-  const encrypted = new Uint8Array(await response.arrayBuffer());
-  return decryptBytes(encrypted);
+  try {
+    const sz = connectZone();
+    const { stream } = await BunnyStorageSDK.file.download(sz, `/${filename}`);
+    const encrypted = await collectStream(stream);
+    return decryptBytes(encrypted);
+  } catch {
+    return null;
+  }
 };
 
 /**
