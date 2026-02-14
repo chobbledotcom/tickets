@@ -7,6 +7,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   deactivateTestEvent,
+  followRedirect,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
@@ -511,14 +512,23 @@ describe("server (payment flow)", () => {
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
         async () => {
-          const response = await handleRequest(
+          const redirectResponse = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test_paid"),
           );
 
+          // Should redirect with tokens
+          expect(redirectResponse.status).toBe(302);
+          const location = redirectResponse.headers.get("location")!;
+          expect(location).toMatch(/^\/payment\/success\?tokens=.+$/);
+
+          // Follow the redirect
+          const response = await followRedirect(redirectResponse, handleRequest);
           expect(response.status).toBe(200);
           const html = await response.text();
           expect(html).toContain("Payment Successful");
           expect(html).toContain("https://example.com/thanks");
+          expect(html).toContain("Click here to view your tickets");
+          expect(html).toContain('target="_blank"');
 
           // Verify attendee was created with payment ID (encrypted at rest)
           const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -568,7 +578,8 @@ describe("server (payment flow)", () => {
           // This is expected - in the new flow, replaying creates a duplicate attempt
           // which fails the capacity check if event is near full
           // For idempotent behavior, we'd need to check payment_intent uniqueness
-          expect(response.status).toBe(200);
+          // Response is either a 302 redirect (with tokens) or 200 (direct render for replay)
+          expect([200, 302]).toContain(response.status);
         },
       );
     });
@@ -602,10 +613,12 @@ describe("server (payment flow)", () => {
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
         >),
         async () => {
-          const response = await handleRequest(
+          const redirectResponse = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test_paid"),
           );
 
+          expect(redirectResponse.status).toBe(302);
+          const response = await followRedirect(redirectResponse, handleRequest);
           expect(response.status).toBe(200);
 
           // Verify attendee was created with correct quantity
@@ -736,12 +749,21 @@ describe("server (payment flow)", () => {
       >);
 
       try {
-        const response = await handleRequest(
+        const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_success"),
         );
+        expect(redirectResponse.status).toBe(302);
+        const location = redirectResponse.headers.get("location")!;
+        // Multi-ticket should have multiple tokens joined by + (URL-encoded as %2B)
+        expect(location).toMatch(/^\/payment\/success\?tokens=.+%2B.+$/);
+
+        const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("Payment Successful");
+        expect(html).toContain("Click here to view your tickets");
+        // Multi-ticket should NOT have thank_you_url (different events)
+        expect(html).not.toContain("redirected");
 
         // Verify attendees created for both events
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -997,12 +1019,15 @@ describe("server (payment flow)", () => {
       >);
 
       try {
-        const response = await handleRequest(
+        const redirectResponse = await handleRequest(
           mockRequest("/payment/success?session_id=cs_single_thankyou"),
         );
+        expect(redirectResponse.status).toBe(302);
+        const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
         const html = await response.text();
         expect(html).toContain("https://example.com/single-thanks");
+        expect(html).toContain("Click here to view your tickets");
       } finally {
         mockRetrieve.mockRestore();
       }
@@ -1014,6 +1039,7 @@ describe("server (payment flow)", () => {
       const event = await createTestEvent({
         maxAttendees: 50,
         unitPrice: 1000,
+        thankYouUrl: "https://example.com/replay-thanks",
       });
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
@@ -1033,22 +1059,168 @@ describe("server (payment flow)", () => {
       >);
 
       try {
-        // First request should succeed
+        // First request should redirect with tokens
         const response1 = await handleRequest(
           mockRequest("/payment/success?session_id=cs_dupe_session"),
         );
-        expect(response1.status).toBe(200);
+        expect(response1.status).toBe(302);
 
-        // Second request (replay) should also succeed (idempotent)
+        // Second request (replay) should render directly (no tokens available)
         const response2 = await handleRequest(
           mockRequest("/payment/success?session_id=cs_dupe_session"),
         );
         expect(response2.status).toBe(200);
+        const html = await response2.text();
+        expect(html).toContain("Payment Successful");
+        // Already-processed single-ticket should include thank_you_url
+        expect(html).toContain("https://example.com/replay-thanks");
+        // But no ticket link (no tokens available for already-processed)
+        expect(html).not.toContain("view your tickets");
 
         // Should still only have one attendee
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
+    test("handles multi-ticket duplicate session replay (already processed)", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Replay Multi 1",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        name: "Replay Multi 2",
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_multi_dupe",
+        payment_status: "paid",
+        payment_intent: "pi_multi_dupe",
+        amount_total: 1500,
+        metadata: {
+          name: "Multi Replay",
+          email: "multireplay@example.com",
+          multi: "1",
+          items: JSON.stringify([
+            { e: event1.id, q: 1 },
+            { e: event2.id, q: 1 },
+          ]),
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        // First request should redirect with tokens
+        const response1 = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_dupe"),
+        );
+        expect(response1.status).toBe(302);
+
+        // Second request (replay) should render directly (no tokens)
+        const response2 = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_multi_dupe"),
+        );
+        expect(response2.status).toBe(200);
+        const html = await response2.text();
+        expect(html).toContain("Payment Successful");
+        // Multi-ticket already-processed has no thank_you_url redirect
+        expect(html).not.toContain("redirected");
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+  });
+
+  describe("payment success token verification", () => {
+    test("returns error for tokens param with only delimiters", async () => {
+      // %2B decodes to "+", parseTokens produces empty array, no tokens to verify
+      const response = await handleRequest(
+        mockRequest("/payment/success?tokens=%2B"),
+      );
+      expect(response.status).toBe(400);
+    });
+
+    test("returns error for empty tokens param", async () => {
+      // Empty string is falsy → falls through to final error
+      const response = await handleRequest(
+        mockRequest("/payment/success?tokens="),
+      );
+      expect(response.status).toBe(400);
+    });
+
+    test("returns error for invalid tokens not in database", async () => {
+      const response = await handleRequest(
+        mockRequest("/payment/success?tokens=nonexistent_token"),
+      );
+      expect(response.status).toBe(400);
+    });
+
+    test("returns error when no session_id or tokens param", async () => {
+      const response = await handleRequest(
+        mockRequest("/payment/success"),
+      );
+      expect(response.status).toBe(400);
+    });
+
+    test("renders ticket link from verified tokens", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 500,
+        thankYouUrl: "https://example.com/verified-thanks",
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_token_verify",
+        payment_status: "paid",
+        payment_intent: "pi_token_verify",
+        amount_total: 500,
+        metadata: {
+          event_id: String(event.id),
+          name: "Token Verify",
+          email: "verify@example.com",
+          quantity: "1",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        // Process payment to get redirect with token
+        const redirectResponse = await handleRequest(
+          mockRequest("/payment/success?session_id=cs_token_verify"),
+        );
+        expect(redirectResponse.status).toBe(302);
+        const location = redirectResponse.headers.get("location")!;
+
+        // Follow redirect to verify tokens and render page
+        const response = await followRedirect(redirectResponse, handleRequest);
+        expect(response.status).toBe(200);
+        const html = await response.text();
+
+        // Should have ticket link with verified token
+        expect(html).toContain("Click here to view your tickets");
+        expect(html).toContain('target="_blank"');
+        expect(html).toContain("/t/");
+
+        // Should have thank_you_url for single-event purchase
+        expect(html).toContain("https://example.com/verified-thanks");
+
+        // Token in the link should match the one in the redirect URL
+        const tokenFromUrl = decodeURIComponent(location.split("tokens=")[1]!);
+        expect(html).toContain(`/t/${tokenFromUrl}`);
       } finally {
         mockRetrieve.mockRestore();
       }

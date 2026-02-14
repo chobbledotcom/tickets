@@ -473,29 +473,47 @@ describe("html", () => {
   });
 
   describe("paymentSuccessPage", () => {
-    const event = testEvent({ unit_price: 1000 });
-
     test("renders success message", () => {
-      const html = paymentSuccessPage(event, "https://example.com/thanks");
+      const html = paymentSuccessPage("https://example.com/thanks", null);
       expect(html).toContain("Payment Successful");
       expect(html).toContain("https://example.com/thanks");
     });
 
     test("includes meta refresh redirect", () => {
-      const html = paymentSuccessPage(event, "https://example.com/thanks");
+      const html = paymentSuccessPage("https://example.com/thanks", null);
       expect(html).toContain('http-equiv="refresh"');
       expect(html).toContain("3;url=https://example.com/thanks");
     });
 
     test("includes data-payment-result attribute for popup postMessage", () => {
-      const html = paymentSuccessPage(event, null);
+      const html = paymentSuccessPage(null, null);
       expect(html).toContain('data-payment-result="success"');
     });
 
     test("renders without redirect when thankYouUrl is null", () => {
-      const html = paymentSuccessPage(event, null);
+      const html = paymentSuccessPage(null, null);
       expect(html).not.toContain('http-equiv="refresh"');
       expect(html).not.toContain("redirected");
+    });
+
+    test("renders ticket link when ticketUrl is provided", () => {
+      const html = paymentSuccessPage(null, "/t/abc123+def456");
+      expect(html).toContain('href="/t/abc123+def456"');
+      expect(html).toContain('target="_blank"');
+      expect(html).toContain("Click here to view your tickets");
+    });
+
+    test("renders both ticket link and redirect when both provided", () => {
+      const html = paymentSuccessPage("https://example.com/thanks", "/t/abc123");
+      expect(html).toContain('href="/t/abc123"');
+      expect(html).toContain("Click here to view your tickets");
+      expect(html).toContain("https://example.com/thanks");
+      expect(html).toContain('http-equiv="refresh"');
+    });
+
+    test("does not render ticket link when ticketUrl is null", () => {
+      const html = paymentSuccessPage(null, null);
+      expect(html).not.toContain("view your tickets");
     });
   });
 
