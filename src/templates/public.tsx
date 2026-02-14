@@ -3,13 +3,21 @@
  */
 
 import { map, pipe } from "#fp";
+import { getTz } from "#lib/config.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { renderError, renderFields } from "#lib/forms.tsx";
+import { getImageProxyUrl } from "#lib/storage.ts";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
+
+/** Render event image HTML if image_url is set */
+export const renderEventImage = (event: { image_url: string; name: string }, className = "event-image"): string =>
+  event.image_url
+    ? `<img src="${escapeHtml(getImageProxyUrl(event.image_url))}" alt="${escapeHtml(event.name)}" class="${className}" />`
+    : "";
 
 /** Render a date selector dropdown for daily events */
 const renderDateSelector = (dates: string[]): string =>
@@ -34,7 +42,7 @@ const quantityOptions = (max: number): string =>
 
 /** Render terms and conditions block with agreement checkbox */
 const renderTermsAndCheckbox = (terms: string): string =>
-  `<div class="terms"><p>${escapeHtml(terms)}</p></div>` +
+  `<div class="terms"><p>${escapeHtml(terms).replace(/\r\n|\r|\n/g, "<br>")}</p></div>` +
   `<label><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms and conditions above</label>`;
 
 /**
@@ -43,12 +51,13 @@ const renderTermsAndCheckbox = (terms: string): string =>
 export const ticketPage = (
   event: EventWithCount,
   csrfToken: string,
-  error?: string,
-  isClosed = false,
-  iframe = false,
-  availableDates?: string[],
-  termsAndConditions?: string | null,
+  error: string | undefined,
+  isClosed: boolean,
+  iframe: boolean,
+  availableDates: string[] | undefined,
+  termsAndConditions: string | null | undefined,
 ): string => {
+  const tz = getTz();
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isFull = spotsRemaining <= 0;
   const maxPurchasable = Math.min(event.max_quantity, spotsRemaining);
@@ -60,6 +69,7 @@ export const ticketPage = (
     <Layout title={event.name} bodyClass={iframe ? "iframe" : undefined}>
       {!iframe && (
         <>
+          <Raw html={renderEventImage(event)} />
           <h1>{event.name}</h1>
           {event.description && (
             <div class="description">
@@ -67,7 +77,7 @@ export const ticketPage = (
             </div>
           )}
           {event.date && (
-            <p><strong>Date:</strong> {formatDatetimeLabel(event.date)}</p>
+            <p><strong>Date:</strong> {formatDatetimeLabel(event.date, tz)}</p>
           )}
           {event.location && (
             <p><strong>Location:</strong> {event.location}</p>
@@ -81,7 +91,7 @@ export const ticketPage = (
       ) : isFull ? (
           <div class="error">Sorry, this event is full.</div>
       ) : (
-          <form method="POST" action={`/ticket/${event.slug}`}>
+          <form method="POST" action={`/ticket/${event.slug}${iframe ? "?iframe=true" : ""}`}>
             <input type="hidden" name="csrf_token" value={csrfToken} />
             <Raw html={renderFields(fields)} />
             {isDaily && availableDates && (
@@ -148,10 +158,12 @@ const renderMultiEventDescription = (description: string): string =>
 const renderMultiEventRow = (info: MultiTicketEvent): string => {
   const { event, isSoldOut, isClosed, maxPurchasable } = info;
   const fieldName = `quantity_${event.id}`;
+  const imageHtml = renderEventImage(event);
 
   if (isClosed) {
     return `
       <div class="multi-ticket-row sold-out">
+        ${imageHtml}
         <label>${escapeHtml(event.name)}</label>
         <span class="sold-out-label">Registration Closed</span>
       </div>
@@ -161,6 +173,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
   if (isSoldOut) {
     return `
       <div class="multi-ticket-row sold-out">
+        ${imageHtml}
         <label>${escapeHtml(event.name)}</label>
         ${renderMultiEventDescription(event.description)}
         <span class="sold-out-label">Sold Out</span>
@@ -174,6 +187,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
 
   return `
     <div class="multi-ticket-row">
+      ${imageHtml}
       <label for="${fieldName}">${escapeHtml(event.name)}</label>
       ${renderMultiEventDescription(event.description)}
       <select name="${fieldName}" id="${fieldName}">
@@ -199,10 +213,11 @@ export const multiTicketPage = (
   error?: string,
   availableDates?: string[],
   termsAndConditions?: string | null,
+  iframe = false,
 ): string => {
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
-  const formAction = `/ticket/${slugs.join("+")}`;
+  const formAction = `/ticket/${slugs.join("+")}${iframe ? "?iframe=true" : ""}`;
   const fieldsSetting = getMultiTicketFieldsSetting(events);
   const fields: Field[] = getTicketFields(fieldsSetting);
   const hasDaily = events.some((e) => e.event.event_type === "daily");
@@ -213,7 +228,7 @@ export const multiTicketPage = (
   )(events);
 
   return String(
-    <Layout title="Reserve Tickets">
+    <Layout title="Reserve Tickets" bodyClass={iframe ? "iframe" : undefined}>
       <Raw html={renderError(error)} />
 
       {allUnavailable ? (

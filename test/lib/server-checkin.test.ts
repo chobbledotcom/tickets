@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { formatDateLabel } from "#lib/dates.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
+import { handleRequest } from "#routes";
 import {
+  adminGet,
   awaitTestRequest,
+  createDailyTestEvent,
   createTestAttendee,
+  createTestAttendeeWithToken,
   createTestDbWithSetup,
   createTestEvent,
   getAttendeesRaw,
@@ -12,6 +16,13 @@ import {
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";
+
+/** Create attendee + login, returning token + session for check-in tests */
+const setupCheckinTest = async (name: string, email: string, eventOverrides = {}, quantity = 1, phone = "") => {
+  const { event, token } = await createTestAttendeeWithToken(name, email, eventOverrides, quantity, phone);
+  const session = await loginAsAdmin();
+  return { event, token, session };
+};
 
 describe("check-in (/checkin/:tokens)", () => {
   beforeEach(async () => {
@@ -25,10 +36,7 @@ describe("check-in (/checkin/:tokens)", () => {
 
   describe("GET /checkin/:tokens (unauthenticated)", () => {
     test("shows public check-in message for unauthenticated users", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
+      const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
 
       const response = await awaitTestRequest(`/checkin/${token}`);
       expect(response.status).toBe(200);
@@ -46,12 +54,7 @@ describe("check-in (/checkin/:tokens)", () => {
 
   describe("GET /checkin/:tokens (authenticated admin)", () => {
     test("shows current status without auto-checking-in", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com");
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
-
-      const session = await loginAsAdmin();
+      const { token, session } = await setupCheckinTest("Bob", "bob@test.com");
       const response = await awaitTestRequest(`/checkin/${token}`, {
         cookie: session.cookie,
       });
@@ -64,12 +67,7 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("shows attendee contact details in admin view", async () => {
-      const event = await createTestEvent({ maxAttendees: 10, fields: "email,phone" });
-      await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com", 1, "555-1234");
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
-
-      const session = await loginAsAdmin();
+      const { token, session } = await setupCheckinTest("Bob", "bob@test.com", { fields: "email,phone" }, 1, "555-1234");
       const response = await awaitTestRequest(`/checkin/${token}`, {
         cookie: session.cookie,
       });
@@ -80,13 +78,10 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("shows multiple attendees from different events", async () => {
-      const eventA = await createTestEvent({ maxAttendees: 10 });
+      const { event: eventA, token: tokenA } = await createTestAttendeeWithToken("Carol", "carol@test.com");
       const eventB = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(eventA.id, eventA.slug, "Carol", "carol@test.com");
       await createTestAttendee(eventB.id, eventB.slug, "Carol", "carol@test.com");
-      const attendeesA = await getAttendeesRaw(eventA.id);
       const attendeesB = await getAttendeesRaw(eventB.id);
-      const tokenA = attendeesA[0]!.ticket_token;
       const tokenB = attendeesB[0]!.ticket_token;
 
       const session = await loginAsAdmin();
@@ -101,20 +96,12 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("returns 404 for invalid tokens when authenticated", async () => {
-      const session = await loginAsAdmin();
-      const response = await awaitTestRequest("/checkin/bad-token", {
-        cookie: session.cookie,
-      });
+      const { response } = await adminGet("/checkin/bad-token");
       expect(response.status).toBe(404);
     });
 
     test("shows event name and quantity in admin view", async () => {
-      const event = await createTestEvent({ maxAttendees: 10, maxQuantity: 5 });
-      await createTestAttendee(event.id, event.slug, "Dave", "dave@test.com", 3);
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
-
-      const session = await loginAsAdmin();
+      const { event, token, session } = await setupCheckinTest("Dave", "dave@test.com", { maxQuantity: 5 }, 3);
       const response = await awaitTestRequest(`/checkin/${token}`, {
         cookie: session.cookie,
       });
@@ -124,12 +111,7 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("links event name to admin event page", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(event.id, event.slug, "Fay", "fay@test.com");
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
-
-      const session = await loginAsAdmin();
+      const { event, token, session } = await setupCheckinTest("Fay", "fay@test.com");
       const response = await awaitTestRequest(`/checkin/${token}`, {
         cookie: session.cookie,
       });
@@ -138,12 +120,7 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("shows green bulk check-in button when not checked in", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
-
-      const session = await loginAsAdmin();
+      const { token, session } = await setupCheckinTest("Eve", "eve@test.com");
       const response = await awaitTestRequest(`/checkin/${token}`, {
         cookie: session.cookie,
       });
@@ -154,13 +131,7 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("displays booked date for daily event in admin view", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 10,
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 30,
-      });
+      const event = await createDailyTestEvent({ maxAttendees: 10, maximumDaysAfter: 30 });
       const date = "2026-02-15";
       const result = await createAttendeeAtomic({
         eventId: event.id,
@@ -181,13 +152,52 @@ describe("check-in (/checkin/:tokens)", () => {
       expect(body).toContain("<th>Date</th>");
     });
 
-    test("does not show date column for standard event in admin view", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
+    test("shows empty date cell for standard event when combined with daily event", async () => {
+      const dailyEvent = await createTestEvent({
+        maxAttendees: 10,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 30,
+      });
+      const { token: tokenB } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+      const date = "2026-02-15";
+      const dailyResult = await createAttendeeAtomic({
+        eventId: dailyEvent.id,
+        name: "Zara",
+        email: "zara@test.com",
+        date,
+      });
+      if (!dailyResult.success) throw new Error("Failed to create attendee");
+      const tokenA = dailyResult.attendee.ticket_token;
 
       const session = await loginAsAdmin();
+      const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
+        cookie: session.cookie,
+      });
+      const body = await response.text();
+      expect(body).toContain("<th>Date</th>");
+      expect(body).toContain(formatDateLabel(date));
+      // Standard event attendee has no date - empty cell rendered
+      expect(body).toContain("Alice");
+    });
+
+    test("renders empty email and phone for attendee without contact details", async () => {
+      const event = await createTestEvent({ maxAttendees: 10 });
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "NoContact",
+        email: "",
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+
+      const { response } = await adminGet(`/checkin/${result.attendee.ticket_token}`);
+      const body = await response.text();
+      expect(body).toContain("NoContact");
+    });
+
+    test("does not show date column for standard event in admin view", async () => {
+      const { token, session } = await setupCheckinTest("Alice", "alice@test.com");
       const response = await awaitTestRequest(`/checkin/${token}`, {
         cookie: session.cookie,
       });
@@ -198,13 +208,7 @@ describe("check-in (/checkin/:tokens)", () => {
 
   describe("POST /checkin/:tokens", () => {
     test("checks in attendee with check_in=true and shows success", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
-
-      const session = await loginAsAdmin();
-      const { handleRequest } = await import("#routes");
+      const { token, session } = await setupCheckinTest("Eve", "eve@test.com");
       const response = await handleRequest(
         mockFormRequest(
           `/checkin/${token}`,
@@ -229,13 +233,7 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("checks out attendee with check_in=false and shows success", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
-
-      const session = await loginAsAdmin();
-      const { handleRequest } = await import("#routes");
+      const { token, session } = await setupCheckinTest("Eve", "eve@test.com");
 
       // First check in
       await handleRequest(
@@ -267,13 +265,7 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("duplicate check-in does not undo previous check-in", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
-
-      const session = await loginAsAdmin();
-      const { handleRequest } = await import("#routes");
+      const { token, session } = await setupCheckinTest("Eve", "eve@test.com");
 
       // Check in twice (simulates two tabs)
       await handleRequest(
@@ -302,12 +294,7 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("redirects to admin for unauthenticated POST", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(event.id, event.slug, "Frank", "frank@test.com");
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
-
-      const { handleRequest } = await import("#routes");
+      const { token } = await createTestAttendeeWithToken("Frank", "frank@test.com");
       const response = await handleRequest(
         mockFormRequest(`/checkin/${token}`, { csrf_token: "fake" }),
       );
@@ -316,13 +303,7 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("returns 403 for invalid CSRF token", async () => {
-      const event = await createTestEvent({ maxAttendees: 10 });
-      await createTestAttendee(event.id, event.slug, "Grace", "grace@test.com");
-      const attendees = await getAttendeesRaw(event.id);
-      const token = attendees[0]!.ticket_token;
-
-      const session = await loginAsAdmin();
-      const { handleRequest } = await import("#routes");
+      const { token, session } = await setupCheckinTest("Grace", "grace@test.com");
       const response = await handleRequest(
         mockFormRequest(
           `/checkin/${token}`,
@@ -335,7 +316,6 @@ describe("check-in (/checkin/:tokens)", () => {
 
     test("returns 404 for invalid tokens on POST", async () => {
       const session = await loginAsAdmin();
-      const { handleRequest } = await import("#routes");
       const response = await handleRequest(
         mockFormRequest(
           "/checkin/bad-token",

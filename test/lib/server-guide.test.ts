@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { handleRequest } from "#routes";
 import {
-  awaitTestRequest,
+  adminGet,
   createTestDbWithSetup,
   expectAdminRedirect,
-  loginAsAdmin,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
@@ -27,16 +26,14 @@ describe("server (admin guide)", () => {
     });
 
     test("renders guide page when authenticated", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/guide", { cookie });
+      const { response } = await adminGet("/admin/guide");
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Guide");
     });
 
     test("contains FAQ sections", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/guide", { cookie });
+      const { response } = await adminGet("/admin/guide");
       const html = await response.text();
       expect(html).toContain("Getting Started");
       expect(html).toContain("Events");
@@ -45,15 +42,19 @@ describe("server (admin guide)", () => {
     });
 
     test("contains payment reservation info", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/guide", { cookie });
+      const { response } = await adminGet("/admin/guide");
       const html = await response.text();
       expect(html).toContain("5 minutes");
     });
 
+    test("contains add attendee info", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Add Attendee");
+    });
+
     test("contains admin navigation", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/guide", { cookie });
+      const { response } = await adminGet("/admin/guide");
       const html = await response.text();
       expect(html).toContain("/admin/guide");
       expect(html).toContain("Events");

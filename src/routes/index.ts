@@ -5,6 +5,7 @@
 
 import { once } from "#fp";
 import { isSetupComplete } from "#lib/config.ts";
+import { loadCurrencyCode } from "#lib/currency.ts";
 import { createRequestTimer, logRequest } from "#lib/logger.ts";
 import {
   applySecurityHeaders,
@@ -64,6 +65,12 @@ const loadCheckinRoutes = once(async () => {
   return routeCheckin;
 });
 
+/** Lazy-load image proxy routes */
+const loadImageRoutes = once(async () => {
+  const { routeImage } = await import("#routes/images.ts");
+  return routeImage;
+});
+
 // Re-export middleware functions for testing
 export {
   getSecurityHeaders,
@@ -105,6 +112,7 @@ const routePaymentPath = createLazyRoute("/payment", loadPaymentRoutes);
 const routeJoinPath = createLazyRoute("/join", loadJoinRoutes);
 const routeTicketViewPath = createLazyRoute("/t", loadTicketViewRoutes);
 const routeCheckinPath = createLazyRoute("/checkin", loadCheckinRoutes);
+const routeImagePath = createLazyRoute("/image", loadImageRoutes);
 
 /**
  * Route main application requests (after setup is complete)
@@ -116,6 +124,7 @@ const routeMainApp: RouterFn = async (request, path, method, server) =>
   (await routeTicketPath(request, path, method, server)) ??
   (await routeTicketViewPath(request, path, method, server)) ??
   (await routeCheckinPath(request, path, method, server)) ??
+  (await routeImagePath(request, path, method, server)) ??
   (await routePaymentPath(request, path, method, server)) ??
   (await routeJoinPath(request, path, method, server)) ??
   notFoundResponse();
@@ -146,6 +155,7 @@ const handleRequestInternal = async (
     return redirect("/setup");
   }
 
+  await loadCurrencyCode();
   return (await routeMainApp(request, path, method, server))!;
 };
 

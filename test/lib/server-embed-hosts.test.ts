@@ -2,10 +2,11 @@ import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { updateEmbedHosts } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
+  adminFormPost,
+  adminGet,
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
-  loginAsAdmin,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -24,9 +25,7 @@ describe("server (embed hosts)", () => {
 
   describe("GET /admin/settings (embed hosts section)", () => {
     test("shows embed hosts section on settings page", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const { response } = await adminGet("/admin/settings");
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Only allow embedding on these hosts");
@@ -35,18 +34,14 @@ describe("server (embed hosts)", () => {
 
     test("shows current embed hosts value when configured", async () => {
       await updateEmbedHosts("example.com, *.mysite.org");
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const { response } = await adminGet("/admin/settings");
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("example.com, *.mysite.org");
     });
 
     test("shows empty field when no embed hosts configured", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const { response } = await adminGet("/admin/settings");
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain('value=""');
@@ -65,36 +60,19 @@ describe("server (embed hosts)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/embed-hosts",
-          {
-            embed_hosts: "example.com",
-            csrf_token: "invalid-csrf-token",
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
+        embed_hosts: "example.com",
+        csrf_token: "invalid-csrf-token",
+      });
       expect(response.status).toBe(403);
       const text = await response.text();
       expect(text).toContain("Invalid CSRF token");
     });
 
     test("saves valid embed hosts", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/embed-hosts",
-          {
-            embed_hosts: "example.com, *.mysite.org",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
+        embed_hosts: "example.com, *.mysite.org",
+      });
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
@@ -102,18 +80,9 @@ describe("server (embed hosts)", () => {
     });
 
     test("normalizes hosts to lowercase", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/embed-hosts",
-          {
-            embed_hosts: "Example.COM, *.MySite.ORG",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
+      const { cookie } = await adminFormPost("/admin/settings/embed-hosts", {
+        embed_hosts: "Example.COM, *.MySite.ORG",
+      });
 
       // Verify by checking the settings page
       const settingsResponse = await awaitTestRequest("/admin/settings", { cookie });
@@ -122,28 +91,16 @@ describe("server (embed hosts)", () => {
     });
 
     test("clears embed hosts when empty", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // First set some hosts
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/embed-hosts",
-          {
-            embed_hosts: "example.com",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
+      const { cookie, csrfToken } = await adminFormPost("/admin/settings/embed-hosts", {
+        embed_hosts: "example.com",
+      });
 
       // Now clear them
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/embed-hosts",
-          {
-            embed_hosts: "",
-            csrf_token: csrfToken,
-          },
+          { embed_hosts: "", csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -154,18 +111,9 @@ describe("server (embed hosts)", () => {
     });
 
     test("rejects invalid host pattern", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/embed-hosts",
-          {
-            embed_hosts: "example.com, *",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
+        embed_hosts: "example.com, *",
+      });
 
       expect(response.status).toBe(400);
       const html = await response.text();
@@ -173,18 +121,9 @@ describe("server (embed hosts)", () => {
     });
 
     test("rejects host with protocol", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/embed-hosts",
-          {
-            embed_hosts: "https://example.com",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
+        embed_hosts: "https://example.com",
+      });
 
       expect(response.status).toBe(400);
       const html = await response.text();
@@ -192,15 +131,7 @@ describe("server (embed hosts)", () => {
     });
 
     test("handles missing embed_hosts field gracefully", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/embed-hosts",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { response } = await adminFormPost("/admin/settings/embed-hosts", {});
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;

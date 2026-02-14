@@ -12,6 +12,7 @@ import {
   holidayFields,
   mergeEventFields,
   validateAddress,
+  validateSpecialInstructions,
   validateBookableDays,
   validateDate,
   validatePhone,
@@ -78,6 +79,11 @@ describe("forms", () => {
     test("renders pattern attribute", () => {
       const html = rendered({ name: "code", label: "Code", pattern: "[A-Z]{3}" });
       expect(html).toContain('pattern="[A-Z]{3}"');
+    });
+
+    test("renders maxlength attribute", () => {
+      const html = rendered({ name: "desc", label: "Description", maxlength: 128 });
+      expect(html).toContain('maxlength="128"');
     });
 
     test("renders textarea for textarea type", () => {
@@ -163,10 +169,10 @@ describe("forms", () => {
       expect(values.price).toBeNull();
     });
 
-    test("returns null for empty optional text", () => {
+    test("returns empty string for empty optional text", () => {
       const fields: Field[] = [field({ name: "note", label: "Note" })];
       const values = expectValid(fields, { note: "" });
-      expect(values.note).toBeNull();
+      expect(values.note).toBe("");
     });
 
     test("runs custom validate function", () => {
@@ -222,14 +228,25 @@ describe("forms", () => {
       }
     });
 
-    test("returns null for empty checkbox-group", () => {
+    test("returns empty string for empty checkbox-group", () => {
       const fields: Field[] = [
         field({ name: "days", label: "Days", type: "checkbox-group" }),
       ];
       const result = validateForm(new URLSearchParams(), fields);
       expect(result.valid).toBe(true);
       if (result.valid) {
-        expect(result.values.days).toBeNull();
+        expect(result.values.days).toBe("");
+      }
+    });
+
+    test("skips file fields in validation and returns null value", () => {
+      const fields: Field[] = [
+        field({ name: "image", label: "Image", type: "file" }),
+      ];
+      const result = validateForm(new URLSearchParams(), fields);
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.values.image).toBeNull();
       }
     });
   });
@@ -292,21 +309,27 @@ describe("forms", () => {
     });
 
     test("validates description rejects values exceeding max length", () => {
-      const longDescription = "a".repeat(129);
+      const longDescription = "a".repeat(257);
       expectInvalid(
-        "Description must be 128 characters or fewer",
+        "Description must be 256 characters or fewer",
       )(eventFields, eventForm({ description: longDescription }));
     });
 
     test("validates description accepts values within max length", () => {
       expectValid(
         eventFields,
-        eventForm({ description: "a".repeat(128) }),
+        eventForm({ description: "a".repeat(256) }),
       );
     });
 
     test("validates description accepts empty value", () => {
       expectValid(eventFields, eventForm({ description: "" }));
+    });
+
+    test("description field has maxlength of 256", () => {
+      const descField = eventFields.find((f) => f.name === "description");
+      expect(descField).toBeDefined();
+      expect(descField!.maxlength).toBe(256);
     });
   });
 
@@ -417,6 +440,26 @@ describe("forms", () => {
     });
   });
 
+  describe("validateSpecialInstructions", () => {
+    test("accepts short special instructions", () => {
+      expect(validateSpecialInstructions("No nuts please")).toBeNull();
+    });
+
+    test("accepts special instructions at max length (250)", () => {
+      expect(validateSpecialInstructions("a".repeat(250))).toBeNull();
+    });
+
+    test("rejects special instructions exceeding max length", () => {
+      expect(validateSpecialInstructions("a".repeat(251))).toBe(
+        "Special instructions must be 250 characters or fewer",
+      );
+    });
+
+    test("accepts multi-line special instructions within limit", () => {
+      expect(validateSpecialInstructions("Line 1\nLine 2\nLine 3")).toBeNull();
+    });
+  });
+
   describe("getTicketFields", () => {
     test("returns name and email fields for email setting", () => {
       const fields = getTicketFields("email");
@@ -475,6 +518,30 @@ describe("forms", () => {
       expect(addrField.type).toBe("textarea");
     });
 
+    test("returns name and special_instructions fields for special_instructions setting", () => {
+      const fields = getTicketFields("special_instructions");
+      expect(fields.length).toBe(2);
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("special_instructions");
+    });
+
+    test("special_instructions field has validation", () => {
+      const field = getTicketFields("special_instructions")[1]!;
+      expect(field.validate).toBeDefined();
+      expect(field.required).toBe(true);
+      expect(field.type).toBe("textarea");
+    });
+
+    test("returns all five contact fields for email,phone,address,special_instructions setting", () => {
+      const fields = getTicketFields("email,phone,address,special_instructions");
+      expect(fields.length).toBe(5);
+      expect(fields[0]!.name).toBe("name");
+      expect(fields[1]!.name).toBe("email");
+      expect(fields[2]!.name).toBe("phone");
+      expect(fields[3]!.name).toBe("address");
+      expect(fields[4]!.name).toBe("special_instructions");
+    });
+
     test("ignores unknown field names in comma-separated setting", () => {
       const fields = getTicketFields("email,bogus,phone");
       expect(fields.length).toBe(3);
@@ -530,6 +597,10 @@ describe("forms", () => {
     test("sorts output in canonical CONTACT_FIELDS order", () => {
       expect(mergeEventFields(["address", "email"])).toBe("email,address");
     });
+
+    test("includes special_instructions when merged", () => {
+      expect(mergeEventFields(["email,special_instructions", "phone"])).toBe("email,phone,special_instructions");
+    });
   });
 
   describe("eventFields Contact Fields validation", () => {
@@ -558,6 +629,14 @@ describe("forms", () => {
 
     test("validates fields select accepts email,phone,address", () => {
       expectValid(eventFields, eventForm({ fields: "email,phone,address" }));
+    });
+
+    test("validates fields select accepts special_instructions", () => {
+      expectValid(eventFields, eventForm({ fields: "special_instructions" }));
+    });
+
+    test("validates fields select accepts email,phone,address,special_instructions", () => {
+      expectValid(eventFields, eventForm({ fields: "email,phone,address,special_instructions" }));
     });
   });
 
@@ -751,8 +830,10 @@ describe("forms", () => {
       const html = rendered({ name: "closes_at", label: "Closes At", type: "datetime" });
       expect(html).toContain('type="date"');
       expect(html).toContain('name="closes_at_date"');
+      expect(html).toContain('placeholder="Date"');
       expect(html).toContain('type="time"');
       expect(html).toContain('name="closes_at_time"');
+      expect(html).toContain('placeholder="Time"');
     });
 
     test("renders split inputs with value", () => {
@@ -828,6 +909,21 @@ describe("forms", () => {
       if (!result.valid) {
         expect(result.error).toBe("Please enter both a date and time, or leave both blank");
       }
+    });
+  });
+
+  describe("renderField file type", () => {
+    test("renders file input with accept attribute", () => {
+      const html = rendered({
+        name: "image",
+        label: "Upload Image",
+        type: "file",
+        accept: "image/jpeg,image/png",
+      });
+      expect(html).toContain('type="file"');
+      expect(html).toContain('name="image"');
+      expect(html).toContain('accept="image/jpeg,image/png"');
+      expect(html).toContain("Upload Image");
     });
   });
 

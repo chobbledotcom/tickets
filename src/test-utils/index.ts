@@ -4,6 +4,7 @@
 
 import { type Client, createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
+import { resetCurrencyCode, setCurrencyCodeForTest, toMajorUnits } from "#lib/currency.ts";
 import { setDb } from "#lib/db/client.ts";
 import {
   getEventWithCount,
@@ -11,7 +12,7 @@ import {
 } from "#lib/db/events.ts";
 import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
-import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, invalidateTermsCache } from "#lib/db/settings.ts";
+import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, invalidateTermsCache, updateTimezone } from "#lib/db/settings.ts";
 import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
 
 /**
@@ -167,10 +168,15 @@ export const createTestDbWithSetup = async (
         });
       }
     }
+    setCurrencyCodeForTest(currency);
     return;
   }
 
   await completeSetup(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD, currency);
+  setCurrencyCodeForTest(currency);
+
+  // Default timezone to UTC for tests so datetime-local values pass through unchanged
+  await updateTimezone("UTC");
 
   // Snapshot settings AND users for reuse
   const result = await cachedClient!.execute("SELECT key, value FROM settings");
@@ -216,6 +222,7 @@ export const resetDb = (): void => {
   invalidateTermsCache();
   resetSessionCache();
   resetTestSession();
+  resetCurrencyCode();
 };
 
 /**
@@ -268,6 +275,34 @@ export const mockFormRequest = (
     method: "POST",
     headers,
     body,
+  });
+};
+
+/**
+ * Create a mock multipart POST request with optional file upload.
+ * Text fields are added as form entries, and an optional file is appended.
+ */
+export const mockMultipartRequest = (
+  path: string,
+  data: Record<string, string>,
+  cookie?: string,
+  file?: { name: string; fieldName: string; data: Uint8Array; contentType: string },
+): Request => {
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(data)) {
+    formData.append(key, value);
+  }
+  if (file) {
+    // deno-lint-ignore no-explicit-any
+    const blob = new Blob([file.data as any], { type: file.contentType });
+    formData.append(file.fieldName, blob, file.name);
+  }
+  const headers: HeadersInit = { host: "localhost" };
+  if (cookie) headers.cookie = cookie;
+  return new Request(`http://localhost${path}`, {
+    method: "POST",
+    headers,
+    body: formData,
   });
 };
 
@@ -584,10 +619,11 @@ export const resetTestSession = (): void => {
 };
 
 /**
- * Execute an authenticated form request expecting a redirect.
+ * Execute an authenticated request expecting a redirect.
  * Handles session management, CSRF tokens, and status validation.
  */
-const authenticatedFormRequest = async <T>(
+const authenticatedRequest = async <T>(
+  buildRequest: (path: string, data: Record<string, string>, cookie: string) => Request,
   path: string,
   formData: Record<string, string>,
   onSuccess: () => Promise<T>,
@@ -597,7 +633,7 @@ const authenticatedFormRequest = async <T>(
   const { handleRequest } = await import("#routes");
 
   const response = await handleRequest(
-    mockFormRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
+    buildRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
   );
 
   if (response.status !== 302) {
@@ -606,6 +642,22 @@ const authenticatedFormRequest = async <T>(
 
   return onSuccess();
 };
+
+/** Authenticated URL-encoded form request (deactivate, holidays, etc.) */
+const authenticatedFormRequest = <T>(
+  path: string,
+  formData: Record<string, string>,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+): Promise<T> => authenticatedRequest(mockFormRequest, path, formData, onSuccess, errorContext);
+
+/** Authenticated multipart form request (event create/edit with file uploads) */
+const authenticatedMultipartFormRequest = <T>(
+  path: string,
+  formData: Record<string, string>,
+  onSuccess: () => Promise<T>,
+  errorContext: string,
+): Promise<T> => authenticatedRequest(mockMultipartRequest, path, formData, onSuccess, errorContext);
 
 /**
  * Create an event via the REST API
@@ -620,7 +672,7 @@ export const createTestEvent = (
   const closesAtParts = splitClosesAt(input.closesAt, null);
   const dateParts = splitClosesAt(input.date, null);
 
-  return authenticatedFormRequest(
+  return authenticatedMultipartFormRequest(
     "/admin/event",
     {
       name: input.name,
@@ -632,7 +684,7 @@ export const createTestEvent = (
       max_quantity: String(input.maxQuantity ?? 1),
       fields: input.fields ?? "email",
       thank_you_url: input.thankYouUrl ?? "",
-      unit_price: input.unitPrice != null ? String(input.unitPrice) : "",
+      unit_price: input.unitPrice != null ? priceFormValue(input.unitPrice) : "",
       webhook_url: input.webhookUrl ?? "",
       closes_at_date: closesAtParts.date,
       closes_at_time: closesAtParts.time,
@@ -657,17 +709,21 @@ export const createTestEvent = (
   );
 };
 
-/** Format optional price field for form submission */
+/** Convert a price in minor units to the form value in major units */
+export const priceFormValue = (minorUnits: number): string =>
+  toMajorUnits(minorUnits);
+
+/** Format optional price field for form submission (converts minor → major units) */
 const formatPrice = (
   update: number | null | undefined,
   existing: number | null,
 ): string =>
   update !== undefined
     ? update != null
-      ? String(update)
+      ? priceFormValue(update)
       : ""
     : existing != null
-      ? String(existing)
+      ? priceFormValue(existing)
       : "";
 
 /** Format optional nullable string field for form submission */
@@ -707,7 +763,7 @@ export const updateTestEvent = async (
   const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
   const dateParts = splitClosesAt(updates.date, existing.date);
 
-  return authenticatedFormRequest(
+  return authenticatedMultipartFormRequest(
     `/admin/event/${eventId}/edit`,
     {
       name: updates.name ?? existing.name,
@@ -910,6 +966,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
   minimum_days_before: 0,
   maximum_days_after: 0,
+  image_url: "",
   ...overrides,
 });
 
@@ -930,6 +987,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   email: "john@example.com",
   phone: "",
   address: "",
+  special_instructions: "",
   created: "2024-01-01T12:00:00Z",
   payment_id: null,
   quantity: 1,
@@ -1114,6 +1172,67 @@ export const deleteTestHoliday = async (
 export type { HolidayInput };
 
 /**
+ * Create an attendee and return both the attendee and their ticket token.
+ * Combines createTestAttendee + getAttendeesRaw into a single call.
+ */
+export const createTestAttendeeWithToken = async (
+  name: string,
+  email: string,
+  eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+  quantity = 1,
+  phone = "",
+): Promise<{ event: Event; attendee: Attendee; token: string }> => {
+  const event = await createTestEvent({ maxAttendees: 10, ...eventOverrides });
+  const attendee = await createTestAttendee(event.id, event.slug, name, email, quantity, phone);
+  const attendees = await getAttendeesRaw(event.id);
+  return { event, attendee, token: attendees[0]!.ticket_token };
+};
+
+/**
+ * Perform an admin POST with form data (auto-login + auto-CSRF).
+ * Logs in as admin, injects the CSRF token, and submits the form.
+ * To test invalid CSRF, include csrf_token in data to override the default.
+ */
+export const adminFormPost = async (
+  path: string,
+  data: Record<string, string> = {},
+): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
+  const { cookie, csrfToken } = await loginAsAdmin();
+  const { handleRequest } = await import("#routes");
+  const response = await handleRequest(
+    mockFormRequest(path, { csrf_token: csrfToken, ...data }, cookie),
+  );
+  return { response, cookie, csrfToken };
+};
+
+/**
+ * Perform an authenticated admin GET request (auto-login).
+ */
+export const adminGet = async (
+  path: string,
+): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
+  const { cookie, csrfToken } = await loginAsAdmin();
+  const response = await awaitTestRequest(path, { cookie });
+  return { response, cookie, csrfToken };
+};
+
+const allDays = JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
+
+/**
+ * Create a daily event with all days bookable. Reduces boilerplate in calendar tests.
+ */
+export const createDailyTestEvent = (
+  overrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+) =>
+  createTestEvent({
+    eventType: "daily",
+    bookableDays: allDays,
+    minimumDaysBefore: 0,
+    maximumDaysAfter: 14,
+    ...overrides,
+  });
+
+/**
  * Create a paid test attendee directly via createAttendeeAtomic.
  * Use this instead of createTestAttendee when you need a payment_id on the attendee.
  */
@@ -1142,4 +1261,78 @@ import type { PaymentProviderType } from "#lib/payments.ts";
 
 /** Mock return type for getConfiguredProvider */
 export const mockProviderType = (type: PaymentProviderType): PaymentProviderType | null => type;
+
+// ---------------------------------------------------------------------------
+// Admin test context helpers
+// Curried helpers for common admin test patterns (event + attendee + session).
+// Eliminates the repeated setup boilerplate in admin route tests.
+// ---------------------------------------------------------------------------
+
+export type AdminTestContext = {
+  event: Event;
+  attendee: Attendee;
+  cookie: string;
+  csrfToken: string;
+};
+
+/**
+ * Creates standard admin test context: event + attendee + admin session.
+ * Use directly when tests need custom request flows beyond the curried helpers.
+ */
+export const setupAdminTest = async (
+  eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+): Promise<AdminTestContext> => {
+  const event = await createTestEvent({
+    maxAttendees: 100,
+    thankYouUrl: "https://example.com",
+    ...eventOverrides,
+  });
+  const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+  const { cookie, csrfToken } = await loginAsAdmin();
+  return { event, attendee, cookie, csrfToken };
+};
+
+/**
+ * Curried admin form POST for attendee actions.
+ * Creates event + attendee + admin session, POSTs form to the attendee action URL.
+ * csrf_token is auto-injected; include it in formData to override (e.g. "invalid-token").
+ *
+ *   const deleteAction = adminAttendeeAction("delete");
+ *   const { response } = await deleteAction({ confirm_name: "John Doe" })();
+ */
+export const adminAttendeeAction =
+  (action: string) =>
+  (formData: Record<string, string> = {}) =>
+  async (
+    eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+  ): Promise<AdminTestContext & { response: Response }> => {
+    const ctx = await setupAdminTest(eventOverrides);
+    const { handleRequest } = await import("#routes");
+    const response = await handleRequest(
+      mockFormRequest(
+        `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/${action}`,
+        { csrf_token: ctx.csrfToken, ...formData },
+        ctx.cookie,
+      ),
+    );
+    return { ...ctx, response };
+  };
+
+/**
+ * Curried admin GET for event pages with attendee setup.
+ * Creates event + attendee + admin session, GETs the specified page.
+ *
+ *   const { response } = await adminEventPage(
+ *     ctx => `/admin/event/${ctx.event.id}?checkin_status=in`,
+ *   )();
+ */
+export const adminEventPage =
+  (pathFn: (ctx: AdminTestContext) => string) =>
+  async (
+    eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
+  ): Promise<AdminTestContext & { response: Response }> => {
+    const ctx = await setupAdminTest(eventOverrides);
+    const response = await awaitTestRequest(pathFn(ctx), { cookie: ctx.cookie });
+    return { ...ctx, response };
+  };
 

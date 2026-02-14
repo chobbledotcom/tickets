@@ -28,6 +28,7 @@ export const adminSettingsPage = (
   webhookUrl?: string,
   embedHosts?: string | null,
   termsAndConditions?: string | null,
+  timezone?: string,
 ): string =>
   String(
     <Layout title="Settings">
@@ -35,6 +36,19 @@ export const adminSettingsPage = (
 
       {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}
+
+        <form method="POST" action="/admin/settings/timezone">
+            <h2>Timezone</h2>
+          <p>All dates and times will be interpreted and displayed in this timezone.</p>
+          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          <label for="timezone">IANA Timezone</label>
+          <select id="timezone" name="timezone" required>
+            {Intl.supportedValuesOf("timeZone").map((tz: string) => (
+              <option value={tz} selected={tz === (timezone ?? "Europe/London")}>{tz}</option>
+            ))}
+          </select>
+          <button type="submit">Save Timezone</button>
+        </form>
 
         <form method="POST" action="/admin/settings/payment-provider">
             <h2>Payment Provider</h2>

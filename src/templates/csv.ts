@@ -4,6 +4,7 @@
 
 import { map, pipe, reduce } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
+import { toMajorUnits } from "#lib/currency.ts";
 import type { Attendee } from "#lib/types.ts";
 
 /** Attendee with associated event info for calendar CSV */
@@ -25,10 +26,10 @@ const escapeCsvValue = (value: string): string => {
   return value;
 };
 
-/** Format price in cents as decimal string (e.g. 1000 -> "10.00") */
+/** Format price in minor units as decimal string using configured currency */
 const formatPrice = (pricePaid: string | null): string => {
   if (pricePaid === null) return "";
-  return (Number.parseInt(pricePaid, 10) / 100).toFixed(2);
+  return toMajorUnits(Number.parseInt(pricePaid, 10));
 };
 
 /** Format checked_in value as Yes/No */
@@ -41,6 +42,7 @@ const attendeeCols = (a: Attendee, domain: string): string[] => [
   escapeCsvValue(a.email),
   escapeCsvValue(a.phone),
   escapeCsvValue(a.address),
+  escapeCsvValue(a.special_instructions),
   String(a.quantity),
   escapeCsvValue(new Date(a.created).toISOString()),
   formatPrice(a.price_paid),
@@ -87,7 +89,7 @@ export const generateAttendeesCsv = (
   const headerParts = [
     ...(includeDate ? ["Date"] : []),
     ...eventInfoHeaders(showEventDate, showEventLocation),
-    "Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+    "Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
   ];
   return buildCsv(headerParts.join(","), (a: Attendee, domain) => [
     ...(includeDate ? [escapeCsvValue(a.date ?? "")] : []),
@@ -106,7 +108,7 @@ export const generateCalendarCsv = (attendees: CalendarAttendee[]): string => {
   const headerParts = [
     "Event",
     ...eventInfoHeaders(showEventDate, showEventLocation),
-    "Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
+    "Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL",
   ];
   return buildCsv(headerParts.join(","), (a: CalendarAttendee, domain) => [
     escapeCsvValue(a.eventName),

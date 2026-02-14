@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { handleRequest } from "#routes";
+import { handleRequest, isValidContentType } from "#routes";
 import {
   createTestDb,
   createTestDbWithSetup,
@@ -45,6 +45,21 @@ describe("server (misc)", () => {
         expect(response.headers.get("x-frame-options")).toBeNull();
       });
 
+      test("multi-slug ticket page does NOT have X-Frame-Options (embeddable)", async () => {
+        const event1 = await createTestEvent({
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com",
+        });
+        const event2 = await createTestEvent({
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com",
+        });
+        const response = await handleRequest(
+          mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+        );
+        expect(response.headers.get("x-frame-options")).toBeNull();
+      });
+
       test("payment pages have X-Frame-Options: DENY", async () => {
         const response = await handleRequest(mockRequest("/payment/success"));
         expect(response.headers.get("x-frame-options")).toBe("DENY");
@@ -76,6 +91,21 @@ describe("server (misc)", () => {
         });
         const response = await handleRequest(
           mockRequest(`/ticket/${event.slug}`),
+        );
+        expect(response.headers.get("content-security-policy")).toBe(baseCsp);
+      });
+
+      test("multi-slug ticket page allows embedding (no frame-ancestors)", async () => {
+        const event1 = await createTestEvent({
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com",
+        });
+        const event2 = await createTestEvent({
+          maxAttendees: 50,
+          thankYouUrl: "https://example.com",
+        });
+        const response = await handleRequest(
+          mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
         );
         expect(response.headers.get("content-security-policy")).toBe(baseCsp);
       });
@@ -146,6 +176,18 @@ describe("server (misc)", () => {
       expect(response.status).toBe(400);
       const text = await response.text();
       expect(text).toContain("Invalid Content-Type");
+    });
+
+    test("accepts POST requests with multipart/form-data Content-Type", () => {
+      const request = new Request("http://localhost/admin/login", {
+        method: "POST",
+        headers: {
+          host: "localhost",
+          "content-type": "multipart/form-data; boundary=----test",
+        },
+        body: "------test--",
+      });
+      expect(isValidContentType(request, "/admin/login")).toBe(true);
     });
   });
 

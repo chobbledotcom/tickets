@@ -4,7 +4,7 @@ import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { addDays } from "#lib/dates.ts";
-import { today } from "#lib/now.ts";
+import { todayInTz } from "#lib/timezone.ts";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
@@ -264,6 +264,80 @@ describe("server (public routes)", () => {
       expect(html).not.toContain('class="iframe"');
       expect(html).toContain("<h1>");
       expect(html).toContain("A &lt;b&gt;great&lt;/b&gt; event");
+    });
+
+    test("sets SameSite=None and Partitioned on CSRF cookie in iframe mode", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}?iframe=true`),
+      );
+      const cookie = response.headers.get("set-cookie") || "";
+      expect(cookie).toContain("SameSite=None");
+      expect(cookie).toContain("Partitioned");
+      expect(cookie).not.toContain("SameSite=Strict");
+    });
+
+    test("sets SameSite=Strict on CSRF cookie without iframe", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      const cookie = response.headers.get("set-cookie") || "";
+      expect(cookie).toContain("SameSite=Strict");
+      expect(cookie).not.toContain("SameSite=None");
+      expect(cookie).not.toContain("Partitioned");
+    });
+
+    test("form action includes ?iframe=true in iframe mode", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}?iframe=true`),
+      );
+      const html = await response.text();
+      expect(html).toContain(`action="/ticket/${event.slug}?iframe=true"`);
+    });
+
+    test("form action does not include ?iframe=true without iframe param", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      const html = await response.text();
+      expect(html).toContain(`action="/ticket/${event.slug}"`);
+      expect(html).not.toContain("?iframe=true");
+    });
+
+    test("POST with iframe=true succeeds with valid CSRF token", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const getResponse = await handleRequest(
+        mockRequest(`/ticket/${event.slug}?iframe=true`),
+      );
+      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      expect(csrfToken).not.toBe(null);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/ticket/${event.slug}?iframe=true`,
+          { name: "Test User", email: "test@example.com", quantity: "1", csrf_token: csrfToken! },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expect(response.status).toBe(302);
+    });
+
+    test("CSRF error response uses SameSite=None and Partitioned in iframe mode", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockFormRequest(
+          `/ticket/${event.slug}?iframe=true`,
+          { name: "Test", csrf_token: "wrong-token" },
+          "csrf_token=different-token",
+        ),
+      );
+      expect(response.status).toBe(403);
+      const cookie = response.headers.get("set-cookie") || "";
+      expect(cookie).toContain("SameSite=None");
+      expect(cookie).toContain("Partitioned");
     });
   });
 
@@ -538,6 +612,40 @@ describe("server (public routes)", () => {
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
       expect(response.status).toBe(404);
+    });
+
+    test("sets SameSite=None and Partitioned on CSRF cookie in iframe mode", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}?iframe=true`),
+      );
+      const cookie = response.headers.get("set-cookie") || "";
+      expect(cookie).toContain("SameSite=None");
+      expect(cookie).toContain("Partitioned");
+      expect(cookie).not.toContain("SameSite=Strict");
+    });
+
+    test("sets SameSite=Strict on CSRF cookie without iframe", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
+      );
+      const cookie = response.headers.get("set-cookie") || "";
+      expect(cookie).toContain("SameSite=Strict");
+      expect(cookie).not.toContain("SameSite=None");
+      expect(cookie).not.toContain("Partitioned");
+    });
+
+    test("form action includes ?iframe=true in iframe mode", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}?iframe=true`),
+      );
+      const html = await response.text();
+      expect(html).toContain(`action="/ticket/${event1.slug}+${event2.slug}?iframe=true"`);
     });
   });
 
@@ -1681,7 +1789,7 @@ describe("server (public routes)", () => {
 
   describe("daily events (single ticket)", () => {
     // A valid bookable date: tomorrow (today + 1 day)
-    const validDate = addDays(today(), 1);
+    const validDate = addDays(todayInTz("UTC"), 1);
 
     test("GET shows date selector for daily event", async () => {
       const event = await createTestEvent({
@@ -1805,7 +1913,7 @@ describe("server (public routes)", () => {
       expect(response1.status).toBe(302);
 
       // Book different date should succeed
-      const otherDate = addDays(today(), 2);
+      const otherDate = addDays(todayInTz("UTC"), 2);
       const response2 = await submitTicketForm(event.slug, {
         name: "Second User",
         email: "second@example.com",
@@ -1871,7 +1979,7 @@ describe("server (public routes)", () => {
   });
 
   describe("daily events (multi-ticket)", () => {
-    const validDate = addDays(today(), 1);
+    const validDate = addDays(todayInTz("UTC"), 1);
 
     test("GET shows date selector for multi-ticket with daily events", async () => {
       const event1 = await createTestEvent({

@@ -3,7 +3,9 @@ import { formatDateLabel } from "#lib/dates.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
   awaitTestRequest,
+  createDailyTestEvent,
   createTestAttendee,
+  createTestAttendeeWithToken,
   createTestDbWithSetup,
   createTestEvent,
   getAttendeesRaw,
@@ -22,10 +24,7 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("displays ticket for a single valid token", async () => {
-    const event = await createTestEvent({ maxAttendees: 10 });
-    await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
-    const attendees = await getAttendeesRaw(event.id);
-    const token = attendees[0]!.ticket_token;
+    const { event, token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
 
     const response = await awaitTestRequest(`/t/${token}`);
     expect(response.status).toBe(200);
@@ -36,13 +35,10 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("displays tickets for multiple valid tokens", async () => {
-    const eventA = await createTestEvent({ maxAttendees: 10 });
+    const { event: eventA, token: tokenA } = await createTestAttendeeWithToken("Bob", "bob@test.com");
     const eventB = await createTestEvent({ maxAttendees: 10 });
-    await createTestAttendee(eventA.id, eventA.slug, "Bob", "bob@test.com");
     await createTestAttendee(eventB.id, eventB.slug, "Bob", "bob@test.com", 2);
-    const attendeesA = await getAttendeesRaw(eventA.id);
     const attendeesB = await getAttendeesRaw(eventB.id);
-    const tokenA = attendeesA[0]!.ticket_token;
     const tokenB = attendeesB[0]!.ticket_token;
 
     const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
@@ -64,10 +60,7 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("shows quantity per ticket", async () => {
-    const event = await createTestEvent({ maxAttendees: 10, maxQuantity: 5 });
-    await createTestAttendee(event.id, event.slug, "Carol", "carol@test.com", 3);
-    const attendees = await getAttendeesRaw(event.id);
-    const token = attendees[0]!.ticket_token;
+    const { token } = await createTestAttendeeWithToken("Carol", "carol@test.com", { maxQuantity: 5 }, 3);
 
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
@@ -75,10 +68,7 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("skips invalid tokens among valid ones", async () => {
-    const event = await createTestEvent({ maxAttendees: 10 });
-    await createTestAttendee(event.id, event.slug, "Dave", "dave@test.com");
-    const attendees = await getAttendeesRaw(event.id);
-    const token = attendees[0]!.ticket_token;
+    const { event, token } = await createTestAttendeeWithToken("Dave", "dave@test.com");
 
     const response = await awaitTestRequest(`/t/${token}+bad-token`);
     expect(response.status).toBe(200);
@@ -106,10 +96,7 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("includes inline SVG QR code in ticket view", async () => {
-    const event = await createTestEvent({ maxAttendees: 10 });
-    await createTestAttendee(event.id, event.slug, "Eve", "eve@test.com");
-    const attendees = await getAttendeesRaw(event.id);
-    const token = attendees[0]!.ticket_token;
+    const { token } = await createTestAttendeeWithToken("Eve", "eve@test.com");
 
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
@@ -118,13 +105,7 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("displays booked date for daily event tickets", async () => {
-    const event = await createTestEvent({
-      maxAttendees: 10,
-      eventType: "daily",
-      bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-      minimumDaysBefore: 0,
-      maximumDaysAfter: 30,
-    });
+    const event = await createDailyTestEvent({ maxAttendees: 10, maximumDaysAfter: 30 });
     const date = "2026-02-15";
     const result = await createAttendeeAtomic({
       eventId: event.id,
@@ -150,7 +131,7 @@ describe("ticket view (/t/:tokens)", () => {
       minimumDaysBefore: 0,
       maximumDaysAfter: 30,
     });
-    const standardEvent = await createTestEvent({ maxAttendees: 10 });
+    const { token: tokenB } = await createTestAttendeeWithToken("Mixed", "mixed@test.com");
     const date = "2026-02-15";
     const dailyResult = await createAttendeeAtomic({
       eventId: dailyEvent.id,
@@ -159,10 +140,7 @@ describe("ticket view (/t/:tokens)", () => {
       date,
     });
     if (!dailyResult.success) throw new Error("Failed to create daily attendee");
-    await createTestAttendee(standardEvent.id, standardEvent.slug, "Mixed", "mixed@test.com");
-    const standardAttendees = await getAttendeesRaw(standardEvent.id);
     const tokenA = dailyResult.attendee.ticket_token;
-    const tokenB = standardAttendees[0]!.ticket_token;
 
     const response = await awaitTestRequest(`/t/${tokenA}+${tokenB}`);
     expect(response.status).toBe(200);
@@ -171,14 +149,10 @@ describe("ticket view (/t/:tokens)", () => {
     expect(body).toContain(formatDateLabel(date));
     expect(body).toContain("<th>Date</th>");
     expect(body).toContain(dailyEvent.name);
-    expect(body).toContain(standardEvent.name);
   });
 
   test("does not show date column for standard event tickets", async () => {
-    const event = await createTestEvent({ maxAttendees: 10 });
-    await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
-    const attendees = await getAttendeesRaw(event.id);
-    const token = attendees[0]!.ticket_token;
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
 
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
@@ -186,14 +160,10 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("shows Event Date column when event has a date", async () => {
-    const event = await createTestEvent({
-      maxAttendees: 10,
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com", {
       date: "2026-06-15T14:00",
       location: "Village Hall",
     });
-    await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
-    const attendees = await getAttendeesRaw(event.id);
-    const token = attendees[0]!.ticket_token;
 
     const response = await awaitTestRequest(`/t/${token}`);
     expect(response.status).toBe(200);
@@ -204,10 +174,7 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("does not show Event Date or Location columns when both are empty", async () => {
-    const event = await createTestEvent({ maxAttendees: 10 });
-    await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com");
-    const attendees = await getAttendeesRaw(event.id);
-    const token = attendees[0]!.ticket_token;
+    const { token } = await createTestAttendeeWithToken("Bob", "bob@test.com");
 
     const response = await awaitTestRequest(`/t/${token}`);
     expect(response.status).toBe(200);

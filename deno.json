@@ -13,7 +13,7 @@
     "fmt": "deno fmt src test scripts",
     "typecheck": "deno check src/**/*.ts src/**/*.tsx test/**/*.ts",
     "cpd": "deno run -A npm:jscpd src --config .jscpd.json",
-    "precommit": "deno task typecheck && deno task lint && deno task cpd && deno task test:coverage"
+    "precommit": "deno task typecheck && deno task lint && deno task cpd && deno task build:edge && deno task test:coverage"
   },
   "imports": {
     "#fp": "./src/fp/index.ts",
@@ -39,6 +39,8 @@
     "square": "npm:square@^43.0.0",
     "esbuild": "npm:esbuild@^0.20.0",
     "@bunny.net/edgescript-sdk": "npm:@bunny.net/edgescript-sdk@^0.12.0",
+    "@internationalized/date": "npm:@internationalized/date@^3.8.0",
+    "@bunny.net/storage-sdk": "npm:@bunny.net/storage-sdk@^0.2.0",
     "jsqr": "npm:jsqr@^1.4.0",
     "qrcode": "npm:qrcode@^1.5.0",
     "@std/assert": "jsr:@std/assert@1",
@@ -57,13 +59,13 @@
   },
   "lint": {
     "include": ["src/", "test/", "scripts/"],
-    "exclude": ["src/client/", "src/static/scanner.js"],
+    "exclude": ["src/client/", "src/static/admin.js", "src/static/scanner.js"],
     "rules": {
       "tags": ["recommended"]
     }
   },
   "fmt": {
     "include": ["src/", "test/", "scripts/"],
-    "exclude": ["src/client/", "src/static/scanner.js"]
+    "exclude": ["src/client/", "src/static/admin.js", "src/static/scanner.js"]
   }
 }

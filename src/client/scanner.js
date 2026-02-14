@@ -144,11 +144,11 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
 /** Initialize scanner when DOM is ready */
 const init = () => {
   const video = document.getElementById("scanner-video");
-  const canvas = document.getElementById("scanner-canvas");
+  const canvas = document.createElement("canvas");
   const statusEl = document.getElementById("scanner-status");
   const startBtn = document.getElementById("scanner-start");
 
-  if (!video || !canvas || !statusEl || !startBtn) return;
+  if (!video || !statusEl || !startBtn) return;
 
   const eventId = video.dataset.eventId;
   const csrfMeta = document.querySelector('meta[name="csrf-token"]');

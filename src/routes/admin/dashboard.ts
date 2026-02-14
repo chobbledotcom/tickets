@@ -21,8 +21,10 @@ export const loginResponse = (error?: string, status = 200) =>
 const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
-    async (session) =>
-      htmlResponse(adminDashboardPage(await getAllEvents(), session, getAllowedDomain())),
+    async (session) => {
+      const imageError = new URL(request.url).searchParams.get("image_error");
+      return htmlResponse(adminDashboardPage(await getAllEvents(), session, getAllowedDomain(), imageError));
+    },
     () => loginResponse(),
   );
 

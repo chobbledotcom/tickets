@@ -43,12 +43,18 @@ export const getSecurityHeaders = (
   "content-security-policy": buildCspHeader(embeddable),
 });
 
+/** Single slug: alphanumeric segments joined by hyphens (e.g. "a1b2" or "my-event") */
+const SLUG = "[a-z0-9]+(?:-[a-z0-9]+)*";
+
+/** Matches /ticket/ with one or more slugs separated by + */
+const EMBEDDABLE_PATH = new RegExp(`^/ticket/${SLUG}(?:\\+${SLUG})*$`);
+
 /**
  * Check if a path is embeddable (public ticket pages only)
  * Paths are normalized to strip trailing slashes
  */
 export const isEmbeddablePath = (path: string): boolean =>
-  /^\/ticket\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(path);
+  EMBEDDABLE_PATH.test(path);
 
 /**
  * Extract hostname from Host header (removes port if present)
@@ -100,8 +106,9 @@ export const isValidContentType = (request: Request, path: string): boolean => {
     return contentType.startsWith("application/json");
   }
 
-  // All other POST endpoints require form-urlencoded
-  return contentType.startsWith("application/x-www-form-urlencoded");
+  // All other POST endpoints require form-urlencoded or multipart (for file uploads)
+  return contentType.startsWith("application/x-www-form-urlencoded") ||
+    contentType.startsWith("multipart/form-data");
 };
 
 /**

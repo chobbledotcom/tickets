@@ -3,7 +3,7 @@
  */
 
 import { flatMap, map, pipe, reduce, sort, unique } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getAllowedDomain, getTz } from "#lib/config.ts";
 import { formatDateLabel, getAvailableDates } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendees } from "#lib/db/attendees.ts";
@@ -26,9 +26,10 @@ const compileDateOptions = (
   events: EventWithCount[],
   attendeeDates: string[],
   holidays: { id: number; name: string; start_date: string; end_date: string }[],
+  tz: string,
 ): CalendarDateOption[] => {
   const availableDates = pipe(
-    flatMap((event: EventWithCount) => getAvailableDates(event, holidays)),
+    flatMap((event: EventWithCount) => getAvailableDates(event, holidays, tz)),
     unique,
   )(events);
 
@@ -57,15 +58,15 @@ const buildCalendarAttendees = (
     new Map<number, EventWithCount>(),
   )(events);
 
-  return flatMap((a: Attendee): CalendarAttendeeRow[] => {
-    const event = eventById.get(a.event_id);
-    return event ? [{
+  return map((a: Attendee): CalendarAttendeeRow => {
+    const event = eventById.get(a.event_id)!;
+    return {
       ...a,
       eventName: event.name,
       eventDate: event.date,
       eventLocation: event.location,
       eventId: event.id,
-    }] : [];
+    };
   })(attendees);
 };
 
@@ -80,10 +81,11 @@ const withCalendarSession = (
  */
 const handleAdminCalendarGet = (request: Request) =>
   withCalendarSession(request, async (session, dateFilter) => {
+    const tz = getTz();
     const [events, attendeeDates, holidays] = await Promise.all([
       getAllDailyEvents(),
       getDailyEventAttendeeDates(),
-      getActiveHolidays(),
+      getActiveHolidays(tz),
     ]);
 
     let attendees: CalendarAttendeeRow[] = [];
@@ -94,7 +96,7 @@ const handleAdminCalendarGet = (request: Request) =>
       attendees = buildCalendarAttendees(events, decrypted);
     }
 
-    const availableDates = compileDateOptions(events, attendeeDates, holidays);
+    const availableDates = compileDateOptions(events, attendeeDates, holidays, tz);
     return htmlResponse(
       adminCalendarPage(
         attendees,

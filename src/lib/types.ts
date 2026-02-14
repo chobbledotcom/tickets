@@ -3,10 +3,10 @@
  */
 
 /** Individual contact field name */
-export type ContactField = "email" | "phone" | "address";
+export type ContactField = "email" | "phone" | "address" | "special_instructions";
 
 /** All valid contact field names (runtime array matching the ContactField union) */
-export const CONTACT_FIELDS: readonly ContactField[] = ["email", "phone", "address"] as const;
+export const CONTACT_FIELDS: readonly ContactField[] = ["email", "phone", "address", "special_instructions"] as const;
 
 /** Contact fields setting for an event (comma-separated ContactField names, or empty for name-only) */
 export type EventFields = string;
@@ -17,6 +17,7 @@ export type ContactInfo = {
   email: string;
   phone: string;
   address: string;
+  special_instructions: string;
 };
 
 /** Event type: standard (one-time) or daily (date-based booking) */
@@ -43,6 +44,7 @@ export interface Event {
   bookable_days: string;
   minimum_days_before: number;
   maximum_days_after: number;
+  image_url: string;
 }
 
 export interface Attendee extends ContactInfo {

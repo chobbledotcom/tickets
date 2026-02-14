@@ -192,6 +192,18 @@ export const parseFormData = async (
 };
 
 /**
+ * Extract text fields from FormData as URLSearchParams (skips File entries).
+ * Handles multi-value fields (e.g. checkbox groups) via append.
+ */
+export const formDataToParams = (formData: FormData): URLSearchParams => {
+  const params = new URLSearchParams();
+  for (const [key, value] of formData.entries()) {
+    if (typeof value === "string") params.append(key, value);
+  }
+  return params;
+};
+
+/**
  * Get base URL from request
  */
 export const getBaseUrl = (request: Request): string => {
@@ -396,9 +408,9 @@ export type CsrfFormResult =
 /** Default cookie name for public form CSRF tokens */
 const DEFAULT_CSRF_COOKIE = "csrf_token";
 
-/** Generate CSRF cookie string */
-export const csrfCookie = (token: string, path: string, cookieName = DEFAULT_CSRF_COOKIE): string =>
-  `${cookieName}=${token}; HttpOnly; Secure; SameSite=Strict; Path=${path}; Max-Age=3600`;
+/** Generate CSRF cookie string. Uses SameSite=None + Partitioned when embedded in a cross-site iframe. */
+export const csrfCookie = (token: string, path: string, cookieName?: string, iframe = false): string =>
+  `${cookieName ?? DEFAULT_CSRF_COOKIE}=${token}; HttpOnly; Secure; SameSite=${iframe ? "None" : "Strict"}; Path=${path}; Max-Age=3600${iframe ? "; Partitioned" : ""}`;
 
 /**
  * Parse form with CSRF validation (double-submit cookie pattern)
@@ -475,6 +487,29 @@ export const requireOwnerOr = (request: Request, handler: SessionHandler): Promi
 /** Handle request with owner auth form - requires owner role + CSRF validation */
 export const withOwnerAuthForm = (request: Request, handler: FormHandler): Promise<Response> =>
   handleAuthForm(request, "owner", handler);
+
+/** Handler function that receives session and multipart FormData */
+type MultipartFormHandler = (session: AuthSession, formData: FormData) => Response | Promise<Response>;
+
+/**
+ * Handle multipart form request with auth + CSRF validation.
+ * Parses request body as FormData (multipart/form-data) instead of URLSearchParams.
+ */
+export const withAuthMultipartForm = async (
+  request: Request,
+  handler: MultipartFormHandler,
+): Promise<Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (!session) return redirect("/admin");
+
+  const formData = await request.formData();
+  const csrfToken = (formData.get("csrf_token") as string) || "";
+  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
+    return htmlResponse("Invalid CSRF token", 403);
+  }
+
+  return handler(session, formData);
+};
 
 /** Create JSON response */
 export const jsonResponse = (data: unknown, status = 200): Response =>

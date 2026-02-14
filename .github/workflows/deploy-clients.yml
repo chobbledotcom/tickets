@@ -1,0 +1,67 @@
+name: Deploy to Clients
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubicloud-standard-16
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install dependencies
+        run: deno install --allow-scripts
+
+      - name: Build edge script
+        run: deno task build:edge
+
+      - name: Deploy to clients
+        env:
+          BUNNY_SCRIPT_DATA: ${{ secrets.BUNNY_SCRIPT_DATA }}
+          BUNNY_ACCESS_KEY: ${{ secrets.BUNNY_ACCESS_KEY }}
+        run: |
+          jq -Rs '{"Code": .}' bunny-script.ts > /tmp/code-payload.json
+          IFS='|' read -ra script_ids <<< "$BUNNY_SCRIPT_DATA"
+          for script_id in "${script_ids[@]}"; do
+            [ -z "$script_id" ] && continue
+            echo "Deploying to script $script_id..."
+            response=$(curl -s -w "\n%{http_code}" \
+              -X POST "https://api.bunny.net/compute/script/${script_id}/code" \
+              -H "AccessKey: ${BUNNY_ACCESS_KEY}" \
+              -H "Content-Type: application/json" \
+              -d @/tmp/code-payload.json)
+            status_code=$(echo "$response" | tail -1)
+            body=$(echo "$response" | sed '$d')
+            if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
+              echo " ✓ Code uploaded to $script_id (HTTP $status_code)"
+            else
+              echo " ✗ Failed to upload code to $script_id (HTTP $status_code)"
+              echo "   Response: $body"
+              exit 1
+            fi
+            echo "  Publishing script $script_id..."
+            response=$(curl -s -w "\n%{http_code}" \
+              -X POST "https://api.bunny.net/compute/script/${script_id}/publish" \
+              -H "AccessKey: ${BUNNY_ACCESS_KEY}" \
+              -H "Content-Type: application/json" \
+              -d '{}')
+            status_code=$(echo "$response" | tail -1)
+            body=$(echo "$response" | sed '$d')
+            if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
+              echo " ✓ Published $script_id (HTTP $status_code)"
+            else
+              echo " ✗ Failed to publish $script_id (HTTP $status_code)"
+              echo "   Response: $body"
+              exit 1
+            fi
+          done

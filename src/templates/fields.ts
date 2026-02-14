@@ -2,9 +2,11 @@
  * Form field definitions and typed value interfaces for all forms
  */
 
-import { DAY_NAMES, normalizeDatetime } from "#lib/dates.ts";
+import { DAY_NAMES } from "#lib/dates.ts";
+import { isValidDatetime } from "#lib/timezone.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CONTACT_FIELDS, type AdminLevel, type ContactField, type EventFields, type EventType } from "#lib/types.ts";
+import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 
 // ---------------------------------------------------------------------------
@@ -12,25 +14,26 @@ import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 //
 // Each interface describes the shape returned by validateForm<T>() for a
 // specific set of field definitions.  Required text fields produce `string`,
-// optional text fields produce `string | null`, required number fields
-// produce `number`, and optional number fields produce `number | null`.
+// optional text fields produce `string` (empty string when absent),
+// required number fields produce `number`, and optional number fields
+// produce `number | null`.
 // ---------------------------------------------------------------------------
 
 /** Typed values from event form validation */
 export type EventFormValues = {
   name: string;
-  description: string | null;
-  date: string | null;
-  location: string | null;
+  description: string;
+  date: string;
+  location: string;
   max_attendees: number;
   max_quantity: number;
-  fields: EventFields | null;
-  unit_price: number | null;
-  closes_at: string | null;
-  thank_you_url: string | null;
-  webhook_url: string | null;
-  event_type: EventType | null;
-  bookable_days: string | null;
+  fields: EventFields | "";
+  unit_price: string;
+  closes_at: string;
+  thank_you_url: string;
+  webhook_url: string;
+  event_type: EventType | "";
+  bookable_days: string;
   minimum_days_before: number | null;
   maximum_days_after: number | null;
 };
@@ -46,6 +49,13 @@ export type TicketFormValues = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  special_instructions: string | null;
+};
+
+/** Typed values from admin add-attendee form */
+export type AddAttendeeFormValues = TicketFormValues & {
+  quantity: number;
+  date: string;
 };
 
 /** Typed values from login form */
@@ -59,7 +69,7 @@ export type SetupFormValues = {
   admin_username: string;
   admin_password: string;
   admin_password_confirm: string;
-  currency_code: string | null;
+  currency_code: string;
 };
 
 /** Typed values from change password form */
@@ -119,7 +129,7 @@ const validateSafeUrl = (value: string): string | null => {
  * Validate price is non-negative
  */
 const validateNonNegativePrice = (value: string): string | null => {
-  const num = Number.parseInt(value, 10);
+  const num = Number.parseFloat(value);
   if (Number.isNaN(num) || num < 0) {
     return "Price must be 0 or greater";
   }
@@ -206,7 +216,7 @@ export const validateBookableDays = (value: string): string | null => {
 };
 
 /** Max length for event description */
-const MAX_DESCRIPTION_LENGTH = 128;
+const MAX_DESCRIPTION_LENGTH = 256;
 
 /** Validate description length */
 const validateDescription = (value: string): string | null =>
@@ -214,15 +224,9 @@ const validateDescription = (value: string): string | null =>
     ? `Description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`
     : null;
 
-/** Validate a datetime value is a valid UTC date */
-const validateDatetime = (value: string): string | null => {
-  try {
-    normalizeDatetime(value, "date");
-    return null;
-  } catch {
-    return "Please enter a valid date and time";
-  }
-};
+/** Validate a datetime value is parseable */
+const validateDatetime = (value: string): string | null =>
+  isValidDatetime(value) ? null : "Please enter a valid date and time";
 
 /**
  * Event form field definitions (shared between create and edit)
@@ -241,7 +245,8 @@ export const eventFields: Field[] = [
     label: "Description (optional)",
     type: "text",
     placeholder: "A short description of the event",
-    hint: "Shown on the ticket page. HTML is allowed. Max 128 characters.",
+    hint: "Shown on the ticket page. HTML is allowed. Max 256 characters.",
+    maxlength: MAX_DESCRIPTION_LENGTH,
     validate: validateDescription,
   },
   {
@@ -316,15 +321,16 @@ export const eventFields: Field[] = [
       { value: "email", label: "Email" },
       { value: "phone", label: "Phone Number" },
       { value: "address", label: "Address" },
+      { value: "special_instructions", label: "Special Instructions" },
     ],
     validate: validateEventFields,
   },
   {
     name: "unit_price",
-    label: "Ticket Price (in pence/cents, leave empty for free)",
-    type: "number",
-    min: 0,
-    placeholder: "e.g. 1000 for 10.00",
+    label: "Ticket Price (leave empty for free)",
+    type: "text",
+    inputmode: "decimal",
+    placeholder: "e.g. 10.00",
     validate: validateNonNegativePrice,
   },
   {
@@ -388,6 +394,14 @@ export const holidayFields: Field[] = [
   },
 ];
 
+/** Image upload field for event forms (appended when storage is enabled) */
+export const imageField: Field = {
+  name: "image",
+  label: "Event Image (JPEG, PNG, GIF, WebP \u2014 max 256KB)",
+  type: "file",
+  accept: "image/jpeg,image/png,image/gif,image/webp",
+};
+
 /** Slug field for event edit page only */
 export const slugField: Field = {
   name: "slug",
@@ -442,19 +456,33 @@ const addressField: Field = {
   validate: validateAddress,
 };
 
+/** Max length for special instructions field (must fit in payment metadata) */
+const MAX_SPECIAL_INSTRUCTIONS_LENGTH = 250;
+
+/** Validate special instructions length */
+export const validateSpecialInstructions = (value: string): string | null =>
+  value.length > MAX_SPECIAL_INSTRUCTIONS_LENGTH
+    ? `Special instructions must be ${MAX_SPECIAL_INSTRUCTIONS_LENGTH} characters or fewer`
+    : null;
+
+/** Special instructions field for ticket forms (textarea) */
+const specialInstructionsField: Field = {
+  name: "special_instructions",
+  label: "Special Instructions",
+  type: "textarea",
+  required: true,
+  validate: validateSpecialInstructions,
+};
+
 /** Map of contact field names to their Field definitions */
 const contactFieldMap: Record<ContactField, Field> = {
   email: emailField,
   phone: phoneField,
   address: addressField,
+  special_instructions: specialInstructionsField,
 };
 
-/** Parse a comma-separated fields string into individual ContactField names */
-export const parseEventFields = (fields: EventFields): ContactField[] =>
-  fields
-    ? (fields.split(",").map((f) => f.trim()).filter((f): f is ContactField =>
-        (CONTACT_FIELDS as readonly string[]).includes(f)))
-    : [];
+export { mergeEventFields, parseEventFields };
 
 /**
  * Get ticket form fields based on event fields setting.
@@ -465,20 +493,35 @@ export const getTicketFields = (fields: EventFields): Field[] => {
   return [nameField, ...parsed.map((f) => contactFieldMap[f])];
 };
 
-/**
- * Determine which contact fields to collect for multiple events.
- * Returns the union of all field settings, sorted by canonical CONTACT_FIELDS order.
- */
-export const mergeEventFields = (fieldSettings: EventFields[]): EventFields => {
-  if (fieldSettings.length === 0) return "email";
-  const allFields = new Set<string>();
-  for (const setting of fieldSettings) {
-    for (const f of parseEventFields(setting)) {
-      allFields.add(f);
-    }
-  }
-  return CONTACT_FIELDS.filter((f) => allFields.has(f)).join(",");
+/** Quantity field for admin add-attendee form */
+const addAttendeeQuantityField: Field = {
+  name: "quantity",
+  label: "Quantity",
+  type: "number",
+  required: true,
+  min: 1,
 };
+
+/** Date field for admin add-attendee form (daily events only) */
+const addAttendeeDateField: Field = {
+  name: "date",
+  label: "Date",
+  type: "date",
+  required: true,
+  validate: validateDate,
+};
+
+/**
+ * Get admin add-attendee form fields based on event config.
+ * Includes contact fields (name + email/phone per setting), quantity,
+ * and a date field for daily events.
+ */
+export const getAddAttendeeFields = (fields: EventFields, isDaily: boolean): Field[] => {
+  const result = [...getTicketFields(fields), addAttendeeQuantityField];
+  if (isDaily) result.push(addAttendeeDateField);
+  return result;
+};
+
 
 /**
  * Setup form field definitions

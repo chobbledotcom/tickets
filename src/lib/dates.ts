@@ -3,7 +3,7 @@
  */
 
 import { filter, pipe } from "#fp";
-import { today } from "#lib/now.ts";
+import { formatDatetimeInTz, localToUtc, todayInTz } from "#lib/timezone.ts";
 import type { Event, Holiday } from "#lib/types.ts";
 
 /** Day name lookup from Date.getUTCDay() index (Sunday=0) */
@@ -70,9 +70,10 @@ const dateRange = (start: string, end: string): string[] => {
 export const getAvailableDates = (
   event: Event,
   holidays: Holiday[],
+  tz: string,
 ): string[] => {
   const bookableDays = JSON.parse(event.bookable_days) as string[];
-  const todayStr = today();
+  const todayStr = todayInTz(tz);
   const start = addDays(todayStr, event.minimum_days_before);
   const maxDays =
     event.maximum_days_after === 0
@@ -86,12 +87,16 @@ export const getAvailableDates = (
   )(dateRange(start, end));
 };
 
-/** Normalize datetime-local "YYYY-MM-DDTHH:MM" to full UTC ISO string */
-export const normalizeDatetime = (value: string, label: string): string => {
-  const normalized = value.length === 16 ? `${value}:00.000Z` : value;
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) throw new Error(`Invalid ${label}: ${value}`);
-  return date.toISOString();
+/**
+ * Normalize datetime-local "YYYY-MM-DDTHH:MM" to full UTC ISO string.
+ * The input is interpreted as local time in the given timezone and converted to UTC.
+ */
+export const normalizeDatetime = (value: string, label: string, tz: string): string => {
+  try {
+    return localToUtc(value, tz);
+  } catch {
+    throw new Error(`Invalid ${label}: ${value}`);
+  }
 };
 
 /**
@@ -103,20 +108,9 @@ export const formatDateLabel = (dateStr: string): string => {
   return `${DAY_NAMES[date.getUTCDay()]} ${date.getUTCDate()} ${MONTH_NAMES[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 };
 
-/** Pad a number to two digits */
-const pad2 = (n: number): string => String(n).padStart(2, "0");
-
 /**
- * Format an ISO datetime string for display.
- * Returns "Monday 15 June 2026 at 14:00 UTC"
+ * Format an ISO datetime string for display in the given timezone.
+ * Returns e.g. "Monday 15 June 2026 at 14:00 BST"
  */
-export const formatDatetimeLabel = (iso: string): string => {
-  const d = new Date(iso);
-  const dayName = DAY_NAMES[d.getUTCDay()];
-  const day = d.getUTCDate();
-  const month = MONTH_NAMES[d.getUTCMonth()];
-  const year = d.getUTCFullYear();
-  const hours = pad2(d.getUTCHours());
-  const minutes = pad2(d.getUTCMinutes());
-  return `${dayName} ${day} ${month} ${year} at ${hours}:${minutes} UTC`;
-};
+export const formatDatetimeLabel = (iso: string, tz: string): string =>
+  formatDatetimeInTz(iso, tz);

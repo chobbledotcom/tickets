@@ -22,7 +22,8 @@ export type FieldType =
   | "select"
   | "checkbox-group"
   | "date"
-  | "datetime";
+  | "datetime"
+  | "file";
 
 export interface Field {
   name: string;
@@ -32,7 +33,10 @@ export interface Field {
   placeholder?: string;
   hint?: string;
   min?: number;
+  inputmode?: string;
+  maxlength?: number;
   pattern?: string;
+  accept?: string;
   autofocus?: boolean;
   validate?: (value: string) => string | null;
   options?: { value: string; label: string }[];
@@ -82,8 +86,8 @@ const renderDatetimeInputs = (
   name: string,
   { date, time }: { date: string; time: string },
 ): string =>
-  `<input type="date" name="${escapeHtml(name)}_date"${date ? ` value="${escapeHtml(date)}"` : ""}>`
-  + `<input type="time" name="${escapeHtml(name)}_time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
+  `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date"${date ? ` value="${escapeHtml(date)}"` : ""}>`
+  + `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
 
 const DATETIME_PARTIAL_ERROR = "Please enter both a date and time, or leave both blank";
 
@@ -131,6 +135,12 @@ export const renderField = (field: Field, value: string = ""): string =>
         <Raw
           html={renderDatetimeInputs(field.name, splitDatetime(value))}
         />
+      ) : field.type === "file" ? (
+        <input
+          type="file"
+          name={field.name}
+          accept={field.accept}
+        />
       ) : (
         <input
           type={field.type}
@@ -139,6 +149,8 @@ export const renderField = (field: Field, value: string = ""): string =>
           required={field.required}
           placeholder={field.placeholder}
           min={field.min}
+          inputmode={field.inputmode}
+          maxlength={field.maxlength}
           pattern={field.pattern}
           autofocus={field.autofocus}
         />
@@ -164,7 +176,8 @@ export const renderFields = (
   )(fields);
 
 /**
- * Parse field value to the appropriate type
+ * Parse field value to the appropriate type.
+ * Empty strings stay as "" for text fields; empty numbers become null.
  */
 const parseFieldValue = (
   field: Field,
@@ -174,7 +187,7 @@ const parseFieldValue = (
     ? trimmed
       ? Number.parseInt(trimmed, 10)
       : null
-    : trimmed || null;
+    : trimmed;
 
 /**
  * Validate a single field and return its parsed value.
@@ -185,6 +198,9 @@ const validateSingleField = (
   form: URLSearchParams,
   field: Field,
 ): FieldValidationResult => {
+  // File fields are handled separately via FormData, not URLSearchParams
+  if (field.type === "file") return { valid: true, value: null };
+
   let trimmed: string;
 
   if (field.type === "datetime") {

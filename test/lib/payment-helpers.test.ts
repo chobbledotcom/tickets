@@ -124,6 +124,7 @@ describe("payment-helpers", () => {
         name: "Alice",
         email: "alice@example.com",
         address: "",
+        special_instructions: "",
         quantity: 3,
       });
       expect(result).toEqual({
@@ -140,6 +141,7 @@ describe("payment-helpers", () => {
         email: "bob@example.com",
         phone: "+1234567890",
         address: "",
+        special_instructions: "",
         quantity: 1,
       });
       expect(result.phone).toBe("+1234567890");
@@ -151,6 +153,7 @@ describe("payment-helpers", () => {
         email: "bob@example.com",
         phone: undefined,
         address: "",
+        special_instructions: "",
         quantity: 1,
       });
       expect("phone" in result).toBe(false);
@@ -162,6 +165,7 @@ describe("payment-helpers", () => {
         email: "bob@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         quantity: 1,
       });
       expect("phone" in result).toBe(false);
@@ -172,6 +176,7 @@ describe("payment-helpers", () => {
         name: "X",
         email: "x@x.com",
         address: "",
+        special_instructions: "",
         quantity: 10,
       });
       expect(typeof result.event_id).toBe("string");
@@ -183,6 +188,7 @@ describe("payment-helpers", () => {
         name: "Alice",
         email: "alice@example.com",
         address: "",
+        special_instructions: "",
         quantity: 1,
         date: "2026-02-10",
       });
@@ -194,6 +200,7 @@ describe("payment-helpers", () => {
         name: "Alice",
         email: "alice@example.com",
         address: "",
+        special_instructions: "",
         quantity: 1,
         date: null,
       });
@@ -215,9 +222,30 @@ describe("payment-helpers", () => {
         name: "Bob",
         email: "bob@example.com",
         address: "",
+        special_instructions: "",
         quantity: 1,
       });
       expect("address" in result).toBe(false);
+    });
+
+    test("includes special_instructions when provided", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        special_instructions: "No nuts please",
+        quantity: 1,
+      });
+      expect(result.special_instructions).toBe("No nuts please");
+    });
+
+    test("excludes special_instructions when empty string", () => {
+      const result = buildSingleIntentMetadata(1, {
+        name: "Bob",
+        email: "bob@example.com",
+        special_instructions: "",
+        quantity: 1,
+      });
+      expect("special_instructions" in result).toBe(false);
     });
   });
 
@@ -228,6 +256,7 @@ describe("payment-helpers", () => {
         email: "alice@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         items: [
           { eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt-1", name: "Evt 1" },
           { eventId: 2, quantity: 1, unitPrice: 500, slug: "evt-2", name: "Evt 2" },
@@ -250,6 +279,7 @@ describe("payment-helpers", () => {
         email: "bob@example.com",
         phone: "+1234567890",
         address: "",
+        special_instructions: "",
         items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
       const result = buildMultiIntentMetadata(intent);
@@ -262,6 +292,7 @@ describe("payment-helpers", () => {
         email: "bob@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
       const result = buildMultiIntentMetadata(intent);
@@ -274,6 +305,7 @@ describe("payment-helpers", () => {
         email: "alice@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         date: "2026-02-10",
         items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
@@ -287,6 +319,7 @@ describe("payment-helpers", () => {
         email: "alice@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         date: null,
         items: [{ eventId: 1, quantity: 1, unitPrice: 100, slug: "e", name: "E" }],
       };
@@ -431,6 +464,7 @@ describe("payment-helpers", () => {
         email: "alice@example.com",
         phone: "+1234567890",
         address: undefined,
+        special_instructions: undefined,
         quantity: "3",
         multi: undefined,
         date: undefined,
@@ -452,6 +486,7 @@ describe("payment-helpers", () => {
         email: "bob@example.com",
         phone: undefined,
         address: undefined,
+        special_instructions: undefined,
         quantity: undefined,
         multi: "1",
         date: undefined,

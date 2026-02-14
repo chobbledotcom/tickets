@@ -3,13 +3,19 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
+import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
+import { buildEmbedCode } from "#lib/embed.ts";
+import { getTz } from "#lib/config.ts";
+import { isStorageEnabled } from "#lib/storage.ts";
+import { utcToLocalInput } from "#lib/timezone.ts";
+import { renderEventImage } from "#templates/public.tsx";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
-import { eventFields, parseEventFields, slugField } from "#templates/fields.ts";
+import { eventFields, getAddAttendeeFields, imageField, slugField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -30,8 +36,6 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
     return sum;
   }, 0)(attendees);
 
-/** Format cents as a decimal string (e.g. 1000 -> "10.00", "2999" -> "29.99") */
-export const formatCents = (cents: string | number): string => (Number(cents) / 100).toFixed(2);
 
 /** Check if event is within 10% of capacity */
 export const nearCapacity = (event: EventWithCount): boolean =>
@@ -82,6 +86,7 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
       <td>{a.email || ""}</td>
       <td>{a.phone || ""}</td>
       <td>{formatAddressInline(a.address)}</td>
+      <td>{formatAddressInline(a.special_instructions)}</td>
       <td>{a.quantity}</td>
       <td><a href={`https://${allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
       <td>{new Date(a.created).toLocaleString()}</td>
@@ -101,6 +106,9 @@ const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showD
 
 /** Check-in message to display after toggling */
 export type CheckinMessage = { name: string; status: string } | null;
+
+/** Add-attendee result message */
+export type AddAttendeeMessage = { name: string } | { error: string } | null;
 
 /** Filter attendees by check-in status */
 const filterAttendees = (attendees: Attendee[], activeFilter: AttendeeFilter): Attendee[] => {
@@ -132,26 +140,39 @@ const DateSelector = ({ basePath, activeFilter, dateFilter, dates }: { basePath:
   return `<select data-nav-select>${options}</select>`;
 };
 
-export const adminEventPage = (
-  event: EventWithCount,
-  attendees: Attendee[],
-  allowedDomain: string,
-  session: AdminSession,
-  checkinMessage?: CheckinMessage,
-  activeFilter: AttendeeFilter = "all",
-  dateFilter: string | null = null,
-  availableDates: DateOption[] = [],
-): string => {
+/** Options for rendering the admin event detail page */
+export type AdminEventPageOptions = {
+  event: EventWithCount;
+  attendees: Attendee[];
+  allowedDomain: string;
+  session: AdminSession;
+  checkinMessage?: CheckinMessage;
+  activeFilter?: AttendeeFilter;
+  dateFilter?: string | null;
+  availableDates?: DateOption[];
+  addAttendeeMessage?: AddAttendeeMessage;
+  imageError?: string | null;
+};
+
+export const adminEventPage = ({
+  event,
+  attendees,
+  allowedDomain,
+  session,
+  checkinMessage,
+  activeFilter = "all",
+  dateFilter = null,
+  availableDates = [],
+  addAttendeeMessage = null,
+  imageError = null,
+}: AdminEventPageOptions): string => {
+  const tz = getTz();
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
-  const contactFields = parseEventFields(event.fields);
-  const hasTextarea = contactFields.includes("address");
-  const inputCount = contactFields.filter((f) => f !== "address").length;
-  const iframeHeight = `${14 + inputCount * 4 + (hasTextarea ? 6 : 0)}rem`;
-  const embedCode = `<iframe src="${ticketUrl}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${iframeHeight}">Loading..</iframe>`;
+  const embedCode = buildEmbedCode(ticketUrl, event.fields);
   const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);
   const hasPaidEvent = event.unit_price !== null;
-  const colSpan = isDaily ? 9 : 8;
+  const colSpan = isDaily ? 10 : 9;
   const attendeeRows =
     filteredAttendees.length > 0
       ? pipe(
@@ -194,6 +215,10 @@ export const adminEventPage = (
           <div class="error">This event is deactivated and cannot be booked</div>
         )}
 
+        {imageError && (
+          <p class="error">Event saved but image was not uploaded: {imageError}</p>
+        )}
+
         <article>
           <h2>Event Details</h2>
           <div class="table-scroll">
@@ -202,7 +227,7 @@ export const adminEventPage = (
               {event.date && (
                 <tr>
                   <th>Event Date</th>
-                  <td>{formatDatetimeLabel(event.date)}</td>
+                  <td>{formatDatetimeLabel(event.date, tz)}</td>
                 </tr>
               )}
               {event.location && (
@@ -247,14 +272,14 @@ export const adminEventPage = (
               {event.unit_price !== null && (
                 <tr>
                   <th>Total Revenue</th>
-                  <td>{formatCents(calculateTotalRevenue(attendees))}</td>
+                  <td>{formatCurrency(calculateTotalRevenue(attendees))}</td>
                 </tr>
               )}
               <tr>
                 <th>Registration Closes</th>
                 <td>
                   {event.closes_at ? (
-                    <span>{formatDatetimeLabel(event.closes_at)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
+                    <span>{formatDatetimeLabel(event.closes_at, tz)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
                   ) : (
                     <em>No deadline</em>
                   )}
@@ -340,6 +365,7 @@ export const adminEventPage = (
                   <th>Email</th>
                   <th>Phone</th>
                   <th>Address</th>
+                  <th>Special Instructions</th>
                   <th>Qty</th>
                   <th>Ticket</th>
                   <th>Registered</th>
@@ -352,6 +378,25 @@ export const adminEventPage = (
             </table>
           </div>
         </article>
+
+        <article>
+          <h2 id="add-attendee">Add Attendee</h2>
+          {addAttendeeMessage && "name" in addAttendeeMessage && (
+            <p class="checkin-message-in">
+              Added {addAttendeeMessage.name}
+            </p>
+          )}
+          {addAttendeeMessage && "error" in addAttendeeMessage && (
+            <p class="error">
+              {addAttendeeMessage.error}
+            </p>
+          )}
+          <form method="POST" action={`/admin/event/${event.id}/attendee`}>
+            <input type="hidden" name="csrf_token" value={session.csrfToken} />
+            <Raw html={renderFields(getAddAttendeeFields(event.fields, event.event_type === "daily"))} />
+            <button type="submit">Add Attendee</button>
+          </form>
+        </article>
     </Layout>
   );
 };
@@ -359,8 +404,7 @@ export const adminEventPage = (
 /** Format an ISO datetime string for datetime-local input (YYYY-MM-DDTHH:MM) */
 const formatDatetimeLocal = (iso: string | null): string | null => {
   if (!iso) return null;
-  // datetime-local expects YYYY-MM-DDTHH:MM format
-  return iso.slice(0, 16);
+  return utcToLocalInput(iso, getTz());
 };
 
 /** Convert bookable_days JSON array to comma-separated display string */
@@ -380,7 +424,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   minimum_days_before: event.minimum_days_before,
   maximum_days_after: event.maximum_days_after,
   fields: event.fields,
-  unit_price: event.unit_price,
+  unit_price: event.unit_price !== null ? toMajorUnits(event.unit_price) : "",
   closes_at: formatDatetimeLocal(event.closes_at),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
@@ -398,6 +442,8 @@ export const adminDuplicateEventPage = (
   event: EventWithCount,
   session: AdminSession,
 ): string => {
+  const storageEnabled = isStorageEnabled();
+  const fields = storageEnabled ? [...eventFieldsWithAutofocus, imageField] : eventFieldsWithAutofocus;
   const values = eventToFieldValues(event);
   values.name = "";
 
@@ -406,9 +452,9 @@ export const adminDuplicateEventPage = (
       <AdminNav session={session} />
         <h2>Duplicate Event</h2>
         <p>Creating a new event based on <strong>{event.name}</strong>.</p>
-        <form method="POST" action="/admin/event">
+        <form method="POST" action="/admin/event" enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
-          <Raw html={renderFields(eventFieldsWithAutofocus, values)} />
+          <Raw html={renderFields(fields, values)} />
           <button type="submit">Create Event</button>
         </form>
     </Layout>
@@ -422,19 +468,31 @@ export const adminEventEditPage = (
   event: EventWithCount,
   session: AdminSession,
   error?: string,
-): string =>
-  String(
+): string => {
+  const storageEnabled = isStorageEnabled();
+  const fields = storageEnabled ? [...eventFields, imageField] : eventFields;
+  return String(
     <Layout title={`Edit: ${event.name}`}>
       <AdminNav session={session} />
         <Raw html={renderError(error)} />
-        <form method="POST" action={`/admin/event/${event.id}/edit`}>
+        <form method="POST" action={`/admin/event/${event.id}/edit`} enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
-          <Raw html={renderFields(eventFields, eventToFieldValues(event))} />
+          <Raw html={renderFields(fields, eventToFieldValues(event))} />
           <Raw html={renderField(slugField, String(event.slug))} />
+          {storageEnabled && event.image_url && (
+            <Raw html={renderEventImage(event, "event-image-full")} />
+          )}
           <button type="submit">Save Changes</button>
         </form>
+        {storageEnabled && event.image_url && (
+          <form method="POST" action={`/admin/event/${event.id}/image/delete`}>
+            <input type="hidden" name="csrf_token" value={session.csrfToken} />
+            <button type="submit" class="secondary">Remove Image</button>
+          </form>
+        )}
     </Layout>
   );
+};
 
 /**
  * Admin delete event confirmation page

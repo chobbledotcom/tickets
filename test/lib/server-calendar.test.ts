@@ -1,8 +1,9 @@
 import { beforeEach, afterEach, describe, expect, test } from "#test-compat";
 import { addDays } from "#lib/dates.ts";
-import { today } from "#lib/now.ts";
+import { todayInTz } from "#lib/timezone.ts";
 import {
   awaitTestRequest,
+  createDailyTestEvent,
   createTestEvent,
   createTestDbWithSetup,
   loginAsAdmin,
@@ -48,12 +49,7 @@ describe("admin calendar", () => {
     });
 
     test("shows available dates from daily events", async () => {
-      await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
+      await createDailyTestEvent();
       const response = await awaitTestRequest("/admin/calendar", { cookie });
       const html = await response.text();
       // Should contain at least one date option
@@ -61,18 +57,9 @@ describe("admin calendar", () => {
     });
 
     test("includes attendee dates in dropdown", async () => {
-      const validDate = addDays(today(), 1);
-      const event = await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
-      await submitTicketForm(event.slug, {
-        name: "User A",
-        email: "a@test.com",
-        date: validDate,
-      });
+      const validDate = addDays(todayInTz("UTC"), 1);
+      const event = await createDailyTestEvent();
+      await submitTicketForm(event.slug, { name: "User A", email: "a@test.com", date: validDate });
       const response = await awaitTestRequest("/admin/calendar", { cookie });
       const html = await response.text();
       // The date with a booking should be selectable (not disabled)
@@ -80,24 +67,11 @@ describe("admin calendar", () => {
     });
 
     test("filters attendees by date parameter", async () => {
-      const date1 = addDays(today(), 1);
-      const date2 = addDays(today(), 2);
-      const event = await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
-      await submitTicketForm(event.slug, {
-        name: "User A",
-        email: "a@test.com",
-        date: date1,
-      });
-      await submitTicketForm(event.slug, {
-        name: "User B",
-        email: "b@test.com",
-        date: date2,
-      });
+      const date1 = addDays(todayInTz("UTC"), 1);
+      const date2 = addDays(todayInTz("UTC"), 2);
+      const event = await createDailyTestEvent();
+      await submitTicketForm(event.slug, { name: "User A", email: "a@test.com", date: date1 });
+      await submitTicketForm(event.slug, { name: "User B", email: "b@test.com", date: date2 });
 
       const response = await awaitTestRequest(`/admin/calendar?date=${date1}`, { cookie });
       const html = await response.text();
@@ -106,29 +80,11 @@ describe("admin calendar", () => {
     });
 
     test("shows attendees from multiple daily events for same date", async () => {
-      const validDate = addDays(today(), 1);
-      const event1 = await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
-      const event2 = await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
-      await submitTicketForm(event1.slug, {
-        name: "User A",
-        email: "a@test.com",
-        date: validDate,
-      });
-      await submitTicketForm(event2.slug, {
-        name: "User B",
-        email: "b@test.com",
-        date: validDate,
-      });
+      const validDate = addDays(todayInTz("UTC"), 1);
+      const event1 = await createDailyTestEvent();
+      const event2 = await createDailyTestEvent();
+      await submitTicketForm(event1.slug, { name: "User A", email: "a@test.com", date: validDate });
+      await submitTicketForm(event2.slug, { name: "User B", email: "b@test.com", date: validDate });
 
       const response = await awaitTestRequest(`/admin/calendar?date=${validDate}`, { cookie });
       const html = await response.text();
@@ -140,18 +96,9 @@ describe("admin calendar", () => {
     });
 
     test("links event name to event page", async () => {
-      const validDate = addDays(today(), 1);
-      const event = await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
-      await submitTicketForm(event.slug, {
-        name: "User A",
-        email: "a@test.com",
-        date: validDate,
-      });
+      const validDate = addDays(todayInTz("UTC"), 1);
+      const event = await createDailyTestEvent();
+      await submitTicketForm(event.slug, { name: "User A", email: "a@test.com", date: validDate });
 
       const response = await awaitTestRequest(`/admin/calendar?date=${validDate}`, { cookie });
       const html = await response.text();
@@ -159,18 +106,9 @@ describe("admin calendar", () => {
     });
 
     test("shows Export CSV link when attendees exist for date", async () => {
-      const validDate = addDays(today(), 1);
-      const event = await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
-      await submitTicketForm(event.slug, {
-        name: "User A",
-        email: "a@test.com",
-        date: validDate,
-      });
+      const validDate = addDays(todayInTz("UTC"), 1);
+      const event = await createDailyTestEvent();
+      await submitTicketForm(event.slug, { name: "User A", email: "a@test.com", date: validDate });
 
       const response = await awaitTestRequest(`/admin/calendar?date=${validDate}`, { cookie });
       const html = await response.text();
@@ -179,13 +117,8 @@ describe("admin calendar", () => {
     });
 
     test("does not show Export CSV link when no attendees for date", async () => {
-      const validDate = addDays(today(), 1);
-      await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
+      const validDate = addDays(todayInTz("UTC"), 1);
+      await createDailyTestEvent();
 
       const response = await awaitTestRequest(`/admin/calendar?date=${validDate}`, { cookie });
       const html = await response.text();
@@ -221,18 +154,9 @@ describe("admin calendar", () => {
     });
 
     test("returns CSV with correct headers", async () => {
-      const validDate = addDays(today(), 1);
-      const event = await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
-      await submitTicketForm(event.slug, {
-        name: "User A",
-        email: "a@test.com",
-        date: validDate,
-      });
+      const validDate = addDays(todayInTz("UTC"), 1);
+      const event = await createDailyTestEvent();
+      await submitTicketForm(event.slug, { name: "User A", email: "a@test.com", date: validDate });
 
       const response = await awaitTestRequest(`/admin/calendar/export?date=${validDate}`, { cookie });
       expect(response.status).toBe(200);
@@ -242,52 +166,25 @@ describe("admin calendar", () => {
     });
 
     test("includes Event and Date columns in CSV", async () => {
-      const validDate = addDays(today(), 1);
-      const event = await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
-      await submitTicketForm(event.slug, {
-        name: "User A",
-        email: "a@test.com",
-        date: validDate,
-      });
+      const validDate = addDays(todayInTz("UTC"), 1);
+      const event = await createDailyTestEvent();
+      await submitTicketForm(event.slug, { name: "User A", email: "a@test.com", date: validDate });
 
       const response = await awaitTestRequest(`/admin/calendar/export?date=${validDate}`, { cookie });
       const csv = await response.text();
       const lines = csv.split("\n");
-      expect(lines[0]).toBe("Event,Date,Name,Email,Phone,Address,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
+      expect(lines[0]).toBe("Event,Date,Name,Email,Phone,Address,Special Instructions,Quantity,Registered,Price Paid,Transaction ID,Checked In,Ticket Token,Ticket URL");
       expect(lines[1]).toContain(event.name);
       expect(lines[1]).toContain(validDate);
       expect(lines[1]).toContain("User A");
     });
 
     test("includes attendees from multiple events", async () => {
-      const validDate = addDays(today(), 1);
-      const event1 = await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
-      const event2 = await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
-      await submitTicketForm(event1.slug, {
-        name: "User A",
-        email: "a@test.com",
-        date: validDate,
-      });
-      await submitTicketForm(event2.slug, {
-        name: "User B",
-        email: "b@test.com",
-        date: validDate,
-      });
+      const validDate = addDays(todayInTz("UTC"), 1);
+      const event1 = await createDailyTestEvent();
+      const event2 = await createDailyTestEvent();
+      await submitTicketForm(event1.slug, { name: "User A", email: "a@test.com", date: validDate });
+      await submitTicketForm(event2.slug, { name: "User B", email: "b@test.com", date: validDate });
 
       const response = await awaitTestRequest(`/admin/calendar/export?date=${validDate}`, { cookie });
       const csv = await response.text();
@@ -298,13 +195,8 @@ describe("admin calendar", () => {
     });
 
     test("returns empty CSV when no attendees for date", async () => {
-      const validDate = addDays(today(), 1);
-      await createTestEvent({
-        eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
-        minimumDaysBefore: 0,
-        maximumDaysAfter: 14,
-      });
+      const validDate = addDays(todayInTz("UTC"), 1);
+      await createDailyTestEvent();
 
       const response = await awaitTestRequest(`/admin/calendar/export?date=${validDate}`, { cookie });
       const csv = await response.text();

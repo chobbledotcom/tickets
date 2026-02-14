@@ -6,9 +6,11 @@ import { filter, map, pipe, reduce } from "#fp";
 import { renderFields } from "#lib/forms.tsx";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { eventFields } from "#templates/fields.ts";
+import { isStorageEnabled } from "#lib/storage.ts";
+import { eventFields, imageField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { renderEventImage } from "#templates/public.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -17,7 +19,7 @@ const EventRow = ({ e }: { e: EventWithCount }): string => {
   const rowStyle = isInactive ? 'opacity: 0.5;' : '';
   return String(
     <tr style={rowStyle || undefined}>
-      <td><a href={`/admin/event/${e.id}`}>{e.name}</a></td>
+      <td><Raw html={renderEventImage(e, "event-thumbnail")} /><a href={`/admin/event/${e.id}`}>{e.name}</a></td>
       <td>{e.description}</td>
       <td>{isInactive ? "Inactive" : "Active"}</td>
       <td>{e.attendee_count} / {e.max_attendees}</td>
@@ -31,7 +33,7 @@ const MultiBookingCheckbox = ({ e }: { e: EventWithCount }): string =>
   String(
     <li>
       <label>
-        <input type="checkbox" data-multi-booking-slug={e.slug} />
+        <input type="checkbox" data-multi-booking-slug={e.slug} data-fields={e.fields} />
         {` ${e.name}`}
       </label>
     </li>
@@ -64,6 +66,15 @@ const multiBookingSection = (
         data-domain={allowedDomain}
         placeholder="Select two or more events"
       />
+      <label for="multi-booking-embed">Embed code</label>
+      <input
+        type="text"
+        id="multi-booking-embed"
+        readonly
+        data-select-on-click
+        data-multi-booking-embed
+        placeholder="Select two or more events"
+      />
     </details>
   );
 };
@@ -75,6 +86,7 @@ export const adminDashboardPage = (
   events: EventWithCount[],
   session: AdminSession,
   allowedDomain: string,
+  imageError?: string | null,
 ): string => {
   const eventRows =
     events.length > 0
@@ -82,10 +94,16 @@ export const adminDashboardPage = (
       : '<tr><td colspan="5">No events yet</td></tr>';
 
   const activeEvents = filter((e: EventWithCount) => e.active === 1)(events);
+  const storageEnabled = isStorageEnabled();
+  const createFields = storageEnabled ? [...eventFields, imageField] : eventFields;
 
   return String(
     <Layout title="Events">
       <AdminNav session={session} />
+
+      {imageError && (
+        <p class="error">Event created but image was not saved: {imageError}</p>
+      )}
 
       <div class="table-scroll">
         <table>
@@ -110,10 +128,10 @@ export const adminDashboardPage = (
 
       <br />
 
-        <form method="POST" action="/admin/event">
+        <form method="POST" action="/admin/event" enctype="multipart/form-data">
             <h2>Create New Event</h2>
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
-          <Raw html={renderFields(eventFields)} />
+          <Raw html={renderFields(createFields)} />
           <button type="submit">Create Event</button>
         </form>
     </Layout>

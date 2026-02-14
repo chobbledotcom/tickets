@@ -162,6 +162,7 @@ describe("stripe", () => {
         bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
         minimum_days_before: 1,
         maximum_days_after: 90,
+        image_url: "",
       };
       const intent = {
         eventId: 1,
@@ -169,6 +170,7 @@ describe("stripe", () => {
         email: "john@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         quantity: 1,
       };
 
@@ -211,6 +213,7 @@ describe("stripe", () => {
         bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
         minimum_days_before: 1,
         maximum_days_after: 90,
+        image_url: "",
       };
 
       const intent = {
@@ -219,6 +222,7 @@ describe("stripe", () => {
         email: "john@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         quantity: 2,
       };
 
@@ -268,6 +272,7 @@ describe("stripe", () => {
         bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
         minimum_days_before: 1,
         maximum_days_after: 90,
+        image_url: "",
       };
       const intent = {
         eventId: 1,
@@ -275,6 +280,7 @@ describe("stripe", () => {
         email: "john@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         quantity: 1,
       };
       const result = await createCheckoutSessionWithIntent(
@@ -308,6 +314,7 @@ describe("stripe", () => {
         bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
         minimum_days_before: 1,
         maximum_days_after: 90,
+        image_url: "",
       };
       const intent = {
         eventId: 1,
@@ -315,6 +322,7 @@ describe("stripe", () => {
         email: "john@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         quantity: 1,
       };
       const result = await createCheckoutSessionWithIntent(
@@ -771,6 +779,7 @@ describe("stripe", () => {
         email: "john@example.com",
         phone: "+44 7700 900000",
         address: "",
+        special_instructions: "",
         quantity: 1,
       };
 
@@ -797,6 +806,7 @@ describe("stripe", () => {
         email: "",
         phone: "+44 7700 900000",
         address: "",
+        special_instructions: "",
         quantity: 1,
       };
 
@@ -821,6 +831,7 @@ describe("stripe", () => {
         email: "jane@example.com",
         phone: "+44 7700 900001",
         address: "",
+        special_instructions: "",
         items: [
           { eventId: 1, quantity: 2, unitPrice: 1000, slug: "event-a", name: "Event A" },
           { eventId: 2, quantity: 1, unitPrice: 2000, slug: "event-b", name: "Event B" },
@@ -842,6 +853,7 @@ describe("stripe", () => {
         email: "jane@example.com",
         phone: "",
         address: "",
+        special_instructions: "",
         items: [
           { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-a", name: "Event A" },
         ],
@@ -862,6 +874,7 @@ describe("stripe", () => {
         email: "",
         phone: "+44 7700 900002",
         address: "",
+        special_instructions: "",
         items: [
           { eventId: 1, quantity: 1, unitPrice: 1000, slug: "event-a", name: "Event A" },
           { eventId: 2, quantity: 2, unitPrice: 2000, slug: "event-b", name: "Event B" },
@@ -1329,6 +1342,7 @@ describe("stripe-provider", () => {
           email: "john@example.com",
           phone: "",
           address: "",
+          special_instructions: "",
           quantity: 1,
         };
 
@@ -1361,6 +1375,7 @@ describe("stripe-provider", () => {
           email: "john@example.com",
           phone: "",
           address: "",
+          special_instructions: "",
           quantity: 1,
         };
 
@@ -1696,6 +1711,7 @@ describe("stripe-provider", () => {
           email: "jane@example.com",
           phone: "",
           address: "",
+          special_instructions: "",
           items: [{ eventId: 1, quantity: 1, unitPrice: 1000, slug: "evt", name: "Evt" }],
         };
         const result = await stripePaymentProvider.createMultiCheckoutSession(

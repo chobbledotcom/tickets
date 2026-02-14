@@ -242,6 +242,24 @@ export const decrypt = async (encrypted: string): Promise<string> => {
 };
 
 /**
+ * Encrypt binary data with AES-256-GCM.
+ * Delegates to encrypt() via base64 encoding for maximum code reuse.
+ * Used for encrypting image files before CDN storage.
+ */
+export const encryptBytes = async (data: Uint8Array): Promise<Uint8Array> => {
+  const encrypted = await encrypt(toBase64(data));
+  return new TextEncoder().encode(encrypted);
+};
+
+/**
+ * Decrypt binary data encrypted with encryptBytes().
+ */
+export const decryptBytes = async (encrypted: Uint8Array): Promise<Uint8Array> => {
+  const decrypted = await decrypt(new TextDecoder().decode(encrypted));
+  return fromBase64(decrypted);
+};
+
+/**
  * Clear the cached encryption key (useful for testing)
  */
 export const clearEncryptionKeyCache = (): void => {
