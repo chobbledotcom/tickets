@@ -4,6 +4,7 @@ tickets.db
 .env
 dist/
 .bin/
+.direnv/
 coverage*/
 cov_profile/
 .jscpd-report/
