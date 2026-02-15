@@ -29,6 +29,19 @@ import {
 /** CSRF cookie name for join forms */
 const JOIN_CSRF_COOKIE = "join_csrf";
 
+/** Join CSRF cookie builder */
+const joinCsrfCookie = (code: string, token: string): string =>
+  csrfCookie(token, `/join/${code}`, JOIN_CSRF_COOKIE);
+
+/** Join page response helper with CSRF cookie */
+const joinResponse =
+  (code: string, username: string) =>
+  (token: string, error?: string, status = 200): Response =>
+    htmlResponseWithCookie(joinCsrfCookie(code, token))(
+      joinPage(code, username, error, token),
+      status,
+    );
+
 /** Validate invite code and return user, or an error response */
 const validateInvite = async (code: string): Promise<
   { user: User; username: string } | Response
@@ -67,9 +80,7 @@ const withValidInvite = async (
 const handleJoinGet = (_request: Request, code: string): Promise<Response> =>
   withValidInvite(code, (code, _user, username) => {
     const csrfToken = generateSecureToken();
-    return htmlResponseWithCookie(csrfCookie(csrfToken, `/join/${code}`, JOIN_CSRF_COOKIE))(
-      joinPage(code, username, undefined, csrfToken),
-    );
+    return joinResponse(code, username)(csrfToken);
   });
 
 /**
@@ -80,10 +91,7 @@ const handleJoinPost = (request: Request, code: string): Promise<Response> =>
     const csrf = await requireCsrfForm(
       request,
       (newToken) =>
-        htmlResponseWithCookie(csrfCookie(newToken, `/join/${code}`, JOIN_CSRF_COOKIE))(
-          joinPage(code, username, "Invalid or expired form. Please try again.", newToken),
-          403,
-        ),
+        joinResponse(code, username)(newToken, "Invalid or expired form. Please try again.", 403),
       JOIN_CSRF_COOKIE,
     );
     if (!csrf.ok) return csrf.response;

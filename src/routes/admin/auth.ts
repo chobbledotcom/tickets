@@ -19,9 +19,9 @@ import type { ServerContext } from "#routes/types.ts";
 import {
   generateSecureToken,
   getClientIp,
-  parseFormData,
   redirect,
-  withSession,
+  requireAuthForm,
+  requireCsrfForm,
 } from "#routes/utils.ts";
 import { loginFields, type LoginFormValues } from "#templates/fields.ts";
 import { getEnv } from "#lib/env.ts";
@@ -31,6 +31,14 @@ const randomDelay = (): Promise<void> =>
   getEnv("TEST_SKIP_LOGIN_DELAY")
     ? Promise.resolve()
     : new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 100));
+
+const ADMIN_LOGIN_CSRF_COOKIE = "__Host-admin_login_csrf";
+
+const invalidLoginCsrfResponse = (newToken: string, status = 403): Response =>
+  loginResponse(newToken, "Invalid or expired form", status);
+
+const invalidCredentialsResponse = (newToken: string): Response =>
+  loginResponse(newToken, "Invalid credentials", 401);
 
 /** Create a session with a wrapped DATA_KEY and redirect to /admin */
 const createLoginSession = async (
@@ -64,16 +72,24 @@ const handleAdminLogin = async (
   // Check rate limiting
   if (await isLoginRateLimited(clientIp)) {
     return loginResponse(
+      generateSecureToken(),
       "Too many login attempts. Please try again later.",
       429,
     );
   }
 
-  const form = await parseFormData(request);
+  const csrf = await requireCsrfForm(
+    request,
+    (newToken) => invalidLoginCsrfResponse(newToken),
+    ADMIN_LOGIN_CSRF_COOKIE,
+  );
+  if (!csrf.ok) return csrf.response;
+
+  const { form } = csrf;
   const validation = validateForm<LoginFormValues>(form, loginFields);
 
   if (!validation.valid) {
-    return loginResponse(validation.error, 400);
+    return loginResponse(generateSecureToken(), validation.error, 400);
   }
 
   const { username, password } = validation.values;
@@ -82,14 +98,14 @@ const handleAdminLogin = async (
   const user = await getUserByUsername(username);
   if (!user) {
     await recordFailedLogin(clientIp);
-    return loginResponse("Invalid credentials", 401);
+    return invalidCredentialsResponse(generateSecureToken());
   }
 
   // Verify password (decrypt stored hash, then verify)
   const passwordHash = await verifyUserPassword(user, password);
   if (!passwordHash) {
     await recordFailedLogin(clientIp);
-    return loginResponse("Invalid credentials", 401);
+    return invalidCredentialsResponse(generateSecureToken());
   }
 
   // Clear failed attempts on successful login
@@ -98,6 +114,7 @@ const handleAdminLogin = async (
   // Check if user has a wrapped data key (fully activated)
   if (!user.wrapped_data_key) {
     return loginResponse(
+      generateSecureToken(),
       "Your account has not been activated yet. Please contact the site owner.",
       403,
     );
@@ -110,29 +127,32 @@ const handleAdminLogin = async (
     dataKey = await unwrapKey(user.wrapped_data_key, kek);
   } catch {
     // KEK mismatch - this shouldn't happen if password verification passed
-    return loginResponse("Invalid credentials", 401);
+    return invalidCredentialsResponse(generateSecureToken());
   }
 
   return createLoginSession(dataKey, user.id);
 };
 
 /**
- * Handle GET /admin/logout
+ * Handle POST /admin/logout
  */
-const handleAdminLogout = (request: Request): Promise<Response> =>
-  withSession(
-    request,
-    async (session) => {
-      await deleteSession(session.token);
-      return redirect("/admin", clearSessionCookie);
-    },
-    () => redirect("/admin", clearSessionCookie),
-  );
+const handleAdminLogout = async (request: Request): Promise<Response> => {
+  const auth = await requireAuthForm(request);
+
+  if (!auth.ok) {
+    // Unauthenticated: preserve existing behavior by clearing stale cookie.
+    if (auth.response.status === 302) return redirect("/admin", clearSessionCookie);
+    return auth.response;
+  }
+
+  await deleteSession(auth.session.token);
+  return redirect("/admin", clearSessionCookie);
+};
 
 /** Authentication routes */
 export const authRoutes = defineRoutes({
-  "GET /admin/login": () => redirect("/admin"),
+  "GET /admin/login": () => loginResponse(generateSecureToken()),
   "POST /admin/login": (request, _, server) =>
     handleAdminLogin(request, server),
-  "GET /admin/logout": (request) => handleAdminLogout(request),
+  "POST /admin/logout": (request) => handleAdminLogout(request),
 });
