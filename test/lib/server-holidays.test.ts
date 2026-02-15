@@ -9,6 +9,7 @@ import {
   createTestHoliday,
   deleteTestHoliday,
   loginAsAdmin,
+  mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -82,7 +83,7 @@ describe("server (admin holidays)", () => {
 
       // Login as manager
       const loginResponse = await handleRequest(
-        mockFormRequest("/admin/login", {
+        mockAdminLoginRequest({
           username: "manager1",
           password: "managerpass123",
         }),

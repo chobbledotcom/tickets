@@ -427,6 +427,7 @@ textarea {
 input[type="checkbox"],
 input[type="radio"] {
   display: inline-block;
+  flex: 0;
 }
 
 input[type="checkbox"] + label,
