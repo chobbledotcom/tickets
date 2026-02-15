@@ -34,7 +34,7 @@ const activityLogRows = (entries: ActivityLogEntry[]): string =>
 export const adminEventActivityLogPage = (
   event: EventWithCount,
   entries: ActivityLogEntry[],
-  session?: AdminSession,
+  session: AdminSession,
 ): string =>
   String(
     <Layout title={`Log: ${event.name}`}>
@@ -62,7 +62,7 @@ export const adminEventActivityLogPage = (
 export const adminGlobalActivityLogPage = (
   entries: ActivityLogEntry[],
   truncated = false,
-  session?: AdminSession,
+  session: AdminSession,
 ): string =>
   String(
     <Layout title="Log">
