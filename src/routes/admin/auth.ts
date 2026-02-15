@@ -19,11 +19,12 @@ import type { ServerContext } from "#routes/types.ts";
 import {
   generateSecureToken,
   getClientIp,
+  htmlResponse,
   parseCookies,
   parseFormData,
   redirect,
   validateCsrfToken,
-  withSession,
+  withAuthForm,
 } from "#routes/utils.ts";
 import { loginFields, type LoginFormValues } from "#templates/fields.ts";
 import { getEnv } from "#lib/env.ts";
@@ -131,23 +132,25 @@ const handleAdminLogin = async (
 };
 
 /**
- * Handle GET /admin/logout
+ * Handle POST /admin/logout with CSRF validation
  */
 const handleAdminLogout = (request: Request): Promise<Response> =>
-  withSession(
-    request,
-    async (session) => {
-      await deleteSession(session.token);
-      return redirect("/admin", clearSessionCookie);
-    },
-    () => redirect("/admin", clearSessionCookie),
-  );
+  withAuthForm(request, async (session) => {
+    await deleteSession(session.token);
+    return redirect("/admin", clearSessionCookie);
+  });
+
+/**
+ * Handle GET /admin/logout - reject with error
+ */
+const handleAdminLogoutGet = (): Response =>
+  htmlResponse("Method not allowed. Use POST to logout.", 405);
 
 /** Authentication routes */
 export const authRoutes = defineRoutes({
   "GET /admin/login": () => loginResponse(),
   "POST /admin/login": (request, _, server) =>
     handleAdminLogin(request, server),
-  "GET /admin/logout": (request) => handleAdminLogout(request),
+  "GET /admin/logout": () => handleAdminLogoutGet(),
   "POST /admin/logout": (request) => handleAdminLogout(request),
 });
