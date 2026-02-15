@@ -153,9 +153,29 @@ describe("server (admin auth)", () => {
   });
 
   describe("POST /admin/logout", () => {
-    test("redirects and clears cookie when unauthenticated", async () => {
+    test("redirects to login when unauthenticated", async () => {
       const response = await handleRequest(
         mockFormRequest("/admin/logout", { csrf_token: "invalid" }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token when authenticated", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest("/admin/logout", { csrf_token: "invalid-csrf" }, cookie),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid CSRF token");
+    });
+
+    test("succeeds with valid CSRF token", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest("/admin/logout", { csrf_token: csrfToken }, cookie),
       );
       expectAdminRedirect(response);
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
@@ -163,10 +183,11 @@ describe("server (admin auth)", () => {
   });
 
   describe("GET /admin/logout", () => {
-    test("redirects and clears cookie when unauthenticated", async () => {
+    test("returns 405 method not allowed", async () => {
       const response = await handleRequest(mockRequest("/admin/logout"));
-      expectAdminRedirect(response);
-      expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+      expect(response.status).toBe(405);
+      const html = await response.text();
+      expect(html).toContain("Method not allowed");
     });
   });
 
