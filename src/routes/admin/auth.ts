@@ -19,11 +19,9 @@ import type { ServerContext } from "#routes/types.ts";
 import {
   generateSecureToken,
   getClientIp,
-  parseFormData,
   redirect,
+  requireAuthForm,
   requireCsrfForm,
-  validateCsrfToken,
-  withSession,
 } from "#routes/utils.ts";
 import { loginFields, type LoginFormValues } from "#templates/fields.ts";
 import { getEnv } from "#lib/env.ts";
@@ -139,21 +137,16 @@ const handleAdminLogin = async (
  * Handle POST /admin/logout
  */
 const handleAdminLogout = async (request: Request): Promise<Response> => {
-  const form = await parseFormData(request);
-  const csrfToken = String(form.get("csrf_token") ?? "");
+  const auth = await requireAuthForm(request);
 
-  return withSession(
-    request,
-    async (session) => {
-      if (!validateCsrfToken(session.csrfToken, csrfToken)) {
-        return redirect("/admin", clearSessionCookie);
-      }
+  if (!auth.ok) {
+    // Unauthenticated: preserve existing behavior by clearing stale cookie.
+    if (auth.response.status === 302) return redirect("/admin", clearSessionCookie);
+    return auth.response;
+  }
 
-      await deleteSession(session.token);
-      return redirect("/admin", clearSessionCookie);
-    },
-    () => redirect("/admin", clearSessionCookie),
-  );
+  await deleteSession(auth.session.token);
+  return redirect("/admin", clearSessionCookie);
 };
 
 /** Authentication routes */
