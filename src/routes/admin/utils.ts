@@ -20,9 +20,6 @@ export type AuthValidationResult =
   | { ok: false; response: Response };
 
 /** Cookie to clear admin session */
-export const clearSessionCookie =
-  "__Host-session=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0";
-
 /** Verify identifier matches for confirmation (case-insensitive, trimmed) */
 export const verifyIdentifier = (expected: string, provided: string): boolean =>
   expected.trim().toLowerCase() === provided.trim().toLowerCase();

@@ -3,6 +3,7 @@
  */
 
 import { compact, filter, map, pipe, reduce } from "#fp";
+import { buildCsrfCookie, getCsrfCookieName } from "#lib/cookies.ts";
 import { getCurrencyCode, getTz, isPaymentsEnabled } from "#lib/config.ts";
 import { getTermsAndConditionsFromDb } from "#lib/db/settings.ts";
 import { getAvailableDates } from "#lib/dates.ts";
@@ -24,7 +25,6 @@ import {
   type RegistrationEntry,
 } from "#lib/webhook.ts";
 import {
-  csrfCookie,
   formatCreationError,
   generateSecureToken,
   getBaseUrl,
@@ -61,7 +61,7 @@ const makeCsrfResponseBuilder =
   (...params: P) =>
   (token: string) =>
   (error?: string, status = 200) =>
-    htmlResponseWithCookie(csrfCookie(token, getPath(...params), undefined, getIframe?.(...params)))(
+    htmlResponseWithCookie(buildCsrfCookie("csrf_token", token, { path: getPath(...params), inIframe: getIframe?.(...params) }))(
       getContent(token, error, ...params),
       status,
     );
@@ -291,7 +291,7 @@ const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
 /** Extract CSRF token from request cookies, falling back to a fresh token */
 const getFormToken = (request: Request): string => {
   const cookies = parseCookies(request);
-  return cookies.get("csrf_token") || generateSecureToken();
+  return cookies.get(getCsrfCookieName("csrf_token")) || generateSecureToken();
 };
 
 /** Validate submitted date against available dates; returns the date or null if invalid */

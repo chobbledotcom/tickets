@@ -1,3 +1,4 @@
+import { getSessionCookieName } from "#lib/cookies.ts";
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
@@ -164,17 +165,17 @@ describe("server (multi-user admin)", () => {
 
       // Manager should get 403 on owner-only routes
       const settingsResponse = await awaitTestRequest("/admin/settings", {
-        cookie: "__Host-session=manager-token",
+        cookie: `${getSessionCookieName()}=manager-token`,
       });
       expect(settingsResponse.status).toBe(403);
 
       const sessionsResponse = await awaitTestRequest("/admin/sessions", {
-        cookie: "__Host-session=manager-token",
+        cookie: `${getSessionCookieName()}=manager-token`,
       });
       expect(sessionsResponse.status).toBe(403);
 
       const usersResponse = await awaitTestRequest("/admin/users", {
-        cookie: "__Host-session=manager-token",
+        cookie: `${getSessionCookieName()}=manager-token`,
       });
       expect(usersResponse.status).toBe(403);
     });
@@ -220,7 +221,7 @@ describe("server (multi-user admin)", () => {
       await createSession("mgr-session", "mgr-csrf", Date.now() + 3600000, null, 2);
 
       const response = await awaitTestRequest("/admin/", {
-        cookie: "__Host-session=mgr-session",
+        cookie: `${getSessionCookieName()}=mgr-session`,
       });
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -385,7 +386,7 @@ describe("server (multi-user admin)", () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin");
-      expect(response.headers.get("set-cookie")).toContain("__Host-session=");
+      expect(response.headers.get("set-cookie")).toContain(`${getSessionCookieName()}=`);
     });
 
     test("login with wrong username returns 401", async () => {
@@ -599,7 +600,7 @@ describe("server (multi-user admin)", () => {
       await createSession("navmgr-session", "navmgr-csrf", Date.now() + 3600000, null, 2);
 
       const dashboardResponse = await awaitTestRequest("/admin/", {
-        cookie: "__Host-session=navmgr-session",
+        cookie: `${getSessionCookieName()}=navmgr-session`,
       });
       const html = await dashboardResponse.text();
       expect(html).not.toContain("Settings");
@@ -755,7 +756,7 @@ describe("server (multi-user admin)", () => {
         mockFormRequest(
           "/admin/users/2/activate",
           { csrf_token: "no-dk-csrf" },
-          "__Host-session=no-dk-session",
+          `${getSessionCookieName()}=no-dk-session`,
         ),
       );
       expect(response.status).toBe(500);
@@ -1113,7 +1114,7 @@ describe("server (multi-user admin)", () => {
             new_password_confirm: "newpassword123",
             csrf_token: "mgr-form-csrf",
           },
-          "__Host-session=mgr-form-session",
+          `${getSessionCookieName()}=mgr-form-session`,
         ),
       );
       expect(response.status).toBe(403);
@@ -1149,7 +1150,7 @@ describe("server (multi-user admin)", () => {
       await createSession("orphan-session", "orphan-csrf", Date.now() + 3600000, null, 999);
 
       const response = await awaitTestRequest("/admin/", {
-        cookie: "__Host-session=orphan-session",
+        cookie: `${getSessionCookieName()}=orphan-session`,
       });
       const html = await response.text();
       expect(html).toContain("Login");

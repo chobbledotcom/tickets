@@ -9,6 +9,7 @@ import {
   getPrivateKeyFromSession,
 } from "#lib/crypto.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
+import { getCsrfCookieName, getSessionCookieName } from "#lib/cookies.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
@@ -78,7 +79,7 @@ export const getAuthenticatedSession = async (
   request: Request,
 ): Promise<AuthSession | null> => {
   const cookies = parseCookies(request);
-  const token = cookies.get("__Host-session");
+  const token = cookies.get(getSessionCookieName());
   if (!token) return null;
 
   const session = await getSession(token);
@@ -405,13 +406,6 @@ export type CsrfFormResult =
   | { ok: true; form: URLSearchParams }
   | { ok: false; response: Response };
 
-/** Default cookie name for public form CSRF tokens */
-const DEFAULT_CSRF_COOKIE = "csrf_token";
-
-/** Generate CSRF cookie string. Uses SameSite=None + Partitioned when embedded in a cross-site iframe. */
-export const csrfCookie = (token: string, path: string, cookieName?: string, inIframe = false): string =>
-  `${cookieName ?? DEFAULT_CSRF_COOKIE}=${token}; HttpOnly; Secure; SameSite=${inIframe ? "None" : "Strict"}; Path=${path}; Max-Age=3600${inIframe ? "; Partitioned" : ""}`;
-
 /**
  * Parse form with CSRF validation (double-submit cookie pattern)
  * This is the integral CSRF check - you cannot get form data without validating CSRF
@@ -419,7 +413,7 @@ export const csrfCookie = (token: string, path: string, cookieName?: string, inI
 export const requireCsrfForm = async (
   request: Request,
   onInvalid: (newToken: string) => Response,
-  cookieName = DEFAULT_CSRF_COOKIE,
+  cookieName = getCsrfCookieName("csrf_token"),
 ): Promise<CsrfFormResult> => {
   const cookies = parseCookies(request);
   const cookieCsrf = cookies.get(cookieName) || "";

@@ -2,6 +2,7 @@
  * Join routes - public invite acceptance flow
  */
 
+import { buildCsrfCookie, getCsrfCookieName } from "#lib/cookies.ts";
 import type { User } from "#lib/types.ts";
 import {
   decryptUsername,
@@ -12,7 +13,6 @@ import {
 import { validateForm } from "#lib/forms.tsx";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
-  csrfCookie,
   generateSecureToken,
   htmlResponse,
   htmlResponseWithCookie,
@@ -25,9 +25,6 @@ import {
   joinErrorPage,
   joinPage,
 } from "#templates/join.tsx";
-
-/** CSRF cookie name for join forms */
-const JOIN_CSRF_COOKIE = "join_csrf";
 
 /** Validate invite code and return user, or an error response */
 const validateInvite = async (code: string): Promise<
@@ -67,7 +64,7 @@ const withValidInvite = async (
 const handleJoinGet = (_request: Request, code: string): Promise<Response> =>
   withValidInvite(code, (code, _user, username) => {
     const csrfToken = generateSecureToken();
-    return htmlResponseWithCookie(csrfCookie(csrfToken, `/join/${code}`, JOIN_CSRF_COOKIE))(
+    return htmlResponseWithCookie(buildCsrfCookie("join_csrf", csrfToken, { path: `/join/${code}` }))(
       joinPage(code, username, undefined, csrfToken),
     );
   });
@@ -80,11 +77,11 @@ const handleJoinPost = (request: Request, code: string): Promise<Response> =>
     const csrf = await requireCsrfForm(
       request,
       (newToken) =>
-        htmlResponseWithCookie(csrfCookie(newToken, `/join/${code}`, JOIN_CSRF_COOKIE))(
+        htmlResponseWithCookie(buildCsrfCookie("join_csrf", newToken, { path: `/join/${code}` }))(
           joinPage(code, username, "Invalid or expired form. Please try again.", newToken),
           403,
         ),
-      JOIN_CSRF_COOKIE,
+      getCsrfCookieName("join_csrf"),
     );
     if (!csrf.ok) return csrf.response;
 
