@@ -22,6 +22,7 @@ import {
   parseFormData,
   redirect,
   requireCsrfForm,
+  validateCsrfToken,
   withSession,
 } from "#routes/utils.ts";
 import { loginFields, type LoginFormValues } from "#templates/fields.ts";
@@ -37,6 +38,9 @@ const ADMIN_LOGIN_CSRF_COOKIE = "__Host-admin_login_csrf";
 
 const invalidLoginCsrfResponse = (newToken: string, status = 403): Response =>
   loginResponse(newToken, "Invalid or expired form", status);
+
+const invalidCredentialsResponse = (newToken: string): Response =>
+  loginResponse(newToken, "Invalid credentials", 401);
 
 /** Create a session with a wrapped DATA_KEY and redirect to /admin */
 const createLoginSession = async (
@@ -96,14 +100,14 @@ const handleAdminLogin = async (
   const user = await getUserByUsername(username);
   if (!user) {
     await recordFailedLogin(clientIp);
-    return invalidLoginCsrfResponse(generateSecureToken(), 401);
+    return invalidCredentialsResponse(generateSecureToken());
   }
 
   // Verify password (decrypt stored hash, then verify)
   const passwordHash = await verifyUserPassword(user, password);
   if (!passwordHash) {
     await recordFailedLogin(clientIp);
-    return invalidLoginCsrfResponse(generateSecureToken(), 401);
+    return invalidCredentialsResponse(generateSecureToken());
   }
 
   // Clear failed attempts on successful login
@@ -125,7 +129,7 @@ const handleAdminLogin = async (
     dataKey = await unwrapKey(user.wrapped_data_key, kek);
   } catch {
     // KEK mismatch - this shouldn't happen if password verification passed
-    return invalidLoginCsrfResponse(generateSecureToken(), 401);
+    return invalidCredentialsResponse(generateSecureToken());
   }
 
   return createLoginSession(dataKey, user.id);
@@ -141,7 +145,7 @@ const handleAdminLogout = async (request: Request): Promise<Response> => {
   return withSession(
     request,
     async (session) => {
-      if (session.csrfToken !== csrfToken) {
+      if (!validateCsrfToken(session.csrfToken, csrfToken)) {
         return redirect("/admin", clearSessionCookie);
       }
 
