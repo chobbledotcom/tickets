@@ -19,9 +19,9 @@ import type { ServerContext } from "#routes/types.ts";
 import {
   generateSecureToken,
   getClientIp,
+  parseCookies,
   parseFormData,
   redirect,
-  requireCsrfForm,
   validateCsrfToken,
   withSession,
 } from "#routes/utils.ts";
@@ -80,14 +80,7 @@ const handleAdminLogin = async (
     );
   }
 
-  const csrf = await requireCsrfForm(
-    request,
-    (newToken) => invalidLoginCsrfResponse(newToken),
-    ADMIN_LOGIN_CSRF_COOKIE,
-  );
-  if (!csrf.ok) return csrf.response;
-
-  const { form } = csrf;
+  const form = await parseFormData(request);
   const validation = validateForm<LoginFormValues>(form, loginFields);
 
   if (!validation.valid) {
@@ -108,6 +101,12 @@ const handleAdminLogin = async (
   if (!passwordHash) {
     await recordFailedLogin(clientIp);
     return invalidCredentialsResponse(generateSecureToken());
+  }
+
+  const cookieCsrf = parseCookies(request).get(ADMIN_LOGIN_CSRF_COOKIE) || "";
+  const formCsrf = form.get("csrf_token") || "";
+  if (!cookieCsrf || !formCsrf || !validateCsrfToken(cookieCsrf, formCsrf)) {
+    return invalidLoginCsrfResponse(generateSecureToken());
   }
 
   // Clear failed attempts on successful login
