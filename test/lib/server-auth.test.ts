@@ -82,6 +82,21 @@ describe("server (admin auth)", () => {
       expect(html).toContain("Invalid credentials");
     });
 
+    test("rejects login with invalid CSRF before credential checks", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/login", {
+          username: "testadmin",
+          password: "wrong",
+          csrf_token: "missing-cookie-token",
+        }),
+      );
+
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid or expired form");
+      expect(html).not.toContain("Invalid credentials");
+    });
+
     test("accepts correct password and sets cookie", async () => {
       const password = TEST_ADMIN_PASSWORD;
       const response = await handleRequest(
