@@ -21,7 +21,8 @@ import { adminLoginPage } from "#templates/admin/login.tsx";
 /** Login page response helper */
 const ADMIN_LOGIN_CSRF_COOKIE = "__Host-admin_login_csrf";
 const adminLoginCsrfCookie = (token: string): string =>
-  csrfCookie(token, "/admin/login", ADMIN_LOGIN_CSRF_COOKIE);
+  // __Host- cookies must use Path=/ (and no Domain) to be accepted by browsers.
+  csrfCookie(token, "/", ADMIN_LOGIN_CSRF_COOKIE);
 
 export const loginResponse = (csrfToken: string, error?: string, status = 200): Response =>
   htmlResponseWithCookie(adminLoginCsrfCookie(csrfToken))(
