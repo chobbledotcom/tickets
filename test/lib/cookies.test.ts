@@ -36,6 +36,18 @@ describe("cookies policy", () => {
     });
   });
 
+
+
+    test("supports custom max-age values", () => {
+      Deno.env.set("ALLOWED_DOMAIN", "example.com");
+
+      const sessionCookie = buildSessionCookie("abc", { maxAge: 120 });
+      expect(sessionCookie).toContain("Max-Age=120");
+
+      const csrfCookie = buildCsrfCookie("setup_csrf", "tok", { path: "/setup", maxAge: 90 });
+      expect(csrfCookie).toContain("Max-Age=90");
+    });
+
   describe("non-secure localhost mode", () => {
     test("does not apply __Host- prefix or Secure attributes", () => {
       Deno.env.set("ALLOWED_DOMAIN", "localhost");
