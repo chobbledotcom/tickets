@@ -6,14 +6,26 @@ import { getAllowedDomain } from "#lib/config.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { htmlResponse, requireSessionOr, withSession } from "#routes/utils.ts";
+import { generateSecureToken, htmlResponse, htmlResponseWithCookie, requireSessionOr, withSession } from "#routes/utils.ts";
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 
+/** Cookie name for login CSRF token */
+const LOGIN_CSRF_COOKIE = "__Host-admin_login_csrf";
+
+/** Generate login CSRF cookie string */
+const loginCsrfCookie = (token: string): string =>
+  `${LOGIN_CSRF_COOKIE}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/admin; Max-Age=3600`;
+
 /** Login page response helper */
-export const loginResponse = (error?: string, status = 200) =>
-  htmlResponse(adminLoginPage(error), status);
+export const loginResponse = (error?: string, status = 200) => {
+  const csrfToken = generateSecureToken();
+  return htmlResponseWithCookie(loginCsrfCookie(csrfToken))(
+    adminLoginPage(csrfToken, error),
+    status,
+  );
+};
 
 /**
  * Handle GET /admin/

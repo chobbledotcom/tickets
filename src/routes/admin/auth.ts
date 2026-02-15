@@ -19,12 +19,17 @@ import type { ServerContext } from "#routes/types.ts";
 import {
   generateSecureToken,
   getClientIp,
+  parseCookies,
   parseFormData,
   redirect,
+  validateCsrfToken,
   withSession,
 } from "#routes/utils.ts";
 import { loginFields, type LoginFormValues } from "#templates/fields.ts";
 import { getEnv } from "#lib/env.ts";
+
+/** Cookie name for login CSRF token */
+const LOGIN_CSRF_COOKIE = "__Host-admin_login_csrf";
 
 /** Random delay between 100-200ms to prevent timing attacks */
 const randomDelay = (): Promise<void> =>
@@ -59,6 +64,16 @@ const handleAdminLogin = async (
 ): Promise<Response> => {
   await randomDelay();
 
+  const cookies = parseCookies(request);
+  const form = await parseFormData(request);
+
+  // Validate login CSRF token (double-submit cookie pattern)
+  const csrfCookie = cookies.get(LOGIN_CSRF_COOKIE);
+  const csrfForm = form.get("csrf_token");
+  if (!csrfCookie || !csrfForm || !validateCsrfToken(csrfCookie, csrfForm)) {
+    return loginResponse("Invalid or expired form. Please try again.", 403);
+  }
+
   const clientIp = getClientIp(request, server);
 
   // Check rate limiting
@@ -69,7 +84,6 @@ const handleAdminLogin = async (
     );
   }
 
-  const form = await parseFormData(request);
   const validation = validateForm<LoginFormValues>(form, loginFields);
 
   if (!validation.valid) {
@@ -131,8 +145,9 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
 
 /** Authentication routes */
 export const authRoutes = defineRoutes({
-  "GET /admin/login": () => redirect("/admin"),
+  "GET /admin/login": () => loginResponse(),
   "POST /admin/login": (request, _, server) =>
     handleAdminLogin(request, server),
   "GET /admin/logout": (request) => handleAdminLogout(request),
+  "POST /admin/logout": (request) => handleAdminLogout(request),
 });

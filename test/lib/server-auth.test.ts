@@ -162,6 +162,14 @@ describe("server (admin auth)", () => {
     });
   });
 
+  describe("GET /admin/logout", () => {
+    test("redirects and clears cookie when unauthenticated", async () => {
+      const response = await handleRequest(mockRequest("/admin/logout"));
+      expectAdminRedirect(response);
+      expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+    });
+  });
+
   describe("GET /admin/sessions", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/sessions"));

@@ -612,12 +612,8 @@ export const loginAsAdmin = async (): Promise<{
       loginCsrfToken,
     ),
   );
-  const cookie = loginResponse.headers.get("set-cookie") || "";
-  const csrfToken = await getCsrfTokenFromCookie(cookie);
-
-  if (!csrfToken) {
-    throw new Error("Failed to get CSRF token for admin login");
-  }
+  const cookie = loginResponse.headers.get("set-cookie")!;
+  const csrfToken = (await getCsrfTokenFromCookie(cookie))!;
 
   return { cookie, csrfToken };
 };
