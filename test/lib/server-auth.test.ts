@@ -4,6 +4,7 @@ import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
+  mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -53,16 +54,19 @@ describe("server (admin auth)", () => {
   });
 
   describe("GET /admin/login", () => {
-    test("redirects to /admin", async () => {
+    test("shows login page", async () => {
       const response = await handleRequest(mockRequest("/admin/login"));
-      expectAdminRedirect(response);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Login");
+      expect(response.headers.get("set-cookie")).toContain("__Host-admin_login_csrf=");
     });
   });
 
   describe("POST /admin/login", () => {
     test("validates required password field", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/login", { username: "testadmin", password: "" }),
+        mockAdminLoginRequest({ username: "testadmin", password: "" }),
       );
       expect(response.status).toBe(400);
       const html = await response.text();
@@ -71,7 +75,7 @@ describe("server (admin auth)", () => {
 
     test("rejects wrong password", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/login", { username: "testadmin", password: "wrong" }),
+        mockAdminLoginRequest({ username: "testadmin", password: "wrong" }),
       );
       expect(response.status).toBe(401);
       const html = await response.text();
@@ -81,23 +85,31 @@ describe("server (admin auth)", () => {
     test("accepts correct password and sets cookie", async () => {
       const password = TEST_ADMIN_PASSWORD;
       const response = await handleRequest(
-        mockFormRequest("/admin/login", { username: "testadmin", password }),
+        mockAdminLoginRequest({ username: "testadmin", password }),
       );
       expectAdminRedirect(response);
       expect(response.headers.get("set-cookie")).toContain("__Host-session=");
     });
 
+
+    test("rejects login when CSRF cookie is missing", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/login", {
+          username: "testadmin",
+          password: TEST_ADMIN_PASSWORD,
+          csrf_token: "missing-cookie-token",
+        }),
+      );
+
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid or expired form");
+    });
+
     test("returns 429 when rate limited", async () => {
       // Rate limiting uses direct connection IP (falls back to "direct" in tests)
       const makeRequest = () =>
-        new Request("http://localhost/admin/login", {
-          method: "POST",
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            host: "localhost",
-          },
-          body: new URLSearchParams({ username: "testadmin", password: "wrong" }).toString(),
-        });
+        mockAdminLoginRequest({ username: "testadmin", password: "wrong" });
 
       // Make 5 failed attempts to trigger lockout
       for (let i = 0; i < 5; i++) {
@@ -117,14 +129,7 @@ describe("server (admin auth)", () => {
         requestIP: () => ({ address: "192.168.1.100" }),
       };
 
-      const request = new Request("http://localhost/admin/login", {
-        method: "POST",
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          host: "localhost",
-        },
-        body: new URLSearchParams({ username: "testadmin", password: "wrong" }).toString(),
-      });
+      const request = mockAdminLoginRequest({ username: "testadmin", password: "wrong" });
 
       // Make request with server context
       const response = await handleRequest(request, mockServer);
@@ -138,14 +143,7 @@ describe("server (admin auth)", () => {
         requestIP: () => null,
       };
 
-      const request = new Request("http://localhost/admin/login", {
-        method: "POST",
-        headers: {
-          "content-type": "application/x-www-form-urlencoded",
-          host: "localhost",
-        },
-        body: new URLSearchParams({ username: "testadmin", password: "wrong" }).toString(),
-      });
+      const request = mockAdminLoginRequest({ username: "testadmin", password: "wrong" });
 
       // Make request with server context
       const response = await handleRequest(request, mockServer);
@@ -154,11 +152,42 @@ describe("server (admin auth)", () => {
     });
   });
 
-  describe("GET /admin/logout", () => {
-    test("clears session and redirects", async () => {
-      const response = await handleRequest(mockRequest("/admin/logout"));
+  describe("POST /admin/logout", () => {
+    test("redirects to login when unauthenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/logout", { csrf_token: "invalid" }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token when authenticated", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest("/admin/logout", { csrf_token: "invalid-csrf" }, cookie),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      expect(html).toContain("Invalid CSRF token");
+    });
+
+    test("succeeds with valid CSRF token", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest("/admin/logout", { csrf_token: csrfToken }, cookie),
+      );
       expectAdminRedirect(response);
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+    });
+  });
+
+  describe("GET /admin/logout", () => {
+    test("returns 405 method not allowed", async () => {
+      const response = await handleRequest(mockRequest("/admin/logout"));
+      expect(response.status).toBe(405);
+      const html = await response.text();
+      expect(html).toContain("Method not allowed");
     });
   });
 
@@ -316,7 +345,7 @@ describe("server (admin auth)", () => {
   describe("logout with valid session", () => {
     test("deletes session from database", async () => {
       // Log in first
-      const { cookie } = await loginAsAdmin();
+      const { cookie, csrfToken } = await loginAsAdmin();
       const token = cookie.split("=")[1]?.split(";")[0] || "";
 
       expect(token).not.toBe("");
@@ -324,7 +353,10 @@ describe("server (admin auth)", () => {
       expect(sessionBefore).not.toBeNull();
 
       // Now logout
-      const logoutResponse = await awaitTestRequest("/admin/logout", token);
+      const logoutResponse = await awaitTestRequest("/admin/logout", {
+        cookie,
+        data: { csrf_token: csrfToken },
+      });
       expect(logoutResponse.status).toBe(302);
 
       // Verify session was deleted
@@ -343,7 +375,7 @@ describe("server (admin auth)", () => {
       });
 
       const response = await handleRequest(
-        mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
+        mockAdminLoginRequest({ username: "testadmin", password: TEST_ADMIN_PASSWORD }),
       );
       // Should return 403 - user exists but is not activated
       expect(response.status).toBe(403);
@@ -362,7 +394,7 @@ describe("server (admin auth)", () => {
       });
 
       const response = await handleRequest(
-        mockFormRequest("/admin/login", {
+        mockAdminLoginRequest({
           username: "testadmin",
           password: TEST_ADMIN_PASSWORD,
         }),
@@ -377,7 +409,7 @@ describe("server (admin auth)", () => {
       Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
       const start = Date.now();
       const response = await handleRequest(
-        mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
+        mockAdminLoginRequest({ username: "testadmin", password: TEST_ADMIN_PASSWORD }),
       );
       const elapsed = Date.now() - start;
       expectAdminRedirect(response);
@@ -397,7 +429,7 @@ describe("server (admin auth)", () => {
 
       // Login should fail with 403 since user is not activated
       const response = await handleRequest(
-        mockFormRequest("/admin/login", { username: "testadmin", password: TEST_ADMIN_PASSWORD }),
+        mockAdminLoginRequest({ username: "testadmin", password: TEST_ADMIN_PASSWORD }),
       );
       expect(response.status).toBe(403);
       const html = await response.text();

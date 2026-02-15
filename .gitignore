@@ -1,6 +1,7 @@
 node_modules/
 tickets.db
 *.db
+.db-key
 .env
 dist/
 .bin/

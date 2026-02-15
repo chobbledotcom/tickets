@@ -46,11 +46,24 @@ const encryptDatetime = async (v: string): Promise<string> => {
   return await encrypt(v);
 };
 
+/**
+ * Normalize a stored datetime string into a UTC ISO timestamp.
+ *
+ * Values written by form handlers are typically timezone-normalized upstream,
+ * but tests and older rows may contain naive datetime-local strings without a
+ * timezone suffix. Treat those as UTC to keep read behavior deterministic
+ * across host timezones.
+ */
+const normalizeStoredDatetime = (value: string): string => {
+  const hasTimezone = /(?:Z|[+\-]\d{2}:\d{2})$/i.test(value);
+  return new Date(hasTimezone ? value : `${value}Z`).toISOString();
+};
+
 /** Decrypt an encrypted datetime from DB storage (empty → empty, otherwise → ISO) */
 const decryptDatetime = async (v: string): Promise<string> => {
   const str = await decrypt(v);
   if (str === "") return "";
-  return new Date(str).toISOString();
+  return normalizeStoredDatetime(str);
 };
 
 /** Encrypt closes_at for DB storage (null/empty → encrypted empty) */
