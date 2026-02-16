@@ -16,12 +16,15 @@ import {
   createTestDb,
   createTestDbWithSetup,
   createTestEvent,
+  createTestInvite,
   deactivateTestEvent,
   errorResponse,
+  expectRedirect,
   expectStatus,
   generateTestEventName,
   getCsrfTokenFromCookie,
   getJoinCsrfToken,
+  getPageCsrfToken,
   getSetupCsrfToken,
   getAdminLoginCsrfToken,
   getTicketCsrfToken,
@@ -36,6 +39,7 @@ import {
   resetTestSlugCounter,
   requireJoinCsrfToken,
   setupStripe,
+  submitJoinForm,
   submitTicketForm,
   testRequest,
   updateTestEvent,
@@ -275,86 +279,79 @@ describe("test-utils", () => {
       );
       expect(result).toBe(null);
     });
+
+    test("returns csrf_token when session exists", async () => {
+      await createTestDb();
+      const { createSession } = await import("#lib/db/sessions.ts");
+      await createSession("test-sess-token", "test-csrf-value", Date.now() + 60000, null, 1);
+      const result = await getCsrfTokenFromCookie(
+        `${getSessionCookieName()}=test-sess-token`,
+      );
+      expect(result).toBe("test-csrf-value");
+    });
   });
 
-
   describe("getAdminLoginCsrfToken", () => {
-    test("returns null when set-cookie header is null", () => {
+    test("returns null when html is null", () => {
       expect(getAdminLoginCsrfToken(null)).toBe(null);
     });
 
-    test("returns null when set-cookie has no admin login csrf cookie", () => {
-      expect(getAdminLoginCsrfToken("other_cookie=value")).toBe(null);
+    test("returns null when html has no csrf_token field", () => {
+      expect(getAdminLoginCsrfToken("<form><input type='text'></form>")).toBe(null);
     });
 
-    test("extracts admin login csrf value from set-cookie header", () => {
-      expect(getAdminLoginCsrfToken("admin_login_csrf=abc123; Path=/")).toBe(
-        "abc123",
-      );
+    test("extracts csrf_token value from html form", () => {
+      expect(getAdminLoginCsrfToken('<input name="csrf_token" value="abc123">')).toBe("abc123");
     });
   });
 
   describe("getJoinCsrfToken", () => {
-    test("returns null when set-cookie header is null", () => {
+    test("returns null when html is null", () => {
       expect(getJoinCsrfToken(null)).toBe(null);
     });
 
-    test("extracts join_csrf value from set-cookie header", () => {
-      expect(getJoinCsrfToken("join_csrf=abc123; Path=/")).toBe("abc123");
-    });
-
-    test("falls back to non-prefixed join_csrf when __Secure- is expected", () => {
-      const originalDomain = Deno.env.get("ALLOWED_DOMAIN");
-      Deno.env.set("ALLOWED_DOMAIN", "example.com");
-      try {
-        expect(getJoinCsrfToken("join_csrf=abc123; Path=/")).toBe("abc123");
-      } finally {
-        if (originalDomain === undefined) {
-          Deno.env.delete("ALLOWED_DOMAIN");
-        } else {
-          Deno.env.set("ALLOWED_DOMAIN", originalDomain);
-        }
-      }
+    test("extracts csrf_token value from html form", () => {
+      expect(getJoinCsrfToken('<input name="csrf_token" value="join-token-123">')).toBe("join-token-123");
     });
   });
 
   describe("requireJoinCsrfToken", () => {
-    test("throws when join csrf cookie is missing", () => {
-      expect(() => requireJoinCsrfToken("other_cookie=value")).toThrow(
+    test("throws when html has no csrf_token field", () => {
+      expect(() => requireJoinCsrfToken("<form></form>")).toThrow(
         "Failed to get CSRF token for join flow",
       );
     });
 
-    test("returns join csrf token when present", () => {
-      expect(requireJoinCsrfToken(`join_csrf=abc123; Path=/`)).toBe("abc123");
+    test("returns csrf token when present in html", () => {
+      expect(requireJoinCsrfToken('<input name="csrf_token" value="abc123">')).toBe("abc123");
     });
   });
 
   describe("getSetupCsrfToken", () => {
-    test("returns null when set-cookie header is null", () => {
+    test("returns null when html is null", () => {
       expect(getSetupCsrfToken(null)).toBe(null);
     });
 
-    test("returns null when set-cookie has no setup_csrf cookie", () => {
-      expect(getSetupCsrfToken("other_cookie=value")).toBe(null);
+    test("returns null when html has no csrf_token field", () => {
+      expect(getSetupCsrfToken("<form><input type='text'></form>")).toBe(null);
     });
 
-    test("extracts setup_csrf value from set-cookie header", () => {
-      expect(getSetupCsrfToken("setup_csrf=abc123; Path=/")).toBe("abc123");
+    test("extracts csrf_token value from html form", () => {
+      expect(getSetupCsrfToken('<input name="csrf_token" value="setup-token-789">')).toBe("setup-token-789");
     });
   });
 
   describe("getTicketCsrfToken", () => {
-    test("returns null when set-cookie header is null", () => {
+    test("returns null when html is null", () => {
       expect(getTicketCsrfToken(null)).toBe(null);
     });
 
-    test("returns null when set-cookie has no csrf_token cookie", () => {
-      expect(getTicketCsrfToken("other_cookie=value")).toBe(null);
+    test("returns null when html has no csrf_token field", () => {
+      expect(getTicketCsrfToken("<form><input type='text'></form>")).toBe(null);
     });
 
-    test("extracts csrf_token value from set-cookie header", () => {
-      expect(getTicketCsrfToken("csrf_token=xyz789; Path=/")).toBe("xyz789");
+    test("extracts csrf_token value from html form", () => {
+      expect(getTicketCsrfToken('<input name="csrf_token" value="ticket-xyz789">')).toBe("ticket-xyz789");
     });
   });
 
@@ -369,12 +366,72 @@ describe("test-utils", () => {
       expect(response.status).toBe(302);
     });
 
-    test("throws when CSRF token cannot be obtained", async () => {
+    test("returns error response for non-existent slug", async () => {
       await createTestDbWithSetup();
-      // Non-existent slug returns 404 with no CSRF cookie
+      // Non-existent slug page has no form, falls back to signed token
+      const response = await submitTicketForm("non-existent-slug", { name: "Test", email: "t@t.com" });
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("getPageCsrfToken", () => {
+    beforeEach(async () => {
+      await createTestDb();
+    });
+
+    test("returns CSRF token from setup page", async () => {
+      const token = await getPageCsrfToken("/setup/");
+      expect(token).toMatch(/^s1\./);
+    });
+
+    test("throws when page has no CSRF token", async () => {
+      await expect(getPageCsrfToken("/health")).rejects.toThrow(
+        "Failed to get CSRF token from /health",
+      );
+    });
+  });
+
+  describe("submitJoinForm", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("completes join flow and redirects to /join/complete", async () => {
+      const { inviteCode } = await createTestInvite("joinhelper");
+      const response = await submitJoinForm(inviteCode, {
+        password: "newpassword123",
+        password_confirm: "newpassword123",
+      });
+      expectRedirect("/join/complete")(response);
+    });
+
+    test("returns error response for mismatched passwords", async () => {
+      const { inviteCode } = await createTestInvite("joinhelper2");
+      const response = await submitJoinForm(inviteCode, {
+        password: "password123",
+        password_confirm: "different",
+      });
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe("createTestInvite", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    test("creates an invite and returns the invite code", async () => {
+      const { inviteCode, cookie, csrfToken } = await createTestInvite("invitee1");
+      expect(inviteCode).toBeTruthy();
+      expect(cookie).toContain(`${getSessionCookieName()}=`);
+      expect(csrfToken).toMatch(/^s1\./);
+    });
+
+    test("throws when invite creation fails (duplicate username)", async () => {
+      await createTestInvite("duplicate-user");
       await expect(
-        submitTicketForm("non-existent-slug", { name: "Test", email: "t@t.com" }),
-      ).rejects.toThrow("Failed to get CSRF token");
+        createTestInvite("duplicate-user"),
+      ).rejects.toThrow("Failed to create invite");
     });
   });
 
@@ -700,12 +757,12 @@ describe("test-utils", () => {
       await createTestDbWithSetup();
     });
 
-    test("throws when ticket page does not provide CSRF token (deactivated event)", async () => {
+    test("throws when event is deactivated", async () => {
       const event = await createTestEvent();
       await deactivateTestEvent(event.id);
       await expect(
         createTestAttendee(event.id, event.slug, "Test", "test@example.com"),
-      ).rejects.toThrow("Failed to get CSRF token for ticket form");
+      ).rejects.toThrow("Failed to create attendee");
     });
 
     test("throws when form submission returns error status (event at capacity)", async () => {

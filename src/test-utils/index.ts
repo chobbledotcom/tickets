@@ -4,7 +4,8 @@
 
 import { type Client, createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
-import { getCsrfCookieName, getSessionCookieName } from "#lib/cookies.ts";
+import { getSessionCookieName } from "#lib/cookies.ts";
+import { signCsrfToken } from "#lib/csrf.ts";
 import { resetCurrencyCode, setCurrencyCodeForTest, toMajorUnits } from "#lib/currency.ts";
 import { setDb } from "#lib/db/client.ts";
 import {
@@ -75,7 +76,6 @@ let cachedSetupUsers: Array<Record<string, any>> | null = null;
 /** Cached admin session (avoids re-doing login + key wrapping per test) */
 let cachedAdminSession: {
   cookie: string;
-  csrfToken: string;
   sessionRow: { token: string; csrf_token: string; expires: number; wrapped_data_key: string | null; user_id: number | null };
 } | null = null;
 
@@ -199,7 +199,6 @@ export const createTestDbWithSetup = async (
     const row = sessionsResult.rows[0]!;
     cachedAdminSession = {
       cookie: session.cookie,
-      csrfToken: session.csrfToken,
       sessionRow: {
         token: row.token as string,
         csrf_token: row.csrf_token as string,
@@ -280,17 +279,18 @@ export const mockFormRequest = (
 
 
 /**
- * Create a mock admin login POST request with CSRF token cookie pair
+ * Create a mock admin login POST request with signed CSRF token
  */
-export const mockAdminLoginRequest = (
+export const mockAdminLoginRequest = async (
   data: Record<string, string>,
-  csrfToken = "test-admin-login-csrf",
-): Request =>
-  mockFormRequest(
+  csrfToken?: string,
+): Promise<Request> => {
+  const token = csrfToken ?? await signCsrfToken();
+  return mockFormRequest(
     "/admin/login",
-    { ...data, csrf_token: csrfToken },
-    `${getCsrfCookieName("admin_login_csrf")}=${csrfToken}`,
+    { ...data, csrf_token: token },
   );
+};
 
 /**
  * Create a mock multipart POST request with optional file upload.
@@ -354,44 +354,40 @@ export const getCsrfTokenFromCookie = async (
 };
 
 /**
- * Extract a named cookie value from set-cookie header
+ * Extract CSRF token from an HTML page's hidden form field
  */
-const getCookieValue = (
-  setCookie: string | null,
-  name: string,
-): string | null => {
-  if (!setCookie) return null;
-  const match = setCookie.match(new RegExp(`${name}=([^;]+)`));
+export const extractCsrfToken = (html: string | null): string | null => {
+  if (!html) return null;
+  const match = html.match(/name="csrf_token"\s+value="([^"]+)"/);
   return match?.[1] ?? null;
 };
 
+/**
+ * Extract admin login CSRF token from HTML body
+ */
+export const getAdminLoginCsrfToken = (html: string | null): string | null =>
+  extractCsrfToken(html);
 
 /**
- * Extract admin login CSRF token from set-cookie header
+ * Extract join CSRF token from HTML body
  */
-export const getAdminLoginCsrfToken = (setCookie: string | null): string | null =>
-  getCookieValue(setCookie, getCsrfCookieName("admin_login_csrf"));
+export const getJoinCsrfToken = (html: string | null): string | null =>
+  extractCsrfToken(html);
 
 /**
- * Extract join CSRF token from set-cookie header
+ * Extract join CSRF token from HTML body, throwing if missing
  */
-export const getJoinCsrfToken = (setCookie: string | null): string | null =>
-  getCookieValue(setCookie, getCsrfCookieName("join_csrf")) ?? getCookieValue(setCookie, "join_csrf");
-
-/**
- * Extract join CSRF token from set-cookie header, throwing if missing
- */
-export const requireJoinCsrfToken = (setCookie: string | null): string => {
-  const token = getJoinCsrfToken(setCookie);
+export const requireJoinCsrfToken = (html: string | null): string => {
+  const token = extractCsrfToken(html);
   if (!token) throw new Error("Failed to get CSRF token for join flow");
   return token;
 };
 
 /**
- * Extract setup CSRF token from set-cookie header
+ * Extract setup CSRF token from HTML body
  */
-export const getSetupCsrfToken = (setCookie: string | null): string | null =>
-  getCookieValue(setCookie, getCsrfCookieName("setup_csrf")) ?? getCookieValue(setCookie, "setup_csrf");
+export const getSetupCsrfToken = (html: string | null): string | null =>
+  extractCsrfToken(html);
 
 /**
  * Create a mock setup POST request with CSRF token
@@ -404,15 +400,14 @@ export const mockSetupFormRequest = (
   return mockFormRequest(
     "/setup",
     { accept_agreement: "yes", ...data, csrf_token: csrfToken },
-    `${getCsrfCookieName("setup_csrf")}=${csrfToken}`,
   );
 };
 
 /**
- * Extract ticket CSRF token from set-cookie header
+ * Extract ticket CSRF token from HTML body
  */
-export const getTicketCsrfToken = (setCookie: string | null): string | null =>
-  getCookieValue(setCookie, getCsrfCookieName("csrf_token")) ?? getCookieValue(setCookie, "csrf_token");
+export const getTicketCsrfToken = (html: string | null): string | null =>
+  extractCsrfToken(html);
 
 /**
  * Create a mock ticket form POST request with CSRF token
@@ -425,7 +420,6 @@ export const mockTicketFormRequest = (
   return mockFormRequest(
     `/ticket/${slug}`,
     { ...data, csrf_token: csrfToken },
-    `${getCsrfCookieName("csrf_token")}=${csrfToken}`,
   );
 };
 
@@ -615,21 +609,21 @@ export const loginAsAdmin = async (): Promise<{
   const { handleRequest } = await import("#routes");
 
   const loginPageResponse = await handleRequest(mockRequest("/admin/"));
-  const loginPageCookie = loginPageResponse.headers.get("set-cookie");
-  const loginCsrfToken = getAdminLoginCsrfToken(loginPageCookie);
+  const loginHtml = await loginPageResponse.text();
+  const loginCsrfToken = extractCsrfToken(loginHtml);
 
   if (!loginCsrfToken) {
     throw new Error("Failed to get CSRF token for admin login");
   }
 
   const loginResponse = await handleRequest(
-    mockAdminLoginRequest(
+    await mockAdminLoginRequest(
       { username: TEST_ADMIN_USERNAME, password: TEST_ADMIN_PASSWORD },
       loginCsrfToken,
     ),
   );
   const cookie = loginResponse.headers.get("set-cookie")!;
-  const csrfToken = (await getCsrfTokenFromCookie(cookie))!;
+  const csrfToken = await signCsrfToken();
 
   return { cookie, csrfToken };
 };
@@ -649,7 +643,8 @@ const getTestSession = async (): Promise<{
       sql: "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key, user_id) VALUES (?, ?, ?, ?, ?)",
       args: [sessionRow.token, sessionRow.csrf_token, sessionRow.expires, sessionRow.wrapped_data_key, sessionRow.user_id],
     });
-    testSession = { cookie: cachedAdminSession.cookie, csrfToken: cachedAdminSession.csrfToken };
+    const csrfToken = await signCsrfToken();
+    testSession = { cookie: cachedAdminSession.cookie, csrfToken };
     return testSession;
   }
 
@@ -885,15 +880,12 @@ export const createTestAttendee = async (
 ): Promise<Attendee> => {
   const { handleRequest } = await import("#routes");
 
-  // Get the ticket page to get a CSRF token
+  // Get the ticket page to get a CSRF token from HTML
   const pageResponse = await handleRequest(mockRequest(`/ticket/${eventSlug}`));
-  const csrfToken = getTicketCsrfToken(
-    pageResponse.headers.get("set-cookie"),
-  );
-
-  if (!csrfToken) {
-    throw new Error("Failed to get CSRF token for ticket form");
-  }
+  const pageHtml = await pageResponse.text();
+  // Fall back to a signed token when the page doesn't show a form
+  // (e.g. event at capacity / sold out / deactivated)
+  const csrfToken = extractCsrfToken(pageHtml) ?? await signCsrfToken();
 
   // Submit the ticket form
   const response = await handleRequest(
@@ -1095,14 +1087,77 @@ export const expectInvalidForm = (
  * Submit a ticket form with automatic CSRF token handling.
  * GETs the ticket page first to obtain a CSRF token, then POSTs the form.
  */
+/**
+ * GET a page and extract its CSRF token from the hidden form field.
+ * Throws if the page doesn't contain a CSRF token.
+ */
+export const getPageCsrfToken = async (path: string): Promise<string> => {
+  const { handleRequest } = await import("#routes");
+  const response = await handleRequest(mockRequest(path));
+  const html = await response.text();
+  const token = extractCsrfToken(html);
+  if (!token) throw new Error(`Failed to get CSRF token from ${path}`);
+  return token;
+};
+
+/**
+ * Submit the /join/:code form with automatic CSRF token handling.
+ * GETs the join page to obtain the CSRF token, then POSTs the form.
+ */
+export const submitJoinForm = async (
+  inviteCode: string,
+  data: { password: string; password_confirm: string },
+): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
+  const joinHtml = await joinGetResponse.text();
+  const joinCsrf = requireJoinCsrfToken(joinHtml);
+  return handleRequest(
+    mockFormRequest(`/join/${inviteCode}`, { ...data, csrf_token: joinCsrf }),
+  );
+};
+
+/**
+ * Create an invited user via the admin API and return the invite code.
+ * Logs in as admin, creates the invite, and extracts the code from the redirect.
+ */
+export const createTestInvite = async (
+  username: string,
+  adminLevel = "manager",
+): Promise<{ inviteCode: string; cookie: string; csrfToken: string }> => {
+  const { cookie, csrfToken } = await loginAsAdmin();
+  const { handleRequest } = await import("#routes");
+  const inviteResponse = await handleRequest(
+    mockFormRequest(
+      "/admin/users",
+      { username, admin_level: adminLevel, csrf_token: csrfToken },
+      cookie,
+    ),
+  );
+  const location = inviteResponse.headers.get("location") ?? "";
+  const url = new URL(location, "http://localhost");
+  const inviteLink = url.searchParams.get("invite") ?? "";
+  const codeMatch = inviteLink.match(/\/join\/([A-Za-z0-9_-]+)/);
+  if (!codeMatch?.[1]) {
+    throw new Error(`Failed to create invite for ${username}: ${inviteResponse.status} ${location}`);
+  }
+  return { inviteCode: codeMatch[1], cookie, csrfToken };
+};
+
+/**
+ * Submit a ticket form with automatic CSRF token handling.
+ * GETs the ticket page first to obtain a CSRF token, then POSTs the form.
+ */
 export const submitTicketForm = async (
   slug: string,
   data: Record<string, string>,
 ): Promise<Response> => {
   const { handleRequest } = await import("#routes");
   const getResponse = await handleRequest(mockRequest(`/ticket/${slug}`));
-  const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
-  if (!csrfToken) throw new Error("Failed to get CSRF token from ticket page");
+  const html = await getResponse.text();
+  // Extract from form HTML, or fall back to a signed token when the page
+  // doesn't show a form (e.g. event at capacity / sold out)
+  const csrfToken = extractCsrfToken(html) ?? await signCsrfToken();
   return handleRequest(mockTicketFormRequest(slug, data, csrfToken));
 };
 

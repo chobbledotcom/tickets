@@ -70,9 +70,7 @@ describe("server (setup)", () => {
       test("POST /setup/ with valid data completes setup", async () => {
         // First get CSRF token from GET request
         const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(
-          getResponse.headers.get("set-cookie"),
-        );
+        const csrfToken = getSetupCsrfToken(await getResponse.text());
         expect(csrfToken).not.toBeNull();
 
         const response = await handleRequest(
@@ -104,29 +102,15 @@ describe("server (setup)", () => {
         expect(html).toContain("Invalid or expired form");
       });
 
-      test("POST /setup/ with mismatched CSRF tokens rejects request", async () => {
-        // Get a valid CSRF token from cookie
-        const getResponse = await handleRequest(mockRequest("/setup/"));
-        const cookieCsrf = getSetupCsrfToken(
-          getResponse.headers.get("set-cookie"),
-        );
-
-        // Send a different token in the form body than the cookie
+      test("POST /setup/ with invalid CSRF token rejects request", async () => {
+        // Send a wrong token in the form body
         const response = await handleRequest(
-          new Request("http://localhost/setup/", {
-            method: "POST",
-            headers: {
-              "content-type": "application/x-www-form-urlencoded",
-              host: "localhost",
-              cookie: `setup_csrf=${cookieCsrf}`,
-            },
-            body: new URLSearchParams({
-              admin_username: "testadmin",
-              admin_password: "mypassword123",
-              admin_password_confirm: "mypassword123",
-              currency_code: "USD",
-              csrf_token: "wrong-token-in-form",
-            }).toString(),
+          mockFormRequest("/setup/", {
+            admin_username: "testadmin",
+            admin_password: "mypassword123",
+            admin_password_confirm: "mypassword123",
+            currency_code: "USD",
+            csrf_token: "wrong-token-in-form",
           }),
         );
         expect(response.status).toBe(403);
@@ -136,9 +120,7 @@ describe("server (setup)", () => {
 
       test("POST /setup/ with empty password shows validation error", async () => {
         const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(
-          getResponse.headers.get("set-cookie"),
-        );
+        const csrfToken = getSetupCsrfToken(await getResponse.text());
 
         const response = await handleRequest(
           mockSetupFormRequest(
@@ -158,9 +140,7 @@ describe("server (setup)", () => {
 
       test("POST /setup/ with mismatched passwords shows error", async () => {
         const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(
-          getResponse.headers.get("set-cookie"),
-        );
+        const csrfToken = getSetupCsrfToken(await getResponse.text());
 
         const response = await handleRequest(
           mockSetupFormRequest(
@@ -180,9 +160,7 @@ describe("server (setup)", () => {
 
       test("POST /setup/ with short password shows error", async () => {
         const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(
-          getResponse.headers.get("set-cookie"),
-        );
+        const csrfToken = getSetupCsrfToken(await getResponse.text());
 
         const response = await handleRequest(
           mockSetupFormRequest(
@@ -202,9 +180,7 @@ describe("server (setup)", () => {
 
       test("POST /setup/ with invalid currency shows error", async () => {
         const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(
-          getResponse.headers.get("set-cookie"),
-        );
+        const csrfToken = getSetupCsrfToken(await getResponse.text());
 
         const response = await handleRequest(
           mockSetupFormRequest(
@@ -224,9 +200,7 @@ describe("server (setup)", () => {
 
       test("POST /setup/ without accepting agreement shows error", async () => {
         const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(
-          getResponse.headers.get("set-cookie"),
-        );
+        const csrfToken = getSetupCsrfToken(await getResponse.text());
 
         const response = await handleRequest(
           mockSetupFormRequest(
@@ -247,9 +221,7 @@ describe("server (setup)", () => {
 
       test("POST /setup/ normalizes lowercase currency to uppercase", async () => {
         const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(
-          getResponse.headers.get("set-cookie"),
-        );
+        const csrfToken = getSetupCsrfToken(await getResponse.text());
 
         const response = await handleRequest(
           mockSetupFormRequest(
@@ -270,9 +242,7 @@ describe("server (setup)", () => {
         const { settingsApi } = await import("#lib/db/settings.ts");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
-        const csrfToken = getSetupCsrfToken(
-          getResponse.headers.get("set-cookie"),
-        );
+        const csrfToken = getSetupCsrfToken(await getResponse.text());
 
         await withMocks(
           () => ({
@@ -307,9 +277,9 @@ describe("server (setup)", () => {
 
       test("setup form works with full browser flow simulation", async () => {
         // This test simulates what a real browser does:
-        // 1. GET /setup/ - browser receives the page and Set-Cookie header
+        // 1. GET /setup/ - browser receives the page with CSRF token
         // 2. User fills form and submits
-        // 3. Browser sends POST with cookie
+        // 3. Browser sends POST with signed CSRF token
 
         // Step 1: GET the setup page
         const getResponse = await handleRequest(
@@ -320,52 +290,25 @@ describe("server (setup)", () => {
         );
         expect(getResponse.status).toBe(200);
 
-        // Extract the Set-Cookie header
-        const setCookie = getResponse.headers.get("set-cookie");
-        expect(setCookie).not.toBeNull();
-
-        // Extract CSRF token from the cookie
-        const csrfToken = getSetupCsrfToken(setCookie);
+        // Extract CSRF token from the HTML body
+        const csrfToken = getSetupCsrfToken(await getResponse.text());
         expect(csrfToken).not.toBeNull();
 
-        // Step 2: Simulate browser POST - browser sends cookie back
+        // Step 2: Simulate browser POST with signed CSRF token
         const postResponse = await handleRequest(
-          new Request("http://localhost/setup/", {
-            method: "POST",
-            headers: {
-              "content-type": "application/x-www-form-urlencoded",
-              host: "localhost",
-              cookie: `setup_csrf=${csrfToken}`,
-            },
-            body: new URLSearchParams({
+          mockSetupFormRequest(
+            {
               admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
               currency_code: "GBP",
-              accept_agreement: "yes",
-              csrf_token: csrfToken as string,
-            }).toString(),
-          }),
+            },
+            csrfToken as string,
+          ),
         );
 
         // This should succeed - the full flow should work
         expectRedirect("/setup/complete")(postResponse);
-      });
-
-      test("setup cookie path allows both /setup and /setup/", async () => {
-        // Cookie path should be /setup (without trailing slash) to match both variants
-        const response = await handleRequest(
-          new Request("http://localhost/setup/", {
-            method: "GET",
-            headers: { host: "localhost" },
-          }),
-        );
-
-        const setCookie = response.headers.get("set-cookie");
-        expect(setCookie).not.toBeNull();
-        // Path should be /setup (not /setup/) so it matches both
-        expect(setCookie).toContain("Path=/setup;");
-        expect(setCookie).not.toContain("Path=/setup/;");
       });
 
       test("setup form works when accessed via /setup (no trailing slash)", async () => {
@@ -378,58 +321,23 @@ describe("server (setup)", () => {
         );
         expect(getResponse.status).toBe(200);
 
-        const setCookie = getResponse.headers.get("set-cookie");
-        const csrfToken = getSetupCsrfToken(setCookie);
+        const csrfToken = getSetupCsrfToken(await getResponse.text());
         expect(csrfToken).not.toBeNull();
 
-        // POST to /setup (no trailing slash) - cookie should still be sent
+        // POST to /setup (no trailing slash) with signed CSRF token
         const postResponse = await handleRequest(
-          new Request("http://localhost/setup", {
-            method: "POST",
-            headers: {
-              "content-type": "application/x-www-form-urlencoded",
-              host: "localhost",
-              cookie: `setup_csrf=${csrfToken}`,
-            },
-            body: new URLSearchParams({
+          mockSetupFormRequest(
+            {
               admin_username: "testadmin",
               admin_password: "mypassword123",
               admin_password_confirm: "mypassword123",
               currency_code: "GBP",
-              accept_agreement: "yes",
-              csrf_token: csrfToken as string,
-            }).toString(),
-          }),
+            },
+            csrfToken as string,
+          ),
         );
 
         expectRedirect("/setup/complete")(postResponse);
-      });
-
-      test("CSRF token in cookie matches token in HTML form field", async () => {
-        // This test verifies that the same token appears in both places
-        const response = await handleRequest(
-          new Request("http://localhost/setup/", {
-            method: "GET",
-            headers: { host: "localhost" },
-          }),
-        );
-
-        // Extract token from Set-Cookie header
-        const setCookie = response.headers.get("set-cookie");
-        expect(setCookie).not.toBeNull();
-        const cookieToken = getSetupCsrfToken(setCookie);
-        expect(cookieToken).not.toBeNull();
-
-        // Extract token from HTML body
-        const html = await response.text();
-        const formTokenMatch = html.match(
-          /name="csrf_token"\s+value="([^"]+)"/,
-        );
-        expect(formTokenMatch).not.toBeNull();
-        const formToken = formTokenMatch?.[1];
-
-        // They must be identical
-        expect(formToken).toBe(cookieToken as string);
       });
 
       test("GET /setup/complete redirects to setup when not yet complete", async () => {
@@ -470,7 +378,7 @@ describe("server (setup)", () => {
       await createTestDb();
 
       const getResponse = await handleRequest(mockRequest("/setup/"));
-      const csrfToken = getSetupCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getSetupCsrfToken(await getResponse.text());
 
       await handleRequest(
         mockSetupFormRequest(
@@ -495,7 +403,7 @@ describe("server (setup)", () => {
       await createTestDb();
 
       const getResponse = await handleRequest(mockRequest("/setup/"));
-      const csrfToken = getSetupCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getSetupCsrfToken(await getResponse.text());
       expect(csrfToken).not.toBeNull();
 
       const response = await handleRequest(

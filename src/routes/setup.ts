@@ -2,32 +2,25 @@
  * Setup routes - initial system configuration
  */
 
-import { buildCsrfCookie, getCsrfCookieName } from "#lib/cookies.ts";
+import { signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { settingsApi } from "#lib/db/settings.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
-  generateSecureToken,
   htmlResponse,
-  htmlResponseWithCookie,
-  parseCookies,
   parseFormData,
   redirect,
-  validateCsrfToken,
 } from "#routes/utils.ts";
 import { setupFields, type SetupFormValues } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
-/** Response helper with setup CSRF cookie - curried to thread token through */
+/** Response helper with signed CSRF token - curried to thread token through */
 const setupResponse =
   (token: string) =>
   (error?: string, status = 200) =>
-    htmlResponseWithCookie(buildCsrfCookie("setup_csrf", token, { path: "/setup" }))(
-      setupPage(error, token),
-      status,
-    );
+    htmlResponse(setupPage(error, token), status);
 
 /**
  * Validate setup form data (uses form framework + custom validation)
@@ -88,7 +81,6 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
 
 /**
  * Handle GET /setup/
- * Uses double-submit cookie pattern for CSRF protection
  */
 const handleSetupGet = async (
   isSetupComplete: () => Promise<boolean>,
@@ -96,13 +88,13 @@ const handleSetupGet = async (
   if (await isSetupComplete()) {
     return redirect("/");
   }
-  const csrfToken = generateSecureToken();
+  const csrfToken = await signCsrfToken();
   return setupResponse(csrfToken)();
 };
 
 /**
  * Handle POST /setup/
- * Validates CSRF token using double-submit cookie pattern
+ * Validates CSRF token using signed token pattern
  */
 const handleSetupPost = async (
   request: Request,
@@ -115,15 +107,7 @@ const handleSetupPost = async (
     return redirect("/");
   }
 
-  // Validate CSRF token (double-submit cookie pattern)
-  const cookies = parseCookies(request);
-  const cookieCsrf = cookies.get(getCsrfCookieName("setup_csrf")) || "";
-  logDebug("Setup", `Cookies parsed: ${Array.from(cookies.keys()).join(", ")}`);
-  logDebug(
-    "Setup",
-    `CSRF cookie present: ${!!cookieCsrf} length: ${cookieCsrf.length}`,
-  );
-
+  // Validate signed CSRF token
   const form = await parseFormData(request);
   const formCsrf = form.get("csrf_token") || "";
   logDebug(
@@ -131,9 +115,9 @@ const handleSetupPost = async (
     `CSRF form present: ${!!formCsrf} length: ${formCsrf.length}`,
   );
 
-  if (!cookieCsrf || !formCsrf || !validateCsrfToken(cookieCsrf, formCsrf)) {
+  if (!formCsrf || !await verifySignedCsrfToken(formCsrf)) {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "setup form" });
-    const newCsrfToken = generateSecureToken();
+    const newCsrfToken = await signCsrfToken();
     return setupResponse(newCsrfToken)(
       "Invalid or expired form. Please try again.",
       403,

@@ -3,7 +3,8 @@
  */
 
 import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#lib/crypto.ts";
-import { buildSessionCookie, clearSessionCookie, getCsrfCookieName } from "#lib/cookies.ts";
+import { verifySignedCsrfToken } from "#lib/csrf.ts";
+import { buildSessionCookie, clearSessionCookie } from "#lib/cookies.ts";
 import {
   clearLoginAttempts,
   isLoginRateLimited,
@@ -19,10 +20,8 @@ import type { ServerContext } from "#routes/types.ts";
 import {
   generateSecureToken,
   getClientIp,
-  parseCookies,
   parseFormData,
   redirect,
-  validateCsrfToken,
   withAuthForm,
 } from "#routes/utils.ts";
 import { loginFields, type LoginFormValues } from "#templates/fields.ts";
@@ -61,13 +60,11 @@ const handleAdminLogin = async (
 ): Promise<Response> => {
   await randomDelay();
 
-  const cookies = parseCookies(request);
   const form = await parseFormData(request);
 
-  // Validate login CSRF token (double-submit cookie pattern)
-  const csrfCookie = cookies.get(getCsrfCookieName("admin_login_csrf"));
-  const csrfForm = form.get("csrf_token");
-  if (!csrfCookie || !csrfForm || !validateCsrfToken(csrfCookie, csrfForm)) {
+  // Validate login CSRF token (signed token pattern)
+  const csrfForm = form.get("csrf_token") || "";
+  if (!csrfForm || !await verifySignedCsrfToken(csrfForm)) {
     return loginResponse("Invalid or expired form. Please try again.", 403);
   }
 
@@ -139,7 +136,7 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
 /** Authentication routes */
 export const authRoutes = defineRoutes({
   "GET /admin/login": () => loginResponse(),
-  "POST /admin/login": (request, _, server) =>
+  "POST /admin/login": (request, _params, server) =>
     handleAdminLogin(request, server),
   "POST /admin/logout": (request) => handleAdminLogout(request),
 });
