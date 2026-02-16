@@ -91,7 +91,7 @@ const renderDatetimeInputs = (
 
 const DATETIME_PARTIAL_ERROR = "Please enter both a date and time, or leave both blank";
 
-/** Combine date and time form values into a datetime string, or null on partial fill */
+/** Combine date and time form values into a datetime string, defaulting time when absent */
 const getDatetimeValue = (
   form: URLSearchParams,
   name: string,
@@ -99,6 +99,7 @@ const getDatetimeValue = (
   const date = (form.get(`${name}_date`) || "").trim();
   const time = (form.get(`${name}_time`) || "").trim();
   if (date && time) return `${date}T${time}`;
+  if (date && !time) return `${date}T00:00:00`;
   if (!date && !time) return "";
   return null;
 };
