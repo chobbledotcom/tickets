@@ -25,6 +25,6 @@ export const handleFavicon = staticHandler("favicon.svg", "image/svg+xml");
 export const handleMvpCss = staticHandler("mvp.css", "text/css; charset=utf-8");
 export const handleAdminJs = staticHandler("admin.js", "application/javascript; charset=utf-8");
 export const handleScannerJs = staticHandler("scanner.js", "application/javascript; charset=utf-8");
+export const handleEmbedJs = staticHandler("embed.js", "application/javascript; charset=utf-8");
 export const handleIframeResizerParentJs = staticHandler("iframe-resizer-parent.js", "application/javascript; charset=utf-8");
 export const handleIframeResizerChildJs = staticHandler("iframe-resizer-child.js", "application/javascript; charset=utf-8");
-export const handleEmbedJs = staticHandler("embed.js", "application/javascript; charset=utf-8");

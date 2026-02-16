@@ -1,8 +1,7 @@
 /// <reference lib="dom" />
 /** Admin page behaviors - bundled by build-edge.ts for strict CSP */
 
-import { buildIframeEmbedCode, buildScriptEmbedCode } from "#lib/embed.ts";
-import { mergeEventFields } from "#lib/event-fields.ts";
+import { buildEmbedSnippets } from "#lib/embed.ts";
 
 /* Select-on-click: auto-select input contents when clicked */
 for (const el of document.querySelectorAll<HTMLInputElement>("[data-select-on-click]")) {
@@ -19,43 +18,40 @@ for (const el of document.querySelectorAll<HTMLSelectElement>("[data-nav-select]
 /* Multi-booking link builder: track checkbox selection order */
 const multiUrl = document.querySelector<HTMLInputElement>("[data-multi-booking-url]");
 if (multiUrl) {
-  const multiScriptEmbed = document.querySelector<HTMLInputElement>("[data-multi-booking-script-embed]")!;
-  const multiIframeEmbed = document.querySelector<HTMLInputElement>("[data-multi-booking-iframe-embed]")!;
+  const multiEmbedScript = document.querySelector<HTMLInputElement>("[data-multi-booking-embed-script]")!;
+  const multiEmbedIframe = document.querySelector<HTMLInputElement>("[data-multi-booking-embed-iframe]")!;
   const selectedSlugs: string[] = [];
-  const selectedFields: string[] = [];
   const domain = multiUrl.dataset.domain!;
   const urlPlaceholder = multiUrl.placeholder;
-  const scriptEmbedPlaceholder = multiScriptEmbed.placeholder;
-  const iframeEmbedPlaceholder = multiIframeEmbed.placeholder;
+  const embedScriptPlaceholder = multiEmbedScript.placeholder;
+  const embedIframePlaceholder = multiEmbedIframe.placeholder;
   for (const cb of document.querySelectorAll<HTMLInputElement>("[data-multi-booking-slug]")) {
     cb.addEventListener("change", () => {
       const slug = cb.dataset.multiBookingSlug!;
-      const fields = cb.dataset.fields ?? "";
       if (cb.checked) {
         selectedSlugs.push(slug);
-        selectedFields.push(fields);
       } else {
         const idx = selectedSlugs.indexOf(slug);
         if (idx !== -1) {
           selectedSlugs.splice(idx, 1);
-          selectedFields.splice(idx, 1);
         }
       }
       if (selectedSlugs.length >= 2) {
         const url = `https://${domain}/ticket/${selectedSlugs.join("+")}`;
         multiUrl.value = url;
         multiUrl.placeholder = "";
-        multiScriptEmbed.value = buildScriptEmbedCode(url);
-        multiScriptEmbed.placeholder = "";
-        multiIframeEmbed.value = buildIframeEmbedCode(url, mergeEventFields(selectedFields));
-        multiIframeEmbed.placeholder = "";
+        const { script, iframe } = buildEmbedSnippets(url);
+        multiEmbedScript.value = script;
+        multiEmbedIframe.value = iframe;
+        multiEmbedScript.placeholder = "";
+        multiEmbedIframe.placeholder = "";
       } else {
         multiUrl.value = "";
         multiUrl.placeholder = urlPlaceholder;
-        multiScriptEmbed.value = "";
-        multiScriptEmbed.placeholder = scriptEmbedPlaceholder;
-        multiIframeEmbed.value = "";
-        multiIframeEmbed.placeholder = iframeEmbedPlaceholder;
+        multiEmbedScript.value = "";
+        multiEmbedIframe.value = "";
+        multiEmbedScript.placeholder = embedScriptPlaceholder;
+        multiEmbedIframe.placeholder = embedIframePlaceholder;
       }
     });
   }

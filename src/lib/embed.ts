@@ -1,40 +1,41 @@
 /**
- * Iframe embed code generation - shared by single-event and multi-booking views
+ * Embed code generation - shared by single-event and multi-booking views
  */
 
-import type { EventFields } from "#lib/types.ts";
-import { parseEventFields } from "#lib/event-fields.ts";
+import { EMBED_JS_PATH, IFRAME_RESIZER_PARENT_JS_PATH } from "#src/config/asset-paths.ts";
 
-const TEXTAREA_FIELDS: readonly string[] = ["address", "special_instructions"];
-const BASE_HEIGHT = 11;
-const INPUT_HEIGHT = 4;
-const TEXTAREA_HEIGHT = 6;
+const DEFAULT_IFRAME_HEIGHT = "600px";
 
-/** Compute iframe height (in rem) from an event fields setting */
-export const computeIframeHeight = (fields: EventFields): string => {
-  const parsed = parseEventFields(fields);
-  let inputs = 0;
-  let textareas = 0;
-  for (const f of parsed) {
-    if (TEXTAREA_FIELDS.includes(f)) textareas++;
-    else inputs++;
-  }
-  return `${BASE_HEIGHT + inputs * INPUT_HEIGHT + textareas * TEXTAREA_HEIGHT}rem`;
+const extractEventSlugs = (url: string): string[] => {
+  const slugPart = new URL(url).pathname.match(/\/ticket\/([^/]+)/)?.[1] ?? "";
+  return slugPart
+    .split("+")
+    .map((slug) => slug.trim())
+    .filter((slug) => slug.length > 0);
 };
 
-/** Extract the event slug(s) from a ticket URL like /ticket/slug1+slug2 */
-const extractEvents = (url: string): string =>
-  new URL(url).pathname.split("/").pop()!;
+const appendIframeParam = (url: string): string => {
+  const parsed = new URL(url);
+  parsed.searchParams.set("iframe", "true");
+  return parsed.toString();
+};
 
-/** Build a script embed code - single script tag that creates iframe + iframe-resizer */
-export const buildScriptEmbedCode = (url: string): string => {
+export type EmbedSnippets = {
+  script: string;
+  iframe: string;
+};
+
+/** Build embed snippets (script and iframe variants) for a ticket URL */
+export const buildEmbedSnippets = (url: string): EmbedSnippets => {
   const origin = new URL(url).origin;
-  const events = extractEvents(url);
-  return `<script async src="${origin}/embed.js" data-events="${events}"></script>`;
-};
+  const events = extractEventSlugs(url).join("+");
+  const script =
+    `<script async src="${origin}${EMBED_JS_PATH}" data-events="${events}"` +
+    ` data-resizer-src="${origin}${IFRAME_RESIZER_PARENT_JS_PATH}"></script>`;
+  const iframe =
+    `<script src="${origin}${IFRAME_RESIZER_PARENT_JS_PATH}"></script>` +
+    `<iframe src="${appendIframeParam(url)}" loading="lazy" style="border: none; width: 100%; height: ${DEFAULT_IFRAME_HEIGHT};">Loading..</iframe>` +
+    `<script>iframeResize({license:'GPLv3'},document.currentScript.previousElementSibling)</script>`;
 
-/** Build an iframe embed code - plain iframe without iframe-resizer */
-export const buildIframeEmbedCode = (url: string, fields: EventFields): string => {
-  const height = computeIframeHeight(fields);
-  return `<iframe src="${url}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${height}">Loading..</iframe>`;
+  return { script, iframe };
 };

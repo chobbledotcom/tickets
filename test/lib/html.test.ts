@@ -49,6 +49,10 @@ describe("asset-paths", () => {
     expect(IFRAME_RESIZER_PARENT_JS_PATH).toBe("/iframe-resizer-parent.js");
   });
 
+  test("EMBED_JS_PATH defaults to /embed.js in dev", () => {
+    expect(EMBED_JS_PATH).toBe("/embed.js");
+  });
+
   test("IFRAME_RESIZER_CHILD_JS_PATH defaults to /iframe-resizer-child.js in dev", () => {
     expect(IFRAME_RESIZER_CHILD_JS_PATH).toBe("/iframe-resizer-child.js");
   });
@@ -148,48 +152,26 @@ describe("html", () => {
       expect(html).toContain("example.com/ticket/ab12c");
     });
 
-    test("shows script embed with data-events attribute", () => {
+    test("shows embed codes with allowed domain and iframe param", () => {
       const html = adminEventPage({ event, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("Script Embed");
-      expect(html).toContain('data-events=&quot;ab12c&quot;');
+      expect(html).toContain("Embed Script");
+      expect(html).toContain("Embed Iframe");
       expect(html).toContain("embed.js");
-    });
-
-    test("shows iframe embed with iframe param and height", () => {
-      const html = adminEventPage({ event, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("Iframe Embed");
+      expect(html).toContain("data-events=");
       expect(html).toContain("https://example.com/ticket/ab12c?iframe=true");
+      expect(html).toContain("height: 600px");
+      expect(html).toContain("loading=");
       expect(html).toContain("readonly");
     });
 
-    test("iframe embed uses 15rem height for email-only events", () => {
-      const emailEvent = testEventWithCount({ attendee_count: 2, fields: "email" });
-      const html = adminEventPage({ event: emailEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 15rem");
+    test("embed code includes iframe-resizer parent script", () => {
+      const html = adminEventPage({ event, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
+      expect(html).toContain("iframe-resizer-parent.js");
     });
 
-    test("iframe embed uses 19rem height for email,phone fields events", () => {
-      const bothEvent = testEventWithCount({ attendee_count: 2, fields: "email,phone" });
-      const html = adminEventPage({ event: bothEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 19rem");
-    });
-
-    test("iframe embed uses 17rem height for address-only events", () => {
-      const addressEvent = testEventWithCount({ attendee_count: 2, fields: "address" });
-      const html = adminEventPage({ event: addressEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 17rem");
-    });
-
-    test("iframe embed uses 25rem height for email,phone,address events", () => {
-      const allFieldsEvent = testEventWithCount({ attendee_count: 2, fields: "email,phone,address" });
-      const html = adminEventPage({ event: allFieldsEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 25rem");
-    });
-
-    test("iframe embed uses 15rem height for phone-only events", () => {
-      const phoneEvent = testEventWithCount({ attendee_count: 2, fields: "phone" });
-      const html = adminEventPage({ event: phoneEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 15rem");
+    test("embed code includes iframe-resizer init call", () => {
+      const html = adminEventPage({ event, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
+      expect(html).toContain("iframeResize");
     });
 
     test("renders empty attendees state", () => {
@@ -1010,26 +992,18 @@ describe("html", () => {
       expect(html).toContain("<summary>");
     });
 
-    test("renders script embed code input", () => {
+    test("renders embed code inputs", () => {
       const events = [
         testEventWithCount({ id: 1, slug: "ab12c", fields: "email" }),
         testEventWithCount({ id: 2, slug: "cd34e", fields: "email,phone" }),
       ];
       const html = adminDashboardPage(events, TEST_SESSION, "example.com");
-      expect(html).toContain("data-multi-booking-script-embed");
-      expect(html).toContain('for="multi-booking-script-embed"');
-      expect(html).toContain('id="multi-booking-script-embed"');
-    });
-
-    test("renders iframe embed code input", () => {
-      const events = [
-        testEventWithCount({ id: 1, slug: "ab12c", fields: "email" }),
-        testEventWithCount({ id: 2, slug: "cd34e", fields: "email,phone" }),
-      ];
-      const html = adminDashboardPage(events, TEST_SESSION, "example.com");
-      expect(html).toContain("data-multi-booking-iframe-embed");
-      expect(html).toContain('for="multi-booking-iframe-embed"');
-      expect(html).toContain('id="multi-booking-iframe-embed"');
+      expect(html).toContain("data-multi-booking-embed-script");
+      expect(html).toContain("data-multi-booking-embed-iframe");
+      expect(html).toContain('for="multi-booking-embed-script"');
+      expect(html).toContain('for="multi-booking-embed-iframe"');
+      expect(html).toContain('id="multi-booking-embed-script"');
+      expect(html).toContain('id="multi-booking-embed-iframe"');
     });
 
     test("checkboxes include data-fields attribute for embed code generation", () => {

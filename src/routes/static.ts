@@ -21,6 +21,7 @@ const staticRoutes = defineRoutes({
   "GET /mvp.css": () => handleMvpCss(),
   "GET /admin.js": () => handleAdminJs(),
   "GET /scanner.js": () => handleScannerJs(),
+  "GET /embed.js": () => handleEmbedJs(),
   "GET /iframe-resizer-parent.js": () => handleIframeResizerParentJs(),
   "GET /iframe-resizer-child.js": () => handleIframeResizerChildJs(),
   "GET /embed.js": () => handleEmbedJs(),

@@ -13,7 +13,7 @@ cov_profile/
 bunny-script.ts
 src/static/admin.js
 src/static/scanner.js
+src/static/embed.js
 src/static/iframe-resizer-parent.js
 src/static/iframe-resizer-child.js
-src/static/embed.js
 .envrc

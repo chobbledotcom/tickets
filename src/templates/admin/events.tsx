@@ -7,7 +7,7 @@ import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
-import { buildIframeEmbedCode, buildScriptEmbedCode } from "#lib/embed.ts";
+import { buildEmbedSnippets } from "#lib/embed.ts";
 import { getTz } from "#lib/config.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
 import { utcToLocalInput } from "#lib/timezone.ts";
@@ -172,8 +172,7 @@ export const adminEventPage = ({
 }: AdminEventPageOptions): string => {
   const tz = getTz();
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
-  const scriptEmbed = buildScriptEmbedCode(ticketUrl);
-  const iframeEmbed = buildIframeEmbedCode(ticketUrl, event.fields);
+  const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
   const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);
   const hasPaidEvent = event.unit_price !== null;
@@ -327,24 +326,24 @@ export const adminEventPage = ({
                 </tr>
               )}
               <tr>
-                <th><label for={`script-embed-${event.id}`}>Script Embed</label></th>
+                <th><label for={`embed-script-${event.id}`}>Embed Script</label></th>
                 <td>
                   <input
                     type="text"
-                    id={`script-embed-${event.id}`}
-                    value={scriptEmbed}
+                    id={`embed-script-${event.id}`}
+                    value={embedScriptCode}
                     readonly
                     data-select-on-click
                   />
                 </td>
               </tr>
               <tr>
-                <th><label for={`iframe-embed-${event.id}`}>Iframe Embed</label></th>
+                <th><label for={`embed-iframe-${event.id}`}>Embed Iframe</label></th>
                 <td>
                   <input
                     type="text"
-                    id={`iframe-embed-${event.id}`}
-                    value={iframeEmbed}
+                    id={`embed-iframe-${event.id}`}
+                    value={embedIframeCode}
                     readonly
                     data-select-on-click
                   />

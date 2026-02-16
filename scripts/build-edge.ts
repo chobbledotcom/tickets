@@ -6,125 +6,15 @@
 
 import * as esbuild from "esbuild";
 import type { Plugin } from "esbuild";
-import { fromFileUrl } from "@std/path";
 import { minifyCss } from "./css-minify.ts";
+import { buildStaticAssets } from "./build-static-assets.ts";
 
 // Read deno.json import map (used by both client and edge builds)
 const denoConfig = JSON.parse(await Deno.readTextFile("./deno.json"));
 const denoImports: Record<string, string> = denoConfig.imports;
 
-// --- Shared plugins ---
-
-/** Resolve #-prefixed imports using the deno.json import map */
-const projectRoot = fromFileUrl(new URL("..", import.meta.url));
-const denoImportMapPlugin: Plugin = {
-  name: "deno-import-map",
-  setup(build) {
-    build.onResolve({ filter: /^#/ }, (args) => {
-      for (const [key, value] of Object.entries(denoImports)) {
-        if (typeof value !== "string" || !value.startsWith("./")) continue;
-        if (key.endsWith("/") && args.path.startsWith(key)) {
-          return { path: projectRoot + value.slice(2) + args.path.slice(key.length) };
-        }
-        if (args.path === key) {
-          return { path: projectRoot + value.slice(2) };
-        }
-      }
-      return undefined;
-    });
-  },
-};
-
-/** Resolve @iframe-resizer/* and auto-console-group using Deno's import resolution */
-const iframeResizerResolvePlugin: Plugin = {
-  name: "iframe-resizer-resolve",
-  setup(build) {
-    build.onResolve({ filter: /^(@iframe-resizer\/|auto-console-group)/ }, (args) => ({
-      path: fromFileUrl(import.meta.resolve(args.path)),
-    }));
-  },
-};
-
-// --- Helper to build a client bundle and exit on failure ---
-
-type ClientBuildOptions = {
-  label: string;
-  entryPoint: string;
-  outfile: string;
-  plugins?: Plugin[];
-  banner?: Record<string, string>;
-};
-
-const buildClient = async ({ label, entryPoint, outfile, plugins = [], banner }: ClientBuildOptions) => {
-  const result = await esbuild.build({
-    entryPoints: [entryPoint],
-    outfile,
-    platform: "browser",
-    format: "iife",
-    bundle: true,
-    minify: true,
-    plugins,
-    banner,
-  });
-
-  if (result.errors.length > 0) {
-    console.error(`${label} build failed:`);
-    for (const log of result.errors) {
-      console.error(log);
-    }
-    Deno.exit(1);
-  }
-
-  console.log(`${label} build complete: ${outfile}`);
-};
-
 // --- Step 1: Build client bundles ---
-
-/** Resolve npm bare specifiers using Deno's import resolution */
-const denoNpmResolvePlugin: Plugin = {
-  name: "deno-npm-resolve",
-  setup(build) {
-    build.onResolve({ filter: /^jsqr$/ }, () => ({
-      path: fromFileUrl(import.meta.resolve("jsqr")),
-    }));
-  },
-};
-
-await buildClient({
-  label: "Scanner",
-  entryPoint: "./src/client/scanner.js",
-  outfile: "./src/static/scanner.js",
-  plugins: [denoNpmResolvePlugin],
-});
-
-await buildClient({
-  label: "Admin",
-  entryPoint: "./src/client/admin.ts",
-  outfile: "./src/static/admin.js",
-  plugins: [denoImportMapPlugin],
-});
-
-await buildClient({
-  label: "iframe-resizer-parent",
-  entryPoint: "./src/client/iframe-resizer-parent.ts",
-  outfile: "./src/static/iframe-resizer-parent.js",
-  plugins: [iframeResizerResolvePlugin],
-});
-
-await buildClient({
-  label: "iframe-resizer-child",
-  entryPoint: "./src/client/iframe-resizer-child.ts",
-  outfile: "./src/static/iframe-resizer-child.js",
-  banner: { js: "window.iframeResizer={license:'GPLv3'};" },
-  plugins: [iframeResizerResolvePlugin],
-});
-
-await buildClient({
-  label: "Embed",
-  entryPoint: "./src/client/embed.ts",
-  outfile: "./src/static/embed.js",
-  plugins: [iframeResizerResolvePlugin],
-});
+await buildStaticAssets();
 
 // --- Step 2: Build edge bundle ---
 
