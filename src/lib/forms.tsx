@@ -89,7 +89,7 @@ const renderDatetimeInputs = (
   `<input type="date" name="${escapeHtml(name)}_date" placeholder="Date"${date ? ` value="${escapeHtml(date)}"` : ""}>`
   + `<input type="time" name="${escapeHtml(name)}_time" placeholder="Time"${time ? ` value="${escapeHtml(time)}"` : ""}>`;
 
-const DATETIME_PARTIAL_ERROR = "Please enter both a date and time, or leave both blank";
+const DATETIME_PARTIAL_ERROR = "Please enter a date when providing a time, or leave both blank";
 
 /** Combine date and time form values into a datetime string, or null on partial fill */
 const getDatetimeValue = (
@@ -99,6 +99,7 @@ const getDatetimeValue = (
   const date = (form.get(`${name}_date`) || "").trim();
   const time = (form.get(`${name}_time`) || "").trim();
   if (date && time) return `${date}T${time}`;
+  if (date && !time) return `${date}T00:00`;
   if (!date && !time) return "";
   return null;
 };
