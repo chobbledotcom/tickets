@@ -39,6 +39,9 @@ export const adminUsersPage = (
     <Layout title="Users">
       <AdminNav session={session} />
       <h1>Users</h1>
+      <p>
+        <a href="/admin/guide#user-classes">User roles and permissions</a>
+      </p>
       <Raw html={renderError(error)} />
       {success && <div class="success">{success}</div>}
 

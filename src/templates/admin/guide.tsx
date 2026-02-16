@@ -8,14 +8,16 @@ import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
 const Section = ({
+  id,
   title,
   children,
 }: {
+  id?: string;
   title: string;
   children?: Child;
 }): JSX.Element => (
   <>
-    <h3>{title}</h3>
+    <h3 id={id}>{title}</h3>
     {children}
   </>
 );
@@ -371,7 +373,7 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
-      <Section title="Users &amp; Permissions">
+      <Section id="user-classes" title="Users &amp; Permissions">
         <Q q="What's the difference between an owner and a manager?">
           <p>
             <strong>Owners</strong> have full access: events, calendar, users,

@@ -3,6 +3,7 @@ tickets.db
 *.db
 .db-key
 .env
+.db-key
 dist/
 .bin/
 .direnv/
