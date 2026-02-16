@@ -2,6 +2,7 @@
  * Date computation for daily events
  */
 
+import { fromAbsolute } from "@internationalized/date";
 import { filter, pipe } from "#fp";
 import { formatDatetimeInTz, localToUtc, todayInTz } from "#lib/timezone.ts";
 import type { Event, Holiday } from "#lib/types.ts";
@@ -115,3 +116,24 @@ export const formatDateLabel = (dateStr: string): string => {
  */
 export const formatDatetimeLabel = (iso: string, tz: string): string =>
   formatDatetimeInTz(iso, tz);
+
+/**
+ * Convert a UTC ISO datetime to a YYYY-MM-DD calendar date in the given timezone.
+ * Returns null if the input is empty or invalid.
+ * Used by the calendar view to map standard event dates to calendar days.
+ */
+export const eventDateToCalendarDate = (
+  utcIso: string,
+  tz: string,
+): string | null => {
+  if (!utcIso) return null;
+  try {
+    const ms = new Date(utcIso).getTime();
+    if (Number.isNaN(ms)) return null;
+    const zoned = fromAbsolute(ms, tz);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${zoned.year}-${pad(zoned.month)}-${pad(zoned.day)}`;
+  } catch {
+    return null;
+  }
+};

@@ -6,6 +6,7 @@ import type { ResultSet } from "@libsql/client";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { executeByField, getDb, inPlaceholders, queryAll, queryBatch, queryOne, resultRows } from "#lib/db/client.ts";
 import { col, defineTable } from "#lib/db/table.ts";
+import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso } from "#lib/now.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 import type { Attendee, Event, EventFields, EventType, EventWithCount } from "#lib/types.ts";
@@ -40,35 +41,44 @@ export type EventInput = {
 export const computeSlugIndex = (slug: string): Promise<string> =>
   hmacHash(slug);
 
-/** Encrypt a datetime value for DB storage (already normalized to UTC by the route handler) */
-const encryptDatetime = async (v: string): Promise<string> => {
-  if (v === "") return await encrypt("");
-  return await encrypt(v);
-};
+const TZ_SUFFIX_REGEX = /(?:Z|[+\-]\d{2}:\d{2})$/i;
 
 /**
- * Normalize a stored datetime string into a UTC ISO timestamp.
- *
- * Values written by form handlers are typically timezone-normalized upstream,
- * but tests and older rows may contain naive datetime-local strings without a
- * timezone suffix. Treat those as UTC to keep read behavior deterministic
- * across host timezones.
+ * Normalize a datetime to a UTC ISO timestamp.
+ * Logs and treats missing timezone offsets as UTC for legacy data.
  */
-const normalizeStoredDatetime = (value: string): string => {
-  const hasTimezone = /(?:Z|[+\-]\d{2}:\d{2})$/i.test(value);
-  return new Date(hasTimezone ? value : `${value}Z`).toISOString();
+const normalizeUtcDatetime = (value: string, label: string): string => {
+  if (value === "") return "";
+  let normalized = value;
+  if (!TZ_SUFFIX_REGEX.test(value)) {
+    logError({
+      code: ErrorCode.DATA_INVALID,
+      detail: `${label} missing timezone offset (${value})`,
+    });
+    normalized = `${value}Z`;
+  }
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    logError({ code: ErrorCode.DATA_INVALID, detail: `${label} invalid datetime (${value})` });
+    return "";
+  }
+  return date.toISOString();
 };
+
+/** Encrypt a datetime value for DB storage (normalized to UTC) */
+const encryptDatetime = (v: string, label: string): Promise<string> =>
+  encrypt(normalizeUtcDatetime(v, label));
 
 /** Decrypt an encrypted datetime from DB storage (empty → empty, otherwise → ISO) */
 const decryptDatetime = async (v: string): Promise<string> => {
   const str = await decrypt(v);
   if (str === "") return "";
-  return normalizeStoredDatetime(str);
+  return normalizeUtcDatetime(str, "stored datetime");
 };
 
 /** Encrypt closes_at for DB storage (null/empty → encrypted empty) */
 export const writeClosesAt = (v: string | null): Promise<string | null> =>
-  encryptDatetime(v ?? "");
+  encryptDatetime(v ?? "", "closes_at");
 
 /** Decrypt closes_at from DB storage (encrypted empty → null) */
 const readClosesAt = async (v: string | null): Promise<string | null> => {
@@ -79,7 +89,7 @@ const readClosesAt = async (v: string | null): Promise<string | null> => {
 
 /** Encrypt event date for DB storage */
 export const writeEventDate = (v: string): Promise<string> =>
-  encryptDatetime(v);
+  encryptDatetime(v, "date");
 
 /**
  * Events table definition
@@ -254,6 +264,13 @@ export const getAllDailyEvents = (): Promise<EventWithCount[]> =>
   queryEventsWithCounts("WHERE e.event_type = 'daily'");
 
 /**
+ * Get all standard events with attendee counts (no attendees loaded).
+ * Used by the calendar view to include one-time events on their scheduled date.
+ */
+export const getAllStandardEvents = (): Promise<EventWithCount[]> =>
+  queryEventsWithCounts("WHERE e.event_type = 'standard'");
+
+/**
  * Get distinct attendee dates for daily events.
  * Used for the calendar date picker (lightweight, no attendee data).
  */
@@ -280,6 +297,19 @@ export const getDailyEventAttendeesByDate = (
           WHERE e.event_type = 'daily' AND a.date = ?
           ORDER BY a.created DESC`,
     [date],
+  );
+
+/**
+ * Get raw attendees for a set of event IDs.
+ * Used by the calendar to load attendees for standard events whose
+ * decrypted date matches the selected calendar date.
+ */
+export const getAttendeesByEventIds = (
+  eventIds: number[],
+): Promise<Attendee[]> =>
+  queryAll<Attendee>(
+    `SELECT * FROM attendees WHERE event_id IN (${inPlaceholders(eventIds)}) ORDER BY created DESC`,
+    eventIds,
   );
 
 /** Result type for event + single attendee query */
