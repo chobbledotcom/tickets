@@ -8,6 +8,7 @@ import {
   generateSecureToken,
   getPrivateKeyFromSession,
 } from "#lib/crypto.ts";
+import { isSignedCsrfToken, signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getCsrfCookieName, getSessionCookieName } from "#lib/cookies.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
@@ -407,25 +408,36 @@ export type CsrfFormResult =
   | { ok: false; response: Response };
 
 /**
- * Parse form with CSRF validation (double-submit cookie pattern)
- * This is the integral CSRF check - you cannot get form data without validating CSRF
+ * Parse form with CSRF validation (double-submit cookie pattern).
+ * This is the integral CSRF check - you cannot get form data without validating CSRF.
+ *
+ * When `inIframe` is true and the cookie is missing (blocked by Safari/iOS
+ * in-app browsers), falls back to verifying the form token's cryptographic
+ * signature instead of comparing it to a cookie.
  */
 export const requireCsrfForm = async (
   request: Request,
   onInvalid: (newToken: string) => Response,
   cookieName = getCsrfCookieName("csrf_token"),
+  inIframe = false,
 ): Promise<CsrfFormResult> => {
   const cookies = parseCookies(request);
   const cookieCsrf = cookies.get(cookieName) || "";
   const form = await parseFormData(request);
   const formCsrf = form.get("csrf_token") || "";
 
-  if (!cookieCsrf || !formCsrf || !validateCsrfToken(cookieCsrf, formCsrf)) {
-    const newToken = generateSecureToken();
-    return { ok: false, response: onInvalid(newToken) };
+  // Primary: double-submit cookie check
+  if (cookieCsrf && formCsrf && validateCsrfToken(cookieCsrf, formCsrf)) {
+    return { ok: true, form };
   }
 
-  return { ok: true, form };
+  // Fallback: verify signed token when cookie is blocked (iOS iframe)
+  if (inIframe && !cookieCsrf && formCsrf && isSignedCsrfToken(formCsrf) && await verifySignedCsrfToken(formCsrf)) {
+    return { ok: true, form };
+  }
+
+  const newToken = inIframe ? await signCsrfToken() : generateSecureToken();
+  return { ok: false, response: onInvalid(newToken) };
 };
 
 /** Auth form result type */

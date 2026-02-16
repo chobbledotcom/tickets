@@ -345,6 +345,67 @@ describe("server (public routes)", () => {
       expect(cookie).toContain("SameSite=None");
       expect(cookie).toContain("Partitioned");
     });
+
+    test("iframe GET returns signed CSRF token in form", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}?iframe=true`),
+      );
+      const html = await response.text();
+      // Signed tokens start with s1.
+      expect(html).toMatch(/name="csrf_token" value="s1\./);
+    });
+
+    test("iframe POST succeeds with signed token and no cookie (iOS fallback)", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      // GET the iframe page to obtain the signed token
+      const getResponse = await handleRequest(
+        mockRequest(`/ticket/${event.slug}?iframe=true`),
+      );
+      const html = await getResponse.text();
+      const match = html.match(/name="csrf_token" value="([^"]+)"/);
+      expect(match).not.toBe(null);
+      const signedToken = match![1]!;
+      expect(signedToken.startsWith("s1.")).toBe(true);
+
+      // POST without any cookie - simulates iOS in-app browser blocking cookies
+      const response = await handleRequest(
+        mockFormRequest(
+          `/ticket/${event.slug}?iframe=true`,
+          { name: "Test User", email: "test@example.com", quantity: "1", csrf_token: signedToken },
+        ),
+      );
+      expect(response.status).toBe(302);
+    });
+
+    test("non-iframe POST rejects signed token without cookie", async () => {
+      const { signCsrfToken } = await import("#lib/csrf.ts");
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const signedToken = await signCsrfToken();
+
+      // POST without iframe=true and without cookie - should fail
+      const response = await handleRequest(
+        mockFormRequest(
+          `/ticket/${event.slug}`,
+          { name: "Test User", email: "test@example.com", quantity: "1", csrf_token: signedToken },
+        ),
+      );
+      expect(response.status).toBe(403);
+    });
+
+    test("iframe CSRF error regenerates a signed token", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockFormRequest(
+          `/ticket/${event.slug}?iframe=true`,
+          { name: "Test", csrf_token: "wrong-token" },
+        ),
+      );
+      expect(response.status).toBe(403);
+      const html = await response.text();
+      // The re-rendered form should contain a new signed token
+      expect(html).toMatch(/name="csrf_token" value="s1\./);
+    });
   });
 
   describe("POST /ticket/:slug", () => {
@@ -652,6 +713,44 @@ describe("server (public routes)", () => {
       );
       const html = await response.text();
       expect(html).toContain(`action="/ticket/${event1.slug}+${event2.slug}?iframe=true"`);
+    });
+
+    test("multi-ticket iframe GET returns signed CSRF token in form", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event1.slug}+${event2.slug}?iframe=true`),
+      );
+      const html = await response.text();
+      expect(html).toMatch(/name="csrf_token" value="s1\./);
+    });
+
+    test("multi-ticket iframe POST succeeds with signed token and no cookie", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+
+      const getResponse = await handleRequest(
+        mockRequest(`${path}?iframe=true`),
+      );
+      const html = await getResponse.text();
+      const match = html.match(/name="csrf_token" value="([^"]+)"/);
+      expect(match).not.toBe(null);
+      const signedToken = match![1]!;
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `${path}?iframe=true`,
+          {
+            name: "Test User",
+            email: "test@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: signedToken,
+          },
+        ),
+      );
+      expect(response.status).toBe(302);
     });
   });
 
