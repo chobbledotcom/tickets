@@ -3,6 +3,7 @@
  * Owner-only access enforced via requireOwnerOr / withOwnerAuthForm
  */
 
+import { logActivity } from "#lib/db/activityLog.ts";
 import {
   clearPaymentProvider,
   getEmbedHostsFromDb,
@@ -197,6 +198,7 @@ const handleAdminSettingsPost = settingsRoute(async (form, errorPage, session) =
     return errorPage("Failed to update password", 500);
   }
 
+  await logActivity("Password changed");
   return redirect("/admin", clearSessionCookie());
 });
 
@@ -214,6 +216,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
 
   if (provider === "none") {
     await clearPaymentProvider();
+    await logActivity("Payment provider disabled");
     return redirectWithSuccess("/admin/settings", "Payment provider disabled");
   }
 
@@ -222,6 +225,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
   }
 
   await setPaymentProvider(provider);
+  await logActivity(`Payment provider set to ${provider}`);
 
   return redirectWithSuccess("/admin/settings", `Payment provider set to ${provider}`);
 });
@@ -261,6 +265,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   // Auto-set payment provider to stripe when key is configured
   await setPaymentProvider("stripe");
 
+  await logActivity("Stripe key configured");
   return redirectWithSuccess(
     "/admin/settings",
     "Stripe key updated and webhook configured successfully",
@@ -284,6 +289,7 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   // Auto-set payment provider to square when credentials are configured
   await setPaymentProvider("square");
 
+  await logActivity("Square credentials configured");
   return redirectWithSuccess("/admin/settings", "Square credentials updated successfully");
 });
 
@@ -300,6 +306,7 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
 
   await updateSquareWebhookSignatureKey(signatureKey);
 
+  await logActivity("Square webhook signature key configured");
   return redirectWithSuccess(
     "/admin/settings",
     "Square webhook signature key updated successfully",
@@ -358,8 +365,10 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
   await updateTermsAndConditions(trimmed);
 
   if (trimmed === "") {
+    await logActivity("Terms and conditions removed");
     return redirectWithSuccess("/admin/settings", "Terms and conditions removed");
   }
+  await logActivity("Terms and conditions updated");
   return redirectWithSuccess("/admin/settings", "Terms and conditions updated");
 });
 
@@ -376,6 +385,7 @@ const processTimezoneForm: SettingsFormHandler = async (form, errorPage) => {
   }
 
   await updateTimezone(trimmed);
+  await logActivity(`Timezone set to ${trimmed}`);
   return redirectWithSuccess("/admin/settings", "Timezone updated");
 };
 
@@ -390,6 +400,7 @@ const processBusinessEmailForm: SettingsFormHandler = async (form, errorPage) =>
   // Allow empty (clearing the business email)
   if (trimmed === "") {
     await updateBusinessEmail("");
+    await logActivity("Business email cleared");
     return redirectWithSuccess("/admin/settings", "Business email cleared");
   }
 
@@ -398,6 +409,7 @@ const processBusinessEmailForm: SettingsFormHandler = async (form, errorPage) =>
   }
 
   await updateBusinessEmail(trimmed);
+  await logActivity("Business email updated");
   return redirectWithSuccess("/admin/settings", "Business email updated");
 };
 
@@ -422,6 +434,7 @@ const handleResetDatabasePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
+  await logActivity("Database reset initiated");
   await resetDatabase();
 
   // Redirect to setup page since the database is now empty

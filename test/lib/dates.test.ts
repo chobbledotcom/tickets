@@ -1,12 +1,21 @@
-import { describe, expect, test } from "#test-compat";
-import { addDays, DAY_NAMES, formatDateLabel, formatDatetimeLabel, getAvailableDates, normalizeDatetime } from "#lib/dates.ts";
+import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { addDays, DAY_NAMES, eventDateToCalendarDate, formatDateLabel, formatDatetimeLabel, getAvailableDates, normalizeDatetime } from "#lib/dates.ts";
+import { updateTimezone } from "#lib/db/settings.ts";
 import { todayInTz } from "#lib/timezone.ts";
-import { testEvent } from "#test-utils";
+import { createTestDbWithSetup, resetDb, testEvent } from "#test-utils";
 
-const TZ = "UTC";
-const today = () => todayInTz(TZ);
+const today = () => todayInTz("UTC");
 
 describe("dates", () => {
+  beforeEach(async () => {
+    await createTestDbWithSetup();
+    await updateTimezone("UTC");
+  });
+
+  afterEach(() => {
+    resetDb();
+  });
+
   describe("addDays", () => {
     test("adds positive days to a date", () => {
       expect(addDays("2026-01-01", 5)).toBe("2026-01-06");
@@ -60,7 +69,7 @@ describe("dates", () => {
         maximum_days_after: 14,
       });
 
-      const dates = getAvailableDates(event, [], TZ);
+      const dates = getAvailableDates(event, []);
       expect(dates.length).toBeGreaterThan(0);
       // Every returned date should be a Monday
       for (const d of dates) {
@@ -81,7 +90,7 @@ describe("dates", () => {
         maximum_days_after: 7,
       });
 
-      const dates = getAvailableDates(event, holidays, TZ);
+      const dates = getAvailableDates(event, holidays);
       expect(dates).not.toContain(holidayDate);
     });
 
@@ -97,7 +106,7 @@ describe("dates", () => {
         maximum_days_after: 7,
       });
 
-      const dates = getAvailableDates(event, holidays, TZ);
+      const dates = getAvailableDates(event, holidays);
       expect(dates).not.toContain(holidayStart);
       expect(dates).not.toContain(addDays(today(), 2));
       expect(dates).not.toContain(holidayEnd);
@@ -111,7 +120,7 @@ describe("dates", () => {
         maximum_days_after: 10,
       });
 
-      const dates = getAvailableDates(event, [], TZ);
+      const dates = getAvailableDates(event, []);
       const earliest = dates[0]!;
       expect(earliest >= addDays(today(), 3)).toBe(true);
     });
@@ -124,7 +133,7 @@ describe("dates", () => {
         maximum_days_after: 0,
       });
 
-      const dates = getAvailableDates(event, [], TZ);
+      const dates = getAvailableDates(event, []);
       const latest = dates[dates.length - 1]!;
       // Should extend close to 730 days (2 years)
       expect(latest >= addDays(today(), 700)).toBe(true);
@@ -138,7 +147,7 @@ describe("dates", () => {
         maximum_days_after: 7,
       });
 
-      const dates = getAvailableDates(event, [], TZ);
+      const dates = getAvailableDates(event, []);
       const latest = dates[dates.length - 1]!;
       expect(latest <= addDays(today(), 7)).toBe(true);
     });
@@ -153,7 +162,7 @@ describe("dates", () => {
         maximum_days_after: 7,
       });
 
-      const dates = getAvailableDates(event, [], TZ);
+      const dates = getAvailableDates(event, []);
       expect(dates).toEqual([]);
     });
 
@@ -165,52 +174,86 @@ describe("dates", () => {
         maximum_days_after: 7,
       });
 
-      const dates = getAvailableDates(event, [], TZ);
+      const dates = getAvailableDates(event, []);
       expect(dates).toEqual([]);
     });
   });
 
   describe("normalizeDatetime", () => {
     test("normalizes datetime-local (16 chars) to full ISO string", () => {
-      const result = normalizeDatetime("2026-06-15T14:30", "date", TZ);
+      const result = normalizeDatetime("2026-06-15T14:30", "date");
       expect(result).toBe("2026-06-15T14:30:00.000Z");
     });
 
     test("handles datetime with seconds", () => {
-      const result = normalizeDatetime("2026-06-15T14:30:00", "date", TZ);
+      const result = normalizeDatetime("2026-06-15T14:30:00", "date");
       expect(result).toBe("2026-06-15T14:30:00.000Z");
     });
 
     test("throws on invalid datetime string", () => {
-      expect(() => normalizeDatetime("not-a-date", "date", TZ)).toThrow("Invalid date");
+      expect(() => normalizeDatetime("not-a-date", "date")).toThrow("Invalid date");
     });
 
     test("includes the label in the error message", () => {
-      expect(() => normalizeDatetime("bad-value", "closes_at", TZ)).toThrow("Invalid closes_at");
+      expect(() => normalizeDatetime("bad-value", "closes_at")).toThrow("Invalid closes_at");
     });
 
-    test("converts datetime-local to UTC using timezone", () => {
+    test("converts datetime-local to UTC using timezone", async () => {
       // 14:30 BST (June) = 13:30 UTC
-      const result = normalizeDatetime("2026-06-15T14:30", "date", "Europe/London");
+      await updateTimezone("Europe/London");
+      const result = normalizeDatetime("2026-06-15T14:30", "date");
       expect(result).toBe("2026-06-15T13:30:00.000Z");
+    });
+  });
+
+  describe("eventDateToCalendarDate", () => {
+    test("converts UTC datetime to YYYY-MM-DD in UTC", () => {
+      expect(eventDateToCalendarDate("2026-06-15T14:00:00.000Z")).toBe("2026-06-15");
+    });
+
+    test("converts UTC datetime to local date in timezone", async () => {
+      // 23:30 UTC on June 15 = 00:30 BST on June 16 (Europe/London in summer)
+      await updateTimezone("Europe/London");
+      expect(eventDateToCalendarDate("2026-06-15T23:30:00.000Z")).toBe("2026-06-16");
+    });
+
+    test("returns null for empty string", () => {
+      expect(eventDateToCalendarDate("")).toBeNull();
+    });
+
+    test("returns null for invalid datetime", () => {
+      expect(eventDateToCalendarDate("not-a-date")).toBeNull();
+    });
+
+    test("returns null for invalid timezone", async () => {
+      await updateTimezone("Invalid/Zone");
+      expect(eventDateToCalendarDate("2026-06-15T14:00:00.000Z")).toBeNull();
+    });
+
+    test("handles midnight UTC", () => {
+      expect(eventDateToCalendarDate("2026-03-01T00:00:00.000Z")).toBe("2026-03-01");
+    });
+
+    test("pads single-digit month and day", () => {
+      expect(eventDateToCalendarDate("2026-01-05T12:00:00.000Z")).toBe("2026-01-05");
     });
   });
 
   describe("formatDatetimeLabel", () => {
     test("formats ISO datetime as human-readable string", () => {
-      expect(formatDatetimeLabel("2026-06-15T14:00:00.000Z", TZ)).toContain(
+      expect(formatDatetimeLabel("2026-06-15T14:00:00.000Z")).toContain(
         "Monday 15 June 2026 at 14:00",
       );
     });
 
     test("pads single-digit hours and minutes", () => {
-      expect(formatDatetimeLabel("2026-01-05T09:05:00.000Z", TZ)).toContain(
+      expect(formatDatetimeLabel("2026-01-05T09:05:00.000Z")).toContain(
         "Monday 5 January 2026 at 09:05",
       );
     });
 
     test("handles midnight", () => {
-      expect(formatDatetimeLabel("2026-03-01T00:00:00.000Z", TZ)).toContain(
+      expect(formatDatetimeLabel("2026-03-01T00:00:00.000Z")).toContain(
         "Sunday 1 March 2026 at 00:00",
       );
     });

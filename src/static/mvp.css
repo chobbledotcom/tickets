@@ -987,8 +987,26 @@ button.secondary:hover {
   margin-bottom: 0.25rem;
 }
 
+.ticket-card-image {
+  width: calc(100% + 1rem);
+  margin: -0.5rem -0.5rem 0.5rem;
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+  display: block;
+}
+
+.ticket-card-description {
+  margin-bottom: 0.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.95em;
+}
+
 .ticket-card-quantity {
   margin-bottom: 0.5rem;
+}
+
+.ticket-card-price {
+  margin-bottom: 0.5rem;
+  font-weight: bold;
 }
 
 .ticket-card-qr {
