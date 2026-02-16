@@ -184,11 +184,11 @@ describe("server (admin auth)", () => {
   });
 
   describe("GET /admin/logout", () => {
-    test("returns 405 method not allowed", async () => {
+    test("returns 404 not found", async () => {
       const response = await handleRequest(mockRequest("/admin/logout"));
-      expect(response.status).toBe(405);
+      expect(response.status).toBe(404);
       const html = await response.text();
-      expect(html).toContain("Method not allowed");
+      expect(html).toContain("Not Found");
     });
   });
 

@@ -23,7 +23,7 @@ export const buildSessionCookie = (
   return `${sessionCookieName()}=${token}; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 };
 
-export const buildClearedSessionCookie = (): string =>
+export const clearSessionCookie = (): string =>
   `${sessionCookieName()}=; HttpOnly${secureAttribute()}; SameSite=Strict; Path=/; Max-Age=0`;
 
 export const getCsrfCookieName = (baseName: string): string => csrfCookieName(baseName);

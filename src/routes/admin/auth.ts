@@ -3,7 +3,7 @@
  */
 
 import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#lib/crypto.ts";
-import { buildSessionCookie, buildClearedSessionCookie } from "#lib/cookies.ts";
+import { buildSessionCookie, clearSessionCookie } from "#lib/cookies.ts";
 import {
   clearLoginAttempts,
   isLoginRateLimited,
@@ -19,7 +19,6 @@ import type { ServerContext } from "#routes/types.ts";
 import {
   generateSecureToken,
   getClientIp,
-  htmlResponse,
   parseCookies,
   parseFormData,
   redirect,
@@ -137,7 +136,7 @@ const handleAdminLogin = async (
 const handleAdminLogout = (request: Request): Promise<Response> =>
   withAuthForm(request, async (session) => {
     await deleteSession(session.token);
-    return redirect("/admin", clearSessionCookie);
+    return redirect("/admin", clearSessionCookie());
   });
 
 /** Authentication routes */
