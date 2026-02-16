@@ -5,6 +5,7 @@
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildStaticAssets } from "./build-static-assets.ts";
 
 const STRIPE_MOCK_VERSION = "0.188.0";
 const STRIPE_MOCK_PORT = 12111;
@@ -94,6 +95,7 @@ const startStripeMock = async (): Promise<Deno.ChildProcess | null> => {
 
 /** Main: start stripe-mock, run tests, cleanup */
 const main = async (): Promise<void> => {
+  await buildStaticAssets({ stop: true });
   const stripeMockProcess = await startStripeMock();
 
   // Set environment for tests

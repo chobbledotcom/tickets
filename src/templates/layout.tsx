@@ -3,7 +3,7 @@
  */
 
 import { type Child, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
-import { CSS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
+import { CSS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 
 export const escapeHtml = (str: string): string =>
   str
@@ -38,6 +38,7 @@ export const Layout = ({ title, bodyClass, headExtra, children }: LayoutProps): 
           <main>
             {children}
           </main>
+          {bodyClass?.includes("iframe") && <script src={IFRAME_RESIZER_CHILD_JS_PATH}></script>}
           <script src={JS_PATH} defer></script>
         </body>
       </html>
