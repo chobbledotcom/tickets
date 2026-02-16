@@ -24,6 +24,7 @@ import {
   logAndNotifyRegistration,
   type RegistrationEntry,
 } from "#lib/webhook.ts";
+import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   formatCreationError,
   getBaseUrl,
@@ -78,16 +79,14 @@ const ticketResponse = validationErrorResponder(
 const isIframeRequest = (url: string): boolean =>
   new URL(url).searchParams.get("iframe") === "true";
 
-/**
- * Handle GET /ticket/:slug
- */
 /** Compute available dates for a daily event, or undefined for standard */
 const computeDatesForEvent = async (event: EventWithCount): Promise<string[] | undefined> => {
   if (event.event_type !== "daily") return undefined;
   return getAvailableDates(event, await getActiveHolidays());
 };
 
-export const handleTicketGet = (slug: string, request: Request): Promise<Response> =>
+/** Handle GET for a single-ticket page */
+const handleSingleTicketGet = (slug: string, request: Request): Promise<Response> =>
   withActiveEventBySlug(slug, async (event) => {
     const closed = isRegistrationClosed(event);
     const inIframe = isIframeRequest(request.url);
@@ -330,10 +329,8 @@ const processTicketReservation = async (
   return processFreeReservation(params, ctx);
 };
 
-/**
- * Handle POST /ticket/:slug (reserve ticket)
- */
-export const handleTicketPost = (
+/** Handle POST for a single-ticket reservation */
+const handleSingleTicketPost = (
   request: Request,
   slug: string,
 ): Promise<Response> =>
@@ -636,15 +633,6 @@ const handleMultiTicketPost = (
     return redirect(`/ticket/reserved?tokens=${encodeURIComponent(result.tokens.join("+"))}${iframeParam}`);
   });
 
-/** Slug pattern for extracting slug from path */
-const SLUG_PATTERN = /^\/ticket\/(.+)$/;
-
-/** Extract slug from path */
-const extractSlugFromPath = (path: string): string | null => {
-  const match = path.match(SLUG_PATTERN);
-  return match?.[1] ?? null;
-};
-
 /** Handle GET /ticket/reserved - reservation success page */
 const handleReservedGet = (request: Request): Response => {
   const url = new URL(request.url);
@@ -656,40 +644,30 @@ const handleReservedGet = (request: Request): Response => {
   return htmlResponse(reservationSuccessPage(ticketUrl, inIframe));
 };
 
-/** Route ticket requests - handles both single and multi-ticket */
-export const routeTicket = (
-  request: Request,
-  path: string,
-  method: string,
-): Promise<Response | null> => {
-  // Handle /ticket/reserved before slug matching
-  if (path === "/ticket/reserved" && method === "GET") {
-    return Promise.resolve(handleReservedGet(request));
-  }
+/** Create a slug route that dispatches single vs multi-ticket requests */
+const slugRoute = (
+  onSingle: (request: Request, slug: string) => Promise<Response>,
+  onMulti: (request: Request, slugs: string[]) => Promise<Response>,
+) => (request: Request, { slug }: { slug: string }): Promise<Response> =>
+  isMultiSlug(slug)
+    ? onMulti(request, parseMultiSlugs(slug))
+    : onSingle(request, slug);
 
-  const slug = extractSlugFromPath(path);
-  if (!slug) return Promise.resolve(null);
+/** Handle GET /ticket/:slug */
+const handleTicketGet = slugRoute(
+  (request, slug) => handleSingleTicketGet(slug, request),
+  (request, slugs) => handleMultiTicketGet(slugs, request),
+);
 
-  // Check if this is a multi-ticket URL
-  if (isMultiSlug(slug)) {
-    const slugs = parseMultiSlugs(slug);
+/** Handle POST /ticket/:slug */
+const handleTicketPost = slugRoute(handleSingleTicketPost, handleMultiTicketPost);
 
-    if (method === "GET") {
-      return handleMultiTicketGet(slugs, request);
-    }
-    if (method === "POST") {
-      return handleMultiTicketPost(request, slugs);
-    }
-    return Promise.resolve(null);
-  }
+/** Public ticket routes */
+const publicRoutes = defineRoutes({
+  "GET /ticket/reserved": handleReservedGet,
+  "GET /ticket/:slug": handleTicketGet,
+  "POST /ticket/:slug": handleTicketPost,
+});
 
-  // Single ticket
-  if (method === "GET") {
-    return handleTicketGet(slug, request);
-  }
-  if (method === "POST") {
-    return handleTicketPost(request, slug);
-  }
-
-  return Promise.resolve(null);
-};
+/** Route ticket requests */
+export const routeTicket = createRouter(publicRoutes);
