@@ -5,6 +5,7 @@
  */
 
 import { getAllowedDomain } from "#lib/config.ts";
+import { decrypt } from "#lib/crypto.ts";
 import { generateQrSvg } from "#lib/qr.ts";
 import { ticketViewPage, type TicketCard } from "#templates/tickets.tsx";
 import { htmlResponse } from "#routes/utils.ts";
@@ -26,6 +27,9 @@ const handleTicketView = async (_request: Request, tokens: string[]): Promise<Re
   if (!result.ok) return result.response;
 
   const entries = await resolveEntries(result.attendees);
+  for (const entry of entries) {
+    entry.attendee.price_paid = await decrypt(entry.attendee.price_paid);
+  }
   const cards = await Promise.all(
     entries.map((entry, index) => buildTicketCard(entry, tokens[index]!))
   );

@@ -7,7 +7,7 @@ import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
-import { buildEmbedCode } from "#lib/embed.ts";
+import { buildEmbedSnippets } from "#lib/embed.ts";
 import { getTz } from "#lib/config.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
 import { utcToLocalInput } from "#lib/timezone.ts";
@@ -170,9 +170,8 @@ export const adminEventPage = ({
   addAttendeeMessage = null,
   imageError = null,
 }: AdminEventPageOptions): string => {
-  const tz = getTz();
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
-  const embedCode = buildEmbedCode(ticketUrl, event.fields);
+  const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
   const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);
   const hasPaidEvent = event.unit_price !== null;
@@ -231,7 +230,7 @@ export const adminEventPage = ({
               {event.date && (
                 <tr>
                   <th>Event Date</th>
-                  <td>{formatDatetimeLabel(event.date, tz)}</td>
+                  <td>{formatDatetimeLabel(event.date)}</td>
                 </tr>
               )}
               {event.location && (
@@ -283,7 +282,7 @@ export const adminEventPage = ({
                 <th>Registration Closes</th>
                 <td>
                   {event.closes_at ? (
-                    <span>{formatDatetimeLabel(event.closes_at, tz)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
+                    <span>{formatDatetimeLabel(event.closes_at)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
                   ) : (
                     <em>No deadline</em>
                   )}
@@ -326,12 +325,24 @@ export const adminEventPage = ({
                 </tr>
               )}
               <tr>
-                <th><label for={`embed-code-${event.id}`}>Embed Code</label></th>
+                <th><label for={`embed-script-${event.id}`}>Embed Script</label></th>
                 <td>
                   <input
                     type="text"
-                    id={`embed-code-${event.id}`}
-                    value={embedCode}
+                    id={`embed-script-${event.id}`}
+                    value={embedScriptCode}
+                    readonly
+                    data-select-on-click
+                  />
+                </td>
+              </tr>
+              <tr>
+                <th><label for={`embed-iframe-${event.id}`}>Embed Iframe</label></th>
+                <td>
+                  <input
+                    type="text"
+                    id={`embed-iframe-${event.id}`}
+                    value={embedIframeCode}
                     readonly
                     data-select-on-click
                   />

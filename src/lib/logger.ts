@@ -55,6 +55,7 @@ export const ErrorCode = {
   // Validation errors
   VALIDATION_FORM: "E_VALIDATION_FORM",
   VALIDATION_CONTENT_TYPE: "E_VALIDATION_CONTENT_TYPE",
+  DATA_INVALID: "E_DATA_INVALID",
 
   // Storage errors
   STORAGE_DELETE: "E_STORAGE_DELETE",

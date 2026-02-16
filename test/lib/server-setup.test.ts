@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -368,6 +369,31 @@ describe("server (setup)", () => {
         const html = await response.text();
         expect(html).toContain("Setup Complete");
       });
+    });
+  });
+
+  describe("audit logging", () => {
+    test("logs activity when setup is completed", async () => {
+      resetDb();
+      await createTestDb();
+
+      const getResponse = await handleRequest(mockRequest("/setup/"));
+      const csrfToken = getSetupCsrfToken(await getResponse.text());
+
+      await handleRequest(
+        mockSetupFormRequest(
+          {
+            admin_username: "testadmin",
+            admin_password: "mypassword123",
+            admin_password_confirm: "mypassword123",
+            currency_code: "USD",
+          },
+          csrfToken as string,
+        ),
+      );
+
+      const logs = await getAllActivityLog();
+      expect(logs.some((l) => l.message.includes("Initial setup completed"))).toBe(true);
     });
   });
 

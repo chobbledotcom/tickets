@@ -1,5 +1,6 @@
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
 import {
@@ -1008,6 +1009,64 @@ describe("server (multi-user admin)", () => {
       );
       // Session auth check should redirect since user was deleted
       expect(response.status).toBe(302);
+    });
+  });
+
+  describe("audit logging", () => {
+    test("logs activity when user is invited", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users",
+          { username: "auditinvite", admin_level: "manager", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      const logs = await getAllActivityLog();
+      expect(logs.some((l) => l.message.includes("User 'auditinvite' invited as manager"))).toBe(true);
+    });
+
+    test("logs activity when user is activated", async () => {
+      const { inviteCode, cookie, csrfToken } = await createTestInvite("auditactivate");
+
+      await submitJoinForm(inviteCode, { password: "newpassword123", password_confirm: "newpassword123" });
+
+      // Activate
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users/2/activate",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      const logs = await getAllActivityLog();
+      expect(logs.some((l) => l.message.includes("User 'auditactivate' activated"))).toBe(true);
+    });
+
+    test("logs activity when user is deleted", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users",
+          { username: "auditdelete", admin_level: "manager", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users/2/delete",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      const logs = await getAllActivityLog();
+      expect(logs.some((l) => l.message.includes("User 'auditdelete' deleted"))).toBe(true);
     });
   });
 

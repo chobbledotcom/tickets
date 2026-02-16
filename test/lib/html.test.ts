@@ -1,5 +1,5 @@
 import { describe, expect, test } from "#test-compat";
-import { CSS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
+import { CSS_PATH, EMBED_JS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, IFRAME_RESIZER_PARENT_JS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminDuplicateEventPage, adminEventEditPage, adminEventPage, calculateTotalRevenue, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
@@ -43,6 +43,22 @@ describe("asset-paths", () => {
     const html = adminLoginPage(TEST_CSRF_TOKEN);
     expect(html).toContain(`src="${JS_PATH}"`);
     expect(html).toContain("defer");
+  });
+
+  test("IFRAME_RESIZER_PARENT_JS_PATH defaults to /iframe-resizer-parent.js in dev", () => {
+    expect(IFRAME_RESIZER_PARENT_JS_PATH).toBe("/iframe-resizer-parent.js");
+  });
+
+  test("EMBED_JS_PATH defaults to /embed.js in dev", () => {
+    expect(EMBED_JS_PATH).toBe("/embed.js");
+  });
+
+  test("IFRAME_RESIZER_CHILD_JS_PATH defaults to /iframe-resizer-child.js in dev", () => {
+    expect(IFRAME_RESIZER_CHILD_JS_PATH).toBe("/iframe-resizer-child.js");
+  });
+
+  test("EMBED_JS_PATH defaults to /embed.js in dev", () => {
+    expect(EMBED_JS_PATH).toBe("/embed.js");
   });
 });
 
@@ -136,42 +152,21 @@ describe("html", () => {
       expect(html).toContain("example.com/ticket/ab12c");
     });
 
-    test("shows embed code with allowed domain and iframe param", () => {
+    test("shows embed codes with allowed domain and iframe param", () => {
       const html = adminEventPage({ event, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("Embed Code");
+      expect(html).toContain("Embed Script");
+      expect(html).toContain("Embed Iframe");
+      expect(html).toContain("embed.js");
+      expect(html).toContain("data-events=");
       expect(html).toContain("https://example.com/ticket/ab12c?iframe=true");
+      expect(html).toContain("height: 600px");
       expect(html).toContain("loading=");
       expect(html).toContain("readonly");
     });
 
-    test("embed code uses 15rem height for email-only events", () => {
-      const emailEvent = testEventWithCount({ attendee_count: 2, fields: "email" });
-      const html = adminEventPage({ event: emailEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 15rem");
-    });
-
-    test("embed code uses 19rem height for email,phone fields events", () => {
-      const bothEvent = testEventWithCount({ attendee_count: 2, fields: "email,phone" });
-      const html = adminEventPage({ event: bothEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 19rem");
-    });
-
-    test("embed code uses 17rem height for address-only events", () => {
-      const addressEvent = testEventWithCount({ attendee_count: 2, fields: "address" });
-      const html = adminEventPage({ event: addressEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 17rem");
-    });
-
-    test("embed code uses 25rem height for email,phone,address events", () => {
-      const allFieldsEvent = testEventWithCount({ attendee_count: 2, fields: "email,phone,address" });
-      const html = adminEventPage({ event: allFieldsEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 25rem");
-    });
-
-    test("embed code uses 15rem height for phone-only events", () => {
-      const phoneEvent = testEventWithCount({ attendee_count: 2, fields: "phone" });
-      const html = adminEventPage({ event: phoneEvent, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("height: 15rem");
+    test("iframe embed is a plain iframe without resizer scripts", () => {
+      const html = adminEventPage({ event, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
+      expect(html).not.toContain("iframeResize");
     });
 
     test("renders empty attendees state", () => {
@@ -401,6 +396,16 @@ describe("html", () => {
       expect(html).not.toContain('class="iframe"');
     });
 
+    test("includes iframe-resizer child script in iframe mode", () => {
+      const html = renderTicket(event, { iframe: true });
+      expect(html).toContain("iframe-resizer-child.js");
+    });
+
+    test("excludes iframe-resizer child script when not in iframe mode", () => {
+      const html = renderTicket(event);
+      expect(html).not.toContain("iframe-resizer-child.js");
+    });
+
     test("renders terms and conditions with checkbox", () => {
       const html = ticketPage(event, csrfToken, undefined, false, false, undefined, "No refunds allowed");
       expect(html).toContain("No refunds allowed");
@@ -554,6 +559,11 @@ describe("html", () => {
     test("uses iframe body class", () => {
       const html = checkoutPopupPage("https://checkout.stripe.com/session123");
       expect(html).toContain('class="iframe"');
+    });
+
+    test("includes iframe-resizer child script", () => {
+      const html = checkoutPopupPage("https://checkout.stripe.com/session123");
+      expect(html).toContain("iframe-resizer-child.js");
     });
 
     test("escapes checkout URL", () => {
@@ -977,15 +987,18 @@ describe("html", () => {
       expect(html).toContain("<summary>");
     });
 
-    test("renders embed code input", () => {
+    test("renders embed code inputs", () => {
       const events = [
         testEventWithCount({ id: 1, slug: "ab12c", fields: "email" }),
         testEventWithCount({ id: 2, slug: "cd34e", fields: "email,phone" }),
       ];
       const html = adminDashboardPage(events, TEST_SESSION, "example.com");
-      expect(html).toContain("data-multi-booking-embed");
-      expect(html).toContain('for="multi-booking-embed"');
-      expect(html).toContain('id="multi-booking-embed"');
+      expect(html).toContain("data-multi-booking-embed-script");
+      expect(html).toContain("data-multi-booking-embed-iframe");
+      expect(html).toContain('for="multi-booking-embed-script"');
+      expect(html).toContain('for="multi-booking-embed-iframe"');
+      expect(html).toContain('id="multi-booking-embed-script"');
+      expect(html).toContain('id="multi-booking-embed-iframe"');
     });
 
     test("checkboxes include data-fields attribute for embed code generation", () => {
@@ -1192,6 +1205,22 @@ describe("html", () => {
       const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN, undefined, undefined, undefined, true);
       expect(html).toContain('action="/ticket/ab12c?iframe=true"');
       expect(html).toContain('class="iframe"');
+    });
+
+    test("includes iframe-resizer child script in iframe mode", () => {
+      const events = [
+        buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
+      ];
+      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN, undefined, undefined, undefined, true);
+      expect(html).toContain("iframe-resizer-child.js");
+    });
+
+    test("excludes iframe-resizer child script without iframe mode", () => {
+      const events = [
+        buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
+      ];
+      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN);
+      expect(html).not.toContain("iframe-resizer-child.js");
     });
 
     test("does not append ?iframe=true without iframe mode", () => {
@@ -1840,6 +1869,43 @@ describe("html", () => {
         ];
         const html = ticketViewPage(cards);
         expect(html).toContain("2 Tickets");
+        cleanupStorage();
+      });
+    });
+
+    describe("ticketViewPage with image", () => {
+      const qrSvg = '<svg class="qr"><rect/></svg>';
+
+      test("shows image when event has image_url", () => {
+        setupStorage();
+        const cards = [
+          {
+            entry: {
+              event: testEventWithCount({ image_url: "ticket-img.jpg" }),
+              attendee: testAttendee(),
+            },
+            qrSvg,
+          },
+        ];
+        const html = ticketViewPage(cards);
+        expect(html).toContain("/image/ticket-img.jpg");
+        expect(html).toContain('class="ticket-card-image"');
+        cleanupStorage();
+      });
+
+      test("does not show image when image_url is empty", () => {
+        setupStorage();
+        const cards = [
+          {
+            entry: {
+              event: testEventWithCount({ image_url: "" }),
+              attendee: testAttendee(),
+            },
+            qrSvg,
+          },
+        ];
+        const html = ticketViewPage(cards);
+        expect(html).not.toContain("ticket-card-image");
         cleanupStorage();
       });
     });

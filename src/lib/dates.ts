@@ -2,7 +2,9 @@
  * Date computation for daily events
  */
 
+import { fromAbsolute } from "@internationalized/date";
 import { filter, pipe } from "#fp";
+import { getTz } from "#lib/config.ts";
 import { formatDatetimeInTz, localToUtc, todayInTz } from "#lib/timezone.ts";
 import type { Event, Holiday } from "#lib/types.ts";
 
@@ -70,8 +72,8 @@ const dateRange = (start: string, end: string): string[] => {
 export const getAvailableDates = (
   event: Event,
   holidays: Holiday[],
-  tz: string,
 ): string[] => {
+  const tz = getTz();
   const parsed: unknown = JSON.parse(event.bookable_days);
   const bookableDays: string[] = Array.isArray(parsed) ? parsed : [];
   const todayStr = todayInTz(tz);
@@ -92,7 +94,8 @@ export const getAvailableDates = (
  * Normalize datetime-local "YYYY-MM-DDTHH:MM" to full UTC ISO string.
  * The input is interpreted as local time in the given timezone and converted to UTC.
  */
-export const normalizeDatetime = (value: string, label: string, tz: string): string => {
+export const normalizeDatetime = (value: string, label: string): string => {
+  const tz = getTz();
   try {
     return localToUtc(value, tz);
   } catch {
@@ -113,5 +116,26 @@ export const formatDateLabel = (dateStr: string): string => {
  * Format an ISO datetime string for display in the given timezone.
  * Returns e.g. "Monday 15 June 2026 at 14:00 BST"
  */
-export const formatDatetimeLabel = (iso: string, tz: string): string =>
-  formatDatetimeInTz(iso, tz);
+export const formatDatetimeLabel = (iso: string): string =>
+  formatDatetimeInTz(iso, getTz());
+
+/**
+ * Convert a UTC ISO datetime to a YYYY-MM-DD calendar date in the given timezone.
+ * Returns null if the input is empty or invalid.
+ * Used by the calendar view to map standard event dates to calendar days.
+ */
+export const eventDateToCalendarDate = (
+  utcIso: string,
+): string | null => {
+  const tz = getTz();
+  if (!utcIso) return null;
+  try {
+    const ms = new Date(utcIso).getTime();
+    if (Number.isNaN(ms)) return null;
+    const zoned = fromAbsolute(ms, tz);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${zoned.year}-${pad(zoned.month)}-${pad(zoned.day)}`;
+  } catch {
+    return null;
+  }
+};
