@@ -2298,6 +2298,37 @@ describe("server (admin events)", () => {
     });
   });
 
+  describe("audit logging (event edit)", () => {
+    test("logs activity when event is updated", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        thankYouUrl: "https://example.com",
+      });
+
+      await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: event.name,
+            slug: event.slug,
+            max_attendees: "200",
+            max_quantity: "1",
+            thank_you_url: "https://example.com/updated",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
+      const logs = await getEventActivityLog(event.id);
+      const updateLog = logs.find((l: { message: string }) => l.message.includes("updated"));
+      expect(updateLog).toBeDefined();
+      expect(updateLog?.message).toContain(event.name);
+    });
+  });
+
   describe("daily event admin view (Phase 4)", () => {
     const validDate1 = addDays(todayInTz("UTC"), 1);
     const validDate2 = addDays(todayInTz("UTC"), 2);

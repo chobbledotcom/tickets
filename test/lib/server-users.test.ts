@@ -1,5 +1,6 @@
 import { getCsrfCookieName, getSessionCookieName } from "#lib/cookies.ts";
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
 import {
@@ -1203,6 +1204,84 @@ describe("server (multi-user admin)", () => {
       );
       // Session auth check should redirect since user was deleted
       expect(response.status).toBe(302);
+    });
+  });
+
+  describe("audit logging", () => {
+    test("logs activity when user is invited", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users",
+          { username: "auditinvite", admin_level: "manager", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      const logs = await getAllActivityLog();
+      expect(logs.some((l) => l.message.includes("User 'auditinvite' invited as manager"))).toBe(true);
+    });
+
+    test("logs activity when user is activated", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Create and complete join flow
+      const inviteResponse = await handleRequest(
+        mockFormRequest(
+          "/admin/users",
+          { username: "auditactivate", admin_level: "manager", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
+
+      const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
+      const joinCookieHeader = joinGetResponse.headers.get("set-cookie") || "";
+      const joinCsrf = requireJoinCsrfToken(joinCookieHeader);
+
+      await handleRequest(
+        mockFormRequest(
+          `/join/${inviteCode}`,
+          { password: "newpassword123", password_confirm: "newpassword123", csrf_token: joinCsrf },
+          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
+        ),
+      );
+
+      // Activate
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users/2/activate",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      const logs = await getAllActivityLog();
+      expect(logs.some((l) => l.message.includes("User 'auditactivate' activated"))).toBe(true);
+    });
+
+    test("logs activity when user is deleted", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users",
+          { username: "auditdelete", admin_level: "manager", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users/2/delete",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      const logs = await getAllActivityLog();
+      expect(logs.some((l) => l.message.includes("User 'auditdelete' deleted"))).toBe(true);
     });
   });
 
