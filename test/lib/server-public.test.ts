@@ -956,6 +956,21 @@ describe("server (public routes)", () => {
       expect(html).toContain('href="/t/abc123+def456"');
       expect(html).toContain("Click here to view your tickets");
     });
+
+    test("includes iframe-resizer child script when iframe=true", async () => {
+      const response = await handleRequest(mockRequest("/ticket/reserved?tokens=abc123&iframe=true"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("iframe-resizer-child.js");
+      expect(html).toContain('class="iframe"');
+    });
+
+    test("excludes iframe-resizer child script without iframe param", async () => {
+      const response = await handleRequest(mockRequest("/ticket/reserved?tokens=abc123"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).not.toContain("iframe-resizer-child.js");
+    });
   });
 
   describe("POST /ticket/:slug (free event without thank_you_url)", () => {
@@ -971,6 +986,30 @@ describe("server (public routes)", () => {
       });
       // Should redirect to success page
       expectReservedRedirectWithTokens(response);
+    });
+
+    test("propagates iframe=true in redirect to reserved page", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "",
+      });
+
+      const getResponse = await handleRequest(
+        mockRequest(`/ticket/${event.slug}?iframe=true`),
+      );
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
+      expect(csrfToken).not.toBe(null);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/ticket/${event.slug}?iframe=true`,
+          { name: "Jane Doe", email: "jane@example.com", quantity: "1", csrf_token: csrfToken! },
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location") || "";
+      expect(location).toContain("/ticket/reserved");
+      expect(location).toContain("iframe=true");
     });
   });
 

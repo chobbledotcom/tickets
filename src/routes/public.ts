@@ -252,7 +252,8 @@ const processFreeReservation = async (
 
   await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
   if (event.thank_you_url) return redirect(event.thank_you_url);
-  return redirect(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}`);
+  const iframeParam = ctx.inIframe ? "&iframe=true" : "";
+  return redirect(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}${iframeParam}`);
 };
 
 /**
@@ -631,7 +632,8 @@ const handleMultiTicketPost = (
       return multiTicketResponse(renderCtx)(result.error);
     }
 
-    return redirect(`/ticket/reserved?tokens=${encodeURIComponent(result.tokens.join("+"))}`);
+    const iframeParam = inIframe ? "&iframe=true" : "";
+    return redirect(`/ticket/reserved?tokens=${encodeURIComponent(result.tokens.join("+"))}${iframeParam}`);
   });
 
 /** Slug pattern for extracting slug from path */
@@ -645,11 +647,13 @@ const extractSlugFromPath = (path: string): string | null => {
 
 /** Handle GET /ticket/reserved - reservation success page */
 const handleReservedGet = (request: Request): Response => {
-  const tokensParam = new URL(request.url).searchParams.get("tokens");
+  const url = new URL(request.url);
+  const tokensParam = url.searchParams.get("tokens");
   const normalizedTokens = tokensParam?.replaceAll(" ", "+") ?? "";
   const tokens = normalizedTokens.split("+").filter((t) => t.length > 0);
   const ticketUrl = tokens.length > 0 ? `/t/${tokens.join("+")}` : null;
-  return htmlResponse(reservationSuccessPage(ticketUrl));
+  const inIframe = isIframeRequest(request.url);
+  return htmlResponse(reservationSuccessPage(ticketUrl, inIframe));
 };
 
 /** Route ticket requests - handles both single and multi-ticket */
