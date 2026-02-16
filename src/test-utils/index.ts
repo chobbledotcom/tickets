@@ -278,6 +278,20 @@ export const mockFormRequest = (
   });
 };
 
+
+/**
+ * Create a mock admin login POST request with CSRF token cookie pair
+ */
+export const mockAdminLoginRequest = (
+  data: Record<string, string>,
+  csrfToken = "test-admin-login-csrf",
+): Request =>
+  mockFormRequest(
+    "/admin/login",
+    { ...data, csrf_token: csrfToken },
+    `__Host-admin_login_csrf=${csrfToken}`,
+  );
+
 /**
  * Create a mock multipart POST request with optional file upload.
  * Text fields are added as form entries, and an optional file is appended.
@@ -350,6 +364,13 @@ const getCookieValue = (
   const match = setCookie.match(new RegExp(`${name}=([^;]+)`));
   return match?.[1] ?? null;
 };
+
+
+/**
+ * Extract admin login CSRF token from set-cookie header
+ */
+export const getAdminLoginCsrfToken = (setCookie: string | null): string | null =>
+  getCookieValue(setCookie, "__Host-admin_login_csrf");
 
 /**
  * Extract setup CSRF token from set-cookie header
@@ -577,15 +598,23 @@ export const loginAsAdmin = async (): Promise<{
   csrfToken: string;
 }> => {
   const { handleRequest } = await import("#routes");
-  const loginResponse = await handleRequest(
-    mockFormRequest("/admin/login", { username: TEST_ADMIN_USERNAME, password: TEST_ADMIN_PASSWORD }),
-  );
-  const cookie = loginResponse.headers.get("set-cookie") || "";
-  const csrfToken = await getCsrfTokenFromCookie(cookie);
 
-  if (!csrfToken) {
+  const loginPageResponse = await handleRequest(mockRequest("/admin/"));
+  const loginPageCookie = loginPageResponse.headers.get("set-cookie");
+  const loginCsrfToken = getAdminLoginCsrfToken(loginPageCookie);
+
+  if (!loginCsrfToken) {
     throw new Error("Failed to get CSRF token for admin login");
   }
+
+  const loginResponse = await handleRequest(
+    mockAdminLoginRequest(
+      { username: TEST_ADMIN_USERNAME, password: TEST_ADMIN_PASSWORD },
+      loginCsrfToken,
+    ),
+  );
+  const cookie = loginResponse.headers.get("set-cookie")!;
+  const csrfToken = (await getCsrfTokenFromCookie(cookie))!;
 
   return { cookie, csrfToken };
 };

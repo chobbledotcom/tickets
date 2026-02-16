@@ -36,7 +36,7 @@ import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
-import { buildClearedSessionCookie } from "#lib/cookies.ts";
+import { clearSessionCookie } from "#lib/cookies.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
   type AuthSession,
@@ -197,7 +197,7 @@ const handleAdminSettingsPost = settingsRoute(async (form, errorPage, session) =
     return errorPage("Failed to update password", 500);
   }
 
-  return redirect("/admin", buildClearedSessionCookie());
+  return redirect("/admin", clearSessionCookie());
 });
 
 /** Valid payment provider values from the form */
@@ -425,7 +425,7 @@ const handleResetDatabasePost = settingsRoute(async (form, errorPage) => {
   await resetDatabase();
 
   // Redirect to setup page since the database is now empty
-  return redirect("/setup/", buildClearedSessionCookie());
+  return redirect("/setup/", clearSessionCookie());
 });
 
 /** Settings routes */

@@ -30,7 +30,7 @@ describe("asset-paths", () => {
   });
 
   test("pages include CSS_PATH in stylesheet link", () => {
-    const html = adminLoginPage();
+    const html = adminLoginPage(TEST_CSRF_TOKEN);
     expect(html).toContain(`href="${CSS_PATH}"`);
     expect(html).toContain('rel="stylesheet"');
   });
@@ -40,7 +40,7 @@ describe("asset-paths", () => {
   });
 
   test("pages include JS_PATH in deferred script tag", () => {
-    const html = adminLoginPage();
+    const html = adminLoginPage(TEST_CSRF_TOKEN);
     expect(html).toContain(`src="${JS_PATH}"`);
     expect(html).toContain("defer");
   });
@@ -49,20 +49,21 @@ describe("asset-paths", () => {
 describe("html", () => {
   describe("adminLoginPage", () => {
     test("renders login form", () => {
-      const html = adminLoginPage();
+      const html = adminLoginPage(TEST_CSRF_TOKEN);
       expect(html).toContain("Login");
       expect(html).toContain('action="/admin/login"');
       expect(html).toContain('type="password"');
+      expect(html).toContain('name="csrf_token"');
     });
 
     test("shows error when provided", () => {
-      const html = adminLoginPage("Invalid password");
+      const html = adminLoginPage(TEST_CSRF_TOKEN, "Invalid password");
       expect(html).toContain("Invalid password");
       expect(html).toContain('class="error"');
     });
 
     test("escapes error message", () => {
-      const html = adminLoginPage("<script>evil()</script>");
+      const html = adminLoginPage(TEST_CSRF_TOKEN, "<script>evil()</script>");
       expect(html).toContain("&lt;script&gt;");
     });
   });
@@ -845,7 +846,7 @@ describe("html", () => {
         { id: 1, created: "2024-01-15T10:30:00Z", event_id: 1, message: "Ticket reserved" },
         { id: 2, created: "2024-01-15T11:00:00Z", event_id: 1, message: "Payment received" },
       ];
-      const html = adminEventActivityLogPage(event, entries);
+      const html = adminEventActivityLogPage(event, entries, TEST_SESSION);
       expect(html).toContain("Ticket reserved");
       expect(html).toContain("Payment received");
       expect(html).toContain("Log");
@@ -853,7 +854,7 @@ describe("html", () => {
 
     test("renders empty state when no entries", () => {
       const event = testEventWithCount();
-      const html = adminEventActivityLogPage(event, []);
+      const html = adminEventActivityLogPage(event, [], TEST_SESSION);
       expect(html).toContain("No activity recorded yet");
     });
   });
@@ -863,13 +864,13 @@ describe("html", () => {
       const entries = [
         { id: 1, created: "2024-01-15T10:30:00Z", event_id: null, message: "System started" },
       ];
-      const html = adminGlobalActivityLogPage(entries);
+      const html = adminGlobalActivityLogPage(entries, false, TEST_SESSION);
       expect(html).toContain("System started");
       expect(html).toContain("Log");
     });
 
     test("renders empty state when no entries", () => {
-      const html = adminGlobalActivityLogPage([]);
+      const html = adminGlobalActivityLogPage([], false, TEST_SESSION);
       expect(html).toContain("No activity recorded yet");
     });
 
@@ -877,7 +878,7 @@ describe("html", () => {
       const entries = [
         { id: 1, created: "2024-01-15T10:30:00Z", event_id: null, message: "Action" },
       ];
-      const html = adminGlobalActivityLogPage(entries, true);
+      const html = adminGlobalActivityLogPage(entries, true, TEST_SESSION);
       expect(html).toContain("Showing the most recent 200 entries");
     });
 
@@ -885,7 +886,7 @@ describe("html", () => {
       const entries = [
         { id: 1, created: "2024-01-15T10:30:00Z", event_id: null, message: "Action" },
       ];
-      const html = adminGlobalActivityLogPage(entries, false);
+      const html = adminGlobalActivityLogPage(entries, false, TEST_SESSION);
       expect(html).not.toContain("Showing the most recent 200 entries");
     });
   });

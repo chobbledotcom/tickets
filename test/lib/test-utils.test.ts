@@ -22,6 +22,7 @@ import {
   generateTestEventName,
   getCsrfTokenFromCookie,
   getSetupCsrfToken,
+  getAdminLoginCsrfToken,
   getTicketCsrfToken,
   invalidateTestDbCache,
   loginAsAdmin,
@@ -271,6 +272,23 @@ describe("test-utils", () => {
         `${getSessionCookieName()}=nonexistent-token-abc`,
       );
       expect(result).toBe(null);
+    });
+  });
+
+
+  describe("getAdminLoginCsrfToken", () => {
+    test("returns null when set-cookie header is null", () => {
+      expect(getAdminLoginCsrfToken(null)).toBe(null);
+    });
+
+    test("returns null when set-cookie has no admin login csrf cookie", () => {
+      expect(getAdminLoginCsrfToken("other_cookie=value")).toBe(null);
+    });
+
+    test("extracts admin login csrf value from set-cookie header", () => {
+      expect(getAdminLoginCsrfToken("__Host-admin_login_csrf=abc123; Path=/")).toBe(
+        "abc123",
+      );
     });
   });
 

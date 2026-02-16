@@ -1,6 +1,6 @@
 import { describe, expect, test } from "#test-compat";
 import {
-  buildClearedSessionCookie,
+  clearSessionCookie,
   buildCsrfCookie,
   buildSessionCookie,
   getCsrfCookieName,
@@ -23,9 +23,9 @@ describe("cookies policy", () => {
       expect(buildSessionCookie("abc")).toContain("SameSite=Strict");
       expect(buildSessionCookie("abc")).toContain("Path=/");
 
-      expect(buildClearedSessionCookie()).toContain("__Host-session=");
-      expect(buildClearedSessionCookie()).toContain("Max-Age=0");
-      expect(buildClearedSessionCookie()).toContain("; Secure;");
+      expect(clearSessionCookie()).toContain("__Host-session=");
+      expect(clearSessionCookie()).toContain("Max-Age=0");
+      expect(clearSessionCookie()).toContain("; Secure;");
 
       const setupCsrfCookie = buildCsrfCookie("setup_csrf", "tok", {
         path: "/setup",
