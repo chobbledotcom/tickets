@@ -110,6 +110,10 @@ const buildCalendarAttendees = (
   })(attendees);
 };
 
+/** Sort attendees by newest registration first */
+const sortAttendeesByCreatedDesc = (attendees: Attendee[]): Attendee[] =>
+  [...attendees].sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+
 /** Auth + parse date filter from request, then call handler */
 const withCalendarSession = (
   request: Request,
@@ -157,7 +161,8 @@ const handleAdminCalendarGet = (request: Request) =>
         loadStandardEventAttendees(dateFilter, standardCtx.standardEventDateMap, privateKey),
       ]);
       const dailyAttendees = await decryptAttendees(rawDailyAttendees, privateKey);
-      attendees = buildCalendarAttendees(allEvents, [...dailyAttendees, ...standardAttendees]);
+      const sortedAttendees = sortAttendeesByCreatedDesc([...dailyAttendees, ...standardAttendees]);
+      attendees = buildCalendarAttendees(allEvents, sortedAttendees);
     }
 
     const availableDates = compileDateOptions(
@@ -196,7 +201,7 @@ const handleAdminCalendarExport = (request: Request) =>
     ]);
 
     const allEvents = [...dailyEvents, ...standardCtx.standardEvents];
-    const allAttendees = [...dailyDecrypted, ...standardAttendees];
+    const allAttendees = sortAttendeesByCreatedDesc([...dailyDecrypted, ...standardAttendees]);
     const attendees = buildCalendarAttendees(allEvents, allAttendees);
     const calendarAttendees: CalendarAttendee[] = attendees;
 
