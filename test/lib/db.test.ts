@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, jest, spyOn, test } from "#test-compat";
 import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
 import {
   getAllActivityLog,
@@ -2497,11 +2497,12 @@ describe("db", () => {
       expect(decrypted).toBe("");
     });
 
-    test("encrypts datetime-local string as-is (normalization happens upstream)", async () => {
+    test("normalizes datetime-local string without timezone as UTC", async () => {
       const { decrypt } = await import("#lib/crypto.ts");
-      const result = await writeClosesAt("2099-06-15T14:30");
+      const input = "2099-06-15T14:30";
+      const result = await writeClosesAt(input);
       const decrypted = await decrypt(result as unknown as string);
-      expect(decrypted).toBe("2099-06-15T14:30");
+      expect(decrypted).toBe(new Date(`${input}Z`).toISOString());
     });
 
     test("handles already-normalized ISO string", async () => {
@@ -2509,6 +2510,14 @@ describe("db", () => {
       const result = await writeClosesAt("2099-06-15T14:30:00.000Z");
       const decrypted = await decrypt(result as unknown as string);
       expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
+    });
+
+    test("normalizes timezone offset to UTC", async () => {
+      const { decrypt } = await import("#lib/crypto.ts");
+      const input = "2099-06-15T14:30:00-05:00";
+      const result = await writeClosesAt(input);
+      const decrypted = await decrypt(result as unknown as string);
+      expect(decrypted).toBe(new Date(input).toISOString());
     });
   });
 
@@ -2522,11 +2531,12 @@ describe("db", () => {
       expect(decrypted).toBe("");
     });
 
-    test("encrypts datetime-local string as-is (normalization happens upstream)", async () => {
+    test("normalizes datetime-local string without timezone as UTC", async () => {
       const { decrypt } = await import("#lib/crypto.ts");
-      const result = await writeEventDate("2026-06-15T14:00");
+      const input = "2026-06-15T14:00";
+      const result = await writeEventDate(input);
       const decrypted = await decrypt(result);
-      expect(decrypted).toBe("2026-06-15T14:00");
+      expect(decrypted).toBe(new Date(`${input}Z`).toISOString());
     });
 
     test("handles already-normalized ISO string", async () => {
@@ -2534,6 +2544,24 @@ describe("db", () => {
       const result = await writeEventDate("2026-06-15T14:00:00.000Z");
       const decrypted = await decrypt(result);
       expect(decrypted).toBe("2026-06-15T14:00:00.000Z");
+    });
+
+    test("normalizes timezone offset to UTC", async () => {
+      const { decrypt } = await import("#lib/crypto.ts");
+      const input = "2026-06-15T14:00:00+02:00";
+      const result = await writeEventDate(input);
+      const decrypted = await decrypt(result);
+      expect(decrypted).toBe(new Date(input).toISOString());
+    });
+
+    test("returns empty string for invalid datetime", async () => {
+      const errorSpy = spyOn(console, "error");
+      const { decrypt } = await import("#lib/crypto.ts");
+      const result = await writeEventDate("not-a-dateZ");
+      const decrypted = await decrypt(result);
+      expect(decrypted).toBe("");
+      expect(errorSpy).toHaveBeenCalled();
+      errorSpy.mockRestore();
     });
   });
 

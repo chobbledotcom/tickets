@@ -170,7 +170,6 @@ export const adminEventPage = ({
   addAttendeeMessage = null,
   imageError = null,
 }: AdminEventPageOptions): string => {
-  const tz = getTz();
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const embedCode = buildEmbedCode(ticketUrl, event.fields);
   const isDaily = event.event_type === "daily";
@@ -231,7 +230,7 @@ export const adminEventPage = ({
               {event.date && (
                 <tr>
                   <th>Event Date</th>
-                  <td>{formatDatetimeLabel(event.date, tz)}</td>
+                  <td>{formatDatetimeLabel(event.date)}</td>
                 </tr>
               )}
               {event.location && (
@@ -283,7 +282,7 @@ export const adminEventPage = ({
                 <th>Registration Closes</th>
                 <td>
                   {event.closes_at ? (
-                    <span>{formatDatetimeLabel(event.closes_at, tz)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
+                    <span>{formatDatetimeLabel(event.closes_at)} <small><em>({formatCountdown(event.closes_at)})</em></small></span>
                   ) : (
                     <em>No deadline</em>
                   )}

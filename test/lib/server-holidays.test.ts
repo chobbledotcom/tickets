@@ -423,7 +423,7 @@ describe("server (admin holidays)", () => {
       // Create a past holiday
       await createTestHoliday({ name: "Past Holiday", startDate: "2020-01-01", endDate: "2020-01-01" });
       const { getActiveHolidays } = await import("#lib/db/holidays.ts");
-      const active = await getActiveHolidays("UTC");
+      const active = await getActiveHolidays();
       expect(active.length).toBe(1);
       expect(active[0]!.name).toBe("Future Holiday");
     });

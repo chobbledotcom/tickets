@@ -1844,6 +1844,43 @@ describe("html", () => {
       });
     });
 
+    describe("ticketViewPage with image", () => {
+      const qrSvg = '<svg class="qr"><rect/></svg>';
+
+      test("shows image when event has image_url", () => {
+        setupStorage();
+        const cards = [
+          {
+            entry: {
+              event: testEventWithCount({ image_url: "ticket-img.jpg" }),
+              attendee: testAttendee(),
+            },
+            qrSvg,
+          },
+        ];
+        const html = ticketViewPage(cards);
+        expect(html).toContain("/image/ticket-img.jpg");
+        expect(html).toContain('class="ticket-card-image"');
+        cleanupStorage();
+      });
+
+      test("does not show image when image_url is empty", () => {
+        setupStorage();
+        const cards = [
+          {
+            entry: {
+              event: testEventWithCount({ image_url: "" }),
+              attendee: testAttendee(),
+            },
+            qrSvg,
+          },
+        ];
+        const html = ticketViewPage(cards);
+        expect(html).not.toContain("ticket-card-image");
+        cleanupStorage();
+      });
+    });
+
     describe("adminDashboardPage with images", () => {
       test("shows thumbnail when event has image_url", () => {
         setupStorage();

@@ -132,11 +132,97 @@ describe("admin calendar", () => {
       expect(html).toContain("Select a date above to view attendees");
     });
 
-    test("excludes standard event attendees", async () => {
+    test("excludes standard events without a date", async () => {
       await createTestEvent({ name: "Standard Event" });
       const response = await awaitTestRequest("/admin/calendar", { cookie });
       const html = await response.text();
       expect(html).not.toContain("Standard Event");
+    });
+
+    test("shows standard event date in dropdown", async () => {
+      await createTestEvent({ name: "Concert", date: "2026-06-15T14:00" });
+      const response = await awaitTestRequest("/admin/calendar", { cookie });
+      const html = await response.text();
+      // Standard event date appears as a formatted label in the dropdown
+      expect(html).toContain("Monday 15 June 2026");
+    });
+
+    test("shows standard event attendees when date is selected", async () => {
+      const event = await createTestEvent({ name: "Concert", date: "2026-06-15T14:00" });
+      await submitTicketForm(event.slug, { name: "Concert Fan", email: "fan@test.com" });
+
+      const response = await awaitTestRequest("/admin/calendar?date=2026-06-15", { cookie });
+      const html = await response.text();
+      expect(html).toContain("Concert Fan");
+      expect(html).toContain("Concert");
+    });
+
+    test("does not show standard event attendees on wrong date", async () => {
+      const event = await createTestEvent({ name: "Concert", date: "2026-06-15T14:00" });
+      await submitTicketForm(event.slug, { name: "Concert Fan", email: "fan@test.com" });
+
+      const response = await awaitTestRequest("/admin/calendar?date=2026-06-16", { cookie });
+      const html = await response.text();
+      expect(html).not.toContain("Concert Fan");
+    });
+
+    test("shows mixed daily and standard event attendees for same date", async () => {
+      const eventDate = addDays(todayInTz("UTC"), 3);
+      const dailyEvent = await createDailyTestEvent();
+      const standardEvent = await createTestEvent({ name: "Workshop", date: `${eventDate}T10:00` });
+
+      await submitTicketForm(dailyEvent.slug, { name: "Daily User", email: "daily@test.com", date: eventDate });
+      await submitTicketForm(standardEvent.slug, { name: "Standard User", email: "standard@test.com" });
+
+      const response = await awaitTestRequest(`/admin/calendar?date=${eventDate}`, { cookie });
+      const html = await response.text();
+      expect(html).toContain("Daily User");
+      expect(html).toContain("Standard User");
+      expect(html).toContain(dailyEvent.name);
+      expect(html).toContain("Workshop");
+    });
+
+    test("marks standard event date as having bookings when attendees exist", async () => {
+      const event = await createTestEvent({ name: "Concert", date: "2026-06-15T14:00" });
+      await submitTicketForm(event.slug, { name: "Fan", email: "fan@test.com" });
+
+      const response = await awaitTestRequest("/admin/calendar", { cookie });
+      const html = await response.text();
+      // Date with bookings should be a clickable link (not disabled)
+      expect(html).toContain("date=2026-06-15");
+    });
+
+    test("shows multiple standard events on same date", async () => {
+      const event1 = await createTestEvent({ name: "Morning Concert", date: "2026-06-15T10:00" });
+      const event2 = await createTestEvent({ name: "Evening Concert", date: "2026-06-15T20:00" });
+      await submitTicketForm(event1.slug, { name: "Morning Fan", email: "am@test.com" });
+      await submitTicketForm(event2.slug, { name: "Evening Fan", email: "pm@test.com" });
+
+      const response = await awaitTestRequest("/admin/calendar?date=2026-06-15", { cookie });
+      const html = await response.text();
+      expect(html).toContain("Morning Fan");
+      expect(html).toContain("Evening Fan");
+      expect(html).toContain("Morning Concert");
+      expect(html).toContain("Evening Concert");
+    });
+
+    test("does not show standard attendees when no standard events match date", async () => {
+      const event = await createTestEvent({ name: "Concert", date: "2026-06-15T14:00" });
+      await submitTicketForm(event.slug, { name: "Fan", email: "fan@test.com" });
+
+      // Request a completely different date
+      const response = await awaitTestRequest("/admin/calendar?date=2026-07-01", { cookie });
+      const html = await response.text();
+      expect(html).not.toContain("Fan");
+    });
+
+    test("standard event date without attendees shows as disabled", async () => {
+      await createTestEvent({ name: "Empty Event", date: "2026-06-15T14:00" });
+
+      const response = await awaitTestRequest("/admin/calendar", { cookie });
+      const html = await response.text();
+      // The date should appear as a disabled option (no bookings)
+      expect(html).toContain("<option disabled>Monday 15 June 2026</option>");
     });
   });
 
@@ -203,6 +289,32 @@ describe("admin calendar", () => {
       const lines = csv.split("\n");
       expect(lines).toHaveLength(1);
       expect(lines[0]).toContain("Event,Date,Name");
+    });
+
+    test("includes standard event attendees in CSV export", async () => {
+      const event = await createTestEvent({ name: "Concert", date: "2026-06-15T14:00" });
+      await submitTicketForm(event.slug, { name: "CSV Fan", email: "csvfan@test.com" });
+
+      const response = await awaitTestRequest("/admin/calendar/export?date=2026-06-15", { cookie });
+      const csv = await response.text();
+      expect(csv).toContain("Concert");
+      expect(csv).toContain("CSV Fan");
+    });
+
+    test("includes mixed daily and standard attendees in CSV export", async () => {
+      const eventDate = addDays(todayInTz("UTC"), 3);
+      const dailyEvent = await createDailyTestEvent();
+      const standardEvent = await createTestEvent({ name: "Workshop", date: `${eventDate}T10:00` });
+
+      await submitTicketForm(dailyEvent.slug, { name: "Daily CSV", email: "daily@test.com", date: eventDate });
+      await submitTicketForm(standardEvent.slug, { name: "Standard CSV", email: "standard@test.com" });
+
+      const response = await awaitTestRequest(`/admin/calendar/export?date=${eventDate}`, { cookie });
+      const csv = await response.text();
+      expect(csv).toContain("Daily CSV");
+      expect(csv).toContain("Standard CSV");
+      expect(csv).toContain(dailyEvent.name);
+      expect(csv).toContain("Workshop");
     });
   });
 });
