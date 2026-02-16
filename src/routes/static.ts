@@ -24,7 +24,6 @@ const staticRoutes = defineRoutes({
   "GET /embed.js": () => handleEmbedJs(),
   "GET /iframe-resizer-parent.js": () => handleIframeResizerParentJs(),
   "GET /iframe-resizer-child.js": () => handleIframeResizerChildJs(),
-  "GET /embed.js": () => handleEmbedJs(),
 });
 
 /** Route static asset requests */
