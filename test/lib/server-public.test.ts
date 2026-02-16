@@ -272,26 +272,13 @@ describe("server (public routes)", () => {
       expect(html).toContain("A &lt;b&gt;great&lt;/b&gt; event");
     });
 
-    test("sets SameSite=None and Partitioned on CSRF cookie in iframe mode", async () => {
-      const event = await createTestEvent({ maxAttendees: 50 });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event.slug}?iframe=true`),
-      );
-      const cookie = response.headers.get("set-cookie") || "";
-      expect(cookie).toContain("SameSite=None");
-      expect(cookie).toContain("Partitioned");
-      expect(cookie).not.toContain("SameSite=Strict");
-    });
-
-    test("sets SameSite=Strict on CSRF cookie without iframe", async () => {
+    test("does not set CSRF cookies (uses signed tokens instead)", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}`),
       );
       const cookie = response.headers.get("set-cookie") || "";
-      expect(cookie).toContain("SameSite=Strict");
-      expect(cookie).not.toContain("SameSite=None");
-      expect(cookie).not.toContain("Partitioned");
+      expect(cookie).not.toContain("csrf_token=");
     });
 
     test("form action includes ?iframe=true in iframe mode", async () => {
@@ -313,40 +300,37 @@ describe("server (public routes)", () => {
       expect(html).not.toContain("?iframe=true");
     });
 
-    test("POST with iframe=true succeeds with valid CSRF token", async () => {
+    test("POST with iframe=true succeeds with valid signed CSRF token", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
       const getResponse = await handleRequest(
         mockRequest(`/ticket/${event.slug}?iframe=true`),
       );
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       expect(csrfToken).not.toBe(null);
 
       const response = await handleRequest(
         mockFormRequest(
           `/ticket/${event.slug}?iframe=true`,
           { name: "Test User", email: "test@example.com", quantity: "1", csrf_token: csrfToken! },
-          `csrf_token=${csrfToken}`,
         ),
       );
       expect(response.status).toBe(302);
     });
 
-    test("CSRF error response uses SameSite=None and Partitioned in iframe mode", async () => {
+    test("CSRF error response does not set cookies in iframe mode", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
       const response = await handleRequest(
         mockFormRequest(
           `/ticket/${event.slug}?iframe=true`,
           { name: "Test", csrf_token: "wrong-token" },
-          "csrf_token=different-token",
         ),
       );
       expect(response.status).toBe(403);
       const cookie = response.headers.get("set-cookie") || "";
-      expect(cookie).toContain("SameSite=None");
-      expect(cookie).toContain("Partitioned");
+      expect(cookie).not.toContain("csrf_token=");
     });
 
-    test("iframe GET returns signed CSRF token in form", async () => {
+    test("GET returns signed CSRF token in form", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}?iframe=true`),
@@ -356,11 +340,11 @@ describe("server (public routes)", () => {
       expect(html).toMatch(/name="csrf_token" value="s1\./);
     });
 
-    test("iframe POST succeeds with signed token and no cookie (iOS fallback)", async () => {
+    test("POST succeeds with signed token and no cookie", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
-      // GET the iframe page to obtain the signed token
+      // GET the page to obtain the signed token
       const getResponse = await handleRequest(
-        mockRequest(`/ticket/${event.slug}?iframe=true`),
+        mockRequest(`/ticket/${event.slug}`),
       );
       const html = await getResponse.text();
       const match = html.match(/name="csrf_token" value="([^"]+)"/);
@@ -368,32 +352,17 @@ describe("server (public routes)", () => {
       const signedToken = match![1]!;
       expect(signedToken.startsWith("s1.")).toBe(true);
 
-      // POST without any cookie - simulates iOS in-app browser blocking cookies
-      const response = await handleRequest(
-        mockFormRequest(
-          `/ticket/${event.slug}?iframe=true`,
-          { name: "Test User", email: "test@example.com", quantity: "1", csrf_token: signedToken },
-        ),
-      );
-      expect(response.status).toBe(302);
-    });
-
-    test("non-iframe POST rejects signed token without cookie", async () => {
-      const { signCsrfToken } = await import("#lib/csrf.ts");
-      const event = await createTestEvent({ maxAttendees: 50 });
-      const signedToken = await signCsrfToken();
-
-      // POST without iframe=true and without cookie - should fail
+      // POST without any cookie - signed tokens are the only CSRF mechanism
       const response = await handleRequest(
         mockFormRequest(
           `/ticket/${event.slug}`,
           { name: "Test User", email: "test@example.com", quantity: "1", csrf_token: signedToken },
         ),
       );
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(302);
     });
 
-    test("iframe CSRF error regenerates a signed token", async () => {
+    test("CSRF error regenerates a signed token", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
       const response = await handleRequest(
         mockFormRequest(
@@ -681,28 +650,14 @@ describe("server (public routes)", () => {
       expect(response.status).toBe(404);
     });
 
-    test("sets SameSite=None and Partitioned on CSRF cookie in iframe mode", async () => {
-      const event1 = await createTestEvent({ maxAttendees: 50 });
-      const event2 = await createTestEvent({ maxAttendees: 50 });
-      const response = await handleRequest(
-        mockRequest(`/ticket/${event1.slug}+${event2.slug}?iframe=true`),
-      );
-      const cookie = response.headers.get("set-cookie") || "";
-      expect(cookie).toContain("SameSite=None");
-      expect(cookie).toContain("Partitioned");
-      expect(cookie).not.toContain("SameSite=Strict");
-    });
-
-    test("sets SameSite=Strict on CSRF cookie without iframe", async () => {
+    test("does not set CSRF cookies for multi-ticket (uses signed tokens)", async () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
       const event2 = await createTestEvent({ maxAttendees: 50 });
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
       const cookie = response.headers.get("set-cookie") || "";
-      expect(cookie).toContain("SameSite=Strict");
-      expect(cookie).not.toContain("SameSite=None");
-      expect(cookie).not.toContain("Partitioned");
+      expect(cookie).not.toContain("csrf_token=");
     });
 
     test("form action includes ?iframe=true in iframe mode", async () => {
@@ -715,7 +670,7 @@ describe("server (public routes)", () => {
       expect(html).toContain(`action="/ticket/${event1.slug}+${event2.slug}?iframe=true"`);
     });
 
-    test("multi-ticket iframe GET returns signed CSRF token in form", async () => {
+    test("multi-ticket GET returns signed CSRF token in form", async () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
       const event2 = await createTestEvent({ maxAttendees: 50 });
       const response = await handleRequest(
@@ -725,7 +680,7 @@ describe("server (public routes)", () => {
       expect(html).toMatch(/name="csrf_token" value="s1\./);
     });
 
-    test("multi-ticket iframe POST succeeds with signed token and no cookie", async () => {
+    test("multi-ticket POST succeeds with signed token and no cookie", async () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
       const event2 = await createTestEvent({ maxAttendees: 50 });
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -762,11 +717,11 @@ describe("server (public routes)", () => {
     ): Promise<Response> => {
       const path = `/ticket/${slugs.join("+")}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       return handleRequest(
-        mockFormRequest(path, { ...data, csrf_token: csrfToken }, `csrf_token=${csrfToken}`),
+        mockFormRequest(path, { ...data, csrf_token: csrfToken }),
       );
     };
 
@@ -964,7 +919,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       const response = await handleRequest(
@@ -1006,7 +961,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Submit with all quantities at 0
@@ -1045,7 +1000,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Mock atomic create to fail on second call (simulates race condition)
@@ -1098,7 +1053,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       const response = await handleRequest(
@@ -1202,7 +1157,7 @@ describe("server (public routes)", () => {
       expect(html).toContain("Sold Out");
 
       // POST with quantity for both events - sold out event's quantity is ignored
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(html);
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       const response = await handleRequest(
@@ -1235,7 +1190,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Submit with non-numeric quantity for event1 and valid for event2
@@ -1283,7 +1238,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Try to purchase - event1 is sold out
@@ -1364,7 +1319,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       const response = await handleRequest(
@@ -1400,7 +1355,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Mock attendeesApi to fail on second event (capacity exceeded)
@@ -1455,7 +1410,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       const response = await handleRequest(
@@ -1489,7 +1444,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Mock createMultiCheckoutSession to return no URL
@@ -1530,7 +1485,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Submit with qty for both events, but event1 should be skipped as sold out
@@ -1591,7 +1546,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Submit form with quantity for event2 only; event1 has no quantity field at all
@@ -1641,7 +1596,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Mock checkBatchAvailability via attendeesApi to return false,
@@ -1689,7 +1644,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event.slug}?iframe=true`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       const response = await handleRequest(
@@ -1743,7 +1698,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}?iframe=true`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       const response = await handleRequest(
@@ -1825,7 +1780,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       // Mock paymentsApi.getConfiguredProvider to return null so getActivePaymentProvider
@@ -1906,7 +1861,7 @@ describe("server (public routes)", () => {
       const getResponse = await handleRequest(
         mockRequest(`/ticket/${event.slug}`),
       );
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("No CSRF token");
 
       // Now set closes_at to past
@@ -1969,7 +1924,7 @@ describe("server (public routes)", () => {
       const getResponse = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("No CSRF token");
 
       // Close event1
@@ -2142,7 +2097,7 @@ describe("server (public routes)", () => {
       });
 
       const getResponse = await handleRequest(mockRequest(`/ticket/${event.slug}`));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       const response = await handleRequest(
@@ -2227,7 +2182,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("No CSRF token");
 
       const response = await handleRequest(
@@ -2264,7 +2219,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("No CSRF token");
 
       const response = await handleRequest(
@@ -2304,7 +2259,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("No CSRF token");
 
       const response = await handleRequest(
@@ -2460,7 +2415,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       const response = await handleRequest(
@@ -2489,7 +2444,7 @@ describe("server (public routes)", () => {
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
-      const csrfToken = getTicketCsrfToken(getResponse.headers.get("set-cookie"));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
       const response = await handleRequest(

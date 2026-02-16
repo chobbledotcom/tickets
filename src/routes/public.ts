@@ -3,7 +3,6 @@
  */
 
 import { compact, filter, map, pipe, reduce } from "#fp";
-import { buildCsrfCookie, getCsrfCookieName } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { getCurrencyCode, getTz, isPaymentsEnabled } from "#lib/config.ts";
 import { getTermsAndConditionsFromDb } from "#lib/db/settings.ts";
@@ -27,13 +26,10 @@ import {
 } from "#lib/webhook.ts";
 import {
   formatCreationError,
-  generateSecureToken,
   getBaseUrl,
   htmlResponse,
-  htmlResponseWithCookie,
   isRegistrationClosed,
   notFoundResponse,
-  parseCookies,
   redirect,
   requireCsrfForm,
   withActiveEventBySlug,
@@ -52,32 +48,12 @@ import {
  */
 export const handleHome = (): Response => redirect("/admin/");
 
-/** Create curried response builder with CSRF cookie */
-const makeCsrfResponseBuilder =
-  <P extends unknown[]>(
-    getPath: (...params: P) => string,
-    getContent: (token: string, error: string | undefined, ...params: P) => string,
-    getIframe?: (...params: P) => boolean,
-  ) =>
-  (...params: P) =>
+/** Ticket response builder (token embedded in form, no cookie) */
+const ticketResponseWithToken =
+  (event: EventWithCount, isClosed: boolean, inIframe: boolean, dates: string[] | undefined, terms: string | null | undefined) =>
   (token: string) =>
   (error?: string, status = 200) =>
-    htmlResponseWithCookie(buildCsrfCookie("csrf_token", token, { path: getPath(...params), inIframe: getIframe?.(...params) }))(
-      getContent(token, error, ...params),
-      status,
-    );
-
-/** Path for ticket CSRF cookies */
-const ticketCsrfPath = (slug: string): string => `/ticket/${slug}`;
-
-/** Ticket response with CSRF cookie */
-const ticketResponseWithCookie = makeCsrfResponseBuilder<
-  [EventWithCount, boolean, boolean, string[] | undefined, string | null | undefined]
->(
-  (event) => ticketCsrfPath(event.slug),
-  (token, error, event, isClosed, inIframe, dates, terms) => ticketPage(event, token, error, isClosed, inIframe, dates, terms),
-  (_ev, _cl, inIframe) => inIframe,
-);
+    htmlResponse(ticketPage(event, token, error, isClosed, inIframe, dates, terms), status);
 
 /** Curried error response: render(error) → (error, status) → Response */
 const errorResponse =
@@ -102,10 +78,6 @@ const ticketResponse = validationErrorResponder(
 const isIframeRequest = (url: string): boolean =>
   new URL(url).searchParams.get("iframe") === "true";
 
-/** Generate CSRF token: signed in iframe mode (for iOS cookie-less fallback), plain otherwise */
-const generateCsrfToken = (inIframe: boolean): Promise<string> | string =>
-  inIframe ? signCsrfToken() : generateSecureToken();
-
 /**
  * Handle GET /ticket/:slug
  */
@@ -120,10 +92,10 @@ export const handleTicketGet = (slug: string, request: Request): Promise<Respons
   withActiveEventBySlug(slug, async (event) => {
     const closed = isRegistrationClosed(event);
     const inIframe = isIframeRequest(request.url);
-    const token = await generateCsrfToken(inIframe);
+    const token = await signCsrfToken();
     const dates = await computeDatesForEvent(event);
     const terms = await getTermsAndConditionsFromDb();
-    return ticketResponseWithCookie(event, closed, inIframe, dates, terms)(token)();
+    return ticketResponseWithToken(event, closed, inIframe, dates, terms)(token)();
   });
 
 /**
@@ -240,7 +212,7 @@ const parseQuantity = (form: URLSearchParams, event: EventWithCount): number =>
 
 /** CSRF error response for ticket page */
 const ticketCsrfError = (event: EventWithCount, inIframe: boolean, terms: string | null | undefined) => (token: string) =>
-  ticketResponseWithCookie(event, false, inIframe, undefined, terms)(token)(
+  ticketResponseWithToken(event, false, inIframe, undefined, terms)(token)(
     "Invalid or expired form. Please try again.",
     403,
   );
@@ -293,12 +265,8 @@ const processFreeReservation = async (
 const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
   "Sorry, registration closed while you were submitting.";
 
-/** Extract CSRF token from request cookies, falling back to a fresh token.
- * In iframe mode, generates a signed token when the cookie is missing (iOS). */
-const getFormToken = (request: Request, inIframe: boolean): Promise<string> | string => {
-  const cookies = parseCookies(request);
-  return cookies.get(getCsrfCookieName("csrf_token")) ?? generateCsrfToken(inIframe);
-};
+/** Generate a fresh signed CSRF token for re-rendered forms */
+const newFormToken = (): Promise<string> => signCsrfToken();
 
 /** Validate submitted date against available dates; returns the date or null if invalid */
 const validateSubmittedDate = (form: URLSearchParams, dates: string[]): string | null => {
@@ -312,9 +280,9 @@ const processTicketReservation = async (
 ): Promise<Response> => {
   const terms = await getTermsAndConditionsFromDb();
   const inIframe = isIframeRequest(request.url);
-  const currentToken = await getFormToken(request, inIframe);
+  const currentToken = await newFormToken();
 
-  const csrfResult = await requireCsrfForm(request, ticketCsrfError(event, inIframe, terms), undefined, inIframe);
+  const csrfResult = await requireCsrfForm(request, ticketCsrfError(event, inIframe, terms));
   if (!csrfResult.ok) return csrfResult.response;
 
   // Check if registration has closed since the form was loaded
@@ -390,18 +358,12 @@ const getActiveMultiEvents = (
     map((e: EventWithCount) => buildMultiTicketEvent(e, isRegistrationClosed(e))),
   )(compact(events));
 
-/** CSRF path for multi-ticket form */
-const multiTicketCsrfPath = (slugs: string[]): string =>
-  `/ticket/${slugs.join("+")}`;
-
-/** Multi-ticket response with CSRF cookie */
-const multiTicketResponseWithCookie = makeCsrfResponseBuilder<
-  [string[], MultiTicketEvent[], string[] | undefined, string | null | undefined, boolean]
->(
-  (slugs) => multiTicketCsrfPath(slugs),
-  (token, error, slugs, events, dates, terms, inIframe) => multiTicketPage(events, slugs, token, error, dates, terms, inIframe),
-  (_slugs, _events, _dates, _terms, inIframe) => inIframe,
-);
+/** Multi-ticket response builder (token embedded in form, no cookie) */
+const multiTicketResponseWithToken =
+  (slugs: string[], events: MultiTicketEvent[], dates: string[] | undefined, terms: string | null | undefined, inIframe: boolean) =>
+  (token: string) =>
+  (error?: string, status = 200) =>
+    htmlResponse(multiTicketPage(events, slugs, token, error, dates, terms, inIframe), status);
 
 /** Shared rendering context for multi-ticket error responses */
 type MultiTicketRenderContext = {
@@ -448,9 +410,9 @@ const getMultiTicketContext = async (activeEvents: MultiTicketEvent[]): Promise<
 const handleMultiTicketGet = (slugs: string[], request: Request): Promise<Response> =>
   withActiveMultiEvents(slugs, async (activeEvents) => {
     const inIframe = isIframeRequest(request.url);
-    const token = await generateCsrfToken(inIframe);
+    const token = await signCsrfToken();
     const { dates, terms } = await getMultiTicketContext(activeEvents);
-    return multiTicketResponseWithCookie(slugs, activeEvents, dates, terms, inIframe)(token)();
+    return multiTicketResponseWithToken(slugs, activeEvents, dates, terms, inIframe)(token)();
   });
 
 /** Parse quantity values from multi-ticket form */
@@ -575,17 +537,17 @@ const handleMultiTicketPost = (
   withActiveMultiEvents(slugs, async (activeEvents) => {
     const { dates, terms } = await getMultiTicketContext(activeEvents);
     const inIframe = isIframeRequest(request.url);
-    const currentToken = await getFormToken(request, inIframe);
+    const currentToken = await newFormToken();
     const renderCtx: MultiTicketRenderContext = { slugs, events: activeEvents, token: currentToken, dates, terms, inIframe };
 
     // CSRF validation
     const csrfError = (token: string) =>
-      multiTicketResponseWithCookie(slugs, activeEvents, dates, terms, inIframe)(token)(
+      multiTicketResponseWithToken(slugs, activeEvents, dates, terms, inIframe)(token)(
         "Invalid or expired form. Please try again.",
         403,
       );
 
-    const csrfResult = await requireCsrfForm(request, csrfError, undefined, inIframe);
+    const csrfResult = await requireCsrfForm(request, csrfError);
     if (!csrfResult.ok) return csrfResult.response;
 
     const { form } = csrfResult;

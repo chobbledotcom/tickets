@@ -1,4 +1,3 @@
-import { getCsrfCookieName } from "#lib/cookies.ts";
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 
 import { handleRequest } from "#routes";
@@ -61,15 +60,15 @@ describe("server (admin holidays)", () => {
       // Set password for manager
       const joinPageResponse = await handleRequest(mockRequest(`/join/${inviteToken}`));
       expect(joinPageResponse.status).toBe(200);
-      const joinCookie = joinPageResponse.headers.get("set-cookie") ?? "";
-      const joinCsrf = requireJoinCsrfToken(joinCookie);
+      const joinHtml = await joinPageResponse.text();
+      const joinCsrf = requireJoinCsrfToken(joinHtml);
 
       const joinResponse = await handleRequest(
         mockFormRequest(`/join/${inviteToken}`, {
           password: "managerpass123",
           password_confirm: "managerpass123",
           csrf_token: joinCsrf,
-        }, `${getCsrfCookieName("join_csrf")}=${joinCsrf}`),
+        }),
       );
       expect(joinResponse.status).toBe(302);
 
@@ -83,7 +82,7 @@ describe("server (admin holidays)", () => {
 
       // Login as manager
       const loginResponse = await handleRequest(
-        mockAdminLoginRequest({
+        await mockAdminLoginRequest({
           username: "manager1",
           password: "managerpass123",
         }),

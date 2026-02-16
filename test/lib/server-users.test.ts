@@ -1,4 +1,4 @@
-import { getCsrfCookieName, getSessionCookieName } from "#lib/cookies.ts";
+import { getSessionCookieName } from "#lib/cookies.ts";
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
@@ -17,27 +17,19 @@ import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
+  createTestInvite,
   expectAdminRedirect,
   expectRedirect,
-  requireJoinCsrfToken,
   loginAsAdmin,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  submitJoinForm,
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils";
-
-/** Extract invite code from a redirect response (POST /admin/users now redirects) */
-const getInviteCodeFromRedirect = (response: Response): string => {
-  const location = response.headers.get("location")!;
-  const url = new URL(location, "http://localhost");
-  const inviteLink = url.searchParams.get("invite")!;
-  const codeMatch = inviteLink.match(/\/join\/([A-Za-z0-9_-]+)/);
-  return codeMatch![1]!;
-};
 
 describe("server (multi-user admin)", () => {
   beforeEach(async () => {
@@ -381,7 +373,7 @@ describe("server (multi-user admin)", () => {
   describe("login flow", () => {
     test("login with username and password", async () => {
       const response = await handleRequest(
-        mockAdminLoginRequest({
+        await mockAdminLoginRequest({
           username: TEST_ADMIN_USERNAME,
           password: TEST_ADMIN_PASSWORD,
         }),
@@ -393,7 +385,7 @@ describe("server (multi-user admin)", () => {
 
     test("login with wrong username returns 401", async () => {
       const response = await handleRequest(
-        mockAdminLoginRequest({
+        await mockAdminLoginRequest({
           username: "nonexistent",
           password: TEST_ADMIN_PASSWORD,
         }),
@@ -403,7 +395,7 @@ describe("server (multi-user admin)", () => {
 
     test("login with wrong password returns 401", async () => {
       const response = await handleRequest(
-        mockAdminLoginRequest({
+        await mockAdminLoginRequest({
           username: TEST_ADMIN_USERNAME,
           password: "wrongpassword",
         }),
@@ -428,19 +420,8 @@ describe("server (multi-user admin)", () => {
     });
 
     test("GET /join/:code returns join page for valid invite", async () => {
-      // Create an invite via the admin API
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          { username: "joiner", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { inviteCode } = await createTestInvite("joiner");
 
-      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
-
-      // Visit the join page
       const joinResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
       expect(joinResponse.status).toBe(200);
       const joinHtml = await joinResponse.text();
@@ -456,35 +437,12 @@ describe("server (multi-user admin)", () => {
     });
 
     test("POST /join/:code sets password for invited user", async () => {
-      // Create an invite
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          { username: "joiner2", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { inviteCode } = await createTestInvite("joiner2");
 
-      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
-
-      // Visit join page to get CSRF token
-      const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
-      const joinCookie = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrf = requireJoinCsrfToken(joinCookie);
-
-      // Submit password
-      const joinPostResponse = await handleRequest(
-        mockFormRequest(
-          `/join/${inviteCode}`,
-          {
-            password: "newpassword123",
-            password_confirm: "newpassword123",
-            csrf_token: joinCsrf,
-          },
-          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
-        ),
-      );
+      const joinPostResponse = await submitJoinForm(inviteCode, {
+        password: "newpassword123",
+        password_confirm: "newpassword123",
+      });
 
       expectRedirect("/join/complete")(joinPostResponse);
 
@@ -496,35 +454,12 @@ describe("server (multi-user admin)", () => {
     });
 
     test("POST /join/:code rejects mismatched passwords", async () => {
-      // Create an invite
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          { username: "joiner3", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { inviteCode } = await createTestInvite("joiner3");
 
-      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
-
-      // Get CSRF
-      const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
-      const joinCookie = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrf = requireJoinCsrfToken(joinCookie);
-
-      // Submit mismatched passwords
-      const joinPostResponse = await handleRequest(
-        mockFormRequest(
-          `/join/${inviteCode}`,
-          {
-            password: "newpassword123",
-            password_confirm: "differentpassword",
-            csrf_token: joinCsrf,
-          },
-          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
-        ),
-      );
+      const joinPostResponse = await submitJoinForm(inviteCode, {
+        password: "newpassword123",
+        password_confirm: "differentpassword",
+      });
 
       expect(joinPostResponse.status).toBe(400);
       const html = await joinPostResponse.text();
@@ -532,35 +467,12 @@ describe("server (multi-user admin)", () => {
     });
 
     test("POST /join/:code rejects short passwords", async () => {
-      // Create an invite
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          { username: "joiner4", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { inviteCode } = await createTestInvite("joiner4");
 
-      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
-
-      // Get CSRF
-      const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
-      const joinCookie = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrf = requireJoinCsrfToken(joinCookie);
-
-      // Submit short password
-      const joinPostResponse = await handleRequest(
-        mockFormRequest(
-          `/join/${inviteCode}`,
-          {
-            password: "short",
-            password_confirm: "short",
-            csrf_token: joinCsrf,
-          },
-          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
-        ),
-      );
+      const joinPostResponse = await submitJoinForm(inviteCode, {
+        password: "short",
+        password_confirm: "short",
+      });
 
       expect(joinPostResponse.status).toBe(400);
       const html = await joinPostResponse.text();
@@ -626,30 +538,9 @@ describe("server (multi-user admin)", () => {
 
   describe("POST /admin/users/:id/activate", () => {
     test("activates user who has set password", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { inviteCode, cookie, csrfToken } = await createTestInvite("activateme");
 
-      // Create an invite
-      const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          { username: "activateme", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
-
-      // Set password via join flow
-      const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
-      const joinCookieHeader = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrf = requireJoinCsrfToken(joinCookieHeader);
-
-      await handleRequest(
-        mockFormRequest(
-          `/join/${inviteCode}`,
-          { password: "newpassword123", password_confirm: "newpassword123", csrf_token: joinCsrf },
-          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
-        ),
-      );
+      await submitJoinForm(inviteCode, { password: "newpassword123", password_confirm: "newpassword123" });
 
       // Now activate user id 2
       const activateResponse = await handleRequest(
@@ -723,35 +614,17 @@ describe("server (multi-user admin)", () => {
       // Create a session without wrapped_data_key for the owner
       await createSession("no-dk-session", "no-dk-csrf", Date.now() + 3600000, null, 1);
 
-      const { cookie, csrfToken } = await loginAsAdmin();
-
       // Create an invited user with password set
-      const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          { username: "needsactivation", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
+      const { inviteCode } = await createTestInvite("needsactivation");
+      await submitJoinForm(inviteCode, { password: "newpassword123", password_confirm: "newpassword123" });
 
-      const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
-      const joinCookieHeader = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrf = requireJoinCsrfToken(joinCookieHeader);
-
-      await handleRequest(
-        mockFormRequest(
-          `/join/${inviteCode}`,
-          { password: "newpassword123", password_confirm: "newpassword123", csrf_token: joinCsrf },
-          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
-        ),
-      );
-
-      // Try to activate using session without data key
+      // Try to activate using session without data key (need a signed CSRF token)
+      const { signCsrfToken } = await import("#lib/csrf.ts");
+      const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/2/activate",
-          { csrf_token: "no-dk-csrf" },
+          { csrf_token: csrfToken },
           `${getSessionCookieName()}=no-dk-session`,
         ),
       );
@@ -814,7 +687,6 @@ describe("server (multi-user admin)", () => {
         mockFormRequest(
           "/join/expired-post-123",
           { password: "pass12345678", password_confirm: "pass12345678", csrf_token: "fake" },
-          `${getCsrfCookieName("join_csrf")}=fake`,
         ),
       );
       expect(response.status).toBe(410);
@@ -823,23 +695,13 @@ describe("server (multi-user admin)", () => {
 
   describe("join flow (CSRF validation)", () => {
     test("POST /join/:code rejects invalid CSRF token", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          { username: "csrf-test-user", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { inviteCode } = await createTestInvite("csrf-test-user");
 
-      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
-
-      // POST with wrong CSRF
+      // POST with invalid (unsigned) CSRF token
       const response = await handleRequest(
         mockFormRequest(
           `/join/${inviteCode}`,
           { password: "newpassword123", password_confirm: "newpassword123", csrf_token: "wrong" },
-          `${getCsrfCookieName("join_csrf")}=different`,
         ),
       );
       expect(response.status).toBe(403);
@@ -847,19 +709,10 @@ describe("server (multi-user admin)", () => {
       expect(html).toContain("try again");
     });
 
-    test("POST /join/:code rejects missing CSRF cookie", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          { username: "csrf-missing-user", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+    test("POST /join/:code rejects missing CSRF token", async () => {
+      const { inviteCode } = await createTestInvite("csrf-missing-user");
 
-      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
-
-      // POST without CSRF cookie
+      // POST with fake CSRF token (not properly signed)
       const response = await handleRequest(
         mockFormRequest(
           `/join/${inviteCode}`,
@@ -870,16 +723,7 @@ describe("server (multi-user admin)", () => {
     });
 
     test("POST /join/:code rejects form without csrf_token field", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          { username: "csrf-nofield-user", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-
-      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
+      const { inviteCode } = await createTestInvite("csrf-nofield-user");
 
       // POST without csrf_token field in form
       const body = "password=newpassword123&password_confirm=newpassword123";
@@ -889,7 +733,6 @@ describe("server (multi-user admin)", () => {
           headers: {
             host: "localhost",
             "content-type": "application/x-www-form-urlencoded",
-            cookie: `${getCsrfCookieName("join_csrf")}=sometoken`,
           },
           body,
         }),
@@ -898,30 +741,9 @@ describe("server (multi-user admin)", () => {
     });
 
     test("POST /join/:code rejects missing password fields", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          { username: "validation-user", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const { inviteCode } = await createTestInvite("validation-user");
 
-      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
-
-      // Get valid CSRF
-      const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
-      const joinCookieHeader = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrf = requireJoinCsrfToken(joinCookieHeader);
-
-      // POST with missing password fields
-      const response = await handleRequest(
-        mockFormRequest(
-          `/join/${inviteCode}`,
-          { password: "", password_confirm: "", csrf_token: joinCsrf },
-          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
-        ),
-      );
+      const response = await submitJoinForm(inviteCode, { password: "", password_confirm: "" });
       expect(response.status).toBe(400);
     });
   });
@@ -944,29 +766,9 @@ describe("server (multi-user admin)", () => {
     });
 
     test("shows Pending Activation status and Activate button for user with password but no data key", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { inviteCode, cookie } = await createTestInvite("pending-user");
 
-      // Create invite and complete join (set password)
-      const inviteResponse = await handleRequest(
-        mockFormRequest(
-          "/admin/users",
-          { username: "pending-user", admin_level: "manager", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      const inviteCode = getInviteCodeFromRedirect(inviteResponse);
-
-      const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
-      const joinCookieHeader = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrf = requireJoinCsrfToken(joinCookieHeader);
-
-      await handleRequest(
-        mockFormRequest(
-          `/join/${inviteCode}`,
-          { password: "newpassword123", password_confirm: "newpassword123", csrf_token: joinCsrf },
-          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
-        ),
-      );
+      await submitJoinForm(inviteCode, { password: "newpassword123", password_confirm: "newpassword123" });
 
       // Users page should show "Pending Activation" and "Activate" button
       const usersResponse = await awaitTestRequest("/admin/users", { cookie });
@@ -1099,6 +901,9 @@ describe("server (multi-user admin)", () => {
       await createSession("mgr-form-session", "mgr-form-csrf", Date.now() + 3600000, null, 2);
 
       // Manager trying to POST to owner-only settings endpoint
+      // Must use a signed CSRF token so verification passes and the role check is reached
+      const { signCsrfToken } = await import("#lib/csrf.ts");
+      const signedCsrf = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings",
@@ -1106,7 +911,7 @@ describe("server (multi-user admin)", () => {
             current_password: "test",
             new_password: "newpassword123",
             new_password_confirm: "newpassword123",
-            csrf_token: "mgr-form-csrf",
+            csrf_token: signedCsrf,
           },
           `${getSessionCookieName()}=mgr-form-session`,
         ),
@@ -1213,7 +1018,6 @@ describe("server (multi-user admin)", () => {
         mockFormRequest(
           "/join/nonexistent-code",
           { password: "testpass123", password_confirm: "testpass123", csrf_token: "csrf" },
-          `${getCsrfCookieName("join_csrf")}=csrf`,
         ),
       );
       expect(response.status).toBe(404);

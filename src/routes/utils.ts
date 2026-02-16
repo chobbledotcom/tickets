@@ -4,13 +4,12 @@
 
 import { compact, err, map, ok, pipe, type Result, reduce } from "#fp";
 import {
-  constantTimeEqual,
   generateSecureToken,
   getPrivateKeyFromSession,
 } from "#lib/crypto.ts";
-import { isSignedCsrfToken, signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
+import { signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
-import { getCsrfCookieName, getSessionCookieName } from "#lib/cookies.ts";
+import { getSessionCookieName } from "#lib/cookies.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
@@ -103,10 +102,11 @@ export const getAuthenticatedSession = async (
   }
 
   const adminLevel = await decryptAdminLevel(user);
+  const csrfToken = await signCsrfToken();
 
   return {
     token,
-    csrfToken: session.csrf_token,
+    csrfToken,
     wrappedDataKey: session.wrapped_data_key,
     userId: session.user_id,
     adminLevel,
@@ -130,16 +130,6 @@ export const getPrivateKey = async (
   } catch {
     return null;
   }
-};
-
-/**
- * Validate CSRF token using constant-time comparison
- */
-export const validateCsrfToken = (
-  expected: string,
-  actual: string,
-): boolean => {
-  return constantTimeEqual(expected, actual);
 };
 
 /**
@@ -250,15 +240,6 @@ export const withCookie = (response: Response, cookie: string): Response => {
   headers.append("set-cookie", cookie);
   return new Response(response.body, { status: response.status, headers });
 };
-
-/**
- * Create HTML response with cookie - curried composition of withCookie and htmlResponse
- * Usage: htmlResponseWithCookie(cookie)(html, status)
- */
-export const htmlResponseWithCookie =
-  (cookie: string) =>
-  (html: string, status = 200): Response =>
-    withCookie(htmlResponse(html, status), cookie);
 
 /** Handler function that takes a value and returns a Response */
 type EventHandler = (event: EventWithCount) => Response | Promise<Response>;
@@ -402,41 +383,29 @@ const requireOwnerRole = (
 ): Response | Promise<Response> =>
   session.adminLevel === "owner" ? handler(session) : htmlResponse("Forbidden", 403);
 
-/** CSRF form result type (for public forms using double-submit cookie) */
+/** CSRF form result type */
 export type CsrfFormResult =
   | { ok: true; form: URLSearchParams }
   | { ok: false; response: Response };
 
 /**
- * Parse form with CSRF validation (double-submit cookie pattern).
- * This is the integral CSRF check - you cannot get form data without validating CSRF.
- *
- * When `inIframe` is true and the cookie is missing (blocked by Safari/iOS
- * in-app browsers), falls back to verifying the form token's cryptographic
- * signature instead of comparing it to a cookie.
+ * Parse form with CSRF validation (signed token pattern).
+ * Verifies the form token's cryptographic signature and expiry
+ * without needing a cookie. This avoids third-party cookie issues
+ * in iframes on Safari/iOS in-app browsers.
  */
 export const requireCsrfForm = async (
   request: Request,
   onInvalid: (newToken: string) => Response,
-  cookieName = getCsrfCookieName("csrf_token"),
-  inIframe = false,
 ): Promise<CsrfFormResult> => {
-  const cookies = parseCookies(request);
-  const cookieCsrf = cookies.get(cookieName) || "";
   const form = await parseFormData(request);
   const formCsrf = form.get("csrf_token") || "";
 
-  // Primary: double-submit cookie check
-  if (cookieCsrf && formCsrf && validateCsrfToken(cookieCsrf, formCsrf)) {
+  if (formCsrf && await verifySignedCsrfToken(formCsrf)) {
     return { ok: true, form };
   }
 
-  // Fallback: verify signed token when cookie is blocked (iOS iframe)
-  if (inIframe && !cookieCsrf && formCsrf && isSignedCsrfToken(formCsrf) && await verifySignedCsrfToken(formCsrf)) {
-    return { ok: true, form };
-  }
-
-  const newToken = inIframe ? await signCsrfToken() : generateSecureToken();
+  const newToken = await signCsrfToken();
   return { ok: false, response: onInvalid(newToken) };
 };
 
@@ -458,7 +427,7 @@ export const requireAuthForm = async (
 
   const form = await parseFormData(request);
   const csrfToken = form.get("csrf_token") || "";
-  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
+  if (!await verifySignedCsrfToken(csrfToken)) {
     return { ok: false, response: htmlResponse("Invalid CSRF token", 403) };
   }
 
@@ -510,7 +479,7 @@ export const withAuthMultipartForm = async (
 
   const formData = await request.formData();
   const csrfToken = String(formData.get("csrf_token") ?? "");
-  if (!validateCsrfToken(session.csrfToken, csrfToken)) {
+  if (!await verifySignedCsrfToken(csrfToken)) {
     return htmlResponse("Invalid CSRF token", 403);
   }
 
@@ -536,7 +505,7 @@ export const withAuthJson = async (request: Request, handler: JsonHandler): Prom
   if (!session) return jsonResponse({ status: "error", message: "Not authenticated" }, 401);
 
   const csrfHeader = request.headers.get("x-csrf-token") ?? "";
-  if (!validateCsrfToken(session.csrfToken, csrfHeader)) {
+  if (!await verifySignedCsrfToken(csrfHeader)) {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "JSON API" });
     return jsonResponse({ status: "error", message: "Forbidden" }, 403);
   }

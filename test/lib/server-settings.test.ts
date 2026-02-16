@@ -197,7 +197,7 @@ describe("server (admin settings)", () => {
 
       // Verify new password works
       const newLoginResponse = await handleRequest(
-        mockAdminLoginRequest({ username: "testadmin", password: "newpassword123" }),
+        await mockAdminLoginRequest({ username: "testadmin", password: "newpassword123" }),
       );
       expectAdminRedirect(newLoginResponse);
     });

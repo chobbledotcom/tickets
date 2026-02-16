@@ -3,26 +3,19 @@
  */
 
 import { getAllowedDomain } from "#lib/config.ts";
-import { buildCsrfCookie } from "#lib/cookies.ts";
+import { signCsrfToken } from "#lib/csrf.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { generateSecureToken, htmlResponse, htmlResponseWithCookie, requireSessionOr, withSession } from "#routes/utils.ts";
+import { htmlResponse, requireSessionOr, withSession } from "#routes/utils.ts";
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 
-/** Generate login CSRF cookie string */
-const loginCsrfCookie = (token: string): string =>
-  buildCsrfCookie("admin_login_csrf", token, { path: "/admin" });
-
 /** Login page response helper */
-export const loginResponse = (error?: string, status = 200) => {
-  const csrfToken = generateSecureToken();
-  return htmlResponseWithCookie(loginCsrfCookie(csrfToken))(
-    adminLoginPage(csrfToken, error),
-    status,
-  );
+export const loginResponse = async (error?: string, status = 200): Promise<Response> => {
+  const csrfToken = await signCsrfToken();
+  return htmlResponse(adminLoginPage(csrfToken, error), status);
 };
 
 /**
