@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel } from "#lib/dates.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
 import {
   awaitTestRequest,
   createDailyTestEvent,
+  createPaidTestAttendee,
   createTestAttendee,
   createTestAttendeeWithToken,
   createTestDbWithSetup,
@@ -56,12 +58,20 @@ describe("ticket view (/t/:tokens)", () => {
     expect(response.status).toBe(404);
   });
 
-  test("shows quantity per ticket", async () => {
+  test("shows quantity when greater than 1", async () => {
     const { token } = await createTestAttendeeWithToken("Carol", "carol@test.com", { maxQuantity: 5 }, 3);
 
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();
-    expect(body).toContain("3");
+    expect(body).toContain("Quantity: 3");
+  });
+
+  test("shows quantity when equal to 1", async () => {
+    const { token } = await createTestAttendeeWithToken("Carol", "carol@test.com");
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    const body = await response.text();
+    expect(body).toContain("Quantity: 1");
   });
 
   test("skips invalid tokens among valid ones", async () => {
@@ -180,5 +190,42 @@ describe("ticket view (/t/:tokens)", () => {
     const body = await response.text();
     expect(body).not.toContain("ticket-card-date");
     expect(body).not.toContain("ticket-card-location");
+  });
+
+  test("shows event description when present", async () => {
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com", {
+      description: "A wonderful event",
+    });
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    const body = await response.text();
+    expect(body).toContain("ticket-card-description");
+    expect(body).toContain("A wonderful event");
+  });
+
+  test("does not show description when empty", async () => {
+    const { token } = await createTestAttendeeWithToken("Bob", "bob@test.com");
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    const body = await response.text();
+    expect(body).not.toContain("ticket-card-description");
+  });
+
+  test("shows price for paid tickets", async () => {
+    const event = await createTestEvent({ maxAttendees: 10, unitPrice: 1500 });
+    const attendee = await createPaidTestAttendee(event.id, "Alice", "alice@test.com", "pi_test", 1500);
+
+    const response = await awaitTestRequest(`/t/${attendee.ticket_token}`);
+    const body = await response.text();
+    expect(body).toContain("ticket-card-price");
+    expect(body).toContain(formatCurrency(1500));
+  });
+
+  test("does not show price for free tickets", async () => {
+    const { token } = await createTestAttendeeWithToken("Bob", "bob@test.com");
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    const body = await response.text();
+    expect(body).not.toContain("ticket-card-price");
   });
 });
