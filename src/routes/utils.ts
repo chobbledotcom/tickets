@@ -389,10 +389,8 @@ export type CsrfFormResult =
   | { ok: false; response: Response };
 
 /**
- * Parse form with CSRF validation (signed token pattern).
- * Verifies the form token's cryptographic signature and expiry
- * without needing a cookie. This avoids third-party cookie issues
- * in iframes on Safari/iOS in-app browsers.
+ * Parse form with CSRF validation.
+ * Verifies the form token's HMAC signature and expiry.
  */
 export const requireCsrfForm = async (
   request: Request,

@@ -48,7 +48,7 @@ import {
  */
 export const handleHome = (): Response => redirect("/admin/");
 
-/** Ticket response builder (token embedded in form, no cookie) */
+/** Ticket response builder (CSRF token embedded in form) */
 const ticketResponseWithToken =
   (event: EventWithCount, isClosed: boolean, inIframe: boolean, dates: string[] | undefined, terms: string | null | undefined) =>
   (token: string) =>
@@ -68,7 +68,7 @@ const validationErrorResponder = <Args extends unknown[]>(
 (...args: Args) =>
   errorResponse((error) => renderPage(error, ...args));
 
-/** Ticket response without cookie - for validation errors after CSRF passed */
+/** Ticket error response - for validation errors after CSRF passed */
 const ticketResponse = validationErrorResponder(
   (error: string, event: EventWithCount, token: string, inIframe: boolean, dates: string[] | undefined, terms: string | null | undefined) =>
     ticketPage(event, token, error, false, inIframe, dates, terms),
@@ -358,7 +358,7 @@ const getActiveMultiEvents = (
     map((e: EventWithCount) => buildMultiTicketEvent(e, isRegistrationClosed(e))),
   )(compact(events));
 
-/** Multi-ticket response builder (token embedded in form, no cookie) */
+/** Multi-ticket response builder (CSRF token embedded in form) */
 const multiTicketResponseWithToken =
   (slugs: string[], events: MultiTicketEvent[], dates: string[] | undefined, terms: string | null | undefined, inIframe: boolean) =>
   (token: string) =>

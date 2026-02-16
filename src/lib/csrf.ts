@@ -1,11 +1,10 @@
 /**
- * Signed CSRF tokens for iframe contexts where cookies are blocked.
+ * Signed CSRF tokens using HMAC.
  *
- * Browsers using WebKit (Safari, iOS in-app browsers like Facebook) block
- * third-party cookies in iframes regardless of SameSite=None or Partitioned.
- * When the double-submit cookie isn't available, we fall back to verifying
- * a server-signed CSRF token: the token embeds a timestamp and HMAC using
- * DB_ENCRYPTION_KEY, so it's unforgeable and time-limited without a cookie.
+ * Each token embeds a timestamp, nonce, and HMAC signed with DB_ENCRYPTION_KEY.
+ * The server verifies the signature and checks expiry — no cookies needed.
+ * This works everywhere including iframes in iOS in-app browsers (Facebook,
+ * Instagram) where Safari/WebKit blocks third-party cookies.
  */
 
 import { constantTimeEqual, generateSecureToken, hmacHash } from "#lib/crypto.ts";
