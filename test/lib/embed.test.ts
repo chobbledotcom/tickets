@@ -1,53 +1,34 @@
 import { describe, expect, test } from "#test-compat";
-import { buildEmbedCode, computeIframeHeight } from "#lib/embed.ts";
+import { buildEmbedSnippets } from "#lib/embed.ts";
 
 describe("embed", () => {
-  describe("computeIframeHeight", () => {
-    test("returns 11rem for empty fields (name only)", () => {
-      expect(computeIframeHeight("")).toBe("11rem");
+  describe("buildEmbedSnippets", () => {
+    test("script variant is a single script tag with data-events", () => {
+      const result = buildEmbedSnippets("https://example.com/ticket/test");
+      expect(result.script).toBe('<script async src="https://example.com/embed.js" data-events="test"></script>');
     });
 
-    test("returns 15rem for email-only", () => {
-      expect(computeIframeHeight("email")).toBe("15rem");
-    });
-
-    test("returns 15rem for phone-only", () => {
-      expect(computeIframeHeight("phone")).toBe("15rem");
-    });
-
-    test("returns 19rem for email,phone", () => {
-      expect(computeIframeHeight("email,phone")).toBe("19rem");
-    });
-
-    test("returns 17rem for address-only (textarea)", () => {
-      expect(computeIframeHeight("address")).toBe("17rem");
-    });
-
-    test("returns 17rem for special_instructions-only (textarea)", () => {
-      expect(computeIframeHeight("special_instructions")).toBe("17rem");
-    });
-
-    test("returns 25rem for email,phone,address", () => {
-      expect(computeIframeHeight("email,phone,address")).toBe("25rem");
-    });
-
-    test("returns 31rem for all four fields", () => {
-      expect(computeIframeHeight("email,phone,address,special_instructions")).toBe("31rem");
-    });
-  });
-
-  describe("buildEmbedCode", () => {
-    test("produces iframe with url, iframe param, and computed height", () => {
-      const result = buildEmbedCode("https://example.com/ticket/test", "email");
-      expect(result).toBe(
-        '<iframe src="https://example.com/ticket/test?iframe=true" loading="lazy" style="border: none; width: 100%; height: 15rem">Loading..</iframe>',
+    test("iframe variant is a plain iframe without resizer scripts", () => {
+      const result = buildEmbedSnippets("https://example.com/ticket/test");
+      expect(result.iframe).toBe(
+        '<iframe src="https://example.com/ticket/test?iframe=true" loading="lazy" style="border: none; width: 100%; height: 600px;">Loading..</iframe>',
       );
     });
 
-    test("uses height from merged fields", () => {
-      const result = buildEmbedCode("https://example.com/ticket/a+b", "email,phone,address");
-      expect(result).toContain("height: 25rem");
-      expect(result).toContain("https://example.com/ticket/a+b?iframe=true");
+    test("uses plus-delimited slugs in data-events and iframe src", () => {
+      const result = buildEmbedSnippets("https://example.com/ticket/a+b");
+      expect(result.script).toContain('data-events="a+b"');
+      expect(result.iframe).toContain("https://example.com/ticket/a+b?iframe=true");
+    });
+
+    test("extracts origin correctly for embed script URL", () => {
+      const result = buildEmbedSnippets("https://tickets.mysite.org/ticket/test");
+      expect(result.script).toContain('src="https://tickets.mysite.org/embed.js"');
+    });
+
+    test("handles non-ticket URLs by emitting empty data-events", () => {
+      const result = buildEmbedSnippets("https://example.com/");
+      expect(result.script).toContain('data-events=""');
     });
   });
 });

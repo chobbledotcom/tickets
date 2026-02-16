@@ -1,5 +1,5 @@
 /**
- * Static asset routes - CSS and favicon with long cache
+ * Static asset routes - CSS, JS, and favicon with long cache
  */
 
 import { dirname, fromFileUrl, join } from "@std/path";
@@ -7,58 +7,28 @@ import { dirname, fromFileUrl, join } from "@std/path";
 const currentDir = dirname(fromFileUrl(import.meta.url));
 const staticDir = join(currentDir, "..", "static");
 
-// Read static files at module load time
-// These get inlined by esbuild during edge build
-const faviconSvg = Deno.readTextFileSync(join(staticDir, "favicon.svg"));
-const mvpCss = Deno.readTextFileSync(join(staticDir, "mvp.css"));
-const adminJs = Deno.readTextFileSync(join(staticDir, "admin.js"));
-const scannerJs = Deno.readTextFileSync(join(staticDir, "scanner.js"));
-
 /** Cache for 1 year (immutable assets) */
 const CACHE_HEADERS = {
   "cache-control": "public, max-age=31536000, immutable",
 };
 
-/**
- * Handle MVP.css request
- */
-export const handleMvpCss = (): Response =>
-  new Response(mvpCss, {
-    headers: {
-      "content-type": "text/css; charset=utf-8",
-      ...CACHE_HEADERS,
-    },
-  });
+/** Create a handler that serves a static file with the given content type */
+const staticHandler = (filename: string, contentType: string): (() => Response) => {
+  const content = Deno.readTextFileSync(join(staticDir, filename));
+  return () =>
+    new Response(content, {
+      headers: { "content-type": contentType, ...CACHE_HEADERS },
+    });
+};
 
-/**
- * Handle favicon request
- */
-export const handleFavicon = (): Response =>
-  new Response(faviconSvg, {
-    headers: {
-      "content-type": "image/svg+xml",
-      ...CACHE_HEADERS,
-    },
-  });
+const JS = "application/javascript; charset=utf-8";
+const CSS = "text/css; charset=utf-8";
+const SVG = "image/svg+xml";
 
-/**
- * Handle admin.js request
- */
-export const handleAdminJs = (): Response =>
-  new Response(adminJs, {
-    headers: {
-      "content-type": "application/javascript; charset=utf-8",
-      ...CACHE_HEADERS,
-    },
-  });
-
-/**
- * Handle scanner.js request
- */
-export const handleScannerJs = (): Response =>
-  new Response(scannerJs, {
-    headers: {
-      "content-type": "application/javascript; charset=utf-8",
-      ...CACHE_HEADERS,
-    },
-  });
+export const handleFavicon = staticHandler("favicon.svg", SVG);
+export const handleMvpCss = staticHandler("mvp.css", CSS);
+export const handleAdminJs = staticHandler("admin.js", JS);
+export const handleScannerJs = staticHandler("scanner.js", JS);
+export const handleEmbedJs = staticHandler("embed.js", JS);
+export const handleIframeResizerParentJs = staticHandler("iframe-resizer-parent.js", JS);
+export const handleIframeResizerChildJs = staticHandler("iframe-resizer-child.js", JS);

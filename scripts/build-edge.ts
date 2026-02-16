@@ -6,86 +6,15 @@
 
 import * as esbuild from "esbuild";
 import type { Plugin } from "esbuild";
-import { fromFileUrl } from "@std/path";
 import { minifyCss } from "./css-minify.ts";
+import { buildStaticAssets } from "./build-static-assets.ts";
 
 // Read deno.json import map (used by both client and edge builds)
 const denoConfig = JSON.parse(await Deno.readTextFile("./deno.json"));
 const denoImports: Record<string, string> = denoConfig.imports;
 
-// --- Step 1a: Build scanner.js (client bundle with jsQR) ---
-
-/** Resolve npm bare specifiers using Deno's import resolution */
-const denoNpmResolvePlugin: Plugin = {
-  name: "deno-npm-resolve",
-  setup(build) {
-    build.onResolve({ filter: /^jsqr$/ }, () => ({
-      path: fromFileUrl(import.meta.resolve("jsqr")),
-    }));
-  },
-};
-
-const scannerResult = await esbuild.build({
-  entryPoints: ["./src/client/scanner.js"],
-  outfile: "./src/static/scanner.js",
-  platform: "browser",
-  format: "iife",
-  bundle: true,
-  minify: true,
-  plugins: [denoNpmResolvePlugin],
-});
-
-if (scannerResult.errors.length > 0) {
-  console.error("Scanner build failed:");
-  for (const log of scannerResult.errors) {
-    console.error(log);
-  }
-  Deno.exit(1);
-}
-
-console.log("Scanner build complete: src/static/scanner.js");
-
-// --- Step 1b: Build admin.js (client bundle with shared embed logic) ---
-
-/** Resolve #-prefixed imports using the deno.json import map */
-const projectRoot = fromFileUrl(new URL("..", import.meta.url));
-const denoImportMapPlugin: Plugin = {
-  name: "deno-import-map",
-  setup(build) {
-    build.onResolve({ filter: /^#/ }, (args) => {
-      for (const [key, value] of Object.entries(denoImports)) {
-        if (typeof value !== "string" || !value.startsWith("./")) continue;
-        if (key.endsWith("/") && args.path.startsWith(key)) {
-          return { path: projectRoot + value.slice(2) + args.path.slice(key.length) };
-        }
-        if (args.path === key) {
-          return { path: projectRoot + value.slice(2) };
-        }
-      }
-      return undefined;
-    });
-  },
-};
-
-const adminResult = await esbuild.build({
-  entryPoints: ["./src/client/admin.ts"],
-  outfile: "./src/static/admin.js",
-  platform: "browser",
-  format: "iife",
-  bundle: true,
-  minify: true,
-  plugins: [denoImportMapPlugin],
-});
-
-if (adminResult.errors.length > 0) {
-  console.error("Admin build failed:");
-  for (const log of adminResult.errors) {
-    console.error(log);
-  }
-  Deno.exit(1);
-}
-
-console.log("Admin build complete: src/static/admin.js");
+// --- Step 1: Build client bundles ---
+await buildStaticAssets();
 
 // --- Step 2: Build edge bundle ---
 
@@ -96,12 +25,30 @@ const BUILD_TS = Math.floor(Date.now() / 1000);
 const rawCss = await Deno.readTextFile("./src/static/mvp.css");
 const minifiedCss = await minifyCss(rawCss);
 
+const JS = "application/javascript; charset=utf-8";
+const CSS = "text/css; charset=utf-8";
+const SVG = "image/svg+xml";
+
+/** Asset definitions: [filename, exportName, contentType, pathConstant] */
+const ASSET_DEFS: [string, string, string, string][] = [
+  ["favicon.svg", "handleFavicon", SVG, ""],
+  ["mvp.css", "handleMvpCss", CSS, "CSS_PATH"],
+  ["admin.js", "handleAdminJs", JS, "JS_PATH"],
+  ["scanner.js", "handleScannerJs", JS, "SCANNER_JS_PATH"],
+  ["iframe-resizer-parent.js", "handleIframeResizerParentJs", JS, "IFRAME_RESIZER_PARENT_JS_PATH"],
+  ["iframe-resizer-child.js", "handleIframeResizerChildJs", JS, "IFRAME_RESIZER_CHILD_JS_PATH"],
+  ["embed.js", "handleEmbedJs", JS, "EMBED_JS_PATH"],
+];
+
 const STATIC_ASSETS: Record<string, string> = {
   "favicon.svg": await Deno.readTextFile("./src/static/favicon.svg"),
   "mvp.css": minifiedCss,
-  "admin.js": await Deno.readTextFile("./src/static/admin.js"),
-  "scanner.js": await Deno.readTextFile("./src/static/scanner.js"),
 };
+
+for (const [filename] of ASSET_DEFS) {
+  if (filename === "favicon.svg" || filename === "mvp.css") continue;
+  STATIC_ASSETS[filename] = await Deno.readTextFile(`./src/static/${filename}`);
+}
 
 // Edge subpath overrides (e.g., use web-compatible libsql client)
 const EDGE_SUBPATHS: Record<string, string> = {
@@ -137,6 +84,28 @@ const esmShExternalsPlugin: Plugin = {
   },
 };
 
+/** Build the inline asset-paths module with cache-busted paths */
+const buildAssetPathsModule = (): string =>
+  ASSET_DEFS
+    .filter(([, , , pathConst]) => pathConst)
+    .map(([filename, , , pathConst]) => `export const ${pathConst} = "/${filename}?ts=${BUILD_TS}";`)
+    .join("\n");
+
+/** Build the inline assets module with pre-read content and handler functions */
+const buildAssetsModule = (): string => {
+  const varLines = ASSET_DEFS
+    .map(([filename], i) => `const v${i} = ${JSON.stringify(STATIC_ASSETS[filename])};`);
+
+  const cacheHeader = `const CACHE_HEADERS = { "cache-control": "public, max-age=31536000, immutable" };`;
+
+  const handlerLines = ASSET_DEFS
+    .map(([, exportName, contentType], i) =>
+      `export const ${exportName} = () => new Response(v${i}, { headers: { "content-type": "${contentType}", ...CACHE_HEADERS } });`
+    );
+
+  return [...varLines, cacheHeader, ...handlerLines].join("\n");
+};
+
 /**
  * Plugin to inline static assets and handle Deno-specific imports
  * Replaces Deno.readTextFileSync calls with pre-read content
@@ -151,7 +120,7 @@ const inlineAssetsPlugin: Plugin = {
     }));
 
     build.onLoad({ filter: /.*/, namespace: "inline-asset-paths" }, () => ({
-      contents: `export const CSS_PATH = "/mvp.css?ts=${BUILD_TS}";\nexport const JS_PATH = "/admin.js?ts=${BUILD_TS}";\nexport const SCANNER_JS_PATH = "/scanner.js?ts=${BUILD_TS}";`,
+      contents: buildAssetPathsModule(),
       loader: "ts",
     }));
 
@@ -162,36 +131,7 @@ const inlineAssetsPlugin: Plugin = {
     }));
 
     build.onLoad({ filter: /.*/, namespace: "inline-assets" }, () => ({
-      contents: `
-        const faviconSvg = ${JSON.stringify(STATIC_ASSETS["favicon.svg"])};
-        const mvpCss = ${JSON.stringify(STATIC_ASSETS["mvp.css"])};
-        const adminJs = ${JSON.stringify(STATIC_ASSETS["admin.js"])};
-        const scannerJs = ${JSON.stringify(STATIC_ASSETS["scanner.js"])};
-
-        const CACHE_HEADERS = {
-          "cache-control": "public, max-age=31536000, immutable",
-        };
-
-        export const handleMvpCss = () =>
-          new Response(mvpCss, {
-            headers: { "content-type": "text/css; charset=utf-8", ...CACHE_HEADERS },
-          });
-
-        export const handleFavicon = () =>
-          new Response(faviconSvg, {
-            headers: { "content-type": "image/svg+xml", ...CACHE_HEADERS },
-          });
-
-        export const handleAdminJs = () =>
-          new Response(adminJs, {
-            headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
-          });
-
-        export const handleScannerJs = () =>
-          new Response(scannerJs, {
-            headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
-          });
-      `,
+      contents: buildAssetsModule(),
       loader: "ts",
     }));
   },
