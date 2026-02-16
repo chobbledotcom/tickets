@@ -25,15 +25,19 @@ const BUILD_TS = Math.floor(Date.now() / 1000);
 const rawCss = await Deno.readTextFile("./src/static/mvp.css");
 const minifiedCss = await minifyCss(rawCss);
 
+const JS = "application/javascript; charset=utf-8";
+const CSS = "text/css; charset=utf-8";
+const SVG = "image/svg+xml";
+
 /** Asset definitions: [filename, exportName, contentType, pathConstant] */
 const ASSET_DEFS: [string, string, string, string][] = [
-  ["favicon.svg", "handleFavicon", "image/svg+xml", ""],
-  ["mvp.css", "handleMvpCss", "text/css; charset=utf-8", "CSS_PATH"],
-  ["admin.js", "handleAdminJs", "application/javascript; charset=utf-8", "JS_PATH"],
-  ["scanner.js", "handleScannerJs", "application/javascript; charset=utf-8", "SCANNER_JS_PATH"],
-  ["iframe-resizer-parent.js", "handleIframeResizerParentJs", "application/javascript; charset=utf-8", "IFRAME_RESIZER_PARENT_JS_PATH"],
-  ["iframe-resizer-child.js", "handleIframeResizerChildJs", "application/javascript; charset=utf-8", "IFRAME_RESIZER_CHILD_JS_PATH"],
-  ["embed.js", "handleEmbedJs", "application/javascript; charset=utf-8", "EMBED_JS_PATH"],
+  ["favicon.svg", "handleFavicon", SVG, ""],
+  ["mvp.css", "handleMvpCss", CSS, "CSS_PATH"],
+  ["admin.js", "handleAdminJs", JS, "JS_PATH"],
+  ["scanner.js", "handleScannerJs", JS, "SCANNER_JS_PATH"],
+  ["iframe-resizer-parent.js", "handleIframeResizerParentJs", JS, "IFRAME_RESIZER_PARENT_JS_PATH"],
+  ["iframe-resizer-child.js", "handleIframeResizerChildJs", JS, "IFRAME_RESIZER_CHILD_JS_PATH"],
+  ["embed.js", "handleEmbedJs", JS, "EMBED_JS_PATH"],
 ];
 
 const STATIC_ASSETS: Record<string, string> = {

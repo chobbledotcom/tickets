@@ -21,10 +21,14 @@ const staticHandler = (filename: string, contentType: string): (() => Response) 
     });
 };
 
-export const handleFavicon = staticHandler("favicon.svg", "image/svg+xml");
-export const handleMvpCss = staticHandler("mvp.css", "text/css; charset=utf-8");
-export const handleAdminJs = staticHandler("admin.js", "application/javascript; charset=utf-8");
-export const handleScannerJs = staticHandler("scanner.js", "application/javascript; charset=utf-8");
-export const handleEmbedJs = staticHandler("embed.js", "application/javascript; charset=utf-8");
-export const handleIframeResizerParentJs = staticHandler("iframe-resizer-parent.js", "application/javascript; charset=utf-8");
-export const handleIframeResizerChildJs = staticHandler("iframe-resizer-child.js", "application/javascript; charset=utf-8");
+const JS = "application/javascript; charset=utf-8";
+const CSS = "text/css; charset=utf-8";
+const SVG = "image/svg+xml";
+
+export const handleFavicon = staticHandler("favicon.svg", SVG);
+export const handleMvpCss = staticHandler("mvp.css", CSS);
+export const handleAdminJs = staticHandler("admin.js", JS);
+export const handleScannerJs = staticHandler("scanner.js", JS);
+export const handleEmbedJs = staticHandler("embed.js", JS);
+export const handleIframeResizerParentJs = staticHandler("iframe-resizer-parent.js", JS);
+export const handleIframeResizerChildJs = staticHandler("iframe-resizer-child.js", JS);
