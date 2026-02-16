@@ -806,6 +806,7 @@ button.bulk-checkout:hover {
   color: var(--color-link);
   text-decoration: underline;
   padding: 0;
+  border: none;
   margin: 0;
   box-shadow: none;
 }
