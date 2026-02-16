@@ -174,8 +174,8 @@ export const validateUsername = (value: string): string | null => {
  * Login form field definitions
  */
 export const loginFields: Field[] = [
-  { name: "username", label: "Username", type: "text", required: true },
-  { name: "password", label: "Password", type: "password", required: true },
+  { name: "username", label: "Username", type: "text", required: true, autocomplete: "username" },
+  { name: "password", label: "Password", type: "password", required: true, autocomplete: "current-password" },
 ];
 
 /** Validate event fields setting (comma-separated contact field names) */
@@ -419,6 +419,7 @@ const nameField: Field = {
   label: "Your Name",
   type: "text",
   required: true,
+  autocomplete: "name",
 };
 
 /** Email field for ticket forms */
@@ -427,6 +428,7 @@ const emailField: Field = {
   label: "Your Email",
   type: "email",
   required: true,
+  autocomplete: "email",
   validate: validateEmail,
 };
 
@@ -436,6 +438,7 @@ const phoneField: Field = {
   label: "Your Phone Number",
   type: "text",
   required: true,
+  autocomplete: "tel",
   validate: validatePhone,
 };
 
@@ -454,6 +457,7 @@ const addressField: Field = {
   label: "Your Address",
   type: "textarea",
   required: true,
+  autocomplete: "street-address",
   validate: validateAddress,
 };
 
@@ -535,6 +539,7 @@ export const setupFields: Field[] = [
     type: "text",
     required: true,
     hint: "Letters, numbers, hyphens, underscores (2-32 chars)",
+    autocomplete: "username",
     validate: validateUsername,
   },
   {
@@ -543,12 +548,14 @@ export const setupFields: Field[] = [
     type: "password",
     required: true,
     hint: "Minimum 8 characters",
+    autocomplete: "new-password",
   },
   {
     name: "admin_password_confirm",
     label: "Confirm Admin Password *",
     type: "password",
     required: true,
+    autocomplete: "new-password",
   },
   {
     name: "currency_code",
@@ -568,6 +575,7 @@ export const changePasswordFields: Field[] = [
     label: "Current Password",
     type: "password",
     required: true,
+    autocomplete: "current-password",
   },
   {
     name: "new_password",
@@ -575,12 +583,14 @@ export const changePasswordFields: Field[] = [
     type: "password",
     required: true,
     hint: "Minimum 8 characters",
+    autocomplete: "new-password",
   },
   {
     name: "new_password_confirm",
     label: "Confirm New Password",
     type: "password",
     required: true,
+    autocomplete: "new-password",
   },
 ];
 
@@ -667,11 +677,13 @@ export const joinFields: Field[] = [
     type: "password",
     required: true,
     hint: "Minimum 8 characters",
+    autocomplete: "new-password",
   },
   {
     name: "password_confirm",
     label: "Confirm Password",
     type: "password",
     required: true,
+    autocomplete: "new-password",
   },
 ];

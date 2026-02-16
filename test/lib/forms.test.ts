@@ -7,10 +7,14 @@ import {
   validateForm,
 } from "#lib/forms.tsx";
 import {
+  changePasswordFields,
   eventFields,
   getTicketFields,
   holidayFields,
+  joinFields,
+  loginFields,
   mergeEventFields,
+  setupFields,
   validateAddress,
   validateSpecialInstructions,
   validateBookableDays,
@@ -84,6 +88,16 @@ describe("forms", () => {
     test("renders maxlength attribute", () => {
       const html = rendered({ name: "desc", label: "Description", maxlength: 128 });
       expect(html).toContain('maxlength="128"');
+    });
+
+    test("renders autocomplete attribute when provided", () => {
+      const html = rendered({ name: "name", label: "Name", autocomplete: "name" });
+      expect(html).toContain('autocomplete="name"');
+    });
+
+    test("omits autocomplete attribute when not provided", () => {
+      const html = rendered({ name: "name", label: "Name" });
+      expect(html).not.toContain("autocomplete");
     });
 
     test("renders textarea for textarea type", () => {
@@ -555,6 +569,26 @@ describe("forms", () => {
       expect(fields.length).toBe(1);
       expect(fields[0]!.name).toBe("name");
     });
+
+    test("name field has autocomplete=name", () => {
+      const fields = getTicketFields("email");
+      expect(fields[0]!.autocomplete).toBe("name");
+    });
+
+    test("email field has autocomplete=email", () => {
+      const fields = getTicketFields("email");
+      expect(fields[1]!.autocomplete).toBe("email");
+    });
+
+    test("phone field has autocomplete=tel", () => {
+      const fields = getTicketFields("phone");
+      expect(fields[1]!.autocomplete).toBe("tel");
+    });
+
+    test("address field has autocomplete=street-address", () => {
+      const fields = getTicketFields("address");
+      expect(fields[1]!.autocomplete).toBe("street-address");
+    });
   });
 
   describe("mergeEventFields", () => {
@@ -971,6 +1005,37 @@ describe("forms", () => {
         options: [{ value: "Monday", label: "Monday" }],
       });
       expect(html).not.toContain("checked");
+    });
+  });
+
+  describe("field autocomplete attributes", () => {
+    test("login username field has autocomplete=username", () => {
+      expect(loginFields[0]!.autocomplete).toBe("username");
+    });
+
+    test("login password field has autocomplete=current-password", () => {
+      expect(loginFields[1]!.autocomplete).toBe("current-password");
+    });
+
+    test("setup password fields have autocomplete=new-password", () => {
+      const pwField = setupFields.find((f) => f.name === "admin_password");
+      const confirmField = setupFields.find((f) => f.name === "admin_password_confirm");
+      expect(pwField!.autocomplete).toBe("new-password");
+      expect(confirmField!.autocomplete).toBe("new-password");
+    });
+
+    test("change password current field has autocomplete=current-password", () => {
+      expect(changePasswordFields[0]!.autocomplete).toBe("current-password");
+    });
+
+    test("change password new fields have autocomplete=new-password", () => {
+      expect(changePasswordFields[1]!.autocomplete).toBe("new-password");
+      expect(changePasswordFields[2]!.autocomplete).toBe("new-password");
+    });
+
+    test("join password fields have autocomplete=new-password", () => {
+      expect(joinFields[0]!.autocomplete).toBe("new-password");
+      expect(joinFields[1]!.autocomplete).toBe("new-password");
     });
   });
 

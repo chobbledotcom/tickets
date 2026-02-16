@@ -38,6 +38,7 @@ export interface Field {
   pattern?: string;
   accept?: string;
   autofocus?: boolean;
+  autocomplete?: string;
   validate?: (value: string) => string | null;
   options?: { value: string; label: string }[];
 }
@@ -154,6 +155,7 @@ export const renderField = (field: Field, value: string = ""): string =>
           maxlength={field.maxlength}
           pattern={field.pattern}
           autofocus={field.autofocus}
+          autocomplete={field.autocomplete}
         />
       )}
       {field.hint && (
