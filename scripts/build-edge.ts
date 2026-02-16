@@ -88,7 +88,11 @@ const esmShExternalsPlugin: Plugin = {
 const buildAssetPathsModule = (): string =>
   ASSET_DEFS
     .filter(([, , , pathConst]) => pathConst)
-    .map(([filename, , , pathConst]) => `export const ${pathConst} = "/${filename}?ts=${BUILD_TS}";`)
+    .map(([filename, , , pathConst]) => {
+      // Embed script should always use latest version without cache-busting
+      const cacheBuster = pathConst === "EMBED_JS_PATH" ? "" : `?ts=${BUILD_TS}`;
+      return `export const ${pathConst} = "/${filename}${cacheBuster}";`;
+    })
     .join("\n");
 
 /** Build the inline assets module with pre-read content and handler functions */
