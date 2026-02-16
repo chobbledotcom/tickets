@@ -19,10 +19,25 @@
   parentScript.src = `${origin}/iframe-resizer-parent.js`;
   parentScript.async = true;
   parentScript.fetchPriority = "high";
-  parentScript.onload = () => {
+
+  let scriptLoaded = false;
+  let iframeLoaded = false;
+
+  const initResize = () => {
+    if (!scriptLoaded || !iframeLoaded) return;
     const iframeResize = (window as unknown as { iframeResize: (options: { license: string }, target: HTMLIFrameElement) => void })
       .iframeResize;
     iframeResize({ license: script.dataset.license || "GPLv3" }, iframe);
+  };
+
+  parentScript.onload = () => {
+    scriptLoaded = true;
+    initResize();
+  };
+
+  iframe.onload = () => {
+    iframeLoaded = true;
+    initResize();
   };
 
   script.after(iframe, parentScript);
