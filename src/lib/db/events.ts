@@ -254,6 +254,13 @@ export const getAllDailyEvents = (): Promise<EventWithCount[]> =>
   queryEventsWithCounts("WHERE e.event_type = 'daily'");
 
 /**
+ * Get all standard events with attendee counts (no attendees loaded).
+ * Used by the calendar view to include one-time events on their scheduled date.
+ */
+export const getAllStandardEvents = (): Promise<EventWithCount[]> =>
+  queryEventsWithCounts("WHERE e.event_type = 'standard'");
+
+/**
  * Get distinct attendee dates for daily events.
  * Used for the calendar date picker (lightweight, no attendee data).
  */
@@ -280,6 +287,19 @@ export const getDailyEventAttendeesByDate = (
           WHERE e.event_type = 'daily' AND a.date = ?
           ORDER BY a.created DESC`,
     [date],
+  );
+
+/**
+ * Get raw attendees for a set of event IDs.
+ * Used by the calendar to load attendees for standard events whose
+ * decrypted date matches the selected calendar date.
+ */
+export const getAttendeesByEventIds = (
+  eventIds: number[],
+): Promise<Attendee[]> =>
+  queryAll<Attendee>(
+    `SELECT * FROM attendees WHERE event_id IN (${inPlaceholders(eventIds)}) ORDER BY created DESC`,
+    eventIds,
   );
 
 /** Result type for event + single attendee query */

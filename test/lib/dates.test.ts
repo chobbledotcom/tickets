@@ -1,5 +1,5 @@
 import { describe, expect, test } from "#test-compat";
-import { addDays, DAY_NAMES, formatDateLabel, formatDatetimeLabel, getAvailableDates, normalizeDatetime } from "#lib/dates.ts";
+import { addDays, DAY_NAMES, eventDateToCalendarDate, formatDateLabel, formatDatetimeLabel, getAvailableDates, normalizeDatetime } from "#lib/dates.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { testEvent } from "#test-utils";
 
@@ -193,6 +193,37 @@ describe("dates", () => {
       // 14:30 BST (June) = 13:30 UTC
       const result = normalizeDatetime("2026-06-15T14:30", "date", "Europe/London");
       expect(result).toBe("2026-06-15T13:30:00.000Z");
+    });
+  });
+
+  describe("eventDateToCalendarDate", () => {
+    test("converts UTC datetime to YYYY-MM-DD in UTC", () => {
+      expect(eventDateToCalendarDate("2026-06-15T14:00:00.000Z", "UTC")).toBe("2026-06-15");
+    });
+
+    test("converts UTC datetime to local date in timezone", () => {
+      // 23:30 UTC on June 15 = 00:30 BST on June 16 (Europe/London in summer)
+      expect(eventDateToCalendarDate("2026-06-15T23:30:00.000Z", "Europe/London")).toBe("2026-06-16");
+    });
+
+    test("returns null for empty string", () => {
+      expect(eventDateToCalendarDate("", "UTC")).toBeNull();
+    });
+
+    test("returns null for invalid datetime", () => {
+      expect(eventDateToCalendarDate("not-a-date", "UTC")).toBeNull();
+    });
+
+    test("returns null for invalid timezone", () => {
+      expect(eventDateToCalendarDate("2026-06-15T14:00:00.000Z", "Invalid/Zone")).toBeNull();
+    });
+
+    test("handles midnight UTC", () => {
+      expect(eventDateToCalendarDate("2026-03-01T00:00:00.000Z", "UTC")).toBe("2026-03-01");
+    });
+
+    test("pads single-digit month and day", () => {
+      expect(eventDateToCalendarDate("2026-01-05T12:00:00.000Z", "UTC")).toBe("2026-01-05");
     });
   });
 
