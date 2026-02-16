@@ -1,3 +1,4 @@
+import { getSessionCookieName } from "#lib/cookies.ts";
 import {
   afterAll,
   afterEach,
@@ -104,9 +105,9 @@ describe("test-utils", () => {
       const request = mockFormRequest(
         "/test",
         { name: "John" },
-        "__Host-session=abc123",
+        `${getSessionCookieName()}=abc123`,
       );
-      expect(request.headers.get("cookie")).toBe("__Host-session=abc123");
+      expect(request.headers.get("cookie")).toBe(`${getSessionCookieName()}=abc123`);
     });
   });
 
@@ -120,23 +121,23 @@ describe("test-utils", () => {
 
     test("formats session token as cookie", () => {
       const request = testRequest("/admin/logout", "abc123");
-      expect(request.headers.get("cookie")).toBe("__Host-session=abc123");
+      expect(request.headers.get("cookie")).toBe(`${getSessionCookieName()}=abc123`);
     });
 
     test("uses raw cookie string when provided", () => {
       const request = testRequest("/admin/", null, {
-        cookie: "__Host-session=xyz; other=value",
+        cookie: `${getSessionCookieName()}=xyz; other=value`,
       });
       expect(request.headers.get("cookie")).toBe(
-        "__Host-session=xyz; other=value",
+        `${getSessionCookieName()}=xyz; other=value`,
       );
     });
 
     test("token takes precedence over cookie", () => {
       const request = testRequest("/admin/", "token123", {
-        cookie: "__Host-session=other",
+        cookie: `${getSessionCookieName()}=other`,
       });
-      expect(request.headers.get("cookie")).toBe("__Host-session=token123");
+      expect(request.headers.get("cookie")).toBe(`${getSessionCookieName()}=token123`);
     });
 
     test("creates POST request with form data", async () => {
@@ -157,7 +158,7 @@ describe("test-utils", () => {
         data: { name: "Test Event" },
       });
       expect(request.method).toBe("POST");
-      expect(request.headers.get("cookie")).toBe("__Host-session=mytoken");
+      expect(request.headers.get("cookie")).toBe(`${getSessionCookieName()}=mytoken`);
       const body = await request.text();
       expect(body).toContain("name=Test+Event");
     });
@@ -268,7 +269,7 @@ describe("test-utils", () => {
     test("returns null when session token does not exist in database", async () => {
       await createTestDb();
       const result = await getCsrfTokenFromCookie(
-        "__Host-session=nonexistent-token-abc",
+        `${getSessionCookieName()}=nonexistent-token-abc`,
       );
       expect(result).toBe(null);
     });
@@ -377,7 +378,7 @@ describe("test-utils", () => {
 
     test("returns cookie and CSRF token after successful login", async () => {
       const session = await loginAsAdmin();
-      expect(session.cookie).toContain("__Host-session=");
+      expect(session.cookie).toContain(`${getSessionCookieName()}=`);
       expect(session.csrfToken).toBeTruthy();
       expect(typeof session.csrfToken).toBe("string");
     });

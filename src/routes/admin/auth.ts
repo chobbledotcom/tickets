@@ -3,6 +3,7 @@
  */
 
 import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#lib/crypto.ts";
+import { buildSessionCookie, buildClearedSessionCookie } from "#lib/cookies.ts";
 import {
   clearLoginAttempts,
   isLoginRateLimited,
@@ -13,7 +14,6 @@ import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { nowMs } from "#lib/now.ts";
 import { loginResponse } from "#routes/admin/dashboard.ts";
-import { clearSessionCookie } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import {
@@ -52,7 +52,7 @@ const createLoginSession = async (
 
   return redirect(
     "/admin",
-    `__Host-session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`,
+    buildSessionCookie(token),
   );
 };
 
@@ -139,12 +139,6 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
     await deleteSession(session.token);
     return redirect("/admin", clearSessionCookie);
   });
-
-/**
- * Handle GET /admin/logout - reject with error
- */
-const handleAdminLogoutGet = (): Response =>
-  htmlResponse("Method not allowed. Use POST to logout.", 405);
 
 /** Authentication routes */
 export const authRoutes = defineRoutes({

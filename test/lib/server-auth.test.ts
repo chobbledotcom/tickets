@@ -1,3 +1,4 @@
+import { getSessionCookieName } from "#lib/cookies.ts";
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
@@ -88,7 +89,7 @@ describe("server (admin auth)", () => {
         mockAdminLoginRequest({ username: "testadmin", password }),
       );
       expectAdminRedirect(response);
-      expect(response.headers.get("set-cookie")).toContain("__Host-session=");
+      expect(response.headers.get("set-cookie")).toContain(`${getSessionCookieName()}=`);
     });
 
 
@@ -302,7 +303,7 @@ describe("server (admin auth)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       // Extract the session token from cookie
-      const sessionMatch = cookie.match(/__Host-session=([^;]+)/);
+      const sessionMatch = cookie.match(new RegExp(`${getSessionCookieName()}=([^;]+)`));
       const sessionToken = sessionMatch?.[1];
 
       await handleRequest(

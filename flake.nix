@@ -25,7 +25,6 @@
             echo "  deno task test       - run tests"
             echo "  deno task build:edge - build for edge"
             echo "  deno task precommit  - typecheck + lint + cpd + build + test"
-
             export DB_ENCRYPTION_KEY="$(openssl rand -base64 32)"
             export DB_URL=":memory:"
             export PORT=8080

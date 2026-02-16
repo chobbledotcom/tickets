@@ -4,6 +4,7 @@
 
 import { type Client, createClient } from "@libsql/client";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
+import { getCsrfCookieName, getSessionCookieName } from "#lib/cookies.ts";
 import { resetCurrencyCode, setCurrencyCodeForTest, toMajorUnits } from "#lib/currency.ts";
 import { setDb } from "#lib/db/client.ts";
 import {
@@ -344,7 +345,7 @@ export const randomString = (length: number): string => {
 export const getCsrfTokenFromCookie = async (
   cookie: string,
 ): Promise<string | null> => {
-  const sessionMatch = cookie.match(/__Host-session=([^;]+)/);
+  const sessionMatch = cookie.match(new RegExp(`${getSessionCookieName()}=([^;]+)`));
   if (!sessionMatch?.[1]) return null;
 
   const sessionToken = sessionMatch[1];
@@ -375,7 +376,7 @@ export const getAdminLoginCsrfToken = (setCookie: string | null): string | null 
  * Extract setup CSRF token from set-cookie header
  */
 export const getSetupCsrfToken = (setCookie: string | null): string | null =>
-  getCookieValue(setCookie, "setup_csrf");
+  getCookieValue(setCookie, getCsrfCookieName("setup_csrf")) ?? getCookieValue(setCookie, "setup_csrf");
 
 /**
  * Create a mock setup POST request with CSRF token
@@ -388,7 +389,7 @@ export const mockSetupFormRequest = (
   return mockFormRequest(
     "/setup",
     { accept_agreement: "yes", ...data, csrf_token: csrfToken },
-    `setup_csrf=${csrfToken}`,
+    `${getCsrfCookieName("setup_csrf")}=${csrfToken}`,
   );
 };
 
@@ -396,7 +397,7 @@ export const mockSetupFormRequest = (
  * Extract ticket CSRF token from set-cookie header
  */
 export const getTicketCsrfToken = (setCookie: string | null): string | null =>
-  getCookieValue(setCookie, "csrf_token");
+  getCookieValue(setCookie, getCsrfCookieName("csrf_token")) ?? getCookieValue(setCookie, "csrf_token");
 
 /**
  * Create a mock ticket form POST request with CSRF token
@@ -409,7 +410,7 @@ export const mockTicketFormRequest = (
   return mockFormRequest(
     `/ticket/${slug}`,
     { ...data, csrf_token: csrfToken },
-    `csrf_token=${csrfToken}`,
+    `${getCsrfCookieName("csrf_token")}=${csrfToken}`,
   );
 };
 
@@ -451,7 +452,7 @@ export const testRequest = (
   const headers: Record<string, string> = { host: "localhost" };
 
   if (token) {
-    headers.cookie = `__Host-session=${token}`;
+    headers.cookie = `${getSessionCookieName()}=${token}`;
   } else if (cookie) {
     headers.cookie = cookie;
   }
