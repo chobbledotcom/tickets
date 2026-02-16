@@ -49,6 +49,6 @@ const handleAdminLog = (request: Request): Promise<Response> =>
 
 /** Dashboard routes */
 export const dashboardRoutes = defineRoutes({
-  "GET /admin": (request) => handleAdminGet(request),
-  "GET /admin/log": (request) => handleAdminLog(request),
+  "GET /admin": handleAdminGet,
+  "GET /admin/log": handleAdminLog,
 });

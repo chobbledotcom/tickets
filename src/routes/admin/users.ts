@@ -217,10 +217,21 @@ const handleUserDelete: UserActionHandler = async (user, session, errorPage) => 
   return redirectWithSuccess("/admin/users", "User deleted successfully");
 };
 
+/** Create a route handler that runs a user action by ID */
+const userActionRoute = (handler: UserActionHandler) =>
+  (request: Request, { id }: { id: number }): Promise<Response> =>
+    withUserAction(request, id, handler);
+
+/** Handle POST /admin/users/:id/activate */
+const handleUserActivatePost = userActionRoute(handleUserActivate);
+
+/** Handle POST /admin/users/:id/delete */
+const handleUserDeletePost = userActionRoute(handleUserDelete);
+
 /** User management routes */
 export const usersRoutes = defineRoutes({
-  "GET /admin/users": (request) => handleUsersGet(request),
-  "POST /admin/users": (request) => handleUsersPost(request),
-  "POST /admin/users/:id/activate": (request, { id }) => withUserAction(request, id, handleUserActivate),
-  "POST /admin/users/:id/delete": (request, { id }) => withUserAction(request, id, handleUserDelete),
+  "GET /admin/users": handleUsersGet,
+  "POST /admin/users": handleUsersPost,
+  "POST /admin/users/:id/activate": handleUserActivatePost,
+  "POST /admin/users/:id/delete": handleUserDeletePost,
 });

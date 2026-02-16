@@ -56,10 +56,13 @@ const withValidInvite = async (
   return result instanceof Response ? result : handler(code, result.user, result.username);
 };
 
+/** Route params for invite code routes */
+type InviteCodeParams = { code: string };
+
 /**
  * Handle GET /join/:code
  */
-const handleJoinGet = (_request: Request, code: string): Promise<Response> =>
+const handleJoinGet = (_request: Request, { code }: InviteCodeParams): Promise<Response> =>
   withValidInvite(code, async (code, _user, username) => {
     const csrfToken = await signCsrfToken();
     return htmlResponse(joinPage(code, username, undefined, csrfToken));
@@ -68,9 +71,15 @@ const handleJoinGet = (_request: Request, code: string): Promise<Response> =>
 /**
  * Handle POST /join/:code
  */
+<<<<<<< HEAD
 const handleJoinPost = (request: Request, code: string): Promise<Response> =>
   withValidInvite(code, (code, user, username) =>
     withCsrfForm(
+=======
+const handleJoinPost = (request: Request, { code }: InviteCodeParams): Promise<Response> =>
+  withValidInvite(code, async (code, user, username) => {
+    const csrf = await requireCsrfForm(
+>>>>>>> 8aba18c (Eliminate route table wrapper lambdas with direct handler references (#323))
       request,
       (newToken, message, status) =>
         htmlResponse(joinPage(code, username, message, newToken), status),
@@ -114,9 +123,9 @@ const handleJoinComplete = (): Response =>
 
 /** Join routes */
 const joinRoutes = defineRoutes({
-  "GET /join/complete": () => handleJoinComplete(),
-  "GET /join/:code": (request, { code }) => handleJoinGet(request, code),
-  "POST /join/:code": (request, { code }) => handleJoinPost(request, code),
+  "GET /join/complete": handleJoinComplete,
+  "GET /join/:code": handleJoinGet,
+  "POST /join/:code": handleJoinPost,
 });
 
 export const routeJoin = createRouter(joinRoutes);

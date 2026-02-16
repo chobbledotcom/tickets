@@ -209,6 +209,6 @@ const handleAdminCalendarExport = (request: Request) =>
 
 /** Calendar routes */
 export const calendarRoutes = defineRoutes({
-  "GET /admin/calendar": (request) => handleAdminCalendarGet(request),
-  "GET /admin/calendar/export": (request) => handleAdminCalendarExport(request),
+  "GET /admin/calendar": handleAdminCalendarGet,
+  "GET /admin/calendar/export": handleAdminCalendarExport,
 });
