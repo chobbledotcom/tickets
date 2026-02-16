@@ -164,14 +164,9 @@ describe("html", () => {
       expect(html).toContain("readonly");
     });
 
-    test("embed code includes iframe-resizer parent script", () => {
+    test("iframe embed is a plain iframe without resizer scripts", () => {
       const html = adminEventPage({ event, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("iframe-resizer-parent.js");
-    });
-
-    test("embed code includes iframe-resizer init call", () => {
-      const html = adminEventPage({ event, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
-      expect(html).toContain("iframeResize");
+      expect(html).not.toContain("iframeResize");
     });
 
     test("renders empty attendees state", () => {

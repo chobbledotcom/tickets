@@ -2,7 +2,7 @@
  * Embed code generation - shared by single-event and multi-booking views
  */
 
-import { EMBED_JS_PATH, IFRAME_RESIZER_PARENT_JS_PATH } from "#src/config/asset-paths.ts";
+import { EMBED_JS_PATH } from "#src/config/asset-paths.ts";
 
 const DEFAULT_IFRAME_HEIGHT = "600px";
 
@@ -30,12 +30,9 @@ export const buildEmbedSnippets = (url: string): EmbedSnippets => {
   const origin = new URL(url).origin;
   const events = extractEventSlugs(url).join("+");
   const script =
-    `<script async src="${origin}${EMBED_JS_PATH}" data-events="${events}"` +
-    ` data-resizer-src="${origin}${IFRAME_RESIZER_PARENT_JS_PATH}"></script>`;
+    `<script async src="${origin}${EMBED_JS_PATH}" data-events="${events}"></script>`;
   const iframe =
-    `<script src="${origin}${IFRAME_RESIZER_PARENT_JS_PATH}"></script>` +
-    `<iframe src="${appendIframeParam(url)}" loading="lazy" style="border: none; width: 100%; height: ${DEFAULT_IFRAME_HEIGHT};">Loading..</iframe>` +
-    `<script>iframeResize({license:'GPLv3'},document.currentScript.previousElementSibling)</script>`;
+    `<iframe src="${appendIframeParam(url)}" loading="lazy" style="border: none; width: 100%; height: ${DEFAULT_IFRAME_HEIGHT};">Loading..</iframe>`;
 
   return { script, iframe };
 };

@@ -16,7 +16,7 @@
   iframe.setAttribute("title", title);
 
   const parentScript = document.createElement("script");
-  parentScript.src = script.dataset.resizerSrc!;
+  parentScript.src = `${origin}/iframe-resizer-parent.js`;
   parentScript.async = true;
   parentScript.fetchPriority = "high";
   parentScript.onload = () => {
