@@ -3,7 +3,6 @@
  */
 
 import { map, pipe } from "#fp";
-import { getTz } from "#lib/config.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
@@ -25,10 +24,8 @@ const ticketCount = (count: number): string =>
 /** Render a single ticket card */
 const renderTicketCard = ({ entry, qrSvg }: TicketCard): string => {
   const { event, attendee } = entry;
-  const tz = getTz();
-
   const eventDateHtml = event.date
-    ? `<div class="ticket-card-date">${escapeHtml(formatDatetimeLabel(event.date, tz))}</div>`
+    ? `<div class="ticket-card-date">${escapeHtml(formatDatetimeLabel(event.date))}</div>`
     : "";
 
   const locationHtml = event.location
