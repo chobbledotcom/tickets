@@ -40,6 +40,11 @@ const STATUS_STYLES = {
   error: { bg: "#f8d7da", color: "#721c24", border: "#f5c6cb" },
 };
 
+const formatTicketCount = (count) => {
+  const safeCount = Number.isFinite(count) ? count : 1;
+  return `${safeCount} ticket${safeCount === 1 ? "" : "s"}`;
+};
+
 /** Show a status message with color */
 const showStatus = (el, message, type) => {
   const s = STATUS_STYLES[type];
@@ -59,10 +64,14 @@ const showStatus = (el, message, type) => {
 const handleResult = (el, result) => {
   switch (result.status) {
     case "checked_in":
-      showStatus(el, `${result.name} checked in`, "success");
+      showStatus(el, `${result.name} checked in (${formatTicketCount(result.quantity)})`, "success");
       break;
     case "already_checked_in":
-      showStatus(el, `${result.name} already checked in`, "warning");
+      showStatus(
+        el,
+        `${result.name} already checked in (${formatTicketCount(result.quantity)})`,
+        "warning",
+      );
       break;
     case "not_found":
       showStatus(el, "Ticket not found", "error");

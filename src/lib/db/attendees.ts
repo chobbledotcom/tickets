@@ -17,6 +17,7 @@ import {
 } from "#lib/crypto.ts";
 import { getDb, inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
+import { deleteProcessedPaymentsForAttendee } from "#lib/db/processed-payments.ts";
 import { nowIso } from "#lib/now.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
 import { col, defineTable } from "#lib/db/table.ts";
@@ -205,8 +206,10 @@ export const getAttendee = async (
 /**
  * Delete an attendee (for cleanup on payment failure)
  */
-export const deleteAttendee = (attendeeId: number): Promise<void> =>
-  attendeesTable.deleteById(attendeeId);
+export const deleteAttendee = async (attendeeId: number): Promise<void> => {
+  await deleteProcessedPaymentsForAttendee(attendeeId);
+  await attendeesTable.deleteById(attendeeId);
+};
 
 /** Result of atomic attendee creation */
 export type CreateAttendeeResult =

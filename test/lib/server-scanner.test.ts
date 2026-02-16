@@ -146,6 +146,7 @@ describe("QR Scanner", () => {
       const result = await response.json();
       expect(result.status).toBe("checked_in");
       expect(result.name).toBe("Alice");
+      expect(result.quantity).toBe(1);
     });
 
     test("returns already_checked_in for checked-in attendee", async () => {
@@ -165,6 +166,7 @@ describe("QR Scanner", () => {
       const result = await response.json();
       expect(result.status).toBe("already_checked_in");
       expect(result.name).toBe("Bob");
+      expect(result.quantity).toBe(1);
     });
 
     test("returns wrong_event for attendee from different event", async () => {

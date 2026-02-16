@@ -212,16 +212,16 @@ describe("check-in (/checkin/:tokens)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/checkin/${token}?message=Checked%20in`);
+      expect(response.headers.get("location")).toBe(`/checkin/${token}?message=Checked%20in%201%20ticket`);
 
       // Follow redirect and verify checked-in state
-      const viewResponse = await awaitTestRequest(`/checkin/${token}?message=Checked%20in`, {
+      const viewResponse = await awaitTestRequest(`/checkin/${token}?message=Checked%20in%201%20ticket`, {
         cookie: session.cookie,
       });
       const body = await viewResponse.text();
       expect(body).toContain("Yes");
       expect(body).toContain('class="success"');
-      expect(body).toContain("Checked in");
+      expect(body).toContain("Checked in 1 ticket");
       expect(body).toContain('class="bulk-checkout"');
       expect(body).toContain("Check Out All");
       expect(body).toContain('value="false"');
@@ -259,7 +259,7 @@ describe("check-in (/checkin/:tokens)", () => {
       expect(body).toContain("Checked out");
     });
 
-    test("duplicate check-in does not undo previous check-in", async () => {
+    test("duplicate check-in shows already checked in message", async () => {
       const { token, session } = await setupCheckinTest("Eve", "eve@test.com");
 
       // Check in twice (simulates two tabs)
@@ -278,14 +278,34 @@ describe("check-in (/checkin/:tokens)", () => {
         ),
       );
       expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        `/checkin/${token}?message=Already%20checked%20in%201%20ticket`,
+      );
 
       // Follow redirect and verify still checked in
-      const location = response.headers.get("location")!;
-      const viewResponse = await awaitTestRequest(location, {
-        cookie: session.cookie,
-      });
+      const viewResponse = await awaitTestRequest(
+        `/checkin/${token}?message=Already%20checked%20in%201%20ticket`,
+        { cookie: session.cookie },
+      );
       const body = await viewResponse.text();
       expect(body).toContain("Yes");
+      expect(body).toContain("Already checked in 1 ticket");
+    });
+
+    test("check-in with quantity > 1 shows plural ticket count", async () => {
+      const { token, session } = await setupCheckinTest("Hal", "hal@test.com", { maxQuantity: 5 }, 3);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/checkin/${token}`,
+          { csrf_token: session.csrfToken, check_in: "true" },
+          session.cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        `/checkin/${token}?message=Checked%20in%203%20tickets`,
+      );
     });
 
     test("redirects to admin for unauthenticated POST", async () => {
