@@ -289,7 +289,7 @@ export const mockAdminLoginRequest = (
   mockFormRequest(
     "/admin/login",
     { ...data, csrf_token: csrfToken },
-    `__Host-admin_login_csrf=${csrfToken}`,
+    `${getCsrfCookieName("admin_login_csrf")}=${csrfToken}`,
   );
 
 /**
@@ -370,7 +370,22 @@ const getCookieValue = (
  * Extract admin login CSRF token from set-cookie header
  */
 export const getAdminLoginCsrfToken = (setCookie: string | null): string | null =>
-  getCookieValue(setCookie, "__Host-admin_login_csrf");
+  getCookieValue(setCookie, getCsrfCookieName("admin_login_csrf"));
+
+/**
+ * Extract join CSRF token from set-cookie header
+ */
+export const getJoinCsrfToken = (setCookie: string | null): string | null =>
+  getCookieValue(setCookie, getCsrfCookieName("join_csrf")) ?? getCookieValue(setCookie, "join_csrf");
+
+/**
+ * Extract join CSRF token from set-cookie header, throwing if missing
+ */
+export const requireJoinCsrfToken = (setCookie: string | null): string => {
+  const token = getJoinCsrfToken(setCookie);
+  if (!token) throw new Error("Failed to get CSRF token for join flow");
+  return token;
+};
 
 /**
  * Extract setup CSRF token from set-cookie header
@@ -1411,4 +1426,3 @@ export const adminEventPage =
     const response = await awaitTestRequest(pathFn(ctx), { cookie: ctx.cookie });
     return { ...ctx, response };
   };
-

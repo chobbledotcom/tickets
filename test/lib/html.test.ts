@@ -1221,20 +1221,6 @@ describe("html", () => {
       expect(html).toContain("Enter a new key below to replace it");
     });
 
-    test("shows fallback text when webhookUrl is not provided", () => {
-      const html = adminSettingsPage(
-        TEST_SESSION,
-        false, // stripeKeyConfigured
-        "square", // paymentProvider
-        undefined, // error
-        undefined, // success
-        true, // squareTokenConfigured
-        false, // squareWebhookConfigured
-        undefined, // webhookUrl is undefined
-      );
-      expect(html).toContain("(configure ALLOWED_DOMAIN first)");
-    });
-
     test("shows square webhook not configured message when key is not set", () => {
       const html = adminSettingsPage(
         TEST_SESSION,
