@@ -3,7 +3,7 @@
  */
 
 import { deriveKEK, unwrapKey, wrapKeyWithToken } from "#lib/crypto.ts";
-import { buildSessionCookie, clearSessionCookie } from "#lib/cookies.ts";
+import { buildSessionCookie, clearSessionCookie, getCsrfCookieName } from "#lib/cookies.ts";
 import {
   clearLoginAttempts,
   isLoginRateLimited,
@@ -27,9 +27,6 @@ import {
 } from "#routes/utils.ts";
 import { loginFields, type LoginFormValues } from "#templates/fields.ts";
 import { getEnv } from "#lib/env.ts";
-
-/** Cookie name for login CSRF token */
-const LOGIN_CSRF_COOKIE = "__Host-admin_login_csrf";
 
 /** Random delay between 100-200ms to prevent timing attacks */
 const randomDelay = (): Promise<void> =>
@@ -68,7 +65,7 @@ const handleAdminLogin = async (
   const form = await parseFormData(request);
 
   // Validate login CSRF token (double-submit cookie pattern)
-  const csrfCookie = cookies.get(LOGIN_CSRF_COOKIE);
+  const csrfCookie = cookies.get(getCsrfCookieName("admin_login_csrf"));
   const csrfForm = form.get("csrf_token");
   if (!csrfCookie || !csrfForm || !validateCsrfToken(csrfCookie, csrfForm)) {
     return loginResponse("Invalid or expired form. Please try again.", 403);

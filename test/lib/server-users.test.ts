@@ -1,4 +1,4 @@
-import { getSessionCookieName } from "#lib/cookies.ts";
+import { getCsrfCookieName, getSessionCookieName } from "#lib/cookies.ts";
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
@@ -19,6 +19,7 @@ import {
   createTestDbWithSetup,
   expectAdminRedirect,
   expectRedirect,
+  requireJoinCsrfToken,
   loginAsAdmin,
   mockAdminLoginRequest,
   mockFormRequest,
@@ -470,9 +471,7 @@ describe("server (multi-user admin)", () => {
       // Visit join page to get CSRF token
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
       const joinCookie = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrfMatch = joinCookie.match(/join_csrf=([^;]+)/);
-      expect(joinCsrfMatch).not.toBeNull();
-      const joinCsrf = joinCsrfMatch![1]!;
+      const joinCsrf = requireJoinCsrfToken(joinCookie);
 
       // Submit password
       const joinPostResponse = await handleRequest(
@@ -483,7 +482,7 @@ describe("server (multi-user admin)", () => {
             password_confirm: "newpassword123",
             csrf_token: joinCsrf,
           },
-          `join_csrf=${joinCsrf}`,
+          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
         ),
       );
 
@@ -512,8 +511,7 @@ describe("server (multi-user admin)", () => {
       // Get CSRF
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
       const joinCookie = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrfMatch = joinCookie.match(/join_csrf=([^;]+)/);
-      const joinCsrf = joinCsrfMatch![1]!;
+      const joinCsrf = requireJoinCsrfToken(joinCookie);
 
       // Submit mismatched passwords
       const joinPostResponse = await handleRequest(
@@ -524,7 +522,7 @@ describe("server (multi-user admin)", () => {
             password_confirm: "differentpassword",
             csrf_token: joinCsrf,
           },
-          `join_csrf=${joinCsrf}`,
+          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
         ),
       );
 
@@ -549,8 +547,7 @@ describe("server (multi-user admin)", () => {
       // Get CSRF
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
       const joinCookie = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrfMatch = joinCookie.match(/join_csrf=([^;]+)/);
-      const joinCsrf = joinCsrfMatch![1]!;
+      const joinCsrf = requireJoinCsrfToken(joinCookie);
 
       // Submit short password
       const joinPostResponse = await handleRequest(
@@ -561,7 +558,7 @@ describe("server (multi-user admin)", () => {
             password_confirm: "short",
             csrf_token: joinCsrf,
           },
-          `join_csrf=${joinCsrf}`,
+          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
         ),
       );
 
@@ -644,14 +641,13 @@ describe("server (multi-user admin)", () => {
       // Set password via join flow
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
       const joinCookieHeader = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrfMatch = joinCookieHeader.match(/join_csrf=([^;]+)/);
-      const joinCsrf = joinCsrfMatch![1]!;
+      const joinCsrf = requireJoinCsrfToken(joinCookieHeader);
 
       await handleRequest(
         mockFormRequest(
           `/join/${inviteCode}`,
           { password: "newpassword123", password_confirm: "newpassword123", csrf_token: joinCsrf },
-          `join_csrf=${joinCsrf}`,
+          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
         ),
       );
 
@@ -741,14 +737,13 @@ describe("server (multi-user admin)", () => {
 
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
       const joinCookieHeader = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrfMatch = joinCookieHeader.match(/join_csrf=([^;]+)/);
-      const joinCsrf = joinCsrfMatch![1]!;
+      const joinCsrf = requireJoinCsrfToken(joinCookieHeader);
 
       await handleRequest(
         mockFormRequest(
           `/join/${inviteCode}`,
           { password: "newpassword123", password_confirm: "newpassword123", csrf_token: joinCsrf },
-          `join_csrf=${joinCsrf}`,
+          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
         ),
       );
 
@@ -819,7 +814,7 @@ describe("server (multi-user admin)", () => {
         mockFormRequest(
           "/join/expired-post-123",
           { password: "pass12345678", password_confirm: "pass12345678", csrf_token: "fake" },
-          "join_csrf=fake",
+          `${getCsrfCookieName("join_csrf")}=fake`,
         ),
       );
       expect(response.status).toBe(410);
@@ -844,7 +839,7 @@ describe("server (multi-user admin)", () => {
         mockFormRequest(
           `/join/${inviteCode}`,
           { password: "newpassword123", password_confirm: "newpassword123", csrf_token: "wrong" },
-          "join_csrf=different",
+          `${getCsrfCookieName("join_csrf")}=different`,
         ),
       );
       expect(response.status).toBe(403);
@@ -894,7 +889,7 @@ describe("server (multi-user admin)", () => {
           headers: {
             host: "localhost",
             "content-type": "application/x-www-form-urlencoded",
-            cookie: "join_csrf=sometoken",
+            cookie: `${getCsrfCookieName("join_csrf")}=sometoken`,
           },
           body,
         }),
@@ -917,15 +912,14 @@ describe("server (multi-user admin)", () => {
       // Get valid CSRF
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
       const joinCookieHeader = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrfMatch = joinCookieHeader.match(/join_csrf=([^;]+)/);
-      const joinCsrf = joinCsrfMatch![1]!;
+      const joinCsrf = requireJoinCsrfToken(joinCookieHeader);
 
       // POST with missing password fields
       const response = await handleRequest(
         mockFormRequest(
           `/join/${inviteCode}`,
           { password: "", password_confirm: "", csrf_token: joinCsrf },
-          `join_csrf=${joinCsrf}`,
+          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
         ),
       );
       expect(response.status).toBe(400);
@@ -964,14 +958,13 @@ describe("server (multi-user admin)", () => {
 
       const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
       const joinCookieHeader = joinGetResponse.headers.get("set-cookie") || "";
-      const joinCsrfMatch = joinCookieHeader.match(/join_csrf=([^;]+)/);
-      const joinCsrf = joinCsrfMatch![1]!;
+      const joinCsrf = requireJoinCsrfToken(joinCookieHeader);
 
       await handleRequest(
         mockFormRequest(
           `/join/${inviteCode}`,
           { password: "newpassword123", password_confirm: "newpassword123", csrf_token: joinCsrf },
-          `join_csrf=${joinCsrf}`,
+          `${getCsrfCookieName("join_csrf")}=${joinCsrf}`,
         ),
       );
 
@@ -1220,7 +1213,7 @@ describe("server (multi-user admin)", () => {
         mockFormRequest(
           "/join/nonexistent-code",
           { password: "testpass123", password_confirm: "testpass123", csrf_token: "csrf" },
-          "join_csrf=csrf",
+          `${getCsrfCookieName("join_csrf")}=csrf`,
         ),
       );
       expect(response.status).toBe(404);

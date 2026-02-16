@@ -21,6 +21,7 @@ import {
   expectStatus,
   generateTestEventName,
   getCsrfTokenFromCookie,
+  getJoinCsrfToken,
   getSetupCsrfToken,
   getAdminLoginCsrfToken,
   getTicketCsrfToken,
@@ -33,6 +34,7 @@ import {
   resetDb,
   resetTestSession,
   resetTestSlugCounter,
+  requireJoinCsrfToken,
   setupStripe,
   submitTicketForm,
   testRequest,
@@ -286,9 +288,45 @@ describe("test-utils", () => {
     });
 
     test("extracts admin login csrf value from set-cookie header", () => {
-      expect(getAdminLoginCsrfToken("__Host-admin_login_csrf=abc123; Path=/")).toBe(
+      expect(getAdminLoginCsrfToken("admin_login_csrf=abc123; Path=/")).toBe(
         "abc123",
       );
+    });
+  });
+
+  describe("getJoinCsrfToken", () => {
+    test("returns null when set-cookie header is null", () => {
+      expect(getJoinCsrfToken(null)).toBe(null);
+    });
+
+    test("extracts join_csrf value from set-cookie header", () => {
+      expect(getJoinCsrfToken("join_csrf=abc123; Path=/")).toBe("abc123");
+    });
+
+    test("falls back to non-prefixed join_csrf when __Secure- is expected", () => {
+      const originalDomain = Deno.env.get("ALLOWED_DOMAIN");
+      Deno.env.set("ALLOWED_DOMAIN", "example.com");
+      try {
+        expect(getJoinCsrfToken("join_csrf=abc123; Path=/")).toBe("abc123");
+      } finally {
+        if (originalDomain === undefined) {
+          Deno.env.delete("ALLOWED_DOMAIN");
+        } else {
+          Deno.env.set("ALLOWED_DOMAIN", originalDomain);
+        }
+      }
+    });
+  });
+
+  describe("requireJoinCsrfToken", () => {
+    test("throws when join csrf cookie is missing", () => {
+      expect(() => requireJoinCsrfToken("other_cookie=value")).toThrow(
+        "Failed to get CSRF token for join flow",
+      );
+    });
+
+    test("returns join csrf token when present", () => {
+      expect(requireJoinCsrfToken(`join_csrf=abc123; Path=/`)).toBe("abc123");
     });
   });
 

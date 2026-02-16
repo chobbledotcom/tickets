@@ -60,7 +60,7 @@ describe("server (admin auth)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Login");
-      expect(response.headers.get("set-cookie")).toContain("__Host-admin_login_csrf=");
+      expect(response.headers.get("set-cookie")).toContain("admin_login_csrf=");
     });
   });
 
