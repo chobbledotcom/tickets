@@ -30,8 +30,8 @@ import { type CalendarAttendee, generateCalendarCsv } from "#templates/csv.ts";
 /** Build a map of YYYY-MM-DD → event IDs for standard events that have a date */
 const buildStandardEventDateMap = (
   events: EventWithCount[],
-  tz: string,
 ): Map<string, number[]> => {
+  const tz = getTz();
   const dateMap = new Map<string, number[]>();
   for (const event of events) {
     const calDate = eventDateToCalendarDate(event.date, tz);
@@ -121,9 +121,9 @@ const withCalendarSession = (
 ) => requireSessionOr(request, (session) => handler(session, getDateFilter(request)));
 
 /** Load standard events and build their date map */
-const loadStandardEventContext = async (tz: string) => {
+const loadStandardEventContext = async () => {
   const standardEvents = await getAllStandardEvents();
-  const standardEventDateMap = buildStandardEventDateMap(standardEvents, tz);
+  const standardEventDateMap = buildStandardEventDateMap(standardEvents);
   return { standardEvents, standardEventDateMap };
 };
 
@@ -149,7 +149,7 @@ const handleAdminCalendarGet = (request: Request) =>
       getAllDailyEvents(),
       getDailyEventAttendeeDates(),
       getActiveHolidays(tz),
-      loadStandardEventContext(tz),
+      loadStandardEventContext(),
     ]);
 
     const allEvents = [...dailyEvents, ...standardCtx.standardEvents];
@@ -187,12 +187,11 @@ const handleAdminCalendarExport = (request: Request) =>
   withCalendarSession(request, async (session, dateFilter) => {
     if (!dateFilter) return redirect("/admin/calendar");
 
-    const tz = getTz();
     const privateKey = (await getPrivateKey(session))!;
     const [dailyEvents, rawDailyAttendees, standardCtx] = await Promise.all([
       getAllDailyEvents(),
       getDailyEventAttendeesByDate(dateFilter),
-      loadStandardEventContext(tz),
+      loadStandardEventContext(),
     ]);
 
     const [dailyDecrypted, standardAttendees] = await Promise.all([
