@@ -79,11 +79,17 @@ const withAttendee = async (
   return data ? handler(data) : notFoundResponse();
 };
 
+/** Route params for event-scoped routes */
+type EventRouteParams = { id: number };
+
+/** Route params for attendee-scoped routes */
+type AttendeeRouteParams = { eventId: number; attendeeId: number };
+
 /** Auth + load attendee GET handler (shared by delete and refund GET routes) */
 const attendeeGetRoute = (
   handler: (data: AttendeeWithEvent, session: AuthSession) => Response | Promise<Response>,
 ) =>
-  (request: Request, eventId: number, attendeeId: number): Promise<Response> =>
+  (request: Request, { eventId, attendeeId }: AttendeeRouteParams): Promise<Response> =>
     requireSessionOr(request, (session) =>
       withAttendee(session, eventId, attendeeId, (data) => handler(data, session)));
 
@@ -129,7 +135,7 @@ type AttendeeFormAction = (
 
 /** Create an attendee form handler with typed IDs */
 const attendeeFormAction = (handler: AttendeeFormAction) =>
-  (request: Request, eventId: number, attendeeId: number): Promise<Response> =>
+  (request: Request, { eventId, attendeeId }: AttendeeRouteParams): Promise<Response> =>
     withAttendeeForm(request, eventId, attendeeId, (data, session, form) =>
       handler(data, session, form, eventId, attendeeId));
 
@@ -207,9 +213,9 @@ const getRefundable = filter((a: Attendee) => a.payment_id !== "");
 /** Handle GET /admin/event/:id/refund-all */
 const handleAdminRefundAllGet = (
   request: Request,
-  eventId: number,
+  { id }: EventRouteParams,
 ): Promise<Response> =>
-  withEventAttendeesAuth(request, eventId, (event, attendees, session) => {
+  withEventAttendeesAuth(request, id, (event, attendees, session) => {
     const count = getRefundable(attendees).length;
     return count === 0
       ? htmlResponse(adminRefundAllAttendeesPage(event, 0, session, NO_REFUNDABLE_ERROR), 400)
@@ -277,16 +283,16 @@ const processRefundAll = async (
 /** Handle POST /admin/event/:id/refund-all */
 const handleAdminRefundAllPost = (
   request: Request,
-  eventId: number,
+  { id }: EventRouteParams,
 ): Promise<Response> =>
   withAuthForm(request, (session, form) =>
-    withDecryptedAttendees(session, eventId, (event, attendees) =>
+    withDecryptedAttendees(session, id, (event, attendees) =>
       processRefundAll(event, attendees, session, form)));
 
 /** Handle POST /admin/event/:eventId/attendee (add attendee manually) */
 const handleAddAttendee = (
   request: Request,
-  eventId: number,
+  { eventId }: { eventId: number },
 ): Promise<Response> =>
   withAuthForm(request, async (_session, form) => {
     const event = await getEventWithCount(eventId);
@@ -376,7 +382,7 @@ const loadAttendeeForEdit = async (
 /** Handle GET /admin/attendees/:attendeeId */
 const handleEditAttendeeGet = (
   request: Request,
-  attendeeId: number,
+  { attendeeId }: { attendeeId: number },
 ): Promise<Response> =>
   requireSessionOr(request, async (session) => {
     const data = await loadAttendeeForEdit(session, attendeeId);
@@ -393,7 +399,7 @@ const handleEditAttendeeGet = (
 /** Handle POST /admin/attendees/:attendeeId */
 const handleEditAttendeePost = (
   request: Request,
-  attendeeId: number,
+  { attendeeId }: { attendeeId: number },
 ): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
     const data = await loadAttendeeForEdit(session, attendeeId);
@@ -462,30 +468,17 @@ const handleResendWebhook = attendeeFormAction(async (data, session, form, event
 
 /** Attendee routes */
 export const attendeesRoutes = defineRoutes({
-  "GET /admin/attendees/:attendeeId": (request, { attendeeId }) =>
-    handleEditAttendeeGet(request, attendeeId),
-  "POST /admin/attendees/:attendeeId": (request, { attendeeId }) =>
-    handleEditAttendeePost(request, attendeeId),
-  "GET /admin/event/:eventId/attendee/:attendeeId/delete": (request, { eventId, attendeeId }) =>
-    handleAdminAttendeeDeleteGet(request, eventId, attendeeId),
-  "POST /admin/event/:eventId/attendee": (request, { eventId }) =>
-    handleAddAttendee(request, eventId),
-  "POST /admin/event/:eventId/attendee/:attendeeId/delete": (request, { eventId, attendeeId }) =>
-    handleAttendeeDelete(request, eventId, attendeeId),
-  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete": (request, { eventId, attendeeId }) =>
-    handleAttendeeDelete(request, eventId, attendeeId),
-  "POST /admin/event/:eventId/attendee/:attendeeId/checkin": (request, { eventId, attendeeId }) =>
-    handleAttendeeCheckin(request, eventId, attendeeId),
-  "GET /admin/event/:eventId/attendee/:attendeeId/refund": (request, { eventId, attendeeId }) =>
-    handleAdminAttendeeRefundGet(request, eventId, attendeeId),
-  "POST /admin/event/:eventId/attendee/:attendeeId/refund": (request, { eventId, attendeeId }) =>
-    handleAttendeeRefund(request, eventId, attendeeId),
-  "GET /admin/event/:id/refund-all": (request, { id }) =>
-    handleAdminRefundAllGet(request, id),
-  "POST /admin/event/:id/refund-all": (request, { id }) =>
-    handleAdminRefundAllPost(request, id),
-  "GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook": (request, { eventId, attendeeId }) =>
-    handleAdminResendWebhookGet(request, eventId, attendeeId),
-  "POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook": (request, { eventId, attendeeId }) =>
-    handleResendWebhook(request, eventId, attendeeId),
+  "GET /admin/attendees/:attendeeId": handleEditAttendeeGet,
+  "POST /admin/attendees/:attendeeId": handleEditAttendeePost,
+  "GET /admin/event/:eventId/attendee/:attendeeId/delete": handleAdminAttendeeDeleteGet,
+  "POST /admin/event/:eventId/attendee": handleAddAttendee,
+  "POST /admin/event/:eventId/attendee/:attendeeId/delete": handleAttendeeDelete,
+  "DELETE /admin/event/:eventId/attendee/:attendeeId/delete": handleAttendeeDelete,
+  "POST /admin/event/:eventId/attendee/:attendeeId/checkin": handleAttendeeCheckin,
+  "GET /admin/event/:eventId/attendee/:attendeeId/refund": handleAdminAttendeeRefundGet,
+  "POST /admin/event/:eventId/attendee/:attendeeId/refund": handleAttendeeRefund,
+  "GET /admin/event/:id/refund-all": handleAdminRefundAllGet,
+  "POST /admin/event/:id/refund-all": handleAdminRefundAllPost,
+  "GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook": handleAdminResendWebhookGet,
+  "POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook": handleResendWebhook,
 });

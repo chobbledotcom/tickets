@@ -56,6 +56,7 @@ const createLoginSession = async (
  */
 const handleAdminLogin = async (
   request: Request,
+  _params: Record<string, never>,
   server?: ServerContext,
 ): Promise<Response> => {
   await randomDelay();
@@ -133,10 +134,12 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
     return redirect("/admin", clearSessionCookie());
   });
 
+/** Handle GET /admin/login */
+const handleLoginGet = (): Promise<Response> => loginResponse();
+
 /** Authentication routes */
 export const authRoutes = defineRoutes({
-  "GET /admin/login": () => loginResponse(),
-  "POST /admin/login": (request, _params, server) =>
-    handleAdminLogin(request, server),
-  "POST /admin/logout": (request) => handleAdminLogout(request),
+  "GET /admin/login": handleLoginGet,
+  "POST /admin/login": handleAdminLogin,
+  "POST /admin/logout": handleAdminLogout,
 });

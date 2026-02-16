@@ -49,7 +49,7 @@ const getEventName = async (eventId: number): Promise<string> => {
  * Scanner is intentionally one-way (check-in only, no check-out) to prevent
  * accidental check-outs from double-scans during rapid door check-in.
  */
-const handleScanPost = (request: Request, eventId: number): Promise<Response> =>
+const handleScanPost = (request: Request, { id }: { id: number }): Promise<Response> =>
   withAuthJson(request, async (session, body) => {
     if (typeof body.token !== "string") {
       return jsonResponse({ status: "error", message: "Missing token" }, 400);
@@ -70,7 +70,7 @@ const handleScanPost = (request: Request, eventId: number): Promise<Response> =>
     }
 
     // Wrong event - let client prompt for confirmation
-    if (attendee.event_id !== eventId && !force) {
+    if (attendee.event_id !== id && !force) {
       const eventName = await getEventName(attendee.event_id);
       return jsonResponse({
         status: "wrong_event",
@@ -104,8 +104,6 @@ export const SCAN_API_PATTERN = /^\/admin\/event\/\d+\/scan$/;
 
 /** Scanner routes */
 export const scannerRoutes = defineRoutes({
-  "GET /admin/event/:id/scanner": (request, { id }) =>
-    handleScannerGet(request, id),
-  "POST /admin/event/:id/scan": (request, { id }) =>
-    handleScanPost(request, id),
+  "GET /admin/event/:id/scanner": handleScannerGet,
+  "POST /admin/event/:id/scan": handleScanPost,
 });

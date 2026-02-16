@@ -16,5 +16,5 @@ const handleAdminGuideGet = (request: Request): Promise<Response> =>
 
 /** Guide routes */
 export const guideRoutes = defineRoutes({
-  "GET /admin/guide": (request) => handleAdminGuideGet(request),
+  "GET /admin/guide": handleAdminGuideGet,
 });
