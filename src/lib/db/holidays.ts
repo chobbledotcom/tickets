@@ -3,6 +3,7 @@
  */
 
 import { decrypt, encrypt } from "#lib/crypto.ts";
+import { getTz } from "#lib/config.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import type { InStatement } from "@libsql/client";
 import { getDb, resultRows } from "#lib/db/client.ts";
@@ -46,8 +47,10 @@ export const getAllHolidays = (): Promise<Holiday[]> =>
  * Get active holidays (end_date >= today) for date computation.
  * "today" is computed in the configured timezone.
  */
-export const getActiveHolidays = (tz: string): Promise<Holiday[]> =>
-  queryHolidays({
+export const getActiveHolidays = (): Promise<Holiday[]> => {
+  const tz = getTz();
+  return queryHolidays({
     sql: "SELECT * FROM holidays WHERE end_date >= ? ORDER BY start_date ASC",
     args: [todayInTz(tz)],
   });
+};

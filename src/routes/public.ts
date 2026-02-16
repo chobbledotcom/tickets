@@ -4,7 +4,7 @@
 
 import { compact, filter, map, pipe, reduce } from "#fp";
 import { buildCsrfCookie, getCsrfCookieName } from "#lib/cookies.ts";
-import { getCurrencyCode, getTz, isPaymentsEnabled } from "#lib/config.ts";
+import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
 import { getTermsAndConditionsFromDb } from "#lib/db/settings.ts";
 import { getAvailableDates } from "#lib/dates.ts";
 import { checkBatchAvailability, createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
@@ -107,8 +107,7 @@ const isIframeRequest = (url: string): boolean =>
 /** Compute available dates for a daily event, or undefined for standard */
 const computeDatesForEvent = async (event: EventWithCount): Promise<string[] | undefined> => {
   if (event.event_type !== "daily") return undefined;
-  const tz = getTz();
-  return getAvailableDates(event, await getActiveHolidays(tz), tz);
+  return getAvailableDates(event, await getActiveHolidays());
 };
 
 export const handleTicketGet = (slug: string, request: Request): Promise<Response> =>
@@ -332,8 +331,7 @@ const processTicketReservation = async (
   let date: string | null = null;
   let dates: string[] | undefined;
   if (event.event_type === "daily") {
-    const tz = getTz();
-    dates = getAvailableDates(event, await getActiveHolidays(tz), tz);
+    dates = getAvailableDates(event, await getActiveHolidays());
     date = validateSubmittedDate(form, dates);
     if (!date) {
       return ticketResponse(event, currentToken, inIframe, dates, terms)("Please select a valid date");
@@ -425,9 +423,8 @@ const withActiveMultiEvents = async (
 const computeSharedDates = async (events: MultiTicketEvent[]): Promise<string[] | undefined> => {
   const dailyEvents = events.filter((e) => e.event.event_type === "daily");
   if (dailyEvents.length === 0) return undefined;
-  const tz = getTz();
-  const holidays = await getActiveHolidays(tz);
-  const dateSets = dailyEvents.map((e) => new Set(getAvailableDates(e.event, holidays, tz)));
+  const holidays = await getActiveHolidays();
+  const dateSets = dailyEvents.map((e) => new Set(getAvailableDates(e.event, holidays)));
   return [...dateSets[0]!].filter((d) => dateSets.every((s) => s.has(d)));
 };
 
