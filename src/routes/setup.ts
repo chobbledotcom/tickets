@@ -2,6 +2,7 @@
  * Setup routes - initial system configuration
  */
 
+import { buildCsrfCookie, getCsrfCookieName } from "#lib/cookies.ts";
 import { settingsApi } from "#lib/db/settings.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
@@ -18,15 +19,11 @@ import {
 import { setupFields, type SetupFormValues } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
-/** Cookie for CSRF token with standard security options */
-const setupCsrfCookie = (token: string): string =>
-  `setup_csrf=${token}; HttpOnly; Secure; SameSite=Strict; Path=/setup; Max-Age=3600`;
-
 /** Response helper with setup CSRF cookie - curried to thread token through */
 const setupResponse =
   (token: string) =>
   (error?: string, status = 200) =>
-    htmlResponseWithCookie(setupCsrfCookie(token))(
+    htmlResponseWithCookie(buildCsrfCookie("setup_csrf", token, { path: "/setup" }))(
       setupPage(error, token),
       status,
     );
@@ -119,7 +116,7 @@ const handleSetupPost = async (
 
   // Validate CSRF token (double-submit cookie pattern)
   const cookies = parseCookies(request);
-  const cookieCsrf = cookies.get("setup_csrf") || "";
+  const cookieCsrf = cookies.get(getCsrfCookieName("setup_csrf")) || "";
   logDebug("Setup", `Cookies parsed: ${Array.from(cookies.keys()).join(", ")}`);
   logDebug(
     "Setup",
