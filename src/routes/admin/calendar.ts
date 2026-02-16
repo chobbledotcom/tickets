@@ -3,7 +3,7 @@
  */
 
 import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
-import { getAllowedDomain, getTz } from "#lib/config.ts";
+import { getAllowedDomain } from "#lib/config.ts";
 import { eventDateToCalendarDate, formatDateLabel, getAvailableDates } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendees } from "#lib/db/attendees.ts";
@@ -31,10 +31,9 @@ import { type CalendarAttendee, generateCalendarCsv } from "#templates/csv.ts";
 const buildStandardEventDateMap = (
   events: EventWithCount[],
 ): Map<string, number[]> => {
-  const tz = getTz();
   const dateMap = new Map<string, number[]>();
   for (const event of events) {
-    const calDate = eventDateToCalendarDate(event.date, tz);
+    const calDate = eventDateToCalendarDate(event.date);
     if (!calDate) continue;
     const ids = dateMap.get(calDate);
     if (ids) {
@@ -53,10 +52,9 @@ const compileDateOptions = (
   standardEventDateMap: Map<string, number[]>,
   standardEvents: EventWithCount[],
   holidays: { id: number; name: string; start_date: string; end_date: string }[],
-  tz: string,
 ): CalendarDateOption[] => {
   const availableDates = pipe(
-    flatMap((event: EventWithCount) => getAvailableDates(event, holidays, tz)),
+    flatMap((event: EventWithCount) => getAvailableDates(event, holidays)),
     unique,
   )(dailyEvents);
 
@@ -144,11 +142,10 @@ const loadStandardEventAttendees = async (
  */
 const handleAdminCalendarGet = (request: Request) =>
   withCalendarSession(request, async (session, dateFilter) => {
-    const tz = getTz();
     const [dailyEvents, attendeeDates, holidays, standardCtx] = await Promise.all([
       getAllDailyEvents(),
       getDailyEventAttendeeDates(),
-      getActiveHolidays(tz),
+      getActiveHolidays(),
       loadStandardEventContext(),
     ]);
 
@@ -167,7 +164,7 @@ const handleAdminCalendarGet = (request: Request) =>
 
     const availableDates = compileDateOptions(
       dailyEvents, attendeeDates, standardCtx.standardEventDateMap,
-      standardCtx.standardEvents, holidays, tz,
+      standardCtx.standardEvents, holidays,
     );
     return htmlResponse(
       adminCalendarPage(
