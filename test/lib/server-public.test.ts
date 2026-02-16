@@ -144,6 +144,40 @@ describe("server (public routes)", () => {
     });
   });
 
+  describe("GET /iframe-resizer-parent.js", () => {
+    test("returns JavaScript file", async () => {
+      const response = await handleRequest(mockRequest("/iframe-resizer-parent.js"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe(
+        "application/javascript; charset=utf-8",
+      );
+    });
+
+    test("has long cache headers", async () => {
+      const response = await handleRequest(mockRequest("/iframe-resizer-parent.js"));
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=31536000, immutable",
+      );
+    });
+  });
+
+  describe("GET /iframe-resizer-child.js", () => {
+    test("returns JavaScript file", async () => {
+      const response = await handleRequest(mockRequest("/iframe-resizer-child.js"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe(
+        "application/javascript; charset=utf-8",
+      );
+    });
+
+    test("has long cache headers", async () => {
+      const response = await handleRequest(mockRequest("/iframe-resizer-child.js"));
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=31536000, immutable",
+      );
+    });
+  });
+
   describe("GET /ticket/:slug", () => {
     test("returns 404 for non-existent slug", async () => {
       const response = await handleRequest(mockRequest("/ticket/non-existent"));

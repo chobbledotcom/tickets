@@ -25,5 +25,10 @@ export const computeIframeHeight = (fields: EventFields): string => {
 /** Build a complete iframe embed code snippet for a ticket URL */
 export const buildEmbedCode = (url: string, fields: EventFields): string => {
   const height = computeIframeHeight(fields);
-  return `<iframe src="${url}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${height}">Loading..</iframe>`;
+  const origin = new URL(url).origin;
+  return (
+    `<script src="${origin}/iframe-resizer-parent.js"></script>` +
+    `<iframe src="${url}?iframe=true" loading="lazy" style="border: none; width: 100%; height: ${height}">Loading..</iframe>` +
+    `<script>iframeResize({license:'GPLv3'},document.currentScript.previousElementSibling)</script>`
+  );
 };

@@ -37,17 +37,23 @@ describe("embed", () => {
   });
 
   describe("buildEmbedCode", () => {
-    test("produces iframe with url, iframe param, and computed height", () => {
+    test("produces parent script, iframe, and init script", () => {
       const result = buildEmbedCode("https://example.com/ticket/test", "email");
-      expect(result).toBe(
-        '<iframe src="https://example.com/ticket/test?iframe=true" loading="lazy" style="border: none; width: 100%; height: 15rem">Loading..</iframe>',
-      );
+      expect(result).toContain('<script src="https://example.com/iframe-resizer-parent.js"></script>');
+      expect(result).toContain('<iframe src="https://example.com/ticket/test?iframe=true"');
+      expect(result).toContain("height: 15rem");
+      expect(result).toContain("iframeResize({license:'GPLv3'},document.currentScript.previousElementSibling)");
     });
 
     test("uses height from merged fields", () => {
       const result = buildEmbedCode("https://example.com/ticket/a+b", "email,phone,address");
       expect(result).toContain("height: 25rem");
       expect(result).toContain("https://example.com/ticket/a+b?iframe=true");
+    });
+
+    test("extracts origin correctly for parent script URL", () => {
+      const result = buildEmbedCode("https://tickets.mysite.org/ticket/test", "");
+      expect(result).toContain('src="https://tickets.mysite.org/iframe-resizer-parent.js"');
     });
   });
 });

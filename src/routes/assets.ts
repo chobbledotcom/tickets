@@ -13,6 +13,8 @@ const faviconSvg = Deno.readTextFileSync(join(staticDir, "favicon.svg"));
 const mvpCss = Deno.readTextFileSync(join(staticDir, "mvp.css"));
 const adminJs = Deno.readTextFileSync(join(staticDir, "admin.js"));
 const scannerJs = Deno.readTextFileSync(join(staticDir, "scanner.js"));
+const iframeResizerParentJs = Deno.readTextFileSync(join(staticDir, "iframe-resizer-parent.js"));
+const iframeResizerChildJs = Deno.readTextFileSync(join(staticDir, "iframe-resizer-child.js"));
 
 /** Cache for 1 year (immutable assets) */
 const CACHE_HEADERS = {
@@ -57,6 +59,28 @@ export const handleAdminJs = (): Response =>
  */
 export const handleScannerJs = (): Response =>
   new Response(scannerJs, {
+    headers: {
+      "content-type": "application/javascript; charset=utf-8",
+      ...CACHE_HEADERS,
+    },
+  });
+
+/**
+ * Handle iframe-resizer-parent.js request
+ */
+export const handleIframeResizerParentJs = (): Response =>
+  new Response(iframeResizerParentJs, {
+    headers: {
+      "content-type": "application/javascript; charset=utf-8",
+      ...CACHE_HEADERS,
+    },
+  });
+
+/**
+ * Handle iframe-resizer-child.js request
+ */
+export const handleIframeResizerChildJs = (): Response =>
+  new Response(iframeResizerChildJs, {
     headers: {
       "content-type": "application/javascript; charset=utf-8",
       ...CACHE_HEADERS,

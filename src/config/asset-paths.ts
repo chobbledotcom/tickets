@@ -12,3 +12,9 @@ export const JS_PATH = "/admin.js";
 
 /** Scanner JS path, cache-busted at build time */
 export const SCANNER_JS_PATH = "/scanner.js";
+
+/** iframe-resizer parent JS path, cache-busted at build time */
+export const IFRAME_RESIZER_PARENT_JS_PATH = "/iframe-resizer-parent.js";
+
+/** iframe-resizer child JS path, cache-busted at build time */
+export const IFRAME_RESIZER_CHILD_JS_PATH = "/iframe-resizer-child.js";

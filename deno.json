@@ -43,6 +43,10 @@
     "@bunny.net/storage-sdk": "npm:@bunny.net/storage-sdk@^0.2.0",
     "jsqr": "npm:jsqr@^1.4.0",
     "qrcode": "npm:qrcode@^1.5.0",
+    "@iframe-resizer/parent": "npm:@iframe-resizer/parent@^5",
+    "@iframe-resizer/child": "npm:@iframe-resizer/child@^5",
+    "@iframe-resizer/core": "npm:@iframe-resizer/core@^5",
+    "auto-console-group": "npm:auto-console-group@^1",
     "@std/assert": "jsr:@std/assert@1",
     "@std/path": "jsr:@std/path@1"
   },
@@ -59,13 +63,13 @@
   },
   "lint": {
     "include": ["src/", "test/", "scripts/"],
-    "exclude": ["src/client/", "src/static/admin.js", "src/static/scanner.js"],
+    "exclude": ["src/client/", "src/static/admin.js", "src/static/scanner.js", "src/static/iframe-resizer-parent.js", "src/static/iframe-resizer-child.js"],
     "rules": {
       "tags": ["recommended"]
     }
   },
   "fmt": {
     "include": ["src/", "test/", "scripts/"],
-    "exclude": ["src/client/", "src/static/admin.js", "src/static/scanner.js"]
+    "exclude": ["src/client/", "src/static/admin.js", "src/static/scanner.js", "src/static/iframe-resizer-parent.js", "src/static/iframe-resizer-child.js"]
   }
 }

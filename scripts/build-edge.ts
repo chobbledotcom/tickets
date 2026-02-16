@@ -87,6 +87,61 @@ if (adminResult.errors.length > 0) {
 
 console.log("Admin build complete: src/static/admin.js");
 
+// --- Step 1c: Build iframe-resizer-parent.js (client bundle) ---
+
+/** Resolve @iframe-resizer/* and auto-console-group using Deno's import resolution */
+const iframeResizerResolvePlugin: Plugin = {
+  name: "iframe-resizer-resolve",
+  setup(build) {
+    build.onResolve({ filter: /^(@iframe-resizer\/|auto-console-group)/ }, (args) => ({
+      path: fromFileUrl(import.meta.resolve(args.path)),
+    }));
+  },
+};
+
+const iframeResizerParentResult = await esbuild.build({
+  entryPoints: ["./src/client/iframe-resizer-parent.ts"],
+  outfile: "./src/static/iframe-resizer-parent.js",
+  platform: "browser",
+  format: "iife",
+  bundle: true,
+  minify: true,
+  plugins: [iframeResizerResolvePlugin],
+});
+
+if (iframeResizerParentResult.errors.length > 0) {
+  console.error("iframe-resizer-parent build failed:");
+  for (const log of iframeResizerParentResult.errors) {
+    console.error(log);
+  }
+  Deno.exit(1);
+}
+
+console.log("iframe-resizer-parent build complete: src/static/iframe-resizer-parent.js");
+
+// --- Step 1d: Build iframe-resizer-child.js (client bundle) ---
+
+const iframeResizerChildResult = await esbuild.build({
+  entryPoints: ["./src/client/iframe-resizer-child.ts"],
+  outfile: "./src/static/iframe-resizer-child.js",
+  platform: "browser",
+  format: "iife",
+  bundle: true,
+  minify: true,
+  banner: { js: "window.iframeResizer={license:'GPLv3'};" },
+  plugins: [iframeResizerResolvePlugin],
+});
+
+if (iframeResizerChildResult.errors.length > 0) {
+  console.error("iframe-resizer-child build failed:");
+  for (const log of iframeResizerChildResult.errors) {
+    console.error(log);
+  }
+  Deno.exit(1);
+}
+
+console.log("iframe-resizer-child build complete: src/static/iframe-resizer-child.js");
+
 // --- Step 2: Build edge bundle ---
 
 // Build timestamp for cache-busting (seconds since epoch)
@@ -101,6 +156,8 @@ const STATIC_ASSETS: Record<string, string> = {
   "mvp.css": minifiedCss,
   "admin.js": await Deno.readTextFile("./src/static/admin.js"),
   "scanner.js": await Deno.readTextFile("./src/static/scanner.js"),
+  "iframe-resizer-parent.js": await Deno.readTextFile("./src/static/iframe-resizer-parent.js"),
+  "iframe-resizer-child.js": await Deno.readTextFile("./src/static/iframe-resizer-child.js"),
 };
 
 // Edge subpath overrides (e.g., use web-compatible libsql client)
@@ -151,7 +208,7 @@ const inlineAssetsPlugin: Plugin = {
     }));
 
     build.onLoad({ filter: /.*/, namespace: "inline-asset-paths" }, () => ({
-      contents: `export const CSS_PATH = "/mvp.css?ts=${BUILD_TS}";\nexport const JS_PATH = "/admin.js?ts=${BUILD_TS}";\nexport const SCANNER_JS_PATH = "/scanner.js?ts=${BUILD_TS}";`,
+      contents: `export const CSS_PATH = "/mvp.css?ts=${BUILD_TS}";\nexport const JS_PATH = "/admin.js?ts=${BUILD_TS}";\nexport const SCANNER_JS_PATH = "/scanner.js?ts=${BUILD_TS}";\nexport const IFRAME_RESIZER_PARENT_JS_PATH = "/iframe-resizer-parent.js?ts=${BUILD_TS}";\nexport const IFRAME_RESIZER_CHILD_JS_PATH = "/iframe-resizer-child.js?ts=${BUILD_TS}";`,
       loader: "ts",
     }));
 
@@ -167,6 +224,8 @@ const inlineAssetsPlugin: Plugin = {
         const mvpCss = ${JSON.stringify(STATIC_ASSETS["mvp.css"])};
         const adminJs = ${JSON.stringify(STATIC_ASSETS["admin.js"])};
         const scannerJs = ${JSON.stringify(STATIC_ASSETS["scanner.js"])};
+        const iframeResizerParentJs = ${JSON.stringify(STATIC_ASSETS["iframe-resizer-parent.js"])};
+        const iframeResizerChildJs = ${JSON.stringify(STATIC_ASSETS["iframe-resizer-child.js"])};
 
         const CACHE_HEADERS = {
           "cache-control": "public, max-age=31536000, immutable",
@@ -189,6 +248,16 @@ const inlineAssetsPlugin: Plugin = {
 
         export const handleScannerJs = () =>
           new Response(scannerJs, {
+            headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
+          });
+
+        export const handleIframeResizerParentJs = () =>
+          new Response(iframeResizerParentJs, {
+            headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
+          });
+
+        export const handleIframeResizerChildJs = () =>
+          new Response(iframeResizerChildJs, {
             headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
           });
       `,

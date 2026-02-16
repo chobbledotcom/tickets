@@ -1,5 +1,5 @@
 import { describe, expect, test } from "#test-compat";
-import { CSS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
+import { CSS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, IFRAME_RESIZER_PARENT_JS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminDuplicateEventPage, adminEventEditPage, adminEventPage, calculateTotalRevenue, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
@@ -43,6 +43,14 @@ describe("asset-paths", () => {
     const html = adminLoginPage(TEST_CSRF_TOKEN);
     expect(html).toContain(`src="${JS_PATH}"`);
     expect(html).toContain("defer");
+  });
+
+  test("IFRAME_RESIZER_PARENT_JS_PATH defaults to /iframe-resizer-parent.js in dev", () => {
+    expect(IFRAME_RESIZER_PARENT_JS_PATH).toBe("/iframe-resizer-parent.js");
+  });
+
+  test("IFRAME_RESIZER_CHILD_JS_PATH defaults to /iframe-resizer-child.js in dev", () => {
+    expect(IFRAME_RESIZER_CHILD_JS_PATH).toBe("/iframe-resizer-child.js");
   });
 });
 
@@ -142,6 +150,16 @@ describe("html", () => {
       expect(html).toContain("https://example.com/ticket/ab12c?iframe=true");
       expect(html).toContain("loading=");
       expect(html).toContain("readonly");
+    });
+
+    test("embed code includes iframe-resizer parent script", () => {
+      const html = adminEventPage({ event, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
+      expect(html).toContain("iframe-resizer-parent.js");
+    });
+
+    test("embed code includes iframe-resizer init call", () => {
+      const html = adminEventPage({ event, attendees: [], allowedDomain: "example.com", session: TEST_SESSION });
+      expect(html).toContain("iframeResize");
     });
 
     test("embed code uses 15rem height for email-only events", () => {
@@ -401,6 +419,16 @@ describe("html", () => {
       expect(html).not.toContain('class="iframe"');
     });
 
+    test("includes iframe-resizer child script in iframe mode", () => {
+      const html = renderTicket(event, { iframe: true });
+      expect(html).toContain("iframe-resizer-child.js");
+    });
+
+    test("excludes iframe-resizer child script when not in iframe mode", () => {
+      const html = renderTicket(event);
+      expect(html).not.toContain("iframe-resizer-child.js");
+    });
+
     test("renders terms and conditions with checkbox", () => {
       const html = ticketPage(event, csrfToken, undefined, false, false, undefined, "No refunds allowed");
       expect(html).toContain("No refunds allowed");
@@ -554,6 +582,11 @@ describe("html", () => {
     test("uses iframe body class", () => {
       const html = checkoutPopupPage("https://checkout.stripe.com/session123");
       expect(html).toContain('class="iframe"');
+    });
+
+    test("includes iframe-resizer child script", () => {
+      const html = checkoutPopupPage("https://checkout.stripe.com/session123");
+      expect(html).toContain("iframe-resizer-child.js");
     });
 
     test("escapes checkout URL", () => {
@@ -1192,6 +1225,22 @@ describe("html", () => {
       const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN, undefined, undefined, undefined, true);
       expect(html).toContain('action="/ticket/ab12c?iframe=true"');
       expect(html).toContain('class="iframe"');
+    });
+
+    test("includes iframe-resizer child script in iframe mode", () => {
+      const events = [
+        buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
+      ];
+      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN, undefined, undefined, undefined, true);
+      expect(html).toContain("iframe-resizer-child.js");
+    });
+
+    test("excludes iframe-resizer child script without iframe mode", () => {
+      const events = [
+        buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
+      ];
+      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN);
+      expect(html).not.toContain("iframe-resizer-child.js");
     });
 
     test("does not append ?iframe=true without iframe mode", () => {
