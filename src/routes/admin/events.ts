@@ -296,6 +296,7 @@ const handleAdminEventEditPost = (
 
     const result = await updateResource.update(eventId, form);
     if (result.ok) {
+      await logActivity(`Event '${result.row.name}' updated`, result.row);
       const imageError = await processFormImage(formData, eventId, existing.image_url);
       const imageErrorParam = imageError ? `?image_error=${encodeURIComponent(imageError)}` : "";
       return redirect(`/admin/event/${result.row.id}${imageErrorParam}`);

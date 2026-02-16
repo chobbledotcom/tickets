@@ -3,6 +3,7 @@
  */
 
 import { unwrapKeyWithToken } from "#lib/crypto.ts";
+import { logActivity } from "#lib/db/activityLog.ts";
 import {
   activateUser,
   createInvitedUser,
@@ -135,6 +136,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
     const domain = getAllowedDomain();
     const inviteLink = `https://${domain}/join/${inviteCode}`;
 
+    await logActivity(`User '${username}' invited as ${adminLevel}`);
     return redirect(`/admin/users?invite=${encodeURIComponent(inviteLink)}`);
   });
 
@@ -188,6 +190,8 @@ const handleUserActivate: UserActionHandler = async (user, session, errorPage) =
 
   await activateUser(user.id, dataKey, decryptedPasswordHash);
 
+  const username = await decryptUsername(user);
+  await logActivity(`User '${username}' activated`);
   return redirectWithSuccess("/admin/users", "User activated successfully");
 };
 
@@ -201,8 +205,10 @@ const handleUserDelete: UserActionHandler = async (user, session, errorPage) => 
     return errorPage("Cannot delete your own account", 400);
   }
 
+  const username = await decryptUsername(user);
   await deleteUser(user.id);
 
+  await logActivity(`User '${username}' deleted`);
   return redirectWithSuccess("/admin/users", "User deleted successfully");
 };
 

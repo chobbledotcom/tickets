@@ -3,6 +3,7 @@
  */
 
 import { buildCsrfCookie, getCsrfCookieName } from "#lib/cookies.ts";
+import { logActivity } from "#lib/db/activityLog.ts";
 import { settingsApi } from "#lib/db/settings.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
@@ -157,6 +158,7 @@ const handleSetupPost = async (
       validation.password,
       validation.currency,
     );
+    await logActivity("Initial setup completed");
     logDebug("Setup", "Setup completed successfully!");
     return redirect("/setup/complete");
   } catch (error) {
