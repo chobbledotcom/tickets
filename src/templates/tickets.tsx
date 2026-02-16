@@ -3,10 +3,12 @@
  */
 
 import { map, pipe } from "#fp";
+import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
+import { renderEventImage } from "#templates/public.tsx";
 
 /** Re-export for backwards compatibility */
 export type { TokenEntry as TicketEntry };
@@ -24,6 +26,7 @@ const ticketCount = (count: number): string =>
 /** Render a single ticket card */
 const renderTicketCard = ({ entry, qrSvg }: TicketCard): string => {
   const { event, attendee } = entry;
+  const imageHtml = renderEventImage(event, "ticket-card-image");
   const eventDateHtml = event.date
     ? `<div class="ticket-card-date">${escapeHtml(formatDatetimeLabel(event.date))}</div>`
     : "";
@@ -32,21 +35,29 @@ const renderTicketCard = ({ entry, qrSvg }: TicketCard): string => {
     ? `<div class="ticket-card-location">${escapeHtml(event.location)}</div>`
     : "";
 
+  const descriptionHtml = event.description
+    ? `<div class="ticket-card-description">${escapeHtml(event.description)}</div>`
+    : "";
+
   const attendeeDateHtml = attendee.date
     ? `<div class="ticket-card-date">Booking Date: ${escapeHtml(formatDateLabel(attendee.date))}</div>`
     : "";
 
-  const quantityHtml = attendee.quantity > 1
-    ? `<div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>`
+  const pricePaid = Number(attendee.price_paid);
+  const priceHtml = pricePaid > 0
+    ? `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(pricePaid))}</div>`
     : "";
 
   return `
     <div class="ticket-card">
+      ${imageHtml}
       <div class="ticket-card-name">${escapeHtml(event.name)}</div>
       ${eventDateHtml}
       ${locationHtml}
+      ${descriptionHtml}
       ${attendeeDateHtml}
-      ${quantityHtml}
+      <div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>
+      ${priceHtml}
       <div class="ticket-card-qr">${qrSvg}</div>
     </div>
   `;
