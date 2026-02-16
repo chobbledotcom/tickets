@@ -767,9 +767,9 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
 /** Payment routes definition */
 const paymentRoutes = defineRoutes({
-  "GET /payment/success": (request) => handlePaymentSuccess(request),
-  "GET /payment/cancel": (request) => handlePaymentCancel(request),
-  "POST /payment/webhook": (request) => handlePaymentWebhook(request),
+  "GET /payment/success": handlePaymentSuccess,
+  "GET /payment/cancel": handlePaymentCancel,
+  "POST /payment/webhook": handlePaymentWebhook,
 });
 
 /**

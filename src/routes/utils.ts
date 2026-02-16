@@ -272,16 +272,16 @@ export const withEvent = async (
 ): Promise<Response> => unwrapResult(await fetchEventOr404(eventId), handler);
 
 /**
- * Curried event page GET handler: renderPage -> (request, eventId) -> Response.
+ * Curried event page GET handler: renderPage -> (request, { id }) -> Response.
  * Combines session auth + event fetch + HTML rendering.
  */
 export const withEventPage =
   (
     renderPage: (event: EventWithCount, session: AdminSession) => string,
-  ): ((request: Request, eventId: number) => Promise<Response>) =>
-  (request, eventId) =>
+  ): ((request: Request, params: { id: number }) => Promise<Response>) =>
+  (request, { id }) =>
     requireSessionOr(request, (session) =>
-      withEvent(eventId, (event) =>
+      withEvent(id, (event) =>
         htmlResponse(renderPage(event, session)),
       ),
     );

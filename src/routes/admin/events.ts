@@ -221,12 +221,10 @@ const getUniqueDates = (attendees: Attendee[]): { value: string; label: string }
   return [...dates].sort().map((d) => ({ value: d, label: formatDateLabel(d) }));
 };
 
-/**
- * Handle GET /admin/event/:id (with optional filter)
- */
-const handleAdminEventGet = async (request: Request, eventId: number, activeFilter: AttendeeFilter = "all") => {
+/** Render event page with attendee list and optional filter */
+const renderEventPage = async (request: Request, { id }: { id: number }, activeFilter: AttendeeFilter = "all") => {
   await deleteAllStaleReservations();
-  return withEventAttendees(request, eventId, ({ event, attendees, session }) => {
+  return withEventAttendees(request, id, ({ event, attendees, session }) => {
     const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
     const availableDates = event.event_type === "daily" ? getUniqueDates(attendees) : [];
     const filteredByDate = filterByDate(attendees, dateFilter);
@@ -274,10 +272,10 @@ const handleAdminEventEditGet = withEventPage(adminEventEditPage);
 /** Handle POST /admin/event/:id/edit */
 const handleAdminEventEditPost = (
   request: Request,
-  eventId: number,
+  { id }: { id: number },
 ): Promise<Response> =>
   withAuthMultipartForm(request, async (session, formData) => {
-    const existing = await getEventWithCount(eventId);
+    const existing = await getEventWithCount(id);
     if (!existing) return notFoundResponse();
 
     const form = formDataToParams(formData);
@@ -288,28 +286,28 @@ const handleAdminEventEditPost = (
       fields: [...eventFields, slugField],
       toInput: extractEventUpdateInput,
       nameField: "name",
-      validate: async (input, id) => {
-        const taken = await isSlugTaken(input.slug, Number(id));
+      validate: async (input, existingId) => {
+        const taken = await isSlugTaken(input.slug, Number(existingId));
         return taken ? "Slug is already in use by another event" : null;
       },
     });
 
-    const result = await updateResource.update(eventId, form);
+    const result = await updateResource.update(id, form);
     if (result.ok) {
       await logActivity(`Event '${result.row.name}' updated`, result.row);
-      const imageError = await processFormImage(formData, eventId, existing.image_url);
+      const imageError = await processFormImage(formData, id, existing.image_url);
       const imageErrorParam = imageError ? `?image_error=${encodeURIComponent(imageError)}` : "";
       return redirect(`/admin/event/${result.row.id}${imageErrorParam}`);
     }
     if ("notFound" in result) return notFoundResponse();
-    return eventErrorPage(eventId, adminEventEditPage, session, result.error);
+    return eventErrorPage(id, adminEventEditPage, session, result.error);
   });
 
 /**
  * Handle GET /admin/event/:id/export (CSV export)
  */
-const handleAdminEventExport = (request: Request, eventId: number) =>
-  withEventAttendees(request, eventId, async ({ event, attendees }) => {
+const handleAdminEventExport = (request: Request, { id }: { id: number }) =>
+  withEventAttendees(request, id, async ({ event, attendees }) => {
     const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
     const filteredByDate = filterByDate(attendees, dateFilter);
     const isDaily = event.event_type === "daily";
@@ -334,20 +332,20 @@ const handleAdminEventReactivateGet = withEventPage(adminReactivateEventPage);
 /** Handle POST for event action with confirmation */
 const handleEventWithConfirmation = (
   request: Request,
-  eventId: number,
+  id: number,
   renderPage: (event: EventWithCount, session: AdminSession, error?: string) => string,
   errorMsg: string,
   action: (event: EventWithCount) => Promise<Response>,
 ): Promise<Response> =>
   withAuthForm(request, async (session, form) => {
-    const event = await getEventWithCount(eventId);
+    const event = await getEventWithCount(id);
     if (!event) {
       return notFoundResponse();
     }
 
     const confirmIdentifier = form.get("confirm_identifier") ?? "";
     if (!verifyIdentifier(event.name, confirmIdentifier)) {
-      return eventErrorPage(eventId, renderPage, session, errorMsg);
+      return eventErrorPage(id, renderPage, session, errorMsg);
     }
 
     return action(event);
@@ -355,27 +353,23 @@ const handleEventWithConfirmation = (
 
 const CONFIRM_NAME_MSG = "Event name does not match. Please type the exact name to confirm.";
 
-/** Handle POST /admin/event/:id/deactivate */
-const handleAdminEventDeactivatePost = (
-  request: Request,
-  eventId: number,
-): Promise<Response> =>
-  handleEventWithConfirmation(request, eventId, adminDeactivateEventPage, CONFIRM_NAME_MSG, async (event) => {
-    await eventsTable.update(eventId, { active: 0 });
-    await logActivity(`Event '${event.name}' deactivated`, eventId);
-    return redirect(`/admin/event/${eventId}`);
+/** Factory for event toggle handlers (deactivate/reactivate) */
+const eventToggleHandler = (
+  renderPage: typeof adminDeactivateEventPage,
+  active: number,
+  verb: string,
+) => (request: Request, { id }: { id: number }): Promise<Response> =>
+  handleEventWithConfirmation(request, id, renderPage, CONFIRM_NAME_MSG, async (event) => {
+    await eventsTable.update(id, { active });
+    await logActivity(`Event '${event.name}' ${verb}`, id);
+    return redirect(`/admin/event/${id}`);
   });
 
+/** Handle POST /admin/event/:id/deactivate */
+const handleAdminEventDeactivatePost = eventToggleHandler(adminDeactivateEventPage, 0, "deactivated");
+
 /** Handle POST /admin/event/:id/reactivate */
-const handleAdminEventReactivatePost = (
-  request: Request,
-  eventId: number,
-): Promise<Response> =>
-  handleEventWithConfirmation(request, eventId, adminReactivateEventPage, CONFIRM_NAME_MSG, async (event) => {
-    await eventsTable.update(eventId, { active: 1 });
-    await logActivity(`Event '${event.name}' reactivated`, eventId);
-    return redirect(`/admin/event/${eventId}`);
-  });
+const handleAdminEventReactivatePost = eventToggleHandler(adminReactivateEventPage, 1, "reactivated");
 
 /** Handle GET /admin/event/:id/delete (show confirmation page) */
 const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
@@ -386,10 +380,10 @@ const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
  */
 const handleAdminEventLog = (
   request: Request,
-  eventId: number,
+  { id }: { id: number },
 ): Promise<Response> =>
   requireSessionOr(request, async (session) => {
-    const result = await getEventWithActivityLog(eventId);
+    const result = await getEventWithActivityLog(id);
     if (!result) {
       return notFoundResponse();
     }
@@ -413,54 +407,66 @@ const performDelete = async (event: EventWithCount): Promise<Response> => {
 /** Handle DELETE /admin/event/:id (delete event with logging) */
 const handleAdminEventDelete = (
   request: Request,
-  eventId: number,
+  { id }: { id: number },
 ): Promise<Response> =>
   needsVerify(request)
     ? handleEventWithConfirmation(
-        request, eventId, adminDeleteEventPage,
+        request, id, adminDeleteEventPage,
         "Event name does not match. Please type the exact name to confirm deletion.",
         performDelete,
       )
     : withAuthForm(request, async () => {
-        const event = await getEventWithCount(eventId);
+        const event = await getEventWithCount(id);
         return event ? performDelete(event) : notFoundResponse();
       });
 
 /** Handle POST /admin/event/:id/image/delete (delete event image) */
 const handleImageDelete = (
   request: Request,
-  eventId: number,
+  { id }: { id: number },
 ): Promise<Response> =>
   withAuthForm(request, async () => {
-    const event = await getEventWithCount(eventId);
+    const event = await getEventWithCount(id);
     if (!event) return notFoundResponse();
 
     if (event.image_url) {
       await tryDeleteImage(event.image_url, event.id, "image removal");
-      await eventsTable.update(eventId, { imageUrl: "" });
+      await eventsTable.update(id, { imageUrl: "" });
       await logActivity(`Image removed for '${event.name}'`, event);
     }
 
-    return redirect(`/admin/event/${eventId}`);
+    return redirect(`/admin/event/${id}`);
   });
+
+/** Handle GET /admin/event/:id */
+const handleAdminEventGet = (request: Request, params: { id: number }) =>
+  renderEventPage(request, params);
+
+/** Handle GET /admin/event/:id/in (checked-in filter) */
+const handleAdminEventGetIn = (request: Request, params: { id: number }) =>
+  renderEventPage(request, params, "in");
+
+/** Handle GET /admin/event/:id/out (not-checked-in filter) */
+const handleAdminEventGetOut = (request: Request, params: { id: number }) =>
+  renderEventPage(request, params, "out");
 
 /** Event routes */
 export const eventsRoutes = defineRoutes({
-  "POST /admin/event": (request) => handleCreateEvent(request),
-  "GET /admin/event/:id/in": (request, { id }) => handleAdminEventGet(request, id, "in"),
-  "GET /admin/event/:id/out": (request, { id }) => handleAdminEventGet(request, id, "out"),
-  "GET /admin/event/:id": (request, { id }) => handleAdminEventGet(request, id),
-  "GET /admin/event/:id/duplicate": (request, { id }) => handleAdminEventDuplicateGet(request, id),
-  "GET /admin/event/:id/edit": (request, { id }) => handleAdminEventEditGet(request, id),
-  "POST /admin/event/:id/edit": (request, { id }) => handleAdminEventEditPost(request, id),
-  "GET /admin/event/:id/export": (request, { id }) => handleAdminEventExport(request, id),
-  "GET /admin/event/:id/log": (request, { id }) => handleAdminEventLog(request, id),
-  "POST /admin/event/:id/image/delete": (request, { id }) => handleImageDelete(request, id),
-  "GET /admin/event/:id/deactivate": (request, { id }) => handleAdminEventDeactivateGet(request, id),
-  "POST /admin/event/:id/deactivate": (request, { id }) => handleAdminEventDeactivatePost(request, id),
-  "GET /admin/event/:id/reactivate": (request, { id }) => handleAdminEventReactivateGet(request, id),
-  "POST /admin/event/:id/reactivate": (request, { id }) => handleAdminEventReactivatePost(request, id),
-  "GET /admin/event/:id/delete": (request, { id }) => handleAdminEventDeleteGet(request, id),
-  "POST /admin/event/:id/delete": (request, { id }) => handleAdminEventDelete(request, id),
-  "DELETE /admin/event/:id/delete": (request, { id }) => handleAdminEventDelete(request, id),
+  "POST /admin/event": handleCreateEvent,
+  "GET /admin/event/:id/in": handleAdminEventGetIn,
+  "GET /admin/event/:id/out": handleAdminEventGetOut,
+  "GET /admin/event/:id": handleAdminEventGet,
+  "GET /admin/event/:id/duplicate": handleAdminEventDuplicateGet,
+  "GET /admin/event/:id/edit": handleAdminEventEditGet,
+  "POST /admin/event/:id/edit": handleAdminEventEditPost,
+  "GET /admin/event/:id/export": handleAdminEventExport,
+  "GET /admin/event/:id/log": handleAdminEventLog,
+  "POST /admin/event/:id/image/delete": handleImageDelete,
+  "GET /admin/event/:id/deactivate": handleAdminEventDeactivateGet,
+  "POST /admin/event/:id/deactivate": handleAdminEventDeactivatePost,
+  "GET /admin/event/:id/reactivate": handleAdminEventReactivateGet,
+  "POST /admin/event/:id/reactivate": handleAdminEventReactivatePost,
+  "GET /admin/event/:id/delete": handleAdminEventDeleteGet,
+  "POST /admin/event/:id/delete": handleAdminEventDelete,
+  "DELETE /admin/event/:id/delete": handleAdminEventDelete,
 });

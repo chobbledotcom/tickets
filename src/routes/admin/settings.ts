@@ -443,19 +443,16 @@ const handleResetDatabasePost = settingsRoute(async (form, errorPage) => {
 
 /** Settings routes */
 export const settingsRoutes = defineRoutes({
-  "GET /admin/settings": (request) => handleAdminSettingsGet(request),
-  "POST /admin/settings": (request) => handleAdminSettingsPost(request),
-  "POST /admin/settings/payment-provider": (request) =>
-    handlePaymentProviderPost(request),
-  "POST /admin/settings/stripe": (request) => handleAdminStripePost(request),
-  "POST /admin/settings/square": (request) => handleAdminSquarePost(request),
-  "POST /admin/settings/square-webhook": (request) =>
-    handleAdminSquareWebhookPost(request),
-  "POST /admin/settings/stripe/test": (request) => handleStripeTestPost(request),
-  "POST /admin/settings/embed-hosts": (request) => handleEmbedHostsPost(request),
-  "POST /admin/settings/terms": (request) => handleTermsPost(request),
-  "POST /admin/settings/timezone": (request) => handleTimezonePost(request),
-  "POST /admin/settings/business-email": (request) => handleBusinessEmailPost(request),
-  "POST /admin/settings/reset-database": (request) =>
-    handleResetDatabasePost(request),
+  "GET /admin/settings": handleAdminSettingsGet,
+  "POST /admin/settings": handleAdminSettingsPost,
+  "POST /admin/settings/payment-provider": handlePaymentProviderPost,
+  "POST /admin/settings/stripe": handleAdminStripePost,
+  "POST /admin/settings/square": handleAdminSquarePost,
+  "POST /admin/settings/square-webhook": handleAdminSquareWebhookPost,
+  "POST /admin/settings/stripe/test": handleStripeTestPost,
+  "POST /admin/settings/embed-hosts": handleEmbedHostsPost,
+  "POST /admin/settings/terms": handleTermsPost,
+  "POST /admin/settings/timezone": handleTimezonePost,
+  "POST /admin/settings/business-email": handleBusinessEmailPost,
+  "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

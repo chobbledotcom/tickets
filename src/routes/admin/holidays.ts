@@ -87,9 +87,9 @@ const withHoliday = async (
 const holidayPage = (
   renderPage: (holiday: Holiday, session: AdminSession, error?: string) => string,
 ) =>
-  (request: Request, holidayId: number): Promise<Response> =>
+  (request: Request, params: { id: number }): Promise<Response> =>
     requireOwnerOr(request, (session) =>
-      withHoliday(holidayId, (holiday) => htmlResponse(renderPage(holiday, session))));
+      withHoliday(params.id, (holiday) => htmlResponse(renderPage(holiday, session))));
 
 /** Handle GET /admin/holiday/:id/edit */
 const handleHolidayEditGet = holidayPage(adminHolidayEditPage);
@@ -106,21 +106,21 @@ const holidayErrorPage = (
 /** Handle POST /admin/holiday/:id/edit (update) */
 const handleHolidayEditPost = (
   request: Request,
-  holidayId: number,
+  { id }: { id: number },
 ): Promise<Response> =>
   withOwnerAuthForm(request, async (session, form) => {
     const validation = validateForm(form, holidayFields);
     if (!validation.valid) {
-      return holidayErrorPage(holidayId, adminHolidayEditPage, session, validation.error);
+      return holidayErrorPage(id, adminHolidayEditPage, session, validation.error);
     }
 
     const input = extractHolidayInput(validation.values);
     const rangeError = await validateDateRange(input);
     if (rangeError) {
-      return holidayErrorPage(holidayId, adminHolidayEditPage, session, rangeError);
+      return holidayErrorPage(id, adminHolidayEditPage, session, rangeError);
     }
 
-    const updated = await holidaysTable.update(holidayId, input);
+    const updated = await holidaysTable.update(id, input);
     if (!updated) return notFoundResponse();
 
     await logActivity(`Holiday '${String(form.get("name"))}' updated`);
@@ -133,21 +133,21 @@ const handleHolidayDeleteGet = holidayPage(adminHolidayDeletePage);
 /** Handle POST /admin/holiday/:id/delete */
 const handleHolidayDeletePost = (
   request: Request,
-  holidayId: number,
+  params: { id: number },
 ): Promise<Response> =>
   withOwnerAuthForm(request, (session, form) =>
-    withHoliday(holidayId, async (holiday) => {
+    withHoliday(params.id, async (holiday) => {
       const confirmIdentifier = String(form.get("confirm_identifier"));
       if (!verifyIdentifier(holiday.name, confirmIdentifier)) {
         return holidayErrorPage(
-          holidayId,
+          params.id,
           adminHolidayDeletePage,
           session,
           "Holiday name does not match. Please type the exact name to confirm deletion.",
         );
       }
 
-      await holidaysTable.deleteById(holidayId);
+      await holidaysTable.deleteById(params.id);
       await logActivity(`Holiday '${holiday.name}' deleted`);
       return redirect("/admin/holidays");
     }),
@@ -155,11 +155,11 @@ const handleHolidayDeletePost = (
 
 /** Holiday routes */
 export const holidaysRoutes = defineRoutes({
-  "GET /admin/holidays": (request) => handleHolidaysGet(request),
-  "GET /admin/holiday/new": (request) => handleHolidayNewGet(request),
+  "GET /admin/holidays": handleHolidaysGet,
+  "GET /admin/holiday/new": handleHolidayNewGet,
   "POST /admin/holiday": handleHolidayCreate,
-  "GET /admin/holiday/:id/edit": (request, { id }) => handleHolidayEditGet(request, id),
-  "POST /admin/holiday/:id/edit": (request, { id }) => handleHolidayEditPost(request, id),
-  "GET /admin/holiday/:id/delete": (request, { id }) => handleHolidayDeleteGet(request, id),
-  "POST /admin/holiday/:id/delete": (request, { id }) => handleHolidayDeletePost(request, id),
+  "GET /admin/holiday/:id/edit": handleHolidayEditGet,
+  "POST /admin/holiday/:id/edit": handleHolidayEditPost,
+  "GET /admin/holiday/:id/delete": handleHolidayDeleteGet,
+  "POST /admin/holiday/:id/delete": handleHolidayDeletePost,
 });
