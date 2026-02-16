@@ -889,14 +889,14 @@ describe("forms", () => {
       }
     });
 
-    test("defaults time to midnight when only date is provided", () => {
+    test("defaults time to 00:00 when only date is provided", () => {
       const result = validateForm(
         new URLSearchParams({ closes_at_date: "2099-06-15", closes_at_time: "" }),
         datetimeField,
       );
       expect(result.valid).toBe(true);
       if (result.valid) {
-        expect(result.values.closes_at).toBe("2099-06-15T00:00:00");
+        expect(result.values.closes_at).toBe("2099-06-15T00:00");
       }
     });
 
@@ -907,7 +907,7 @@ describe("forms", () => {
       );
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.error).toBe("Please enter both a date and time, or leave both blank");
+        expect(result.error).toBe("Please enter a date when providing a time, or leave both blank");
       }
     });
   });
