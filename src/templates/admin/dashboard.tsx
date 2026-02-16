@@ -66,13 +66,22 @@ const multiBookingSection = (
         data-domain={allowedDomain}
         placeholder="Select two or more events"
       />
-      <label for="multi-booking-embed">Embed code</label>
+      <label for="multi-booking-script-embed">Script embed</label>
       <input
         type="text"
-        id="multi-booking-embed"
+        id="multi-booking-script-embed"
         readonly
         data-select-on-click
-        data-multi-booking-embed
+        data-multi-booking-script-embed
+        placeholder="Select two or more events"
+      />
+      <label for="multi-booking-iframe-embed">Iframe embed</label>
+      <input
+        type="text"
+        id="multi-booking-iframe-embed"
+        readonly
+        data-select-on-click
+        data-multi-booking-iframe-embed
         placeholder="Select two or more events"
       />
     </details>

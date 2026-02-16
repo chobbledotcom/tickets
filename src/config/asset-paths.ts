@@ -18,3 +18,6 @@ export const IFRAME_RESIZER_PARENT_JS_PATH = "/iframe-resizer-parent.js";
 
 /** iframe-resizer child JS path, cache-busted at build time */
 export const IFRAME_RESIZER_CHILD_JS_PATH = "/iframe-resizer-child.js";
+
+/** Embed setup JS path, cache-busted at build time */
+export const EMBED_JS_PATH = "/embed.js";

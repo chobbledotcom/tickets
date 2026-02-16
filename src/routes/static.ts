@@ -4,6 +4,7 @@
 
 import {
   handleAdminJs,
+  handleEmbedJs,
   handleFavicon,
   handleIframeResizerChildJs,
   handleIframeResizerParentJs,
@@ -22,6 +23,7 @@ const staticRoutes = defineRoutes({
   "GET /scanner.js": () => handleScannerJs(),
   "GET /iframe-resizer-parent.js": () => handleIframeResizerParentJs(),
   "GET /iframe-resizer-child.js": () => handleIframeResizerChildJs(),
+  "GET /embed.js": () => handleEmbedJs(),
 });
 
 /** Route static asset requests */

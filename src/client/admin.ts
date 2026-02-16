@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 /** Admin page behaviors - bundled by build-edge.ts for strict CSP */
 
-import { buildEmbedCode } from "#lib/embed.ts";
+import { buildIframeEmbedCode, buildScriptEmbedCode } from "#lib/embed.ts";
 import { mergeEventFields } from "#lib/event-fields.ts";
 
 /* Select-on-click: auto-select input contents when clicked */
@@ -19,12 +19,14 @@ for (const el of document.querySelectorAll<HTMLSelectElement>("[data-nav-select]
 /* Multi-booking link builder: track checkbox selection order */
 const multiUrl = document.querySelector<HTMLInputElement>("[data-multi-booking-url]");
 if (multiUrl) {
-  const multiEmbed = document.querySelector<HTMLInputElement>("[data-multi-booking-embed]")!;
+  const multiScriptEmbed = document.querySelector<HTMLInputElement>("[data-multi-booking-script-embed]")!;
+  const multiIframeEmbed = document.querySelector<HTMLInputElement>("[data-multi-booking-iframe-embed]")!;
   const selectedSlugs: string[] = [];
   const selectedFields: string[] = [];
   const domain = multiUrl.dataset.domain!;
   const urlPlaceholder = multiUrl.placeholder;
-  const embedPlaceholder = multiEmbed.placeholder;
+  const scriptEmbedPlaceholder = multiScriptEmbed.placeholder;
+  const iframeEmbedPlaceholder = multiIframeEmbed.placeholder;
   for (const cb of document.querySelectorAll<HTMLInputElement>("[data-multi-booking-slug]")) {
     cb.addEventListener("change", () => {
       const slug = cb.dataset.multiBookingSlug!;
@@ -43,13 +45,17 @@ if (multiUrl) {
         const url = `https://${domain}/ticket/${selectedSlugs.join("+")}`;
         multiUrl.value = url;
         multiUrl.placeholder = "";
-        multiEmbed.value = buildEmbedCode(url, mergeEventFields(selectedFields));
-        multiEmbed.placeholder = "";
+        multiScriptEmbed.value = buildScriptEmbedCode(url);
+        multiScriptEmbed.placeholder = "";
+        multiIframeEmbed.value = buildIframeEmbedCode(url, mergeEventFields(selectedFields));
+        multiIframeEmbed.placeholder = "";
       } else {
         multiUrl.value = "";
         multiUrl.placeholder = urlPlaceholder;
-        multiEmbed.value = "";
-        multiEmbed.placeholder = embedPlaceholder;
+        multiScriptEmbed.value = "";
+        multiScriptEmbed.placeholder = scriptEmbedPlaceholder;
+        multiIframeEmbed.value = "";
+        multiIframeEmbed.placeholder = iframeEmbedPlaceholder;
       }
     });
   }

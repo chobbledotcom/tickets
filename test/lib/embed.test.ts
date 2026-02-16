@@ -1,5 +1,5 @@
 import { describe, expect, test } from "#test-compat";
-import { buildEmbedCode, computeIframeHeight } from "#lib/embed.ts";
+import { buildIframeEmbedCode, buildScriptEmbedCode, computeIframeHeight } from "#lib/embed.ts";
 
 describe("embed", () => {
   describe("computeIframeHeight", () => {
@@ -36,24 +36,43 @@ describe("embed", () => {
     });
   });
 
-  describe("buildEmbedCode", () => {
-    test("produces parent script, iframe, and init script", () => {
-      const result = buildEmbedCode("https://example.com/ticket/test", "email");
-      expect(result).toContain('<script src="https://example.com/iframe-resizer-parent.js"></script>');
-      expect(result).toContain('<iframe src="https://example.com/ticket/test?iframe=true"');
-      expect(result).toContain("height: 15rem");
-      expect(result).toContain("iframeResize({license:'GPLv3'},document.currentScript.previousElementSibling)");
+  describe("buildScriptEmbedCode", () => {
+    test("produces async script tag with data-events", () => {
+      const result = buildScriptEmbedCode("https://example.com/ticket/test");
+      expect(result).toBe('<script async src="https://example.com/embed.js" data-events="test"></script>');
     });
 
-    test("uses height from merged fields", () => {
-      const result = buildEmbedCode("https://example.com/ticket/a+b", "email,phone,address");
+    test("extracts origin correctly for script URL", () => {
+      const result = buildScriptEmbedCode("https://tickets.mysite.org/ticket/test");
+      expect(result).toContain('src="https://tickets.mysite.org/embed.js"');
+    });
+
+    test("handles multi-event slugs with plus separator", () => {
+      const result = buildScriptEmbedCode("https://example.com/ticket/a+b+c");
+      expect(result).toContain('data-events="a+b+c"');
+    });
+  });
+
+  describe("buildIframeEmbedCode", () => {
+    test("produces iframe tag with computed height", () => {
+      const result = buildIframeEmbedCode("https://example.com/ticket/test", "email");
+      expect(result).toContain('<iframe src="https://example.com/ticket/test?iframe=true"');
+      expect(result).toContain("height: 15rem");
+      expect(result).toContain("loading=");
+      expect(result).toContain("border: none");
+      expect(result).toContain("width: 100%");
+    });
+
+    test("uses height from fields", () => {
+      const result = buildIframeEmbedCode("https://example.com/ticket/a+b", "email,phone,address");
       expect(result).toContain("height: 25rem");
       expect(result).toContain("https://example.com/ticket/a+b?iframe=true");
     });
 
-    test("extracts origin correctly for parent script URL", () => {
-      const result = buildEmbedCode("https://tickets.mysite.org/ticket/test", "");
-      expect(result).toContain('src="https://tickets.mysite.org/iframe-resizer-parent.js"');
+    test("does not include iframe-resizer scripts", () => {
+      const result = buildIframeEmbedCode("https://example.com/ticket/test", "");
+      expect(result).not.toContain("iframe-resizer");
+      expect(result).not.toContain("iframeResize");
     });
   });
 });

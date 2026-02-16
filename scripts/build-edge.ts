@@ -13,39 +13,7 @@ import { minifyCss } from "./css-minify.ts";
 const denoConfig = JSON.parse(await Deno.readTextFile("./deno.json"));
 const denoImports: Record<string, string> = denoConfig.imports;
 
-// --- Step 1a: Build scanner.js (client bundle with jsQR) ---
-
-/** Resolve npm bare specifiers using Deno's import resolution */
-const denoNpmResolvePlugin: Plugin = {
-  name: "deno-npm-resolve",
-  setup(build) {
-    build.onResolve({ filter: /^jsqr$/ }, () => ({
-      path: fromFileUrl(import.meta.resolve("jsqr")),
-    }));
-  },
-};
-
-const scannerResult = await esbuild.build({
-  entryPoints: ["./src/client/scanner.js"],
-  outfile: "./src/static/scanner.js",
-  platform: "browser",
-  format: "iife",
-  bundle: true,
-  minify: true,
-  plugins: [denoNpmResolvePlugin],
-});
-
-if (scannerResult.errors.length > 0) {
-  console.error("Scanner build failed:");
-  for (const log of scannerResult.errors) {
-    console.error(log);
-  }
-  Deno.exit(1);
-}
-
-console.log("Scanner build complete: src/static/scanner.js");
-
-// --- Step 1b: Build admin.js (client bundle with shared embed logic) ---
+// --- Shared plugins ---
 
 /** Resolve #-prefixed imports using the deno.json import map */
 const projectRoot = fromFileUrl(new URL("..", import.meta.url));
@@ -67,28 +35,6 @@ const denoImportMapPlugin: Plugin = {
   },
 };
 
-const adminResult = await esbuild.build({
-  entryPoints: ["./src/client/admin.ts"],
-  outfile: "./src/static/admin.js",
-  platform: "browser",
-  format: "iife",
-  bundle: true,
-  minify: true,
-  plugins: [denoImportMapPlugin],
-});
-
-if (adminResult.errors.length > 0) {
-  console.error("Admin build failed:");
-  for (const log of adminResult.errors) {
-    console.error(log);
-  }
-  Deno.exit(1);
-}
-
-console.log("Admin build complete: src/static/admin.js");
-
-// --- Step 1c: Build iframe-resizer-parent.js (client bundle) ---
-
 /** Resolve @iframe-resizer/* and auto-console-group using Deno's import resolution */
 const iframeResizerResolvePlugin: Plugin = {
   name: "iframe-resizer-resolve",
@@ -99,48 +45,86 @@ const iframeResizerResolvePlugin: Plugin = {
   },
 };
 
-const iframeResizerParentResult = await esbuild.build({
-  entryPoints: ["./src/client/iframe-resizer-parent.ts"],
+// --- Helper to build a client bundle and exit on failure ---
+
+type ClientBuildOptions = {
+  label: string;
+  entryPoint: string;
+  outfile: string;
+  plugins?: Plugin[];
+  banner?: Record<string, string>;
+};
+
+const buildClient = async ({ label, entryPoint, outfile, plugins = [], banner }: ClientBuildOptions) => {
+  const result = await esbuild.build({
+    entryPoints: [entryPoint],
+    outfile,
+    platform: "browser",
+    format: "iife",
+    bundle: true,
+    minify: true,
+    plugins,
+    banner,
+  });
+
+  if (result.errors.length > 0) {
+    console.error(`${label} build failed:`);
+    for (const log of result.errors) {
+      console.error(log);
+    }
+    Deno.exit(1);
+  }
+
+  console.log(`${label} build complete: ${outfile}`);
+};
+
+// --- Step 1: Build client bundles ---
+
+/** Resolve npm bare specifiers using Deno's import resolution */
+const denoNpmResolvePlugin: Plugin = {
+  name: "deno-npm-resolve",
+  setup(build) {
+    build.onResolve({ filter: /^jsqr$/ }, () => ({
+      path: fromFileUrl(import.meta.resolve("jsqr")),
+    }));
+  },
+};
+
+await buildClient({
+  label: "Scanner",
+  entryPoint: "./src/client/scanner.js",
+  outfile: "./src/static/scanner.js",
+  plugins: [denoNpmResolvePlugin],
+});
+
+await buildClient({
+  label: "Admin",
+  entryPoint: "./src/client/admin.ts",
+  outfile: "./src/static/admin.js",
+  plugins: [denoImportMapPlugin],
+});
+
+await buildClient({
+  label: "iframe-resizer-parent",
+  entryPoint: "./src/client/iframe-resizer-parent.ts",
   outfile: "./src/static/iframe-resizer-parent.js",
-  platform: "browser",
-  format: "iife",
-  bundle: true,
-  minify: true,
   plugins: [iframeResizerResolvePlugin],
 });
 
-if (iframeResizerParentResult.errors.length > 0) {
-  console.error("iframe-resizer-parent build failed:");
-  for (const log of iframeResizerParentResult.errors) {
-    console.error(log);
-  }
-  Deno.exit(1);
-}
-
-console.log("iframe-resizer-parent build complete: src/static/iframe-resizer-parent.js");
-
-// --- Step 1d: Build iframe-resizer-child.js (client bundle) ---
-
-const iframeResizerChildResult = await esbuild.build({
-  entryPoints: ["./src/client/iframe-resizer-child.ts"],
+await buildClient({
+  label: "iframe-resizer-child",
+  entryPoint: "./src/client/iframe-resizer-child.ts",
   outfile: "./src/static/iframe-resizer-child.js",
-  platform: "browser",
-  format: "iife",
-  bundle: true,
-  minify: true,
   banner: { js: "window.iframeResizer={license:'GPLv3'};" },
   plugins: [iframeResizerResolvePlugin],
 });
 
-if (iframeResizerChildResult.errors.length > 0) {
-  console.error("iframe-resizer-child build failed:");
-  for (const log of iframeResizerChildResult.errors) {
-    console.error(log);
-  }
-  Deno.exit(1);
-}
-
-console.log("iframe-resizer-child build complete: src/static/iframe-resizer-child.js");
+await buildClient({
+  label: "Embed",
+  entryPoint: "./src/client/embed.ts",
+  outfile: "./src/static/embed.js",
+  plugins: [iframeResizerResolvePlugin],
+});
 
 // --- Step 2: Build edge bundle ---
 
@@ -151,14 +135,26 @@ const BUILD_TS = Math.floor(Date.now() / 1000);
 const rawCss = await Deno.readTextFile("./src/static/mvp.css");
 const minifiedCss = await minifyCss(rawCss);
 
+/** Asset definitions: [filename, exportName, contentType, pathConstant] */
+const ASSET_DEFS: [string, string, string, string][] = [
+  ["favicon.svg", "handleFavicon", "image/svg+xml", ""],
+  ["mvp.css", "handleMvpCss", "text/css; charset=utf-8", "CSS_PATH"],
+  ["admin.js", "handleAdminJs", "application/javascript; charset=utf-8", "JS_PATH"],
+  ["scanner.js", "handleScannerJs", "application/javascript; charset=utf-8", "SCANNER_JS_PATH"],
+  ["iframe-resizer-parent.js", "handleIframeResizerParentJs", "application/javascript; charset=utf-8", "IFRAME_RESIZER_PARENT_JS_PATH"],
+  ["iframe-resizer-child.js", "handleIframeResizerChildJs", "application/javascript; charset=utf-8", "IFRAME_RESIZER_CHILD_JS_PATH"],
+  ["embed.js", "handleEmbedJs", "application/javascript; charset=utf-8", "EMBED_JS_PATH"],
+];
+
 const STATIC_ASSETS: Record<string, string> = {
   "favicon.svg": await Deno.readTextFile("./src/static/favicon.svg"),
   "mvp.css": minifiedCss,
-  "admin.js": await Deno.readTextFile("./src/static/admin.js"),
-  "scanner.js": await Deno.readTextFile("./src/static/scanner.js"),
-  "iframe-resizer-parent.js": await Deno.readTextFile("./src/static/iframe-resizer-parent.js"),
-  "iframe-resizer-child.js": await Deno.readTextFile("./src/static/iframe-resizer-child.js"),
 };
+
+for (const [filename] of ASSET_DEFS) {
+  if (filename === "favicon.svg" || filename === "mvp.css") continue;
+  STATIC_ASSETS[filename] = await Deno.readTextFile(`./src/static/${filename}`);
+}
 
 // Edge subpath overrides (e.g., use web-compatible libsql client)
 const EDGE_SUBPATHS: Record<string, string> = {
@@ -194,6 +190,28 @@ const esmShExternalsPlugin: Plugin = {
   },
 };
 
+/** Build the inline asset-paths module with cache-busted paths */
+const buildAssetPathsModule = (): string =>
+  ASSET_DEFS
+    .filter(([, , , pathConst]) => pathConst)
+    .map(([filename, , , pathConst]) => `export const ${pathConst} = "/${filename}?ts=${BUILD_TS}";`)
+    .join("\n");
+
+/** Build the inline assets module with pre-read content and handler functions */
+const buildAssetsModule = (): string => {
+  const varLines = ASSET_DEFS
+    .map(([filename], i) => `const v${i} = ${JSON.stringify(STATIC_ASSETS[filename])};`);
+
+  const cacheHeader = `const CACHE_HEADERS = { "cache-control": "public, max-age=31536000, immutable" };`;
+
+  const handlerLines = ASSET_DEFS
+    .map(([, exportName, contentType], i) =>
+      `export const ${exportName} = () => new Response(v${i}, { headers: { "content-type": "${contentType}", ...CACHE_HEADERS } });`
+    );
+
+  return [...varLines, cacheHeader, ...handlerLines].join("\n");
+};
+
 /**
  * Plugin to inline static assets and handle Deno-specific imports
  * Replaces Deno.readTextFileSync calls with pre-read content
@@ -208,7 +226,7 @@ const inlineAssetsPlugin: Plugin = {
     }));
 
     build.onLoad({ filter: /.*/, namespace: "inline-asset-paths" }, () => ({
-      contents: `export const CSS_PATH = "/mvp.css?ts=${BUILD_TS}";\nexport const JS_PATH = "/admin.js?ts=${BUILD_TS}";\nexport const SCANNER_JS_PATH = "/scanner.js?ts=${BUILD_TS}";\nexport const IFRAME_RESIZER_PARENT_JS_PATH = "/iframe-resizer-parent.js?ts=${BUILD_TS}";\nexport const IFRAME_RESIZER_CHILD_JS_PATH = "/iframe-resizer-child.js?ts=${BUILD_TS}";`,
+      contents: buildAssetPathsModule(),
       loader: "ts",
     }));
 
@@ -219,48 +237,7 @@ const inlineAssetsPlugin: Plugin = {
     }));
 
     build.onLoad({ filter: /.*/, namespace: "inline-assets" }, () => ({
-      contents: `
-        const faviconSvg = ${JSON.stringify(STATIC_ASSETS["favicon.svg"])};
-        const mvpCss = ${JSON.stringify(STATIC_ASSETS["mvp.css"])};
-        const adminJs = ${JSON.stringify(STATIC_ASSETS["admin.js"])};
-        const scannerJs = ${JSON.stringify(STATIC_ASSETS["scanner.js"])};
-        const iframeResizerParentJs = ${JSON.stringify(STATIC_ASSETS["iframe-resizer-parent.js"])};
-        const iframeResizerChildJs = ${JSON.stringify(STATIC_ASSETS["iframe-resizer-child.js"])};
-
-        const CACHE_HEADERS = {
-          "cache-control": "public, max-age=31536000, immutable",
-        };
-
-        export const handleMvpCss = () =>
-          new Response(mvpCss, {
-            headers: { "content-type": "text/css; charset=utf-8", ...CACHE_HEADERS },
-          });
-
-        export const handleFavicon = () =>
-          new Response(faviconSvg, {
-            headers: { "content-type": "image/svg+xml", ...CACHE_HEADERS },
-          });
-
-        export const handleAdminJs = () =>
-          new Response(adminJs, {
-            headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
-          });
-
-        export const handleScannerJs = () =>
-          new Response(scannerJs, {
-            headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
-          });
-
-        export const handleIframeResizerParentJs = () =>
-          new Response(iframeResizerParentJs, {
-            headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
-          });
-
-        export const handleIframeResizerChildJs = () =>
-          new Response(iframeResizerChildJs, {
-            headers: { "content-type": "application/javascript; charset=utf-8", ...CACHE_HEADERS },
-          });
-      `,
+      contents: buildAssetsModule(),
       loader: "ts",
     }));
   },
