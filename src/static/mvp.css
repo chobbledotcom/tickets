@@ -801,6 +801,15 @@ button.bulk-checkout:hover {
   border: none;
 }
 
+.inline button {
+  background-color: transparent;
+  color: var(--color-link);
+  text-decoration: underline;
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+}
+
 button.link-button {
   background: transparent;
   border: none;
