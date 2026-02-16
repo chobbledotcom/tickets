@@ -56,9 +56,9 @@ export const paymentSuccessPage = (thankYouUrl: string | null, ticketUrl: string
 /**
  * Simple reservation success page (for free events with no thank_you_url)
  */
-export const reservationSuccessPage = (ticketUrl: string | null): string =>
+export const reservationSuccessPage = (ticketUrl: string | null, inIframe = false): string =>
   String(
-    <Layout title="Ticket Reserved">
+    <Layout title="Ticket Reserved" bodyClass={inIframe ? "iframe" : undefined}>
         <h1>Ticket reserved successfully.</h1>
         {ticketUrl ? (
           <p><a href={ticketUrl} target="_blank">Click here to view your tickets</a></p>

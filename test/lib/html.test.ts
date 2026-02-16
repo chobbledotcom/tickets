@@ -15,6 +15,7 @@ import {
   paymentErrorPage,
   paymentPage,
   paymentSuccessPage,
+  reservationSuccessPage,
 } from "#templates/payment.tsx";
 import { eventFields } from "#templates/fields.ts";
 import { buildMultiTicketEvent, multiTicketPage, notFoundPage, renderEventImage, ticketPage } from "#templates/public.tsx";
@@ -570,6 +571,20 @@ describe("html", () => {
       const html = checkoutPopupPage('https://evil.com/"onload="alert(1)');
       expect(html).toContain("&quot;");
       expect(html).not.toContain('"onload="');
+    });
+  });
+
+  describe("reservationSuccessPage", () => {
+    test("includes iframe-resizer child script in iframe mode", () => {
+      const html = reservationSuccessPage("/t/abc123", true);
+      expect(html).toContain("iframe-resizer-child.js");
+      expect(html).toContain('class="iframe"');
+    });
+
+    test("excludes iframe-resizer child script when not in iframe mode", () => {
+      const html = reservationSuccessPage("/t/abc123");
+      expect(html).not.toContain("iframe-resizer-child.js");
+      expect(html).not.toContain('class="iframe"');
     });
   });
 
