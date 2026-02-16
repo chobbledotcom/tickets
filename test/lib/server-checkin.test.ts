@@ -212,16 +212,16 @@ describe("check-in (/checkin/:tokens)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/checkin/${token}?message=Checked%20in`);
+      expect(response.headers.get("location")).toBe(`/checkin/${token}?message=Checked%20in%201%20ticket`);
 
       // Follow redirect and verify checked-in state
-      const viewResponse = await awaitTestRequest(`/checkin/${token}?message=Checked%20in`, {
+      const viewResponse = await awaitTestRequest(`/checkin/${token}?message=Checked%20in%201%20ticket`, {
         cookie: session.cookie,
       });
       const body = await viewResponse.text();
       expect(body).toContain("Yes");
       expect(body).toContain('class="success"');
-      expect(body).toContain("Checked in");
+      expect(body).toContain("Checked in 1 ticket");
       expect(body).toContain('class="bulk-checkout"');
       expect(body).toContain("Check Out All");
       expect(body).toContain('value="false"');

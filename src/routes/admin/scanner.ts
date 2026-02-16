@@ -84,6 +84,7 @@ const handleScanPost = (request: Request, eventId: number): Promise<Response> =>
       return jsonResponse({
         status: "already_checked_in",
         name: attendee.name,
+        quantity: attendee.quantity,
       });
     }
 
@@ -94,6 +95,7 @@ const handleScanPost = (request: Request, eventId: number): Promise<Response> =>
     return jsonResponse({
       status: "checked_in",
       name: attendee.name,
+      quantity: attendee.quantity,
     });
   });
 

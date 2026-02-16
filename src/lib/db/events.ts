@@ -5,6 +5,7 @@
 import type { ResultSet } from "@libsql/client";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { executeByField, getDb, inPlaceholders, queryAll, queryBatch, queryOne, resultRows } from "#lib/db/client.ts";
+import { deleteProcessedPaymentsForEvent } from "#lib/db/processed-payments.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 import { nowIso } from "#lib/now.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
@@ -142,6 +143,7 @@ export const isSlugTaken = async (
  */
 export const deleteEvent = async (eventId: number): Promise<void> => {
   // Delete all attendees for this event first (cascade)
+  await deleteProcessedPaymentsForEvent(eventId);
   await executeByField("attendees", "event_id", eventId);
   // Delete the event
   await eventsTable.deleteById(eventId);

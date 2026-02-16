@@ -518,7 +518,7 @@ export const adminDeleteEventPage = (
 
         <article>
           <aside>
-            <p><strong>Warning:</strong> This will permanently delete the event and all {event.attendee_count} attendee(s).</p>
+            <p><strong>Warning:</strong> This will permanently delete the event, all {event.attendee_count} attendee(s), and any associated payment records.</p>
           </aside>
         </article>
 

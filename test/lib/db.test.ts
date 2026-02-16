@@ -632,6 +632,27 @@ describe("db", () => {
       expect(attendees).toEqual([]);
     });
 
+    test("deleteEvent removes processed payment records for attendees", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+
+      await reserveSession("sess_event_delete");
+      await finalizePaymentSession("sess_event_delete", attendee.id);
+
+      await deleteEvent(event.id);
+
+      const processed = await isSessionProcessed("sess_event_delete");
+      expect(processed).toBeNull();
+    });
+
     test("deleteEvent works with no attendees", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
@@ -703,6 +724,27 @@ describe("db", () => {
       const privateKey = await getTestPrivateKey();
       const fetched = await getAttendee(attendee.id, privateKey);
       expect(fetched).toBeNull();
+    });
+
+    test("deleteAttendee removes processed payment records", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Jane Doe",
+        "jane@example.com",
+      );
+
+      await reserveSession("sess_attendee_delete");
+      await finalizePaymentSession("sess_attendee_delete", attendee.id);
+
+      await deleteAttendee(attendee.id);
+
+      const processed = await isSessionProcessed("sess_attendee_delete");
+      expect(processed).toBeNull();
     });
 
     test("decryptAttendees returns empty array when no attendees", async () => {

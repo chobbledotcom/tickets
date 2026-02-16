@@ -75,6 +75,27 @@ export const deleteAllStaleReservations = async (): Promise<number> => {
   return result.rowsAffected;
 };
 
+/** Delete processed payment records for a single attendee */
+export const deleteProcessedPaymentsForAttendee = async (
+  attendeeId: number,
+): Promise<void> => {
+  await getDb().execute({
+    sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
+    args: [attendeeId],
+  });
+};
+
+/** Delete processed payment records for all attendees tied to an event */
+export const deleteProcessedPaymentsForEvent = async (
+  eventId: number,
+): Promise<void> => {
+  await getDb().execute({
+    sql: `DELETE FROM processed_payments
+          WHERE attendee_id IN (SELECT id FROM attendees WHERE event_id = ?)`,
+    args: [eventId],
+  });
+};
+
 /**
  * Reserve a payment session for processing (first phase of two-phase lock)
  * Inserts with NULL attendee_id to claim the session.

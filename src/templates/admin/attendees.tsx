@@ -25,7 +25,7 @@ export const adminDeleteAttendeePage = (
 
         <article>
           <aside>
-            <p><strong>Warning:</strong> This will permanently remove this attendee from the event.</p>
+            <p><strong>Warning:</strong> This will permanently remove this attendee from the event and delete any associated payment records.</p>
           </aside>
         </article>
 
