@@ -19,8 +19,10 @@ import {
 } from "#routes/utils.ts";
 import { createTokenRoute, lookupAttendees, resolveEntries } from "#routes/token-utils.ts";
 
-const formatTicketCount = (count: number): string =>
-  `${count} ticket${count === 1 ? "" : "s"}`;
+const formatTicketCount = (count: number): string => {
+  const suffix = count === 1 ? "" : "s";
+  return `${count} ticket${suffix}`;
+};
 
 const sumTicketCount = (
   attendees: Attendee[],
@@ -63,23 +65,28 @@ const handleCheckinGet = async (
 
 /** Handle POST /checkin/:tokens - set check-in status from form field */
 const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response> =>
-  withAuthForm(request, async (_session, form) => {
+  withAuthForm(request, async (session, form) => {
     const lookup = await lookupAttendees(tokens);
     if (!lookup.ok) return lookup.response;
 
     const checkedIn = form.get("check_in") === "true";
-    const totalTickets = sumTicketCount(lookup.attendees);
+    const privateKey = (await getPrivateKey(session))!;
+    const decrypted = await decryptAttendees(lookup.attendees, privateKey);
+    const totalTickets = sumTicketCount(decrypted);
     const uncheckedTickets = sumTicketCount(
-      lookup.attendees,
+      decrypted,
       (attendee) => attendee.checked_in !== "true",
     );
     await Promise.all(map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(lookup.attendees));
 
-    const message = checkedIn
-      ? uncheckedTickets === 0
-        ? `Already checked in ${formatTicketCount(totalTickets)}`
-        : `Checked in ${formatTicketCount(uncheckedTickets)}`
-      : "Checked out";
+    let message: string;
+    if (!checkedIn) {
+      message = "Checked out";
+    } else if (uncheckedTickets === 0) {
+      message = `Already checked in ${formatTicketCount(totalTickets)}`;
+    } else {
+      message = `Checked in ${formatTicketCount(uncheckedTickets)}`;
+    }
     return redirect(`/checkin/${tokens.join("+")}?message=${encodeURIComponent(message)}`);
   });
 
