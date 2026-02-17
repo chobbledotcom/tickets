@@ -22,7 +22,7 @@ import {
 } from "#lib/db/events.ts";
 import { getAllGroups, groupsTable } from "#lib/db/groups.ts";
 import { defineResource } from "#lib/rest/resource.ts";
-import { generateSlug, normalizeSlug } from "#lib/slug.ts";
+import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -68,16 +68,9 @@ const tryDeleteImage = async (filename: string, eventId: number, detail: string)
   }
 };
 
-/** Generate a unique slug, retrying on collision */
-const generateUniqueSlug = async (excludeEventId?: number): Promise<{ slug: string; slugIndex: string }> => {
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const slug = generateSlug();
-    const slugIndex = await computeSlugIndex(slug);
-    const taken = await isSlugTaken(slug, excludeEventId);
-    if (!taken) return { slug, slugIndex };
-  }
-  throw new Error("Failed to generate unique slug after 10 attempts");
-};
+/** Generate a unique event slug, retrying on collision */
+const generateUniqueEventSlug = (excludeEventId?: number) =>
+  generateUniqueSlug(computeSlugIndex, (slug) => isSlugTaken(slug, excludeEventId));
 
 /** Serialize comma-separated day names to JSON array string */
 const serializeBookableDays = (value: string): string | undefined =>
@@ -110,7 +103,7 @@ const extractCommonFields = (values: EventFormValues) => {
 const extractEventInput = async (
   values: EventFormValues,
 ): Promise<EventInput> => {
-  const { slug, slugIndex } = await generateUniqueSlug();
+  const { slug, slugIndex } = await generateUniqueEventSlug();
   return { ...extractCommonFields(values), slug, slugIndex };
 };
 

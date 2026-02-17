@@ -44,7 +44,13 @@ export type EventEditFormValues = EventFormValues & {
   slug: string;
 };
 
-/** Typed values from group form validation */
+/** Typed values from group create form validation (no slug - auto-generated) */
+export type GroupCreateFormValues = {
+  name: string;
+  terms_and_conditions: string;
+};
+
+/** Typed values from group edit form validation (includes slug) */
 export type GroupFormValues = {
   name: string;
   slug: string;
@@ -428,10 +434,8 @@ export const groupIdField: Field = {
   type: "text",
 };
 
-/**
- * Group form field definitions
- */
-export const groupFields: Field[] = [
+/** Group form fields for creation (no slug - auto-generated) */
+export const groupCreateFields: Field[] = [
   {
     name: "name",
     label: "Group Name",
@@ -439,13 +443,19 @@ export const groupFields: Field[] = [
     required: true,
     placeholder: "Summer Fete",
   },
-  slugField,
   {
     name: "terms_and_conditions",
     label: "Terms and Conditions (optional)",
     type: "textarea",
     hint: "If set, overrides the global terms and conditions for this group ticket page",
   },
+];
+
+/** Group form field definitions (edit - includes slug) */
+export const groupFields: Field[] = [
+  groupCreateFields[0]!,
+  slugField,
+  groupCreateFields[1]!,
 ];
 
 /** Name field shown on all ticket forms */

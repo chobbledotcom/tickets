@@ -50,3 +50,23 @@ export const validateSlug = (slug: string): string | null => {
   if (!SLUG_PATTERN.test(slug)) return "Slug may only contain lowercase letters, numbers, and hyphens";
   return null;
 };
+
+/** Slug-with-index pair */
+export type SlugWithIndex = { slug: string; slugIndex: string };
+
+/**
+ * Generate a unique slug by retrying until one is not taken.
+ * @param computeIndex - hash the slug for blind-index lookup
+ * @param isTaken - check cross-table uniqueness
+ */
+export const generateUniqueSlug = async (
+  computeIndex: (slug: string) => Promise<string>,
+  isTaken: (slug: string) => Promise<boolean>,
+): Promise<SlugWithIndex> => {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const slug = generateSlug();
+    const slugIndex = await computeIndex(slug);
+    if (!await isTaken(slug)) return { slug, slugIndex };
+  }
+  throw new Error("Failed to generate unique slug after 10 attempts");
+};

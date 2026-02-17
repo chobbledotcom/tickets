@@ -3,10 +3,11 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { buildEmbedSnippets } from "#lib/embed.ts";
 import { renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
-import { groupFields } from "#templates/fields.ts";
+import { groupCreateFields, groupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { EventRow } from "#templates/admin/dashboard.tsx";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
@@ -85,7 +86,7 @@ export const adminGroupNewPage = (
       <Raw html={renderError(error)} />
       <form method="POST" action="/admin/group">
         <input type="hidden" name="csrf_token" value={session.csrfToken} />
-        <Raw html={renderFields(groupFields, groupToFieldValues())} />
+        <Raw html={renderFields(groupCreateFields, groupToFieldValues())} />
         <button type="submit">Create Group</button>
       </form>
     </Layout>,
@@ -153,18 +154,21 @@ export const adminGroupDetailPage = (
   events: EventWithCount[],
   ungroupedEvents: EventWithCount[],
   session: AdminSession,
+  allowedDomain: string,
 ): string => {
   const eventRows =
     events.length > 0
       ? pipe(map((e: EventWithCount) => EventRow({ e })), joinStrings)(events)
       : '<tr><td colspan="5">No events in this group</td></tr>';
 
+  const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
+  const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
+
   return String(
     <Layout title={group.name}>
       <AdminNav session={session} />
       <Breadcrumb href="/admin/groups" label="Groups" />
       <h1>{group.name}</h1>
-      <p>Slug: <code>{group.slug}</code></p>
       {group.terms_and_conditions && (
         <p>Terms and Conditions: {group.terms_and_conditions}</p>
       )}
@@ -173,6 +177,46 @@ export const adminGroupDetailPage = (
         {" "}
         <a href={`/admin/group/${group.id}/delete`}>Delete Group</a>
       </p>
+
+      <article>
+        <h2>Group Details</h2>
+        <div class="table-scroll">
+          <table>
+            <tbody>
+              <tr>
+                <th>Public URL</th>
+                <td>
+                  <a href={ticketUrl}>{`${allowedDomain}/ticket/${group.slug}`}</a>
+                </td>
+              </tr>
+              <tr>
+                <th><label for={`embed-script-${group.id}`}>Embed Script</label></th>
+                <td>
+                  <input
+                    type="text"
+                    id={`embed-script-${group.id}`}
+                    value={embedScriptCode}
+                    readonly
+                    data-select-on-click
+                  />
+                </td>
+              </tr>
+              <tr>
+                <th><label for={`embed-iframe-${group.id}`}>Embed Iframe</label></th>
+                <td>
+                  <input
+                    type="text"
+                    id={`embed-iframe-${group.id}`}
+                    value={embedIframeCode}
+                    readonly
+                    data-select-on-click
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
 
       <h2>Events</h2>
       <div class="table-scroll">

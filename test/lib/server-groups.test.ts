@@ -103,21 +103,21 @@ describe("server (admin groups)", () => {
       expectStatus(403)(response);
     });
 
-    test("shows create group form", async () => {
+    test("shows create group form without slug field", async () => {
       const { response } = await adminGet("/admin/group/new");
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).toContain("Add Group");
       expect(html).toContain("Group Name");
-      expect(html).toContain("Slug");
       expect(html).toContain("Terms and Conditions");
+      expect(html).not.toContain('name="slug"');
     });
   });
 
   describe("POST /admin/group", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/group", { name: "X", slug: "x" }),
+        mockFormRequest("/admin/group", { name: "X" }),
       );
       expectAdminRedirect(response);
     });
@@ -126,52 +126,31 @@ describe("server (admin groups)", () => {
       const cookie = await createManagerCookie("mgr-create-post");
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
-        mockFormRequest("/admin/group", { name: "X", slug: "x", csrf_token: csrfToken }, cookie),
+        mockFormRequest("/admin/group", { name: "X", csrf_token: csrfToken }, cookie),
       );
       expectStatus(403)(response);
     });
 
-    test("creates group and redirects", async () => {
+    test("creates group with auto-generated slug", async () => {
       const group = await createTestGroup({
         name: "New Group",
-        slug: "new-group",
         termsAndConditions: "Group terms",
       });
       expect(group.name).toBe("New Group");
-      expect(group.slug).toBe("new-group");
+      expect(group.slug).toBeTruthy();
+      expect(group.slug.length).toBe(5);
       expect(group.terms_and_conditions).toBe("Group terms");
     });
 
-    test("rejects duplicate slug", async () => {
-      await createTestGroup({ name: "First", slug: "dupe" });
-      const { response } = await adminFormPost("/admin/group", {
-        name: "Second",
-        slug: "dupe",
+    test("creates group and allows slug to be set via edit", async () => {
+      const group = await createTestGroup({
+        name: "New Group",
+        slug: "custom-slug",
+        termsAndConditions: "Group terms",
       });
-      expectStatus(400)(response);
-      const html = await response.text();
-      expect(html).toContain("Slug is already in use");
-    });
-
-    test("rejects slug that collides with an event", async () => {
-      const event = await createTestEvent({ name: "Collision Event" });
-      const { response } = await adminFormPost("/admin/group", {
-        name: "Colliding Group",
-        slug: event.slug,
-      });
-      expectStatus(400)(response);
-      const html = await response.text();
-      expect(html).toContain("Slug is already in use");
-    });
-
-    test("rejects invalid slug", async () => {
-      const { response } = await adminFormPost("/admin/group", {
-        name: "Bad",
-        slug: "invalid_slug!",
-      });
-      expectStatus(400)(response);
-      const html = await response.text();
-      expect(html).toContain("Slug may only contain lowercase letters, numbers, and hyphens");
+      expect(group.name).toBe("New Group");
+      expect(group.slug).toBe("custom-slug");
+      expect(group.terms_and_conditions).toBe("Group terms");
     });
   });
 
@@ -363,7 +342,7 @@ describe("server (admin groups)", () => {
       expectStatus(404)(response);
     });
 
-    test("shows group detail with events", async () => {
+    test("shows group detail with events and embed options", async () => {
       const group = await createTestGroup({ name: "Detail Group", slug: "detail-group", termsAndConditions: "Some terms" });
       const event = await createTestEvent({ name: "Grouped Event", groupId: group.id });
 
@@ -377,6 +356,12 @@ describe("server (admin groups)", () => {
       expect(html).toContain(`/admin/event/${event.id}`);
       expect(html).toContain("Edit Group");
       expect(html).toContain("Delete Group");
+      expect(html).toContain("Public URL");
+      expect(html).toContain("/ticket/detail-group");
+      expect(html).toContain("Embed Script");
+      expect(html).toContain("data-events=");
+      expect(html).toContain("Embed Iframe");
+      expect(html).toContain("iframe");
     });
 
     test("shows empty events message when group has no events", async () => {
@@ -482,7 +467,6 @@ describe("server (admin groups)", () => {
       const response = await handleRequest(
         mockFormRequest("/admin/group", {
           name: "Redirect Test",
-          slug: "redirect-test",
           terms_and_conditions: "",
           csrf_token: csrfToken,
         }, cookie),

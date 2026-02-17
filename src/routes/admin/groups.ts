@@ -3,6 +3,7 @@
  */
 
 import { logActivity } from "#lib/db/activityLog.ts";
+import { getAllowedDomain } from "#lib/config.ts";
 import {
   assignEventsToGroup,
   computeGroupSlugIndex,
@@ -15,7 +16,7 @@ import {
   type GroupInput,
 } from "#lib/db/groups.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
-import { normalizeSlug } from "#lib/slug.ts";
+import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import type { Group } from "#lib/types.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -27,10 +28,27 @@ import {
   adminGroupNewPage,
   adminGroupsPage,
 } from "#templates/admin/groups.tsx";
-import { groupFields, type GroupFormValues } from "#templates/fields.ts";
+import { groupCreateFields, groupFields, type GroupCreateFormValues, type GroupFormValues } from "#templates/fields.ts";
 
-/** Extract group input from validated form values */
-const extractGroupInput = async (
+/** Generate a unique group slug, retrying on collision */
+const generateUniqueGroupSlug = () =>
+  generateUniqueSlug(computeGroupSlugIndex, isGroupSlugTaken);
+
+/** Extract group input from create form values (auto-generates slug) */
+const extractGroupCreateInput = async (
+  values: GroupCreateFormValues,
+): Promise<GroupInput> => {
+  const { slug, slugIndex } = await generateUniqueGroupSlug();
+  return {
+    name: values.name,
+    slug,
+    slugIndex,
+    termsAndConditions: values.terms_and_conditions,
+  };
+};
+
+/** Extract group input from edit form values (uses provided slug) */
+const extractGroupEditInput = async (
   values: GroupFormValues,
 ): Promise<GroupInput> => {
   const slug = normalizeSlug(values.slug);
@@ -42,36 +60,50 @@ const extractGroupInput = async (
   };
 };
 
-/** Groups resource for REST create/update operations */
-const groupsResource = defineNamedResource({
-  table: groupsTable,
-  fields: groupFields,
-  toInput: extractGroupInput,
-  nameField: "name",
-  validate: async (input, id) => {
-    const taken = await isGroupSlugTaken(input.slug, id ? Number(id) : undefined);
-    return taken ? "Slug is already in use" : null;
-  },
-  onDelete: async (id) => {
-    const groupId = Number(id);
-    await resetGroupEvents(groupId);
-    await groupsTable.deleteById(id);
-  },
-});
+/** Delete a group and reset its events to ungrouped */
+const deleteGroup = async (id: Parameters<typeof groupsTable.findById>[0]) => {
+  await resetGroupEvents(Number(id));
+  await groupsTable.deleteById(id);
+};
 
-const crud = createOwnerCrudHandlers({
+/** Shared CRUD handler config */
+const crudConfig = {
   singular: "Group",
   listPath: "/admin/groups",
   getRowPath: (g: Group) => `/admin/group/${g.id}`,
   getAll: getAllGroups,
-  resource: groupsResource,
   renderList: adminGroupsPage,
   renderNew: adminGroupNewPage,
   renderEdit: adminGroupEditPage,
   renderDelete: adminGroupDeletePage,
-  getName: (g) => g.name,
+  getName: (g: Group) => g.name,
   deleteConfirmError: "Group name does not match. Please type the exact name to confirm deletion.",
+} as const;
+
+/** Groups resource for REST create operations (auto-generated slug) */
+const groupsCreateResource = defineNamedResource({
+  table: groupsTable,
+  fields: groupCreateFields,
+  toInput: extractGroupCreateInput,
+  nameField: "name",
+  onDelete: deleteGroup,
 });
+
+/** Groups resource for REST update operations (user-provided slug) */
+const groupsResource = defineNamedResource({
+  table: groupsTable,
+  fields: groupFields,
+  toInput: extractGroupEditInput,
+  nameField: "name",
+  validate: async (input, id) => {
+    const taken = await isGroupSlugTaken(input.slug, Number(id));
+    return taken ? "Slug is already in use" : null;
+  },
+  onDelete: deleteGroup,
+});
+
+const crudCreate = createOwnerCrudHandlers({ ...crudConfig, resource: groupsCreateResource });
+const crud = createOwnerCrudHandlers({ ...crudConfig, resource: groupsResource });
 
 /** Look up group by id, return 404 if not found */
 const withGroupOr404 = async (
@@ -93,7 +125,8 @@ const handleGroupDetail = (
         getEventsByGroupId(id),
         getUngroupedEvents(),
       ]);
-      return htmlResponse(adminGroupDetailPage(group, events, ungroupedEvents, session));
+      const allowedDomain = getAllowedDomain();
+      return htmlResponse(adminGroupDetailPage(group, events, ungroupedEvents, session, allowedDomain));
     }));
 
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
@@ -114,8 +147,8 @@ const handleAddEventsToGroup = (
 /** Group routes */
 export const groupsRoutes = defineRoutes({
   "GET /admin/groups": crud.listGet,
-  "GET /admin/group/new": crud.newGet,
-  "POST /admin/group": crud.createPost,
+  "GET /admin/group/new": crudCreate.newGet,
+  "POST /admin/group": crudCreate.createPost,
   "GET /admin/group/:id": handleGroupDetail,
   "GET /admin/group/:id/edit": (request, { id }) => crud.editGet(request, id),
   "POST /admin/group/:id/edit": (request, { id }) => crud.editPost(request, id),

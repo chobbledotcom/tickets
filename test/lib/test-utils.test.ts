@@ -1174,7 +1174,7 @@ describe("test-compat", () => {
       await createTestDbWithSetup();
       const group = await createTestGroup();
       expect(group.name).toBe("Test Group");
-      expect(group.slug).toBe("test-group");
+      expect(group.slug.length).toBe(5);
       expect(group.terms_and_conditions).toBe("");
     });
 
