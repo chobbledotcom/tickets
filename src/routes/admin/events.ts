@@ -249,9 +249,9 @@ const renderEventPage = async (request: Request, { id }: { id: number }, activeF
   });
 };
 
-/** Render event error page or 404 */
-const eventErrorPage = async (
-  id: number,
+/** Render event error page */
+const eventErrorPage = (
+  event: EventWithCount,
   renderPage: (
     event: EventWithCount,
     session: AdminSession,
@@ -259,12 +259,8 @@ const eventErrorPage = async (
   ) => string,
   session: AdminSession,
   error: string,
-): Promise<Response> => {
-  const event = await getEventWithCount(id);
-  return event
-    ? htmlResponse(renderPage(event, session, error), 400)
-    : notFoundResponse();
-};
+): Response =>
+  htmlResponse(renderPage(event, session, error), 400);
 
 /** Handle GET /admin/event/:id/duplicate */
 const getEventAndGroups = async (
@@ -331,15 +327,11 @@ const handleAdminEventEditPost = (
       return redirect(`/admin/event/${result.row.id}${imageErrorParam}`);
     }
     if ("notFound" in result) return notFoundResponse();
-<<<<<<< HEAD
 
-    const ctx = await getEventAndGroups(eventId);
+    const ctx = await getEventAndGroups(id);
     return ctx
       ? htmlResponse(adminEventEditPage(ctx.event, ctx.groups, session, result.error), 400)
       : notFoundResponse();
-=======
-    return eventErrorPage(id, adminEventEditPage, session, result.error);
->>>>>>> 8aba18c (Eliminate route table wrapper lambdas with direct handler references (#323))
   });
 
 /**
@@ -384,7 +376,7 @@ const handleEventWithConfirmation = (
 
     const confirmIdentifier = form.get("confirm_identifier") ?? "";
     if (!verifyIdentifier(event.name, confirmIdentifier)) {
-      return eventErrorPage(id, renderPage, session, errorMsg);
+      return eventErrorPage(event, renderPage, session, errorMsg);
     }
 
     return action(event);

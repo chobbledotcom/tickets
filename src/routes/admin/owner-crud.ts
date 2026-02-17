@@ -1,5 +1,5 @@
 import { logActivity } from "#lib/db/activityLog.ts";
-import type { Resource } from "#lib/rest/resource.ts";
+import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { htmlResponse, notFoundResponse, redirect, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
 
@@ -7,7 +7,7 @@ type OwnerCrudConfig<Row, Input> = {
   singular: string;
   listPath: string;
   getAll: () => Promise<Row[]>;
-  resource: Resource<Row, Input>;
+  resource: NamedResource<Row, Input>;
   renderList: (rows: Row[], session: AdminSession) => string;
   renderNew: (session: AdminSession, error?: string) => string;
   renderEdit: (row: Row, session: AdminSession, error?: string) => string;
@@ -17,7 +17,7 @@ type OwnerCrudConfig<Row, Input> = {
 };
 
 const withRowOr404 = async <Row, Input>(
-  resource: Resource<Row, Input>,
+  resource: NamedResource<Row, Input>,
   id: number,
   handler: (row: Row) => Response | Promise<Response>,
 ): Promise<Response> => {
@@ -96,14 +96,9 @@ export const createOwnerCrudHandlers = <Row, Input>(cfg: OwnerCrudConfig<Row, In
   (session: AdminSession, form: URLSearchParams): Promise<Response> =>
     withRowOr404(cfg.resource, id, async (row) => {
       const confirm = String(form.get("confirm_identifier"));
-      const verifyName = (provided: string): boolean => {
-        const fn = cfg.resource.verifyName;
-        return fn
-          ? fn(row, provided)
-          : cfg.getName(row).trim().toLowerCase() === provided.trim().toLowerCase();
-      };
+      const nameMatches = cfg.resource.verifyName(row, confirm);
 
-      if (!verifyName(confirm)) {
+      if (!nameMatches) {
         return htmlResponse(
           cfg.renderDelete(row, session, cfg.deleteConfirmError),
           400,
@@ -111,12 +106,9 @@ export const createOwnerCrudHandlers = <Row, Input>(cfg: OwnerCrudConfig<Row, In
       }
 
       const result = await cfg.resource.delete(id);
-      if (result.ok) {
-        await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
-        return redirect(cfg.listPath);
-      }
       if ("notFound" in result) return notFoundResponse();
-      return htmlResponse(cfg.renderDelete(row, session, result.error), 400);
+      await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
+      return redirect(cfg.listPath);
     });
 
   const deletePost = ownerFormForId(deleteHandler);

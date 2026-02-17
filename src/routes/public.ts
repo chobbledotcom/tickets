@@ -708,21 +708,6 @@ const handleReservedGet = (request: Request): Response => {
   return htmlResponse(reservationSuccessPage(ticketUrl, inIframe));
 };
 
-<<<<<<< HEAD
-/** Route ticket requests - handles both single and multi-ticket */
-export const routeTicket = async (
-  request: Request,
-  path: string,
-  method: string,
-): Promise<Response | null> => {
-  // Handle /ticket/reserved before slug matching
-  if (path === "/ticket/reserved" && method === "GET") {
-    return handleReservedGet(request);
-  }
-
-  const slug = extractSlugFromPath(path);
-  if (!slug) return null;
-=======
 /** Create a slug route that dispatches single vs multi-ticket requests */
 const slugRoute = (
   onSingle: (request: Request, slug: string) => Promise<Response>,
@@ -732,36 +717,24 @@ const slugRoute = (
     ? onMulti(request, parseMultiSlugs(slug))
     : onSingle(request, slug);
 
-/** Handle GET /ticket/:slug */
+/** Handle GET /ticket/:slug (event first, then group fallback) */
 const handleTicketGet = slugRoute(
-  (request, slug) => handleSingleTicketGet(slug, request),
-  (request, slugs) => handleMultiTicketGet(slugs, request),
+  async (request, slug) => {
+    const response = await handleSingleTicketGet(slug, request);
+    return response.status === 404 ? handleGroupTicketBySlug(request, slug) : response;
+  },
+  handleMultiTicketBySlugs,
 );
->>>>>>> 37fb898 (Convert public.ts from hand-rolled routing to defineRoutes + createRouter (#324))
 
-/** Handle POST /ticket/:slug */
-const handleTicketPost = slugRoute(handleSingleTicketPost, handleMultiTicketPost);
-
-<<<<<<< HEAD
-    if (method === "GET" || method === "POST") {
-      return handleMultiTicketBySlugs(request, slugs);
-    }
-    return null;
-  }
-
-  // Single ticket (event slug first, then group slug fallback)
-  if (method === "GET") {
-    const response = await handleTicketGet(slug, request);
+/** Handle POST /ticket/:slug (event first, then group fallback) */
+const handleTicketPost = slugRoute(
+  async (request, slug) => {
+    const response = await handleSingleTicketPost(request, slug);
     return response.status === 404 ? handleGroupTicketBySlug(request, slug) : response;
-  }
-  if (method === "POST") {
-    const response = await handleTicketPost(request, slug);
-    return response.status === 404 ? handleGroupTicketBySlug(request, slug) : response;
-  }
+  },
+  handleMultiTicketBySlugs,
+);
 
-  return null;
-};
-=======
 /** Public ticket routes */
 const publicRoutes = defineRoutes({
   "GET /ticket/reserved": handleReservedGet,
@@ -771,4 +744,3 @@ const publicRoutes = defineRoutes({
 
 /** Route ticket requests */
 export const routeTicket = createRouter(publicRoutes);
->>>>>>> 37fb898 (Convert public.ts from hand-rolled routing to defineRoutes + createRouter (#324))
