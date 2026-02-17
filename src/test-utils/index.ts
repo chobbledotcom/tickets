@@ -1219,22 +1219,22 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
 });
 
 /**
- * Create a group via the REST API
+ * Create a group via the REST API.
+ * Slug is auto-generated on creation. If a slug is provided,
+ * the group is updated after creation to set the desired slug.
  */
-export const createTestGroup = (
+export const createTestGroup = async (
   overrides: Partial<Omit<GroupInput, "slugIndex">> = {},
 ): Promise<Group> => {
   const input = {
     name: overrides.name ?? "Test Group",
-    slug: overrides.slug ?? "test-group",
     termsAndConditions: overrides.termsAndConditions ?? "",
   };
 
-  return authenticatedFormRequest(
+  const group = await authenticatedFormRequest(
     "/admin/group",
     {
       name: input.name,
-      slug: input.slug,
       terms_and_conditions: input.termsAndConditions,
     },
     async () => {
@@ -1244,6 +1244,16 @@ export const createTestGroup = (
     },
     "create group",
   );
+
+  if (overrides.slug) {
+    return updateTestGroup(group.id, {
+      name: group.name,
+      slug: overrides.slug,
+      termsAndConditions: group.terms_and_conditions,
+    });
+  }
+
+  return group;
 };
 
 /**
