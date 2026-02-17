@@ -15,7 +15,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
   redirect,
-  requireCsrfForm,
+  withCsrfForm,
 } from "#routes/utils.ts";
 import { joinFields, type JoinFormValues } from "#templates/fields.ts";
 import {
@@ -69,19 +69,13 @@ const handleJoinGet = (_request: Request, code: string): Promise<Response> =>
  * Handle POST /join/:code
  */
 const handleJoinPost = (request: Request, code: string): Promise<Response> =>
-  withValidInvite(code, async (code, user, username) => {
-    const csrf = await requireCsrfForm(
+  withValidInvite(code, (code, user, username) =>
+    withCsrfForm(
       request,
-      (newToken) =>
-        htmlResponse(
-          joinPage(code, username, "Invalid or expired form. Please try again.", newToken),
-          403,
-        ),
-    );
-    if (!csrf.ok) return csrf.response;
-
-    const { form } = csrf;
-    const formCsrf = form.get("csrf_token")!;
+      (newToken, message, status) =>
+        htmlResponse(joinPage(code, username, message, newToken), status),
+      async (form) => {
+        const formCsrf = form.get("csrf_token")!;
 
     // Validate password fields
     const validation = validateForm<JoinFormValues>(form, joinFields);
@@ -105,11 +99,12 @@ const handleJoinPost = (request: Request, code: string): Promise<Response> =>
       );
     }
 
-    // Set the password and clear the invite code
-    await setUserPassword(user.id, password);
+        // Set the password and clear the invite code
+        await setUserPassword(user.id, password);
 
-    return redirect("/join/complete");
-  });
+        return redirect("/join/complete");
+      },
+    ));
 
 /**
  * Handle GET /join/complete - password set confirmation page

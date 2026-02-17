@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "ensure closes_at and ticket_token exist in base schema";
+export const LATEST_UPDATE = "add groups table and group_id on events";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -85,6 +85,7 @@ export const initDb = async (): Promise<void> => {
       webhook_url TEXT,
       slug TEXT,
       slug_index TEXT,
+      group_id INTEGER NOT NULL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1,
       fields TEXT NOT NULL DEFAULT 'email',
       closes_at TEXT
@@ -308,6 +309,27 @@ export const initDb = async (): Promise<void> => {
     )
   `);
 
+  // Migration: create groups table
+  await runMigration(`
+    CREATE TABLE IF NOT EXISTS groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL,
+      slug_index TEXT NOT NULL,
+      name TEXT NOT NULL,
+      terms_and_conditions TEXT NOT NULL DEFAULT ''
+    )
+  `);
+
+  // Create unique index on group slug_index for fast lookups
+  await runMigration(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_slug_index ON groups(slug_index)`,
+  );
+
+  // Migration: add group_id column to events (default 0 = no group)
+  await runMigration(`ALTER TABLE events ADD COLUMN group_id INTEGER NOT NULL DEFAULT 0`);
+  // Safety net: ensure existing rows never have NULL
+  await runMigration(`UPDATE events SET group_id = 0 WHERE group_id IS NULL`);
+
   // Migration: add date column to attendees for daily events
   await runMigration(`ALTER TABLE attendees ADD COLUMN date TEXT DEFAULT NULL`);
 
@@ -434,6 +456,7 @@ export const initDb = async (): Promise<void> => {
  * All database tables in order for safe dropping (respects foreign key constraints)
  */
 const ALL_TABLES = [
+  "groups",
   "holidays",
   "activity_log",
   "processed_payments",

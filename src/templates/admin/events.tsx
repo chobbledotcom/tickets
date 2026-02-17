@@ -12,10 +12,11 @@ import { getTz } from "#lib/config.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
 import { utcToLocalInput } from "#lib/timezone.ts";
 import { renderEventImage } from "#templates/public.tsx";
-import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
 import { eventFields, getAddAttendeeFields, imageField, slugField } from "#templates/fields.ts";
+import { EventGroupSelect } from "#templates/admin/group-select.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -438,6 +439,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   location: event.location,
   slug: event.slug,
   event_type: event.event_type,
+  group_id: event.group_id,
   max_attendees: event.max_attendees,
   max_quantity: event.max_quantity,
   bookable_days: formatBookableDays(event.bookable_days),
@@ -460,6 +462,7 @@ const eventFieldsWithAutofocus: Field[] = pipe(
  */
 export const adminDuplicateEventPage = (
   event: EventWithCount,
+  groups: Group[],
   session: AdminSession,
 ): string => {
   const storageEnabled = isStorageEnabled();
@@ -475,6 +478,7 @@ export const adminDuplicateEventPage = (
         <form method="POST" action="/admin/event" enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(fields, values)} />
+          <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
           <button type="submit">Create Event</button>
         </form>
     </Layout>
@@ -486,6 +490,7 @@ export const adminDuplicateEventPage = (
  */
 export const adminEventEditPage = (
   event: EventWithCount,
+  groups: Group[],
   session: AdminSession,
   error?: string,
 ): string => {
@@ -498,6 +503,7 @@ export const adminEventEditPage = (
         <form method="POST" action={`/admin/event/${event.id}/edit`} enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(fields, eventToFieldValues(event))} />
+          <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
           <Raw html={renderField(slugField, String(event.slug))} />
           {storageEnabled && event.image_url && (
             <Raw html={renderEventImage(event, "event-image-full")} />

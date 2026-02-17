@@ -36,11 +36,19 @@ export type EventFormValues = {
   bookable_days: string;
   minimum_days_before: number | null;
   maximum_days_after: number | null;
+  group_id: string;
 };
 
 /** Typed values from event edit form (includes slug) */
 export type EventEditFormValues = EventFormValues & {
   slug: string;
+};
+
+/** Typed values from group form validation */
+export type GroupFormValues = {
+  name: string;
+  slug: string;
+  terms_and_conditions: string;
 };
 
 /** Typed values from ticket form (field presence varies by event config) */
@@ -412,6 +420,33 @@ export const slugField: Field = {
   hint: "URL-friendly identifier (lowercase letters, numbers, and hyphens)",
   validate: (value: string) => validateSlug(normalizeSlug(value)),
 };
+
+/** Group selection field (validated even when rendered manually) */
+export const groupIdField: Field = {
+  name: "group_id",
+  label: "Group",
+  type: "text",
+};
+
+/**
+ * Group form field definitions
+ */
+export const groupFields: Field[] = [
+  {
+    name: "name",
+    label: "Group Name",
+    type: "text",
+    required: true,
+    placeholder: "Summer Fete",
+  },
+  slugField,
+  {
+    name: "terms_and_conditions",
+    label: "Terms and Conditions (optional)",
+    type: "textarea",
+    hint: "If set, overrides the global terms and conditions for this group ticket page",
+  },
+];
 
 /** Name field shown on all ticket forms */
 const nameField: Field = {

@@ -5,8 +5,10 @@
 import type { ResultSet } from "@libsql/client";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { executeByField, getDb, inPlaceholders, queryAll, queryBatch, queryOne, resultRows } from "#lib/db/client.ts";
+import { encryptedNameSchema, idAndEncryptedSlugSchema } from "#lib/db/common-schema.ts";
 import { deleteProcessedPaymentsForEvent } from "#lib/db/processed-payments.ts";
-import { col, defineTable } from "#lib/db/table.ts";
+import { defineIdTable } from "#lib/db/define-id-table.ts";
+import { col } from "#lib/db/table.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso } from "#lib/now.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
@@ -23,6 +25,7 @@ export type EventInput = {
   location?: string;
   slug: string;
   slugIndex: string;
+  groupId?: number;
   maxAttendees: number;
   thankYouUrl?: string | null;
   unitPrice?: number | null;
@@ -96,17 +99,13 @@ export const writeEventDate = (v: string): Promise<string> =>
  * Events table definition
  * slug is encrypted; slug_index is HMAC for lookups
  */
-export const eventsTable = defineTable<Event, EventInput>({
-  name: "events",
-  primaryKey: "id",
-  schema: {
-    id: col.generated<number>(),
-    name: col.encrypted<string>(encrypt, decrypt),
+export const eventsTable = defineIdTable<Event, EventInput>("events", {
+    ...idAndEncryptedSlugSchema(encrypt, decrypt),
+    ...encryptedNameSchema(encrypt, decrypt),
     description: { default: () => "", write: encrypt, read: decrypt },
     date: { default: () => "", write: writeEventDate, read: decryptDatetime },
     location: { default: () => "", write: encrypt, read: decrypt },
-    slug: col.encrypted<string>(encrypt, decrypt),
-    slug_index: col.simple<string>(),
+    group_id: col.withDefault(() => 0),
     created: col.withDefault(() => nowIso()),
     max_attendees: col.simple<number>(),
     thank_you_url: col.encryptedNullable<string>(encrypt, decrypt),
@@ -121,8 +120,7 @@ export const eventsTable = defineTable<Event, EventInput>({
     minimum_days_before: col.withDefault(() => 1),
     maximum_days_after: col.withDefault(() => 90),
     image_url: { default: () => "", write: encrypt, read: decrypt },
-  },
-});
+  });
 
 
 /**
@@ -141,9 +139,9 @@ export const isSlugTaken = async (
 ): Promise<boolean> => {
   const slugIndex = await computeSlugIndex(slug);
   const sql = excludeEventId
-    ? "SELECT 1 FROM events WHERE slug_index = ? AND id != ?"
-    : "SELECT 1 FROM events WHERE slug_index = ?";
-  const args = excludeEventId ? [slugIndex, excludeEventId] : [slugIndex];
+    ? "SELECT 1 WHERE EXISTS (SELECT 1 FROM events WHERE slug_index = ? AND id != ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)"
+    : "SELECT 1 WHERE EXISTS (SELECT 1 FROM events WHERE slug_index = ?) OR EXISTS (SELECT 1 FROM groups WHERE slug_index = ?)";
+  const args = excludeEventId ? [slugIndex, excludeEventId, slugIndex] : [slugIndex, slugIndex];
   const result = await getDb().execute({ sql, args });
   return result.rows.length > 0;
 };

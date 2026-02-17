@@ -20,9 +20,10 @@ import {
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
+import { getAllGroups } from "#lib/db/groups.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
-import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { csvResponse, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
@@ -55,7 +56,7 @@ import {
   validateImage,
 } from "#lib/storage.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
-import { eventFields, slugField } from "#templates/fields.ts";
+import { eventFields, groupIdField, slugField } from "#templates/fields.ts";
 
 /** Try to delete an image from CDN storage, logging errors on failure */
 const tryDeleteImage = async (filename: string, eventId: number, detail: string): Promise<void> => {
@@ -89,6 +90,7 @@ const extractCommonFields = (values: EventFormValues) => {
     description: values.description,
     date: rawDate ? normalizeDatetime(rawDate, "date") : rawDate,
     location: values.location,
+    groupId: Number(values.group_id) || 0,
     maxAttendees: values.max_attendees,
     thankYouUrl: values.thank_you_url || null,
     unitPrice: values.unit_price ? toMinorUnits(Number.parseFloat(values.unit_price)) : null,
@@ -123,7 +125,7 @@ const extractEventUpdateInput = async (
 /** Events resource for REST create operations */
 const eventsResource = defineResource({
   table: eventsTable,
-  fields: eventFields,
+  fields: [...eventFields, groupIdField],
   toInput: extractEventInput,
   nameField: "name",
 });
@@ -266,10 +268,32 @@ const eventErrorPage = async (
 };
 
 /** Handle GET /admin/event/:id/duplicate */
-const handleAdminEventDuplicateGet = withEventPage(adminDuplicateEventPage);
+const getEventAndGroups = async (
+  eventId: number,
+): Promise<{ event: EventWithCount; groups: Group[] } | null> => {
+  const [event, groups] = await Promise.all([
+    getEventWithCount(eventId),
+    getAllGroups(),
+  ]);
+  return event ? { event, groups } : null;
+};
+
+const withEventAndGroupsPage =
+  (
+    renderPage: (event: EventWithCount, groups: Group[], session: AdminSession) => string,
+  ) =>
+  (request: Request, eventId: number): Promise<Response> =>
+    requireSessionOr(request, async (session) => {
+      const ctx = await getEventAndGroups(eventId);
+      return ctx
+        ? htmlResponse(renderPage(ctx.event, ctx.groups, session))
+        : notFoundResponse();
+    });
+
+const handleAdminEventDuplicateGet = withEventAndGroupsPage(adminDuplicateEventPage);
 
 /** Handle GET /admin/event/:id/edit */
-const handleAdminEventEditGet = withEventPage(adminEventEditPage);
+const handleAdminEventEditGet = withEventAndGroupsPage(adminEventEditPage);
 
 /** Handle POST /admin/event/:id/edit */
 const handleAdminEventEditPost = (
@@ -285,7 +309,7 @@ const handleAdminEventEditPost = (
     // Build a resource that includes the slug field and validates uniqueness
     const updateResource = defineResource({
       table: eventsTable,
-      fields: [...eventFields, slugField],
+      fields: [...eventFields, slugField, groupIdField],
       toInput: extractEventUpdateInput,
       nameField: "name",
       validate: async (input, id) => {
@@ -302,7 +326,11 @@ const handleAdminEventEditPost = (
       return redirect(`/admin/event/${result.row.id}${imageErrorParam}`);
     }
     if ("notFound" in result) return notFoundResponse();
-    return eventErrorPage(eventId, adminEventEditPage, session, result.error);
+
+    const ctx = await getEventAndGroups(eventId);
+    return ctx
+      ? htmlResponse(adminEventEditPage(ctx.event, ctx.groups, session, result.error), 400)
+      : notFoundResponse();
   });
 
 /**

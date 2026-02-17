@@ -34,6 +34,15 @@ import {
   writeEventDate,
 } from "#lib/db/events.ts";
 import {
+  computeGroupSlugIndex,
+  getActiveEventsByGroupId,
+  getAllGroups,
+  getGroupBySlugIndex,
+  groupsTable,
+  isGroupSlugTaken,
+  resetGroupEvents,
+} from "#lib/db/groups.ts";
+import {
   clearLoginAttempts,
   isLoginRateLimited,
   recordFailedLogin,
@@ -2662,6 +2671,122 @@ describe("db", () => {
       const raw = rows.rows[0]?.closes_at as string | null;
       const decrypted = await decrypt(raw as string);
       expect(decrypted).toBe("2099-06-15T14:30:00.000Z");
+    });
+  });
+
+  describe("groups", () => {
+    test("groupsTable CRUD works", async () => {
+      const slug = "db-group";
+      const slugIndex = await computeGroupSlugIndex(slug);
+      const created = await groupsTable.insert({
+        name: "DB Group",
+        slug,
+        slugIndex,
+        termsAndConditions: "",
+      });
+
+      const fetched = await groupsTable.findById(created.id);
+      expect(fetched).not.toBeNull();
+      expect(fetched?.name).toBe("DB Group");
+      expect(fetched?.slug).toBe(slug);
+
+      const updated = await groupsTable.update(created.id, {
+        name: "DB Group Updated",
+        termsAndConditions: "Terms",
+      });
+      expect(updated?.name).toBe("DB Group Updated");
+      expect(updated?.terms_and_conditions).toBe("Terms");
+
+      await groupsTable.deleteById(created.id);
+      expect(await groupsTable.findById(created.id)).toBeNull();
+    });
+
+    test("getAllGroups returns decrypted groups ordered by id", async () => {
+      const g1 = await groupsTable.insert({
+        name: "Group A",
+        slug: "group-a",
+        slugIndex: await computeGroupSlugIndex("group-a"),
+        termsAndConditions: "",
+      });
+      const g2 = await groupsTable.insert({
+        name: "Group B",
+        slug: "group-b",
+        slugIndex: await computeGroupSlugIndex("group-b"),
+        termsAndConditions: "",
+      });
+      const groups = await getAllGroups();
+      expect(groups.length).toBe(2);
+      expect(groups[0]?.id).toBe(g1.id);
+      expect(groups[1]?.id).toBe(g2.id);
+      expect(groups[0]?.name).toBe("Group A");
+      expect(groups[1]?.name).toBe("Group B");
+    });
+
+    test("getGroupBySlugIndex returns group or null", async () => {
+      const slug = "idx-group";
+      const slugIndex = await computeGroupSlugIndex(slug);
+      await groupsTable.insert({
+        name: "Index Group",
+        slug,
+        slugIndex,
+        termsAndConditions: "",
+      });
+
+      const found = await getGroupBySlugIndex(slugIndex);
+      expect(found?.slug).toBe(slug);
+      expect(await getGroupBySlugIndex("missing")).toBeNull();
+    });
+
+    test("isGroupSlugTaken checks both groups and events", async () => {
+      const groupSlug = "taken-by-group";
+      const created = await groupsTable.insert({
+        name: "Taken",
+        slug: groupSlug,
+        slugIndex: await computeGroupSlugIndex(groupSlug),
+        termsAndConditions: "",
+      });
+
+      expect(await isGroupSlugTaken(groupSlug)).toBe(true);
+      expect(await isGroupSlugTaken(groupSlug, created.id)).toBe(false);
+
+      const event = await createTestEvent({ name: "Taken Event" });
+      expect(await isGroupSlugTaken(event.slug)).toBe(true);
+    });
+
+    test("getActiveEventsByGroupId returns active events with attendee counts", async () => {
+      const group = await groupsTable.insert({
+        name: "Events Group",
+        slug: "events-group",
+        slugIndex: await computeGroupSlugIndex("events-group"),
+        termsAndConditions: "",
+      });
+
+      const e1 = await createTestEvent({ name: "Active In Group", maxAttendees: 10, groupId: group.id });
+      const e2 = await createTestEvent({ name: "Inactive In Group", maxAttendees: 10, groupId: group.id });
+      await getDb().execute({
+        sql: "UPDATE events SET active = 0 WHERE id = ?",
+        args: [e2.id],
+      });
+
+      const attendee = await createAttendeeAtomic({ eventId: e1.id, name: "A", email: "a@example.com", quantity: 3 });
+      if (!attendee.success) throw new Error("Failed to create attendee");
+
+      const events = await getActiveEventsByGroupId(group.id);
+      expect(events.length).toBe(1);
+      expect(events[0]?.id).toBe(e1.id);
+      expect(events[0]?.attendee_count).toBe(3);
+    });
+
+    test("resetGroupEvents sets group_id to 0", async () => {
+      const group = await groupsTable.insert({
+        name: "Reset Group",
+        slug: "reset-group",
+        slugIndex: await computeGroupSlugIndex("reset-group"),
+        termsAndConditions: "",
+      });
+      const event = await createTestEvent({ name: "Reset Event", groupId: group.id, maxAttendees: 10 });
+      await resetGroupEvents(group.id);
+      expect((await getEvent(event.id))?.group_id).toBe(0);
     });
   });
 

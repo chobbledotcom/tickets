@@ -8,6 +8,7 @@ import { calendarRoutes } from "#routes/admin/calendar.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
 import { eventsRoutes } from "#routes/admin/events.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
+import { groupsRoutes } from "#routes/admin/groups.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
 import { sessionsRoutes } from "#routes/admin/sessions.ts";
 import { settingsRoutes } from "#routes/admin/settings.ts";
@@ -26,6 +27,7 @@ const adminRoutes = {
   ...attendeesRoutes,
   ...usersRoutes,
   ...guideRoutes,
+  ...groupsRoutes,
   ...holidaysRoutes,
   ...scannerRoutes,
 };
