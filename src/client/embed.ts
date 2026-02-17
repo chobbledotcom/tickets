@@ -28,16 +28,10 @@
     const iframeResize = (window as unknown as {
       iframeResize: (options: {
         license: string;
-        onMessage?: (data: { iframe: HTMLIFrameElement; message: Record<string, unknown> }) => void;
       }, target: HTMLIFrameElement) => void;
     }).iframeResize;
     iframeResize({
       license: "GPLv3",
-      onMessage: ({ iframe: iframeEl, message }) => {
-        if (message?.type === "scrollIntoView") {
-          iframeEl.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      },
     }, iframe);
   };
 
