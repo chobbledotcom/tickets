@@ -136,6 +136,9 @@ const prepareTestClient = async (): Promise<{ reused: boolean }> => {
  */
 export const createTestDb = async (): Promise<void> => {
   const { reused } = await prepareTestClient();
+  // The DB gets cleared/recreated between tests; cached session cookies become invalid.
+  // Force helpers to restore/login again on the next authenticated request.
+  resetTestSession();
   if (reused) {
     await cachedClient!.execute({
       sql: "INSERT INTO settings (key, value) VALUES ('latest_db_update', ?)",
@@ -153,6 +156,10 @@ export const createTestDbWithSetup = async (
   currency = "GBP",
 ): Promise<void> => {
   const { reused } = await prepareTestClient();
+
+  // prepareTestClient clears tables when reusing the cached client, which wipes sessions.
+  // Ensure we don't reuse a cookie/CSRF pair that no longer exists in the DB.
+  resetTestSession();
 
   if (reused && cachedSetupSettings) {
     for (const row of cachedSetupSettings) {

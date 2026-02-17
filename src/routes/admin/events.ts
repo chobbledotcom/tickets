@@ -26,6 +26,7 @@ import { generateSlug, normalizeSlug } from "#lib/slug.ts";
 import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
 import { defineRoutes } from "#routes/router.ts";
+import type { RouteParamsFor, TypedRouteHandler } from "#routes/router.ts";
 import { csvResponse, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
   formDataToParams,
@@ -276,22 +277,28 @@ const getEventAndGroups = async (
   return event ? { event, groups } : null;
 };
 
+type AdminEventIdParams = RouteParamsFor<"GET /admin/event/:id">;
+
 const withEventAndGroupsPage =
   (
     renderPage: (event: EventWithCount, groups: Group[], session: AdminSession) => string,
   ) =>
-  (request: Request, eventId: number): Promise<Response> =>
+  (request: Request, params: AdminEventIdParams): Promise<Response> =>
     requireSessionOr(request, async (session) => {
-      const ctx = await getEventAndGroups(eventId);
+      const ctx = await getEventAndGroups(params.id);
       return ctx
         ? htmlResponse(renderPage(ctx.event, ctx.groups, session))
         : notFoundResponse();
     });
 
-const handleAdminEventDuplicateGet = withEventAndGroupsPage(adminDuplicateEventPage);
+const handleAdminEventDuplicateGet: TypedRouteHandler<"GET /admin/event/:id/duplicate"> = withEventAndGroupsPage(
+  adminDuplicateEventPage,
+);
 
 /** Handle GET /admin/event/:id/edit */
-const handleAdminEventEditGet = withEventAndGroupsPage(adminEventEditPage);
+const handleAdminEventEditGet: TypedRouteHandler<"GET /admin/event/:id/edit"> = withEventAndGroupsPage(
+  adminEventEditPage,
+);
 
 /** Handle POST /admin/event/:id/edit */
 const handleAdminEventEditPost = (
