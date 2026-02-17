@@ -419,7 +419,7 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             password, you cannot log in or decrypt any data. Keep your password
             safe. Another owner can delete your account and send a fresh
             invite, and all existing attendee data remains accessible to other
-            owners.
+            admins.
           </p>
         </Q>
 
