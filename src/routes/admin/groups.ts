@@ -2,9 +2,13 @@
  * Admin group management routes - owner only
  */
 
+import { logActivity } from "#lib/db/activityLog.ts";
 import {
+  assignEventsToGroup,
   computeGroupSlugIndex,
   getAllGroups,
+  getEventsByGroupId,
+  getUngroupedEvents,
   groupsTable,
   isGroupSlugTaken,
   resetGroupEvents,
@@ -12,9 +16,17 @@ import {
 } from "#lib/db/groups.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
 import { normalizeSlug } from "#lib/slug.ts";
+import type { Group } from "#lib/types.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { adminGroupDeletePage, adminGroupEditPage, adminGroupNewPage, adminGroupsPage } from "#templates/admin/groups.tsx";
+import { htmlResponse, notFoundResponse, redirect, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
+import {
+  adminGroupDeletePage,
+  adminGroupDetailPage,
+  adminGroupEditPage,
+  adminGroupNewPage,
+  adminGroupsPage,
+} from "#templates/admin/groups.tsx";
 import { groupFields, type GroupFormValues } from "#templates/fields.ts";
 
 /** Extract group input from validated form values */
@@ -50,6 +62,7 @@ const groupsResource = defineNamedResource({
 const crud = createOwnerCrudHandlers({
   singular: "Group",
   listPath: "/admin/groups",
+  getRowPath: (g: Group) => `/admin/group/${g.id}`,
   getAll: getAllGroups,
   resource: groupsResource,
   renderList: adminGroupsPage,
@@ -60,13 +73,46 @@ const crud = createOwnerCrudHandlers({
   deleteConfirmError: "Group name does not match. Please type the exact name to confirm deletion.",
 });
 
+/** Handle GET /admin/group/:id - group detail page */
+const handleGroupDetail = (
+  request: Request,
+  { id }: { id: number },
+): Promise<Response> =>
+  requireOwnerOr(request, async (session) => {
+    const group = await groupsTable.findById(id);
+    if (!group) return notFoundResponse();
+    const [events, ungroupedEvents] = await Promise.all([
+      getEventsByGroupId(id),
+      getUngroupedEvents(),
+    ]);
+    return htmlResponse(adminGroupDetailPage(group, events, ungroupedEvents, session));
+  });
+
+/** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
+const handleAddEventsToGroup = (
+  request: Request,
+  { id }: { id: number },
+): Promise<Response> =>
+  withOwnerAuthForm(request, async (_session, form) => {
+    const group = await groupsTable.findById(id);
+    if (!group) return notFoundResponse();
+    const eventIds = form.getAll("event_ids").map(Number).filter((n) => n > 0);
+    if (eventIds.length > 0) {
+      await assignEventsToGroup(eventIds, id);
+      await logActivity(`${eventIds.length} event(s) added to group '${group.name}'`);
+    }
+    return redirect(`/admin/group/${id}`);
+  });
+
 /** Group routes */
 export const groupsRoutes = defineRoutes({
   "GET /admin/groups": crud.listGet,
   "GET /admin/group/new": crud.newGet,
   "POST /admin/group": crud.createPost,
+  "GET /admin/group/:id": handleGroupDetail,
   "GET /admin/group/:id/edit": (request, { id }) => crud.editGet(request, id),
   "POST /admin/group/:id/edit": (request, { id }) => crud.editPost(request, id),
   "GET /admin/group/:id/delete": (request, { id }) => crud.deleteGet(request, id),
   "POST /admin/group/:id/delete": (request, { id }) => crud.deletePost(request, id),
+  "POST /admin/group/:id/add-events": handleAddEventsToGroup,
 });

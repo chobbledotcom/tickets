@@ -6,6 +6,8 @@ import { htmlResponse, notFoundResponse, redirect, requireOwnerOr, withOwnerAuth
 type OwnerCrudConfig<Row, Input> = {
   singular: string;
   listPath: string;
+  /** Redirect path after create/edit. Falls back to listPath when not provided. */
+  getRowPath?: (row: Row) => string;
   getAll: () => Promise<Row[]>;
   resource: NamedResource<Row, Input>;
   renderList: (rows: Row[], session: AdminSession) => string;
@@ -50,9 +52,9 @@ export const createOwnerCrudHandlers = <Row, Input>(cfg: OwnerCrudConfig<Row, In
     requireOwnerOr(request, (session) =>
       withRowOr404(cfg.resource, id, (row) => htmlResponse(render(row, session))));
 
-  const logAndRedirect = async (verb: string, name: string): Promise<Response> => {
+  const logAndRedirect = async (verb: string, name: string, path?: string): Promise<Response> => {
     await logActivity(`${cfg.singular} '${name}' ${verb}`);
-    return redirect(cfg.listPath);
+    return redirect(path ?? cfg.listPath);
   };
 
   const listGet = ownerHtml(async (session) => {
@@ -65,7 +67,7 @@ export const createOwnerCrudHandlers = <Row, Input>(cfg: OwnerCrudConfig<Row, In
   const createHandler: OwnerFormHandler = async (session, form) => {
     const result = await cfg.resource.create(form);
     return result.ok
-      ? await logAndRedirect("created", cfg.getName(result.row))
+      ? await logAndRedirect("created", cfg.getName(result.row), cfg.getRowPath?.(result.row))
       : htmlResponse(cfg.renderNew(session, result.error), 400);
   };
 
@@ -80,7 +82,7 @@ export const createOwnerCrudHandlers = <Row, Input>(cfg: OwnerCrudConfig<Row, In
   ): Promise<Response> => {
     const result = await cfg.resource.update(id, form);
     if (result.ok) {
-      return logAndRedirect("updated", cfg.getName(result.row));
+      return logAndRedirect("updated", cfg.getName(result.row), cfg.getRowPath?.(result.row));
     }
     if ("notFound" in result) return notFoundResponse();
     return withRowOr404(cfg.resource, id, (row) =>

@@ -107,6 +107,56 @@ export const getActiveEventsByGroupId = async (
 };
 
 /**
+ * Get all events in a group with attendee counts (including inactive).
+ */
+export const getEventsByGroupId = async (
+  groupId: number,
+): Promise<EventWithCount[]> => {
+  const rows = await queryAll<EventWithCount>(
+    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
+     FROM events e
+     LEFT JOIN attendees a ON e.id = a.event_id
+     WHERE e.group_id = ?
+     GROUP BY e.id
+     ORDER BY e.created DESC, e.id DESC`,
+    [groupId],
+  );
+
+  return mapAsync(decryptEventWithCount)(rows);
+};
+
+/**
+ * Get ungrouped events (group_id = 0) with attendee counts.
+ */
+export const getUngroupedEvents = async (): Promise<EventWithCount[]> => {
+  const rows = await queryAll<EventWithCount>(
+    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
+     FROM events e
+     LEFT JOIN attendees a ON e.id = a.event_id
+     WHERE e.group_id = 0
+     GROUP BY e.id
+     ORDER BY e.created DESC, e.id DESC`,
+  );
+
+  return mapAsync(decryptEventWithCount)(rows);
+};
+
+/**
+ * Assign events to a group by updating their group_id.
+ */
+export const assignEventsToGroup = async (
+  eventIds: number[],
+  groupId: number,
+): Promise<void> => {
+  for (const eventId of eventIds) {
+    await getDb().execute({
+      sql: "UPDATE events SET group_id = ? WHERE id = ?",
+      args: [groupId, eventId],
+    });
+  }
+};
+
+/**
  * Reset group assignment on all events in a group.
  */
 export const resetGroupEvents = async (groupId: number): Promise<void> => {
