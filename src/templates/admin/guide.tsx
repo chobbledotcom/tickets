@@ -96,8 +96,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         <Q q="What are the event date and location fields for?">
           <p>
             These are optional fields you can fill in when creating or editing
-            an event. The date is when the event takes place (in UTC) and the
-            location is where it's held. Both are displayed on the attendee's
+            an event. The date is when the event takes place (in your
+            configured timezone) and the location is where it's held. Both are
+            displayed on the attendee's
             ticket page so they know when and where to go. For daily events,
             attendees already pick a date when booking, so the event date field
             is more useful for standard (one-off) events.
@@ -321,8 +322,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             Each ticket has a unique QR code. When an attendee arrives, they
             show their QR code to a member of staff. The staff member scans it
             (or opens the link), which takes them to the check-in page. If
-            logged in as an admin, they'll see a button to toggle the attendee's
-            check-in status.
+            logged in as an admin, they'll see the attendee's details and
+            ticket quantity, with a button to check them in or out.
           </p>
         </Q>
 
@@ -364,12 +365,13 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="What do the scanner status messages mean?">
           <p>
-            <strong>Checked in</strong> &mdash; attendee successfully checked
-            in. <strong>Already checked in</strong> &mdash; they were already
+            <strong>Checked in</strong> &mdash; shows the attendee's name and
+            ticket count (e.g. "Jo checked in (2 tickets)").{" "}
+            <strong>Already checked in</strong> &mdash; they were already
             marked as arrived. <strong>Ticket not found</strong> &mdash; the QR
             code doesn't match any registration.{" "}
-            <strong>Different event</strong> &mdash; the ticket belongs to
-            another event (you can force check-in if needed).
+            <strong>Different event</strong> &mdash; a confirmation dialogue
+            asks whether to check them in anyway.
           </p>
         </Q>
       </Section>
