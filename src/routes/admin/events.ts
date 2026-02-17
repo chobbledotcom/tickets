@@ -20,7 +20,7 @@ import {
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
-import { getAllGroups } from "#lib/db/groups.ts";
+import { getAllGroups, groupsTable } from "#lib/db/groups.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
 import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
@@ -123,12 +123,22 @@ const extractEventUpdateInput = async (
   return { ...extractCommonFields(values), slug, slugIndex };
 };
 
+/** Validate that the referenced group exists (when group_id is non-zero) */
+const validateGroupExists = async (input: EventInput): Promise<string | null> => {
+  if (input.groupId && input.groupId !== 0) {
+    const group = await groupsTable.findById(input.groupId);
+    if (!group) return "Selected group does not exist";
+  }
+  return null;
+};
+
 /** Events resource for REST create operations */
 const eventsResource = defineResource({
   table: eventsTable,
   fields: [...eventFields, groupIdField],
   toInput: extractEventInput,
   nameField: "name",
+  validate: validateGroupExists,
 });
 
 /** User-facing messages for image validation errors */
@@ -315,7 +325,8 @@ const handleAdminEventEditPost = (
       nameField: "name",
       validate: async (input, existingId) => {
         const taken = await isSlugTaken(input.slug, Number(existingId));
-        return taken ? "Slug is already in use by another event" : null;
+        if (taken) return "Slug is already in use by another event";
+        return validateGroupExists(input);
       },
     });
 

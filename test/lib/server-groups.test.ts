@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 
 import { encrypt, hmacHash } from "#lib/crypto.ts";
+import { signCsrfToken } from "#lib/csrf.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
@@ -120,6 +121,15 @@ describe("server (admin groups)", () => {
       expectAdminRedirect(response);
     });
 
+    test("returns 403 for non-owner", async () => {
+      const cookie = await createManagerCookie("mgr-create-post");
+      const csrfToken = await signCsrfToken();
+      const response = await handleRequest(
+        mockFormRequest("/admin/group", { name: "X", slug: "x", csrf_token: csrfToken }, cookie),
+      );
+      expectStatus(403)(response);
+    });
+
     test("creates group and redirects", async () => {
       const group = await createTestGroup({
         name: "New Group",
@@ -187,6 +197,21 @@ describe("server (admin groups)", () => {
   });
 
   describe("POST /admin/group/:id/edit", () => {
+    test("returns 403 for non-owner", async () => {
+      const group = await createTestGroup({ name: "Edit Deny", slug: "edit-deny" });
+      const cookie = await createManagerCookie("mgr-edit-post");
+      const csrfToken = await signCsrfToken();
+      const response = await handleRequest(
+        mockFormRequest(`/admin/group/${group.id}/edit`, {
+          name: "Changed",
+          slug: "changed",
+          terms_and_conditions: "",
+          csrf_token: csrfToken,
+        }, cookie),
+      );
+      expectStatus(403)(response);
+    });
+
     test("updates group", async () => {
       const group = await createTestGroup({ name: "Before", slug: "before" });
       const updated = await updateTestGroup(group.id, {
@@ -241,6 +266,19 @@ describe("server (admin groups)", () => {
   });
 
   describe("POST /admin/group/:id/delete", () => {
+    test("returns 403 for non-owner", async () => {
+      const group = await createTestGroup({ name: "Delete Deny", slug: "delete-deny" });
+      const cookie = await createManagerCookie("mgr-delete-post");
+      const csrfToken = await signCsrfToken();
+      const response = await handleRequest(
+        mockFormRequest(`/admin/group/${group.id}/delete`, {
+          confirm_identifier: "Delete Deny",
+          csrf_token: csrfToken,
+        }, cookie),
+      );
+      expectStatus(403)(response);
+    });
+
     test("rejects deletion when name confirmation is wrong", async () => {
       const group = await createTestGroup({ name: "Right Name", slug: "right-name" });
       const { response } = await adminFormPost(`/admin/group/${group.id}/delete`, {
