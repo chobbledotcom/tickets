@@ -73,36 +73,43 @@ const crud = createOwnerCrudHandlers({
   deleteConfirmError: "Group name does not match. Please type the exact name to confirm deletion.",
 });
 
+/** Look up group by id, return 404 if not found */
+const withGroupOr404 = async (
+  id: number,
+  handler: (group: Group) => Response | Promise<Response>,
+): Promise<Response> => {
+  const group = await groupsTable.findById(id);
+  return group ? handler(group) : notFoundResponse();
+};
+
 /** Handle GET /admin/group/:id - group detail page */
 const handleGroupDetail = (
   request: Request,
   { id }: { id: number },
 ): Promise<Response> =>
-  requireOwnerOr(request, async (session) => {
-    const group = await groupsTable.findById(id);
-    if (!group) return notFoundResponse();
-    const [events, ungroupedEvents] = await Promise.all([
-      getEventsByGroupId(id),
-      getUngroupedEvents(),
-    ]);
-    return htmlResponse(adminGroupDetailPage(group, events, ungroupedEvents, session));
-  });
+  requireOwnerOr(request, async (session) =>
+    withGroupOr404(id, async (group) => {
+      const [events, ungroupedEvents] = await Promise.all([
+        getEventsByGroupId(id),
+        getUngroupedEvents(),
+      ]);
+      return htmlResponse(adminGroupDetailPage(group, events, ungroupedEvents, session));
+    }));
 
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
 const handleAddEventsToGroup = (
   request: Request,
   { id }: { id: number },
 ): Promise<Response> =>
-  withOwnerAuthForm(request, async (_session, form) => {
-    const group = await groupsTable.findById(id);
-    if (!group) return notFoundResponse();
-    const eventIds = form.getAll("event_ids").map(Number).filter((n) => n > 0);
-    if (eventIds.length > 0) {
-      await assignEventsToGroup(eventIds, id);
-      await logActivity(`${eventIds.length} event(s) added to group '${group.name}'`);
-    }
-    return redirect(`/admin/group/${id}`);
-  });
+  withOwnerAuthForm(request, async (_session, form) =>
+    withGroupOr404(id, async (group) => {
+      const eventIds = form.getAll("event_ids").map(Number).filter((n) => n > 0);
+      if (eventIds.length > 0) {
+        await assignEventsToGroup(eventIds, id);
+        await logActivity(`${eventIds.length} event(s) added to group '${group.name}'`);
+      }
+      return redirect(`/admin/group/${id}`);
+    }));
 
 /** Group routes */
 export const groupsRoutes = defineRoutes({

@@ -87,17 +87,17 @@ const decryptEventWithCount = async (
   };
 };
 
-/**
- * Get active events in a group with attendee counts.
- */
-export const getActiveEventsByGroupId = async (
+/** Query events in a group with attendee counts, optionally filtering to active only */
+const queryGroupEvents = async (
   groupId: number,
+  activeOnly: boolean,
 ): Promise<EventWithCount[]> => {
+  const where = activeOnly ? "e.active = 1 AND e.group_id = ?" : "e.group_id = ?";
   const rows = await queryAll<EventWithCount>(
     `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
      FROM events e
      LEFT JOIN attendees a ON e.id = a.event_id
-     WHERE e.active = 1 AND e.group_id = ?
+     WHERE ${where}
      GROUP BY e.id
      ORDER BY e.created DESC, e.id DESC`,
     [groupId],
@@ -105,25 +105,18 @@ export const getActiveEventsByGroupId = async (
 
   return mapAsync(decryptEventWithCount)(rows);
 };
+
+/**
+ * Get active events in a group with attendee counts.
+ */
+export const getActiveEventsByGroupId = (groupId: number): Promise<EventWithCount[]> =>
+  queryGroupEvents(groupId, true);
 
 /**
  * Get all events in a group with attendee counts (including inactive).
  */
-export const getEventsByGroupId = async (
-  groupId: number,
-): Promise<EventWithCount[]> => {
-  const rows = await queryAll<EventWithCount>(
-    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
-     FROM events e
-     LEFT JOIN attendees a ON e.id = a.event_id
-     WHERE e.group_id = ?
-     GROUP BY e.id
-     ORDER BY e.created DESC, e.id DESC`,
-    [groupId],
-  );
-
-  return mapAsync(decryptEventWithCount)(rows);
-};
+export const getEventsByGroupId = (groupId: number): Promise<EventWithCount[]> =>
+  queryGroupEvents(groupId, false);
 
 /**
  * Get ungrouped events (group_id = 0) with attendee counts.
