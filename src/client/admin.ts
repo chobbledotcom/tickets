@@ -70,10 +70,11 @@ if (dateInput && closesAtInput) {
 
 /* Scroll parent page so the iframe is visible on checkout and success pages.
  * parentIframe is created synchronously by iframe-resizer-child (loaded before
- * this deferred script) and buffers calls until the parent handshake completes. */
+ * this deferred script) and buffers calls until the parent handshake completes.
+ * scrollToOffset(0, 0) scrolls the parent to the iframe's top-left corner. */
 if (document.querySelector("[data-scroll-into-view]")) {
-  const { parentIframe } = window as unknown as { parentIframe?: { sendMessage: (msg: unknown) => void } };
-  parentIframe?.sendMessage({ type: "scrollIntoView" });
+  const { parentIframe } = window as unknown as { parentIframe?: { scrollToOffset: (x: number, y: number) => void } };
+  parentIframe?.scrollToOffset(0, 0);
 }
 
 /* Stripe checkout popup: opens Stripe in a new window when embedded in an iframe.
