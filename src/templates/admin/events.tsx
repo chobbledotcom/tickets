@@ -18,7 +18,7 @@ import { formatCountdown } from "#routes/utils.ts";
 import { eventFields, getAddAttendeeFields, imageField, slugField } from "#templates/fields.ts";
 import { EventGroupSelect } from "#templates/admin/group-select.tsx";
 import { Layout } from "#templates/layout.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 
 /** Date option for the date filter dropdown */
 export type DateOption = { value: string; label: string };
@@ -456,6 +456,32 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
 const eventFieldsWithAutofocus: Field[] = pipe(
   map((f: Field): Field => f.name === "name" ? { ...f, autofocus: true } : f),
 )(eventFields);
+
+/**
+ * Admin event create page
+ */
+export const adminEventNewPage = (
+  groups: Group[],
+  session: AdminSession,
+  error?: string,
+): string => {
+  const storageEnabled = isStorageEnabled();
+  const fields = storageEnabled ? [...eventFields, imageField] : eventFields;
+  return String(
+    <Layout title="Add Event">
+      <AdminNav session={session} />
+      <Breadcrumb href="/admin/" label="Events" />
+      <h1>Add Event</h1>
+      <Raw html={renderError(error)} />
+      <form method="POST" action="/admin/event" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <Raw html={renderFields(fields)} />
+        <EventGroupSelect groups={groups} selectedGroupId={0} />
+        <button type="submit">Create Event</button>
+      </form>
+    </Layout>,
+  );
+};
 
 /**
  * Admin duplicate event page - create form pre-filled with existing event settings

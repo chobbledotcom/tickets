@@ -266,6 +266,22 @@ describe("server (multi-user admin)", () => {
     });
   });
 
+  describe("GET /admin/user/new", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(mockRequest("/admin/user/new"));
+      expectAdminRedirect(response);
+    });
+
+    test("renders invite user form when authenticated as owner", async () => {
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/admin/user/new", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Invite User");
+      expect(html).toContain('action="/admin/users"');
+    });
+  });
+
   describe("POST /admin/users (invite)", () => {
     test("redirects when not authenticated", async () => {
       const response = await handleRequest(

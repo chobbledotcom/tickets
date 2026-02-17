@@ -7,7 +7,7 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#lib/types.ts";
 import { inviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 
 /** Displayable user info (decrypted) */
 export interface DisplayUser {
@@ -32,8 +32,8 @@ export const adminUsersPage = (
   users: DisplayUser[],
   session: AdminSession,
   inviteLink?: string,
-  error?: string,
   success?: string,
+  error?: string,
 ): string =>
   String(
     <Layout title="Users">
@@ -53,14 +53,8 @@ export const adminUsersPage = (
         </div>
       )}
 
-      <h2>Invite New User</h2>
-      <form method="POST" action="/admin/users">
-        <input type="hidden" name="csrf_token" value={session.csrfToken} />
-        <Raw html={renderFields(inviteUserFields)} />
-        <button type="submit">Create Invite</button>
-      </form>
+      <p><a href="/admin/user/new">Invite User</a></p>
 
-      <h2>Current Users</h2>
       <div class="table-scroll">
         <table>
           <thead>
@@ -100,4 +94,25 @@ export const adminUsersPage = (
         </table>
       </div>
     </Layout>
+  );
+
+/**
+ * Admin invite user page
+ */
+export const adminUserNewPage = (
+  session: AdminSession,
+  error?: string,
+): string =>
+  String(
+    <Layout title="Invite User">
+      <AdminNav session={session} />
+      <Breadcrumb href="/admin/users" label="Users" />
+      <h1>Invite User</h1>
+      <Raw html={renderError(error)} />
+      <form method="POST" action="/admin/users">
+        <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <Raw html={renderFields(inviteUserFields)} />
+        <button type="submit">Create Invite</button>
+      </form>
+    </Layout>,
   );
