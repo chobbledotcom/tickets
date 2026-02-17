@@ -7,6 +7,7 @@ import { todayInTz } from "#lib/timezone.ts";
 
 import { handleRequest } from "#routes";
 import {
+  adminGet,
   awaitTestRequest,
   createTestAttendee,
   createTestDbWithSetup,
@@ -36,6 +37,21 @@ describe("server (admin events)", () => {
 
   afterEach(() => {
     resetDb();
+  });
+
+  describe("GET /admin/event/new", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(mockRequest("/admin/event/new"));
+      expectAdminRedirect(response);
+    });
+
+    test("renders create event form when authenticated", async () => {
+      const { response } = await adminGet("/admin/event/new");
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("Add Event");
+      expect(html).toContain('action="/admin/event"');
+    });
   });
 
   describe("POST /admin/event", () => {
@@ -118,7 +134,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectAdminRedirect(response);
+      expectStatus(400)(response);
 
       const { getAllEvents } = await import("#lib/db/events.ts");
       const events = await getAllEvents();
@@ -167,7 +183,7 @@ describe("server (admin events)", () => {
       expect(text).toContain("Invalid CSRF token");
     });
 
-    test("redirects to dashboard on validation failure", async () => {
+    test("stays on form with error on validation failure", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -182,7 +198,9 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectAdminRedirect(response);
+      expectStatus(400)(response);
+      const html = await response.text();
+      expect(html).toContain("Add Event");
     });
 
     test("rejects duplicate slug", async () => {
@@ -2390,7 +2408,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectAdminRedirect(response);
+      expectStatus(400)(response);
     });
 
     test("rejects invalid bookable_days value", async () => {

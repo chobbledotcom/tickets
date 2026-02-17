@@ -44,6 +44,7 @@ import {
   adminDeleteEventPage,
   adminDuplicateEventPage,
   adminEventEditPage,
+  adminEventNewPage,
   adminEventPage,
   adminReactivateEventPage,
   type AddAttendeeMessage,
@@ -176,13 +177,25 @@ const withEventAttendees = (
     handler({ event, attendees, session }));
 
 /**
+ * Handle GET /admin/event/new (show create event form)
+ */
+const handleNewEventGet = (request: Request): Promise<Response> =>
+  requireSessionOr(request, async (session) => {
+    const groups = await getAllGroups();
+    return htmlResponse(adminEventNewPage(groups, session));
+  });
+
+/**
  * Handle POST /admin/event (create event)
  */
 const handleCreateEvent = (request: Request): Promise<Response> =>
-  withAuthMultipartForm(request, async (_session, formData) => {
+  withAuthMultipartForm(request, async (session, formData) => {
     const form = formDataToParams(formData);
     const result = await eventsResource.create(form);
-    if (!result.ok) return redirect("/admin");
+    if (!result.ok) {
+      const groups = await getAllGroups();
+      return htmlResponse(adminEventNewPage(groups, session, result.error), 400);
+    }
     await logActivity(`Event '${result.row.name}' created`, result.row);
     const imageError = await processFormImage(formData, result.row.id);
     if (imageError) {
@@ -487,6 +500,7 @@ const handleAdminEventGetOut = (request: Request, params: { id: number }) =>
 
 /** Event routes */
 export const eventsRoutes = defineRoutes({
+  "GET /admin/event/new": handleNewEventGet,
   "POST /admin/event": handleCreateEvent,
   "GET /admin/event/:id/in": handleAdminEventGetIn,
   "GET /admin/event/:id/out": handleAdminEventGetOut,

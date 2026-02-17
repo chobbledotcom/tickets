@@ -699,12 +699,11 @@ describe("test-utils", () => {
       await createTestDbWithSetup();
     });
 
-    test("createTestEvent throws event not found when name is empty", async () => {
-      // Empty name creates event but it cannot be found after creation
-      // This covers the "Event not found after creation" error path
+    test("createTestEvent throws on validation failure when name is empty", async () => {
+      // Empty name triggers validation failure, returning 400 instead of 302
       await expect(
         createTestEvent({ name: "" }),
-      ).rejects.toThrow("Event not found after creation: ");
+      ).rejects.toThrow("Failed to create event: 400");
     });
 
     test("authenticatedFormRequest throws on non-302 response via update", async () => {
