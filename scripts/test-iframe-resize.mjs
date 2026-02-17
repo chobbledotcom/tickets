@@ -14,6 +14,7 @@
  * Automatically detects HTTP(S)_PROXY environment variables.
  */
 
+import process from "node:process";
 import { chromium } from "playwright-core";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
