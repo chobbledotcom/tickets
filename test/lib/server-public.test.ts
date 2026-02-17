@@ -513,7 +513,7 @@ describe("server (public routes)", () => {
         groupId: group.id,
         maxAttendees: 10,
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday"]),
+        bookableDays: ["Monday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -522,7 +522,7 @@ describe("server (public routes)", () => {
         groupId: group.id,
         maxAttendees: 10,
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday"]),
+        bookableDays: ["Monday", "Tuesday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2187,7 +2187,7 @@ describe("server (public routes)", () => {
     test("GET shows date selector for daily event", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2203,7 +2203,7 @@ describe("server (public routes)", () => {
       // so the date range is empty (start > end)
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday"]),
+        bookableDays: ["Monday"],
         minimumDaysBefore: 30,
         maximumDaysAfter: 7,
       });
@@ -2216,7 +2216,7 @@ describe("server (public routes)", () => {
     test("POST succeeds for free daily event with valid date", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2231,7 +2231,7 @@ describe("server (public routes)", () => {
     test("POST rejects daily event with missing date", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2247,7 +2247,7 @@ describe("server (public routes)", () => {
     test("POST rejects daily event with invalid date", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2264,7 +2264,7 @@ describe("server (public routes)", () => {
     test("POST checks per-date capacity for daily events", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
         maxAttendees: 1,
@@ -2291,7 +2291,7 @@ describe("server (public routes)", () => {
     test("POST allows booking different dates at capacity", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
         maxAttendees: 1,
@@ -2320,7 +2320,7 @@ describe("server (public routes)", () => {
 
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
         unitPrice: 500,
@@ -2359,7 +2359,7 @@ describe("server (public routes)", () => {
 
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2377,13 +2377,13 @@ describe("server (public routes)", () => {
     test("GET shows date selector for multi-ticket with daily events", async () => {
       const event1 = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
       const event2 = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2399,13 +2399,13 @@ describe("server (public routes)", () => {
     test("POST rejects multi-ticket daily event without date", async () => {
       const event1 = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
       const event2 = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2436,13 +2436,13 @@ describe("server (public routes)", () => {
     test("POST succeeds for free multi-ticket daily events with valid date", async () => {
       const event1 = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
       const event2 = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2474,14 +2474,14 @@ describe("server (public routes)", () => {
 
       const event1 = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
         unitPrice: 300,
@@ -2539,13 +2539,13 @@ describe("server (public routes)", () => {
       // Shared dates should only be Mondays
       const event1 = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday"]),
+        bookableDays: ["Monday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
       const event2 = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });

@@ -196,7 +196,7 @@ const validateEventForPayment = async (
   const event = await getEventWithCount(eventId);
   if (!event) return { ok: false, error: "Event not found", status: 404 };
   const name = includeEventName ? event.name : undefined;
-  if (event.active !== 1) {
+  if (!event.active) {
     return {
       ok: false,
       error: name

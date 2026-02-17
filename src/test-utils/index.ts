@@ -777,9 +777,9 @@ const formatOptional = (
 ): string =>
   update !== undefined ? update ?? "" : existing ?? "";
 
-/** Format bookable_days JSON array to comma-separated string for form submission */
-const formatBookableDaysForForm = (json: string): string =>
-  (JSON.parse(json) as string[]).join(",");
+/** Format bookable_days array to comma-separated string for form submission */
+const formatBookableDaysForForm = (days: string[]): string =>
+  days.join(",");
 
 /** Split a closes_at value into date and time parts for form submission */
 const splitClosesAt = (
@@ -1013,10 +1013,10 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   max_quantity: 1,
   webhook_url: null,
   closes_at: null,
-  active: 1,
+  active: true,
   fields: "email",
   event_type: "standard",
-  bookable_days: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+  bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
   minimum_days_before: 0,
   maximum_days_after: 0,
   image_url: "",
@@ -1461,7 +1461,7 @@ export const adminGet = async (
   return { response, cookie, csrfToken };
 };
 
-const allDays = JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
+const allDays: string[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 /**
  * Create a daily event with all days bookable. Reduces boilerplate in calendar tests.

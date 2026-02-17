@@ -134,7 +134,7 @@ describe("ticket view (/t/:tokens)", () => {
     const dailyEvent = await createTestEvent({
       maxAttendees: 10,
       eventType: "daily",
-      bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+      bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
       minimumDaysBefore: 0,
       maximumDaysAfter: 30,
     });

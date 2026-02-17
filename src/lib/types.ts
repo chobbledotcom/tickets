@@ -49,11 +49,11 @@ export interface Event {
   unit_price: number | null;
   max_quantity: number;
   webhook_url: string | null;
-  active: number;
+  active: boolean;
   fields: EventFields;
   closes_at: string | null;
   event_type: EventType;
-  bookable_days: string;
+  bookable_days: string[];
   minimum_days_before: number;
   maximum_days_after: number;
   image_url: string;

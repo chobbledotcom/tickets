@@ -914,7 +914,7 @@ describe("db", () => {
       const event = await createTestEvent({
         maxAttendees: 1,
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -942,7 +942,7 @@ describe("db", () => {
       const event = await createTestEvent({
         maxAttendees: 10,
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -954,7 +954,7 @@ describe("db", () => {
       const event = await createTestEvent({
         maxAttendees: 10,
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -982,7 +982,7 @@ describe("db", () => {
       const event = await createTestEvent({
         maxAttendees: 10,
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -1018,7 +1018,7 @@ describe("db", () => {
       const event = await createTestEvent({
         maxAttendees: 2,
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2618,6 +2618,23 @@ describe("db", () => {
     });
 
 
+  });
+
+  describe("bookable_days read transform", () => {
+    test("returns empty array when DB contains non-array JSON", async () => {
+      const event = await eventsTable.insert({
+        name: "test-bd", slug: "test-bd-1",
+        slugIndex: await computeSlugIndex("test-bd-1"),
+        maxAttendees: 100,
+      });
+      // Overwrite bookable_days with non-array JSON directly in DB
+      await getDb().execute({
+        sql: `UPDATE events SET bookable_days = ? WHERE id = ?`,
+        args: ['"not-an-array"', event.id],
+      });
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.bookable_days).toEqual([]);
+    });
   });
 
   describe("closes_at migration backfill", () => {

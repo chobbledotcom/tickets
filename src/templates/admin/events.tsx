@@ -206,7 +206,7 @@ export const adminEventPage = ({
             {hasPaidEvent && (
               <li><a href={`/admin/event/${event.id}/refund-all`} class="danger">Refund All</a></li>
             )}
-            {event.active === 1 ? (
+            {event.active ? (
               <li><a href={`/admin/event/${event.id}/deactivate`} class="danger">Deactivate</a></li>
             ) : (
               <li><a href={`/admin/event/${event.id}/reactivate`}>Reactivate</a></li>
@@ -215,7 +215,7 @@ export const adminEventPage = ({
           </ul>
         </nav>
 
-        {event.active !== 1 && (
+        {!event.active && (
           <div class="error">This event is deactivated and cannot be booked</div>
         )}
 
@@ -428,9 +428,9 @@ const formatDatetimeLocal = (iso: string | null): string | null => {
   return utcToLocalInput(iso, getTz());
 };
 
-/** Convert bookable_days JSON array to comma-separated display string */
-const formatBookableDays = (json: string): string =>
-  (JSON.parse(json) as string[]).join(",");
+/** Convert bookable_days array to comma-separated display string */
+const formatBookableDays = (days: string[]): string =>
+  days.join(",");
 
 const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   name: event.name,

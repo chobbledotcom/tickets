@@ -77,7 +77,7 @@ const editFormData = async (eventId: number, csrfToken: string): Promise<Record<
     closes_at_date: "",
     closes_at_time: "",
     event_type: event.event_type,
-    bookable_days: JSON.parse(event.bookable_days).join(","),
+    bookable_days: event.bookable_days.join(","),
     minimum_days_before: String(event.minimum_days_before),
     maximum_days_after: String(event.maximum_days_after),
     slug: event.slug,

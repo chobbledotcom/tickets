@@ -309,7 +309,7 @@ export const withEventBySlug = async (
 const requireActiveEvent =
   (handler: (event: EventWithCount) => Response | Promise<Response>) =>
   (event: EventWithCount): Response | Promise<Response> =>
-    event.active === 1 ? handler(event) : notFoundResponse();
+    event.active ? handler(event) : notFoundResponse();
 
 /** Handle event by slug with active check - return 404 if not found or inactive */
 export const withActiveEventBySlug = (

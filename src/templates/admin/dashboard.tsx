@@ -12,7 +12,7 @@ import { renderEventImage } from "#templates/public.tsx";
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 export const EventRow = ({ e }: { e: EventWithCount }): string => {
-  const isInactive = e.active !== 1;
+  const isInactive = !e.active;
   const rowStyle = isInactive ? 'opacity: 0.5;' : '';
   return String(
     <tr style={rowStyle || undefined}>
@@ -99,7 +99,7 @@ export const adminDashboardPage = (
       ? pipe(map((e: EventWithCount) => EventRow({ e })), joinStrings)(events)
       : '<tr><td colspan="5">No events yet</td></tr>';
 
-  const activeEvents = filter((e: EventWithCount) => e.active === 1)(events);
+  const activeEvents = filter((e: EventWithCount) => e.active)(events);
 
   return String(
     <Layout title="Events">
