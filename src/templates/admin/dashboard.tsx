@@ -15,7 +15,7 @@ import { renderEventImage } from "#templates/public.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
-const EventRow = ({ e }: { e: EventWithCount }): string => {
+export const EventRow = ({ e }: { e: EventWithCount }): string => {
   const isInactive = e.active !== 1;
   const rowStyle = isInactive ? 'opacity: 0.5;' : '';
   return String(

@@ -2,12 +2,16 @@
  * Admin group management page templates
  */
 
+import { map, pipe, reduce } from "#fp";
 import { renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession, Group } from "#lib/types.ts";
+import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
 import { groupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+import { EventRow } from "#templates/admin/dashboard.tsx";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+
+const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 /**
  * Admin groups list page
@@ -38,7 +42,7 @@ export const adminGroupsPage = (
               <tbody>
                 {groups.map((g) => (
                   <tr>
-                    <td>{g.name}</td>
+                    <td><a href={`/admin/group/${g.id}`}>{g.name}</a></td>
                     <td>{g.slug}</td>
                     <td>
                       <a href={`/admin/group/${g.id}/edit`}>Edit</a>
@@ -98,7 +102,7 @@ export const adminGroupEditPage = (
   String(
     <Layout title="Edit Group">
       <AdminNav session={session} />
-      <Breadcrumb href="/admin/groups" label="Groups" />
+      <Breadcrumb href={`/admin/group/${group.id}`} label={group.name} />
       <h1>Edit Group</h1>
       <Raw html={renderError(error)} />
       <form method="POST" action={`/admin/group/${group.id}/edit`}>
@@ -120,7 +124,7 @@ export const adminGroupDeletePage = (
   String(
     <Layout title="Delete Group">
       <AdminNav session={session} />
-      <Breadcrumb href="/admin/groups" label="Groups" />
+      <Breadcrumb href={`/admin/group/${group.id}`} label={group.name} />
       <h1>Delete Group</h1>
       <Raw html={renderError(error)} />
       <p>
@@ -140,3 +144,70 @@ export const adminGroupDeletePage = (
       </form>
     </Layout>,
   );
+
+/**
+ * Admin group detail page - shows group info, events in group, and add-events form
+ */
+export const adminGroupDetailPage = (
+  group: Group,
+  events: EventWithCount[],
+  ungroupedEvents: EventWithCount[],
+  session: AdminSession,
+): string => {
+  const eventRows =
+    events.length > 0
+      ? pipe(map((e: EventWithCount) => EventRow({ e })), joinStrings)(events)
+      : '<tr><td colspan="5">No events in this group</td></tr>';
+
+  return String(
+    <Layout title={group.name}>
+      <AdminNav session={session} />
+      <Breadcrumb href="/admin/groups" label="Groups" />
+      <h1>{group.name}</h1>
+      <p>Slug: <code>{group.slug}</code></p>
+      {group.terms_and_conditions && (
+        <p>Terms and Conditions: {group.terms_and_conditions}</p>
+      )}
+      <p>
+        <a href={`/admin/group/${group.id}/edit`}>Edit Group</a>
+        {" "}
+        <a href={`/admin/group/${group.id}/delete`}>Delete Group</a>
+      </p>
+
+      <h2>Events</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Event Name</th>
+              <th>Description</th>
+              <th>Status</th>
+              <th>Attendees</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={eventRows} />
+          </tbody>
+        </table>
+      </div>
+
+      {ungroupedEvents.length > 0 && (
+        <>
+          <h2>Add Events to Group</h2>
+          <form method="POST" action={`/admin/group/${group.id}/add-events`}>
+            <input type="hidden" name="csrf_token" value={session.csrfToken} />
+            {ungroupedEvents.map((e) => (
+              <label>
+                <input type="checkbox" name="event_ids" value={String(e.id)} />
+                {` ${e.name}`}
+              </label>
+            ))}
+            <br />
+            <button type="submit">Add Selected Events</button>
+          </form>
+        </>
+      )}
+    </Layout>,
+  );
+};

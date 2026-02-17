@@ -20,6 +20,7 @@ import {
   resetTestSlugCounter,
   expectAdminRedirect,
   expectRedirect,
+  expectStatus,
   loginAsAdmin,
   submitTicketForm,
   updateTestEvent,
@@ -98,6 +99,31 @@ describe("server (admin events)", () => {
       const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
       expect(event?.group_id).toBe(group.id);
+    });
+
+    test("rejects non-existent group_id on create", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockMultipartRequest(
+          "/admin/event",
+          {
+            name: "Bad Group Event",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "https://example.com/thanks",
+            group_id: "999",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectAdminRedirect(response);
+
+      const { getAllEvents } = await import("#lib/db/events.ts");
+      const events = await getAllEvents();
+      const match = events.find((e) => e.name === "Bad Group Event");
+      expect(match).toBeUndefined();
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -706,6 +732,29 @@ describe("server (admin events)", () => {
       const { getEvent } = await import("#lib/db/events.ts");
       const updated = await getEvent(event.id);
       expect(updated?.group_id).toBe(group2.id);
+    });
+
+    test("rejects non-existent group_id on edit", async () => {
+      const event = await createTestEvent({ name: "Edit Bad Group", maxAttendees: 50 });
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: event.name,
+            slug: event.slug,
+            group_id: "999",
+            max_attendees: "50",
+            max_quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectStatus(400)(response);
+      const html = await response.text();
+      expect(html).toContain("Selected group does not exist");
     });
 
     test("updates event slug", async () => {

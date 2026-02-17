@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 
 import { encrypt, hmacHash } from "#lib/crypto.ts";
+import { signCsrfToken } from "#lib/csrf.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { getDb } from "#lib/db/client.ts";
 import { createSession } from "#lib/db/sessions.ts";
@@ -83,6 +84,7 @@ describe("server (admin groups)", () => {
       const html = await response.text();
       expect(html).toContain("Group One");
       expect(html).toContain("group-one");
+      expect(html).toContain(`/admin/group/${group.id}">`);
       expect(html).toContain(`/admin/group/${group.id}/edit`);
       expect(html).toContain(`/admin/group/${group.id}/delete`);
     });
@@ -118,6 +120,15 @@ describe("server (admin groups)", () => {
         mockFormRequest("/admin/group", { name: "X", slug: "x" }),
       );
       expectAdminRedirect(response);
+    });
+
+    test("returns 403 for non-owner", async () => {
+      const cookie = await createManagerCookie("mgr-create-post");
+      const csrfToken = await signCsrfToken();
+      const response = await handleRequest(
+        mockFormRequest("/admin/group", { name: "X", slug: "x", csrf_token: csrfToken }, cookie),
+      );
+      expectStatus(403)(response);
     });
 
     test("creates group and redirects", async () => {
@@ -187,6 +198,21 @@ describe("server (admin groups)", () => {
   });
 
   describe("POST /admin/group/:id/edit", () => {
+    test("returns 403 for non-owner", async () => {
+      const group = await createTestGroup({ name: "Edit Deny", slug: "edit-deny" });
+      const cookie = await createManagerCookie("mgr-edit-post");
+      const csrfToken = await signCsrfToken();
+      const response = await handleRequest(
+        mockFormRequest(`/admin/group/${group.id}/edit`, {
+          name: "Changed",
+          slug: "changed",
+          terms_and_conditions: "",
+          csrf_token: csrfToken,
+        }, cookie),
+      );
+      expectStatus(403)(response);
+    });
+
     test("updates group", async () => {
       const group = await createTestGroup({ name: "Before", slug: "before" });
       const updated = await updateTestGroup(group.id, {
@@ -241,6 +267,19 @@ describe("server (admin groups)", () => {
   });
 
   describe("POST /admin/group/:id/delete", () => {
+    test("returns 403 for non-owner", async () => {
+      const group = await createTestGroup({ name: "Delete Deny", slug: "delete-deny" });
+      const cookie = await createManagerCookie("mgr-delete-post");
+      const csrfToken = await signCsrfToken();
+      const response = await handleRequest(
+        mockFormRequest(`/admin/group/${group.id}/delete`, {
+          confirm_identifier: "Delete Deny",
+          csrf_token: csrfToken,
+        }, cookie),
+      );
+      expectStatus(403)(response);
+    });
+
     test("rejects deletion when name confirmation is wrong", async () => {
       const group = await createTestGroup({ name: "Right Name", slug: "right-name" });
       const { response } = await adminFormPost(`/admin/group/${group.id}/delete`, {
@@ -302,6 +341,170 @@ describe("server (admin groups)", () => {
       } finally {
         spy.mockRestore();
       }
+    });
+  });
+
+  describe("GET /admin/group/:id", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(mockRequest("/admin/group/1"));
+      expectAdminRedirect(response);
+    });
+
+    test("returns 403 for non-owner", async () => {
+      const group = await createTestGroup({ name: "Detail Deny", slug: "detail-deny" });
+      const response = await awaitTestRequest(`/admin/group/${group.id}`, {
+        cookie: await createManagerCookie("mgr-detail"),
+      });
+      expectStatus(403)(response);
+    });
+
+    test("returns 404 for non-existent group", async () => {
+      const { response } = await adminGet("/admin/group/999");
+      expectStatus(404)(response);
+    });
+
+    test("shows group detail with events", async () => {
+      const group = await createTestGroup({ name: "Detail Group", slug: "detail-group", termsAndConditions: "Some terms" });
+      const event = await createTestEvent({ name: "Grouped Event", groupId: group.id });
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("Detail Group");
+      expect(html).toContain("detail-group");
+      expect(html).toContain("Some terms");
+      expect(html).toContain("Grouped Event");
+      expect(html).toContain(`/admin/event/${event.id}`);
+      expect(html).toContain("Edit Group");
+      expect(html).toContain("Delete Group");
+    });
+
+    test("shows empty events message when group has no events", async () => {
+      const group = await createTestGroup({ name: "Empty Group", slug: "empty-group" });
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("No events in this group");
+    });
+
+    test("shows ungrouped events for adding to group", async () => {
+      const group = await createTestGroup({ name: "Target Group", slug: "target-group" });
+      const ungrouped = await createTestEvent({ name: "Ungrouped Event" });
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("Add Events to Group");
+      expect(html).toContain("Ungrouped Event");
+      expect(html).toContain(`value="${ungrouped.id}"`);
+    });
+
+    test("hides add-events form when no ungrouped events exist", async () => {
+      const group = await createTestGroup({ name: "Solo Group", slug: "solo-group" });
+      await createTestEvent({ name: "Already Grouped", groupId: group.id });
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).not.toContain("Add Events to Group");
+    });
+  });
+
+  describe("POST /admin/group/:id/add-events", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/group/1/add-events", { event_ids: "1" }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("returns 403 for non-owner", async () => {
+      const group = await createTestGroup({ name: "Add Deny", slug: "add-deny" });
+      const cookie = await createManagerCookie("mgr-add-events");
+      const csrfToken = await signCsrfToken();
+      const response = await handleRequest(
+        mockFormRequest(`/admin/group/${group.id}/add-events`, {
+          event_ids: "1",
+          csrf_token: csrfToken,
+        }, cookie),
+      );
+      expectStatus(403)(response);
+    });
+
+    test("returns 404 for non-existent group", async () => {
+      const { response } = await adminFormPost("/admin/group/999/add-events", {
+        event_ids: "1",
+      });
+      expectStatus(404)(response);
+    });
+
+    test("assigns ungrouped events to group", async () => {
+      const group = await createTestGroup({ name: "Assign Group", slug: "assign-group" });
+      const event1 = await createTestEvent({ name: "Event A" });
+      const event2 = await createTestEvent({ name: "Event B" });
+
+      expect(event1.group_id).toBe(0);
+      expect(event2.group_id).toBe(0);
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest(`/admin/group/${group.id}/add-events`, {
+          event_ids: String(event1.id),
+          csrf_token: csrfToken,
+        }, cookie),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`/admin/group/${group.id}`);
+
+      const { getEvent } = await import("#lib/db/events.ts");
+      const updated1 = await getEvent(event1.id);
+      const updated2 = await getEvent(event2.id);
+      expect(updated1?.group_id).toBe(group.id);
+      expect(updated2?.group_id).toBe(0);
+    });
+
+    test("handles empty selection gracefully", async () => {
+      const group = await createTestGroup({ name: "Empty Select", slug: "empty-select" });
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest(`/admin/group/${group.id}/add-events`, {
+          csrf_token: csrfToken,
+        }, cookie),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`/admin/group/${group.id}`);
+    });
+  });
+
+  describe("redirect after create/edit", () => {
+    test("create redirects to group detail page", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest("/admin/group", {
+          name: "Redirect Test",
+          slug: "redirect-test",
+          terms_and_conditions: "",
+          csrf_token: csrfToken,
+        }, cookie),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location") ?? "";
+      expect(location).toMatch(/\/admin\/group\/\d+$/);
+    });
+
+    test("edit redirects to group detail page", async () => {
+      const group = await createTestGroup({ name: "Edit Redir", slug: "edit-redir" });
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest(`/admin/group/${group.id}/edit`, {
+          name: "Edited Redir",
+          slug: "edited-redir",
+          terms_and_conditions: "",
+          csrf_token: csrfToken,
+        }, cookie),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`/admin/group/${group.id}`);
     });
   });
 
