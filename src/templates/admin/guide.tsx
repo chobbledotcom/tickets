@@ -50,8 +50,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             From the <strong>Events</strong> page, fill in the form at the
             bottom. Give your event a name, set the capacity, and choose which
-            contact details to collect (any combination of email, phone, and
-            postal address). You can leave the price blank for free events.
+            contact details to collect (any combination of email, phone,
+            postal address, and special instructions). You can leave the price
+            blank for free events.
             Once created, share the booking link with your attendees.
           </p>
         </Q>
@@ -95,8 +96,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         <Q q="What are the event date and location fields for?">
           <p>
             These are optional fields you can fill in when creating or editing
-            an event. The date is when the event takes place (in UTC) and the
-            location is where it's held. Both are displayed on the attendee's
+            an event. The date is when the event takes place (in your
+            configured timezone) and the location is where it's held. Both are
+            displayed on the attendee's
             ticket page so they know when and where to go. For daily events,
             attendees already pick a date when booking, so the event date field
             is more useful for standard (one-off) events.
@@ -320,8 +322,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             Each ticket has a unique QR code. When an attendee arrives, they
             show their QR code to a member of staff. The staff member scans it
             (or opens the link), which takes them to the check-in page. If
-            logged in as an admin, they'll see a button to toggle the attendee's
-            check-in status.
+            logged in as an admin, they'll see the attendee's details and
+            ticket quantity, with a button to check them in or out.
           </p>
         </Q>
 
@@ -363,12 +365,13 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="What do the scanner status messages mean?">
           <p>
-            <strong>Checked in</strong> &mdash; attendee successfully checked
-            in. <strong>Already checked in</strong> &mdash; they were already
+            <strong>Checked in</strong> &mdash; shows the attendee's name and
+            ticket count (e.g. "Jo checked in (2 tickets)").{" "}
+            <strong>Already checked in</strong> &mdash; they were already
             marked as arrived. <strong>Ticket not found</strong> &mdash; the QR
             code doesn't match any registration.{" "}
-            <strong>Different event</strong> &mdash; the ticket belongs to
-            another event (you can force check-in if needed).
+            <strong>Different event</strong> &mdash; a confirmation dialogue
+            asks whether to check them in anyway.
           </p>
         </Q>
       </Section>
@@ -412,20 +415,21 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="What happens if I lose my password?">
           <p>
-            There is <strong>no password recovery</strong>. Attendee data is
-            encrypted using keys derived from your password, so without it the
-            data cannot be decrypted. Keep your password safe. Another owner can
-            delete and re-invite your account, but previously encrypted data
-            tied to your keys alone cannot be recovered.
+            There is <strong>no password recovery</strong>. If you lose your
+            password, you cannot log in or decrypt any data. Keep your password
+            safe. Another owner can delete your account and send a fresh
+            invite, and all existing attendee data remains accessible to other
+            admins.
           </p>
         </Q>
 
         <Q q="Can I export attendee data?">
           <p>
             Yes. On any event's attendee list, click <strong>Export CSV</strong>.
-            The export includes name, email, phone, address, quantity,
-            registration date, amount paid, check-in status, and ticket link. For daily events, you
-            can filter by date before exporting.
+            The export includes name, email, phone, address, special
+            instructions, quantity, registration date, amount paid, transaction
+            ID, check-in status, and ticket URL. For daily events, you can
+            filter by date before exporting.
           </p>
         </Q>
 
@@ -479,8 +483,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
-      <Section title="Customizing Your Site">
-        <Q q="Can I customize this system?">
+      <Section title="Customising Your Site">
+        <Q q="Can I customise this system?">
           <p>
             Absolutely. This is open-source software, so you have full control.
             You can{" "}
@@ -492,9 +496,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
-        <Q q="Can you customize it for me?">
+        <Q q="Can you customise it for me?">
           <p>
-            Yes. I offer customization at a transparent flat rate &mdash; see{" "}
+            Yes. I offer customisation at a transparent flat rate &mdash; see{" "}
             <a href="https://chobble.com/prices">chobble.com/prices</a> for
             current pricing. I can help you with custom features, branding,
             event image design, hosting setup, or whatever you need. You'll own
