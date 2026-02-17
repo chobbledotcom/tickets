@@ -32,8 +32,10 @@ import {
 } from "#routes/utils.ts";
 import type { User } from "#lib/types.ts";
 import {
+  adminUserNewPage,
   adminUsersPage,
   type DisplayUser,
+  type UsersPageOpts,
 } from "#templates/admin/users.tsx";
 import { inviteUserFields, type InviteUserFormValues } from "#templates/fields.ts";
 
@@ -61,13 +63,11 @@ const toDisplayUser = async (
  */
 const renderUsersPage = async (
   session: AuthSession,
-  inviteLink?: string,
-  error?: string,
-  success?: string,
+  opts?: UsersPageOpts,
 ): Promise<string> => {
   const users = await getAllUsers();
   const displayUsers = await Promise.all(users.map(toDisplayUser));
-  return adminUsersPage(displayUsers, session, inviteLink, error, success);
+  return adminUsersPage(displayUsers, session, opts);
 };
 
 /**
@@ -78,14 +78,19 @@ const handleUsersGet = (request: Request): Promise<Response> =>
     const invite = getSearchParam(request, "invite");
     const success = getSearchParam(request, "success");
     return htmlResponse(
-      await renderUsersPage(
-        session,
-        invite ?? undefined,
-        undefined,
-        success ?? undefined,
-      ),
+      await renderUsersPage(session, {
+        inviteLink: invite ?? undefined,
+        success: success ?? undefined,
+      }),
     );
   });
+
+/**
+ * Handle GET /admin/user/new - show invite user form
+ */
+const handleUserNewGet = (request: Request): Promise<Response> =>
+  requireOwnerOr(request, (session) =>
+    htmlResponse(adminUserNewPage(session)));
 
 /**
  * Handle POST /admin/users - create invited user
@@ -99,29 +104,19 @@ const handleUsersPostForm = async (
 ): Promise<Response> => {
     const validation = validateForm<InviteUserFormValues>(form, inviteUserFields);
     if (!validation.valid) {
-      return htmlResponse(
-        await renderUsersPage(session, undefined, validation.error),
-        400,
-      );
+      return htmlResponse(adminUserNewPage(session, validation.error), 400);
     }
 
     const { username, admin_level: adminLevel } = validation.values;
 
     if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
-      return htmlResponse(
-        await renderUsersPage(session, undefined, "Invalid role"),
-        400,
-      );
+      return htmlResponse(adminUserNewPage(session, "Invalid role"), 400);
     }
 
     // Check if username is taken
     if (await isUsernameTaken(username)) {
       return htmlResponse(
-        await renderUsersPage(
-          session,
-          undefined,
-          "Username is already taken",
-        ),
+        adminUserNewPage(session, "Username is already taken"),
         400,
       );
     }
@@ -156,7 +151,7 @@ const withUserAction = (
 ): Promise<Response> =>
   withOwnerAuthForm(request, async (session) => {
     const errorPage = async (error: string, status: number): Promise<Response> => {
-      const html = await renderUsersPage(session, undefined, error);
+      const html = await renderUsersPage(session, { error });
       return htmlResponse(html, status);
     };
     const user = await getUserById(userId);
@@ -231,6 +226,7 @@ const handleUserDeletePost = userActionRoute(handleUserDelete);
 /** User management routes */
 export const usersRoutes = defineRoutes({
   "GET /admin/users": handleUsersGet,
+  "GET /admin/user/new": handleUserNewGet,
   "POST /admin/users": handleUsersPost,
   "POST /admin/users/:id/activate": handleUserActivatePost,
   "POST /admin/users/:id/delete": handleUserDeletePost,

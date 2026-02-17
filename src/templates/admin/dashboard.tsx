@@ -3,13 +3,9 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
-import { renderFields } from "#lib/forms.tsx";
-import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
+import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { isStorageEnabled } from "#lib/storage.ts";
-import { eventFields, imageField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-import { EventGroupSelect } from "#templates/admin/group-select.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { renderEventImage } from "#templates/public.tsx";
 
@@ -94,7 +90,6 @@ const multiBookingSection = (
  */
 export const adminDashboardPage = (
   events: EventWithCount[],
-  groups: Group[],
   session: AdminSession,
   allowedDomain: string,
   imageError?: string | null,
@@ -105,8 +100,6 @@ export const adminDashboardPage = (
       : '<tr><td colspan="5">No events yet</td></tr>';
 
   const activeEvents = filter((e: EventWithCount) => e.active === 1)(events);
-  const storageEnabled = isStorageEnabled();
-  const createFields = storageEnabled ? [...eventFields, imageField] : eventFields;
 
   return String(
     <Layout title="Events">
@@ -115,6 +108,8 @@ export const adminDashboardPage = (
       {imageError && (
         <p class="error">Event created but image was not saved: {imageError}</p>
       )}
+
+      <p><a href="/admin/event/new">Add Event</a></p>
 
       <div class="table-scroll">
         <table>
@@ -136,16 +131,6 @@ export const adminDashboardPage = (
       {activeEvents.length >= 2 && (
         <Raw html={multiBookingSection(activeEvents, allowedDomain)} />
       )}
-
-      <br />
-
-        <form method="POST" action="/admin/event" enctype="multipart/form-data">
-            <h2>Create New Event</h2>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
-          <Raw html={renderFields(createFields)} />
-          <EventGroupSelect groups={groups} selectedGroupId={0} />
-          <button type="submit">Create Event</button>
-        </form>
     </Layout>
   );
 };

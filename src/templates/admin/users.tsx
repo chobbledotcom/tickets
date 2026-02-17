@@ -7,7 +7,7 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#lib/types.ts";
 import { inviteUserFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-import { AdminNav } from "#templates/admin/nav.tsx";
+import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 
 /** Displayable user info (decrypted) */
 export interface DisplayUser {
@@ -28,12 +28,16 @@ const userStatus = (user: DisplayUser): string => {
 /**
  * Admin user management page
  */
+export interface UsersPageOpts {
+  inviteLink?: string;
+  success?: string;
+  error?: string;
+}
+
 export const adminUsersPage = (
   users: DisplayUser[],
   session: AdminSession,
-  inviteLink?: string,
-  error?: string,
-  success?: string,
+  opts?: UsersPageOpts,
 ): string =>
   String(
     <Layout title="Users">
@@ -42,25 +46,19 @@ export const adminUsersPage = (
       <p>
         <a href="/admin/guide#user-classes">User roles and permissions</a>
       </p>
-      <Raw html={renderError(error)} />
-      {success && <div class="success">{success}</div>}
+      <Raw html={renderError(opts?.error)} />
+      {opts?.success && <div class="success">{opts.success}</div>}
 
-      {inviteLink && (
+      {opts?.inviteLink && (
         <div class="success">
           <p>Invite link (share this with the new user):</p>
-          <code>{inviteLink}</code>
+          <code>{opts.inviteLink}</code>
           <p><small>This link expires in 7 days.</small></p>
         </div>
       )}
 
-      <h2>Invite New User</h2>
-      <form method="POST" action="/admin/users">
-        <input type="hidden" name="csrf_token" value={session.csrfToken} />
-        <Raw html={renderFields(inviteUserFields)} />
-        <button type="submit">Create Invite</button>
-      </form>
+      <p><a href="/admin/user/new">Invite User</a></p>
 
-      <h2>Current Users</h2>
       <div class="table-scroll">
         <table>
           <thead>
@@ -100,4 +98,25 @@ export const adminUsersPage = (
         </table>
       </div>
     </Layout>
+  );
+
+/**
+ * Admin invite user page
+ */
+export const adminUserNewPage = (
+  session: AdminSession,
+  error?: string,
+): string =>
+  String(
+    <Layout title="Invite User">
+      <AdminNav session={session} />
+      <Breadcrumb href="/admin/users" label="Users" />
+      <h1>Invite User</h1>
+      <Raw html={renderError(error)} />
+      <form method="POST" action="/admin/users">
+        <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <Raw html={renderFields(inviteUserFields)} />
+        <button type="submit">Create Invite</button>
+      </form>
+    </Layout>,
   );

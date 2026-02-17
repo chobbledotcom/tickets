@@ -744,14 +744,10 @@ export const createTestEvent = (
       maximum_days_after: input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
     },
     async () => {
-      // Get the most recently created event
+      // Get the most recently created event (302 redirect guarantees creation succeeded)
       const { getAllEvents } = await import("#lib/db/events.ts");
       const events = await getAllEvents();
-      const event = events[0]; // getAllEvents returns DESC by created
-      if (!event) {
-        throw new Error(`Event not found after creation: ${input.name}`);
-      }
-      return event;
+      return events[0]!; // getAllEvents returns DESC by created
     },
     "create event",
   );

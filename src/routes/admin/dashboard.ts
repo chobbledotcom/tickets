@@ -6,7 +6,6 @@ import { getAllowedDomain } from "#lib/config.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { getAllEvents } from "#lib/db/events.ts";
-import { getAllGroups } from "#lib/db/groups.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { htmlResponse, requireSessionOr, withSession } from "#routes/utils.ts";
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
@@ -27,8 +26,8 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     request,
     async (session) => {
       const imageError = new URL(request.url).searchParams.get("image_error");
-      const [events, groups] = await Promise.all([getAllEvents(), getAllGroups()]);
-      return htmlResponse(adminDashboardPage(events, groups, session, getAllowedDomain(), imageError));
+      const events = await getAllEvents();
+      return htmlResponse(adminDashboardPage(events, session, getAllowedDomain(), imageError));
     },
     () => loginResponse(),
   );
