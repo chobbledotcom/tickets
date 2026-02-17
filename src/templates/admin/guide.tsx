@@ -50,8 +50,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             From the <strong>Events</strong> page, fill in the form at the
             bottom. Give your event a name, set the capacity, and choose which
-            contact details to collect (any combination of email, phone, and
-            postal address). You can leave the price blank for free events.
+            contact details to collect (any combination of email, phone,
+            postal address, and special instructions). You can leave the price
+            blank for free events.
             Once created, share the booking link with your attendees.
           </p>
         </Q>
@@ -412,20 +413,21 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="What happens if I lose my password?">
           <p>
-            There is <strong>no password recovery</strong>. Attendee data is
-            encrypted using keys derived from your password, so without it the
-            data cannot be decrypted. Keep your password safe. Another owner can
-            delete and re-invite your account, but previously encrypted data
-            tied to your keys alone cannot be recovered.
+            There is <strong>no password recovery</strong>. If you lose your
+            password, you cannot log in or decrypt any data. Keep your password
+            safe. Another owner can delete your account and send a fresh
+            invite, and all existing attendee data remains accessible to other
+            owners.
           </p>
         </Q>
 
         <Q q="Can I export attendee data?">
           <p>
             Yes. On any event's attendee list, click <strong>Export CSV</strong>.
-            The export includes name, email, phone, address, quantity,
-            registration date, amount paid, check-in status, and ticket link. For daily events, you
-            can filter by date before exporting.
+            The export includes name, email, phone, address, special
+            instructions, quantity, registration date, amount paid, transaction
+            ID, check-in status, and ticket URL. For daily events, you can
+            filter by date before exporting.
           </p>
         </Q>
 
@@ -479,8 +481,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
-      <Section title="Customizing Your Site">
-        <Q q="Can I customize this system?">
+      <Section title="Customising Your Site">
+        <Q q="Can I customise this system?">
           <p>
             Absolutely. This is open-source software, so you have full control.
             You can{" "}
@@ -492,9 +494,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
-        <Q q="Can you customize it for me?">
+        <Q q="Can you customise it for me?">
           <p>
-            Yes. I offer customization at a transparent flat rate &mdash; see{" "}
+            Yes. I offer customisation at a transparent flat rate &mdash; see{" "}
             <a href="https://chobble.com/prices">chobble.com/prices</a> for
             current pricing. I can help you with custom features, branding,
             event image design, hosting setup, or whatever you need. You'll own
