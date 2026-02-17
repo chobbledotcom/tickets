@@ -68,24 +68,12 @@ if (dateInput && closesAtInput) {
   });
 }
 
-/* Scroll parent page so the iframe is visible on checkout and success pages */
+/* Scroll parent page so the iframe is visible on checkout and success pages.
+ * parentIframe is created synchronously by iframe-resizer-child (loaded before
+ * this deferred script) and buffers calls until the parent handshake completes. */
 if (document.querySelector("[data-scroll-into-view]")) {
-  const sendScrollMessage = (): boolean => {
-    const pf = (window as unknown as Record<string, { sendMessage?: (msg: unknown) => void }>).parentIframe;
-    if (pf?.sendMessage) {
-      pf.sendMessage({ type: "scrollIntoView" });
-      return true;
-    }
-    return false;
-  };
-  if (!sendScrollMessage()) {
-    let attempts = 0;
-    const poll = () => {
-      if (sendScrollMessage() || ++attempts > 40) return;
-      setTimeout(poll, 50);
-    };
-    setTimeout(poll, 50);
-  }
+  const { parentIframe } = window as unknown as { parentIframe?: { sendMessage: (msg: unknown) => void } };
+  parentIframe?.sendMessage({ type: "scrollIntoView" });
 }
 
 /* Stripe checkout popup: opens Stripe in a new window when embedded in an iframe.

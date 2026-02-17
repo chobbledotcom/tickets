@@ -32,7 +32,7 @@
       }, target: HTMLIFrameElement) => void;
     }).iframeResize;
     iframeResize({
-      license: script.dataset.license || "GPLv3",
+      license: "AGPLv3",
       onMessage: ({ iframe: iframeEl, message }) => {
         if (message?.type === "scrollIntoView") {
           iframeEl.scrollIntoView({ behavior: "smooth", block: "start" });
