@@ -25,9 +25,20 @@
 
   const initResize = () => {
     if (!scriptLoaded || !iframeLoaded) return;
-    const iframeResize = (window as unknown as { iframeResize: (options: { license: string }, target: HTMLIFrameElement) => void })
-      .iframeResize;
-    iframeResize({ license: script.dataset.license || "GPLv3" }, iframe);
+    const iframeResize = (window as unknown as {
+      iframeResize: (options: {
+        license: string;
+        onMessage?: (data: { iframe: HTMLIFrameElement; message: Record<string, unknown> }) => void;
+      }, target: HTMLIFrameElement) => void;
+    }).iframeResize;
+    iframeResize({
+      license: script.dataset.license || "GPLv3",
+      onMessage: ({ iframe: iframeEl, message }) => {
+        if (message?.type === "scrollIntoView") {
+          iframeEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      },
+    }, iframe);
   };
 
   parentScript.onload = () => {
