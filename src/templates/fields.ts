@@ -262,7 +262,7 @@ export const eventFields: Field[] = [
     name: "date",
     label: "Event Date (optional)",
     type: "datetime",
-    hint: "When the event takes place. Times are in UTC.",
+    hint: "When the event takes place. Times are in your configured timezone.",
     validate: validateDatetime,
   },
   {
@@ -346,7 +346,7 @@ export const eventFields: Field[] = [
     name: "closes_at",
     label: "Registration Closes At (optional)",
     type: "datetime",
-    hint: "Leave blank for no deadline. Times are in UTC.",
+    hint: "Leave blank for no deadline. Times are in your configured timezone.",
     validate: validateDatetime,
   },
   {
