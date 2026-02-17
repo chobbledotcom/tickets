@@ -10,7 +10,7 @@ import {
   resetGroupEvents,
   type GroupInput,
 } from "#lib/db/groups.ts";
-import { defineResource } from "#lib/rest/resource.ts";
+import { defineNamedResource } from "#lib/rest/resource.ts";
 import { normalizeSlug } from "#lib/slug.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -31,7 +31,7 @@ const extractGroupInput = async (
 };
 
 /** Groups resource for REST create/update operations */
-const groupsResource = defineResource({
+const groupsResource = defineNamedResource({
   table: groupsTable,
   fields: groupFields,
   toInput: extractGroupInput,

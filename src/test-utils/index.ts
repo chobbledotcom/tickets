@@ -636,28 +636,6 @@ export const loginAsAdmin = async (): Promise<{
   return { cookie, csrfToken };
 };
 
-/** Refresh cachedAdminSession from the current DB sessions table */
-const cacheLatestAdminSession = async (cookie: string): Promise<void> => {
-  if (!cachedClient) return;
-
-  const sessionsResult = await cachedClient.execute(
-    "SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions ORDER BY expires DESC LIMIT 1",
-  );
-  if (sessionsResult.rows.length === 0) return;
-
-  const row = sessionsResult.rows[0]!;
-  cachedAdminSession = {
-    cookie,
-    sessionRow: {
-      token: row.token as string,
-      csrf_token: row.csrf_token as string,
-      expires: row.expires as number,
-      wrapped_data_key: row.wrapped_data_key as string | null,
-      user_id: row.user_id as number | null,
-    },
-  };
-};
-
 /** Get or create an authenticated session for test helpers (cached) */
 const getTestSession = async (): Promise<{
   cookie: string;
@@ -674,26 +652,11 @@ const getTestSession = async (): Promise<{
       args: [sessionRow.token, sessionRow.csrf_token, sessionRow.expires, sessionRow.wrapped_data_key, sessionRow.user_id],
     });
     const csrfToken = await signCsrfToken();
-
-    const candidate = { cookie: cachedAdminSession.cookie, csrfToken };
-    const { getAuthenticatedSession } = await import("#routes/utils.ts");
-    const auth = await getAuthenticatedSession(
-      new Request("http://localhost/admin", {
-        headers: { cookie: candidate.cookie, host: "localhost" },
-      }),
-    );
-    if (auth) {
-      testSession = candidate;
-      return testSession;
-    }
-
-    // Cached session cookie/token no longer matches current runtime config.
-    // Fall back to a fresh login and refresh cachedAdminSession.
-    cachedAdminSession = null;
+    testSession = { cookie: cachedAdminSession.cookie, csrfToken };
+    return testSession;
   }
 
   testSession = await loginAsAdmin();
-  await cacheLatestAdminSession(testSession.cookie);
   return testSession;
 };
 
@@ -1277,11 +1240,7 @@ export const createTestGroup = (
     async () => {
       const { getAllGroups } = await import("#lib/db/groups.ts");
       const groups = await getAllGroups();
-      const group = groups[groups.length - 1];
-      if (!group) {
-        throw new Error(`Group not found after creation: ${input.slug}`);
-      }
-      return group as Group;
+      return groups[groups.length - 1]! as Group;
     },
     "create group",
   );

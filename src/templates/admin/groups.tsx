@@ -59,11 +59,12 @@ export const adminGroupsPage = (
  */
 export const groupToFieldValues = (
   group?: Group,
-): Record<string, string | number | null> => ({
-  name: group?.name ?? "",
-  slug: group?.slug ?? "",
-  terms_and_conditions: group?.terms_and_conditions ?? "",
-});
+): Record<string, string | number | null> => {
+  const name = group?.name ?? "";
+  const slug = group?.slug ?? "";
+  const terms = group?.terms_and_conditions ?? "";
+  return { name, slug, terms_and_conditions: terms };
+};
 
 /**
  * Admin group create page
@@ -80,7 +81,7 @@ export const adminGroupNewPage = (
       <Raw html={renderError(error)} />
       <form method="POST" action="/admin/group">
         <input type="hidden" name="csrf_token" value={session.csrfToken} />
-        <Raw html={renderFields(groupFields)} />
+        <Raw html={renderFields(groupFields, groupToFieldValues())} />
         <button type="submit">Create Group</button>
       </form>
     </Layout>,

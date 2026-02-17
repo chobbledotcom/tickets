@@ -71,42 +71,36 @@ const handleJoinGet = (_request: Request, { code }: InviteCodeParams): Promise<R
 /**
  * Handle POST /join/:code
  */
-<<<<<<< HEAD
-const handleJoinPost = (request: Request, code: string): Promise<Response> =>
+const handleJoinPost = (request: Request, { code }: InviteCodeParams): Promise<Response> =>
   withValidInvite(code, (code, user, username) =>
     withCsrfForm(
-=======
-const handleJoinPost = (request: Request, { code }: InviteCodeParams): Promise<Response> =>
-  withValidInvite(code, async (code, user, username) => {
-    const csrf = await requireCsrfForm(
->>>>>>> 8aba18c (Eliminate route table wrapper lambdas with direct handler references (#323))
       request,
       (newToken, message, status) =>
         htmlResponse(joinPage(code, username, message, newToken), status),
       async (form) => {
         const formCsrf = form.get("csrf_token")!;
 
-    // Validate password fields
-    const validation = validateForm<JoinFormValues>(form, joinFields);
-    if (!validation.valid) {
-      return htmlResponse(joinPage(code, username, validation.error, formCsrf), 400);
-    }
+        // Validate password fields
+        const validation = validateForm<JoinFormValues>(form, joinFields);
+        if (!validation.valid) {
+          return htmlResponse(joinPage(code, username, validation.error, formCsrf), 400);
+        }
 
-    const { password, password_confirm: passwordConfirm } = validation.values;
+        const { password, password_confirm: passwordConfirm } = validation.values;
 
-    if (password.length < 8) {
-      return htmlResponse(
-        joinPage(code, username, "Password must be at least 8 characters", formCsrf),
-        400,
-      );
-    }
+        if (password.length < 8) {
+          return htmlResponse(
+            joinPage(code, username, "Password must be at least 8 characters", formCsrf),
+            400,
+          );
+        }
 
-    if (password !== passwordConfirm) {
-      return htmlResponse(
-        joinPage(code, username, "Passwords do not match", formCsrf),
-        400,
-      );
-    }
+        if (password !== passwordConfirm) {
+          return htmlResponse(
+            joinPage(code, username, "Passwords do not match", formCsrf),
+            400,
+          );
+        }
 
         // Set the password and clear the invite code
         await setUserPassword(user.id, password);
