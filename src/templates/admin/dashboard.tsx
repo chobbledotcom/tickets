@@ -4,17 +4,18 @@
 
 import { filter, map, pipe, reduce } from "#fp";
 import { renderFields } from "#lib/forms.tsx";
-import type { AdminSession, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
 import { eventFields, imageField } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
+import { EventGroupSelect } from "#templates/admin/group-select.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { renderEventImage } from "#templates/public.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
-const EventRow = ({ e }: { e: EventWithCount }): string => {
+export const EventRow = ({ e }: { e: EventWithCount }): string => {
   const isInactive = e.active !== 1;
   const rowStyle = isInactive ? 'opacity: 0.5;' : '';
   return String(
@@ -93,6 +94,7 @@ const multiBookingSection = (
  */
 export const adminDashboardPage = (
   events: EventWithCount[],
+  groups: Group[],
   session: AdminSession,
   allowedDomain: string,
   imageError?: string | null,
@@ -141,6 +143,7 @@ export const adminDashboardPage = (
             <h2>Create New Event</h2>
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(createFields)} />
+          <EventGroupSelect groups={groups} selectedGroupId={0} />
           <button type="submit">Create Event</button>
         </form>
     </Layout>

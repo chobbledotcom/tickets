@@ -15,7 +15,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
   redirect,
-  requireCsrfForm,
+  withCsrfForm,
 } from "#routes/utils.ts";
 import { joinFields, type JoinFormValues } from "#templates/fields.ts";
 import {
@@ -72,47 +72,42 @@ const handleJoinGet = (_request: Request, { code }: InviteCodeParams): Promise<R
  * Handle POST /join/:code
  */
 const handleJoinPost = (request: Request, { code }: InviteCodeParams): Promise<Response> =>
-  withValidInvite(code, async (code, user, username) => {
-    const csrf = await requireCsrfForm(
+  withValidInvite(code, (code, user, username) =>
+    withCsrfForm(
       request,
-      (newToken) =>
-        htmlResponse(
-          joinPage(code, username, "Invalid or expired form. Please try again.", newToken),
-          403,
-        ),
-    );
-    if (!csrf.ok) return csrf.response;
+      (newToken, message, status) =>
+        htmlResponse(joinPage(code, username, message, newToken), status),
+      async (form) => {
+        const formCsrf = form.get("csrf_token")!;
 
-    const { form } = csrf;
-    const formCsrf = form.get("csrf_token")!;
+        // Validate password fields
+        const validation = validateForm<JoinFormValues>(form, joinFields);
+        if (!validation.valid) {
+          return htmlResponse(joinPage(code, username, validation.error, formCsrf), 400);
+        }
 
-    // Validate password fields
-    const validation = validateForm<JoinFormValues>(form, joinFields);
-    if (!validation.valid) {
-      return htmlResponse(joinPage(code, username, validation.error, formCsrf), 400);
-    }
+        const { password, password_confirm: passwordConfirm } = validation.values;
 
-    const { password, password_confirm: passwordConfirm } = validation.values;
+        if (password.length < 8) {
+          return htmlResponse(
+            joinPage(code, username, "Password must be at least 8 characters", formCsrf),
+            400,
+          );
+        }
 
-    if (password.length < 8) {
-      return htmlResponse(
-        joinPage(code, username, "Password must be at least 8 characters", formCsrf),
-        400,
-      );
-    }
+        if (password !== passwordConfirm) {
+          return htmlResponse(
+            joinPage(code, username, "Passwords do not match", formCsrf),
+            400,
+          );
+        }
 
-    if (password !== passwordConfirm) {
-      return htmlResponse(
-        joinPage(code, username, "Passwords do not match", formCsrf),
-        400,
-      );
-    }
+        // Set the password and clear the invite code
+        await setUserPassword(user.id, password);
 
-    // Set the password and clear the invite code
-    await setUserPassword(user.id, password);
-
-    return redirect("/join/complete");
-  });
+        return redirect("/join/complete");
+      },
+    ));
 
 /**
  * Handle GET /join/complete - password set confirmation page

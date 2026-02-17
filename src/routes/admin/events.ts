@@ -20,11 +20,13 @@ import {
   getEventWithCount,
   isSlugTaken,
 } from "#lib/db/events.ts";
+import { getAllGroups, groupsTable } from "#lib/db/groups.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateSlug, normalizeSlug } from "#lib/slug.ts";
-import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
 import { defineRoutes } from "#routes/router.ts";
+import type { RouteParamsFor, TypedRouteHandler } from "#routes/router.ts";
 import { csvResponse, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
   formDataToParams,
@@ -55,7 +57,7 @@ import {
   validateImage,
 } from "#lib/storage.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
-import { eventFields, slugField } from "#templates/fields.ts";
+import { eventFields, groupIdField, slugField } from "#templates/fields.ts";
 
 /** Try to delete an image from CDN storage, logging errors on failure */
 const tryDeleteImage = async (filename: string, eventId: number, detail: string): Promise<void> => {
@@ -89,6 +91,7 @@ const extractCommonFields = (values: EventFormValues) => {
     description: values.description,
     date: rawDate ? normalizeDatetime(rawDate, "date") : rawDate,
     location: values.location,
+    groupId: Number(values.group_id) || 0,
     maxAttendees: values.max_attendees,
     thankYouUrl: values.thank_you_url || null,
     unitPrice: values.unit_price ? toMinorUnits(Number.parseFloat(values.unit_price)) : null,
@@ -120,12 +123,22 @@ const extractEventUpdateInput = async (
   return { ...extractCommonFields(values), slug, slugIndex };
 };
 
+/** Validate that the referenced group exists (when group_id is non-zero) */
+const validateGroupExists = async (input: EventInput): Promise<string | null> => {
+  if (input.groupId && input.groupId !== 0) {
+    const group = await groupsTable.findById(input.groupId);
+    if (!group) return "Selected group does not exist";
+  }
+  return null;
+};
+
 /** Events resource for REST create operations */
 const eventsResource = defineResource({
   table: eventsTable,
-  fields: eventFields,
+  fields: [...eventFields, groupIdField],
   toInput: extractEventInput,
   nameField: "name",
+  validate: validateGroupExists,
 });
 
 /** User-facing messages for image validation errors */
@@ -246,9 +259,9 @@ const renderEventPage = async (request: Request, { id }: { id: number }, activeF
   });
 };
 
-/** Render event error page or 404 */
-const eventErrorPage = async (
-  id: number,
+/** Render event error page */
+const eventErrorPage = (
+  event: EventWithCount,
   renderPage: (
     event: EventWithCount,
     session: AdminSession,
@@ -256,18 +269,42 @@ const eventErrorPage = async (
   ) => string,
   session: AdminSession,
   error: string,
-): Promise<Response> => {
-  const event = await getEventWithCount(id);
-  return event
-    ? htmlResponse(renderPage(event, session, error), 400)
-    : notFoundResponse();
-};
+): Response =>
+  htmlResponse(renderPage(event, session, error), 400);
 
 /** Handle GET /admin/event/:id/duplicate */
-const handleAdminEventDuplicateGet = withEventPage(adminDuplicateEventPage);
+const getEventAndGroups = async (
+  eventId: number,
+): Promise<{ event: EventWithCount; groups: Group[] } | null> => {
+  const [event, groups] = await Promise.all([
+    getEventWithCount(eventId),
+    getAllGroups(),
+  ]);
+  return event ? { event, groups } : null;
+};
+
+type AdminEventIdParams = RouteParamsFor<"GET /admin/event/:id">;
+
+const withEventAndGroupsPage =
+  (
+    renderPage: (event: EventWithCount, groups: Group[], session: AdminSession) => string,
+  ) =>
+  (request: Request, params: AdminEventIdParams): Promise<Response> =>
+    requireSessionOr(request, async (session) => {
+      const ctx = await getEventAndGroups(params.id);
+      return ctx
+        ? htmlResponse(renderPage(ctx.event, ctx.groups, session))
+        : notFoundResponse();
+    });
+
+const handleAdminEventDuplicateGet: TypedRouteHandler<"GET /admin/event/:id/duplicate"> = withEventAndGroupsPage(
+  adminDuplicateEventPage,
+);
 
 /** Handle GET /admin/event/:id/edit */
-const handleAdminEventEditGet = withEventPage(adminEventEditPage);
+const handleAdminEventEditGet: TypedRouteHandler<"GET /admin/event/:id/edit"> = withEventAndGroupsPage(
+  adminEventEditPage,
+);
 
 /** Handle POST /admin/event/:id/edit */
 const handleAdminEventEditPost = (
@@ -283,12 +320,13 @@ const handleAdminEventEditPost = (
     // Build a resource that includes the slug field and validates uniqueness
     const updateResource = defineResource({
       table: eventsTable,
-      fields: [...eventFields, slugField],
+      fields: [...eventFields, slugField, groupIdField],
       toInput: extractEventUpdateInput,
       nameField: "name",
       validate: async (input, existingId) => {
         const taken = await isSlugTaken(input.slug, Number(existingId));
-        return taken ? "Slug is already in use by another event" : null;
+        if (taken) return "Slug is already in use by another event";
+        return validateGroupExists(input);
       },
     });
 
@@ -300,7 +338,11 @@ const handleAdminEventEditPost = (
       return redirect(`/admin/event/${result.row.id}${imageErrorParam}`);
     }
     if ("notFound" in result) return notFoundResponse();
-    return eventErrorPage(id, adminEventEditPage, session, result.error);
+
+    const ctx = await getEventAndGroups(id);
+    return ctx
+      ? htmlResponse(adminEventEditPage(ctx.event, ctx.groups, session, result.error), 400)
+      : notFoundResponse();
   });
 
 /**
@@ -345,7 +387,7 @@ const handleEventWithConfirmation = (
 
     const confirmIdentifier = form.get("confirm_identifier") ?? "";
     if (!verifyIdentifier(event.name, confirmIdentifier)) {
-      return eventErrorPage(id, renderPage, session, errorMsg);
+      return eventErrorPage(event, renderPage, session, errorMsg);
     }
 
     return action(event);

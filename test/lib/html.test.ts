@@ -20,7 +20,7 @@ import {
 import { eventFields } from "#templates/fields.ts";
 import { buildMultiTicketEvent, multiTicketPage, notFoundPage, renderEventImage, ticketPage } from "#templates/public.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
-import { testAttendee, testEvent, testEventWithCount } from "#test-utils";
+import { testAttendee, testEvent, testEventWithCount, testGroup } from "#test-utils";
 
 const TEST_CSRF_TOKEN = "test-csrf-token-abc123";
 const TEST_SESSION = { csrfToken: TEST_CSRF_TOKEN, adminLevel: "owner" as const };
@@ -87,14 +87,14 @@ describe("html", () => {
 
   describe("adminDashboardPage", () => {
     test("renders empty state when no events", () => {
-      const html = adminDashboardPage([], TEST_SESSION, "localhost");
+      const html = adminDashboardPage([], [], TEST_SESSION, "localhost");
       expect(html).toContain("Events");
       expect(html).toContain("No events yet");
     });
 
     test("renders events table", () => {
       const events = [testEventWithCount({ attendee_count: 25 })];
-      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).toContain("Test Event");
       expect(html).toContain("25 / 100");
       expect(html).toContain("/admin/event/1");
@@ -104,13 +104,13 @@ describe("html", () => {
       const events = [
         testEventWithCount({ name: "My Test Event" }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).toContain("My Test Event");
       expect(html).toContain("Event Name");
     });
 
     test("renders create event form", () => {
-      const html = adminDashboardPage([], TEST_SESSION, "localhost");
+      const html = adminDashboardPage([], [], TEST_SESSION, "localhost");
       expect(html).toContain("Create New Event");
       expect(html).toContain('name="name"');
       expect(html).toContain('name="max_attendees"');
@@ -118,8 +118,33 @@ describe("html", () => {
     });
 
     test("includes logout link", () => {
-      const html = adminDashboardPage([], TEST_SESSION, "localhost");
+      const html = adminDashboardPage([], [], TEST_SESSION, "localhost");
       expect(html).toContain("/admin/logout");
+    });
+
+    test("does not render group select when no groups exist", () => {
+      const html = adminDashboardPage([], [], TEST_SESSION, "localhost");
+      expect(html).not.toContain('name="group_id"');
+    });
+
+    test("renders group select when groups exist", () => {
+      const groups = [testGroup({ id: 2, name: "My Group" })];
+      const html = adminDashboardPage([], groups, TEST_SESSION, "localhost");
+      expect(html).toContain('name="group_id"');
+      expect(html).toContain('<option value="0" selected>No Group</option>');
+      expect(html).toContain('<option value="2"');
+      expect(html).toContain("My Group");
+    });
+  });
+
+  describe("adminEventEditPage group select", () => {
+    test("preselects the event group_id when groups exist", () => {
+      const groups = [testGroup({ id: 2, name: "Group Two" })];
+      const event = testEventWithCount({ group_id: 2 });
+      const html = adminEventEditPage(event, groups, TEST_SESSION);
+      expect(html).toContain('name="group_id"');
+      expect(html).toContain('<option value="2" selected');
+      expect(html).not.toContain('<option value="0" selected');
     });
   });
 
@@ -609,7 +634,7 @@ describe("html", () => {
 
   describe("adminDashboardPage unit_price field", () => {
     test("renders unit_price input field", () => {
-      const html = adminDashboardPage([], TEST_SESSION, "localhost");
+      const html = adminDashboardPage([], [], TEST_SESSION, "localhost");
       expect(html).toContain('name="unit_price"');
       expect(html).toContain("Ticket Price");
     });
@@ -919,7 +944,7 @@ describe("html", () => {
   describe("adminDashboardPage inactive events", () => {
     test("renders inactive event with reduced opacity", () => {
       const events = [testEventWithCount({ active: 0, attendee_count: 5 })];
-      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).toContain("opacity: 0.5");
       expect(html).toContain("Inactive");
     });
@@ -927,13 +952,13 @@ describe("html", () => {
 
   describe("adminDashboardPage multi-booking link", () => {
     test("does not show multi-booking section with zero events", () => {
-      const html = adminDashboardPage([], TEST_SESSION, "localhost");
+      const html = adminDashboardPage([], [], TEST_SESSION, "localhost");
       expect(html).not.toContain("Multi-booking link");
     });
 
     test("does not show multi-booking section with one active event", () => {
       const events = [testEventWithCount({ id: 1, slug: "ab12c" })];
-      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).not.toContain("Multi-booking link");
     });
 
@@ -942,7 +967,7 @@ describe("html", () => {
         testEventWithCount({ id: 1, slug: "ab12c", name: "Event A" }),
         testEventWithCount({ id: 2, slug: "cd34e", name: "Event B" }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).toContain("Multi-booking link");
       expect(html).toContain("Event A");
       expect(html).toContain("Event B");
@@ -953,7 +978,7 @@ describe("html", () => {
         testEventWithCount({ id: 1, slug: "ab12c", active: 1 }),
         testEventWithCount({ id: 2, slug: "cd34e", active: 0 }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).not.toContain("Multi-booking link");
     });
 
@@ -963,7 +988,7 @@ describe("html", () => {
         testEventWithCount({ id: 2, slug: "cd34e", name: "Inactive", active: 0 }),
         testEventWithCount({ id: 3, slug: "ef56g", name: "Active Two", active: 1 }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).toContain("Active One");
       expect(html).toContain("Active Two");
       expect(html).not.toContain('data-multi-booking-slug="cd34e"');
@@ -974,7 +999,7 @@ describe("html", () => {
         testEventWithCount({ id: 1, slug: "ab12c" }),
         testEventWithCount({ id: 2, slug: "cd34e" }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).toContain('data-multi-booking-slug="ab12c"');
       expect(html).toContain('data-multi-booking-slug="cd34e"');
     });
@@ -984,7 +1009,7 @@ describe("html", () => {
         testEventWithCount({ id: 1, slug: "ab12c" }),
         testEventWithCount({ id: 2, slug: "cd34e" }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION, "example.com");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "example.com");
       expect(html).toContain('data-domain="example.com"');
       expect(html).toContain("data-multi-booking-url");
       expect(html).toContain("readonly");
@@ -997,7 +1022,7 @@ describe("html", () => {
         testEventWithCount({ id: 1, slug: "ab12c" }),
         testEventWithCount({ id: 2, slug: "cd34e" }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).toContain("<details>");
       expect(html).toContain("<summary>");
     });
@@ -1007,7 +1032,7 @@ describe("html", () => {
         testEventWithCount({ id: 1, slug: "ab12c", fields: "email" }),
         testEventWithCount({ id: 2, slug: "cd34e", fields: "email,phone" }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION, "example.com");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "example.com");
       expect(html).toContain("data-multi-booking-embed-script");
       expect(html).toContain("data-multi-booking-embed-iframe");
       expect(html).toContain('for="multi-booking-embed-script"');
@@ -1021,7 +1046,7 @@ describe("html", () => {
         testEventWithCount({ id: 1, slug: "ab12c", fields: "email" }),
         testEventWithCount({ id: 2, slug: "cd34e", fields: "email,phone" }),
       ];
-      const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+      const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).toContain('data-fields="email"');
       expect(html).toContain('data-fields="email,phone"');
     });
@@ -1482,7 +1507,7 @@ describe("html", () => {
 
   describe("admin nav Calendar link", () => {
     test("admin dashboard includes Calendar link in nav", () => {
-      const html = adminDashboardPage([], TEST_SESSION, "localhost");
+      const html = adminDashboardPage([], [], TEST_SESSION, "localhost");
       expect(html).toContain('href="/admin/calendar"');
       expect(html).toContain("Calendar");
     });
@@ -1530,7 +1555,7 @@ describe("html", () => {
   describe("adminEventPage edit form pre-fills date and location", () => {
     test("empty date shows no pre-filled value in edit form", () => {
       const event = testEventWithCount({ date: "", attendee_count: 0 });
-      const html = adminEventEditPage(event, TEST_SESSION, undefined);
+      const html = adminEventEditPage(event, [], TEST_SESSION, undefined);
       // The date field should render split date and time inputs
       expect(html).toContain('name="date_date"');
       expect(html).toContain('name="date_time"');
@@ -1538,7 +1563,7 @@ describe("html", () => {
 
     test("non-empty date shows formatted split values in edit form", () => {
       const event = testEventWithCount({ date: "2026-06-15T14:00:00.000Z", attendee_count: 0 });
-      const html = adminEventEditPage(event, TEST_SESSION, undefined);
+      const html = adminEventEditPage(event, [], TEST_SESSION, undefined);
       // Should contain split date and time values converted to Europe/London (BST = UTC+1)
       expect(html).toContain('value="2026-06-15"');
       expect(html).toContain('value="15:00"');
@@ -1546,7 +1571,7 @@ describe("html", () => {
 
     test("pre-fills location in edit form", () => {
       const event = testEventWithCount({ location: "Village Hall", attendee_count: 0 });
-      const html = adminEventEditPage(event, TEST_SESSION, undefined);
+      const html = adminEventEditPage(event, [], TEST_SESSION, undefined);
       expect(html).toContain('value="Village Hall"');
     });
   });
@@ -1929,7 +1954,7 @@ describe("html", () => {
       test("shows thumbnail when event has image_url", () => {
         setupStorage();
         const events = [testEventWithCount({ image_url: "thumb.jpg" })];
-        const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+        const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
         expect(html).toContain("/image/thumb.jpg");
         expect(html).toContain('class="event-thumbnail"');
         cleanupStorage();
@@ -1938,7 +1963,7 @@ describe("html", () => {
       test("does not show thumbnail when event has no image_url", () => {
         setupStorage();
         const events = [testEventWithCount({ image_url: "" })];
-        const html = adminDashboardPage(events, TEST_SESSION, "localhost");
+        const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
         expect(html).not.toContain('src="/image/');
         cleanupStorage();
       });
@@ -1959,7 +1984,7 @@ describe("html", () => {
       test("shows image upload field when storage enabled", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "" });
-        const html = adminEventEditPage(event, TEST_SESSION);
+        const html = adminEventEditPage(event, [], TEST_SESSION);
         expect(html).toContain('type="file"');
         expect(html).toContain('name="image"');
         expect(html).toContain("multipart/form-data");
@@ -1969,7 +1994,7 @@ describe("html", () => {
       test("shows current image and remove button when image is set", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "current.jpg" });
-        const html = adminEventEditPage(event, TEST_SESSION);
+        const html = adminEventEditPage(event, [], TEST_SESSION);
         expect(html).toContain("/image/current.jpg");
         expect(html).toContain("Remove Image");
         expect(html).toContain("/image/delete");
@@ -1979,7 +2004,7 @@ describe("html", () => {
       test("does not show image field when storage is not enabled", () => {
         cleanupStorage();
         const event = testEventWithCount({ image_url: "" });
-        const html = adminEventEditPage(event, TEST_SESSION);
+        const html = adminEventEditPage(event, [], TEST_SESSION);
         expect(html).not.toContain('type="file"');
         expect(html).not.toContain('name="image"');
       });
@@ -1987,7 +2012,7 @@ describe("html", () => {
       test("shows full-width image preview when event has image", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "preview.jpg" });
-        const html = adminEventEditPage(event, TEST_SESSION);
+        const html = adminEventEditPage(event, [], TEST_SESSION);
         expect(html).toContain("event-image-full");
         expect(html).toContain("/image/preview.jpg");
         cleanupStorage();
@@ -1998,7 +2023,7 @@ describe("html", () => {
       test("shows image upload field when storage enabled", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "" });
-        const html = adminDuplicateEventPage(event, TEST_SESSION);
+        const html = adminDuplicateEventPage(event, [], TEST_SESSION);
         expect(html).toContain('type="file"');
         expect(html).toContain('name="image"');
         expect(html).toContain("multipart/form-data");
@@ -2008,7 +2033,7 @@ describe("html", () => {
       test("does not show image field when storage is not enabled", () => {
         cleanupStorage();
         const event = testEventWithCount({ image_url: "" });
-        const html = adminDuplicateEventPage(event, TEST_SESSION);
+        const html = adminDuplicateEventPage(event, [], TEST_SESSION);
         expect(html).not.toContain('type="file"');
         expect(html).not.toContain('name="image"');
       });
@@ -2017,7 +2042,7 @@ describe("html", () => {
     describe("adminDashboardPage create form image section", () => {
       test("shows image upload field on create form when storage enabled", () => {
         setupStorage();
-        const html = adminDashboardPage([], TEST_SESSION, "localhost");
+        const html = adminDashboardPage([], [], TEST_SESSION, "localhost");
         expect(html).toContain('type="file"');
         expect(html).toContain('name="image"');
         expect(html).toContain("multipart/form-data");
@@ -2026,7 +2051,7 @@ describe("html", () => {
 
       test("does not show image field on create form when storage is not enabled", () => {
         cleanupStorage();
-        const html = adminDashboardPage([], TEST_SESSION, "localhost");
+        const html = adminDashboardPage([], [], TEST_SESSION, "localhost");
         expect(html).not.toContain('type="file"');
       });
     });

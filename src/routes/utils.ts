@@ -7,7 +7,7 @@ import {
   generateSecureToken,
   getPrivateKeyFromSession,
 } from "#lib/crypto.ts";
-import { signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
+import { CSRF_INVALID_FORM_MESSAGE, signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
 import { getEventWithCount, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { deleteSession, getSession } from "#lib/db/sessions.ts";
@@ -405,6 +405,22 @@ export const requireCsrfForm = async (
 
   const newToken = await signCsrfToken();
   return { ok: false, response: onInvalid(newToken) };
+};
+
+/**
+ * Parse a CSRF-protected form, re-rendering the form on invalid CSRF.
+ * Centralizes the default invalid/expired message.
+ */
+export const withCsrfForm = async (
+  request: Request,
+  onInvalid: (newToken: string, message: string, status: number) => Response,
+  handler: (form: URLSearchParams) => Response | Promise<Response>,
+): Promise<Response> => {
+  const csrf = await requireCsrfForm(
+    request,
+    (newToken) => onInvalid(newToken, CSRF_INVALID_FORM_MESSAGE, 403),
+  );
+  return csrf.ok ? handler(csrf.form) : csrf.response;
 };
 
 /** Auth form result type */

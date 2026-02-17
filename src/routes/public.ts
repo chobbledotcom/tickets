@@ -9,6 +9,11 @@ import { getTermsAndConditionsFromDb } from "#lib/db/settings.ts";
 import { getAvailableDates } from "#lib/dates.ts";
 import { checkBatchAvailability, createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
 import { getEventsBySlugsBatch } from "#lib/db/events.ts";
+import {
+  computeGroupSlugIndex,
+  getActiveEventsByGroupId,
+  getGroupBySlugIndex,
+} from "#lib/db/groups.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { validateForm } from "#lib/forms.tsx";
 import {
@@ -17,7 +22,7 @@ import {
   type MultiRegistrationItem,
   type RegistrationIntent,
 } from "#lib/payments.ts";
-import type { ContactInfo, EventFields, EventWithCount } from "#lib/types.ts";
+import type { ContactInfo, EventFields, EventWithCount, Group } from "#lib/types.ts";
 import { logDebug } from "#lib/logger.ts";
 import {
   logAndNotifyMultiRegistration,
@@ -32,7 +37,7 @@ import {
   isRegistrationClosed,
   notFoundResponse,
   redirect,
-  requireCsrfForm,
+  withCsrfForm,
   withActiveEventBySlug,
 } from "#routes/utils.ts";
 import { getTicketFields, mergeEventFields, type TicketFormValues } from "#templates/fields.ts";
@@ -208,13 +213,6 @@ const parseQuantityValue = (raw: string, max: number, minDefault = 1): number =>
 const parseQuantity = (form: URLSearchParams, event: EventWithCount): number =>
   parseQuantityValue(form.get("quantity") || "1", event.max_quantity);
 
-/** CSRF error response for ticket page */
-const ticketCsrfError = (event: EventWithCount, inIframe: boolean, terms: string | null | undefined) => (token: string) =>
-  ticketResponseWithToken(event, false, inIframe, undefined, terms)(token)(
-    "Invalid or expired form. Please try again.",
-    403,
-  );
-
 /** Handle paid event registration - check availability, create Stripe session */
 const processPaidReservation = async (
   request: Request,
@@ -281,52 +279,65 @@ const processTicketReservation = async (
   const inIframe = isIframeRequest(request.url);
   const currentToken = await newFormToken();
 
-  const csrfResult = await requireCsrfForm(request, ticketCsrfError(event, inIframe, terms));
-  if (!csrfResult.ok) return csrfResult.response;
+  return withCsrfForm(
+    request,
+    (newToken, message, status) =>
+      ticketResponseWithToken(event, false, inIframe, undefined, terms)(newToken)(
+        message,
+        status,
+      ),
+    async (form) => {
+      // Check if registration has closed since the form was loaded
+      if (isRegistrationClosed(event)) {
+        return ticketResponse(event, currentToken, inIframe, undefined, terms)(
+          REGISTRATION_CLOSED_SUBMIT_MESSAGE,
+        );
+      }
 
-  // Check if registration has closed since the form was loaded
-  if (isRegistrationClosed(event)) {
-    return ticketResponse(event, currentToken, inIframe, undefined, terms)(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
-  }
+      const fields = getTicketFields(event.fields);
+      const validation = validateForm<TicketFormValues>(form, fields);
+      if (!validation.valid) {
+        return ticketResponse(event, currentToken, inIframe, undefined, terms)(
+          validation.error,
+        );
+      }
 
-  const { form } = csrfResult;
-  const fields = getTicketFields(event.fields);
-  const validation = validateForm<TicketFormValues>(form, fields);
-  if (!validation.valid) {
-    return ticketResponse(event, currentToken, inIframe, undefined, terms)(validation.error);
-  }
+      // Validate terms and conditions acceptance if configured
+      if (terms && form.get("agree_terms") !== "1") {
+        return ticketResponse(event, currentToken, inIframe, undefined, terms)(
+          "You must agree to the terms and conditions",
+        );
+      }
 
-  // Validate terms and conditions acceptance if configured
-  if (terms && form.get("agree_terms") !== "1") {
-    return ticketResponse(event, currentToken, inIframe, undefined, terms)("You must agree to the terms and conditions");
-  }
+      // For daily events, validate the submitted date against available dates
+      let date: string | null = null;
+      let dates: string[] | undefined;
+      if (event.event_type === "daily") {
+        dates = getAvailableDates(event, await getActiveHolidays());
+        date = validateSubmittedDate(form, dates);
+        if (!date) {
+          return ticketResponse(event, currentToken, inIframe, dates, terms)(
+            "Please select a valid date",
+          );
+        }
+      }
 
-  // For daily events, validate the submitted date against available dates
-  let date: string | null = null;
-  let dates: string[] | undefined;
-  if (event.event_type === "daily") {
-    dates = getAvailableDates(event, await getActiveHolidays());
-    date = validateSubmittedDate(form, dates);
-    if (!date) {
-      return ticketResponse(event, currentToken, inIframe, dates, terms)("Please select a valid date");
-    }
-  }
+      const quantity = parseQuantity(form, event);
+      const contact = extractContact(validation.values);
+      const params: ReservationParams = {
+        event,
+        ...contact,
+        quantity,
+        token: currentToken,
+        date,
+      };
 
-  const quantity = parseQuantity(form, event);
-  const contact = extractContact(validation.values);
-  const params: ReservationParams = {
-    event,
-    ...contact,
-    quantity,
-    token: currentToken,
-    date,
-  };
-
-  const ctx: TicketContext = { dates, terms, inIframe };
-  if (await requiresPayment(event)) {
-    return processPaidReservation(request, params, ctx);
-  }
-  return processFreeReservation(params, ctx);
+      const ctx: TicketContext = { dates, terms, inIframe };
+      return await requiresPayment(event)
+        ? processPaidReservation(request, params, ctx)
+        : processFreeReservation(params, ctx);
+    },
+  );
 };
 
 /** Handle POST for a single-ticket reservation */
@@ -354,15 +365,24 @@ const getActiveMultiEvents = (
     map((e: EventWithCount) => buildMultiTicketEvent(e, isRegistrationClosed(e))),
   )(compact(events));
 
-/** Multi-ticket response builder (CSRF token embedded in form) */
-const multiTicketResponseWithToken =
-  (slugs: string[], events: MultiTicketEvent[], dates: string[] | undefined, terms: string | null | undefined, inIframe: boolean) =>
-  (token: string) =>
-  (error?: string, status = 200) =>
-    htmlResponse(multiTicketPage(events, slugs, token, error, dates, terms, inIframe), status);
+/** Render multi-ticket HTML (token embedded in form) */
+const renderMultiTicketPage = (ctx: MultiTicketCtx, error?: string) =>
+  multiTicketPage(
+    ctx.events,
+    ctx.slugs,
+    ctx.token,
+    error,
+    ctx.dates,
+    ctx.terms,
+    ctx.inIframe,
+  );
+
+/** Multi-ticket response builder */
+const multiTicketResponse = (ctx: MultiTicketCtx) =>
+  (error?: string, status = 200) => htmlResponse(renderMultiTicketPage(ctx, error), status);
 
 /** Shared rendering context for multi-ticket error responses */
-type MultiTicketRenderContext = {
+type MultiTicketCtx = {
   slugs: string[];
   events: MultiTicketEvent[];
   token: string;
@@ -371,9 +391,9 @@ type MultiTicketRenderContext = {
   inIframe: boolean;
 };
 
-/** Multi-ticket error response (for validation errors after CSRF passed) */
-const multiTicketResponse = ({ events, slugs, token, dates, terms, inIframe }: MultiTicketRenderContext) =>
-  errorResponse((error) => multiTicketPage(events, slugs, token, error, dates, terms, inIframe));
+/** Multi-ticket form error response (after CSRF passed) */
+const multiTicketFormErrorResponse = (ctx: MultiTicketCtx) =>
+  errorResponse((error) => renderMultiTicketPage(ctx, error));
 
 /** Load and validate active events for multi-ticket, return 404 if none */
 const withActiveMultiEvents = async (
@@ -401,14 +421,140 @@ const getMultiTicketContext = async (activeEvents: MultiTicketEvent[]): Promise<
   return { dates: dates ?? [], terms: terms ?? "" };
 };
 
-/** Handle GET for multi-ticket page */
-const handleMultiTicketGet = (slugs: string[], request: Request): Promise<Response> =>
-  withActiveMultiEvents(slugs, async (activeEvents) => {
-    const inIframe = isIframeRequest(request.url);
-    const token = await signCsrfToken();
-    const { dates, terms } = await getMultiTicketContext(activeEvents);
-    return multiTicketResponseWithToken(slugs, activeEvents, dates, terms, inIframe)(token)();
-  });
+/** Shared context provider for multi-ticket pages */
+type MultiTicketContextProvider = (events: MultiTicketEvent[]) => Promise<{ dates: string[]; terms: string }>;
+
+/** Load shared meta for multi-ticket pages */
+const loadMultiTicketMeta = async (
+  request: Request,
+  activeEvents: MultiTicketEvent[],
+  getContext: MultiTicketContextProvider,
+): Promise<{ inIframe: boolean; dates: string[]; terms: string }> => {
+  const inIframe = isIframeRequest(request.url);
+  const { dates, terms } = await getContext(activeEvents);
+  return { inIframe, dates, terms };
+};
+
+/** Handle POST for multi-ticket registration */
+const submitMultiTicket = (
+  request: Request,
+  ctx: MultiTicketCtx,
+): Promise<Response> =>
+  withCsrfForm(
+    request,
+    (newToken, message, status) =>
+      multiTicketResponse({ ...ctx, token: newToken })(message, status),
+    async (form) => {
+      const { inIframe, dates, terms } = ctx;
+
+      // Validate fields based on merged event settings
+      const fieldsSetting = getMultiTicketFieldsSetting(ctx.events);
+      const fields = getTicketFields(fieldsSetting);
+      const validation = validateForm<TicketFormValues>(form, fields);
+      if (!validation.valid) {
+        return multiTicketFormErrorResponse(ctx)(validation.error);
+      }
+
+      // Validate terms and conditions acceptance if configured
+      if (terms && form.get("agree_terms") !== "1") {
+        return multiTicketFormErrorResponse(ctx)(
+          "You must agree to the terms and conditions",
+        );
+      }
+
+      const contact = extractContact(validation.values);
+
+      // For daily events, validate the submitted date
+      let date: string | null = null;
+      if (dates.length > 0) {
+        date = validateSubmittedDate(form, dates);
+        if (!date) {
+          return multiTicketFormErrorResponse(ctx)("Please select a valid date");
+        }
+      }
+
+      // Check if any event the user selected is now closed
+      for (const { event, isClosed } of ctx.events) {
+        const selectedQty = Number.parseInt(
+          form.get(`quantity_${event.id}`) || "0",
+          10,
+        );
+        if (isClosed && selectedQty > 0) {
+          return multiTicketFormErrorResponse(ctx)(REGISTRATION_CLOSED_SUBMIT_MESSAGE);
+        }
+      }
+
+      // Parse quantities
+      const quantities = parseMultiQuantities(form, ctx.events);
+
+      // Check at least one ticket selected
+      const totalQuantity = reduce((sum: number, qty: number) => sum + qty, 0)(
+        Array.from(quantities.values()),
+      );
+      if (totalQuantity === 0) {
+        return multiTicketFormErrorResponse(ctx)("Please select at least one ticket");
+      }
+
+      // Build registration items
+      const items = buildMultiRegistrationItems(ctx.events, quantities);
+
+      // Check if payment required
+      if (await anyRequiresPayment(items)) {
+        const available = await checkMultiAvailability(ctx.events, quantities, date);
+        if (!available) {
+          return multiTicketFormErrorResponse(ctx)(
+            "Sorry, some tickets are no longer available",
+          );
+        }
+
+        const intent: MultiRegistrationIntent = { ...contact, date, items };
+        return handleMultiPaymentFlow(request, intent, ctx);
+      }
+
+      // Free registration
+      const result = await processMultiFreeReservation(
+        ctx.events,
+        quantities,
+        contact,
+        date,
+      );
+
+      if (!result.success) {
+        return multiTicketFormErrorResponse(ctx)(result.error);
+      }
+
+      const iframeParam = inIframe ? "&iframe=true" : "";
+      const tokens = encodeURIComponent(result.tokens.join("+"));
+      return redirect(`/ticket/reserved?tokens=${tokens}${iframeParam}`);
+    },
+  );
+
+const handleMultiTicket = async (
+  request: Request,
+  actionSlugs: string[],
+  activeEvents: MultiTicketEvent[],
+  getContext: MultiTicketContextProvider,
+): Promise<Response> => {
+  const [{ inIframe, dates, terms }, token] = await Promise.all([
+    loadMultiTicketMeta(request, activeEvents, getContext),
+    signCsrfToken(),
+  ]);
+  const ctx: MultiTicketCtx = {
+    slugs: actionSlugs,
+    events: activeEvents,
+    token,
+    dates,
+    terms,
+    inIframe,
+  };
+  return request.method === "GET"
+    ? multiTicketResponse(ctx)()
+    : submitMultiTicket(request, ctx);
+};
+
+const handleMultiTicketBySlugs = (request: Request, slugs: string[]): Promise<Response> =>
+  withActiveMultiEvents(slugs, (activeEvents) =>
+    handleMultiTicket(request, slugs, activeEvents, getMultiTicketContext));
 
 /** Parse quantity values from multi-ticket form */
 const parseMultiQuantities = (
@@ -490,7 +636,7 @@ const anyRequiresPayment = async (
 const handleMultiPaymentFlow = (
   request: Request,
   intent: MultiRegistrationIntent,
-  ctx: MultiTicketRenderContext,
+  ctx: MultiTicketCtx,
 ): Promise<Response> =>
   runCheckoutFlow(
     `multi-ticket items=${intent.items.length}`,
@@ -524,114 +670,32 @@ const processMultiFreeReservation = async (
   return { success: true, tokens: entries.map((entry) => entry.attendee.ticket_token) };
 };
 
-/** Handle POST for multi-ticket registration */
-const handleMultiTicketPost = (
-  request: Request,
-  slugs: string[],
-): Promise<Response> =>
-  withActiveMultiEvents(slugs, async (activeEvents) => {
-    const { dates, terms } = await getMultiTicketContext(activeEvents);
-    const inIframe = isIframeRequest(request.url);
-    const currentToken = await newFormToken();
-    const renderCtx: MultiTicketRenderContext = { slugs, events: activeEvents, token: currentToken, dates, terms, inIframe };
+/** Context provider for group pages (terms override + shared dates) */
+const getGroupMultiTicketContext = (group: Group): MultiTicketContextProvider =>
+  async (events) => {
+    const dates = await computeSharedDates(events);
+    const globalTerms = await getTermsAndConditionsFromDb();
+    const terms = group.terms_and_conditions || globalTerms || "";
+    return { dates: dates ?? [], terms };
+  };
 
-    // CSRF validation
-    const csrfError = (token: string) =>
-      multiTicketResponseWithToken(slugs, activeEvents, dates, terms, inIframe)(token)(
-        "Invalid or expired form. Please try again.",
-        403,
-      );
+/** Load group by slug and its active events, return 404 if empty */
+const withActiveGroupEventsBySlug = async (
+  slug: string,
+  handler: (group: Group, activeEvents: MultiTicketEvent[]) => Response | Promise<Response>,
+): Promise<Response> => {
+  const slugIndex = await computeGroupSlugIndex(slug);
+  const group = await getGroupBySlugIndex(slugIndex);
+  if (!group) return notFoundResponse();
 
-    const csrfResult = await requireCsrfForm(request, csrfError);
-    if (!csrfResult.ok) return csrfResult.response;
+  const events = await getActiveEventsByGroupId(group.id);
+  const activeEvents = getActiveMultiEvents(events);
+  return activeEvents.length === 0 ? notFoundResponse() : handler(group, activeEvents);
+};
 
-    const { form } = csrfResult;
-
-    // Validate fields based on merged event settings
-    const fieldsSetting = getMultiTicketFieldsSetting(activeEvents);
-    const fields = getTicketFields(fieldsSetting);
-    const validation = validateForm<TicketFormValues>(form, fields);
-    if (!validation.valid) {
-      return multiTicketResponse(renderCtx)(
-        validation.error,
-      );
-    }
-
-    // Validate terms and conditions acceptance if configured
-    if (terms && form.get("agree_terms") !== "1") {
-      return multiTicketResponse(renderCtx)(
-        "You must agree to the terms and conditions",
-      );
-    }
-
-    const contact = extractContact(validation.values);
-
-    // For daily events, validate the submitted date
-    let date: string | null = null;
-    if (dates.length > 0) {
-      date = validateSubmittedDate(form, dates);
-      if (!date) {
-        return multiTicketResponse(renderCtx)(
-          "Please select a valid date",
-        );
-      }
-    }
-
-    // Check if any event the user selected is now closed
-    for (const { event, isClosed } of activeEvents) {
-      const selectedQty = Number.parseInt(form.get(`quantity_${event.id}`) || "0", 10);
-      if (isClosed && selectedQty > 0) {
-        return multiTicketResponse(renderCtx)(
-          REGISTRATION_CLOSED_SUBMIT_MESSAGE,
-        );
-      }
-    }
-
-    // Parse quantities
-    const quantities = parseMultiQuantities(form, activeEvents);
-
-    // Check at least one ticket selected
-    const totalQuantity = reduce((sum: number, qty: number) => sum + qty, 0)(
-      Array.from(quantities.values()),
-    );
-    if (totalQuantity === 0) {
-      return multiTicketResponse(renderCtx)(
-        "Please select at least one ticket",
-      );
-    }
-
-    // Build registration items
-    const items = buildMultiRegistrationItems(activeEvents, quantities);
-
-    // Check if payment required
-    if (await anyRequiresPayment(items)) {
-      // Check availability before creating checkout session
-      const available = await checkMultiAvailability(activeEvents, quantities, date);
-      if (!available) {
-        return multiTicketResponse(renderCtx)(
-          "Sorry, some tickets are no longer available",
-        );
-      }
-
-      const intent: MultiRegistrationIntent = { ...contact, date, items };
-      return handleMultiPaymentFlow(request, intent, renderCtx);
-    }
-
-    // Free registration
-    const result = await processMultiFreeReservation(
-      activeEvents,
-      quantities,
-      contact,
-      date,
-    );
-
-    if (!result.success) {
-      return multiTicketResponse(renderCtx)(result.error);
-    }
-
-    const iframeParam = inIframe ? "&iframe=true" : "";
-    return redirect(`/ticket/reserved?tokens=${encodeURIComponent(result.tokens.join("+"))}${iframeParam}`);
-  });
+const handleGroupTicketBySlug = (request: Request, slug: string): Promise<Response> =>
+  withActiveGroupEventsBySlug(slug, (group, activeEvents) =>
+    handleMultiTicket(request, [slug], activeEvents, getGroupMultiTicketContext(group)));
 
 /** Handle GET /ticket/reserved - reservation success page */
 const handleReservedGet = (request: Request): Response => {
@@ -653,14 +717,23 @@ const slugRoute = (
     ? onMulti(request, parseMultiSlugs(slug))
     : onSingle(request, slug);
 
-/** Handle GET /ticket/:slug */
+/** Handle GET /ticket/:slug (event first, then group fallback) */
 const handleTicketGet = slugRoute(
-  (request, slug) => handleSingleTicketGet(slug, request),
-  (request, slugs) => handleMultiTicketGet(slugs, request),
+  async (request, slug) => {
+    const response = await handleSingleTicketGet(slug, request);
+    return response.status === 404 ? handleGroupTicketBySlug(request, slug) : response;
+  },
+  handleMultiTicketBySlugs,
 );
 
-/** Handle POST /ticket/:slug */
-const handleTicketPost = slugRoute(handleSingleTicketPost, handleMultiTicketPost);
+/** Handle POST /ticket/:slug (event first, then group fallback) */
+const handleTicketPost = slugRoute(
+  async (request, slug) => {
+    const response = await handleSingleTicketPost(request, slug);
+    return response.status === 404 ? handleGroupTicketBySlug(request, slug) : response;
+  },
+  handleMultiTicketBySlugs,
+);
 
 /** Public ticket routes */
 const publicRoutes = defineRoutes({

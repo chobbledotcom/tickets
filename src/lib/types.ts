@@ -42,6 +42,7 @@ export interface Event {
   location: string; // encrypted or empty string
   slug: string;
   slug_index: string;
+  group_id: number;
   created: string;
   max_attendees: number;
   thank_you_url: string | null;
@@ -113,6 +114,14 @@ export interface Holiday {
   name: string;
   start_date: string;
   end_date: string;
+}
+
+export interface Group {
+  id: number;
+  slug: string;
+  slug_index: string;
+  name: string;
+  terms_and_conditions: string;
 }
 
 export interface EventWithCount extends Event {

@@ -91,7 +91,12 @@ const handleUsersGet = (request: Request): Promise<Response> =>
  * Handle POST /admin/users - create invited user
  */
 const handleUsersPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async (session, form) => {
+  withOwnerAuthForm(request, handleUsersPostForm);
+
+const handleUsersPostForm = async (
+  session: AuthSession,
+  form: URLSearchParams,
+): Promise<Response> => {
     const validation = validateForm<InviteUserFormValues>(form, inviteUserFields);
     if (!validation.valid) {
       return htmlResponse(
@@ -138,7 +143,7 @@ const handleUsersPost = (request: Request): Promise<Response> =>
 
     await logActivity(`User '${username}' invited as ${adminLevel}`);
     return redirect(`/admin/users?invite=${encodeURIComponent(inviteLink)}`);
-  });
+};
 
 type UserErrorPageFn = (error: string, status: number) => Promise<Response>;
 type UserActionHandler = (user: User, session: AuthSession, errorPage: UserErrorPageFn) => Response | Promise<Response>;

@@ -8,6 +8,7 @@ import { getSessionCookieName } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { resetCurrencyCode, setCurrencyCodeForTest, toMajorUnits } from "#lib/currency.ts";
 import { setDb } from "#lib/db/client.ts";
+import type { GroupInput } from "#lib/db/groups.ts";
 import {
   getEventWithCount,
   type EventInput,
@@ -15,7 +16,7 @@ import {
 import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, updateTimezone } from "#lib/db/settings.ts";
-import type { Attendee, Event, EventWithCount } from "#lib/types.ts";
+import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
 /**
  * Default test admin username
@@ -135,6 +136,9 @@ const prepareTestClient = async (): Promise<{ reused: boolean }> => {
  */
 export const createTestDb = async (): Promise<void> => {
   const { reused } = await prepareTestClient();
+  // The DB gets cleared/recreated between tests; cached session cookies become invalid.
+  // Force helpers to restore/login again on the next authenticated request.
+  resetTestSession();
   if (reused) {
     await cachedClient!.execute({
       sql: "INSERT INTO settings (key, value) VALUES ('latest_db_update', ?)",
@@ -152,6 +156,10 @@ export const createTestDbWithSetup = async (
   currency = "GBP",
 ): Promise<void> => {
   const { reused } = await prepareTestClient();
+
+  // prepareTestClient clears tables when reusing the cached client, which wipes sessions.
+  // Ensure we don't reuse a cookie/CSRF pair that no longer exists in the DB.
+  resetTestSession();
 
   if (reused && cachedSetupSettings) {
     for (const row of cachedSetupSettings) {
@@ -719,6 +727,7 @@ export const createTestEvent = (
       date_date: dateParts.date,
       date_time: dateParts.time,
       location: input.location ?? "",
+      group_id: String(input.groupId ?? 0),
       max_attendees: String(input.maxAttendees),
       max_quantity: String(input.maxQuantity ?? 1),
       fields: input.fields ?? "email",
@@ -810,6 +819,7 @@ export const updateTestEvent = async (
       date_date: dateParts.date,
       date_time: dateParts.time,
       location: updates.location ?? existing.location,
+      group_id: String(updates.groupId ?? existing.group_id),
       slug: updates.slug ?? existing.slug,
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
       max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
@@ -999,6 +1009,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   location: "",
   slug: "ab12c",
   slug_index: "test-event-index",
+  group_id: 0,
   max_attendees: 100,
   thank_you_url: "https://example.com/thanks",
   created: "2024-01-01T00:00:00Z",
@@ -1197,6 +1208,86 @@ export const baseEventForm: Record<string, string> = {
   thank_you_url: "https://example.com",
 };
 
+/** Create a test Group with sensible defaults. Override any field via `overrides`. */
+export const testGroup = (overrides: Partial<Group> = {}): Group => ({
+  id: 1,
+  name: "Test Group",
+  slug: "test-group",
+  slug_index: "test-group-index",
+  terms_and_conditions: "",
+  ...overrides,
+});
+
+/**
+ * Create a group via the REST API
+ */
+export const createTestGroup = (
+  overrides: Partial<Omit<GroupInput, "slugIndex">> = {},
+): Promise<Group> => {
+  const input = {
+    name: overrides.name ?? "Test Group",
+    slug: overrides.slug ?? "test-group",
+    termsAndConditions: overrides.termsAndConditions ?? "",
+  };
+
+  return authenticatedFormRequest(
+    "/admin/group",
+    {
+      name: input.name,
+      slug: input.slug,
+      terms_and_conditions: input.termsAndConditions,
+    },
+    async () => {
+      const { getAllGroups } = await import("#lib/db/groups.ts");
+      const groups = await getAllGroups();
+      return groups[groups.length - 1]! as Group;
+    },
+    "create group",
+  );
+};
+
+/**
+ * Update a group via the REST API
+ */
+export const updateTestGroup = async (
+  groupId: number,
+  updates: Partial<Omit<GroupInput, "slugIndex">>,
+): Promise<Group> => {
+  const { groupsTable } = await import("#lib/db/groups.ts");
+  const existing = (await groupsTable.findById(groupId)) as Group;
+
+  return authenticatedFormRequest(
+    `/admin/group/${groupId}/edit`,
+    {
+      name: updates.name ?? existing.name,
+      slug: updates.slug ?? existing.slug,
+      terms_and_conditions: updates.termsAndConditions ?? existing.terms_and_conditions,
+    },
+    async () => {
+      const updated = await groupsTable.findById(groupId);
+      return updated as Group;
+    },
+    "update group",
+  );
+};
+
+/**
+ * Delete a group via the REST API
+ */
+export const deleteTestGroup = async (
+  groupId: number,
+): Promise<void> => {
+  const { groupsTable } = await import("#lib/db/groups.ts");
+  const existing = (await groupsTable.findById(groupId)) as Group;
+
+  return authenticatedFormRequest(
+    `/admin/group/${groupId}/delete`,
+    { confirm_identifier: existing.name },
+    async () => {},
+    "delete group",
+  );
+};
+
 import type { Holiday } from "#lib/types.ts";
 import type { HolidayInput } from "#lib/db/holidays.ts";
 
@@ -1280,6 +1371,8 @@ export const deleteTestHoliday = async (
 };
 
 export type { HolidayInput };
+
+export type { GroupInput };
 
 /**
  * Create an attendee directly using createAttendeeAtomic (bypasses HTTP layer).

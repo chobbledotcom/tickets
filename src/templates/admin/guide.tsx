@@ -93,6 +93,17 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
+        <Q q="What are groups?">
+          <p>
+            Groups let you bundle related events under a single URL. Create a
+            group from the <strong>Groups</strong> page, then assign events to
+            it using the group dropdown on the event form. Share{" "}
+            <code>/ticket/your-group-slug</code> and attendees see all active
+            events in the group on one page. If you add terms and conditions to
+            a group, they replace the global T&amp;Cs for that page.
+          </p>
+        </Q>
+
         <Q q="What are the event date and location fields for?">
           <p>
             These are optional fields you can fill in when creating or editing

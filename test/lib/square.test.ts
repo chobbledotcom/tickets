@@ -127,6 +127,7 @@ describe("square", () => {
     test("returns null when access token not set", async () => {
       const event = {
         id: 1,
+        group_id: 0,
         slug: "test-event",
         slug_index: "test-event-index",
         name: "Test Event",
@@ -170,6 +171,7 @@ describe("square", () => {
       await updateSquareLocationId("L_test_123");
       const event = {
         id: 1,
+        group_id: 0,
         slug: "test-event",
         slug_index: "test-event-index",
         name: "Test",
@@ -213,6 +215,7 @@ describe("square", () => {
       // No location ID set
       const event = {
         id: 1,
+        group_id: 0,
         slug: "test-event",
         slug_index: "test-event-index",
         name: "Test",
@@ -264,6 +267,7 @@ describe("square", () => {
         async () => {
           const event = {
             id: 7,
+            group_id: 0,
             slug: "concert-2025",
             slug_index: "concert-2025-index",
             name: "Concert",
@@ -351,6 +355,7 @@ describe("square", () => {
         async () => {
           const event = {
             id: 1,
+            group_id: 0,
             slug: "test-event",
             slug_index: "test-event-index",
             name: "Test",
@@ -406,6 +411,7 @@ describe("square", () => {
         async () => {
           const event = {
             id: 1,
+            group_id: 0,
             slug: "test-event",
             slug_index: "test-event-index",
             name: "Test",
@@ -460,6 +466,7 @@ describe("square", () => {
         async () => {
           const event = {
             id: 1,
+            group_id: 0,
             slug: "test-event",
             slug_index: "test-event-index",
             name: "Test",
@@ -1306,6 +1313,7 @@ describe("square", () => {
           await updateSquareLocationId("L_loc_prov");
           const event = {
             id: 1,
+            group_id: 0,
             slug: "test-event",
             slug_index: "test-event-index",
             name: "Test",

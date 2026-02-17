@@ -11,6 +11,7 @@ import {
   createTestAttendee,
   createTestDbWithSetup,
   createTestEvent,
+  createTestGroup,
   deactivateTestEvent,
   mockFormRequest,
   mockMultipartRequest,
@@ -19,6 +20,7 @@ import {
   resetTestSlugCounter,
   expectAdminRedirect,
   expectRedirect,
+  expectStatus,
   loginAsAdmin,
   submitTicketForm,
   updateTestEvent,
@@ -72,6 +74,56 @@ describe("server (admin events)", () => {
       const event = await getEvent(1);
       expect(event).not.toBeNull();
       expect(event?.name).toBe("New Event");
+    });
+
+    test("creates event with group_id when provided", async () => {
+      const group = await createTestGroup({ name: "Event Group", slug: "event-group" });
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockMultipartRequest(
+          "/admin/event",
+          {
+            name: "Grouped Event",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "https://example.com/thanks",
+            group_id: String(group.id),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectAdminRedirect(response);
+
+      const { getEvent } = await import("#lib/db/events.ts");
+      const event = await getEvent(1);
+      expect(event?.group_id).toBe(group.id);
+    });
+
+    test("rejects non-existent group_id on create", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockMultipartRequest(
+          "/admin/event",
+          {
+            name: "Bad Group Event",
+            max_attendees: "50",
+            max_quantity: "1",
+            thank_you_url: "https://example.com/thanks",
+            group_id: "999",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectAdminRedirect(response);
+
+      const { getAllEvents } = await import("#lib/db/events.ts");
+      const events = await getAllEvents();
+      const match = events.find((e) => e.name === "Bad Group Event");
+      expect(match).toBeUndefined();
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -655,6 +707,56 @@ describe("server (admin events)", () => {
       expect(updated?.unit_price).toBe(2000);
     });
 
+    test("updates event group_id", async () => {
+      const group1 = await createTestGroup({ name: "Group One", slug: "group-one" });
+      const group2 = await createTestGroup({ name: "Group Two", slug: "group-two" });
+      const event = await createTestEvent({ name: "Group Switch Event", groupId: group1.id, maxAttendees: 50 });
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: event.name,
+            slug: event.slug,
+            group_id: String(group2.id),
+            max_attendees: "50",
+            max_quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectRedirect(`/admin/event/${event.id}`)(response);
+
+      const { getEvent } = await import("#lib/db/events.ts");
+      const updated = await getEvent(event.id);
+      expect(updated?.group_id).toBe(group2.id);
+    });
+
+    test("rejects non-existent group_id on edit", async () => {
+      const event = await createTestEvent({ name: "Edit Bad Group", maxAttendees: 50 });
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: event.name,
+            slug: event.slug,
+            group_id: "999",
+            max_attendees: "50",
+            max_quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expectStatus(400)(response);
+      const html = await response.text();
+      expect(html).toContain("Selected group does not exist");
+    });
+
     test("updates event slug", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -758,6 +860,29 @@ describe("server (admin events)", () => {
           {
             name: "Event Two",
             slug: event1.slug,
+            max_attendees: "50",
+            max_quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Slug is already in use by another event");
+    });
+
+    test("rejects slug used by a group", async () => {
+      const group = await createTestGroup({ name: "Slug Group", slug: "slug-group" });
+      const event = await createTestEvent({ name: "Event Slug Collision", maxAttendees: 50 });
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: event.name,
+            slug: group.slug,
             max_attendees: "50",
             max_quantity: "1",
             csrf_token: csrfToken,
@@ -1704,7 +1829,7 @@ describe("server (admin events)", () => {
       spy.mockImplementation((query: InStatement) => {
         const sql = typeof query === "string" ? query : query.sql;
         // Intercept the isSlugTaken query
-        if (sql.includes("SELECT 1 FROM events WHERE slug_index")) {
+        if (sql.includes("SELECT 1 WHERE EXISTS") && sql.includes("FROM events WHERE slug_index")) {
           return Promise.resolve({ rows: [{ "1": 1 }], columns: ["1"], rowsAffected: 0, lastInsertRowid: 0n });
         }
         return originalExecute(query);

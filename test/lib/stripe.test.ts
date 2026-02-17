@@ -143,6 +143,7 @@ describe("stripe", () => {
       // First create a session using intent-based flow
       const event = {
         id: 1,
+        group_id: 0,
         slug: "test-event",
         slug_index: "test-event-index",
         name: "Test Event",
@@ -194,6 +195,7 @@ describe("stripe", () => {
 
       const event = {
         id: 1,
+        group_id: 0,
         slug: "test-event",
         slug_index: "test-event-index",
         name: "Test Event",
@@ -253,6 +255,7 @@ describe("stripe", () => {
     test("returns null when stripe key not set", async () => {
       const event = {
         id: 1,
+        group_id: 0,
         slug: "test-event",
         slug_index: "test-event-index",
         name: "Test",
@@ -295,6 +298,7 @@ describe("stripe", () => {
       await updateStripeKey("sk_test_123");
       const event = {
         id: 1,
+        group_id: 0,
         slug: "test-event",
         slug_index: "test-event-index",
         name: "Test",

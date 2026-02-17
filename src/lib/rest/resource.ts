@@ -127,6 +127,10 @@ const parseAndValidate = async <Input>(
   return validationError ?? parsed;
 };
 
+/** Resource with required name verification (created when nameField is provided) */
+export type NamedResource<Row, Input, Values extends FieldValues = FieldValues> =
+  Resource<Row, Input, Values> & { verifyName: (row: Row, confirmName: string) => boolean };
+
 /**
  * Define a REST resource with typed CRUD operations.
  */
@@ -201,3 +205,11 @@ export const defineResource = <Row, Input, Values extends FieldValues = FieldVal
     ...(verifyName && { verifyName }),
   };
 };
+
+/**
+ * Define a named REST resource - requires nameField and guarantees verifyName is present.
+ */
+export const defineNamedResource = <Row, Input, Values extends FieldValues = FieldValues>(
+  config: ResourceConfig<Row, Input, Values> & { nameField: keyof Row & string },
+): NamedResource<Row, Input, Values> =>
+  defineResource(config) as NamedResource<Row, Input, Values>;

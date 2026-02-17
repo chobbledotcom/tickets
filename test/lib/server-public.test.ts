@@ -9,6 +9,7 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
+  createTestGroup,
   createTestHoliday,
   deactivateTestEvent,
   getTicketCsrfToken,
@@ -453,6 +454,85 @@ describe("server (public routes)", () => {
       // The re-rendered form should contain a new signed token
       expect(html).toMatch(/name="csrf_token" value="s1\./);
     });
+
+    test("renders multi-ticket page for group slug", async () => {
+      const group = await createTestGroup({ name: "Public Group", slug: "public-group" });
+      const event1 = await createTestEvent({ name: "Group Event 1", groupId: group.id, maxAttendees: 50 });
+      const event2 = await createTestEvent({ name: "Group Event 2", groupId: group.id, maxAttendees: 50 });
+
+      const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Reserve Tickets");
+      expect(html).toContain("Select Tickets");
+      expect(html).toContain("Group Event 1");
+      expect(html).toContain("Group Event 2");
+      expect(html).toContain(`action="/ticket/${group.slug}"`);
+      expect(html).toContain(`quantity_${event1.id}`);
+      expect(html).toContain(`quantity_${event2.id}`);
+    });
+
+    test("returns 404 when group has no active events", async () => {
+      const group = await createTestGroup({ name: "Empty Group", slug: "empty-group" });
+      const event = await createTestEvent({ name: "Inactive In Group", groupId: group.id, maxAttendees: 50 });
+      await deactivateTestEvent(event.id);
+
+      const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+      expect(response.status).toBe(404);
+    });
+
+    test("group terms override global terms", async () => {
+      await updateTermsAndConditions("GLOBAL TERMS UNIQUE");
+      const group = await createTestGroup({
+        name: "Terms Group",
+        slug: "terms-group",
+        termsAndConditions: "GROUP TERMS UNIQUE",
+      });
+      await createTestEvent({ name: "Terms Event", groupId: group.id, maxAttendees: 50 });
+
+      const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+      const html = await response.text();
+      expect(html).toContain("GROUP TERMS UNIQUE");
+      expect(html).not.toContain("GLOBAL TERMS UNIQUE");
+    });
+
+    test("group terms fall back to global when group terms are empty", async () => {
+      await updateTermsAndConditions("GLOBAL FALLBACK UNIQUE");
+      const group = await createTestGroup({ name: "Fallback Group", slug: "fallback-group", termsAndConditions: "" });
+      await createTestEvent({ name: "Fallback Event", groupId: group.id, maxAttendees: 50 });
+
+      const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+      const html = await response.text();
+      expect(html).toContain("GLOBAL FALLBACK UNIQUE");
+    });
+
+    test("group page shows shared date selector for daily events", async () => {
+      const group = await createTestGroup({ name: "Daily Group", slug: "daily-group" });
+      await createTestEvent({
+        name: "Daily A",
+        groupId: group.id,
+        maxAttendees: 10,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+      await createTestEvent({
+        name: "Daily B",
+        groupId: group.id,
+        maxAttendees: 10,
+        eventType: "daily",
+        bookableDays: JSON.stringify(["Monday", "Tuesday"]),
+        minimumDaysBefore: 0,
+        maximumDaysAfter: 14,
+      });
+
+      const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Select Date");
+      expect(html).toContain('name="date"');
+    });
   });
 
   describe("POST /ticket/:slug", () => {
@@ -464,6 +544,39 @@ describe("server (public routes)", () => {
         }),
       );
       expect(response.status).toBe(404);
+    });
+
+    test("processes registration for group slug", async () => {
+      const group = await createTestGroup({ name: "Post Group", slug: "post-group" });
+      const event1 = await createTestEvent({ name: "Post Group Event 1", groupId: group.id, maxAttendees: 50, maxQuantity: 5 });
+      const event2 = await createTestEvent({ name: "Post Group Event 2", groupId: group.id, maxAttendees: 50, maxQuantity: 5 });
+
+      const getResponse = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/ticket/${group.slug}`,
+          {
+            name: "Group User",
+            email: "group@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "2",
+            csrf_token: csrfToken,
+          },
+          `csrf_token=${csrfToken}`,
+        ),
+      );
+      expectReservedRedirectWithTokens(response);
+
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const attendees1 = await getAttendeesRaw(event1.id);
+      const attendees2 = await getAttendeesRaw(event2.id);
+      expect(attendees1.length).toBe(1);
+      expect(attendees1[0]?.quantity).toBe(1);
+      expect(attendees2.length).toBe(1);
+      expect(attendees2[0]?.quantity).toBe(2);
     });
 
     test("returns 404 for inactive event", async () => {
