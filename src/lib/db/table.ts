@@ -399,4 +399,15 @@ export const col = {
     write: (v: T) => Promise<T> | T,
     read: (v: T) => Promise<T> | T,
   ): ColumnDef<T> => ({ write, read }),
+
+  /** Column with type conversion between app and DB representations */
+  converted: <App>(config: {
+    default?: () => App;
+    write: (v: App) => InValue;
+    read: (raw: InValue) => App;
+  }): ColumnDef<App> => ({
+    default: config.default,
+    write: config.write as (v: App) => App,
+    read: config.read as (v: App) => App,
+  }),
 };

@@ -649,7 +649,7 @@ describe("server (admin attendees)", () => {
       const event = await createTestEvent({
         maxAttendees: 100,
         eventType: "daily",
-        bookableDays: '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
       });
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -786,7 +786,7 @@ describe("server (admin attendees)", () => {
 
     test("includes active events in selector", async () => {
       const event1 = await createTestEvent({ name: "Event 1", maxAttendees: 100 });
-      await createTestEvent({ name: "Event 2", maxAttendees: 100, active: 1 });
+      await createTestEvent({ name: "Event 2", maxAttendees: 100, active: true });
       const attendee = await createTestAttendee(event1.id, event1.slug, "John Doe", "john@example.com");
       const { cookie } = await loginAsAdmin();
 
@@ -1037,8 +1037,8 @@ describe("server (admin attendees)", () => {
     });
 
     test("shows current event and active events in selector", async () => {
-      const event1 = await createTestEvent({ name: "Event 1", maxAttendees: 100, active: 1 });
-      await createTestEvent({ name: "Event 2", maxAttendees: 100, active: 1 });
+      const event1 = await createTestEvent({ name: "Event 1", maxAttendees: 100, active: true });
+      await createTestEvent({ name: "Event 2", maxAttendees: 100, active: true });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
         eventId: event1.id,

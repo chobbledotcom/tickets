@@ -999,7 +999,7 @@ describe("server (admin events)", () => {
       // Verify event is now inactive
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const deactivatedEvent = await getEventWithCount(1);
-      expect(deactivatedEvent?.active).toBe(0);
+      expect(deactivatedEvent?.active).toBe(false);
     });
 
     test("returns error when identifier does not match", async () => {
@@ -1081,7 +1081,7 @@ describe("server (admin events)", () => {
       // Verify event is now active
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const activeEvent = await getEventWithCount(1);
-      expect(activeEvent?.active).toBe(1);
+      expect(activeEvent?.active).toBe(true);
     });
 
     test("returns error when name does not match", async () => {
@@ -2237,7 +2237,7 @@ describe("server (admin events)", () => {
     test("creates a daily event with custom config", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: '["Monday","Wednesday","Friday"]',
+        bookableDays: ["Monday", "Wednesday", "Friday"],
         minimumDaysBefore: 2,
         maximumDaysAfter: 30,
       });
@@ -2245,7 +2245,7 @@ describe("server (admin events)", () => {
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.event_type).toBe("daily");
-      expect(saved?.bookable_days).toBe('["Monday","Wednesday","Friday"]');
+      expect(saved?.bookable_days).toEqual(["Monday", "Wednesday", "Friday"]);
       expect(saved?.minimum_days_before).toBe(2);
       expect(saved?.maximum_days_after).toBe(30);
     });
@@ -2256,7 +2256,7 @@ describe("server (admin events)", () => {
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.event_type).toBe("standard");
-      expect(saved?.bookable_days).toBe('["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]');
+      expect(saved?.bookable_days).toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
       expect(saved?.minimum_days_before).toBe(1);
       expect(saved?.maximum_days_after).toBe(90);
     });
@@ -2265,7 +2265,7 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: '["Monday","Tuesday"]',
+        bookableDays: ["Monday", "Tuesday"],
         minimumDaysBefore: 3,
         maximumDaysAfter: 60,
       });
@@ -2304,7 +2304,7 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: '["Wednesday","Friday"]',
+        bookableDays: ["Wednesday", "Friday"],
         minimumDaysBefore: 5,
         maximumDaysAfter: 120,
       });
@@ -2325,7 +2325,7 @@ describe("server (admin events)", () => {
       const event = await createTestEvent();
       await updateTestEvent(event.id, {
         eventType: "daily",
-        bookableDays: '["Saturday","Sunday"]',
+        bookableDays: ["Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2333,7 +2333,7 @@ describe("server (admin events)", () => {
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(event.id);
       expect(updated?.event_type).toBe("daily");
-      expect(updated?.bookable_days).toBe('["Saturday","Sunday"]');
+      expect(updated?.bookable_days).toEqual(["Saturday", "Sunday"]);
       expect(updated?.minimum_days_before).toBe(0);
       expect(updated?.maximum_days_after).toBe(14);
     });
@@ -2341,7 +2341,7 @@ describe("server (admin events)", () => {
     test("updates event from daily to standard", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: '["Monday"]',
+        bookableDays: ["Monday"],
         minimumDaysBefore: 7,
         maximumDaysAfter: 365,
       });
@@ -2356,7 +2356,7 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
       await createTestEvent({
         eventType: "daily",
-        bookableDays: '["Tuesday","Thursday"]',
+        bookableDays: ["Tuesday", "Thursday"],
         minimumDaysBefore: 2,
         maximumDaysAfter: 45,
       });
@@ -2461,7 +2461,7 @@ describe("server (admin events)", () => {
     const createDailyEventWithAttendees = async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });

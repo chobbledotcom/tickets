@@ -2385,7 +2385,7 @@ describe("server (webhooks)", () => {
         maxAttendees: 50,
         unitPrice: 500,
         eventType: "daily",
-        bookableDays: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });

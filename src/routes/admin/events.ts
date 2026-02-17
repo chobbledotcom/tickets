@@ -72,9 +72,9 @@ const tryDeleteImage = async (filename: string, eventId: number, detail: string)
 const generateUniqueEventSlug = (excludeEventId?: number) =>
   generateUniqueSlug(computeSlugIndex, (slug) => isSlugTaken(slug, excludeEventId));
 
-/** Serialize comma-separated day names to JSON array string */
-const serializeBookableDays = (value: string): string | undefined =>
-  value ? JSON.stringify(value.split(",").map((d) => d.trim()).filter((d) => d)) : undefined;
+/** Parse comma-separated day names to string array */
+const parseBookableDays = (value: string): string[] | undefined =>
+  value ? value.split(",").map((d) => d.trim()).filter((d) => d) : undefined;
 
 /** Extract common event fields from validated form values, normalizing datetimes to UTC */
 const extractCommonFields = (values: EventFormValues) => {
@@ -93,7 +93,7 @@ const extractCommonFields = (values: EventFormValues) => {
     fields: values.fields || "email",
     closesAt: values.closes_at ? normalizeDatetime(values.closes_at, "closes_at") : values.closes_at,
     eventType: values.event_type || undefined,
-    bookableDays: serializeBookableDays(values.bookable_days),
+    bookableDays: parseBookableDays(values.bookable_days),
     minimumDaysBefore: values.minimum_days_before ?? 1,
     maximumDaysAfter: values.maximum_days_after ?? 90,
   };
@@ -391,7 +391,7 @@ const CONFIRM_NAME_MSG = "Event name does not match. Please type the exact name 
 /** Factory for event toggle handlers (deactivate/reactivate) */
 const eventToggleHandler = (
   renderPage: typeof adminDeactivateEventPage,
-  active: number,
+  active: boolean,
   verb: string,
 ) => (request: Request, { id }: { id: number }): Promise<Response> =>
   handleEventWithConfirmation(request, id, renderPage, CONFIRM_NAME_MSG, async (event) => {
@@ -401,10 +401,10 @@ const eventToggleHandler = (
   });
 
 /** Handle POST /admin/event/:id/deactivate */
-const handleAdminEventDeactivatePost = eventToggleHandler(adminDeactivateEventPage, 0, "deactivated");
+const handleAdminEventDeactivatePost = eventToggleHandler(adminDeactivateEventPage, false, "deactivated");
 
 /** Handle POST /admin/event/:id/reactivate */
-const handleAdminEventReactivatePost = eventToggleHandler(adminReactivateEventPage, 1, "reactivated");
+const handleAdminEventReactivatePost = eventToggleHandler(adminReactivateEventPage, true, "reactivated");
 
 /** Handle GET /admin/event/:id/delete (show confirmation page) */
 const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);

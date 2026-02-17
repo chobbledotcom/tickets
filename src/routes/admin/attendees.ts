@@ -343,7 +343,7 @@ const handleAddAttendee = (
 const getEventsForSelector = async (currentEventId: number): Promise<EventWithCount[]> => {
   const allEvents = await getAllEvents();
   const currentEvent = allEvents.find((e) => e.id === currentEventId);
-  const activeEvents = filter((e: EventWithCount) => e.active === 1)(allEvents);
+  const activeEvents = filter((e: EventWithCount) => e.active)(allEvents);
 
   // Build unique list: current event + active events
   const eventIds = new Set<number>();

@@ -64,7 +64,7 @@ describe("dates", () => {
     test("returns dates filtered by bookable days", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday"]),
+        bookable_days: ["Monday"],
         minimum_days_before: 0,
         maximum_days_after: 14,
       });
@@ -85,7 +85,7 @@ describe("dates", () => {
 
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
@@ -101,7 +101,7 @@ describe("dates", () => {
 
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
@@ -115,7 +115,7 @@ describe("dates", () => {
     test("respects minimum_days_before", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimum_days_before: 3,
         maximum_days_after: 10,
       });
@@ -128,7 +128,7 @@ describe("dates", () => {
     test("uses 730 days when maximum_days_after is 0 (unlimited)", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimum_days_before: 0,
         maximum_days_after: 0,
       });
@@ -142,7 +142,7 @@ describe("dates", () => {
     test("respects maximum_days_after when non-zero", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
@@ -157,7 +157,7 @@ describe("dates", () => {
       // by picking a bogus day name
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify([]),
+        bookable_days: [],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
@@ -166,24 +166,13 @@ describe("dates", () => {
       expect(dates).toEqual([]);
     });
 
-    test("handles non-array bookable_days by defaulting to empty", () => {
-      const event = testEvent({
-        event_type: "daily",
-        bookable_days: JSON.stringify("not-an-array"),
-        minimum_days_before: 0,
-        maximum_days_after: 7,
-      });
-
-      const dates = getAvailableDates(event, []);
-      expect(dates).toEqual([]);
-    });
   });
 
   describe("getNextBookableDate", () => {
     test("returns the first available date", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimum_days_before: 0,
         maximum_days_after: 14,
       });
@@ -195,7 +184,7 @@ describe("dates", () => {
     test("returns null when no bookable days configured", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify([]),
+        bookable_days: [],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
@@ -209,7 +198,7 @@ describe("dates", () => {
 
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimum_days_before: 0,
         maximum_days_after: 7,
       });
@@ -221,7 +210,7 @@ describe("dates", () => {
     test("respects minimum_days_before", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimum_days_before: 3,
         maximum_days_after: 10,
       });
@@ -237,7 +226,7 @@ describe("dates", () => {
 
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimum_days_before: 1,
         maximum_days_after: 3,
       });
@@ -248,7 +237,7 @@ describe("dates", () => {
     test("uses 730 days when maximum_days_after is 0", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
         minimum_days_before: 0,
         maximum_days_after: 0,
       });
@@ -257,21 +246,10 @@ describe("dates", () => {
       expect(result).toBe(today());
     });
 
-    test("handles non-array bookable_days", () => {
-      const event = testEvent({
-        event_type: "daily",
-        bookable_days: JSON.stringify("not-an-array"),
-        minimum_days_before: 0,
-        maximum_days_after: 7,
-      });
-
-      expect(getNextBookableDate(event, [])).toBeNull();
-    });
-
     test("returns first matching day when only specific days are bookable", () => {
       const event = testEvent({
         event_type: "daily",
-        bookable_days: JSON.stringify(["Monday"]),
+        bookable_days: ["Monday"],
         minimum_days_before: 0,
         maximum_days_after: 14,
       });

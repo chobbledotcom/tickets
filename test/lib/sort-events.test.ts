@@ -135,7 +135,7 @@ describe("sortEvents", () => {
       id: 2,
       name: "No Dates",
       event_type: "daily",
-      bookable_days: JSON.stringify([]),
+      bookable_days: [],
       minimum_days_before: 0,
       maximum_days_after: 30,
     });
@@ -150,13 +150,13 @@ describe("sortEvents", () => {
       id: 1,
       name: "Bravo",
       event_type: "daily",
-      bookable_days: JSON.stringify([]),
+      bookable_days: [],
     });
     const a = testEvent({
       id: 2,
       name: "Alpha",
       event_type: "daily",
-      bookable_days: JSON.stringify([]),
+      bookable_days: [],
     });
 
     const sorted = sortEvents([b, a], []);
@@ -176,7 +176,7 @@ describe("sortEvents", () => {
       id: 2,
       name: "Without Dates",
       event_type: "daily",
-      bookable_days: JSON.stringify([]),
+      bookable_days: [],
     });
 
     // Test both input orderings to exercise both dateA="" and dateB="" branches

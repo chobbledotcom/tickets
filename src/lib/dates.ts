@@ -64,16 +64,14 @@ const dateRange = (start: string, end: string): string[] => {
   return dates;
 };
 
-/** Parse bookable range for a daily event: bookable day names, start date, end date */
+/** Compute bookable date range for a daily event */
 const bookableRange = (event: Event): { bookableDays: string[]; start: string; end: string } => {
   const tz = getTz();
-  const parsed: unknown = JSON.parse(event.bookable_days);
-  const bookableDays: string[] = Array.isArray(parsed) ? parsed : [];
   const todayStr = todayInTz(tz);
   const start = addDays(todayStr, event.minimum_days_before);
   const maxDays = event.maximum_days_after === 0 ? MAX_FUTURE_DAYS : event.maximum_days_after;
   const end = addDays(todayStr, maxDays);
-  return { bookableDays, start, end };
+  return { bookableDays: event.bookable_days, start, end };
 };
 
 /** Check if a date is bookable (matches allowed day and not a holiday) */

@@ -499,7 +499,7 @@ describe("test-utils", () => {
       const event = await createTestEvent();
       expect(event.id).toBeGreaterThan(0);
       expect(event.max_attendees).toBe(100);
-      expect(event.active).toBe(1);
+      expect(event.active).toBe(true);
     });
   });
 
@@ -566,11 +566,11 @@ describe("test-utils", () => {
 
     test("deactivates an existing event", async () => {
       const event = await createTestEvent();
-      expect(event.active).toBe(1);
+      expect(event.active).toBe(true);
       await deactivateTestEvent(event.id);
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(event.id);
-      expect(updated!.active).toBe(0);
+      expect(updated!.active).toBe(false);
     });
   });
 

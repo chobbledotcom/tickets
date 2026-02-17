@@ -14,8 +14,8 @@ import { nowIso } from "#lib/now.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 import type { Attendee, Event, EventFields, EventType, EventWithCount } from "#lib/types.ts";
 
-/** Default bookable days (all days of the week) as a JSON array string */
-export const DEFAULT_BOOKABLE_DAYS = JSON.stringify(VALID_DAY_NAMES);
+/** Default bookable days (all days of the week) */
+export const DEFAULT_BOOKABLE_DAYS: string[] = [...VALID_DAY_NAMES];
 
 /** Event input fields for create/update (camelCase) */
 export type EventInput = {
@@ -31,11 +31,11 @@ export type EventInput = {
   unitPrice?: number | null;
   maxQuantity?: number;
   webhookUrl?: string | null;
-  active?: number;
+  active?: boolean;
   fields?: EventFields;
   closesAt?: string;
   eventType?: EventType;
-  bookableDays?: string;
+  bookableDays?: string[];
   minimumDaysBefore?: number;
   maximumDaysAfter?: number;
   imageUrl?: string;
@@ -112,11 +112,22 @@ export const eventsTable = defineIdTable<Event, EventInput>("events", {
     unit_price: col.simple<number | null>(),
     max_quantity: col.withDefault(() => 1),
     webhook_url: col.encryptedNullable<string>(encrypt, decrypt),
-    active: col.withDefault(() => 1),
+    active: col.converted<boolean>({
+      default: () => true,
+      write: (v) => v ? 1 : 0,
+      read: (v) => v === 1,
+    }),
     fields: col.withDefault<EventFields>(() => "email"),
     closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
     event_type: col.withDefault<EventType>(() => "standard"),
-    bookable_days: col.withDefault(() => DEFAULT_BOOKABLE_DAYS),
+    bookable_days: col.converted<string[]>({
+      default: () => [...DEFAULT_BOOKABLE_DAYS],
+      write: (v) => JSON.stringify(v),
+      read: (v) => {
+        const parsed: unknown = JSON.parse(v as string);
+        return Array.isArray(parsed) ? parsed : [];
+      },
+    }),
     minimum_days_before: col.withDefault(() => 1),
     maximum_days_after: col.withDefault(() => 90),
     image_url: { default: () => "", write: encrypt, read: decrypt },

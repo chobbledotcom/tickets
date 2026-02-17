@@ -249,7 +249,7 @@ describe("html", () => {
     });
 
     test("shows deactivated alert for inactive events", () => {
-      const inactive = testEventWithCount({ active: 0, attendee_count: 0 });
+      const inactive = testEventWithCount({ active: false, attendee_count: 0 });
       const html = adminEventPage({ event: inactive, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).toContain('class="error"');
       expect(html).toContain("This event is deactivated and cannot be booked");
@@ -943,7 +943,7 @@ describe("html", () => {
 
   describe("adminDashboardPage inactive events", () => {
     test("renders inactive event with reduced opacity", () => {
-      const events = [testEventWithCount({ active: 0, attendee_count: 5 })];
+      const events = [testEventWithCount({ active: false, attendee_count: 5 })];
       const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).toContain("opacity: 0.5");
       expect(html).toContain("Inactive");
@@ -975,8 +975,8 @@ describe("html", () => {
 
     test("does not count inactive events toward threshold", () => {
       const events = [
-        testEventWithCount({ id: 1, slug: "ab12c", active: 1 }),
-        testEventWithCount({ id: 2, slug: "cd34e", active: 0 }),
+        testEventWithCount({ id: 1, slug: "ab12c", active: true }),
+        testEventWithCount({ id: 2, slug: "cd34e", active: false }),
       ];
       const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).not.toContain("Multi-booking link");
@@ -984,9 +984,9 @@ describe("html", () => {
 
     test("excludes inactive events from checkboxes", () => {
       const events = [
-        testEventWithCount({ id: 1, slug: "ab12c", name: "Active One", active: 1 }),
-        testEventWithCount({ id: 2, slug: "cd34e", name: "Inactive", active: 0 }),
-        testEventWithCount({ id: 3, slug: "ef56g", name: "Active Two", active: 1 }),
+        testEventWithCount({ id: 1, slug: "ab12c", name: "Active One", active: true }),
+        testEventWithCount({ id: 2, slug: "cd34e", name: "Inactive", active: false }),
+        testEventWithCount({ id: 3, slug: "ef56g", name: "Active Two", active: true }),
       ];
       const html = adminDashboardPage(events, [], TEST_SESSION, "localhost");
       expect(html).toContain("Active One");
@@ -1108,7 +1108,7 @@ describe("html", () => {
 
   describe("adminEventPage optional fields", () => {
     test("shows reactivate link for inactive events", () => {
-      const event = testEventWithCount({ active: 0, attendee_count: 0 });
+      const event = testEventWithCount({ active: false, attendee_count: 0 });
       const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).toContain("/reactivate");
       expect(html).toContain("Reactivate");

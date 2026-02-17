@@ -164,7 +164,7 @@ const renderEventSelector = (
     .map((id) => {
       const event = allEvents.find((e) => e.id === id)!;
       const selected = id === currentEventId ? " selected" : "";
-      return `<option value="${id}"${selected}>${event.name}${event.active !== 1 ? " (inactive)" : ""}</option>`;
+      return `<option value="${id}"${selected}>${event.name}${!event.active ? " (inactive)" : ""}</option>`;
     })
     .join("");
 

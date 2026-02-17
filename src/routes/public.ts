@@ -362,7 +362,7 @@ const getActiveMultiEvents = (
   events: (EventWithCount | null)[],
 ): MultiTicketEvent[] =>
   pipe(
-    filter((e: EventWithCount) => e.active === 1),
+    filter((e: EventWithCount) => e.active),
     map((e: EventWithCount) => buildMultiTicketEvent(e, isRegistrationClosed(e))),
   )(compact(events));
 
@@ -402,7 +402,7 @@ const withActiveMultiEvents = async (
   handler: (activeEvents: MultiTicketEvent[]) => Response | Promise<Response>,
 ): Promise<Response> => {
   const [events, holidays] = await Promise.all([getEventsBySlugsBatch(slugs), getActiveHolidays()]);
-  const active = compact(events).filter((e) => e.active === 1);
+  const active = compact(events).filter((e) => e.active);
   const sorted = sortEvents(active, holidays);
   const activeEvents = sorted.map((e) => buildMultiTicketEvent(e, isRegistrationClosed(e)));
   return activeEvents.length === 0 ? notFoundResponse() : handler(activeEvents);
