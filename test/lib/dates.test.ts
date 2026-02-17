@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { addDays, DAY_NAMES, eventDateToCalendarDate, formatDateLabel, formatDatetimeLabel, getAvailableDates, normalizeDatetime } from "#lib/dates.ts";
+import { addDays, DAY_NAMES, eventDateToCalendarDate, formatDateLabel, formatDatetimeLabel, getAvailableDates, getNextBookableDate, normalizeDatetime } from "#lib/dates.ts";
 import { updateTimezone } from "#lib/db/settings.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import { createTestDbWithSetup, resetDb, testEvent } from "#test-utils";
@@ -176,6 +176,110 @@ describe("dates", () => {
 
       const dates = getAvailableDates(event, []);
       expect(dates).toEqual([]);
+    });
+  });
+
+  describe("getNextBookableDate", () => {
+    test("returns the first available date", () => {
+      const event = testEvent({
+        event_type: "daily",
+        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimum_days_before: 0,
+        maximum_days_after: 14,
+      });
+
+      const result = getNextBookableDate(event, []);
+      expect(result).toBe(today());
+    });
+
+    test("returns null when no bookable days configured", () => {
+      const event = testEvent({
+        event_type: "daily",
+        bookable_days: JSON.stringify([]),
+        minimum_days_before: 0,
+        maximum_days_after: 7,
+      });
+
+      expect(getNextBookableDate(event, [])).toBeNull();
+    });
+
+    test("skips holidays", () => {
+      const todayStr = today();
+      const holidays = [{ id: 1, name: "Holiday", start_date: todayStr, end_date: todayStr }];
+
+      const event = testEvent({
+        event_type: "daily",
+        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimum_days_before: 0,
+        maximum_days_after: 7,
+      });
+
+      const result = getNextBookableDate(event, holidays);
+      expect(result).toBe(addDays(todayStr, 1));
+    });
+
+    test("respects minimum_days_before", () => {
+      const event = testEvent({
+        event_type: "daily",
+        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimum_days_before: 3,
+        maximum_days_after: 10,
+      });
+
+      const result = getNextBookableDate(event, []);
+      expect(result).toBe(addDays(today(), 3));
+    });
+
+    test("returns null when all dates fall on holidays", () => {
+      const start = addDays(today(), 1);
+      const end = addDays(today(), 3);
+      const holidays = [{ id: 1, name: "Long Holiday", start_date: start, end_date: end }];
+
+      const event = testEvent({
+        event_type: "daily",
+        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimum_days_before: 1,
+        maximum_days_after: 3,
+      });
+
+      expect(getNextBookableDate(event, holidays)).toBeNull();
+    });
+
+    test("uses 730 days when maximum_days_after is 0", () => {
+      const event = testEvent({
+        event_type: "daily",
+        bookable_days: JSON.stringify(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]),
+        minimum_days_before: 0,
+        maximum_days_after: 0,
+      });
+
+      const result = getNextBookableDate(event, []);
+      expect(result).toBe(today());
+    });
+
+    test("handles non-array bookable_days", () => {
+      const event = testEvent({
+        event_type: "daily",
+        bookable_days: JSON.stringify("not-an-array"),
+        minimum_days_before: 0,
+        maximum_days_after: 7,
+      });
+
+      expect(getNextBookableDate(event, [])).toBeNull();
+    });
+
+    test("returns first matching day when only specific days are bookable", () => {
+      const event = testEvent({
+        event_type: "daily",
+        bookable_days: JSON.stringify(["Monday"]),
+        minimum_days_before: 0,
+        maximum_days_after: 14,
+      });
+
+      const result = getNextBookableDate(event, []);
+      expect(result).not.toBeNull();
+      const dayName = DAY_NAMES[new Date(`${result}T00:00:00Z`).getUTCDay()];
+      expect(dayName).toBe("Monday");
     });
   });
 

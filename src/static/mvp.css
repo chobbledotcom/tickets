@@ -886,6 +886,11 @@ form:has(select[name="event_type"] option[value="standard"]:checked) > label:has
   display: none;
 }
 
+/* Hide event date field when event type is "daily" */
+form:has(select[name="event_type"] option[value="daily"]:checked) > label:has([name="date_date"]) {
+  display: none;
+}
+
 /* Utility classes for strict CSP (no inline styles) */
 .hidden {
   display: none;

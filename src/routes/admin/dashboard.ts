@@ -7,6 +7,8 @@ import { signCsrfToken } from "#lib/csrf.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { getAllGroups } from "#lib/db/groups.ts";
+import { getActiveHolidays } from "#lib/db/holidays.ts";
+import { sortEvents } from "#lib/sort-events.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { htmlResponse, requireSessionOr, withSession } from "#routes/utils.ts";
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
@@ -27,8 +29,8 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     request,
     async (session) => {
       const imageError = new URL(request.url).searchParams.get("image_error");
-      const [events, groups] = await Promise.all([getAllEvents(), getAllGroups()]);
-      return htmlResponse(adminDashboardPage(events, groups, session, getAllowedDomain(), imageError));
+      const [events, groups, holidays] = await Promise.all([getAllEvents(), getAllGroups(), getActiveHolidays()]);
+      return htmlResponse(adminDashboardPage(sortEvents(events, holidays), groups, session, getAllowedDomain(), imageError));
     },
     () => loginResponse(),
   );

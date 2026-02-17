@@ -256,6 +256,17 @@ export const eventFields: Field[] = [
     hint: "Displayed to attendees on the ticket page",
   },
   {
+    name: "event_type",
+    label: "Event Type",
+    type: "select",
+    hint: "Daily events require attendees to select a specific date when booking",
+    options: [
+      { value: "standard", label: "Standard" },
+      { value: "daily", label: "Daily" },
+    ],
+    validate: validateEventType,
+  },
+  {
     name: "description",
     label: "Description (optional)",
     type: "text",
@@ -277,17 +288,6 @@ export const eventFields: Field[] = [
     type: "text",
     placeholder: "e.g. Village Hall, Main Street",
     hint: "Where the event takes place. Shown on the ticket page.",
-  },
-  {
-    name: "event_type",
-    label: "Event Type",
-    type: "select",
-    hint: "Daily events require attendees to select a specific date when booking",
-    options: [
-      { value: "standard", label: "Standard" },
-      { value: "daily", label: "Daily" },
-    ],
-    validate: validateEventType,
   },
   {
     name: "max_attendees",

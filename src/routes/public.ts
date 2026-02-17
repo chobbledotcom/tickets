@@ -7,6 +7,7 @@ import { signCsrfToken } from "#lib/csrf.ts";
 import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
 import { getTermsAndConditionsFromDb } from "#lib/db/settings.ts";
 import { getAvailableDates } from "#lib/dates.ts";
+import { sortEvents } from "#lib/sort-events.ts";
 import { checkBatchAvailability, createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
 import { getEventsBySlugsBatch } from "#lib/db/events.ts";
 import {
@@ -400,8 +401,10 @@ const withActiveMultiEvents = async (
   slugs: string[],
   handler: (activeEvents: MultiTicketEvent[]) => Response | Promise<Response>,
 ): Promise<Response> => {
-  const events = await getEventsBySlugsBatch(slugs);
-  const activeEvents = getActiveMultiEvents(events);
+  const [events, holidays] = await Promise.all([getEventsBySlugsBatch(slugs), getActiveHolidays()]);
+  const active = compact(events).filter((e) => e.active === 1);
+  const sorted = sortEvents(active, holidays);
+  const activeEvents = sorted.map((e) => buildMultiTicketEvent(e, isRegistrationClosed(e)));
   return activeEvents.length === 0 ? notFoundResponse() : handler(activeEvents);
 };
 
@@ -688,8 +691,8 @@ const withActiveGroupEventsBySlug = async (
   const group = await getGroupBySlugIndex(slugIndex);
   if (!group) return notFoundResponse();
 
-  const events = await getActiveEventsByGroupId(group.id);
-  const activeEvents = getActiveMultiEvents(events);
+  const [events, holidays] = await Promise.all([getActiveEventsByGroupId(group.id), getActiveHolidays()]);
+  const activeEvents = getActiveMultiEvents(sortEvents(events, holidays));
   return activeEvents.length === 0 ? notFoundResponse() : handler(group, activeEvents);
 };
 

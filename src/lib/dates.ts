@@ -3,7 +3,7 @@
  */
 
 import { fromAbsolute } from "@internationalized/date";
-import { filter, pipe } from "#fp";
+import { filter } from "#fp";
 import { getTz } from "#lib/config.ts";
 import { formatDatetimeInTz, localToUtc, todayInTz } from "#lib/timezone.ts";
 import type { Event, Holiday } from "#lib/types.ts";
@@ -64,6 +64,22 @@ const dateRange = (start: string, end: string): string[] => {
   return dates;
 };
 
+/** Parse bookable range for a daily event: bookable day names, start date, end date */
+const bookableRange = (event: Event): { bookableDays: string[]; start: string; end: string } => {
+  const tz = getTz();
+  const parsed: unknown = JSON.parse(event.bookable_days);
+  const bookableDays: string[] = Array.isArray(parsed) ? parsed : [];
+  const todayStr = todayInTz(tz);
+  const start = addDays(todayStr, event.minimum_days_before);
+  const maxDays = event.maximum_days_after === 0 ? MAX_FUTURE_DAYS : event.maximum_days_after;
+  const end = addDays(todayStr, maxDays);
+  return { bookableDays, start, end };
+};
+
+/** Check if a date is bookable (matches allowed day and not a holiday) */
+const isBookable = (dateStr: string, bookableDays: string[], holidays: Holiday[]): boolean =>
+  bookableDays.includes(getDayName(dateStr)) && !isHoliday(dateStr, holidays);
+
 /**
  * Compute available booking dates for a daily event.
  * Filters by bookable days of the week and excludes holidays.
@@ -73,21 +89,28 @@ export const getAvailableDates = (
   event: Event,
   holidays: Holiday[],
 ): string[] => {
-  const tz = getTz();
-  const parsed: unknown = JSON.parse(event.bookable_days);
-  const bookableDays: string[] = Array.isArray(parsed) ? parsed : [];
-  const todayStr = todayInTz(tz);
-  const start = addDays(todayStr, event.minimum_days_before);
-  const maxDays =
-    event.maximum_days_after === 0
-      ? MAX_FUTURE_DAYS
-      : event.maximum_days_after;
-  const end = addDays(todayStr, maxDays);
+  const { bookableDays, start, end } = bookableRange(event);
+  return filter((d: string) => isBookable(d, bookableDays, holidays))(dateRange(start, end));
+};
 
-  return pipe(
-    filter((d: string) => bookableDays.includes(getDayName(d))),
-    filter((d: string) => !isHoliday(d, holidays)),
-  )(dateRange(start, end));
+/**
+ * Get the next available booking date for a daily event.
+ * More efficient than getAvailableDates()[0] — stops at first match.
+ * Returns null if no bookable dates are available.
+ */
+export const getNextBookableDate = (
+  event: Event,
+  holidays: Holiday[],
+): string | null => {
+  const { bookableDays, start, end } = bookableRange(event);
+  if (bookableDays.length === 0) return null;
+
+  let current = start;
+  while (current <= end) {
+    if (isBookable(current, bookableDays, holidays)) return current;
+    current = addDays(current, 1);
+  }
+  return null;
 };
 
 /**

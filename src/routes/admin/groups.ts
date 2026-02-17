@@ -15,8 +15,10 @@ import {
   resetGroupEvents,
   type GroupInput,
 } from "#lib/db/groups.ts";
+import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
+import { sortEvents } from "#lib/sort-events.ts";
 import type { Group } from "#lib/types.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -121,12 +123,13 @@ const handleGroupDetail = (
 ): Promise<Response> =>
   requireOwnerOr(request, (session) =>
     withGroupOr404(id, async (group) => {
-      const [events, ungroupedEvents] = await Promise.all([
+      const [events, ungroupedEvents, holidays] = await Promise.all([
         getEventsByGroupId(id),
         getUngroupedEvents(),
+        getActiveHolidays(),
       ]);
       const allowedDomain = getAllowedDomain();
-      return htmlResponse(adminGroupDetailPage(group, events, ungroupedEvents, session, allowedDomain));
+      return htmlResponse(adminGroupDetailPage(group, sortEvents(events, holidays), sortEvents(ungroupedEvents, holidays), session, allowedDomain));
     }));
 
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
