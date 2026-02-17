@@ -87,7 +87,7 @@ const handleGroupDetail = (
   request: Request,
   { id }: { id: number },
 ): Promise<Response> =>
-  requireOwnerOr(request, async (session) =>
+  requireOwnerOr(request, (session) =>
     withGroupOr404(id, async (group) => {
       const [events, ungroupedEvents] = await Promise.all([
         getEventsByGroupId(id),
@@ -101,7 +101,7 @@ const handleAddEventsToGroup = (
   request: Request,
   { id }: { id: number },
 ): Promise<Response> =>
-  withOwnerAuthForm(request, async (_session, form) =>
+  withOwnerAuthForm(request, (_session, form) =>
     withGroupOr404(id, async (group) => {
       const eventIds = form.getAll("event_ids").map(Number).filter((n) => n > 0);
       if (eventIds.length > 0) {
