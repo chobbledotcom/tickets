@@ -28,12 +28,16 @@ const userStatus = (user: DisplayUser): string => {
 /**
  * Admin user management page
  */
+export interface UsersPageOpts {
+  inviteLink?: string;
+  success?: string;
+  error?: string;
+}
+
 export const adminUsersPage = (
   users: DisplayUser[],
   session: AdminSession,
-  inviteLink?: string,
-  success?: string,
-  error?: string,
+  opts?: UsersPageOpts,
 ): string =>
   String(
     <Layout title="Users">
@@ -42,13 +46,13 @@ export const adminUsersPage = (
       <p>
         <a href="/admin/guide#user-classes">User roles and permissions</a>
       </p>
-      <Raw html={renderError(error)} />
-      {success && <div class="success">{success}</div>}
+      <Raw html={renderError(opts?.error)} />
+      {opts?.success && <div class="success">{opts.success}</div>}
 
-      {inviteLink && (
+      {opts?.inviteLink && (
         <div class="success">
           <p>Invite link (share this with the new user):</p>
-          <code>{inviteLink}</code>
+          <code>{opts.inviteLink}</code>
           <p><small>This link expires in 7 days.</small></p>
         </div>
       )}

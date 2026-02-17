@@ -35,6 +35,7 @@ import {
   adminUserNewPage,
   adminUsersPage,
   type DisplayUser,
+  type UsersPageOpts,
 } from "#templates/admin/users.tsx";
 import { inviteUserFields, type InviteUserFormValues } from "#templates/fields.ts";
 
@@ -62,11 +63,11 @@ const toDisplayUser = async (
  */
 const renderUsersPage = async (
   session: AuthSession,
-  opts?: { inviteLink?: string; success?: string; error?: string },
+  opts?: UsersPageOpts,
 ): Promise<string> => {
   const users = await getAllUsers();
   const displayUsers = await Promise.all(users.map(toDisplayUser));
-  return adminUsersPage(displayUsers, session, opts?.inviteLink, opts?.success, opts?.error);
+  return adminUsersPage(displayUsers, session, opts);
 };
 
 /**
