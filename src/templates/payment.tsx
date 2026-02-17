@@ -59,7 +59,7 @@ export const paymentSuccessPage = (thankYouUrl: string | null, ticketUrl: string
 export const reservationSuccessPage = (ticketUrl: string | null, inIframe = false): string =>
   String(
     <Layout title="Ticket Reserved" bodyClass={inIframe ? "iframe" : undefined}>
-        <h1>Ticket reserved successfully.</h1>
+        <h1 data-scroll-into-view={inIframe || undefined}>Ticket reserved successfully.</h1>
         {ticketUrl ? (
           <p><a href={ticketUrl} target="_blank">Click here to view your tickets</a></p>
         ) : null}
@@ -101,7 +101,7 @@ export const paymentErrorPage = (message: string): string =>
 export const checkoutPopupPage = (checkoutUrl: string): string =>
   String(
     <Layout title="Complete Payment" bodyClass="iframe">
-        <div data-checkout-popup={escapeHtml(checkoutUrl)}>
+        <div data-checkout-popup={escapeHtml(checkoutUrl)} data-scroll-into-view>
           <p>Payment is processed in a new window.</p>
           <p><a href={checkoutUrl} target="_blank" data-open-checkout><b>Pay Now</b></a></p>
           <div data-checkout-waiting hidden>

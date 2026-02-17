@@ -581,6 +581,11 @@ describe("html", () => {
       expect(html).toContain("&quot;");
       expect(html).not.toContain('"onload="');
     });
+
+    test("includes scroll-into-view marker for parent scroll", () => {
+      const html = checkoutPopupPage("https://checkout.stripe.com/session123");
+      expect(html).toContain("data-scroll-into-view");
+    });
   });
 
   describe("reservationSuccessPage", () => {
@@ -594,6 +599,16 @@ describe("html", () => {
       const html = reservationSuccessPage("/t/abc123");
       expect(html).not.toContain("iframe-resizer-child.js");
       expect(html).not.toContain('class="iframe"');
+    });
+
+    test("includes scroll-into-view marker in iframe mode", () => {
+      const html = reservationSuccessPage("/t/abc123", true);
+      expect(html).toContain("data-scroll-into-view");
+    });
+
+    test("excludes scroll-into-view marker when not in iframe mode", () => {
+      const html = reservationSuccessPage("/t/abc123");
+      expect(html).not.toContain("data-scroll-into-view");
     });
   });
 
