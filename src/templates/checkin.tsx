@@ -6,6 +6,7 @@
 
 import { map, pipe } from "#fp";
 import { formatDateLabel } from "#lib/dates.ts";
+import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -53,11 +54,10 @@ export const checkinAdminPage = (
     <Layout title="Check-in">
       <h1>Check-in</h1>
       {message && <p class="success">{message}</p>}
-      <form method="POST" action={checkinPath}>
-        <input type="hidden" name="csrf_token" value={csrfToken} />
+      <CsrfForm action={checkinPath} csrfToken={csrfToken}>
         <input type="hidden" name="check_in" value={nextValue} />
         <button type="submit" class={buttonClass}>{buttonLabel}</button>
-      </form>
+      </CsrfForm>
       <div class="table-scroll">
         <table>
           <thead>

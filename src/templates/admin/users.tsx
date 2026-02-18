@@ -2,7 +2,7 @@
  * Admin user management page template
  */
 
-import { renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminLevel, AdminSession } from "#lib/types.ts";
 import { inviteUserFields } from "#templates/fields.ts";
@@ -78,18 +78,16 @@ export const adminUsersPage = (
                 <td>{userStatus(user)}</td>
                 <td>
                   {user.hasPassword && !user.hasDataKey && (
-                    <form class="inline" method="POST" action={`/admin/users/${user.id}/activate`}>
-                      <input type="hidden" name="csrf_token" value={session.csrfToken} />
+                    <CsrfForm class="inline" action={`/admin/users/${user.id}/activate`} csrfToken={session.csrfToken}>
                       <button type="submit">Activate</button>
-                    </form>
+                    </CsrfForm>
                   )}
                 </td>
                 <td>
                   {user.adminLevel !== "owner" && (
-                    <form class="inline" method="POST" action={`/admin/users/${user.id}/delete`}>
-                      <input type="hidden" name="csrf_token" value={session.csrfToken} />
+                    <CsrfForm class="inline" action={`/admin/users/${user.id}/delete`} csrfToken={session.csrfToken}>
                       <button type="submit">Delete</button>
-                    </form>
+                    </CsrfForm>
                   )}
                 </td>
               </tr>
@@ -113,10 +111,9 @@ export const adminUserNewPage = (
       <Breadcrumb href="/admin/users" label="Users" />
       <h1>Invite User</h1>
       <Raw html={renderError(error)} />
-      <form method="POST" action="/admin/users">
-        <input type="hidden" name="csrf_token" value={session.csrfToken} />
+      <CsrfForm action="/admin/users" csrfToken={session.csrfToken}>
         <Raw html={renderFields(inviteUserFields)} />
         <button type="submit">Create Invite</button>
-      </form>
+      </CsrfForm>
     </Layout>,
   );

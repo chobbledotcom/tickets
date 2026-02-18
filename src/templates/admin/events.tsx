@@ -6,7 +6,7 @@ import { filter, map, pipe, reduce } from "#fp";
 import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
-import { type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import { getTz } from "#lib/config.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
@@ -58,17 +58,16 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; e
   const label = isCheckedIn ? "Check out" : "Check in";
   const buttonClass = isCheckedIn ? "link-button checkout" : "link-button checkin";
   return String(
-    <form
-      method="POST"
+    <CsrfForm
       action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
+      csrfToken={csrfToken}
       class="inline"
     >
-      <input type="hidden" name="csrf_token" value={csrfToken} />
       <input type="hidden" name="return_filter" value={activeFilter} />
       <button type="submit" class={buttonClass}>
         {label}
       </button>
-    </form>
+    </CsrfForm>
   );
 };
 
@@ -412,11 +411,10 @@ export const adminEventPage = ({
               {addAttendeeMessage.error}
             </p>
           )}
-          <form method="POST" action={`/admin/event/${event.id}/attendee`}>
-            <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          <CsrfForm action={`/admin/event/${event.id}/attendee`} csrfToken={session.csrfToken}>
             <Raw html={renderFields(getAddAttendeeFields(event.fields, event.event_type === "daily"))} />
             <button type="submit">Add Attendee</button>
-          </form>
+          </CsrfForm>
         </article>
     </Layout>
   );
@@ -473,12 +471,11 @@ export const adminEventNewPage = (
       <Breadcrumb href="/admin/" label="Events" />
       <h1>Add Event</h1>
       <Raw html={renderError(error)} />
-      <form method="POST" action="/admin/event" enctype="multipart/form-data">
-        <input type="hidden" name="csrf_token" value={session.csrfToken} />
+      <CsrfForm action="/admin/event" csrfToken={session.csrfToken} enctype="multipart/form-data">
         <Raw html={renderFields(fields)} />
         <EventGroupSelect groups={groups} selectedGroupId={0} />
         <button type="submit">Create Event</button>
-      </form>
+      </CsrfForm>
     </Layout>,
   );
 };
@@ -501,12 +498,11 @@ export const adminDuplicateEventPage = (
       <AdminNav session={session} />
         <h2>Duplicate Event</h2>
         <p>Creating a new event based on <strong>{event.name}</strong>.</p>
-        <form method="POST" action="/admin/event" enctype="multipart/form-data">
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <CsrfForm action="/admin/event" csrfToken={session.csrfToken} enctype="multipart/form-data">
           <Raw html={renderFields(fields, values)} />
           <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
           <button type="submit">Create Event</button>
-        </form>
+        </CsrfForm>
     </Layout>
   );
 };
@@ -526,8 +522,7 @@ export const adminEventEditPage = (
     <Layout title={`Edit: ${event.name}`}>
       <AdminNav session={session} />
         <Raw html={renderError(error)} />
-        <form method="POST" action={`/admin/event/${event.id}/edit`} enctype="multipart/form-data">
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <CsrfForm action={`/admin/event/${event.id}/edit`} csrfToken={session.csrfToken} enctype="multipart/form-data">
           <Raw html={renderFields(fields, eventToFieldValues(event))} />
           <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
           <Raw html={renderField(slugField, String(event.slug))} />
@@ -535,12 +530,11 @@ export const adminEventEditPage = (
             <Raw html={renderEventImage(event, "event-image-full")} />
           )}
           <button type="submit">Save Changes</button>
-        </form>
+        </CsrfForm>
         {storageEnabled && event.image_url && (
-          <form method="POST" action={`/admin/event/${event.id}/image/delete`}>
-            <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          <CsrfForm action={`/admin/event/${event.id}/image/delete`} csrfToken={session.csrfToken}>
             <button type="submit" class="secondary">Remove Image</button>
-          </form>
+          </CsrfForm>
         )}
     </Layout>
   );
@@ -567,8 +561,7 @@ export const adminDeleteEventPage = (
 
         <p>To delete this event, type its name "{event.name}" into the box below:</p>
 
-        <form method="POST" action={`/admin/event/${event.id}/delete`}>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <CsrfForm action={`/admin/event/${event.id}/delete`} csrfToken={session.csrfToken}>
           <label for="confirm_identifier">Event name</label>
           <input
             type="text"
@@ -581,7 +574,7 @@ export const adminDeleteEventPage = (
           <button type="submit" class="danger">
             Delete Event
           </button>
-        </form>
+        </CsrfForm>
     </Layout>
   );
 
@@ -612,8 +605,7 @@ export const adminDeactivateEventPage = (
 
         <p>To deactivate this event, type its name "{event.name}" into the box below:</p>
 
-        <form method="POST" action={`/admin/event/${event.id}/deactivate`}>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <CsrfForm action={`/admin/event/${event.id}/deactivate`} csrfToken={session.csrfToken}>
           <label for="confirm_identifier">Event name</label>
           <input
             type="text"
@@ -626,7 +618,7 @@ export const adminDeactivateEventPage = (
           <button type="submit" class="danger">
             Deactivate Event
           </button>
-        </form>
+        </CsrfForm>
     </Layout>
   );
 
@@ -652,8 +644,7 @@ export const adminReactivateEventPage = (
 
         <p>To reactivate this event, type its name "{event.name}" into the box below:</p>
 
-        <form method="POST" action={`/admin/event/${event.id}/reactivate`}>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <CsrfForm action={`/admin/event/${event.id}/reactivate`} csrfToken={session.csrfToken}>
           <label for="confirm_identifier">Event name</label>
           <input
             type="text"
@@ -666,6 +657,6 @@ export const adminReactivateEventPage = (
           <button type="submit">
             Reactivate Event
           </button>
-        </form>
+        </CsrfForm>
     </Layout>
   );

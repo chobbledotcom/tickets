@@ -2,7 +2,7 @@
  * Admin settings page template
  */
 
-import { renderFields } from "#lib/forms.tsx";
+import { CsrfForm, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import {
@@ -38,10 +38,9 @@ export const adminSettingsPage = (
       {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}
 
-        <form method="POST" action="/admin/settings/timezone">
+        <CsrfForm action="/admin/settings/timezone" csrfToken={session.csrfToken}>
             <h2>Timezone</h2>
           <p>All dates and times will be interpreted and displayed in this timezone.</p>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="timezone">IANA Timezone</label>
           <select id="timezone" name="timezone" required>
             {Intl.supportedValuesOf("timeZone").map((tz: string) => (
@@ -49,12 +48,11 @@ export const adminSettingsPage = (
             ))}
           </select>
           <button type="submit">Save Timezone</button>
-        </form>
+        </CsrfForm>
 
-        <form method="POST" action="/admin/settings/business-email">
+        <CsrfForm action="/admin/settings/business-email" csrfToken={session.csrfToken}>
             <h2>Business Email</h2>
           <p>This email will be included in webhook notifications to identify your business.</p>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="business_email">Business Email</label>
           <input
             type="email"
@@ -65,12 +63,11 @@ export const adminSettingsPage = (
             autocomplete="email"
           />
           <button type="submit">Save Business Email</button>
-        </form>
+        </CsrfForm>
 
-        <form method="POST" action="/admin/settings/payment-provider">
+        <CsrfForm action="/admin/settings/payment-provider" csrfToken={session.csrfToken}>
             <h2>Payment Provider</h2>
           <p>Choose which payment provider to use for paid events.</p>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <fieldset>
             <label>
               <input
@@ -101,42 +98,40 @@ export const adminSettingsPage = (
             </label>
           </fieldset>
           <button type="submit">Save Payment Provider</button>
-        </form>
+        </CsrfForm>
 
         {paymentProvider === "stripe" && (
-        <form method="POST" action="/admin/settings/stripe">
+        <CsrfForm action="/admin/settings/stripe" csrfToken={session.csrfToken}>
             <h2>Stripe Settings</h2>
           <p>
             {stripeKeyConfigured
               ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
               : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
           </p>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(stripeKeyFields)} />
           <button type="submit">Update Stripe Key</button>
           {stripeKeyConfigured && (
             <button type="button" id="stripe-test-btn" class="secondary">Test Connection</button>
           )}
           <div id="stripe-test-result" class="hidden"></div>
-        </form>
+        </CsrfForm>
         )}
 
         {paymentProvider === "square" && (
-        <form method="POST" action="/admin/settings/square">
+        <CsrfForm action="/admin/settings/square" csrfToken={session.csrfToken}>
             <h2>Square Settings</h2>
           <p>
             {squareTokenConfigured
               ? "A Square access token is currently configured. Enter new credentials below to replace them."
               : "No Square access token is configured. Enter your Square credentials to enable Square payments."}
           </p>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(squareAccessTokenFields)} />
           <button type="submit">Update Square Credentials</button>
-        </form>
+        </CsrfForm>
         )}
 
         {paymentProvider === "square" && squareTokenConfigured && (
-        <form method="POST" action="/admin/settings/square-webhook">
+        <CsrfForm action="/admin/settings/square-webhook" csrfToken={session.csrfToken}>
             <h2>Square Webhook</h2>
           <article>
             <aside>
@@ -157,16 +152,14 @@ export const adminSettingsPage = (
               ? "A webhook signature key is currently configured. Enter a new key below to replace it."
               : "No webhook signature key is configured. Follow the steps above to set one up."}
           </p>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(squareWebhookFields)} />
           <button type="submit">Update Webhook Key</button>
-        </form>
+        </CsrfForm>
         )}
 
-        <form method="POST" action="/admin/settings/embed-hosts">
+        <CsrfForm action="/admin/settings/embed-hosts" csrfToken={session.csrfToken}>
             <h2>Only allow embedding on these hosts</h2>
           <p>Restrict which websites can embed your booking forms in an iframe. Leave blank to allow embedding from any site.</p>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="embed_hosts">Hosts (comma-separated)</label>
           <input
             type="text"
@@ -178,12 +171,11 @@ export const adminSettingsPage = (
           />
           <p><small>Use <code>*.example.com</code> to allow all subdomains. Direct visits to the booking page are always allowed.</small></p>
           <button type="submit">Save Embed Hosts</button>
-        </form>
+        </CsrfForm>
 
-        <form method="POST" action="/admin/settings/terms">
+        <CsrfForm action="/admin/settings/terms" csrfToken={session.csrfToken}>
             <h2>Terms and Conditions</h2>
           <p>If set, users must agree to these terms before reserving tickets.</p>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="terms_and_conditions">Terms and Conditions</label>
           <textarea
             id="terms_and_conditions"
@@ -192,17 +184,16 @@ export const adminSettingsPage = (
             placeholder="Enter terms and conditions that attendees must agree to before registering. Leave blank to disable."
           >{termsAndConditions ?? ""}</textarea>
           <button type="submit">Save Terms</button>
-        </form>
+        </CsrfForm>
 
-        <form method="POST" action="/admin/settings">
+        <CsrfForm action="/admin/settings" csrfToken={session.csrfToken}>
             <h2>Change Password</h2>
           <p>Changing your password will log you out of all sessions.</p>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <Raw html={renderFields(changePasswordFields)} />
           <button type="submit">Change Password</button>
-        </form>
+        </CsrfForm>
 
-        <form method="POST" action="/admin/settings/reset-database">
+        <CsrfForm action="/admin/settings/reset-database" csrfToken={session.csrfToken}>
             <h2>Reset Database</h2>
           <article>
             <aside>
@@ -211,7 +202,6 @@ export const adminSettingsPage = (
           </article>
           <p>To reset the database, type the following phrase into the box below:</p>
           <p><strong>"The site will be fully reset and all data will be lost."</strong></p>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
           <label for="confirm_phrase">Confirmation phrase</label>
           <input
             type="text"
@@ -223,6 +213,6 @@ export const adminSettingsPage = (
           <button type="submit" class="danger">
             Reset Database
           </button>
-        </form>
+        </CsrfForm>
     </Layout>
   );

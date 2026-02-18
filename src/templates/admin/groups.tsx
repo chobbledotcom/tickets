@@ -4,7 +4,7 @@
 
 import { map, pipe, reduce } from "#fp";
 import { buildEmbedSnippets } from "#lib/embed.ts";
-import { renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
 import { groupCreateFields, groupFields } from "#templates/fields.ts";
@@ -84,11 +84,10 @@ export const adminGroupNewPage = (
       <Breadcrumb href="/admin/groups" label="Groups" />
       <h1>Add Group</h1>
       <Raw html={renderError(error)} />
-      <form method="POST" action="/admin/group">
-        <input type="hidden" name="csrf_token" value={session.csrfToken} />
+      <CsrfForm action="/admin/group" csrfToken={session.csrfToken}>
         <Raw html={renderFields(groupCreateFields, groupToFieldValues())} />
         <button type="submit">Create Group</button>
-      </form>
+      </CsrfForm>
     </Layout>,
   );
 
@@ -106,11 +105,10 @@ export const adminGroupEditPage = (
       <Breadcrumb href={`/admin/group/${group.id}`} label={group.name} />
       <h1>Edit Group</h1>
       <Raw html={renderError(error)} />
-      <form method="POST" action={`/admin/group/${group.id}/edit`}>
-        <input type="hidden" name="csrf_token" value={session.csrfToken} />
+      <CsrfForm action={`/admin/group/${group.id}/edit`} csrfToken={session.csrfToken}>
         <Raw html={renderFields(groupFields, groupToFieldValues(group))} />
         <button type="submit">Save Changes</button>
-      </form>
+      </CsrfForm>
     </Layout>,
   );
 
@@ -135,14 +133,13 @@ export const adminGroupDeletePage = (
         Events in this group will not be deleted -- they will be moved out of the group.
       </p>
       <p>Type the group name to confirm:</p>
-      <form method="POST" action={`/admin/group/${group.id}/delete`}>
-        <input type="hidden" name="csrf_token" value={session.csrfToken} />
+      <CsrfForm action={`/admin/group/${group.id}/delete`} csrfToken={session.csrfToken}>
         <label>
           Group Name
           <input type="text" name="confirm_identifier" required />
         </label>
         <button type="submit">Delete Group</button>
-      </form>
+      </CsrfForm>
     </Layout>,
   );
 
@@ -239,8 +236,7 @@ export const adminGroupDetailPage = (
       {ungroupedEvents.length > 0 && (
         <>
           <h2>Add Events to Group</h2>
-          <form method="POST" action={`/admin/group/${group.id}/add-events`}>
-            <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          <CsrfForm action={`/admin/group/${group.id}/add-events`} csrfToken={session.csrfToken}>
             {ungroupedEvents.map((e) => (
               <label>
                 <input type="checkbox" name="event_ids" value={String(e.id)} />
@@ -249,7 +245,7 @@ export const adminGroupDetailPage = (
             ))}
             <br />
             <button type="submit">Add Selected Events</button>
-          </form>
+          </CsrfForm>
         </>
       )}
     </Layout>,

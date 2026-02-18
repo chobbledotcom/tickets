@@ -3,6 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { CsrfForm } from "#lib/forms.tsx";
 import type { AdminSession, Session } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -73,12 +74,11 @@ export const adminSessionsPage = (
         <>
           <br />
 
-            <form method="POST" action="/admin/sessions" class="one-button">
-              <input type="hidden" name="csrf_token" value={adminSession.csrfToken} />
+            <CsrfForm action="/admin/sessions" csrfToken={adminSession.csrfToken} class="one-button">
               <button type="submit" class="danger">
                 Log out of all other sessions ({otherSessionCount})
               </button>
-            </form>
+            </CsrfForm>
         </>
       )}
     </Layout>
