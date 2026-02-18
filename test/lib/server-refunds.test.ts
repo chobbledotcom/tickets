@@ -109,6 +109,22 @@ describe("server (admin refunds)", () => {
       expect(html).toContain("type their name");
       expect(html).toContain("5.00");
     });
+
+    test("includes return_url as hidden field when provided", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const attendee = await createPaidTestAttendee(event.id, "Jane Smith", "jane@example.com", "pi_test_123");
+
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/attendee/${attendee.id}/refund?return_url=${encodeURIComponent("/admin/calendar#attendees")}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('name="return_url"');
+      expect(html).toContain("/admin/calendar#attendees");
+    });
   });
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/refund", () => {

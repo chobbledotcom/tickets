@@ -133,6 +133,18 @@ describe("AttendeeTable", () => {
       expect(html).toContain("<th>Phone</th>");
       expect(html).toContain("555-1234");
     });
+
+    test("renders empty cell for attendee without phone when column is shown", () => {
+      const rows = [
+        makeRow({ attendee: testAttendee({ phone: "555-1234" }) }),
+        makeRow({ attendee: testAttendee({ phone: "" }) }),
+      ];
+      const html = AttendeeTable(makeOpts({ rows }));
+      expect(html).toContain("<th>Phone</th>");
+      // Two phone cells: one with data, one empty
+      const phoneCells = html.match(/<td>555-1234<\/td>/g);
+      expect(phoneCells).toHaveLength(1);
+    });
   });
 
   describe("Address column", () => {
