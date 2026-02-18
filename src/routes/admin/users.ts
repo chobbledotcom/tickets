@@ -63,7 +63,7 @@ const toDisplayUser = async (
  */
 const renderUsersPage = async (
   session: AuthSession,
-  opts?: UsersPageOpts,
+  opts: UsersPageOpts,
 ): Promise<string> => {
   const users = await getAllUsers();
   const displayUsers = await Promise.all(users.map(toDisplayUser));
@@ -79,8 +79,9 @@ const handleUsersGet = (request: Request): Promise<Response> =>
     const success = getSearchParam(request, "success");
     return htmlResponse(
       await renderUsersPage(session, {
-        inviteLink: invite ?? undefined,
-        success: success ?? undefined,
+        inviteLink: invite,
+        success,
+        error: "",
       }),
     );
   });
@@ -151,7 +152,7 @@ const withUserAction = (
 ): Promise<Response> =>
   withOwnerAuthForm(request, async (session) => {
     const errorPage = async (error: string, status: number): Promise<Response> => {
-      const html = await renderUsersPage(session, { error });
+      const html = await renderUsersPage(session, { inviteLink: "", success: "", error });
       return htmlResponse(html, status);
     };
     const user = await getUserById(userId);

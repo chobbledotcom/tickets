@@ -113,7 +113,12 @@ export const adminEventPage = ({
   const suffix = filterSuffix(activeFilter);
   const returnUrl = `${basePath}${suffix}${dateQs}#attendees`;
   const tableRows: AttendeeTableRow[] = pipe(
-    map((a: Attendee): AttendeeTableRow => ({ attendee: a, eventId: event.id, hasPaidEvent })),
+    map((a: Attendee): AttendeeTableRow => ({
+      attendee: a,
+      eventId: event.id,
+      eventName: event.name,
+      hasPaidEvent,
+    })),
   )(filteredAttendees);
 
   const checkedInLabel = checkinMessage?.status === "in" ? "in" : "out";

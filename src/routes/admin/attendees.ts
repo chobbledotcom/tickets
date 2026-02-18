@@ -106,27 +106,37 @@ const withAttendeeForm = (
       handler(data, session, form)));
 
 
+/** Read return_url from request query params */
+const getReturnUrl = (request: Request): string =>
+  getSearchParam(request, "return_url");
+
+/** Read return_url from form data */
+const getReturnUrlFromForm = (form: URLSearchParams): string =>
+  form.get("return_url") ?? "";
+
 /** Redirect to return_url from form if present, otherwise redirect to fallback */
 const redirectOrReturn = (form: URLSearchParams, fallback: string): Response => {
-  const returnUrl = form.get("return_url");
+  const returnUrl = getReturnUrlFromForm(form);
   return redirect(returnUrl || fallback);
 };
-
-/** Read return_url from request query params */
-const getReturnUrl = (request: Request): string | undefined =>
-  getSearchParam(request, "return_url") ?? undefined;
 
 /** Verify confirm_name matches attendee name, returning error page on mismatch */
 const verifyAttendeeName = (
   data: AttendeeWithEvent,
   session: AuthSession,
   form: URLSearchParams,
-  renderPage: (data: AttendeeWithEvent, session: AdminSession, error: string) => string,
+  renderPage: (
+    data: AttendeeWithEvent,
+    session: AdminSession,
+    error: string,
+    returnUrl?: string,
+  ) => string,
   errorMsg: string,
 ): Response | null => {
   const confirmName = form.get("confirm_name") ?? "";
   if (!verifyIdentifier(data.attendee.name, confirmName)) {
-    return htmlResponse(renderPage(data, session, errorMsg), 400);
+    const returnUrl = getReturnUrlFromForm(form);
+    return htmlResponse(renderPage(data, session, errorMsg, returnUrl), 400);
   }
   return null;
 };
@@ -168,7 +178,7 @@ const handleAttendeeCheckin = attendeeFormAction(async (data, _session, form, ev
   const action = nowCheckedIn ? "checked in" : "checked out";
   await logActivity(`Attendee ${action}`, eventId);
 
-  const returnUrl = form.get("return_url");
+  const returnUrl = getReturnUrlFromForm(form);
   if (returnUrl) return redirect(returnUrl);
 
   const name = encodeURIComponent(data.attendee.name);
@@ -181,14 +191,19 @@ const handleAttendeeCheckin = attendeeFormAction(async (data, _session, form, ev
 });
 
 /** Render refund error for a single attendee */
-const refundError = (data: AttendeeWithEvent, session: AuthSession, msg: string): Response =>
-  htmlResponse(adminRefundAttendeePage(data, session, msg), 400);
+const refundError = (
+  data: AttendeeWithEvent,
+  session: AuthSession,
+  msg: string,
+  returnUrl: string,
+): Response =>
+  htmlResponse(adminRefundAttendeePage(data, session, msg, returnUrl), 400);
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute((data, session, request) =>
   data.attendee.payment_id
     ? htmlResponse(adminRefundAttendeePage(data, session, undefined, getReturnUrl(request)))
-    : refundError(data, session, NO_PAYMENT_ERROR));
+    : refundError(data, session, NO_PAYMENT_ERROR, getReturnUrl(request)));
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
 const handleAttendeeRefund = attendeeFormAction(async (data, session, form, eventId) => {
@@ -196,10 +211,11 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
     "Attendee name does not match. Please type the exact name to confirm refund.");
   if (nameError) return nameError;
 
-  if (!data.attendee.payment_id) return refundError(data, session, NO_PAYMENT_ERROR);
+  const returnUrl = getReturnUrlFromForm(form);
+  if (!data.attendee.payment_id) return refundError(data, session, NO_PAYMENT_ERROR, returnUrl);
 
   const provider = await getActivePaymentProvider();
-  if (!provider) return refundError(data, session, NO_PROVIDER_ERROR);
+  if (!provider) return refundError(data, session, NO_PROVIDER_ERROR, returnUrl);
 
   const refunded = await provider.refundPayment(data.attendee.payment_id);
   if (!refunded) {
@@ -207,7 +223,7 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
       code: ErrorCode.PAYMENT_REFUND,
       detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
     });
-    return refundError(data, session, REFUND_FAILED_ERROR);
+    return refundError(data, session, REFUND_FAILED_ERROR, returnUrl);
   }
 
   await clearPaymentId(data.attendee.id);
@@ -420,6 +436,7 @@ const handleEditAttendeePost = (
 ): Promise<Response> =>
   withAuthForm(request, (session, form) =>
     withEditAttendee(session, attendeeId, async (data) => {
+    const returnUrl = getReturnUrlFromForm(form);
 
     const name = form.get("name")!;
     const email = form.get("email")!;
@@ -433,6 +450,7 @@ const handleEditAttendeePost = (
         data,
         session,
         "Name is required",
+        returnUrl,
       ), 400);
     }
 
@@ -441,6 +459,7 @@ const handleEditAttendeePost = (
         data,
         session,
         "Event is required",
+        returnUrl,
       ), 400);
     }
 

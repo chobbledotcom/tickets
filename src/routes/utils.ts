@@ -227,9 +227,9 @@ export const parseRequest = (
 export const getSearchParam = (
   request: Request,
   key: string,
-): string | null => {
+): string => {
   const url = new URL(request.url);
-  return url.searchParams.get(key);
+  return url.searchParams.get(key) ?? "";
 };
 
 /**

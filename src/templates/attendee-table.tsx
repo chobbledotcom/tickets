@@ -14,7 +14,7 @@ const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 export type AttendeeTableRow = {
   attendee: Attendee;
   eventId: number;
-  eventName?: string;
+  eventName: string;
   hasPaidEvent: boolean;
 };
 
@@ -51,6 +51,12 @@ export const formatAddressInline = (address: string): string => {
       if (!acc) return line;
       return acc.endsWith(",") ? `${acc} ${line}` : `${acc}, ${line}`;
     }, "");
+};
+
+/** Format multi-line instructions as single-line text */
+const formatInstructionsInline = (instructions: string): string => {
+  if (!instructions) return "";
+  return instructions.replace(/\r?\n+/g, " ").trim();
 };
 
 /** Compute which optional columns have data */
@@ -157,7 +163,7 @@ const AttendeeRow = ({ row, vis, opts }: {
       {vis.showEmail && <td>{a.email || ""}</td>}
       {vis.showPhone && <td>{a.phone || ""}</td>}
       {vis.showAddress && <td>{formatAddressInline(a.address)}</td>}
-      {vis.showSpecialInstructions && <td>{formatAddressInline(a.special_instructions)}</td>}
+      {vis.showSpecialInstructions && <td>{formatInstructionsInline(a.special_instructions)}</td>}
       <td>{a.quantity}</td>
       <td><a href={`https://${opts.allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
       <td>{new Date(a.created).toLocaleString()}</td>

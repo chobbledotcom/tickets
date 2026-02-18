@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { getTimezoneFromDb, setPaymentProvider, updateTermsAndConditions } from "#lib/db/settings.ts";
+import { getEmbedHostsFromDb, getTimezoneFromDb, setPaymentProvider, updateTermsAndConditions } from "#lib/db/settings.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
@@ -201,6 +201,31 @@ describe("server (admin settings)", () => {
         await mockAdminLoginRequest({ username: "testadmin", password: "newpassword123" }),
       );
       expectAdminRedirect(newLoginResponse);
+    });
+
+    test("returns error when password update fails", async () => {
+      const settingsApi = await import("#lib/db/settings.ts");
+      await withMocks(
+        () => spyOn(settingsApi, "updateUserPassword").mockResolvedValue(false),
+        async () => {
+          const { cookie, csrfToken } = await loginAsAdmin();
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings",
+              {
+                current_password: TEST_ADMIN_PASSWORD,
+                new_password: "newpassword123",
+                new_password_confirm: "newpassword123",
+                csrf_token: csrfToken,
+              },
+              cookie,
+            ),
+          );
+          expect(response.status).toBe(500);
+          const html = await response.text();
+          expect(html).toContain("Failed to update password");
+        },
+      );
     });
   });
 
@@ -421,6 +446,58 @@ describe("server (admin settings)", () => {
           expect(json.webhook.error).toContain("No webhook endpoint ID stored");
         },
       );
+    });
+  });
+
+  describe("POST /admin/settings/embed-hosts", () => {
+    test("clears embed hosts when empty", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/embed-hosts",
+          { embed_hosts: "   ", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Embed host restrictions removed");
+      expect(await getEmbedHostsFromDb()).toBe("");
+    });
+
+    test("rejects invalid embed host pattern", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/embed-hosts",
+          { embed_hosts: "*", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Bare wildcard");
+    });
+
+    test("normalizes and saves embed hosts", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/embed-hosts",
+          { embed_hosts: "Example.com, *.Sub.Example.com", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Allowed embed hosts updated");
+      expect(await getEmbedHostsFromDb()).toBe("example.com, *.sub.example.com");
     });
   });
 

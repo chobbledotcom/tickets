@@ -183,6 +183,18 @@ describe("server (admin attendees)", () => {
       expect(html).toContain("does not match");
     });
 
+    test("preserves return_url on mismatched attendee name", async () => {
+      const returnUrl = "/admin/calendar#attendees";
+      const { response } = await deleteAction({
+        confirm_name: "Wrong Name",
+        return_url: returnUrl,
+      })();
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain('name="return_url"');
+      expect(html).toContain(returnUrl);
+    });
+
     test("deletes attendee with matching name (case insensitive)", async () => {
       const { response, event, attendee } = await deleteAction({ confirm_name: "john doe" })();
       expect(response.status).toBe(302);
@@ -919,6 +931,34 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("Name is required");
+    });
+
+    test("preserves return_url on edit validation error", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const returnUrl = "/admin/calendar#attendees";
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "",
+            email: "jane@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            csrf_token: csrfToken,
+            return_url: returnUrl,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain('name="return_url"');
+      expect(html).toContain(returnUrl);
     });
 
     test("rejects whitespace-only name", async () => {

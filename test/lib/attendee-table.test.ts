@@ -8,6 +8,7 @@ const ALLOWED_DOMAIN = "example.com";
 const makeRow = (overrides: Partial<AttendeeTableRow> = {}): AttendeeTableRow => ({
   attendee: testAttendee(),
   eventId: 1,
+  eventName: "Test Event",
   hasPaidEvent: false,
   ...overrides,
 });
@@ -174,6 +175,17 @@ describe("AttendeeTable", () => {
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).toContain("<th>Special Instructions</th>");
       expect(html).toContain("Vegetarian");
+    });
+
+    test("renders single-line instructions and empty cell when column is shown", () => {
+      const rows = [
+        makeRow({ attendee: testAttendee({ special_instructions: "Line 1\nLine 2" }) }),
+        makeRow({ attendee: testAttendee({ special_instructions: "" }) }),
+      ];
+      const html = AttendeeTable(makeOpts({ rows }));
+      expect(html).toContain("<th>Special Instructions</th>");
+      expect(html).toContain("Line 1 Line 2");
+      expect(html).not.toContain("Line 1, Line 2");
     });
   });
 
