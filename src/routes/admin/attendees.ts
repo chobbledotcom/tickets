@@ -176,7 +176,7 @@ const handleAttendeeCheckin = attendeeFormAction(async (data, _session, form, ev
   await updateCheckedIn(attendeeId, nowCheckedIn);
 
   const action = nowCheckedIn ? "checked in" : "checked out";
-  await logActivity(`Attendee ${action}`, eventId);
+  await logActivity(`Attendee ${action} for '${data.event.name}'`, eventId);
 
   const returnUrl = getReturnUrlFromForm(form);
   if (returnUrl) return redirect(returnUrl);
