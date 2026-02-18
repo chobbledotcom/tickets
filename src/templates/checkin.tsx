@@ -5,30 +5,14 @@
  */
 
 import { map, pipe } from "#fp";
-import { formatDateLabel } from "#lib/dates.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
+import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Re-export for backwards compatibility */
 export type { TokenEntry as CheckinEntry };
-
-/** Render a single attendee detail row (admin view), optionally including a date column */
-const renderCheckinRow = (showDate: boolean, { event, attendee }: TokenEntry): string => {
-  const isCheckedIn = attendee.checked_in === "true";
-  return String(
-    <tr>
-      <td><a href={`/admin/event/${event.id}`}>{event.name}</a></td>
-      {showDate && <td>{attendee.date ? formatDateLabel(attendee.date) : ""}</td>}
-      <td>{attendee.name}</td>
-      <td>{attendee.email || ""}</td>
-      <td>{attendee.phone || ""}</td>
-      <td>{attendee.quantity}</td>
-      <td>{isCheckedIn ? "Yes" : "No"}</td>
-    </tr>,
-  );
-};
 
 /**
  * Admin check-in page - shows attendee details with check-in/check-out button
@@ -38,11 +22,16 @@ export const checkinAdminPage = (
   csrfToken: string,
   checkinPath: string,
   message: string | null,
+  allowedDomain: string,
 ): string => {
   const showDate = entries.some((e) => e.attendee.date !== null);
-  const rows = pipe(
-    map((e: TokenEntry) => renderCheckinRow(showDate, e)),
-    (r: string[]) => r.join(""),
+  const tableRows: AttendeeTableRow[] = pipe(
+    map((e: TokenEntry): AttendeeTableRow => ({
+      attendee: e.attendee,
+      eventId: e.event.id,
+      eventName: e.event.name,
+      hasPaidEvent: e.event.unit_price !== null,
+    })),
   )(entries);
 
   const allCheckedIn = entries.every((e) => e.attendee.checked_in === "true");
@@ -59,22 +48,14 @@ export const checkinAdminPage = (
         <button type="submit" class={buttonClass}>{buttonLabel}</button>
       </CsrfForm>
       <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Event</th>
-              {showDate && <th>Date</th>}
-              <th>Name</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>Quantity</th>
-              <th>Checked In</th>
-            </tr>
-          </thead>
-          <tbody>
-            <Raw html={rows} />
-          </tbody>
-        </table>
+        <Raw html={AttendeeTable({
+          rows: tableRows,
+          allowedDomain,
+          csrfToken,
+          showEvent: true,
+          showDate,
+          returnUrl: checkinPath,
+        })} />
       </div>
     </Layout>
   );

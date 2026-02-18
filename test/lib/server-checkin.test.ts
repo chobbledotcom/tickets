@@ -59,7 +59,7 @@ describe("check-in (/checkin/:tokens)", () => {
       expect(response.status).toBe(200);
 
       const body = await response.text();
-      expect(body).toContain("No");
+      expect(body).toContain("Check in");
       expect(body).toContain("Check In All");
       expect(body).not.toContain('class="success"');
     });
@@ -219,7 +219,7 @@ describe("check-in (/checkin/:tokens)", () => {
         cookie: session.cookie,
       });
       const body = await viewResponse.text();
-      expect(body).toContain("Yes");
+      expect(body).toContain("Check out");
       expect(body).toContain('class="success"');
       expect(body).toContain("Checked in 1 ticket");
       expect(body).toContain('class="bulk-checkout"');
@@ -255,7 +255,7 @@ describe("check-in (/checkin/:tokens)", () => {
         cookie: session.cookie,
       });
       const body = await viewResponse.text();
-      expect(body).toContain("No");
+      expect(body).toContain("Check in");
       expect(body).toContain("Checked out");
     });
 
@@ -288,7 +288,7 @@ describe("check-in (/checkin/:tokens)", () => {
         { cookie: session.cookie },
       );
       const body = await viewResponse.text();
-      expect(body).toContain("Yes");
+      expect(body).toContain("Check out");
       expect(body).toContain("Already checked in 1 ticket");
     });
 

@@ -104,6 +104,16 @@ describe("server (admin attendees)", () => {
       expect(html).toContain("John Doe");
       expect(html).toContain("type their name");
     });
+
+    test("includes return_url as hidden field when provided", async () => {
+      const { response } = await adminEventPage(
+        ctx => `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete?return_url=${encodeURIComponent("/admin/calendar#attendees")}`,
+      )();
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('name="return_url"');
+      expect(html).toContain("/admin/calendar#attendees");
+    });
   });
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/delete", () => {
@@ -171,6 +181,18 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("does not match");
+    });
+
+    test("preserves return_url on mismatched attendee name", async () => {
+      const returnUrl = "/admin/calendar#attendees";
+      const { response } = await deleteAction({
+        confirm_name: "Wrong Name",
+        return_url: returnUrl,
+      })();
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain('name="return_url"');
+      expect(html).toContain(returnUrl);
     });
 
     test("deletes attendee with matching name (case insensitive)", async () => {
@@ -371,6 +393,12 @@ describe("server (admin attendees)", () => {
       expect(location).toContain(`/admin/event/${event.id}?`);
       expect(location).not.toContain("/in?");
       expect(location).not.toContain("/out?");
+    });
+
+    test("redirects to return_url when provided", async () => {
+      const { response } = await checkinAction({ return_url: "/admin/calendar?date=2026-03-15#attendees" })();
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/calendar?date=2026-03-15#attendees");
     });
 
     test("checks out an already checked-in attendee", async () => {
@@ -769,6 +797,21 @@ describe("server (admin attendees)", () => {
       expect(html).toContain("VIP guest");
     });
 
+    test("includes return_url as hidden field when provided", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}?return_url=${encodeURIComponent("/admin/calendar#attendees")}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('name="return_url"');
+      expect(html).toContain("/admin/calendar#attendees");
+    });
+
     test("shows event selector with current event selected", async () => {
       const event = await createTestEvent({ name: "Current Event", maxAttendees: 100 });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
@@ -888,6 +931,34 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(400);
       const html = await response.text();
       expect(html).toContain("Name is required");
+    });
+
+    test("preserves return_url on edit validation error", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const returnUrl = "/admin/calendar#attendees";
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "",
+            email: "jane@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            csrf_token: csrfToken,
+            return_url: returnUrl,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain('name="return_url"');
+      expect(html).toContain(returnUrl);
     });
 
     test("rejects whitespace-only name", async () => {
@@ -1229,6 +1300,16 @@ describe("server (admin attendees)", () => {
       expect(html).toContain("Re-send Webhook");
       expect(html).toContain("John Doe");
       expect(html).toContain("type their name");
+    });
+
+    test("includes return_url as hidden field when provided", async () => {
+      const { response } = await adminEventPage(
+        ctx => `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-webhook?return_url=${encodeURIComponent("/admin/calendar#attendees")}`,
+      )();
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('name="return_url"');
+      expect(html).toContain("/admin/calendar#attendees");
     });
 
     test("shows amount paid on resend webhook page for paid attendee", async () => {

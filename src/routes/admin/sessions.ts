@@ -23,7 +23,7 @@ const handleAdminSessionsGet = (request: Request): Promise<Response> =>
     const tokenHash = await hashSessionToken(session.token);
     const success = getSearchParam(request, "success");
     return htmlResponse(
-      adminSessionsPage(sessions, tokenHash, session, success ?? undefined),
+      adminSessionsPage(sessions, tokenHash, session, success),
     );
   });
 

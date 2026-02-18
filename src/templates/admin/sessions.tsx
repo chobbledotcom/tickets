@@ -33,7 +33,7 @@ export const adminSessionsPage = (
   sessions: Session[],
   currentToken: string,
   adminSession: AdminSession,
-  success?: string,
+  success: string,
 ): string => {
   const sessionRows =
     sessions.length > 0

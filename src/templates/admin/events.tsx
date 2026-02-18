@@ -19,6 +19,7 @@ import { eventFields, getAddAttendeeFields, imageField, slugField } from "#templ
 import { EventGroupSelect } from "#templates/admin/group-select.tsx";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
 
 /** Date option for the date filter dropdown */
 export type DateOption = { value: string; label: string };
@@ -26,7 +27,8 @@ export type DateOption = { value: string; label: string };
 /** Attendee filter type */
 export type AttendeeFilter = "all" | "in" | "out";
 
-const joinStrings = reduce((acc: string, s: string) => acc + s, "");
+/** Re-export formatAddressInline from shared module for backwards compatibility */
+export { formatAddressInline } from "#templates/attendee-table.tsx";
 
 /** Calculate total revenue in cents from attendees */
 export const calculateTotalRevenue = (attendees: Attendee[]): number =>
@@ -38,75 +40,6 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
 export const nearCapacity = (event: EventWithCount): boolean =>
   event.attendee_count >= event.max_attendees * 0.9;
 
-/** Format a multi-line address for inline display */
-export const formatAddressInline = (address: string): string => {
-  if (!address) return "";
-  return address
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line)
-    .reduce((acc, line) => {
-      if (!acc) return line;
-      // If previous part already ends with comma, just add space
-      return acc.endsWith(",") ? `${acc} ${line}` : `${acc}, ${line}`;
-    }, "");
-};
-
-
-const CheckinButton = ({ a, eventId, csrfToken, activeFilter }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter }): string => {
-  const isCheckedIn = a.checked_in === "true";
-  const label = isCheckedIn ? "Check out" : "Check in";
-  const buttonClass = isCheckedIn ? "link-button checkout" : "link-button checkin";
-  return String(
-    <CsrfForm
-      action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
-      csrfToken={csrfToken}
-      class="inline"
-    >
-      <input type="hidden" name="return_filter" value={activeFilter} />
-      <button type="submit" class={buttonClass}>
-        {label}
-      </button>
-    </CsrfForm>
-  );
-};
-
-const AttendeeRow = ({ a, eventId, csrfToken, activeFilter, allowedDomain, showDate, hasPaidEvent }: { a: Attendee; eventId: number; csrfToken: string; activeFilter: AttendeeFilter; allowedDomain: string; showDate: boolean; hasPaidEvent: boolean }): string =>
-  String(
-    <tr>
-      <td>
-        <Raw html={CheckinButton({ a, eventId, csrfToken, activeFilter })} />
-      </td>
-      {showDate && <td>{a.date ? formatDateLabel(a.date) : ""}</td>}
-      <td>{a.name}</td>
-      <td>{a.email || ""}</td>
-      <td>{a.phone || ""}</td>
-      <td>{formatAddressInline(a.address)}</td>
-      <td>{formatAddressInline(a.special_instructions)}</td>
-      <td>{a.quantity}</td>
-      <td><a href={`https://${allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
-      <td>{new Date(a.created).toLocaleString()}</td>
-      <td>
-        {hasPaidEvent && a.payment_id && (
-          <a href={`/admin/event/${eventId}/attendee/${a.id}/refund`} class="danger">
-            Refund
-          </a>
-        )}
-        {hasPaidEvent && a.payment_id && " "}
-        <a href={`/admin/attendees/${a.id}`}>
-          Edit
-        </a>
-        {" "}
-        <a href={`/admin/event/${eventId}/attendee/${a.id}/delete`} class="danger">
-          Delete
-        </a>
-        {" "}
-        <a href={`/admin/event/${eventId}/attendee/${a.id}/resend-webhook`}>
-          Re-send Webhook
-        </a>
-      </td>
-    </tr>
-  );
 
 /** Check-in message to display after toggling */
 export type CheckinMessage = { name: string; status: string } | null;
@@ -175,20 +108,21 @@ export const adminEventPage = ({
   const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);
   const hasPaidEvent = event.unit_price !== null;
-  const colSpan = isDaily ? 10 : 9;
-  const attendeeRows =
-    filteredAttendees.length > 0
-      ? pipe(
-          map((a: Attendee) => AttendeeRow({ a, eventId: event.id, csrfToken: session.csrfToken, activeFilter, allowedDomain, showDate: isDaily, hasPaidEvent })),
-          joinStrings,
-        )(filteredAttendees)
-      : `<tr><td colspan="${colSpan}">No attendees yet</td></tr>`;
+  const basePath = `/admin/event/${event.id}`;
+  const dateQs = dateFilter ? `?date=${dateFilter}` : "";
+  const suffix = filterSuffix(activeFilter);
+  const returnUrl = `${basePath}${suffix}${dateQs}#attendees`;
+  const tableRows: AttendeeTableRow[] = pipe(
+    map((a: Attendee): AttendeeTableRow => ({
+      attendee: a,
+      eventId: event.id,
+      eventName: event.name,
+      hasPaidEvent,
+    })),
+  )(filteredAttendees);
 
   const checkedInLabel = checkinMessage?.status === "in" ? "in" : "out";
   const checkedInClass = checkinMessage?.status === "in" ? "checkin-message-in" : "checkin-message-out";
-
-  const basePath = `/admin/event/${event.id}`;
-  const dateQs = dateFilter ? `?date=${dateFilter}` : "";
 
   return String(
     <Layout title={`Event: ${event.name}`}>
@@ -371,26 +305,15 @@ export const adminEventPage = ({
             <Raw html={FilterLink({ href: `${basePath}/out${dateQs}#attendees`, label: "Checked Out", active: activeFilter === "out" })} />
           </p>
           <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th></th>
-                  {isDaily && <th>Date</th>}
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                  <th>Address</th>
-                  <th>Special Instructions</th>
-                  <th>Qty</th>
-                  <th>Ticket</th>
-                  <th>Registered</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <Raw html={attendeeRows} />
-              </tbody>
-            </table>
+            <Raw html={AttendeeTable({
+              rows: tableRows,
+              allowedDomain,
+              csrfToken: session.csrfToken,
+              showEvent: false,
+              showDate: isDaily,
+              activeFilter,
+              returnUrl,
+            })} />
           </div>
         </article>
 

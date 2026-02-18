@@ -2,14 +2,13 @@
  * Admin calendar view template - shows attendees across all daily events by date
  */
 
-import { map, pipe, reduce } from "#fp";
+import { map, pipe } from "#fp";
 import { formatDateLabel } from "#lib/dates.ts";
 import type { AdminSession, Attendee } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
-
-const joinStrings = reduce((acc: string, s: string) => acc + s, "");
+import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
 
 /** Calendar date option for the date filter dropdown */
 export type CalendarDateOption = {
@@ -24,6 +23,7 @@ export type CalendarAttendeeRow = Attendee & {
   eventDate: string;
   eventLocation: string;
   eventId: number;
+  hasPaidEvent: boolean;
 };
 
 /** Build date selector dropdown for calendar view */
@@ -40,19 +40,6 @@ const CalendarDateSelector = ({ dateFilter, dates }: { dateFilter: string | null
   return `<select data-nav-select>${options}</select>`;
 };
 
-const AttendeeRow = ({ a, allowedDomain }: { a: CalendarAttendeeRow; allowedDomain: string }): string =>
-  String(
-    <tr>
-      <td><a href={`/admin/event/${a.eventId}`}>{a.eventName}</a></td>
-      <td>{a.name}</td>
-      <td>{a.email || ""}</td>
-      <td>{a.phone || ""}</td>
-      <td>{a.quantity}</td>
-      <td><a href={`https://${allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
-      <td>{new Date(a.created).toLocaleString()}</td>
-    </tr>
-  );
-
 /**
  * Admin calendar page - shows attendees across all daily events for a selected date
  */
@@ -63,15 +50,22 @@ export const adminCalendarPage = (
   dateFilter: string | null,
   availableDates: CalendarDateOption[],
 ): string => {
-  const attendeeRows =
-    attendees.length > 0
-      ? pipe(
-          map((a: CalendarAttendeeRow) => AttendeeRow({ a, allowedDomain })),
-          joinStrings,
-        )(attendees)
-      : dateFilter
-        ? '<tr><td colspan="7">No attendees for this date</td></tr>'
-        : '<tr><td colspan="7">Select a date above to view attendees</td></tr>';
+  const tableRows: AttendeeTableRow[] = pipe(
+    map((a: CalendarAttendeeRow): AttendeeTableRow => ({
+      attendee: a,
+      eventId: a.eventId,
+      eventName: a.eventName,
+      hasPaidEvent: a.hasPaidEvent,
+    })),
+  )(attendees);
+
+  const returnUrl = dateFilter
+    ? `/admin/calendar?date=${dateFilter}#attendees`
+    : "/admin/calendar#attendees";
+
+  const emptyMessage = dateFilter
+    ? "No attendees for this date"
+    : "Select a date above to view attendees";
 
   return String(
     <Layout title="Calendar">
@@ -89,22 +83,15 @@ export const adminCalendarPage = (
             <p><a href={`/admin/calendar/export?date=${dateFilter}`}>Export CSV</a></p>
           )}
           <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Event</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                  <th>Qty</th>
-                  <th>Ticket</th>
-                  <th>Registered</th>
-                </tr>
-              </thead>
-              <tbody>
-                <Raw html={attendeeRows} />
-              </tbody>
-            </table>
+            <Raw html={AttendeeTable({
+              rows: tableRows,
+              allowedDomain,
+              csrfToken: session.csrfToken,
+              showEvent: true,
+              showDate: false,
+              returnUrl,
+              emptyMessage,
+            })} />
           </div>
         </article>
     </Layout>
