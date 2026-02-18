@@ -3,7 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
-import { Raw } from "#jsx/jsx-runtime.ts";
+import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 
 const escapeHtml = (str: string): string =>
   str
@@ -260,3 +260,23 @@ export const validateForm = <T = FieldValues>(
  */
 export const renderError = (error?: string): string =>
   error ? String(<div class="error">{error}</div>) : "";
+
+/**
+ * Form component that always includes CSRF token.
+ * Renders a POST form with a hidden csrf_token input.
+ * Supports extra attributes like class and enctype for multipart forms.
+ */
+export const CsrfForm = (
+  { action, csrfToken, children, ...rest }: {
+    action: string;
+    csrfToken: string;
+    children?: Child;
+    class?: string;
+    enctype?: string;
+  },
+): JSX.Element => (
+  <form method="POST" action={action} {...rest}>
+    <input type="hidden" name="csrf_token" value={csrfToken} />
+    {children}
+  </form>
+);

@@ -5,7 +5,7 @@
 import { map, pipe } from "#fp";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
-import { renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -89,8 +89,7 @@ export const ticketPage = (
       ) : isFull ? (
           <div class="error">Sorry, this event is full.</div>
       ) : (
-          <form method="POST" action={`/ticket/${event.slug}${inIframe ? "?iframe=true" : ""}`}>
-            <input type="hidden" name="csrf_token" value={csrfToken} />
+          <CsrfForm action={`/ticket/${event.slug}${inIframe ? "?iframe=true" : ""}`} csrfToken={csrfToken}>
             <Raw html={renderFields(fields)} />
             {isDaily && availableDates && (
               <Raw html={renderDateSelector(availableDates)} />
@@ -109,7 +108,7 @@ export const ticketPage = (
               <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
             )}
             <button type="submit">Reserve Ticket{showQuantity ? "s" : ""}</button>
-          </form>
+          </CsrfForm>
       )}
     </Layout>
   );
@@ -232,8 +231,7 @@ export const multiTicketPage = (
       {allUnavailable ? (
         <div class="error">{allClosed ? "Registration closed." : "Sorry, all events are sold out."}</div>
       ) : (
-        <form method="POST" action={formAction}>
-          <input type="hidden" name="csrf_token" value={csrfToken} />
+        <CsrfForm action={formAction} csrfToken={csrfToken}>
           <Raw html={renderFields(fields)} />
           {hasDaily && availableDates && (
             <Raw html={renderDateSelector(availableDates)} />
@@ -248,7 +246,7 @@ export const multiTicketPage = (
             <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
           )}
           <button type="submit">Reserve Tickets</button>
-        </form>
+        </CsrfForm>
       )}
     </Layout>
   );

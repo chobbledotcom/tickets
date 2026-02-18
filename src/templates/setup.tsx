@@ -2,7 +2,7 @@
  * Setup page templates - initial configuration
  */
 
-import { renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { setupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -58,18 +58,17 @@ const DataControllerAgreement = (): JSX.Element => (
 /**
  * Initial setup page
  */
-export const setupPage = (error?: string, csrfToken?: string): string =>
+export const setupPage = (error: string | undefined, csrfToken: string): string =>
   String(
     <Layout title="Setup">
         <h1>Initial Setup</h1>
         <p>Welcome! Please configure your ticket reservation system.</p>
         <Raw html={renderError(error)} />
-        <form method="POST" action="/setup/">
-          {csrfToken && <input type="hidden" name="csrf_token" value={csrfToken} />}
+        <CsrfForm action="/setup/" csrfToken={csrfToken}>
           <Raw html={renderFields(setupFields, { currency_code: "GBP" })} />
           <DataControllerAgreement />
           <button type="submit">Complete Setup</button>
-        </form>
+        </CsrfForm>
     </Layout>
   );
 

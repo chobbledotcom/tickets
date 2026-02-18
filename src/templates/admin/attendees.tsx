@@ -3,6 +3,7 @@
  */
 
 import { pipe, unique, map } from "#fp";
+import { CsrfForm } from "#lib/forms.tsx";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -39,8 +40,7 @@ export const adminDeleteAttendeePage = (
 
         <p>To delete this attendee, you must type their name "{attendee.name}" into the box below:</p>
 
-        <form method="POST" action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`} csrfToken={session.csrfToken}>
           {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
           <label for="confirm_name">Attendee name</label>
           <input
@@ -54,7 +54,7 @@ export const adminDeleteAttendeePage = (
           <button type="submit" class="danger">
             Delete Attendee
           </button>
-        </form>
+        </CsrfForm>
     </Layout>
   );
 
@@ -91,8 +91,7 @@ export const adminRefundAttendeePage = (
 
         <p>To refund this attendee, you must type their name "{attendee.name}" into the box below:</p>
 
-        <form method="POST" action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`} csrfToken={session.csrfToken}>
           {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
           <label for="confirm_name">Attendee name</label>
           <input
@@ -106,7 +105,7 @@ export const adminRefundAttendeePage = (
           <button type="submit" class="danger">
             Refund Attendee
           </button>
-        </form>
+        </CsrfForm>
     </Layout>
   );
 
@@ -132,8 +131,7 @@ export const adminRefundAllAttendeesPage = (
 
         <p>To refund all attendees, you must type the event name "{event.name}" into the box below:</p>
 
-        <form method="POST" action={`/admin/event/${event.id}/refund-all`}>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <CsrfForm action={`/admin/event/${event.id}/refund-all`} csrfToken={session.csrfToken}>
           <label for="confirm_name">Event name</label>
           <input
             type="text"
@@ -146,7 +144,7 @@ export const adminRefundAllAttendeesPage = (
           <button type="submit" class="danger">
             Refund All Attendees
           </button>
-        </form>
+        </CsrfForm>
     </Layout>
   );
 
@@ -189,8 +187,7 @@ export const adminEditAttendeePage = (
 
         <h2>Edit Attendee</h2>
 
-        <form method="POST" action={`/admin/attendees/${attendee.id}`}>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <CsrfForm action={`/admin/attendees/${attendee.id}`} csrfToken={session.csrfToken}>
           {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
 
           <label for="name">
@@ -246,7 +243,7 @@ export const adminEditAttendeePage = (
           <Raw html={renderEventSelector(event.id, allEvents)} />
 
           <button type="submit">Save Changes</button>
-        </form>
+        </CsrfForm>
     </Layout>
   );
 
@@ -283,8 +280,7 @@ export const adminResendWebhookPage = (
 
         <p>To re-send the webhook for this attendee, you must type their name "{attendee.name}" into the box below:</p>
 
-        <form method="POST" action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`}>
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`} csrfToken={session.csrfToken}>
           {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
           <label for="confirm_name">Attendee name</label>
           <input
@@ -298,6 +294,6 @@ export const adminResendWebhookPage = (
           <button type="submit">
             Re-send Webhook
           </button>
-        </form>
+        </CsrfForm>
     </Layout>
   );

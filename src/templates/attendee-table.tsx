@@ -5,6 +5,7 @@
 
 import { map, pipe, reduce } from "#fp";
 import { formatDateLabel } from "#lib/dates.ts";
+import { CsrfForm } from "#lib/forms.tsx";
 import type { Attendee } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 
@@ -97,18 +98,17 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter, returnUrl }: {
   const label = isCheckedIn ? "Check out" : "Check in";
   const buttonClass = isCheckedIn ? "link-button checkout" : "link-button checkin";
   return String(
-    <form
-      method="POST"
+    <CsrfForm
       action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
+      csrfToken={csrfToken}
       class="inline"
     >
-      <input type="hidden" name="csrf_token" value={csrfToken} />
       <input type="hidden" name="return_filter" value={activeFilter} />
       {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
       <button type="submit" class={buttonClass}>
         {label}
       </button>
-    </form>
+    </CsrfForm>
   );
 };
 

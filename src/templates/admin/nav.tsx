@@ -2,6 +2,7 @@
  * Shared admin navigation component
  */
 
+import { CsrfForm } from "#lib/forms.tsx";
 import type { AdminSession } from "#lib/types.ts";
 
 interface AdminNavProps {
@@ -25,10 +26,9 @@ export const AdminNav = ({ session }: AdminNavProps): JSX.Element => (
       {session.adminLevel === "owner" && <li><a href="/admin/sessions">Sessions</a></li>}
       <li><a href="/admin/guide">Guide</a></li>
       <li>
-        <form class="inline" method="POST" action="/admin/logout">
-          <input type="hidden" name="csrf_token" value={session.csrfToken} />
+        <CsrfForm action="/admin/logout" csrfToken={session.csrfToken} class="inline">
           <button type="submit">Logout</button>
-        </form>
+        </CsrfForm>
       </li>
     </ul>
   </nav>

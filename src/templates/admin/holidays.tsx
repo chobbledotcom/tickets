@@ -2,7 +2,7 @@
  * Admin holiday management page templates
  */
 
-import { renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#lib/types.ts";
 import { holidayFields } from "#templates/fields.ts";
@@ -80,11 +80,10 @@ export const adminHolidayNewPage = (
       <Breadcrumb href="/admin/holidays" label="Holidays" />
       <h1>Add Holiday</h1>
       <Raw html={renderError(error)} />
-      <form method="POST" action="/admin/holiday">
-        <input type="hidden" name="csrf_token" value={session.csrfToken} />
+      <CsrfForm action="/admin/holiday" csrfToken={session.csrfToken}>
         <Raw html={renderFields(holidayFields)} />
         <button type="submit">Create Holiday</button>
-      </form>
+      </CsrfForm>
     </Layout>,
   );
 
@@ -102,11 +101,10 @@ export const adminHolidayEditPage = (
       <Breadcrumb href="/admin/holidays" label="Holidays" />
       <h1>Edit Holiday</h1>
       <Raw html={renderError(error)} />
-      <form method="POST" action={`/admin/holiday/${holiday.id}/edit`}>
-        <input type="hidden" name="csrf_token" value={session.csrfToken} />
+      <CsrfForm action={`/admin/holiday/${holiday.id}/edit`} csrfToken={session.csrfToken}>
         <Raw html={renderFields(holidayFields, holidayToFieldValues(holiday))} />
         <button type="submit">Save Changes</button>
-      </form>
+      </CsrfForm>
     </Layout>,
   );
 
@@ -128,13 +126,12 @@ export const adminHolidayDeletePage = (
         Are you sure you want to delete the holiday <strong>{holiday.name}</strong> ({holiday.start_date} to {holiday.end_date})?
       </p>
       <p>Type the holiday name to confirm:</p>
-      <form method="POST" action={`/admin/holiday/${holiday.id}/delete`}>
-        <input type="hidden" name="csrf_token" value={session.csrfToken} />
+      <CsrfForm action={`/admin/holiday/${holiday.id}/delete`} csrfToken={session.csrfToken}>
         <label>
           Holiday Name
           <input type="text" name="confirm_identifier" required />
         </label>
         <button type="submit">Delete Holiday</button>
-      </form>
+      </CsrfForm>
     </Layout>,
   );

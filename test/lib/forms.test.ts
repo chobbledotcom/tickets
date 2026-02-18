@@ -1,5 +1,6 @@
 import { describe, expect, test } from "#test-compat";
 import {
+  CsrfForm,
   type Field,
   renderError,
   renderField,
@@ -1066,6 +1067,35 @@ describe("forms", () => {
 
     test("rejects completely empty value", () => {
       expect(validateBookableDays("  ")).toBe("At least one day is required");
+    });
+  });
+
+  describe("CsrfForm", () => {
+    test("renders form with POST method and action", () => {
+      const html = String(CsrfForm({ action: "/submit", csrfToken: "tok123" }));
+      expect(html).toContain('<form method="POST" action="/submit"');
+      expect(html).toContain("</form>");
+    });
+
+    test("includes hidden csrf_token input", () => {
+      const html = String(CsrfForm({ action: "/submit", csrfToken: "tok123" }));
+      expect(html).toContain('<input type="hidden" name="csrf_token" value="tok123"');
+    });
+
+    test("passes through class attribute", () => {
+      const html = String(CsrfForm({ action: "/submit", csrfToken: "tok123", class: "inline" }));
+      expect(html).toContain('class="inline"');
+    });
+
+    test("passes through enctype for multipart forms", () => {
+      const html = String(CsrfForm({ action: "/upload", csrfToken: "tok123", enctype: "multipart/form-data" }));
+      expect(html).toContain('enctype="multipart/form-data"');
+    });
+
+    test("renders children inside the form", () => {
+      const html = String(CsrfForm({ action: "/submit", csrfToken: "tok123", children: "Submit here" }));
+      expect(html).toContain("Submit here");
+      expect(html).toContain("</form>");
     });
   });
 });

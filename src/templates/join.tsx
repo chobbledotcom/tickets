@@ -2,7 +2,7 @@
  * Join (invite) page templates
  */
 
-import { renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { joinFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -13,19 +13,18 @@ import { Layout } from "#templates/layout.tsx";
 export const joinPage = (
   code: string,
   username: string,
-  error?: string,
-  csrfToken?: string,
+  error: string | undefined,
+  csrfToken: string,
 ): string =>
   String(
     <Layout title="Set Your Password">
       <h1>Welcome, {username}</h1>
       <p>Set your password to complete your account setup.</p>
       <Raw html={renderError(error)} />
-      <form method="POST" action={`/join/${code}`}>
-        {csrfToken && <input type="hidden" name="csrf_token" value={csrfToken} />}
+      <CsrfForm action={`/join/${code}`} csrfToken={csrfToken}>
         <Raw html={renderFields(joinFields)} />
         <button type="submit">Set Password</button>
-      </form>
+      </CsrfForm>
     </Layout>
   );
 
