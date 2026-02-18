@@ -157,6 +157,7 @@ const result = await esbuild.build({
   format: "esm",
   minify: true,
   bundle: true,
+  external: ["node:async_hooks"],
   plugins: [esmShExternalsPlugin, inlineAssetsPlugin],
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
