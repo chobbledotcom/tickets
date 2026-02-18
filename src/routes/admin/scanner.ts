@@ -90,7 +90,8 @@ const handleScanPost = (request: Request, { id }: { id: number }): Promise<Respo
 
     // Check them in
     await updateCheckedIn(attendee.id, true);
-    await logActivity(`Attendee checked in via scanner`, attendee.event_id);
+    const eventName = await getEventName(attendee.event_id);
+    await logActivity(`Attendee checked in via scanner for '${eventName}'`, attendee.event_id);
 
     return jsonResponse({
       status: "checked_in",

@@ -353,7 +353,7 @@ describe("QR Scanner", () => {
         { cookie: session.cookie },
       );
       const logBody = await logResponse.text();
-      expect(logBody).toContain("checked in via scanner");
+      expect(logBody).toContain("checked in via scanner for 'Test Event 1'");
     });
   });
 
