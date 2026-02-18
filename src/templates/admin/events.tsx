@@ -202,7 +202,7 @@ export const adminEventPage = ({
                     </span>
                   )}
                   {isDaily && !dateFilter && (
-                    <small>Capacity of {event.max_attendees} applies per date</small>
+                    <>{" "}<small>Capacity of {event.max_attendees} applies per date</small></>
                   )}
                 </td>
               </tr>
