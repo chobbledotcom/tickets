@@ -121,12 +121,12 @@ const verifyAttendeeName = (
   data: AttendeeWithEvent,
   session: AuthSession,
   form: URLSearchParams,
-  renderPage: (event: EventWithCount, attendee: Attendee, session: AdminSession, error: string) => string,
+  renderPage: (data: AttendeeWithEvent, session: AdminSession, error: string) => string,
   errorMsg: string,
 ): Response | null => {
   const confirmName = form.get("confirm_name") ?? "";
   if (!verifyIdentifier(data.attendee.name, confirmName)) {
-    return htmlResponse(renderPage(data.event, data.attendee, session, errorMsg), 400);
+    return htmlResponse(renderPage(data, session, errorMsg), 400);
   }
   return null;
 };
@@ -145,7 +145,7 @@ const attendeeFormAction = (handler: AttendeeFormAction) =>
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAdminAttendeeDeleteGet = attendeeGetRoute((data, session, request) =>
-  htmlResponse(adminDeleteAttendeePage(data.event, data.attendee, session, undefined, getReturnUrl(request))));
+  htmlResponse(adminDeleteAttendeePage(data, session, undefined, getReturnUrl(request))));
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAttendeeDelete = attendeeFormAction(async (data, session, form, eventId, attendeeId) => {
@@ -182,12 +182,12 @@ const handleAttendeeCheckin = attendeeFormAction(async (data, _session, form, ev
 
 /** Render refund error for a single attendee */
 const refundError = (data: AttendeeWithEvent, session: AuthSession, msg: string): Response =>
-  htmlResponse(adminRefundAttendeePage(data.event, data.attendee, session, msg), 400);
+  htmlResponse(adminRefundAttendeePage(data, session, msg), 400);
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute((data, session, request) =>
   data.attendee.payment_id
-    ? htmlResponse(adminRefundAttendeePage(data.event, data.attendee, session, undefined, getReturnUrl(request)))
+    ? htmlResponse(adminRefundAttendeePage(data, session, undefined, getReturnUrl(request)))
     : refundError(data, session, NO_PAYMENT_ERROR));
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
@@ -407,9 +407,7 @@ const handleEditAttendeeGet = (
   requireSessionOr(request, (session) =>
     withEditAttendee(session, attendeeId, (data) =>
       htmlResponse(adminEditAttendeePage(
-        data.event,
-        data.attendee,
-        data.allEvents,
+        data,
         session,
         undefined,
         getReturnUrl(request),
@@ -432,9 +430,7 @@ const handleEditAttendeePost = (
 
     if (!name.trim()) {
       return htmlResponse(adminEditAttendeePage(
-        data.event,
-        data.attendee,
-        data.allEvents,
+        data,
         session,
         "Name is required",
       ), 400);
@@ -442,9 +438,7 @@ const handleEditAttendeePost = (
 
     if (!event_id) {
       return htmlResponse(adminEditAttendeePage(
-        data.event,
-        data.attendee,
-        data.allEvents,
+        data,
         session,
         "Event is required",
       ), 400);
@@ -466,7 +460,7 @@ const handleEditAttendeePost = (
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook */
 const handleAdminResendWebhookGet = attendeeGetRoute((data, session, request) =>
-  htmlResponse(adminResendWebhookPage(data.event, data.attendee, session, undefined, getReturnUrl(request))));
+  htmlResponse(adminResendWebhookPage(data, session, undefined, getReturnUrl(request))));
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook */
 const handleResendWebhook = attendeeFormAction(async (data, session, form, eventId) => {

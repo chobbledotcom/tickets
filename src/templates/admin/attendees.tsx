@@ -13,8 +13,7 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
  * Admin delete attendee confirmation page
  */
 export const adminDeleteAttendeePage = (
-  event: EventWithCount,
-  attendee: Attendee,
+  { event, attendee }: { event: EventWithCount; attendee: Attendee },
   session: AdminSession,
   error?: string,
   returnUrl?: string,
@@ -63,8 +62,7 @@ export const adminDeleteAttendeePage = (
  * Admin refund attendee confirmation page
  */
 export const adminRefundAttendeePage = (
-  event: EventWithCount,
-  attendee: Attendee,
+  { event, attendee }: { event: EventWithCount; attendee: Attendee },
   session: AdminSession,
   error?: string,
   returnUrl?: string,
@@ -179,9 +177,7 @@ const renderEventSelector = (
  * Admin edit attendee page
  */
 export const adminEditAttendeePage = (
-  event: EventWithCount,
-  attendee: Attendee,
-  allEvents: EventWithCount[],
+  { event, attendee, allEvents }: { event: EventWithCount; attendee: Attendee; allEvents: EventWithCount[] },
   session: AdminSession,
   error?: string,
   returnUrl?: string,
@@ -258,8 +254,7 @@ export const adminEditAttendeePage = (
  * Admin re-send webhook confirmation page
  */
 export const adminResendWebhookPage = (
-  event: EventWithCount,
-  attendee: Attendee,
+  { event, attendee }: { event: EventWithCount; attendee: Attendee },
   session: AdminSession,
   error?: string,
   returnUrl?: string,
