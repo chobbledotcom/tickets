@@ -27,7 +27,7 @@ describe("owner debug footer", () => {
   test("owner sees footer on admin dashboard", async () => {
     const { response } = await adminGet("/admin/");
     const html = await response.text();
-    expect(html).toContain("Chobble Tickets |");
+    expect(html).toContain("Chobble Tickets");
     expect(html).toContain("<details>");
     expect(html).toContain("<summary>");
   });
@@ -48,18 +48,16 @@ describe("owner debug footer", () => {
     expect(bodyCloseIdx).toBeGreaterThan(footerIdx);
   });
 
-  test("footer has correct styling", async () => {
+  test("footer uses debug-footer CSS class", async () => {
     const { response } = await adminGet("/admin/");
     const html = await response.text();
-    expect(html).toContain("margin-top:5rem");
-    expect(html).toContain("opacity:0.6");
-    expect(html).toContain("font-size:smaller");
+    expect(html).toContain('class="debug-footer"');
   });
 
   test("unauthenticated users do not see footer", async () => {
     const response = await handleRequest(mockRequest("/admin/"));
     const html = await response.text();
-    expect(html).not.toContain("Chobble Tickets |");
+    expect(html).not.toContain("Chobble Tickets");
   });
 
   test("manager does not see footer", async () => {
@@ -110,7 +108,7 @@ describe("owner debug footer", () => {
     const response = await awaitTestRequest("/admin/", { cookie: managerCookie });
     const html = await response.text();
     expect(html).toContain("Events");
-    expect(html).not.toContain("Chobble Tickets |");
+    expect(html).not.toContain("Chobble Tickets");
   });
 
   test("footer not injected for POST responses", async () => {
@@ -120,13 +118,13 @@ describe("owner debug footer", () => {
       mockFormRequest("/admin/logout", { csrf_token: csrfToken }, cookie),
     );
     const body = await response.text();
-    expect(body).not.toContain("Chobble Tickets |");
+    expect(body).not.toContain("Chobble Tickets");
   });
 
   test("owner sees footer on other admin pages", async () => {
     const { response } = await adminGet("/admin/settings");
     const html = await response.text();
-    expect(html).toContain("Chobble Tickets |");
+    expect(html).toContain("Chobble Tickets");
   });
 
   test("footer not injected for non-HTML GET responses", async () => {
@@ -134,7 +132,7 @@ describe("owner debug footer", () => {
     const { response } = await adminGet(`/admin/event/${event.id}/export`);
     expect(response.headers.get("content-type")).toContain("text/csv");
     const body = await response.text();
-    expect(body).not.toContain("Chobble Tickets |");
+    expect(body).not.toContain("Chobble Tickets");
   });
 
   test("returns null for unmatched admin GET routes", async () => {

@@ -1029,3 +1029,15 @@ button.secondary:hover {
     box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
   }
 }
+
+/* Owner debug footer */
+.debug-footer {
+  margin-top: 5rem;
+  font-size: smaller;
+  opacity: 0.6;
+}
+
+.debug-footer ul {
+  font-family: monospace;
+  font-size: small;
+}

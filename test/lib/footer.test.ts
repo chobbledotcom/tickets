@@ -4,7 +4,13 @@ import { ownerFooterHtml } from "#templates/admin/footer.tsx";
 describe("ownerFooterHtml", () => {
   test("renders summary with render time", () => {
     const html = ownerFooterHtml(42.7, []);
-    expect(html).toContain("Chobble Tickets | 43ms");
+    expect(html).toContain("43ms");
+  });
+
+  test("links to the GitHub repo", () => {
+    const html = ownerFooterHtml(10, []);
+    expect(html).toContain('href="https://github.com/chobbledotcom/tickets"');
+    expect(html).toContain("Chobble Tickets</a>");
   });
 
   test("wraps content in a details/summary element", () => {
@@ -21,23 +27,9 @@ describe("ownerFooterHtml", () => {
     expect(html).toContain("</footer>");
   });
 
-  test("applies 5rem margin-top", () => {
+  test("uses the debug-footer CSS class", () => {
     const html = ownerFooterHtml(10, []);
-    expect(html).toContain("margin-top:5rem");
-  });
-
-  test("uses smaller font and 0.6 opacity", () => {
-    const html = ownerFooterHtml(10, []);
-    expect(html).toContain("font-size:smaller");
-    expect(html).toContain("opacity:0.6");
-  });
-
-  test("renders queries in monospace font", () => {
-    const html = ownerFooterHtml(10, [
-      { sql: "SELECT * FROM events", durationMs: 5.2 },
-    ]);
-    expect(html).toContain("font-family:monospace");
-    expect(html).toContain("font-size:small");
+    expect(html).toContain('class="debug-footer"');
   });
 
   test("lists each query with its duration", () => {

@@ -9,10 +9,11 @@ export const ownerFooterHtml = (
   renderTimeMs: number,
   queries: QueryLogEntry[],
 ): string =>
-  `<footer style="margin-top:5rem;font-size:smaller;opacity:0.6">` +
+  `<footer class="debug-footer">` +
+  `<p><a href="https://github.com/chobbledotcom/tickets">Chobble Tickets</a></p>` +
   `<details>` +
-  `<summary>Chobble Tickets | ${renderTimeMs.toFixed(0)}ms</summary>` +
-  `<ul style="font-family:monospace;font-size:small">` +
+  `<summary>${renderTimeMs.toFixed(0)}ms</summary>` +
+  `<ul>` +
   queries
     .map(
       (q) =>
