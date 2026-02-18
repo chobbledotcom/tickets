@@ -204,28 +204,30 @@ describe("server (admin settings)", () => {
     });
 
     test("returns error when password update fails", async () => {
-      const settingsApi = await import("#lib/db/settings.ts");
-      await withMocks(
-        () => spyOn(settingsApi, "updateUserPassword").mockResolvedValue(false),
-        async () => {
-          const { cookie, csrfToken } = await loginAsAdmin();
-          const response = await handleRequest(
-            mockFormRequest(
-              "/admin/settings",
-              {
-                current_password: TEST_ADMIN_PASSWORD,
-                new_password: "newpassword123",
-                new_password_confirm: "newpassword123",
-                csrf_token: csrfToken,
-              },
-              cookie,
-            ),
-          );
-          expect(response.status).toBe(500);
-          const html = await response.text();
-          expect(html).toContain("Failed to update password");
-        },
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Corrupt the wrapped_data_key so updateUserPassword fails to unwrap it
+      const { getDb } = await import("#lib/db/client.ts");
+      await getDb().execute({
+        sql: "UPDATE users SET wrapped_data_key = ?",
+        args: ["corrupted-key-data"],
+      });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings",
+          {
+            current_password: TEST_ADMIN_PASSWORD,
+            new_password: "newpassword123",
+            new_password_confirm: "newpassword123",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
       );
+      expect(response.status).toBe(500);
+      const html = await response.text();
+      expect(html).toContain("Failed to update password");
     });
   });
 
@@ -464,7 +466,7 @@ describe("server (admin settings)", () => {
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(decodeURIComponent(location)).toContain("Embed host restrictions removed");
-      expect(await getEmbedHostsFromDb()).toBe("");
+      expect(await getEmbedHostsFromDb()).toBe(null);
     });
 
     test("rejects invalid embed host pattern", async () => {
