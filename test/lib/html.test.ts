@@ -202,22 +202,24 @@ describe("html", () => {
       expect(html).toContain("/admin/");
     });
 
-    test("shows phone column in attendee table", () => {
-      const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
-      expect(html).toContain("<th>Phone</th>");
-    });
-
-    test("shows attendee phone in table row", () => {
+    test("shows phone column when attendee has phone", () => {
       const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).toContain("<th>Phone</th>");
       expect(html).toContain("+1 555 123 4567");
     });
 
-    test("renders empty string for attendee without email", () => {
+    test("hides phone column when no attendees have phone", () => {
+      const attendees = [testAttendee({ phone: "" })];
+      const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).not.toContain("<th>Phone</th>");
+    });
+
+    test("hides email column when no attendees have email", () => {
       const attendees = [testAttendee({ email: "" })];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).toContain("John Doe");
-      expect(html).toContain("<td></td>");
+      expect(html).not.toContain("<th>Email</th>");
     });
 
     test("shows danger-text class when near capacity", () => {
@@ -1336,6 +1338,7 @@ describe("html", () => {
       eventDate: "",
       eventLocation: "",
       eventId: 1,
+      hasPaidEvent: false,
       date: "2026-03-15",
       ...overrides,
     });
@@ -1443,6 +1446,7 @@ describe("html", () => {
       eventDate: "",
       eventLocation: "",
       eventId: 1,
+      hasPaidEvent: false,
       date: "2026-03-15",
       ...overrides,
     });

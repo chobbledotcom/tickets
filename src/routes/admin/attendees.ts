@@ -24,6 +24,7 @@ import { defineRoutes } from "#routes/router.ts";
 import { requirePrivateKey, verifyIdentifier, withDecryptedAttendees, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
   type AuthSession,
+  getSearchParam,
   htmlResponse,
   notFoundResponse,
   redirect,
@@ -85,13 +86,13 @@ type EventRouteParams = { id: number };
 /** Route params for attendee-scoped routes */
 type AttendeeRouteParams = { eventId: number; attendeeId: number };
 
-/** Auth + load attendee GET handler (shared by delete and refund GET routes) */
+/** Auth + load attendee GET handler (shared by delete, refund, and resend-webhook GET routes) */
 const attendeeGetRoute = (
-  handler: (data: AttendeeWithEvent, session: AuthSession) => Response | Promise<Response>,
+  handler: (data: AttendeeWithEvent, session: AuthSession, request: Request) => Response | Promise<Response>,
 ) =>
   (request: Request, { eventId, attendeeId }: AttendeeRouteParams): Promise<Response> =>
     requireSessionOr(request, (session) =>
-      withAttendee(session, eventId, attendeeId, (data) => handler(data, session)));
+      withAttendee(session, eventId, attendeeId, (data) => handler(data, session, request)));
 
 /** Auth + load attendee from form handler */
 const withAttendeeForm = (
@@ -105,12 +106,15 @@ const withAttendeeForm = (
       handler(data, session, form)));
 
 
-/** Map return_filter form value to URL suffix */
-const filterSuffix = (returnFilter: string | null): string => {
-  if (returnFilter === "in") return "/in";
-  if (returnFilter === "out") return "/out";
-  return "";
+/** Redirect to return_url from form if present, otherwise redirect to fallback */
+const redirectOrReturn = (form: URLSearchParams, fallback: string): Response => {
+  const returnUrl = form.get("return_url");
+  return redirect(returnUrl || fallback);
 };
+
+/** Read return_url from request query params */
+const getReturnUrl = (request: Request): string | undefined =>
+  getSearchParam(request, "return_url") ?? undefined;
 
 /** Verify confirm_name matches attendee name, returning error page on mismatch */
 const verifyAttendeeName = (
@@ -140,8 +144,8 @@ const attendeeFormAction = (handler: AttendeeFormAction) =>
       handler(data, session, form, eventId, attendeeId));
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/delete */
-const handleAdminAttendeeDeleteGet = attendeeGetRoute((data, session) =>
-  htmlResponse(adminDeleteAttendeePage(data.event, data.attendee, session)));
+const handleAdminAttendeeDeleteGet = attendeeGetRoute((data, session, request) =>
+  htmlResponse(adminDeleteAttendeePage(data.event, data.attendee, session, undefined, getReturnUrl(request))));
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/delete */
 const handleAttendeeDelete = attendeeFormAction(async (data, session, form, eventId, attendeeId) => {
@@ -151,7 +155,7 @@ const handleAttendeeDelete = attendeeFormAction(async (data, session, form, even
 
   await deleteAttendee(attendeeId);
   await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
-  return redirect(`/admin/event/${eventId}`);
+  return redirectOrReturn(form, `/admin/event/${eventId}`);
 });
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/checkin */
@@ -164,9 +168,13 @@ const handleAttendeeCheckin = attendeeFormAction(async (data, _session, form, ev
   const action = nowCheckedIn ? "checked in" : "checked out";
   await logActivity(`Attendee ${action}`, eventId);
 
+  const returnUrl = form.get("return_url");
+  if (returnUrl) return redirect(returnUrl);
+
   const name = encodeURIComponent(data.attendee.name);
   const status = nowCheckedIn ? "in" : "out";
-  const suffix = filterSuffix(form.get("return_filter"));
+  const filterValue = form.get("return_filter") ?? "";
+  const suffix = filterValue === "in" ? "/in" : filterValue === "out" ? "/out" : "";
   return redirect(
     `/admin/event/${eventId}${suffix}?checkin_name=${name}&checkin_status=${status}#message`,
   );
@@ -177,9 +185,9 @@ const refundError = (data: AttendeeWithEvent, session: AuthSession, msg: string)
   htmlResponse(adminRefundAttendeePage(data.event, data.attendee, session, msg), 400);
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/refund */
-const handleAdminAttendeeRefundGet = attendeeGetRoute((data, session) =>
+const handleAdminAttendeeRefundGet = attendeeGetRoute((data, session, request) =>
   data.attendee.payment_id
-    ? htmlResponse(adminRefundAttendeePage(data.event, data.attendee, session))
+    ? htmlResponse(adminRefundAttendeePage(data.event, data.attendee, session, undefined, getReturnUrl(request)))
     : refundError(data, session, NO_PAYMENT_ERROR));
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/refund */
@@ -204,7 +212,7 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
 
   await clearPaymentId(data.attendee.id);
   await logActivity(`Refund issued for attendee '${data.attendee.name}'`, eventId);
-  return redirect(`/admin/event/${eventId}`);
+  return redirectOrReturn(form, `/admin/event/${eventId}`);
 });
 
 /** Filter attendees that have a payment_id (refundable) */
@@ -379,31 +387,41 @@ const loadAttendeeForEdit = async (
   return { attendee, event, allEvents };
 };
 
+type EditAttendeeData = NonNullable<Awaited<ReturnType<typeof loadAttendeeForEdit>>>;
+
+/** Load attendee for edit, returning 404 if not found */
+const withEditAttendee = async (
+  session: AuthSession,
+  attendeeId: number,
+  handler: (data: EditAttendeeData) => Response | Promise<Response>,
+): Promise<Response> => {
+  const data = await loadAttendeeForEdit(session, attendeeId);
+  return data ? handler(data) : notFoundResponse();
+};
+
 /** Handle GET /admin/attendees/:attendeeId */
 const handleEditAttendeeGet = (
   request: Request,
   { attendeeId }: { attendeeId: number },
 ): Promise<Response> =>
-  requireSessionOr(request, async (session) => {
-    const data = await loadAttendeeForEdit(session, attendeeId);
-    if (!data) return notFoundResponse();
-
-    return htmlResponse(adminEditAttendeePage(
-      data.event,
-      data.attendee,
-      data.allEvents,
-      session,
-    ));
-  });
+  requireSessionOr(request, (session) =>
+    withEditAttendee(session, attendeeId, (data) =>
+      htmlResponse(adminEditAttendeePage(
+        data.event,
+        data.attendee,
+        data.allEvents,
+        session,
+        undefined,
+        getReturnUrl(request),
+      ))));
 
 /** Handle POST /admin/attendees/:attendeeId */
 const handleEditAttendeePost = (
   request: Request,
   { attendeeId }: { attendeeId: number },
 ): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
-    const data = await loadAttendeeForEdit(session, attendeeId);
-    if (!data) return notFoundResponse();
+  withAuthForm(request, (session, form) =>
+    withEditAttendee(session, attendeeId, async (data) => {
 
     const name = form.get("name")!;
     const email = form.get("email")!;
@@ -443,14 +461,12 @@ const handleEditAttendeePost = (
 
     await logActivity(`Attendee '${name}' updated`, event_id);
 
-    return redirect(
-      `/admin/event/${event_id}?edited=${encodeURIComponent(name)}#attendees`,
-    );
-  });
+    return redirectOrReturn(form, `/admin/event/${event_id}?edited=${encodeURIComponent(name)}#attendees`);
+  }));
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook */
-const handleAdminResendWebhookGet = attendeeGetRoute((data, session) =>
-  htmlResponse(adminResendWebhookPage(data.event, data.attendee, session)));
+const handleAdminResendWebhookGet = attendeeGetRoute((data, session, request) =>
+  htmlResponse(adminResendWebhookPage(data.event, data.attendee, session, undefined, getReturnUrl(request))));
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook */
 const handleResendWebhook = attendeeFormAction(async (data, session, form, eventId) => {
@@ -463,7 +479,7 @@ const handleResendWebhook = attendeeFormAction(async (data, session, form, event
     logAndNotifyRegistration(data.event, data.attendee, currency),
     logActivity(`Webhook re-sent for attendee '${data.attendee.name}'`, eventId),
   ]);
-  return redirect(`/admin/event/${eventId}`);
+  return redirectOrReturn(form, `/admin/event/${eventId}`);
 });
 
 /** Attendee routes */

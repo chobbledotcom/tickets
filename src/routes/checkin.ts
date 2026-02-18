@@ -5,6 +5,7 @@
  */
 
 import { map } from "#fp";
+import { getAllowedDomain } from "#lib/config.ts";
 import { decryptAttendees, updateCheckedIn } from "#lib/db/attendees.ts";
 import type { Attendee } from "#lib/types.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
@@ -45,7 +46,7 @@ const renderAdminView = async (
   const privateKey = (await getPrivateKey(session))!;
   const decrypted = await decryptAttendees(rawAttendees, privateKey);
   const entries = await resolveEntries(decrypted);
-  return htmlResponse(checkinAdminPage(entries, session.csrfToken, `/checkin/${tokens.join("+")}`, message));
+  return htmlResponse(checkinAdminPage(entries, session.csrfToken, `/checkin/${tokens.join("+")}`, message, getAllowedDomain()));
 };
 
 /** Handle GET /checkin/:tokens - show current status */

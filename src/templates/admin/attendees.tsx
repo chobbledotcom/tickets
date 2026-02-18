@@ -17,6 +17,7 @@ export const adminDeleteAttendeePage = (
   attendee: Attendee,
   session: AdminSession,
   error?: string,
+  returnUrl?: string,
 ): string =>
   String(
     <Layout title={`Delete Attendee: ${attendee.name}`}>
@@ -41,6 +42,7 @@ export const adminDeleteAttendeePage = (
 
         <form method="POST" action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}>
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
           <label for="confirm_name">Attendee name</label>
           <input
             type="text"
@@ -65,6 +67,7 @@ export const adminRefundAttendeePage = (
   attendee: Attendee,
   session: AdminSession,
   error?: string,
+  returnUrl?: string,
 ): string =>
   String(
     <Layout title={`Refund Attendee: ${attendee.name}`}>
@@ -92,6 +95,7 @@ export const adminRefundAttendeePage = (
 
         <form method="POST" action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}>
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
           <label for="confirm_name">Attendee name</label>
           <input
             type="text"
@@ -180,6 +184,7 @@ export const adminEditAttendeePage = (
   allEvents: EventWithCount[],
   session: AdminSession,
   error?: string,
+  returnUrl?: string,
 ): string =>
   String(
     <Layout title={`Edit Attendee: ${attendee.name}`}>
@@ -190,6 +195,7 @@ export const adminEditAttendeePage = (
 
         <form method="POST" action={`/admin/attendees/${attendee.id}`}>
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
 
           <label for="name">
             Name
@@ -256,6 +262,7 @@ export const adminResendWebhookPage = (
   attendee: Attendee,
   session: AdminSession,
   error?: string,
+  returnUrl?: string,
 ): string =>
   String(
     <Layout title={`Re-send Webhook: ${attendee.name}`}>
@@ -283,6 +290,7 @@ export const adminResendWebhookPage = (
 
         <form method="POST" action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`}>
           <input type="hidden" name="csrf_token" value={session.csrfToken} />
+          {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
           <label for="confirm_name">Attendee name</label>
           <input
             type="text"
