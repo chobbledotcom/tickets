@@ -104,6 +104,7 @@ const buildCalendarAttendees = (
       eventDate: event.date,
       eventLocation: event.location,
       eventId: event.id,
+      hasPaidEvent: event.unit_price !== null,
     };
   })(attendees);
 };

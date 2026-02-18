@@ -7,6 +7,7 @@ import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#template
 import { Breadcrumb } from "#templates/admin/nav.tsx";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
+import { adminUsersPage, type DisplayUser } from "#templates/admin/users.tsx";
 import { type CsvEventInfo, generateAttendeesCsv, generateCalendarCsv } from "#templates/csv.ts";
 import { adminCalendarPage, type CalendarAttendeeRow } from "#templates/admin/calendar.tsx";
 import {
@@ -202,22 +203,24 @@ describe("html", () => {
       expect(html).toContain("/admin/");
     });
 
-    test("shows phone column in attendee table", () => {
-      const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
-      expect(html).toContain("<th>Phone</th>");
-    });
-
-    test("shows attendee phone in table row", () => {
+    test("shows phone column when attendee has phone", () => {
       const attendees = [testAttendee({ phone: "+1 555 123 4567" })];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).toContain("<th>Phone</th>");
       expect(html).toContain("+1 555 123 4567");
     });
 
-    test("renders empty string for attendee without email", () => {
+    test("hides phone column when no attendees have phone", () => {
+      const attendees = [testAttendee({ phone: "" })];
+      const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).not.toContain("<th>Phone</th>");
+    });
+
+    test("hides email column when no attendees have email", () => {
       const attendees = [testAttendee({ email: "" })];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).toContain("John Doe");
-      expect(html).toContain("<td></td>");
+      expect(html).not.toContain("<th>Email</th>");
     });
 
     test("shows danger-text class when near capacity", () => {
@@ -1229,15 +1232,47 @@ describe("html", () => {
         { token: "abcdefghijklmnop", csrf_token: "csrf1", expires: Date.now() + 86400000, wrapped_data_key: null, user_id: 1 },
         { token: "qrstuvwxyz123456", csrf_token: "csrf2", expires: Date.now() + 86400000, wrapped_data_key: null, user_id: 2 },
       ];
-      const html = adminSessionsPage(sessions, "abcdefghijklmnop", TEST_SESSION);
+      const html = adminSessionsPage(sessions, "abcdefghijklmnop", TEST_SESSION, "");
       expect(html).toContain("abcdefgh...");
       expect(html).toContain("qrstuvwx...");
       expect(html).toContain("Current");
     });
 
     test("renders empty state when no sessions", () => {
-      const html = adminSessionsPage([], "some-token", TEST_SESSION);
+      const html = adminSessionsPage([], "some-token", TEST_SESSION, "");
       expect(html).toContain("No sessions");
+    });
+  });
+
+  describe("adminUsersPage", () => {
+    test("renders statuses and actions for different user states", () => {
+      const users: DisplayUser[] = [
+        { id: 1, username: "owner", adminLevel: "owner", hasPassword: true, hasDataKey: true },
+        { id: 2, username: "pending", adminLevel: "manager", hasPassword: true, hasDataKey: false },
+        { id: 3, username: "invited", adminLevel: "manager", hasPassword: false, hasDataKey: false },
+      ];
+      const html = adminUsersPage(users, TEST_SESSION, { inviteLink: "", success: "", error: "" });
+      expect(html).toContain("Active");
+      expect(html).toContain("Pending Activation");
+      expect(html).toContain("Invited");
+      expect(html).toContain('action="/admin/users/2/activate"');
+      expect(html).toContain('action="/admin/users/2/delete"');
+      expect(html).not.toContain('action="/admin/users/1/delete"');
+    });
+
+    test("renders invite, success, and error messages when provided", () => {
+      const users: DisplayUser[] = [
+        { id: 1, username: "owner", adminLevel: "owner", hasPassword: true, hasDataKey: true },
+      ];
+      const html = adminUsersPage(users, TEST_SESSION, {
+        inviteLink: "https://example.com/join/abc123",
+        success: "Invite created",
+        error: "Something went wrong",
+      });
+      expect(html).toContain("Invite link (share this with the new user)");
+      expect(html).toContain("https://example.com/join/abc123");
+      expect(html).toContain("Invite created");
+      expect(html).toContain("Something went wrong");
     });
   });
 
@@ -1303,8 +1338,8 @@ describe("html", () => {
         TEST_SESSION,
         false, // stripeKeyConfigured
         "square", // paymentProvider
-        undefined, // error
-        undefined, // success
+        "", // error
+        "", // success
         true, // squareTokenConfigured
         true, // squareWebhookConfigured
         "https://example.com/payment/webhook",
@@ -1318,8 +1353,8 @@ describe("html", () => {
         TEST_SESSION,
         false,
         "square",
-        undefined,
-        undefined,
+        "",
+        "",
         true,
         false, // squareWebhookConfigured = false
         "https://example.com/payment/webhook",
@@ -1336,6 +1371,7 @@ describe("html", () => {
       eventDate: "",
       eventLocation: "",
       eventId: 1,
+      hasPaidEvent: false,
       date: "2026-03-15",
       ...overrides,
     });
@@ -1443,6 +1479,7 @@ describe("html", () => {
       eventDate: "",
       eventLocation: "",
       eventId: 1,
+      hasPaidEvent: false,
       date: "2026-03-15",
       ...overrides,
     });

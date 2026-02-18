@@ -94,8 +94,8 @@ const getSettingsPageState = async () => {
 /** Render the settings page with current state */
 const renderSettingsPage = async (
   session: AuthSession,
-  error?: string,
-  success?: string,
+  error: string,
+  success: string,
 ) => {
   const state = await getSettingsPageState();
   return adminSettingsPage(
@@ -117,7 +117,7 @@ const renderSettingsPage = async (
 /** Render settings page with error at given status */
 const settingsPageWithError = (session: AuthSession) =>
   async (error: string, status: number): Promise<Response> => {
-    const html = await renderSettingsPage(session, error);
+    const html = await renderSettingsPage(session, error, "");
     return htmlResponse(html, status);
   };
 
@@ -137,7 +137,7 @@ const handleAdminSettingsGet = (request: Request): Promise<Response> =>
   requireOwnerOr(request, async (session) => {
     const success = getSearchParam(request, "success");
     return htmlResponse(
-      await renderSettingsPage(session, undefined, success ?? undefined),
+      await renderSettingsPage(session, "", success),
     );
   });
 

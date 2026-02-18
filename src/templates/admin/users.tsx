@@ -29,15 +29,15 @@ const userStatus = (user: DisplayUser): string => {
  * Admin user management page
  */
 export interface UsersPageOpts {
-  inviteLink?: string;
-  success?: string;
-  error?: string;
+  inviteLink: string;
+  success: string;
+  error: string;
 }
 
 export const adminUsersPage = (
   users: DisplayUser[],
   session: AdminSession,
-  opts?: UsersPageOpts,
+  opts: UsersPageOpts,
 ): string =>
   String(
     <Layout title="Users">
@@ -46,10 +46,10 @@ export const adminUsersPage = (
       <p>
         <a href="/admin/guide#user-classes">User roles and permissions</a>
       </p>
-      <Raw html={renderError(opts?.error)} />
-      {opts?.success && <div class="success">{opts.success}</div>}
+      <Raw html={renderError(opts.error)} />
+      {opts.success && <div class="success">{opts.success}</div>}
 
-      {opts?.inviteLink && (
+      {opts.inviteLink && (
         <div class="success">
           <p>Invite link (share this with the new user):</p>
           <code>{opts.inviteLink}</code>
