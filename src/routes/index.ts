@@ -174,7 +174,7 @@ const logAndReturn = (
 /**
  * Handle incoming requests with security headers and domain validation
  */
-export const handleRequest = async (
+export const handleRequest = (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
