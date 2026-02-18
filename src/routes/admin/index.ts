@@ -65,8 +65,9 @@ export const routeAdmin: RouterFn = async (request, path, method, server) => {
     if (!isOwner) return response;
 
     if (response.status !== 200) return response;
-    const contentType = response.headers.get("content-type");
-    if (!contentType || !contentType.includes("text/html")) return response;
+    if (!response.headers.get("content-type")!.includes("text/html")) {
+      return response;
+    }
 
     const html = await response.text();
     const footer = ownerFooterHtml(
