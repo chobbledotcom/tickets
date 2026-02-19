@@ -3,7 +3,7 @@
  * across the event detail, check-in, and calendar views.
  */
 
-import { map, pipe, reduce } from "#fp";
+import { map, pipe, reduce, sort } from "#fp";
 import { formatDateLabel } from "#lib/dates.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import type { Attendee } from "#lib/types.ts";
@@ -81,6 +81,34 @@ const countColumns = (vis: Visibility): number => {
   if (vis.showSpecialInstructions) count++;
   return count;
 };
+
+/** Compare attendee rows for deterministic table ordering */
+const compareAttendeeRows = (a: AttendeeTableRow, b: AttendeeTableRow): number => {
+  // 1. Event date: rows with dates first, then ascending
+  const dateA = a.attendee.date ?? "";
+  const dateB = b.attendee.date ?? "";
+  if (dateA !== "" || dateB !== "") {
+    if (dateA === "") return 1;
+    if (dateB === "") return -1;
+    const dateCmp = dateA.localeCompare(dateB);
+    if (dateCmp !== 0) return dateCmp;
+  }
+
+  // 2. Event name
+  const nameCmp = a.eventName.localeCompare(b.eventName);
+  if (nameCmp !== 0) return nameCmp;
+
+  // 3. Attendee name
+  const attendeeCmp = a.attendee.name.localeCompare(b.attendee.name);
+  if (attendeeCmp !== 0) return attendeeCmp;
+
+  // 4. Attendee id
+  return a.attendee.id - b.attendee.id;
+};
+
+/** Sort attendee rows by date, event name, attendee name, then id */
+export const sortAttendeeRows: (rows: AttendeeTableRow[]) => AttendeeTableRow[] =
+  sort(compareAttendeeRows);
 
 /** Build a return_url query suffix for action links */
 const returnSuffix = (returnUrl: string | undefined): string =>
@@ -176,14 +204,15 @@ const AttendeeRow = ({ row, vis, opts }: {
 
 /** Render the unified attendee table */
 export const AttendeeTable = (opts: AttendeeTableOptions): string => {
-  const vis = computeVisibility(opts.rows, opts);
+  const sortedRows = sortAttendeeRows(opts.rows);
+  const vis = computeVisibility(sortedRows, opts);
   const colCount = countColumns(vis);
 
-  const rows = opts.rows.length > 0
+  const rows = sortedRows.length > 0
     ? pipe(
         map((row: AttendeeTableRow) => AttendeeRow({ row, vis, opts })),
         joinStrings,
-      )(opts.rows)
+      )(sortedRows)
     : `<tr><td colspan="${colCount}">${opts.emptyMessage ?? "No attendees yet"}</td></tr>`;
 
   return String(

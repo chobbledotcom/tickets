@@ -1,5 +1,5 @@
 import { describe, expect, test } from "#test-compat";
-import { AttendeeTable, type AttendeeTableOptions, type AttendeeTableRow, formatAddressInline } from "#templates/attendee-table.tsx";
+import { AttendeeTable, type AttendeeTableOptions, type AttendeeTableRow, formatAddressInline, sortAttendeeRows } from "#templates/attendee-table.tsx";
 import { testAttendee } from "#test-utils";
 
 const CSRF_TOKEN = "test-csrf-token";
@@ -288,6 +288,80 @@ describe("AttendeeTable", () => {
       const html = AttendeeTable(makeOpts({ rows: [], showEvent: true, showDate: true }));
       expect(html).toContain('colspan="8"');
     });
+  });
+});
+
+describe("sortAttendeeRows", () => {
+  test("sorts by event date ascending, null dates last", () => {
+    const rows = [
+      makeRow({ attendee: testAttendee({ id: 1, date: null }), eventName: "A" }),
+      makeRow({ attendee: testAttendee({ id: 2, date: "2026-03-01" }), eventName: "A" }),
+      makeRow({ attendee: testAttendee({ id: 3, date: "2026-01-15" }), eventName: "A" }),
+    ];
+    const sorted = sortAttendeeRows(rows);
+    expect(sorted.map((r) => r.attendee.id)).toEqual([3, 2, 1]);
+  });
+
+  test("sorts by event name when dates are equal", () => {
+    const rows = [
+      makeRow({ attendee: testAttendee({ id: 1, date: "2026-03-01" }), eventName: "Zebra" }),
+      makeRow({ attendee: testAttendee({ id: 2, date: "2026-03-01" }), eventName: "Alpha" }),
+    ];
+    const sorted = sortAttendeeRows(rows);
+    expect(sorted.map((r) => r.attendee.id)).toEqual([2, 1]);
+  });
+
+  test("sorts by attendee name when date and event name are equal", () => {
+    const rows = [
+      makeRow({ attendee: testAttendee({ id: 1, name: "Zara" }), eventName: "Gala" }),
+      makeRow({ attendee: testAttendee({ id: 2, name: "Alice" }), eventName: "Gala" }),
+    ];
+    const sorted = sortAttendeeRows(rows);
+    expect(sorted.map((r) => r.attendee.id)).toEqual([2, 1]);
+  });
+
+  test("sorts by id when all other fields are equal", () => {
+    const rows = [
+      makeRow({ attendee: testAttendee({ id: 5, name: "Sam" }), eventName: "Gala" }),
+      makeRow({ attendee: testAttendee({ id: 2, name: "Sam" }), eventName: "Gala" }),
+    ];
+    const sorted = sortAttendeeRows(rows);
+    expect(sorted.map((r) => r.attendee.id)).toEqual([2, 5]);
+  });
+
+  test("applies full multi-key sort order", () => {
+    const rows = [
+      makeRow({ attendee: testAttendee({ id: 1, name: "Bob", date: "2026-02-01" }), eventName: "Concert" }),
+      makeRow({ attendee: testAttendee({ id: 2, name: "Alice", date: null }), eventName: "Gala" }),
+      makeRow({ attendee: testAttendee({ id: 3, name: "Alice", date: "2026-01-15" }), eventName: "Concert" }),
+      makeRow({ attendee: testAttendee({ id: 4, name: "Alice", date: "2026-02-01" }), eventName: "Concert" }),
+    ];
+    const sorted = sortAttendeeRows(rows);
+    // date 2026-01-15 first, then 2026-02-01 (Alice before Bob by name), then null date last
+    expect(sorted.map((r) => r.attendee.id)).toEqual([3, 4, 1, 2]);
+  });
+
+  test("does not mutate the original array", () => {
+    const rows = [
+      makeRow({ attendee: testAttendee({ id: 2 }), eventName: "B" }),
+      makeRow({ attendee: testAttendee({ id: 1 }), eventName: "A" }),
+    ];
+    const original = [...rows];
+    sortAttendeeRows(rows);
+    expect(rows.map((r) => r.attendee.id)).toEqual(original.map((r) => r.attendee.id));
+  });
+});
+
+describe("AttendeeTable sorting", () => {
+  test("renders rows in sorted order", () => {
+    const rows = [
+      makeRow({ attendee: testAttendee({ id: 1, name: "Zara" }), eventName: "B Event" }),
+      makeRow({ attendee: testAttendee({ id: 2, name: "Alice" }), eventName: "A Event" }),
+    ];
+    const html = AttendeeTable(makeOpts({ rows, showEvent: true }));
+    const nameIdx1 = html.indexOf("Alice");
+    const nameIdx2 = html.indexOf("Zara");
+    expect(nameIdx1).toBeLessThan(nameIdx2);
   });
 });
 
