@@ -233,12 +233,28 @@ export const getSearchParam = (
 };
 
 /**
+ * Clone a response with new headers, materializing the body to avoid
+ * ReadableStream pass-through issues on Bunny Edge.
+ */
+export const cloneResponse = async (
+  response: Response,
+  headers: Headers,
+): Promise<Response> => {
+  const body = response.body ? await response.arrayBuffer() : null;
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+};
+
+/**
  * Add cookie header to response
  */
-export const withCookie = (response: Response, cookie: string): Response => {
+export const withCookie = (response: Response, cookie: string): Promise<Response> => {
   const headers = new Headers(response.headers);
   headers.append("set-cookie", cookie);
-  return new Response(response.body, { status: response.status, headers });
+  return cloneResponse(response, headers);
 };
 
 /** Handler function that takes a value and returns a Response */

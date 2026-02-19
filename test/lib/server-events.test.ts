@@ -2227,26 +2227,26 @@ describe("server (admin events)", () => {
   });
 
   describe("withCookie", () => {
-    test("adds a cookie to a response without existing cookies", () => {
+    test("adds a cookie to a response without existing cookies", async () => {
       const response = new Response("body", { status: 200 });
-      const result = withCookie(response, "session=abc; Path=/");
+      const result = await withCookie(response, "session=abc; Path=/");
       expect(result.headers.get("set-cookie")).toBe("session=abc; Path=/");
     });
 
-    test("preserves existing set-cookie headers when adding another", () => {
+    test("preserves existing set-cookie headers when adding another", async () => {
       const headers = new Headers();
       headers.append("set-cookie", "first=one; Path=/");
       const response = new Response("body", { status: 200, headers });
-      const result = withCookie(response, "second=two; Path=/");
+      const result = await withCookie(response, "second=two; Path=/");
       const cookies = result.headers.getSetCookie();
       expect(cookies.length).toBe(2);
       expect(cookies).toContain("first=one; Path=/");
       expect(cookies).toContain("second=two; Path=/");
     });
 
-    test("preserves response status", () => {
+    test("preserves response status", async () => {
       const response = new Response("body", { status: 201 });
-      const result = withCookie(response, "session=abc; Path=/");
+      const result = await withCookie(response, "session=abc; Path=/");
       expect(result.status).toBe(201);
     });
   });

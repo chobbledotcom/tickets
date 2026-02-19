@@ -6,6 +6,7 @@ import { compact } from "#fp";
 import { getAllowedDomain, getEmbedHosts } from "#lib/config.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
+import { cloneResponse } from "#routes/utils.ts";
 
 /**
  * Security headers for all responses
@@ -157,9 +158,5 @@ export const applySecurityHeaders = async (
     }
   }
 
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+  return cloneResponse(response, headers);
 };
