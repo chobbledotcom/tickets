@@ -268,7 +268,7 @@ export const stripeApi: {
       email: intent.email,
       successUrl: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
-      metadata: buildSingleIntentMetadata(event.id, intent),
+      metadata: buildSingleIntentMetadata(event.id, event.unit_price ?? 0, intent),
     });
     if (!config) {
       logDebug("Stripe", `Session params returned null for event=${event.id} (missing unit_price?)`);

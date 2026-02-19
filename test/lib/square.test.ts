@@ -670,8 +670,8 @@ describe("square", () => {
           expect(args.order.metadata.phone).toBe("555-1111");
           const items = JSON.parse(args.order.metadata.items);
           expect(items).toHaveLength(2);
-          expect(items[0]).toEqual({ e: 10, q: 2 });
-          expect(items[1]).toEqual({ e: 20, q: 1 });
+          expect(items[0]).toEqual({ e: 10, q: 2, p: 1500 });
+          expect(items[1]).toEqual({ e: 20, q: 1, p: 3000 });
 
           // Verify location and checkout options
           expect(args.order.locationId).toBe("L_multi_loc");

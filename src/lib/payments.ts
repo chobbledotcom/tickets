@@ -55,6 +55,7 @@ export type SessionMetadata = {
   address?: string;
   special_instructions?: string;
   quantity?: string;
+  unit_price?: string;
   multi?: string;
   items?: string;
   date?: string;

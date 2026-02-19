@@ -2113,8 +2113,8 @@ describe("server (webhooks)", () => {
                 email: "multimismatch@example.com",
                 multi: "1",
                 items: JSON.stringify([
-                  { e: event1.id, q: 1 },
-                  { e: event2.id, q: 2 },
+                  { e: event1.id, q: 1, p: 400 },
+                  { e: event2.id, q: 2, p: 300 },
                 ]),
               },
             },
@@ -2176,6 +2176,7 @@ describe("server (webhooks)", () => {
           name: "Redirect Mismatch",
           email: "redirect@example.com",
           quantity: "1",
+          unit_price: "800",
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>

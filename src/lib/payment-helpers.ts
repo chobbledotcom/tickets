@@ -55,6 +55,7 @@ export const serializeMultiItems = (
     map((i: MultiRegistrationIntent["items"][number]) => ({
       e: i.eventId,
       q: i.quantity,
+      p: i.unitPrice,
     }))(items),
   );
 
@@ -74,16 +75,18 @@ type SingleIntentMetadata = Pick<ContactInfo, "name" | "email"> & Partial<Pick<C
 
 /**
  * Build intent metadata for a single-event checkout.
- * Common fields: event_id, name, email, quantity, optional phone/address/date.
+ * Common fields: event_id, name, email, quantity, unit_price, optional phone/address/date.
  */
 export const buildSingleIntentMetadata = (
   eventId: number,
+  unitPrice: number,
   intent: SingleIntentMetadata,
 ): Record<string, string> => ({
   event_id: String(eventId),
   name: intent.name,
   email: intent.email,
   quantity: String(intent.quantity),
+  unit_price: String(unitPrice),
   ...optionalFields(intent),
 });
 
@@ -144,6 +147,7 @@ export const extractSessionMetadata = (
   address: metadata.address,
   special_instructions: metadata.special_instructions,
   quantity: metadata.quantity,
+  unit_price: metadata.unit_price,
   multi: metadata.multi,
   date: metadata.date,
   items: metadata.items,

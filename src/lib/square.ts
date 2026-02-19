@@ -255,7 +255,7 @@ export const squareApi: {
 
     logDebug("Square", `Creating payment link for event=${event.id} qty=${intent.quantity}`);
 
-    const metadata = enforceMetadataLimits(buildSingleIntentMetadata(event.id, intent));
+    const metadata = enforceMetadataLimits(buildSingleIntentMetadata(event.id, event.unit_price!, intent));
     if (!metadata) return null;
 
     const result = await createPaymentLinkImpl({

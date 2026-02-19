@@ -14,7 +14,7 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { map, unique } from "#fp";
+import { map, reduce, unique } from "#fp";
 import { createAttendeeAtomic, deleteAttendee, getAttendeesByTokens } from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
@@ -45,8 +45,8 @@ import {
 } from "#routes/utils.ts";
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 
-/** Parsed multi-ticket item from metadata */
-type MultiItem = { e: number; q: number };
+/** Parsed multi-ticket item from metadata (p = unit price at checkout time, 0 for legacy sessions) */
+type MultiItem = { e: number; q: number; p: number };
 
 /** Check if session is a multi-ticket session */
 const isMultiSession = (metadata: SessionMetadata): boolean =>
@@ -231,7 +231,7 @@ const validateAndPrice = async (
   return { ok: true, event, expectedPrice };
 };
 
-/** Check if the amount charged matches the current event price */
+/** Check if the amount charged matches the expected price */
 const hasPriceMismatch = (amountTotal: number, expectedPrice: number): boolean =>
   amountTotal !== expectedPrice;
 
@@ -252,18 +252,21 @@ const alreadyProcessedResult = async (
   return { success: true, attendee: { id: attendeeId }, event, ticketTokens: [] };
 };
 
-/** Validate that a parsed value has the shape of a MultiItem */
-const isMultiItem = (v: unknown): v is MultiItem =>
+/** Raw parsed item shape before normalization (p may be absent in legacy sessions) */
+type RawMultiItem = { e: number; q: number; p?: number };
+
+/** Validate that a parsed value has the required multi-item fields */
+const isRawMultiItem = (v: unknown): v is RawMultiItem =>
   typeof v === "object" && v !== null &&
   typeof (v as Record<string, unknown>).e === "number" &&
   typeof (v as Record<string, unknown>).q === "number";
 
-/** Parse multi-ticket items from metadata */
+/** Parse multi-ticket items from metadata (normalizes missing p to 0 for legacy sessions) */
 const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
   try {
     const parsed: unknown = JSON.parse(itemsJson);
-    if (!Array.isArray(parsed) || !parsed.every(isMultiItem)) return null;
-    return parsed;
+    if (!Array.isArray(parsed) || !parsed.every(isRawMultiItem)) return null;
+    return map((item: RawMultiItem): MultiItem => ({ e: item.e, q: item.q, p: item.p ?? 0 }))(parsed);
   } catch {
     return null;
   }
@@ -325,7 +328,7 @@ const processMultiPaymentSession = async (
   }
 
   // Phase 2: Validate events and create attendees atomically
-  // First pass: validate all events and compute expected prices
+  // First pass: validate all events and compute expected prices from current DB state
   const validatedItems: { item: MultiItem; event: EventWithCount; expectedPrice: number }[] = [];
   let expectedTotal = 0;
 
@@ -340,9 +343,10 @@ const processMultiPaymentSession = async (
 
   // Reject if event prices changed since checkout was created
   if (hasPriceMismatch(session.amountTotal, expectedTotal)) {
+    const checkoutTotal = reduce((sum: number, item: MultiItem) => sum + item.p * item.q, 0)(intent.items);
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `Multi-ticket price mismatch: provider charged ${session.amountTotal} but current event prices yield ${expectedTotal}`,
+      detail: `Multi-ticket price mismatch: provider charged ${session.amountTotal}, checkout prices totalled ${checkoutTotal}, current prices yield ${expectedTotal}`,
     });
     return refundAndFail(
       session,
@@ -445,10 +449,11 @@ const processPaymentSession = async (
 
   // Reject if event price changed since checkout was created
   if (hasPriceMismatch(session.amountTotal, expectedPrice)) {
+    const checkoutUnitPrice = session.metadata.unit_price ?? "unknown";
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       eventId: intent.eventId,
-      detail: `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
+      detail: `Price mismatch: provider charged ${session.amountTotal}, checkout unit_price was ${checkoutUnitPrice}, current price yields ${expectedPrice}`,
     });
     return refundAndFail(
       session,

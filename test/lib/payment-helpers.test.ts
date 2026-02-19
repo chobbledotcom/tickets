@@ -96,10 +96,10 @@ describe("payment-helpers", () => {
   });
 
   describe("serializeMultiItems", () => {
-    test("serializes single item to compact JSON", () => {
+    test("serializes single item to compact JSON with price", () => {
       const items = [{ eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt", name: "Evt" }];
       const result = serializeMultiItems(items);
-      expect(result).toBe(JSON.stringify([{ e: 1, q: 2 }]));
+      expect(result).toBe(JSON.stringify([{ e: 1, q: 2, p: 1000 }]));
     });
 
     test("serializes multiple items preserving order", () => {
@@ -110,8 +110,8 @@ describe("payment-helpers", () => {
       const result = serializeMultiItems(items);
       const parsed = JSON.parse(result);
       expect(parsed).toEqual([
-        { e: 10, q: 1 },
-        { e: 20, q: 3 },
+        { e: 10, q: 1, p: 500 },
+        { e: 20, q: 3, p: 700 },
       ]);
     });
 
@@ -120,21 +120,21 @@ describe("payment-helpers", () => {
       expect(result).toBe("[]");
     });
 
-    test("omits unitPrice and slug from serialized output", () => {
+    test("omits slug from serialized output but includes price", () => {
       const items = [
         { eventId: 5, quantity: 1, unitPrice: 9999, slug: "secret-slug", name: "Secret Event" },
       ];
       const result = serializeMultiItems(items);
       expect(result).not.toContain("unitPrice");
       expect(result).not.toContain("slug");
-      expect(result).not.toContain("9999");
       expect(result).not.toContain("secret-slug");
+      expect(result).toContain("9999");
     });
   });
 
   describe("buildSingleIntentMetadata", () => {
-    test("builds metadata with required fields", () => {
-      const result = buildSingleIntentMetadata(42, {
+    test("builds metadata with required fields including unit_price", () => {
+      const result = buildSingleIntentMetadata(42, 500, {
         name: "Alice",
         email: "alice@example.com",
         address: "",
@@ -146,11 +146,12 @@ describe("payment-helpers", () => {
         name: "Alice",
         email: "alice@example.com",
         quantity: "3",
+        unit_price: "500",
       });
     });
 
     test("includes phone when provided", () => {
-      const result = buildSingleIntentMetadata(1, {
+      const result = buildSingleIntentMetadata(1, 100, {
         name: "Bob",
         email: "bob@example.com",
         phone: "+1234567890",
@@ -162,7 +163,7 @@ describe("payment-helpers", () => {
     });
 
     test("excludes phone when undefined", () => {
-      const result = buildSingleIntentMetadata(1, {
+      const result = buildSingleIntentMetadata(1, 100, {
         name: "Bob",
         email: "bob@example.com",
         phone: undefined,
@@ -174,7 +175,7 @@ describe("payment-helpers", () => {
     });
 
     test("excludes phone when empty string", () => {
-      const result = buildSingleIntentMetadata(1, {
+      const result = buildSingleIntentMetadata(1, 100, {
         name: "Bob",
         email: "bob@example.com",
         phone: "",
@@ -185,8 +186,8 @@ describe("payment-helpers", () => {
       expect("phone" in result).toBe(false);
     });
 
-    test("converts eventId and quantity to strings", () => {
-      const result = buildSingleIntentMetadata(99, {
+    test("converts eventId, quantity, and unitPrice to strings", () => {
+      const result = buildSingleIntentMetadata(99, 750, {
         name: "X",
         email: "x@x.com",
         address: "",
@@ -195,10 +196,12 @@ describe("payment-helpers", () => {
       });
       expect(typeof result.event_id).toBe("string");
       expect(typeof result.quantity).toBe("string");
+      expect(typeof result.unit_price).toBe("string");
+      expect(result.unit_price).toBe("750");
     });
 
     test("includes date when provided", () => {
-      const result = buildSingleIntentMetadata(1, {
+      const result = buildSingleIntentMetadata(1, 100, {
         name: "Alice",
         email: "alice@example.com",
         address: "",
@@ -210,7 +213,7 @@ describe("payment-helpers", () => {
     });
 
     test("excludes date when null", () => {
-      const result = buildSingleIntentMetadata(1, {
+      const result = buildSingleIntentMetadata(1, 100, {
         name: "Alice",
         email: "alice@example.com",
         address: "",
@@ -222,7 +225,7 @@ describe("payment-helpers", () => {
     });
 
     test("includes address when provided", () => {
-      const result = buildSingleIntentMetadata(1, {
+      const result = buildSingleIntentMetadata(1, 100, {
         name: "Bob",
         email: "bob@example.com",
         address: "123 Main St",
@@ -232,7 +235,7 @@ describe("payment-helpers", () => {
     });
 
     test("excludes address when empty string", () => {
-      const result = buildSingleIntentMetadata(1, {
+      const result = buildSingleIntentMetadata(1, 100, {
         name: "Bob",
         email: "bob@example.com",
         address: "",
@@ -243,7 +246,7 @@ describe("payment-helpers", () => {
     });
 
     test("includes special_instructions when provided", () => {
-      const result = buildSingleIntentMetadata(1, {
+      const result = buildSingleIntentMetadata(1, 100, {
         name: "Bob",
         email: "bob@example.com",
         special_instructions: "No nuts please",
@@ -253,13 +256,22 @@ describe("payment-helpers", () => {
     });
 
     test("excludes special_instructions when empty string", () => {
-      const result = buildSingleIntentMetadata(1, {
+      const result = buildSingleIntentMetadata(1, 100, {
         name: "Bob",
         email: "bob@example.com",
         special_instructions: "",
         quantity: 1,
       });
       expect("special_instructions" in result).toBe(false);
+    });
+
+    test("stores zero unit_price", () => {
+      const result = buildSingleIntentMetadata(1, 0, {
+        name: "Bob",
+        email: "bob@example.com",
+        quantity: 1,
+      });
+      expect(result.unit_price).toBe("0");
     });
   });
 
@@ -282,8 +294,8 @@ describe("payment-helpers", () => {
       expect(result.email).toBe("alice@example.com");
       const parsedItems = JSON.parse(result.items!);
       expect(parsedItems).toEqual([
-        { e: 1, q: 2 },
-        { e: 2, q: 1 },
+        { e: 1, q: 2, p: 1000 },
+        { e: 2, q: 1, p: 500 },
       ]);
     });
 
@@ -492,6 +504,7 @@ describe("payment-helpers", () => {
         email: "alice@example.com",
         phone: "+1234567890",
         quantity: "3",
+        unit_price: "500",
       };
       const result = extractSessionMetadata(metadata);
       expect(result).toEqual({
@@ -502,6 +515,7 @@ describe("payment-helpers", () => {
         address: undefined,
         special_instructions: undefined,
         quantity: "3",
+        unit_price: "500",
         multi: undefined,
         date: undefined,
         items: undefined,
@@ -513,7 +527,7 @@ describe("payment-helpers", () => {
         name: "Bob",
         email: "bob@example.com",
         multi: "1",
-        items: '[{"e":1,"q":2}]',
+        items: '[{"e":1,"q":2,"p":1000}]',
       };
       const result = extractSessionMetadata(metadata);
       expect(result).toEqual({
@@ -524,9 +538,10 @@ describe("payment-helpers", () => {
         address: undefined,
         special_instructions: undefined,
         quantity: undefined,
+        unit_price: undefined,
         multi: "1",
         date: undefined,
-        items: '[{"e":1,"q":2}]',
+        items: '[{"e":1,"q":2,"p":1000}]',
       });
     });
 
@@ -539,6 +554,7 @@ describe("payment-helpers", () => {
       const result = extractSessionMetadata(metadata);
       expect(result.phone).toBeUndefined();
       expect(result.quantity).toBeUndefined();
+      expect(result.unit_price).toBeUndefined();
       expect(result.multi).toBeUndefined();
       expect(result.items).toBeUndefined();
     });
