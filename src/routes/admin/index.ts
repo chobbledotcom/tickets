@@ -5,7 +5,7 @@
  * owner-only debug footer showing render time and query details.
  */
 
-import { disableQueryLog, enableQueryLog, getQueryLog } from "#lib/db/query-log.ts";
+import { enableQueryLog, getQueryLog } from "#lib/db/query-log.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
@@ -59,26 +59,22 @@ export const routeAdmin: RouterFn = async (request, path, method, server) => {
   if (isOwner) enableQueryLog();
   const startTime = performance.now();
 
-  try {
-    const response = await innerRouter(request, path, method, server);
-    if (!response) return null;
-    if (!isOwner) return response;
+  const response = await innerRouter(request, path, method, server);
+  if (!response) return null;
+  if (!isOwner) return response;
 
-    if (response.status !== 200) return response;
-    if (!response.headers.get("content-type")!.includes("text/html")) {
-      return response;
-    }
-
-    const html = await response.text();
-    const footer = ownerFooterHtml(
-      performance.now() - startTime,
-      getQueryLog(),
-    );
-    return new Response(html.replace("</body>", footer + "</body>"), {
-      status: response.status,
-      headers: response.headers,
-    });
-  } finally {
-    if (isOwner) disableQueryLog();
+  if (response.status !== 200) return response;
+  if (!response.headers.get("content-type")!.includes("text/html")) {
+    return response;
   }
+
+  const html = await response.text();
+  const footer = ownerFooterHtml(
+    performance.now() - startTime,
+    getQueryLog(),
+  );
+  return new Response(html.replace("</body>", footer + "</body>"), {
+    status: response.status,
+    headers: response.headers,
+  });
 };

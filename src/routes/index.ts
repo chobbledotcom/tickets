@@ -7,7 +7,7 @@ import { once } from "#fp";
 import { isSetupComplete } from "#lib/config.ts";
 import { loadCurrencyCode } from "#lib/currency.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
-import { createRequestTimer, logRequest } from "#lib/logger.ts";
+import { createRequestTimer, logRequest, runWithRequestId } from "#lib/logger.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
@@ -178,7 +178,7 @@ export const handleRequest = (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
-  return runWithQueryLogContext(async () => {
+  return runWithRequestId(() => runWithQueryLogContext(async () => {
   const { path, method } = parseRequest(request);
   const getElapsed = createRequestTimer();
 
@@ -197,5 +197,5 @@ export const handleRequest = (
 
   const response = await handleRequestInternal(request, path, method, server);
   return logAndReturn(await applySecurityHeaders(response, embeddable), method, path, getElapsed);
-  });
+  }));
 };
