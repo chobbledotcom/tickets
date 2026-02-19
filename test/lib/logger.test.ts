@@ -6,6 +6,7 @@ import {
   logError,
   logRequest,
   redactPath,
+  runWithRequestId,
 } from "#lib/logger.ts";
 
 describe("logger", () => {
@@ -227,6 +228,76 @@ describe("logger", () => {
       expect(ErrorCode.AUTH_CSRF_MISMATCH).toBe("E_AUTH_CSRF_MISMATCH");
       expect(ErrorCode.STRIPE_SIGNATURE).toBe("E_STRIPE_SIGNATURE");
       expect(ErrorCode.WEBHOOK_SEND).toBe("E_WEBHOOK_SEND");
+    });
+  });
+
+  describe("runWithRequestId", () => {
+    test("prefixes logRequest with 4-char hex ID", () => {
+      const debugSpy = spyOn(console, "debug");
+
+      runWithRequestId(() => {
+        logRequest({ method: "GET", path: "/admin", status: 200, durationMs: 10 });
+      });
+
+      const message = debugSpy.mock.calls[0]![0] as string;
+      expect(message).toMatch(/^\[[0-9a-f]{4}\] \[Request\] GET \/admin 200 10ms$/);
+      debugSpy.mockRestore();
+    });
+
+    test("prefixes logError with same request ID", () => {
+      const debugSpy = spyOn(console, "debug");
+      const errorSpy = spyOn(console, "error");
+
+      runWithRequestId(() => {
+        logRequest({ method: "GET", path: "/admin", status: 200, durationMs: 5 });
+        logError({ code: ErrorCode.DB_CONNECTION });
+      });
+
+      const requestMsg = debugSpy.mock.calls[0]![0] as string;
+      const errorMsg = errorSpy.mock.calls[0]![0] as string;
+      const requestId = requestMsg.slice(1, 5);
+      expect(errorMsg).toBe(`[${requestId}] [Error] E_DB_CONNECTION`);
+
+      debugSpy.mockRestore();
+      errorSpy.mockRestore();
+    });
+
+    test("prefixes logDebug with request ID", () => {
+      const debugSpy = spyOn(console, "debug");
+
+      runWithRequestId(() => {
+        logDebug("Setup", "test message");
+      });
+
+      const message = debugSpy.mock.calls[0]![0] as string;
+      expect(message).toMatch(/^\[[0-9a-f]{4}\] \[Setup\] test message$/);
+      debugSpy.mockRestore();
+    });
+
+    test("different requests get different IDs", () => {
+      const debugSpy = spyOn(console, "debug");
+
+      const ids: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        runWithRequestId(() => {
+          logRequest({ method: "GET", path: "/", status: 200, durationMs: 0 });
+        });
+        ids.push((debugSpy.mock.calls[i]![0] as string).slice(1, 5));
+      }
+
+      // With 65536 possible values, 10 samples should not all be identical
+      const unique = new Set(ids);
+      expect(unique.size).toBeGreaterThan(1);
+      debugSpy.mockRestore();
+    });
+
+    test("no prefix outside request context", () => {
+      const debugSpy = spyOn(console, "debug");
+
+      logRequest({ method: "GET", path: "/admin", status: 200, durationMs: 10 });
+
+      expect(debugSpy).toHaveBeenCalledWith("[Request] GET /admin 200 10ms");
+      debugSpy.mockRestore();
     });
   });
 });

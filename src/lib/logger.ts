@@ -4,9 +4,31 @@
  * - Request logging: logs method, path (slugs redacted), status, duration
  * - Error logging: logs classified error codes without PII
  * - Ntfy notifications: optional error pings to a configured ntfy URL
+ * - Request IDs: each request gets a 4-char random ID prefix for log correlation
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { sendNtfyError } from "#lib/ntfy.ts";
+
+/** Request-scoped random ID for correlating log entries */
+const requestIdStorage = new AsyncLocalStorage<string>();
+
+/** Generate a 4-char lowercase hex string */
+const generateRequestId = (): string => {
+  const bytes = new Uint8Array(2);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+};
+
+/** Get the current request ID prefix, or empty string if outside request context */
+const getLogPrefix = (): string => {
+  const id = requestIdStorage.getStore();
+  return id ? `[${id}] ` : "";
+};
+
+/** Run a function with a request-scoped random ID for log correlation */
+export const runWithRequestId = <T>(fn: () => T): T =>
+  requestIdStorage.run(generateRequestId(), fn);
 
 /**
  * Error codes for classified error logging
@@ -110,7 +132,7 @@ export const logRequest = (entry: RequestLogEntry): void => {
 
   // biome-ignore lint/suspicious/noConsole: Intentional debug logging
   console.debug(
-    `[Request] ${method} ${redactedPath} ${status} ${durationMs}ms`,
+    `${getLogPrefix()}[Request] ${method} ${redactedPath} ${status} ${durationMs}ms`,
   );
 };
 
@@ -143,7 +165,7 @@ export const logError = (context: ErrorContext): void => {
   ].filter(Boolean);
 
   // biome-ignore lint/suspicious/noConsole: Intentional error logging
-  console.error(parts.join(" "));
+  console.error(`${getLogPrefix()}${parts.join(" ")}`);
 
   sendNtfyError(code);
 };
@@ -167,5 +189,5 @@ export type LogCategory = "Setup" | "Webhook" | "Payment" | "Auth" | "Stripe" | 
  */
 export const logDebug = (category: LogCategory, message: string): void => {
   // biome-ignore lint/suspicious/noConsole: Intentional debug logging
-  console.debug(`[${category}] ${message}`);
+  console.debug(`${getLogPrefix()}[${category}] ${message}`);
 };
