@@ -28,13 +28,6 @@ export const enableQueryLog = (): void => {
   state.entries = [];
 };
 
-/** Disable query logging and clear entries */
-export const disableQueryLog = (): void => {
-  const state = getState();
-  state.enabled = false;
-  state.entries = [];
-};
-
 /** Whether query logging is currently active */
 export const isQueryLogEnabled = (): boolean => getState().enabled;
 
