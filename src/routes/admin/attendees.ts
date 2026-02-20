@@ -430,7 +430,7 @@ const handleEditAttendeeGet = (
         session,
         undefined,
         getReturnUrl(request),
-        getSearchParam(request, "success") || undefined,
+        getSearchParam(request, "success"),
       ))));
 
 /** Create a POST handler for /admin/attendees/:attendeeId/* routes */
