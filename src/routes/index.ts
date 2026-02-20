@@ -13,6 +13,7 @@ import {
   contentTypeRejectionResponse,
   domainRejectionResponse,
   getCleanUrl,
+  getDomainRejectionReason,
   isEmbeddablePath,
   isValidContentType,
   isValidDomain,
@@ -198,6 +199,7 @@ export const handleRequest = (
 
   // Domain validation: reject requests to unauthorized domains
   if (!isValidDomain(request)) {
+    logError({ code: ErrorCode.DOMAIN_REJECTED, detail: getDomainRejectionReason(request) });
     return logAndReturn(domainRejectionResponse(), method, path, getElapsed);
   }
 

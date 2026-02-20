@@ -93,6 +93,20 @@ export const isValidDomain = (request: Request): boolean => {
 };
 
 /**
+ * Build a privacy-safe rejection reason for domain validation failures.
+ * Includes the Host header and URL hostname so operators can diagnose
+ * why a request was rejected (e.g. Facebook in-app browser sending
+ * unexpected headers).
+ */
+export const getDomainRejectionReason = (request: Request): string => {
+  const host = request.headers.get("host");
+  const urlHost = new URL(request.url).host;
+  return host
+    ? `host=${normalizeHostname(host)} url=${normalizeHostname(urlHost)}`
+    : `host=missing url=${normalizeHostname(urlHost)}`;
+};
+
+/**
  * Check if path is a webhook endpoint that accepts JSON
  */
 export const isWebhookPath = (path: string): boolean =>

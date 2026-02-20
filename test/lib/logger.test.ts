@@ -228,6 +228,7 @@ describe("logger", () => {
       expect(ErrorCode.AUTH_CSRF_MISMATCH).toBe("E_AUTH_CSRF_MISMATCH");
       expect(ErrorCode.STRIPE_SIGNATURE).toBe("E_STRIPE_SIGNATURE");
       expect(ErrorCode.WEBHOOK_SEND).toBe("E_WEBHOOK_SEND");
+      expect(ErrorCode.DOMAIN_REJECTED).toBe("E_DOMAIN_REJECTED");
     });
   });
 

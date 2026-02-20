@@ -92,6 +92,9 @@ export const ErrorCode = {
   // Configuration errors
   CONFIG_MISSING: "E_CONFIG_MISSING",
 
+  // Domain validation errors
+  DOMAIN_REJECTED: "E_DOMAIN_REJECTED",
+
   // CDN/network errors (transient edge failures)
   CDN_REQUEST: "E_CDN_REQUEST",
 } as const;
