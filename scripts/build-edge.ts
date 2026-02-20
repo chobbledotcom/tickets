@@ -9,10 +9,6 @@ import type { Plugin } from "esbuild";
 import { minifyCss } from "./css-minify.ts";
 import { buildStaticAssets } from "./build-static-assets.ts";
 
-// Read deno.json import map (used by both client and edge builds)
-const denoConfig = JSON.parse(await Deno.readTextFile("./deno.json"));
-const denoImports: Record<string, string> = denoConfig.imports;
-
 // --- Step 1: Build client bundles ---
 await buildStaticAssets();
 
@@ -50,52 +46,10 @@ for (const [filename] of ASSET_DEFS) {
   STATIC_ASSETS[filename] = await Deno.readTextFile(`./src/static/${filename}`);
 }
 
-// Bundle all npm packages directly (no CDN dependency at runtime)
-const BUNDLED_PACKAGES = new Set([
-  "@libsql/client",
-  "@bunny.net/edgescript-sdk",
-  "@bunny.net/storage-sdk",
-  "@internationalized/date",
-  "stripe",
-  "qrcode",
-  "square",
-]);
-
-// Edge subpath overrides for bundled packages
+// Subpath overrides: use platform-specific entry points for certain packages
 const EDGE_SUBPATHS: Record<string, string> = {
   "@libsql/client": "/web",
-  // Per Bunny docs: undocumented production entrypoint for edgescript-sdk
   "@bunny.net/edgescript-sdk": "/esm-bunny/lib.mjs",
-};
-
-/** Map of bare specifiers to esm.sh CDN URLs, derived from deno.json imports */
-const ESM_SH_EXTERNALS: Record<string, string> = {};
-
-for (const [key, specifier] of Object.entries(denoImports)) {
-  if (!specifier.startsWith("npm:")) continue;
-  if (BUNDLED_PACKAGES.has(key)) continue;
-  const subpath = EDGE_SUBPATHS[key] ?? "";
-  const url = `https://esm.sh/${specifier.slice(4)}${subpath}`;
-  ESM_SH_EXTERNALS[key] = url;
-  if (subpath) ESM_SH_EXTERNALS[`${key}${subpath}`] = url;
-}
-
-/** Rewrite bare package imports to esm.sh URLs and mark them external */
-const esmShExternalsPlugin: Plugin = {
-  name: "esm-sh-externals",
-  setup(build) {
-    const filter = new RegExp(
-      "^(" +
-        Object.keys(ESM_SH_EXTERNALS)
-          .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-          .join("|") +
-        ")$",
-    );
-    build.onResolve({ filter }, (args) => ({
-      path: ESM_SH_EXTERNALS[args.path]!,
-      external: true,
-    }));
-  },
 };
 
 /** Build the inline asset-paths module with cache-busted paths */
@@ -231,16 +185,12 @@ const resolveNpmSpecifier = (specifier: string): string | null => {
   return null;
 };
 
-/**
- * Plugin to resolve bundled npm packages from Deno's npm cache.
- * Handles BUNDLED_PACKAGES (with optional subpath overrides) and their transitive deps.
- */
+/** Plugin to resolve npm packages from Deno's npm cache */
 const denoNpmResolverPlugin: Plugin = {
   name: "deno-npm-resolver",
   setup(build) {
-    // Apply EDGE_SUBPATHS overrides for bundled packages (e.g. @libsql/client → /web)
+    // Redirect packages that need platform-specific entry points
     for (const [pkg, subpath] of Object.entries(EDGE_SUBPATHS)) {
-      if (!BUNDLED_PACKAGES.has(pkg)) continue;
       const filter = new RegExp(`^${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
       build.onResolve({ filter }, () => {
         const resolved = resolveNpmSpecifier(`${pkg}${subpath}`);
@@ -248,12 +198,11 @@ const denoNpmResolverPlugin: Plugin = {
       });
     }
 
-    // Match bare specifiers (not relative paths, not URLs, not node: builtins)
+    // Resolve all bare specifiers from Deno's npm cache
     build.onResolve({ filter: /^[^./]/ }, (args) => {
       if (args.path.startsWith("node:")) return undefined;
       const resolved = resolveNpmSpecifier(args.path);
-      if (resolved) return { path: resolved };
-      return undefined;
+      return resolved ? { path: resolved } : undefined;
     });
   },
 };
@@ -283,7 +232,7 @@ await esbuild.build({
   bundle: true,
   external: nodeExternals,
   define: { "process.env.NODE_ENV": '"production"' },
-  plugins: [esmShExternalsPlugin, denoNpmResolverPlugin, inlineAssetsPlugin],
+  plugins: [denoNpmResolverPlugin, inlineAssetsPlugin],
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
 
