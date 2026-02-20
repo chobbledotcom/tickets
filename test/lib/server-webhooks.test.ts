@@ -1246,7 +1246,7 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("multi-ticket webhook handles event not found with refund", async () => {
+    test("multi-ticket webhook handles event not found without refund", async () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
@@ -1276,7 +1276,6 @@ describe("server (webhooks)", () => {
       });
 
       const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue(true);
 
       try {
         const response = await handleRequest(
@@ -1288,6 +1287,8 @@ describe("server (webhooks)", () => {
         expect(response.status).toBe(200);
         const json = await response.json();
         expect(json.error).toContain("Event not found");
+        // Event not found should NOT trigger a refund (webhook may be for a different instance)
+        expect(mockRefund).not.toHaveBeenCalled();
       } finally {
         mockVerify.mockRestore();
         mockRefund.mockRestore();
@@ -1507,9 +1508,6 @@ describe("server (webhooks)", () => {
       });
 
       const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >);
 
       try {
         const response = await handleRequest(
@@ -1522,6 +1520,8 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         // eventId defaults to 0 (no event with id 0), so "Event not found" error
         expect(json.error).toContain("Event not found");
+        // Event not found should NOT trigger a refund (webhook may be for a different instance)
+        expect(mockRefund).not.toHaveBeenCalled();
       } finally {
         mockVerify.mockRestore();
         mockRetrieveSession.mockRestore();
@@ -1592,7 +1592,7 @@ describe("server (webhooks)", () => {
       }
     });
 
-    test("multi-ticket rollback deletes already-created attendees when second event not found", async () => {
+    test("multi-ticket webhook skips refund when second event not found", async () => {
       await setupStripe();
 
       const event1 = await createTestEvent({
@@ -1600,7 +1600,7 @@ describe("server (webhooks)", () => {
         maxAttendees: 50,
         unitPrice: 500,
       });
-      // event2 does not exist (id 99999), so after creating attendee for event1 it rolls back
+      // event2 does not exist (id 99999) — validation fails before any attendees are created
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -1630,9 +1630,6 @@ describe("server (webhooks)", () => {
       });
 
       const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_rollback" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >);
 
       try {
         const response = await handleRequest(
@@ -1645,7 +1642,10 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.error).toContain("Event not found");
 
-        // Verify the attendee created for event1 was rolled back (deleted)
+        // Event not found should NOT trigger a refund (webhook may be for a different instance)
+        expect(mockRefund).not.toHaveBeenCalled();
+
+        // No attendees created (validation fails before creation pass)
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event1.id);
         expect(attendees.length).toBe(0);

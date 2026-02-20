@@ -446,7 +446,7 @@ describe("server (payment flow)", () => {
       expect(location?.startsWith("https://")).toBe(true);
     });
 
-    test("returns error when event not found in session metadata", async () => {
+    test("returns error when event not found in session metadata without refund", async () => {
       const { spyOn } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
@@ -466,19 +466,17 @@ describe("server (payment flow)", () => {
           } as unknown as Awaited<
             ReturnType<typeof stripeApi.retrieveCheckoutSession>
           >),
-          mockRefund: spyOn(stripeApi, "refundPayment").mockResolvedValue(
-            { id: "re_test" } as unknown as Awaited<
-              ReturnType<typeof stripeApi.refundPayment>
-            >,
-          ),
+          mockRefund: spyOn(stripeApi, "refundPayment"),
         }),
-        async () => {
+        async ({ mockRefund }) => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
           );
           expect(response.status).toBe(404);
           const html = await response.text();
           expect(html).toContain("Event not found");
+          // Event not found should NOT trigger a refund (webhook may be for a different instance)
+          expect(mockRefund).not.toHaveBeenCalled();
         },
         resetStripeClient,
       );
@@ -807,7 +805,7 @@ describe("server (payment flow)", () => {
       }
     });
 
-    test("refunds multi-ticket payment when event not found", async () => {
+    test("skips refund for multi-ticket payment when event not found", async () => {
       await setupStripe();
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
@@ -826,9 +824,6 @@ describe("server (payment flow)", () => {
       >);
 
       const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >);
 
       try {
         const response = await handleRequest(
@@ -837,7 +832,8 @@ describe("server (payment flow)", () => {
         expect(response.status).toBe(404);
         const html = await response.text();
         expect(html).toContain("Event not found");
-        expect(mockRefund).toHaveBeenCalledWith("pi_multi_notfound");
+        // Event not found should NOT trigger a refund (webhook may be for a different instance)
+        expect(mockRefund).not.toHaveBeenCalled();
       } finally {
         mockRetrieve.mockRestore();
         mockRefund.mockRestore();

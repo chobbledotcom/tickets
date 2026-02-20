@@ -175,6 +175,20 @@ const refundAndFail = async (
   return { success: false, error, status, refunded };
 };
 
+/**
+ * Handle event validation failure: skip refund for unknown events (404)
+ * since the webhook may be intended for a different instance sharing the same
+ * payment provider account. For known-event failures (inactive, closed),
+ * refund so the customer gets their money back.
+ */
+const validationFailure = (
+  session: ValidatedPaymentSession,
+  validation: { error: string; status?: number },
+): Promise<PaymentResult> =>
+  validation.status === 404
+    ? Promise.resolve({ success: false, error: validation.error, status: 404 })
+    : refundAndFail(session, validation.error, validation.status);
+
 /** Rollback created attendees (multi-ticket failure recovery) */
 const rollbackAttendees = async (
   attendees: { attendee: Attendee }[],
@@ -334,9 +348,7 @@ const processMultiPaymentSession = async (
 
   for (const item of intent.items) {
     const vp = await validateAndPrice({ eventId: item.e, quantity: item.q }, true);
-    if (!vp.ok) {
-      return refundAndFail(session, vp.error, vp.status);
-    }
+    if (!vp.ok) return validationFailure(session, vp);
     validatedItems.push({ item, event: vp.event, expectedPrice: vp.expectedPrice });
     expectedTotal += vp.expectedPrice;
   }
@@ -443,7 +455,7 @@ const processPaymentSession = async (
 
   // Phase 2: Validate event and create attendee atomically with capacity check
   const vp = await validateAndPrice(intent);
-  if (!vp.ok) return refundAndFail(session, vp.error, vp.status);
+  if (!vp.ok) return validationFailure(session, vp);
 
   const { event, expectedPrice } = vp;
 
