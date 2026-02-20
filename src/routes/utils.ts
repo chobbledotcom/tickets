@@ -18,7 +18,7 @@ import { nowMs } from "#lib/now.ts";
 import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
 import { paymentErrorPage } from "#templates/payment.tsx";
-import { notFoundPage } from "#templates/public.tsx";
+import { notFoundPage, temporaryErrorPage } from "#templates/public.tsx";
 
 // Re-export for use by other route modules
 export { generateSecureToken };
@@ -152,6 +152,13 @@ export const notFoundResponse = (): Response =>
  */
 export const paymentErrorResponse = (message: string, status = 400): Response =>
   htmlResponse(paymentErrorPage(message), status);
+
+/**
+ * Create temporary error response (e.g. transient CDN failures)
+ * Returns a styled page with auto-refresh so the user retries automatically
+ */
+export const temporaryErrorResponse = (): Response =>
+  htmlResponse(temporaryErrorPage(), 503);
 
 /**
  * Create redirect response

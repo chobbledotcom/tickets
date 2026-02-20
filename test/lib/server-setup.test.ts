@@ -237,7 +237,7 @@ describe("server (setup)", () => {
         expectRedirect("/setup/complete")(response);
       });
 
-      test("POST /setup/ throws error when completeSetup fails", async () => {
+      test("POST /setup/ returns 503 when completeSetup fails", async () => {
         const { spyOn } = await import("#test-compat");
         const { settingsApi } = await import("#lib/db/settings.ts");
 
@@ -252,19 +252,20 @@ describe("server (setup)", () => {
             mockConsoleError: spyOn(console, "error").mockImplementation(() => {}),
           }),
           async () => {
-            await expect(
-              handleRequest(
-                mockSetupFormRequest(
-                  {
-                    admin_username: "testadmin",
-              admin_password: "mypassword123",
-                    admin_password_confirm: "mypassword123",
-                    currency_code: "GBP",
-                  },
-                  csrfToken as string,
-                ),
+            const response = await handleRequest(
+              mockSetupFormRequest(
+                {
+                  admin_username: "testadmin",
+                  admin_password: "mypassword123",
+                  admin_password_confirm: "mypassword123",
+                  currency_code: "GBP",
+                },
+                csrfToken as string,
               ),
-            ).rejects.toThrow("Database error");
+            );
+            expect(response.status).toBe(503);
+            const text = await response.text();
+            expect(text).toContain("Temporary Error");
           },
         );
       });

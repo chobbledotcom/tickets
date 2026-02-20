@@ -1854,21 +1854,22 @@ describe("server (admin events)", () => {
       });
 
       try {
-        await expect(
-          handleRequest(
-            mockFormRequest(
-              "/admin/event",
-              {
-                name: "Collision Event",
-                max_attendees: "50",
-                max_quantity: "1",
-                thank_you_url: "https://example.com",
-                csrf_token: csrfToken,
-              },
-              cookie,
-            ),
+        const response = await handleRequest(
+          mockFormRequest(
+            "/admin/event",
+            {
+              name: "Collision Event",
+              max_attendees: "50",
+              max_quantity: "1",
+              thank_you_url: "https://example.com",
+              csrf_token: csrfToken,
+            },
+            cookie,
           ),
-        ).rejects.toThrow("Failed to generate unique slug after 10 attempts");
+        );
+        expect(response.status).toBe(503);
+        const text = await response.text();
+        expect(text).toContain("Temporary Error");
       } finally {
         spy.mockRestore();
       }

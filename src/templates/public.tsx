@@ -124,6 +124,18 @@ export const notFoundPage = (): string =>
     </Layout>
   );
 
+/**
+ * Temporary error page with auto-refresh
+ * Used when a transient CDN or network error occurs
+ */
+export const temporaryErrorPage = (): string =>
+  String(
+    <Layout title="Temporary Error" headExtra='<meta http-equiv="refresh" content="2" />'>
+      <h1>Temporary Error</h1>
+      <p>Something went wrong loading this page. Retrying automatically&hellip;</p>
+    </Layout>
+  );
+
 /** Event info for multi-ticket display */
 export type MultiTicketEvent = {
   event: EventWithCount;

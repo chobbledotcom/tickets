@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { handleRequest, isValidContentType } from "#routes";
+import { temporaryErrorResponse } from "#routes/utils.ts";
 import {
   createTestDb,
   createTestDbWithSetup,
@@ -409,6 +410,18 @@ describe("server (misc)", () => {
         mockRequest("/this-path-definitely-does-not-exist-anywhere"),
       );
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe("CDN/transient error handling", () => {
+    test("temporaryErrorResponse returns 503 with styled HTML and auto-refresh", async () => {
+      const response = temporaryErrorResponse();
+      expect(response.status).toBe(503);
+      const text = await response.text();
+      expect(text).toContain("Temporary Error");
+      expect(text).toContain("Retrying automatically");
+      expect(text).toContain('http-equiv="refresh"');
+      expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     });
   });
 
