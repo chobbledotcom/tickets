@@ -99,9 +99,8 @@ export const stripePaymentProvider: PaymentProvider = {
   async isPaymentRefunded(paymentReference: string): Promise<boolean> {
     const intent = await retrievePaymentIntent(paymentReference);
     if (!intent) return false;
-    // Check the latest charge for refund status
     const charge = intent.latest_charge;
-    if (typeof charge === "object" && charge !== null && "refunded" in charge) {
+    if (typeof charge === "object" && charge !== null) {
       return (charge as { refunded: boolean }).refunded;
     }
     return false;

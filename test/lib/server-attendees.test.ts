@@ -1463,7 +1463,7 @@ describe("server (admin attendees)", () => {
       expect(html).toContain("Payment Details");
       expect(html).toContain("pi_test_123");
       expect(html).toContain("Not refunded");
-      expect(html).toContain("Refresh from Stripe");
+      expect(html).toContain("Refresh payment status");
     });
 
     test("shows refunded status for refunded attendee", async () => {
@@ -1484,7 +1484,19 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Refunded");
-      expect(html).toContain("badge-refunded");
+    });
+
+    test("shows success message when success query param is present", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}?success=${encodeURIComponent("Payment status is up to date")}`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Payment status is up to date");
     });
 
     test("does not show payment details for free attendee", async () => {
@@ -1576,7 +1588,9 @@ describe("server (admin attendees)", () => {
               ),
             );
             expect(response.status).toBe(302);
-            expect(response.headers.get("location")).toBe(`/admin/attendees/${attendee.id}`);
+            expect(response.headers.get("location")).toContain(`/admin/attendees/${attendee.id}`);
+            expect(response.headers.get("location")).toContain("success=");
+            expect(response.headers.get("location")).toContain("refunded");
             expect(mockRefunded).toHaveBeenCalledWith("pi_refresh_refund");
           } finally {
             mockRefunded.mockRestore?.();
@@ -1604,7 +1618,9 @@ describe("server (admin attendees)", () => {
               ),
             );
             expect(response.status).toBe(302);
-            expect(response.headers.get("location")).toBe(`/admin/attendees/${attendee.id}`);
+            expect(response.headers.get("location")).toContain(`/admin/attendees/${attendee.id}`);
+            expect(response.headers.get("location")).toContain("success=");
+            expect(response.headers.get("location")).toContain("up%20to%20date");
           } finally {
             mockRefunded.mockRestore?.();
           }

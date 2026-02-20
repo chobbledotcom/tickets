@@ -195,7 +195,7 @@ const PaymentDetails = ({ attendee, csrfToken }: { attendee: Attendee; csrfToken
         csrfToken={csrfToken}
         class="inline"
       >
-        <button type="submit">Refresh from Stripe</button>
+        <button type="submit">Refresh payment status</button>
       </CsrfForm>
     </article>
   );
@@ -209,11 +209,13 @@ export const adminEditAttendeePage = (
   session: AdminSession,
   error?: string,
   returnUrl?: string,
+  success?: string,
 ): string =>
   String(
     <Layout title={`Edit Attendee: ${attendee.name}`}>
       <AdminNav session={session} />
         {error && <div class="error">{error}</div>}
+        {success && <div class="success">{success}</div>}
 
         <h2>Edit Attendee</h2>
 

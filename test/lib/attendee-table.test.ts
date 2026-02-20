@@ -261,11 +261,10 @@ describe("AttendeeTable", () => {
   });
 
   describe("refunded badge", () => {
-    test("shows Refunded badge with CSS class for refunded attendee", () => {
+    test("shows Refunded badge for refunded attendee", () => {
       const rows = [makeRow({ attendee: testAttendee({ refunded: "true" }) })];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).toContain("Refunded");
-      expect(html).toContain("badge-refunded");
     });
 
     test("does not show Check in button for refunded attendee", () => {

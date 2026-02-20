@@ -430,6 +430,7 @@ const handleEditAttendeeGet = (
         session,
         undefined,
         getReturnUrl(request),
+        getSearchParam(request, "success") || undefined,
       ))));
 
 /** Create a POST handler for /admin/attendees/:attendeeId/* routes */
@@ -502,9 +503,10 @@ async function refreshPaymentHandler(
   if (isRefunded && data.attendee.refunded !== "true") {
     await markRefunded(attendeeId);
     await logActivity(`Payment marked as refunded for attendee '${data.attendee.name}'`, data.event.id);
+    return redirect(`/admin/attendees/${attendeeId}?success=${encodeURIComponent("Payment status updated: refunded")}`);
   }
 
-  return redirect(`/admin/attendees/${attendeeId}`);
+  return redirect(`/admin/attendees/${attendeeId}?success=${encodeURIComponent("Payment status is up to date")}`);
 }
 const handleRefreshPayment = editAttendeePost(refreshPaymentHandler);
 
