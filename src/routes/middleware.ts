@@ -136,6 +136,47 @@ export const domainRejectionResponse = (): Response =>
     },
   });
 
+/** Tracking parameters added by social media and ad platforms */
+const TRACKING_PARAMS = [
+  "fbclid",
+  "gclid",
+  "gad_source",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "utm_id",
+];
+
+/** Check if a query parameter key is a tracking parameter */
+const isTrackingParam = (key: string): boolean =>
+  TRACKING_PARAMS.includes(key);
+
+/**
+ * Get clean URL path with tracking parameters stripped.
+ * Returns the clean path (preserving non-tracking query params) or null if no stripping needed.
+ */
+export const getCleanUrl = (url: URL): string | null => {
+  let hasTracking = false;
+  for (const key of url.searchParams.keys()) {
+    if (isTrackingParam(key)) {
+      hasTracking = true;
+      break;
+    }
+  }
+  if (!hasTracking) return null;
+
+  const clean = new URLSearchParams();
+  for (const [key, value] of url.searchParams.entries()) {
+    if (!isTrackingParam(key)) {
+      clean.append(key, value);
+    }
+  }
+  const search = clean.toString();
+  return search ? `${url.pathname}?${search}` : url.pathname;
+};
+
 /**
  * Apply security headers to a response
  * For embeddable pages, fetches embed host restrictions and adds frame-ancestors.

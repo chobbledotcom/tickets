@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { handleRequest, isValidContentType } from "#routes";
+import { getCleanUrl, handleRequest, isValidContentType } from "#routes";
 import { temporaryErrorResponse } from "#routes/utils.ts";
 import {
   createTestDb,
@@ -329,6 +329,86 @@ describe("server (misc)", () => {
       expect(response.headers.get("x-frame-options")).toBe("DENY");
       expect(response.headers.get("x-content-type-options")).toBe("nosniff");
       expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    });
+  });
+
+  describe("Tracking parameter stripping", () => {
+    describe("getCleanUrl", () => {
+      test("returns null when URL has no tracking params", () => {
+        const url = new URL("http://localhost/ticket/my-event");
+        expect(getCleanUrl(url)).toBeNull();
+      });
+
+      test("returns null when URL has only non-tracking params", () => {
+        const url = new URL("http://localhost/ticket/my-event?iframe=true");
+        expect(getCleanUrl(url)).toBeNull();
+      });
+
+      test("strips fbclid parameter", () => {
+        const url = new URL("http://localhost/ticket/my-event?fbclid=abc123");
+        expect(getCleanUrl(url)).toBe("/ticket/my-event");
+      });
+
+      test("strips fbclid but preserves other params", () => {
+        const url = new URL("http://localhost/ticket/my-event?iframe=true&fbclid=abc123");
+        expect(getCleanUrl(url)).toBe("/ticket/my-event?iframe=true");
+      });
+
+      test("strips utm parameters", () => {
+        const url = new URL("http://localhost/ticket/my-event?utm_source=facebook&utm_medium=social");
+        expect(getCleanUrl(url)).toBe("/ticket/my-event");
+      });
+
+      test("strips gclid parameter", () => {
+        const url = new URL("http://localhost/ticket/my-event?gclid=xyz789");
+        expect(getCleanUrl(url)).toBe("/ticket/my-event");
+      });
+
+      test("strips multiple tracking params while preserving non-tracking ones", () => {
+        const url = new URL("http://localhost/ticket/reserved?tokens=abc&fbclid=123&utm_source=fb");
+        expect(getCleanUrl(url)).toBe("/ticket/reserved?tokens=abc");
+      });
+    });
+
+    describe("handleRequest redirect", () => {
+      test("redirects GET requests with fbclid to clean URL", async () => {
+        const response = await handleRequest(
+          mockRequest("/ticket/my-event?fbclid=IwdGRjcAQFOkpleHRuA2FlbQ"),
+        );
+        expect(response.status).toBe(301);
+        expect(response.headers.get("location")).toBe("/ticket/my-event");
+      });
+
+      test("redirects GET requests preserving non-tracking params", async () => {
+        const response = await handleRequest(
+          mockRequest("/ticket/my-event?iframe=true&fbclid=abc123"),
+        );
+        expect(response.status).toBe(301);
+        expect(response.headers.get("location")).toBe("/ticket/my-event?iframe=true");
+      });
+
+      test("does not redirect POST requests with tracking params", async () => {
+        const event = await createTestEvent({
+          maxAttendees: 50,
+        });
+        const response = await handleRequest(
+          mockFormRequest(
+            `/ticket/${event.slug}?fbclid=abc123`,
+            { name: "Test" },
+          ),
+        );
+        expect(response.status).not.toBe(301);
+      });
+
+      test("does not redirect GET requests without tracking params", async () => {
+        const event = await createTestEvent({
+          maxAttendees: 50,
+        });
+        const response = await handleRequest(
+          mockRequest(`/ticket/${event.slug}`),
+        );
+        expect(response.status).toBe(200);
+      });
     });
   });
 
