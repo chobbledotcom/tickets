@@ -276,6 +276,21 @@ describe("server (public routes)", () => {
       expect(html).toContain(`action="/ticket/${event.slug}"`);
     });
 
+    test("includes OpenGraph meta tags", async () => {
+      const event = await createTestEvent({
+        name: "Birthday Party",
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      const html = await response.text();
+      expect(html).toContain('<meta property="og:title" content="Birthday Party">');
+      expect(html).toContain('<meta property="og:type" content="website">');
+      expect(html).toContain(`<meta property="og:url" content="http://localhost/ticket/${event.slug}">`);
+    });
+
     test("shows description when event has one", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,
