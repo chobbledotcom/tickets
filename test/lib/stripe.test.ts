@@ -7,6 +7,7 @@ import {
   refundPayment,
   resetStripeClient,
   retrieveCheckoutSession,
+  retrievePaymentIntent,
   sanitizeErrorDetail,
   stripeApi,
   testStripeConnection,
@@ -1748,6 +1749,98 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       // Client is created using real Stripe (no mock) - returns non-null
       expect(client !== undefined).toBe(true);
+    });
+  });
+
+  describe("retrievePaymentIntent", () => {
+    test("returns null when stripe key not set", async () => {
+      const result = await retrievePaymentIntent("pi_test_123");
+      expect(result).toBeNull();
+    });
+
+    test("returns null when Stripe API throws error", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client to be defined");
+
+      await withMocks(
+        () => spyOn(
+          client.paymentIntents,
+          "retrieve",
+        ).mockRejectedValue(new Error("Network error")),
+        async (retrieveSpy) => {
+          const result = await retrievePaymentIntent("pi_test_123");
+          expect(result).toBeNull();
+          expect(retrieveSpy).toHaveBeenCalled();
+        },
+      );
+    });
+  });
+
+  describe("isPaymentRefunded", () => {
+    test("returns true when latest_charge is refunded", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      await withMocks(
+        () => spyOn(client.paymentIntents, "retrieve").mockResolvedValue({
+          id: "pi_refunded",
+          latest_charge: { id: "ch_1", refunded: true },
+        } as never),
+        async () => {
+          const result = await stripePaymentProvider.isPaymentRefunded("pi_refunded");
+          expect(result).toBe(true);
+        },
+      );
+    });
+
+    test("returns false when latest_charge is not refunded", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      await withMocks(
+        () => spyOn(client.paymentIntents, "retrieve").mockResolvedValue({
+          id: "pi_not_refunded",
+          latest_charge: { id: "ch_2", refunded: false },
+        } as never),
+        async () => {
+          const result = await stripePaymentProvider.isPaymentRefunded("pi_not_refunded");
+          expect(result).toBe(false);
+        },
+      );
+    });
+
+    test("returns false when payment intent not found", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      await withMocks(
+        () => spyOn(client.paymentIntents, "retrieve").mockRejectedValue(new Error("Not found")),
+        async () => {
+          const result = await stripePaymentProvider.isPaymentRefunded("pi_missing");
+          expect(result).toBe(false);
+        },
+      );
+    });
+
+    test("returns false when latest_charge is a string ID", async () => {
+      await updateStripeKey("sk_test_mock");
+      const client = await getStripeClient();
+      if (!client) throw new Error("Expected client");
+
+      await withMocks(
+        () => spyOn(client.paymentIntents, "retrieve").mockResolvedValue({
+          id: "pi_string_charge",
+          latest_charge: "ch_string_id",
+        } as never),
+        async () => {
+          const result = await stripePaymentProvider.isPaymentRefunded("pi_string_charge");
+          expect(result).toBe(false);
+        },
+      );
     });
   });
 

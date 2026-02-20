@@ -15,7 +15,14 @@
  */
 
 import { map, unique } from "#fp";
-import { createAttendeeAtomic, deleteAttendee, getAttendeesByTokens } from "#lib/db/attendees.ts";
+import {
+  computePaymentIdIndex,
+  createAttendeeAtomic,
+  deleteAttendee,
+  getAttendeesByPaymentIdIndex,
+  getAttendeesByTokens,
+  markRefunded,
+} from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
   finalizeSession,
@@ -679,6 +686,36 @@ const extractSessionIdFromObject = (obj: Record<string, unknown>): string | null
 };
 
 /**
+ * Handle a charge.refunded webhook event.
+ * Looks up attendees by payment_intent HMAC index and marks them as refunded.
+ */
+const handleRefundWebhookEvent = async (
+  event: WebhookEvent,
+): Promise<Response> => {
+  const obj = event.data.object;
+  const paymentIntentId =
+    typeof obj.payment_intent === "string" ? obj.payment_intent : null;
+
+  if (!paymentIntentId) {
+    return webhookAckResponse({ status: "no_payment_intent" });
+  }
+
+  const index = await computePaymentIdIndex(paymentIntentId);
+  const attendees = await getAttendeesByPaymentIdIndex(index);
+
+  if (attendees.length === 0) {
+    // No matching attendees — may be a pre-migration record or different instance
+    return webhookAckResponse({ status: "no_matching_attendees" });
+  }
+
+  for (const attendee of attendees) {
+    await markRefunded(attendee.id);
+  }
+
+  return webhookAckResponse({ refunded: attendees.length });
+};
+
+/**
  * Handle POST /payment/webhook (payment provider webhook endpoint)
  *
  * Receives events directly from the payment provider with signature verification.
@@ -706,6 +743,11 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   }
 
   const event = verification.event;
+
+  // Handle refund events
+  if (event.type === provider.chargeRefundedEventType) {
+    return handleRefundWebhookEvent(event);
+  }
 
   // Only handle checkout completed events
   if (event.type !== provider.checkoutCompletedEventType) {

@@ -28,6 +28,13 @@ describe("square-provider", () => {
     });
   });
 
+  describe("isPaymentRefunded", () => {
+    test("returns false (not yet implemented for Square)", async () => {
+      const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
+      expect(result).toBe(false);
+    });
+  });
+
   describe("setupWebhookEndpoint", () => {
     test("returns failure since Square webhooks are manual", async () => {
       const result = await squarePaymentProvider.setupWebhookEndpoint(

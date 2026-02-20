@@ -104,6 +104,11 @@ export const squarePaymentProvider: PaymentProvider = {
     return refundPayment(paymentReference);
   },
 
+  isPaymentRefunded(_paymentReference: string): Promise<boolean> {
+    // Square refund status check not yet implemented
+    return Promise.resolve(false);
+  },
+
   setupWebhookEndpoint(
     _secretKey: string,
     _webhookUrl: string,
@@ -116,4 +121,6 @@ export const squarePaymentProvider: PaymentProvider = {
       error: "Square webhooks must be configured manually in the Square Developer Dashboard",
     });
   },
+
+  chargeRefundedEventType: "refund.updated",
 };

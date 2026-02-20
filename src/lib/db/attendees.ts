@@ -14,6 +14,7 @@ import {
   encrypt,
   encryptAttendeePII,
   generateTicketToken,
+  hmacHash,
 } from "#lib/crypto.ts";
 import { getDb, inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
@@ -34,6 +35,10 @@ const attendeesTable = defineTable<Pick<Attendee, "id">, object>({
   },
 });
 
+/** Decrypt a boolean-like field, returning "false" for empty/null values */
+const decryptBoolField = (value: string, privateKey: CryptoKey): Promise<string> =>
+  value ? decryptAttendeePII(value, privateKey) : Promise.resolve("false");
+
 /**
  * Decrypt attendee fields using the private key
  * Requires authenticated session with access to private key
@@ -51,6 +56,7 @@ const decryptAttendee = async (
     payment_id,
     price_paid,
     checked_in,
+    refunded,
     ticket_token,
   ] = await Promise.all([
     decryptAttendeePII(row.name, privateKey),
@@ -60,9 +66,8 @@ const decryptAttendee = async (
     decryptAttendeePII(row.special_instructions, privateKey),
     decryptAttendeePII(row.payment_id, privateKey),
     decrypt(row.price_paid),
-    row.checked_in
-      ? decryptAttendeePII(row.checked_in, privateKey)
-      : Promise.resolve("false"),
+    decryptBoolField(row.checked_in, privateKey),
+    decryptBoolField(row.refunded, privateKey),
     decryptAttendeePII(row.ticket_token, privateKey),
   ]);
   return {
@@ -75,6 +80,7 @@ const decryptAttendee = async (
     payment_id,
     price_paid,
     checked_in,
+    refunded,
     ticket_token,
   };
 };
@@ -118,8 +124,10 @@ type EncryptedAttendeeData = {
   encryptedAddress: string;
   encryptedSpecialInstructions: string;
   encryptedPaymentId: string;
+  paymentIdIndex: string | null;
   encryptedPricePaid: string;
   encryptedCheckedIn: string;
+  encryptedRefunded: string;
   ticketToken: string;
   encryptedTicketToken: string;
   ticketTokenIndex: string;
@@ -130,6 +138,10 @@ type EncryptInput = ContactInfo & {
   paymentId: string;
   pricePaid: number;
 };
+
+/** Compute HMAC index for a payment ID (for webhook lookups) */
+export const computePaymentIdIndex = (paymentId: string): Promise<string> =>
+  hmacHash(paymentId);
 
 /** Encrypt attendee fields, returning null if key not configured */
 const encryptAttendeeFields = async (
@@ -151,8 +163,10 @@ const encryptAttendeeFields = async (
       publicKeyJwk,
     ),
     encryptedPaymentId: await encryptAttendeePII(input.paymentId, publicKeyJwk),
+    paymentIdIndex: input.paymentId ? await computePaymentIdIndex(input.paymentId) : null,
     encryptedPricePaid: await encrypt(String(input.pricePaid)),
     encryptedCheckedIn: await encryptAttendeePII("false", publicKeyJwk),
+    encryptedRefunded: await encryptAttendeePII("false", publicKeyJwk),
     ticketToken,
     encryptedTicketToken: await encryptAttendeePII(ticketToken, publicKeyJwk),
     ticketTokenIndex: await computeTicketTokenIndex(ticketToken),
@@ -165,6 +179,7 @@ type BuildAttendeeInput = ContactInfo & {
   eventId: number;
   created: string;
   paymentId: string;
+  paymentIdIndex: string | null;
   quantity: number;
   pricePaid: number;
   ticketToken: string;
@@ -183,9 +198,11 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   special_instructions: input.special_instructions,
   created: input.created,
   payment_id: input.paymentId,
+  payment_id_index: input.paymentIdIndex ?? "",
   quantity: input.quantity,
   price_paid: String(input.pricePaid),
   checked_in: "false",
+  refunded: "false",
   ticket_token: input.ticketToken,
   ticket_token_index: input.ticketTokenIndex,
   date: input.date,
@@ -337,8 +354,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, ticket_token, ticket_token_index, date)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, payment_id_index, quantity, price_paid, checked_in, refunded, ticket_token, ticket_token_index, date)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (
@@ -353,9 +370,11 @@ export const attendeesApi = {
         enc.encryptedSpecialInstructions,
         enc.created,
         enc.encryptedPaymentId,
+        enc.paymentIdIndex,
         qty,
         enc.encryptedPricePaid,
         enc.encryptedCheckedIn,
+        enc.encryptedRefunded,
         enc.encryptedTicketToken,
         enc.ticketTokenIndex,
         date,
@@ -381,6 +400,7 @@ export const attendeesApi = {
         special_instructions,
         created: enc.created,
         paymentId,
+        paymentIdIndex: enc.paymentIdIndex,
         quantity: qty,
         pricePaid,
         ticketToken: enc.ticketToken,
@@ -436,17 +456,30 @@ export const getAttendeesByTokens = async (
 };
 
 /**
- * Clear the payment_id for an attendee after a successful refund.
- * Prevents double-refund by removing the payment reference.
+ * Mark an attendee as refunded (set refunded to encrypted "true").
+ * Keeps payment_id intact so payment details can still be viewed.
  */
-export const clearPaymentId = async (attendeeId: number): Promise<void> => {
+export const markRefunded = async (attendeeId: number): Promise<void> => {
   const publicKeyJwk = (await getPublicKey())!;
-  const encryptedEmpty = await encryptAttendeePII("", publicKeyJwk);
+  const encryptedTrue = await encryptAttendeePII("true", publicKeyJwk);
   await getDb().execute({
-    sql: "UPDATE attendees SET payment_id = ? WHERE id = ?",
-    args: [encryptedEmpty, attendeeId],
+    sql: "UPDATE attendees SET refunded = ? WHERE id = ?",
+    args: [encryptedTrue, attendeeId],
   });
 };
+
+/**
+ * Find attendees by payment_id HMAC index.
+ * Used by refund webhooks to locate attendees for a payment_intent.
+ * Multiple attendees may share the same payment_intent (multi-ticket purchases).
+ */
+export const getAttendeesByPaymentIdIndex = (
+  paymentIdIndex: string,
+): Promise<Attendee[]> =>
+  queryAll<Attendee>(
+    "SELECT * FROM attendees WHERE payment_id_index = ?",
+    [paymentIdIndex],
+  );
 
 /**
  * Update an attendee's checked_in status (encrypted)
