@@ -1549,6 +1549,23 @@ describe("server (admin settings)", () => {
       expect(html).toContain("Invalid theme selection");
     });
 
+    test("rejects missing theme field", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Invalid theme selection");
+    });
+
     test("updates theme to dark successfully", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
