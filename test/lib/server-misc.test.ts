@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { getCleanUrl, handleRequest, isValidContentType } from "#routes";
+import { getCleanUrl, handleRequest, isValidContentType, normalizeHostname } from "#routes";
 import { temporaryErrorResponse } from "#routes/utils.ts";
 import {
   createTestDb,
@@ -276,6 +276,28 @@ describe("server (misc)", () => {
     });
   });
 
+  describe("normalizeHostname", () => {
+    test("strips port from host", () => {
+      expect(normalizeHostname("localhost:3000")).toBe("localhost");
+    });
+
+    test("lowercases hostname", () => {
+      expect(normalizeHostname("LocalHost")).toBe("localhost");
+    });
+
+    test("strips trailing FQDN dot", () => {
+      expect(normalizeHostname("example.com.")).toBe("example.com");
+    });
+
+    test("handles port and trailing dot together", () => {
+      expect(normalizeHostname("Example.COM.:443")).toBe("example.com");
+    });
+
+    test("returns plain hostname unchanged", () => {
+      expect(normalizeHostname("localhost")).toBe("localhost");
+    });
+  });
+
   describe("Domain validation", () => {
     test("allows requests with valid domain", async () => {
       const response = await handleRequest(mockRequest("/"));
@@ -313,10 +335,30 @@ describe("server (misc)", () => {
       expect(response.status).toBe(302); // Homepage redirects to /admin/
     });
 
-    test("rejects requests without Host header", async () => {
+    test("allows requests with case-different Host header", async () => {
+      const response = await handleRequest(
+        mockRequestWithHost("/", "LocalHost"),
+      );
+      expect(response.status).toBe(302);
+    });
+
+    test("allows requests with trailing FQDN dot in Host header", async () => {
+      const response = await handleRequest(
+        mockRequestWithHost("/", "localhost."),
+      );
+      expect(response.status).toBe(302);
+    });
+
+    test("allows requests without Host header when URL hostname matches", async () => {
       const response = await handleRequest(
         new Request("http://localhost/", {}),
       );
+      expect(response.status).toBe(302);
+    });
+
+    test("rejects requests where neither Host header nor URL matches", async () => {
+      const request = new Request("http://evil.com/", {});
+      const response = await handleRequest(request);
       expect(response.status).toBe(403);
       const text = await response.text();
       expect(text).toContain("Invalid domain");

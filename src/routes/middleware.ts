@@ -58,24 +58,38 @@ export const isEmbeddablePath = (path: string): boolean =>
   EMBEDDABLE_PATH.test(path);
 
 /**
- * Extract hostname from Host header (removes port if present)
+ * Normalize a hostname for comparison:
+ * - Strip port (Host header may include :443 or :3000)
+ * - Lowercase (DNS names are case-insensitive)
+ * - Strip trailing dot (FQDN notation: "example.com." === "example.com")
  */
-const getHostname = (host: string): string => {
+export const normalizeHostname = (host: string): string => {
   const colonIndex = host.indexOf(":");
-  return colonIndex === -1 ? host : host.slice(0, colonIndex);
+  const withoutPort = colonIndex === -1 ? host : host.slice(0, colonIndex);
+  const lowered = withoutPort.toLowerCase();
+  return lowered.endsWith(".") ? lowered.slice(0, -1) : lowered;
 };
 
 /**
  * Validate request domain against ALLOWED_DOMAIN.
  * Checks the Host header to prevent the app being served through unauthorized proxies.
+ * Falls back to the request URL hostname for HTTP/2 requests or proxied
+ * environments (e.g. Facebook in-app browser) where the Host header may be
+ * absent or rewritten.
  * Returns true if the request should be allowed.
  */
 export const isValidDomain = (request: Request): boolean => {
+  const allowed = normalizeHostname(getAllowedDomain());
+
+  // Check Host header (standard for HTTP/1.1)
   const host = request.headers.get("host");
-  if (!host) {
-    return false;
+  if (host && normalizeHostname(host) === allowed) {
+    return true;
   }
-  return getHostname(host) === getAllowedDomain();
+
+  // Fallback: check the request URL hostname (covers HTTP/2 :authority
+  // and CDN-rewritten requests where the Host header is missing or altered)
+  return normalizeHostname(new URL(request.url).host) === allowed;
 };
 
 /**

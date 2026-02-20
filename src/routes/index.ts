@@ -80,6 +80,7 @@ export {
   isEmbeddablePath,
   isValidContentType,
   isValidDomain,
+  normalizeHostname,
 } from "#routes/middleware.ts";
 
 // Re-export types
