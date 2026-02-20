@@ -142,7 +142,7 @@ describe("server (misc)", () => {
         expect(response.headers.get("referrer-policy")).toBe(
           "strict-origin-when-cross-origin",
         );
-        expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+        expect(response.headers.get("x-robots-tag")).toBe("index, follow");
       });
     });
   });

@@ -57,10 +57,10 @@ export const handleHome = (): Response => redirect("/admin/");
 
 /** Ticket response builder (CSRF token embedded in form) */
 const ticketResponseWithToken =
-  (event: EventWithCount, isClosed: boolean, inIframe: boolean, dates: string[] | undefined, terms: string | null | undefined) =>
+  (event: EventWithCount, isClosed: boolean, inIframe: boolean, dates: string[] | undefined, terms: string | null | undefined, baseUrl?: string) =>
   (token: string) =>
   (error?: string, status = 200) =>
-    htmlResponse(ticketPage(event, token, error, isClosed, inIframe, dates, terms), status);
+    htmlResponse(ticketPage(event, token, error, isClosed, inIframe, dates, terms, baseUrl), status);
 
 /** Curried error response: render(error) → (error, status) → Response */
 const errorResponse =
@@ -99,7 +99,8 @@ const handleSingleTicketGet = (slug: string, request: Request): Promise<Response
     const token = await signCsrfToken();
     const dates = await computeDatesForEvent(event);
     const terms = await getTermsAndConditionsFromDb();
-    return ticketResponseWithToken(event, closed, inIframe, dates, terms)(token)();
+    const baseUrl = getBaseUrl(request);
+    return ticketResponseWithToken(event, closed, inIframe, dates, terms, baseUrl)(token)();
   });
 
 /**

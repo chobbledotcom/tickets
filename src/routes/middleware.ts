@@ -41,6 +41,7 @@ export const getSecurityHeaders = (
 ): Record<string, string> => ({
   ...BASE_SECURITY_HEADERS,
   ...(!embeddable && { "x-frame-options": "DENY" }),
+  ...(embeddable && { "x-robots-tag": "index, follow" }),
   "content-security-policy": buildCspHeader(embeddable),
 });
 
