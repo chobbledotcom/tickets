@@ -66,32 +66,6 @@ export const adminSettingsPage = (
           <button type="submit">Save Business Email</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/theme" csrfToken={session.csrfToken}>
-            <h2>Site Theme</h2>
-          <p>Choose between light and dark themes for the site interface.</p>
-          <fieldset>
-            <label>
-              <input
-                type="radio"
-                name="theme"
-                value="light"
-                checked={(theme ?? "light") === "light"}
-              />
-              Light
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="theme"
-                value="dark"
-                checked={theme === "dark"}
-              />
-              Dark
-            </label>
-          </fieldset>
-          <button type="submit">Save Theme</button>
-        </CsrfForm>
-
         <CsrfForm action="/admin/settings/payment-provider" csrfToken={session.csrfToken}>
             <h2>Payment Provider</h2>
           <p>Choose which payment provider to use for paid events.</p>
@@ -240,6 +214,32 @@ export const adminSettingsPage = (
           <button type="submit" class="danger">
             Reset Database
           </button>
+        </CsrfForm>
+
+        <CsrfForm action="/admin/settings/theme" csrfToken={session.csrfToken}>
+            <h2>Site Theme</h2>
+          <p>Choose between light and dark themes for the site interface.</p>
+          <fieldset>
+            <label>
+              <input
+                type="radio"
+                name="theme"
+                value="light"
+                checked={(theme ?? "light") === "light"}
+              />
+              Light
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="theme"
+                value="dark"
+                checked={theme === "dark"}
+              />
+              Dark
+            </label>
+          </fieldset>
+          <button type="submit">Save Theme</button>
         </CsrfForm>
     </Layout>
   );
