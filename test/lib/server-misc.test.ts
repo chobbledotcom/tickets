@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 import { getCleanUrl, handleRequest, isValidContentType, normalizeHostname } from "#routes";
 import { temporaryErrorResponse } from "#routes/utils.ts";
 import {
@@ -372,7 +372,33 @@ describe("server (misc)", () => {
       expect(response.headers.get("x-content-type-options")).toBe("nosniff");
       expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     });
+
+    test("logs DOMAIN_REJECTED error with host details on rejection", async () => {
+      const errorSpy = spyOn(console, "error");
+
+      await handleRequest(mockRequestWithHost("/", "evil.com"));
+
+      const calls = errorSpy.mock.calls.map((c) => c[0] as string);
+      const domainError = calls.find((c) => c.includes("E_DOMAIN_REJECTED"));
+      expect(domainError).toBeDefined();
+      expect(domainError).toContain("host=evil.com");
+      errorSpy.mockRestore();
+    });
+
+    test("logs missing host header in rejection reason", async () => {
+      const errorSpy = spyOn(console, "error");
+
+      await handleRequest(new Request("http://evil.com/", {}));
+
+      const calls = errorSpy.mock.calls.map((c) => c[0] as string);
+      const domainError = calls.find((c) => c.includes("E_DOMAIN_REJECTED"));
+      expect(domainError).toBeDefined();
+      expect(domainError).toContain("host=missing");
+      expect(domainError).toContain("url=evil.com");
+      errorSpy.mockRestore();
+    });
   });
+
 
   describe("Tracking parameter stripping", () => {
     describe("getCleanUrl", () => {
