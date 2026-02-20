@@ -12,6 +12,7 @@ import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
   domainRejectionResponse,
+  getCleanUrl,
   isEmbeddablePath,
   isValidContentType,
   isValidDomain,
@@ -74,6 +75,7 @@ const loadImageRoutes = once(async () => {
 
 // Re-export middleware functions for testing
 export {
+  getCleanUrl,
   getSecurityHeaders,
   isEmbeddablePath,
   isValidContentType,
@@ -179,8 +181,19 @@ export const handleRequest = (
   server?: ServerContext,
 ): Promise<Response> => {
   return runWithRequestId(() => runWithQueryLogContext(async () => {
-  const { path, method } = parseRequest(request);
+  const { url, path, method } = parseRequest(request);
   const getElapsed = createRequestTimer();
+
+  // Strip tracking parameters (fbclid, utm_*, etc.) to avoid CDN caching issues
+  if (method === "GET") {
+    const cleanUrl = getCleanUrl(url);
+    if (cleanUrl) {
+      return logAndReturn(
+        new Response(null, { status: 301, headers: { location: cleanUrl } }),
+        method, path, getElapsed,
+      );
+    }
+  }
 
   // Domain validation: reject requests to unauthorized domains
   if (!isValidDomain(request)) {
