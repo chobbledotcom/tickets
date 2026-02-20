@@ -51,12 +51,21 @@ for (const [filename] of ASSET_DEFS) {
 }
 
 // Packages to bundle directly (not externalize to CDN)
-// These are used on every request and should not depend on CDN availability
-const BUNDLED_PACKAGES = new Set(["@libsql/client"]);
+// These are eagerly loaded on every request and should not depend on CDN availability.
+// Lazy-loaded packages (stripe, square, qrcode) stay on CDN — square's @apimatic deps
+// have broken CJS/browser resolution that prevents bundling.
+const BUNDLED_PACKAGES = new Set([
+  "@libsql/client",
+  "@bunny.net/edgescript-sdk",
+  "@bunny.net/storage-sdk",
+  "@internationalized/date",
+]);
 
-// Edge subpath overrides (e.g., use web-compatible libsql client)
+// Edge subpath overrides for bundled packages
 const EDGE_SUBPATHS: Record<string, string> = {
   "@libsql/client": "/web",
+  // Per Bunny docs: undocumented production entrypoint for edgescript-sdk
+  "@bunny.net/edgescript-sdk": "/esm-bunny/lib.mjs",
 };
 
 /** Map of bare specifiers to esm.sh CDN URLs, derived from deno.json imports */
@@ -186,16 +195,11 @@ const findPackageDir = (name: string): string | null => {
 
 /** Resolve a bare npm specifier (e.g. "@libsql/client" or "@libsql/core/api") */
 const resolveNpmSpecifier = (specifier: string): string | null => {
-  // Split into package name and subpath
-  const parts = specifier.startsWith("@")
-    ? specifier.split("/", 3)
-    : specifier.split("/", 2);
-  const pkgName = specifier.startsWith("@")
-    ? `${parts[0]}/${parts[1]}`
-    : parts[0]!;
-  const subpath = specifier.startsWith("@")
-    ? parts.slice(2).join("/")
-    : parts.slice(1).join("/");
+  // Split into package name and subpath (scoped packages have 2 segments)
+  const nameSegments = specifier.startsWith("@") ? 2 : 1;
+  const idx = specifier.split("/", nameSegments).join("/").length;
+  const pkgName = specifier.slice(0, idx === specifier.length ? undefined : idx);
+  const subpath = idx < specifier.length ? specifier.slice(idx + 1) : "";
 
   const pkgDir = findPackageDir(pkgName);
   if (!pkgDir) return null;
@@ -224,11 +228,21 @@ const resolveNpmSpecifier = (specifier: string): string | null => {
 
 /**
  * Plugin to resolve bundled npm packages from Deno's npm cache.
- * Only handles packages listed in BUNDLED_PACKAGES and their transitive deps.
+ * Handles BUNDLED_PACKAGES (with optional subpath overrides) and their transitive deps.
  */
 const denoNpmResolverPlugin: Plugin = {
   name: "deno-npm-resolver",
   setup(build) {
+    // Apply EDGE_SUBPATHS overrides for bundled packages (e.g. @libsql/client → /web)
+    for (const [pkg, subpath] of Object.entries(EDGE_SUBPATHS)) {
+      if (!BUNDLED_PACKAGES.has(pkg)) continue;
+      const filter = new RegExp(`^${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+      build.onResolve({ filter }, () => {
+        const resolved = resolveNpmSpecifier(`${pkg}${subpath}`);
+        return resolved ? { path: resolved } : undefined;
+      });
+    }
+
     // Match bare specifiers (not relative paths, not URLs, not node: builtins)
     build.onResolve({ filter: /^[^./]/ }, (args) => {
       if (args.path.startsWith("node:")) return undefined;
@@ -285,8 +299,8 @@ try {
   Deno.exit(1);
 }
 
-// Bunny Edge Scripting has a 1MB script size limit
-const BUNNY_MAX_SCRIPT_SIZE = 1_000_000;
+// Bunny Edge Scripting has a 10MB script size limit
+const BUNNY_MAX_SCRIPT_SIZE = 10_000_000;
 if (content.length > BUNNY_MAX_SCRIPT_SIZE) {
   console.error(
     `Bundle size ${content.length} bytes exceeds Bunny's ${BUNNY_MAX_SCRIPT_SIZE} byte limit`,
