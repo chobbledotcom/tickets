@@ -51,14 +51,14 @@ for (const [filename] of ASSET_DEFS) {
 }
 
 // Packages to bundle directly (not externalize to CDN)
-// These are eagerly loaded on every request and should not depend on CDN availability.
-// Lazy-loaded packages (stripe, square, qrcode) stay on CDN — square's @apimatic deps
-// have broken CJS/browser resolution that prevents bundling.
+// Square stays on CDN — its @apimatic deps have broken CJS/browser resolution.
 const BUNDLED_PACKAGES = new Set([
   "@libsql/client",
   "@bunny.net/edgescript-sdk",
   "@bunny.net/storage-sdk",
   "@internationalized/date",
+  "stripe",
+  "qrcode",
 ]);
 
 // Edge subpath overrides for bundled packages
@@ -193,6 +193,16 @@ const findPackageDir = (name: string): string | null => {
   return null;
 };
 
+/** Resolve a file path, trying .js/.json extensions and /index.js for extensionless CJS entries */
+const resolveFile = (path: string): string | null => {
+  try { Deno.statSync(path); return path; } catch { /* continue */ }
+  for (const ext of [".js", ".json"]) {
+    try { Deno.statSync(path + ext); return path + ext; } catch { /* continue */ }
+  }
+  try { Deno.statSync(`${path}/index.js`); return `${path}/index.js`; } catch { /* continue */ }
+  return null;
+};
+
 /** Resolve a bare npm specifier (e.g. "@libsql/client" or "@libsql/core/api") */
 const resolveNpmSpecifier = (specifier: string): string | null => {
   // Split into package name and subpath (scoped packages have 2 segments)
@@ -211,7 +221,7 @@ const resolveNpmSpecifier = (specifier: string): string | null => {
     const entry = exports[exportKey] as string | Record<string, unknown> | undefined;
     if (entry) {
       const resolved = resolveExport(entry);
-      if (resolved) return `${pkgDir}/${resolved}`;
+      if (resolved) return resolveFile(`${pkgDir}/${resolved}`) ?? `${pkgDir}/${resolved}`;
     }
   }
 
@@ -220,7 +230,7 @@ const resolveNpmSpecifier = (specifier: string): string | null => {
     const entry = (typeof pkgJson.browser === "string" && pkgJson.browser)
       || pkgJson.module
       || pkgJson.main;
-    if (entry) return `${pkgDir}/${entry}`;
+    if (entry) return resolveFile(`${pkgDir}/${entry}`) ?? `${pkgDir}/${entry}`;
   }
 
   return null;
