@@ -19,7 +19,7 @@ import {
   reservationSuccessPage,
 } from "#templates/payment.tsx";
 import { eventFields } from "#templates/fields.ts";
-import { buildMultiTicketEvent, multiTicketPage, notFoundPage, renderEventImage, ticketPage } from "#templates/public.tsx";
+import { buildMultiTicketEvent, multiTicketPage, notFoundPage, renderEventImage, temporaryErrorPage, ticketPage } from "#templates/public.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { testAttendee, testEvent, testEventWithCount, testGroup } from "#test-utils";
 
@@ -447,6 +447,16 @@ describe("html", () => {
     test("renders not found message", () => {
       const html = notFoundPage();
       expect(html).toContain("<h1>Not Found</h1>");
+    });
+  });
+
+  describe("temporaryErrorPage", () => {
+    test("renders error message with auto-refresh", () => {
+      const html = temporaryErrorPage();
+      expect(html).toContain("<h1>Temporary Error</h1>");
+      expect(html).toContain("Retrying automatically");
+      expect(html).toContain('http-equiv="refresh"');
+      expect(html).toContain('content="2"');
     });
   });
 

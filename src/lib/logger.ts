@@ -91,6 +91,9 @@ export const ErrorCode = {
 
   // Configuration errors
   CONFIG_MISSING: "E_CONFIG_MISSING",
+
+  // CDN/network errors (transient edge failures)
+  CDN_REQUEST: "E_CDN_REQUEST",
 } as const;
 
 export type ErrorCodeType = (typeof ErrorCode)[keyof typeof ErrorCode];

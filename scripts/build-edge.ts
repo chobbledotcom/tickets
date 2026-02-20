@@ -9,10 +9,6 @@ import type { Plugin } from "esbuild";
 import { minifyCss } from "./css-minify.ts";
 import { buildStaticAssets } from "./build-static-assets.ts";
 
-// Read deno.json import map (used by both client and edge builds)
-const denoConfig = JSON.parse(await Deno.readTextFile("./deno.json"));
-const denoImports: Record<string, string> = denoConfig.imports;
-
 // --- Step 1: Build client bundles ---
 await buildStaticAssets();
 
@@ -50,38 +46,10 @@ for (const [filename] of ASSET_DEFS) {
   STATIC_ASSETS[filename] = await Deno.readTextFile(`./src/static/${filename}`);
 }
 
-// Edge subpath overrides (e.g., use web-compatible libsql client)
+// Subpath overrides: use platform-specific entry points for certain packages
 const EDGE_SUBPATHS: Record<string, string> = {
   "@libsql/client": "/web",
-};
-
-/** Map of bare specifiers to esm.sh CDN URLs, derived from deno.json imports */
-const ESM_SH_EXTERNALS: Record<string, string> = {};
-
-for (const [key, specifier] of Object.entries(denoImports)) {
-  if (!specifier.startsWith("npm:")) continue;
-  const subpath = EDGE_SUBPATHS[key] ?? "";
-  const url = `https://esm.sh/${specifier.slice(4)}${subpath}`;
-  ESM_SH_EXTERNALS[key] = url;
-  if (subpath) ESM_SH_EXTERNALS[`${key}${subpath}`] = url;
-}
-
-/** Rewrite bare package imports to esm.sh URLs and mark them external */
-const esmShExternalsPlugin: Plugin = {
-  name: "esm-sh-externals",
-  setup(build) {
-    const filter = new RegExp(
-      "^(" +
-        Object.keys(ESM_SH_EXTERNALS)
-          .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-          .join("|") +
-        ")$",
-    );
-    build.onResolve({ filter }, (args) => ({
-      path: ESM_SH_EXTERNALS[args.path]!,
-      external: true,
-    }));
-  },
+  "@bunny.net/edgescript-sdk": "/esm-bunny/lib.mjs",
 };
 
 /** Build the inline asset-paths module with cache-busted paths */
@@ -141,6 +109,111 @@ const inlineAssetsPlugin: Plugin = {
   },
 };
 
+// --- Deno npm cache resolver for bundled packages ---
+
+/** Discover Deno's npm cache path via `deno info --json` */
+const getDenoNpmCache = (): string => {
+  const result = new Deno.Command(Deno.execPath(), { args: ["info", "--json"], stdout: "piped" }).outputSync();
+  const info = JSON.parse(new TextDecoder().decode(result.stdout));
+  return `${info.npmCache}/registry.npmjs.org`;
+};
+
+const NPM_CACHE = getDenoNpmCache();
+
+/** Condition priority for resolving package.json exports (matches platform: "browser") */
+const CONDITIONS = ["browser", "import", "default"];
+
+/** Resolve a package.json "exports" entry to a file path */
+const resolveExport = (
+  entry: string | Record<string, unknown>,
+): string | null => {
+  if (typeof entry === "string") return entry;
+  for (const cond of CONDITIONS) {
+    const val = entry[cond];
+    if (val) return resolveExport(val as string | Record<string, unknown>);
+  }
+  return null;
+};
+
+/** Find a package in Deno's npm cache, returning its root directory */
+const findPackageDir = (name: string): string => {
+  const scopedDir = `${NPM_CACHE}/${name}`;
+  for (const entry of Deno.readDirSync(scopedDir)) {
+    if (entry.isDirectory) return `${scopedDir}/${entry.name}`;
+  }
+  throw new Error(`Package ${name} not found in npm cache`);
+};
+
+/** Check if a file exists */
+const exists = (path: string): boolean => {
+  try { Deno.statSync(path); return true; } catch { return false; }
+};
+
+/** Resolve a file path, trying .js/.json extensions and /index.js for extensionless CJS entries */
+const resolveFile = (path: string): string =>
+  [path, `${path}.js`, `${path}.json`, `${path}/index.js`].find(exists) ?? path;
+
+/** Resolve a bare npm specifier (e.g. "@libsql/client" or "@libsql/core/api") */
+const resolveNpmSpecifier = (specifier: string): string | null => {
+  // Split into package name and subpath (scoped packages have 2 segments)
+  const nameSegments = specifier.startsWith("@") ? 2 : 1;
+  const idx = specifier.split("/", nameSegments).join("/").length;
+  const pkgName = specifier.slice(0, idx === specifier.length ? undefined : idx);
+  const subpath = idx < specifier.length ? specifier.slice(idx + 1) : "";
+
+  let pkgDir: string;
+  try { pkgDir = findPackageDir(pkgName); } catch { return null; }
+
+  const pkgJson = JSON.parse(Deno.readTextFileSync(`${pkgDir}/package.json`));
+
+  // Try exports map first
+  const exportEntry = pkgJson.exports?.[subpath ? `./${subpath}` : "."];
+  if (exportEntry) {
+    const resolved = resolveExport(exportEntry);
+    if (resolved) return resolveFile(`${pkgDir}/${resolved}`);
+  }
+
+  // Fallback: browser → module → main → index.js
+  if (!subpath) {
+    // browser field can be an object (module replacement map) — only use if string
+    const entry = (typeof pkgJson.browser === "string" ? pkgJson.browser : null)
+      ?? pkgJson.module ?? pkgJson.main;
+    if (entry) return resolveFile(`${pkgDir}/${entry}`);
+    return resolveFile(`${pkgDir}/index`);
+  }
+
+  return null;
+};
+
+/** Plugin to resolve npm packages from Deno's npm cache */
+const denoNpmResolverPlugin: Plugin = {
+  name: "deno-npm-resolver",
+  setup(build) {
+    // Redirect packages that need platform-specific entry points
+    for (const [pkg, subpath] of Object.entries(EDGE_SUBPATHS)) {
+      const filter = new RegExp(`^${pkg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+      build.onResolve({ filter }, () => {
+        const resolved = resolveNpmSpecifier(`${pkg}${subpath}`);
+        return resolved ? { path: resolved } : undefined;
+      });
+    }
+
+    // Resolve all bare specifiers from Deno's npm cache
+    build.onResolve({ filter: /^[^./]/ }, (args) => {
+      if (args.path.startsWith("node:")) return undefined;
+      const resolved = resolveNpmSpecifier(args.path);
+      return resolved ? { path: resolved } : undefined;
+    });
+  },
+};
+
+// Externalize all Node.js built-in modules (per Bunny docs)
+import { builtinModules } from "node:module";
+const nodeExternals = [
+  ...builtinModules,
+  ...builtinModules.map((m) => `node:${m}`),
+];
+
 // Banner to inject Node.js globals that many packages expect (per Bunny docs)
 // process.env is populated by Bunny's native secrets at runtime
 const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
@@ -150,38 +223,34 @@ globalThis.Buffer ??= Buffer;
 globalThis.global ??= globalThis;
 `;
 
-const result = await esbuild.build({
+await esbuild.build({
   entryPoints: ["./src/edge/bunny-script.ts"],
   outdir: "./dist",
   platform: "browser",
   format: "esm",
   minify: true,
   bundle: true,
-  external: ["node:async_hooks"],
-  plugins: [esmShExternalsPlugin, inlineAssetsPlugin],
+  external: nodeExternals,
+  define: { "process.env.NODE_ENV": '"production"' },
+  plugins: [denoNpmResolverPlugin, inlineAssetsPlugin],
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
 
-if (result.errors.length > 0) {
-  console.error("Build failed:");
-  for (const log of result.errors) {
-    console.error(log);
-  }
-  Deno.exit(1);
-}
+// esbuild.build() throws on failure, so if we reach here the output file exists
+const content = await Deno.readTextFile("./dist/bunny-script.js");
 
-const outputPath = "./dist/bunny-script.js";
-let content: string;
-try {
-  content = await Deno.readTextFile(outputPath);
-} catch {
-  console.error("No output file generated");
+// Bunny Edge Scripting has a 10MB script size limit
+const BUNNY_MAX_SCRIPT_SIZE = 10_000_000;
+if (content.length > BUNNY_MAX_SCRIPT_SIZE) {
+  console.error(
+    `Bundle size ${content.length} bytes exceeds Bunny's ${BUNNY_MAX_SCRIPT_SIZE} byte limit`,
+  );
   Deno.exit(1);
 }
 
 await Deno.writeTextFile("./bunny-script.ts", content);
 
-console.log("Build complete: bunny-script.ts");
+console.log(`Build complete: bunny-script.ts (${content.length} bytes)`);
 
 // Clean up esbuild
 esbuild.stop();

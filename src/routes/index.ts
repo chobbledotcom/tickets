@@ -7,7 +7,7 @@ import { once } from "#fp";
 import { isSetupComplete } from "#lib/config.ts";
 import { loadCurrencyCode } from "#lib/currency.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
-import { createRequestTimer, logRequest, runWithRequestId } from "#lib/logger.ts";
+import { createRequestTimer, ErrorCode, logError, logRequest, runWithRequestId } from "#lib/logger.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
@@ -19,7 +19,7 @@ import {
 import type { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { notFoundResponse, parseRequest, redirect } from "#routes/utils.ts";
+import { notFoundResponse, parseRequest, redirect, temporaryErrorResponse } from "#routes/utils.ts";
 
 /** Router function type - reuse from router.ts */
 type RouterFn = ReturnType<typeof createRouter>;
@@ -195,7 +195,12 @@ export const handleRequest = (
     return logAndReturn(contentTypeRejectionResponse(), method, path, getElapsed);
   }
 
-  const response = await handleRequestInternal(request, path, method, server);
-  return logAndReturn(await applySecurityHeaders(response, embeddable), method, path, getElapsed);
+  try {
+    const response = await handleRequestInternal(request, path, method, server);
+    return logAndReturn(await applySecurityHeaders(response, embeddable), method, path, getElapsed);
+  } catch (error) {
+    logError({ code: ErrorCode.CDN_REQUEST, detail: String(error) });
+    return logAndReturn(temporaryErrorResponse(), method, path, getElapsed);
+  }
   }));
 };
