@@ -54,6 +54,38 @@ const EDGE_SUBPATHS: Record<string, string> = {
   "@bunny.net/edgescript-sdk": "/esm-bunny/lib.mjs",
 };
 
+// --- CDN externals for payment SDKs ---
+// Stripe and Square are large, rarely-used SDKs (lazy-loaded on payment paths only).
+// Keep them as runtime CDN imports via esm.sh instead of bundling.
+const denoConfig = JSON.parse(Deno.readTextFileSync("./deno.json"));
+const denoImports: Record<string, string> = denoConfig.imports;
+
+/** Packages to load from esm.sh CDN at runtime instead of bundling */
+const CDN_PACKAGES = ["stripe", "square"];
+
+const CDN_EXTERNALS: Record<string, string> = {};
+for (const pkg of CDN_PACKAGES) {
+  const specifier = denoImports[pkg];
+  if (!specifier?.startsWith("npm:")) {
+    throw new Error(`Expected npm: specifier for "${pkg}" in deno.json imports`);
+  }
+  CDN_EXTERNALS[pkg] = `https://esm.sh/${specifier.slice(4)}`;
+}
+
+/** Rewrite payment SDK imports to esm.sh CDN URLs and mark them external */
+const cdnExternalsPlugin: Plugin = {
+  name: "cdn-externals",
+  setup(build) {
+    const filter = new RegExp(
+      "^(" + CDN_PACKAGES.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")$",
+    );
+    build.onResolve({ filter }, (args) => ({
+      path: CDN_EXTERNALS[args.path]!,
+      external: true,
+    }));
+  },
+};
+
 /** Build the inline asset-paths module with cache-busted paths */
 const buildAssetPathsModule = (): string =>
   ASSET_DEFS
@@ -218,13 +250,8 @@ const nodeExternals = [
 
 // Banner to inject Node.js globals that many packages expect (per Bunny docs)
 // process.env is populated by Bunny's native secrets at runtime
-// createRequire shim: npm packages bundled as CJS use require() for Node builtins
-// (e.g. Stripe SDK does require("crypto")); esbuild's CJS compat shim checks
-// typeof require, so a module-scoped `var require` makes it resolve correctly
 const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
 import { Buffer } from "node:buffer";
-import { createRequire as __createRequire } from "node:module";
-var require = __createRequire(import.meta.url);
 globalThis.process ??= process;
 globalThis.Buffer ??= Buffer;
 globalThis.global ??= globalThis;
@@ -239,7 +266,7 @@ await esbuild.build({
   bundle: true,
   external: nodeExternals,
   define: { "process.env.NODE_ENV": '"production"' },
-  plugins: [denoNpmResolverPlugin, inlineAssetsPlugin],
+  plugins: [cdnExternalsPlugin, denoNpmResolverPlugin, inlineAssetsPlugin],
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
 
