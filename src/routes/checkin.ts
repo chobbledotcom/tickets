@@ -4,7 +4,7 @@
  * POST: Sets check-in status based on explicit check_in form field (PRG pattern)
  */
 
-import { map } from "#fp";
+import { filter, map } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { decryptAttendees, updateCheckedIn } from "#lib/db/attendees.ts";
 import type { Attendee } from "#lib/types.ts";
@@ -73,12 +73,18 @@ const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response
     const checkedIn = form.get("check_in") === "true";
     const privateKey = (await getPrivateKey(session))!;
     const decrypted = await decryptAttendees(lookup.attendees, privateKey);
-    const totalTickets = sumTicketCount(decrypted);
+    const eligible = filter((a: Attendee) => !a.refunded)(decrypted);
+
+    if (eligible.length === 0) {
+      return redirect(`/checkin/${tokens.join("+")}?message=${encodeURIComponent("Cannot check in refunded tickets")}`);
+    }
+
+    const totalTickets = sumTicketCount(eligible);
     const uncheckedTickets = sumTicketCount(
-      decrypted,
+      eligible,
       (attendee) => attendee.checked_in !== "true",
     );
-    await Promise.all(map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(lookup.attendees));
+    await Promise.all(map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(eligible));
 
     let message: string;
     if (!checkedIn) {

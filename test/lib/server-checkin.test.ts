@@ -308,6 +308,46 @@ describe("check-in (/checkin/:tokens)", () => {
       );
     });
 
+    test("blocks check-in for refunded attendee", async () => {
+      const { getAttendeesByTokens, markRefunded } = await import("#lib/db/attendees.ts");
+      const { token, session } = await setupCheckinTest("Refund", "refund@test.com");
+
+      const attendees = await getAttendeesByTokens([token]);
+      await markRefunded(attendees[0]!.id);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/checkin/${token}`,
+          { csrf_token: session.csrfToken, check_in: "true" },
+          session.cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        `/checkin/${token}?message=Cannot%20check%20in%20refunded%20tickets`,
+      );
+    });
+
+    test("blocks check-out for refunded attendee", async () => {
+      const { getAttendeesByTokens, markRefunded } = await import("#lib/db/attendees.ts");
+      const { token, session } = await setupCheckinTest("Refund2", "refund2@test.com");
+
+      const attendees = await getAttendeesByTokens([token]);
+      await markRefunded(attendees[0]!.id);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/checkin/${token}`,
+          { csrf_token: session.csrfToken, check_in: "false" },
+          session.cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        `/checkin/${token}?message=Cannot%20check%20in%20refunded%20tickets`,
+      );
+    });
+
     test("redirects to admin for unauthenticated POST", async () => {
       const { token } = await createTestAttendeeWithToken("Frank", "frank@test.com");
       const response = await handleRequest(
