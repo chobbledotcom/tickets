@@ -1046,7 +1046,7 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   quantity: 1,
   price_paid: "0",
   checked_in: "false",
-  refunded: "false",
+  refunded: false,
   ticket_token: "test-token-1",
   ticket_token_index: "test-token-index-1",
   date: null,

@@ -203,7 +203,7 @@ const refundError = (
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute((data, session, request) => {
   if (!data.attendee.payment_id) return refundError(data, session, NO_PAYMENT_ERROR, getReturnUrl(request));
-  if (data.attendee.refunded === "true") return refundError(data, session, ALREADY_REFUNDED_ERROR, getReturnUrl(request));
+  if (data.attendee.refunded) return refundError(data, session, ALREADY_REFUNDED_ERROR, getReturnUrl(request));
   return htmlResponse(adminRefundAttendeePage(data, session, undefined, getReturnUrl(request)));
 });
 
@@ -215,7 +215,7 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
 
   const returnUrl = getReturnUrlFromForm(form);
   if (!data.attendee.payment_id) return refundError(data, session, NO_PAYMENT_ERROR, returnUrl);
-  if (data.attendee.refunded === "true") return refundError(data, session, ALREADY_REFUNDED_ERROR, returnUrl);
+  if (data.attendee.refunded) return refundError(data, session, ALREADY_REFUNDED_ERROR, returnUrl);
 
   const provider = await getActivePaymentProvider();
   if (!provider) return refundError(data, session, NO_PROVIDER_ERROR, returnUrl);
@@ -235,7 +235,7 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
 });
 
 /** Filter attendees that have a payment_id and are not yet refunded */
-const getRefundable = filter((a: Attendee) => a.payment_id !== "" && a.refunded !== "true");
+const getRefundable = filter((a: Attendee) => a.payment_id !== "" && !a.refunded);
 
 /** Handle GET /admin/event/:id/refund-all */
 const handleAdminRefundAllGet = (
@@ -500,7 +500,7 @@ async function refreshPaymentHandler(
   }
 
   const isRefunded = await provider.isPaymentRefunded(data.attendee.payment_id);
-  if (isRefunded && data.attendee.refunded !== "true") {
+  if (isRefunded && !data.attendee.refunded) {
     await markRefunded(attendeeId);
     await logActivity(`Payment marked as refunded for attendee '${data.attendee.name}'`, data.event.id);
     return redirect(`/admin/attendees/${attendeeId}?success=${encodeURIComponent("Payment status updated: refunded")}`);

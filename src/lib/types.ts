@@ -67,7 +67,7 @@ export interface Attendee extends ContactInfo {
   quantity: number;
   price_paid: string;
   checked_in: string;
-  refunded: string;
+  refunded: boolean;
   ticket_token: string;
   ticket_token_index: string;
   date: string | null;
