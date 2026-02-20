@@ -50,8 +50,7 @@ for (const [filename] of ASSET_DEFS) {
   STATIC_ASSETS[filename] = await Deno.readTextFile(`./src/static/${filename}`);
 }
 
-// Packages to bundle directly (not externalize to CDN)
-// Square stays on CDN — its @apimatic deps have broken CJS/browser resolution.
+// Bundle all npm packages directly (no CDN dependency at runtime)
 const BUNDLED_PACKAGES = new Set([
   "@libsql/client",
   "@bunny.net/edgescript-sdk",
@@ -59,6 +58,7 @@ const BUNDLED_PACKAGES = new Set([
   "@internationalized/date",
   "stripe",
   "qrcode",
+  "square",
 ]);
 
 // Edge subpath overrides for bundled packages
@@ -182,26 +182,22 @@ const resolveExport = (
 };
 
 /** Find a package in Deno's npm cache, returning its root directory */
-const findPackageDir = (name: string): string | null => {
+const findPackageDir = (name: string): string => {
   const scopedDir = `${NPM_CACHE}/${name}`;
-  try {
-    // Find the installed version directory
-    for (const entry of Deno.readDirSync(scopedDir)) {
-      if (entry.isDirectory) return `${scopedDir}/${entry.name}`;
-    }
-  } catch { /* not found */ }
-  return null;
+  for (const entry of Deno.readDirSync(scopedDir)) {
+    if (entry.isDirectory) return `${scopedDir}/${entry.name}`;
+  }
+  throw new Error(`Package ${name} not found in npm cache`);
+};
+
+/** Check if a file exists */
+const exists = (path: string): boolean => {
+  try { Deno.statSync(path); return true; } catch { return false; }
 };
 
 /** Resolve a file path, trying .js/.json extensions and /index.js for extensionless CJS entries */
-const resolveFile = (path: string): string | null => {
-  try { Deno.statSync(path); return path; } catch { /* continue */ }
-  for (const ext of [".js", ".json"]) {
-    try { Deno.statSync(path + ext); return path + ext; } catch { /* continue */ }
-  }
-  try { Deno.statSync(`${path}/index.js`); return `${path}/index.js`; } catch { /* continue */ }
-  return null;
-};
+const resolveFile = (path: string): string =>
+  [path, `${path}.js`, `${path}.json`, `${path}/index.js`].find(exists) ?? path;
 
 /** Resolve a bare npm specifier (e.g. "@libsql/client" or "@libsql/core/api") */
 const resolveNpmSpecifier = (specifier: string): string | null => {
@@ -211,26 +207,25 @@ const resolveNpmSpecifier = (specifier: string): string | null => {
   const pkgName = specifier.slice(0, idx === specifier.length ? undefined : idx);
   const subpath = idx < specifier.length ? specifier.slice(idx + 1) : "";
 
-  const pkgDir = findPackageDir(pkgName);
-  if (!pkgDir) return null;
+  let pkgDir: string;
+  try { pkgDir = findPackageDir(pkgName); } catch { return null; }
 
   const pkgJson = JSON.parse(Deno.readTextFileSync(`${pkgDir}/package.json`));
-  const exports = pkgJson.exports as Record<string, unknown> | undefined;
-  if (exports) {
-    const exportKey = subpath ? `./${subpath}` : ".";
-    const entry = exports[exportKey] as string | Record<string, unknown> | undefined;
-    if (entry) {
-      const resolved = resolveExport(entry);
-      if (resolved) return resolveFile(`${pkgDir}/${resolved}`) ?? `${pkgDir}/${resolved}`;
-    }
+
+  // Try exports map first
+  const exportEntry = pkgJson.exports?.[subpath ? `./${subpath}` : "."];
+  if (exportEntry) {
+    const resolved = resolveExport(exportEntry);
+    if (resolved) return resolveFile(`${pkgDir}/${resolved}`);
   }
 
-  // Fallback: "browser" field (used by cross-fetch, etc.), then "module", then "main"
+  // Fallback: browser → module → main → index.js
   if (!subpath) {
-    const entry = (typeof pkgJson.browser === "string" && pkgJson.browser)
-      || pkgJson.module
-      || pkgJson.main;
-    if (entry) return resolveFile(`${pkgDir}/${entry}`) ?? `${pkgDir}/${entry}`;
+    // browser field can be an object (module replacement map) — only use if string
+    const entry = (typeof pkgJson.browser === "string" ? pkgJson.browser : null)
+      ?? pkgJson.module ?? pkgJson.main;
+    if (entry) return resolveFile(`${pkgDir}/${entry}`);
+    return resolveFile(`${pkgDir}/index`);
   }
 
   return null;
@@ -279,7 +274,7 @@ globalThis.Buffer ??= Buffer;
 globalThis.global ??= globalThis;
 `;
 
-const result = await esbuild.build({
+await esbuild.build({
   entryPoints: ["./src/edge/bunny-script.ts"],
   outdir: "./dist",
   platform: "browser",
@@ -292,22 +287,8 @@ const result = await esbuild.build({
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
 
-if (result.errors.length > 0) {
-  console.error("Build failed:");
-  for (const log of result.errors) {
-    console.error(log);
-  }
-  Deno.exit(1);
-}
-
-const outputPath = "./dist/bunny-script.js";
-let content: string;
-try {
-  content = await Deno.readTextFile(outputPath);
-} catch {
-  console.error("No output file generated");
-  Deno.exit(1);
-}
+// esbuild.build() throws on failure, so if we reach here the output file exists
+const content = await Deno.readTextFile("./dist/bunny-script.js");
 
 // Bunny Edge Scripting has a 10MB script size limit
 const BUNNY_MAX_SCRIPT_SIZE = 10_000_000;
