@@ -30,9 +30,10 @@ export const adminSettingsPage = (
   termsAndConditions?: string | null,
   timezone?: string,
   businessEmail?: string,
+  theme?: string,
 ): string =>
   String(
-    <Layout title="Settings">
+    <Layout title="Settings" theme={theme}>
       <AdminNav session={session} />
 
       {error && <div class="error">{error}</div>}
@@ -213,6 +214,32 @@ export const adminSettingsPage = (
           <button type="submit" class="danger">
             Reset Database
           </button>
+        </CsrfForm>
+
+        <CsrfForm action="/admin/settings/theme" csrfToken={session.csrfToken}>
+            <h2>Site Theme</h2>
+          <p>Choose between light and dark themes for the site interface.</p>
+          <fieldset>
+            <label>
+              <input
+                type="radio"
+                name="theme"
+                value="light"
+                checked={(theme ?? "light") === "light"}
+              />
+              Light
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="theme"
+                value="dark"
+                checked={theme === "dark"}
+              />
+              Dark
+            </label>
+          </fieldset>
+          <button type="submit">Save Theme</button>
         </CsrfForm>
     </Layout>
   );

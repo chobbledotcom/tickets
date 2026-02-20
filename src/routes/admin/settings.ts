@@ -10,6 +10,7 @@ import {
   getPaymentProviderFromDb,
   getStripeWebhookEndpointId,
   getTermsAndConditionsFromDb,
+  getThemeFromDb,
   getTimezoneFromDb,
   MAX_TERMS_LENGTH,
   hasSquareToken,
@@ -22,6 +23,7 @@ import {
   updateSquareWebhookSignatureKey,
   updateStripeKey,
   updateTermsAndConditions,
+  updateTheme,
   updateTimezone,
   updateUserPassword,
 } from "#lib/db/settings.ts";
@@ -78,6 +80,7 @@ const getSettingsPageState = async () => {
   const termsAndConditions = await getTermsAndConditionsFromDb();
   const timezone = await getTimezoneFromDb();
   const businessEmail = await getBusinessEmailFromDb();
+  const theme = await getThemeFromDb();
   return {
     stripeKeyConfigured,
     paymentProvider,
@@ -88,6 +91,7 @@ const getSettingsPageState = async () => {
     termsAndConditions,
     timezone,
     businessEmail,
+    theme,
   };
 };
 
@@ -111,6 +115,7 @@ const renderSettingsPage = async (
     state.termsAndConditions,
     state.timezone,
     state.businessEmail,
+    state.theme,
   );
 };
 
@@ -416,6 +421,22 @@ const processBusinessEmailForm: SettingsFormHandler = async (form, errorPage) =>
 /** Handle POST /admin/settings/business-email - owner only */
 const handleBusinessEmailPost = settingsRoute(processBusinessEmailForm);
 
+/** Validate and save theme from form submission */
+const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
+  const theme = form.get("theme") ?? "";
+
+  if (theme !== "light" && theme !== "dark") {
+    return errorPage("Invalid theme selection", 400);
+  }
+
+  await updateTheme(theme);
+  await logActivity(`Theme set to ${theme}`);
+  return redirectWithSuccess("/admin/settings", `Theme updated to ${theme}`);
+};
+
+/** Handle POST /admin/settings/theme - owner only */
+const handleThemePost = settingsRoute(processThemeForm);
+
 /**
  * Expected confirmation phrase for database reset
  */
@@ -454,5 +475,6 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/terms": handleTermsPost,
   "POST /admin/settings/timezone": handleTimezonePost,
   "POST /admin/settings/business-email": handleBusinessEmailPost,
+  "POST /admin/settings/theme": handleThemePost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });
