@@ -42,20 +42,29 @@ const decryptAttendee = async (
   row: Attendee,
   privateKey: CryptoKey,
 ): Promise<Attendee> => {
-  const name = await decryptAttendeePII(row.name, privateKey);
-  const email = await decryptAttendeePII(row.email, privateKey);
-  const phone = await decryptAttendeePII(row.phone, privateKey);
-  const address = await decryptAttendeePII(row.address, privateKey);
-  const special_instructions = await decryptAttendeePII(
-    row.special_instructions,
-    privateKey,
-  );
-  const payment_id = await decryptAttendeePII(row.payment_id, privateKey);
-  const price_paid = await decrypt(row.price_paid);
-  const checked_in = row.checked_in
-    ? await decryptAttendeePII(row.checked_in, privateKey)
-    : "false";
-  const ticket_token = await decryptAttendeePII(row.ticket_token, privateKey);
+  const [
+    name,
+    email,
+    phone,
+    address,
+    special_instructions,
+    payment_id,
+    price_paid,
+    checked_in,
+    ticket_token,
+  ] = await Promise.all([
+    decryptAttendeePII(row.name, privateKey),
+    decryptAttendeePII(row.email, privateKey),
+    decryptAttendeePII(row.phone, privateKey),
+    decryptAttendeePII(row.address, privateKey),
+    decryptAttendeePII(row.special_instructions, privateKey),
+    decryptAttendeePII(row.payment_id, privateKey),
+    decrypt(row.price_paid),
+    row.checked_in
+      ? decryptAttendeePII(row.checked_in, privateKey)
+      : Promise.resolve("false"),
+    decryptAttendeePII(row.ticket_token, privateKey),
+  ]);
   return {
     ...row,
     name,
