@@ -148,7 +148,14 @@ const inlineAssetsPlugin: Plugin = {
 
 // --- Deno npm cache resolver for bundled packages ---
 
-const NPM_CACHE = "/root/.cache/deno/npm/registry.npmjs.org";
+/** Discover Deno's npm cache path via `deno info --json` */
+const getDenoNpmCache = (): string => {
+  const result = new Deno.Command(Deno.execPath(), { args: ["info", "--json"], stdout: "piped" }).outputSync();
+  const info = JSON.parse(new TextDecoder().decode(result.stdout));
+  return `${info.npmCache}/registry.npmjs.org`;
+};
+
+const NPM_CACHE = getDenoNpmCache();
 
 /** Condition priority for resolving package.json exports (matches platform: "browser") */
 const CONDITIONS = ["browser", "import", "default"];
@@ -232,6 +239,13 @@ const denoNpmResolverPlugin: Plugin = {
   },
 };
 
+// Externalize all Node.js built-in modules (per Bunny docs)
+import { builtinModules } from "node:module";
+const nodeExternals = [
+  ...builtinModules,
+  ...builtinModules.map((m) => `node:${m}`),
+];
+
 // Banner to inject Node.js globals that many packages expect (per Bunny docs)
 // process.env is populated by Bunny's native secrets at runtime
 const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
@@ -248,7 +262,8 @@ const result = await esbuild.build({
   format: "esm",
   minify: true,
   bundle: true,
-  external: ["node:async_hooks"],
+  external: nodeExternals,
+  define: { "process.env.NODE_ENV": '"production"' },
   plugins: [esmShExternalsPlugin, denoNpmResolverPlugin, inlineAssetsPlugin],
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
@@ -270,9 +285,18 @@ try {
   Deno.exit(1);
 }
 
+// Bunny Edge Scripting has a 1MB script size limit
+const BUNNY_MAX_SCRIPT_SIZE = 1_000_000;
+if (content.length > BUNNY_MAX_SCRIPT_SIZE) {
+  console.error(
+    `Bundle size ${content.length} bytes exceeds Bunny's ${BUNNY_MAX_SCRIPT_SIZE} byte limit`,
+  );
+  Deno.exit(1);
+}
+
 await Deno.writeTextFile("./bunny-script.ts", content);
 
-console.log("Build complete: bunny-script.ts");
+console.log(`Build complete: bunny-script.ts (${content.length} bytes)`);
 
 // Clean up esbuild
 esbuild.stop();
