@@ -175,7 +175,7 @@ const renderEventSelector = (
 const PaymentDetails = ({ attendee, csrfToken }: { attendee: Attendee; csrfToken: string }): string => {
   if (!attendee.payment_id) return "";
   const pricePaid = Number.parseInt(attendee.price_paid, 10);
-  const isRefunded = attendee.refunded === "true";
+  const isRefunded = attendee.refunded;
 
   return String(
     <article>

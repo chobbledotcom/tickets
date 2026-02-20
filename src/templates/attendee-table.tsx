@@ -142,7 +142,7 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter, returnUrl }: {
 
 /** Check if attendee is eligible for refund (has payment, not yet refunded) */
 const isRefundable = (row: AttendeeTableRow): boolean =>
-  row.hasPaidEvent && !!row.attendee.payment_id && row.attendee.refunded !== "true";
+  row.hasPaidEvent && !!row.attendee.payment_id && !row.attendee.refunded;
 
 /** Render the actions cell for a row */
 const ActionsCell = ({ row, returnUrl }: { row: AttendeeTableRow; returnUrl: string | undefined }): string => {
@@ -176,7 +176,7 @@ const StatusCell = ({ row, opts }: {
   row: AttendeeTableRow;
   opts: AttendeeTableOptions;
 }): string => {
-  if (row.attendee.refunded === "true") {
+  if (row.attendee.refunded) {
     return String(<span class="badge-refunded">Refunded</span>);
   }
   return CheckinButton({
@@ -202,7 +202,7 @@ const AttendeeRow = ({ row, vis, opts }: {
       </td>
       {vis.showEvent && <td><a href={`/admin/event/${row.eventId}`}>{row.eventName}</a></td>}
       {vis.showDate && <td>{a.date ? formatDateLabel(a.date) : ""}</td>}
-      <td>{a.name}</td>
+      <td>{a.name}{a.refunded && <> <span class="badge-refunded">refunded</span></>}</td>
       {vis.showEmail && <td>{a.email || ""}</td>}
       {vis.showPhone && <td>{a.phone || ""}</td>}
       {vis.showAddress && <td>{formatAddressInline(a.address)}</td>}
