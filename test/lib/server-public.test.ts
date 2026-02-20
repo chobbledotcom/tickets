@@ -63,6 +63,39 @@ describe("server (public routes)", () => {
     });
   });
 
+  describe("GET /robots.txt", () => {
+    test("returns plain text robots.txt", async () => {
+      const response = await handleRequest(mockRequest("/robots.txt"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe(
+        "text/plain; charset=utf-8",
+      );
+    });
+
+    test("allows crawlers on /events/ but disallows everything else", async () => {
+      const response = await handleRequest(mockRequest("/robots.txt"));
+      const body = await response.text();
+      expect(body).toContain("User-agent: *");
+      expect(body).toContain("Allow: /events/");
+      expect(body).toContain("Disallow: /");
+    });
+
+    test("returns 404 for non-GET requests to /robots.txt", async () => {
+      const response = await awaitTestRequest("/robots.txt", {
+        method: "POST",
+        data: {},
+      });
+      expect(response.status).toBe(404);
+    });
+
+    test("has long cache headers", async () => {
+      const response = await handleRequest(mockRequest("/robots.txt"));
+      expect(response.headers.get("cache-control")).toBe(
+        "public, max-age=31536000, immutable",
+      );
+    });
+  });
+
   describe("GET /favicon.ico", () => {
     test("returns SVG favicon", async () => {
       const response = await handleRequest(mockRequest("/favicon.ico"));
