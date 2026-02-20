@@ -166,9 +166,6 @@ export interface PaymentProvider {
 
   /** The webhook event type name that indicates a completed checkout */
   readonly checkoutCompletedEventType: string;
-
-  /** The webhook event type name that indicates a charge was refunded */
-  readonly chargeRefundedEventType: string;
 }
 
 /**

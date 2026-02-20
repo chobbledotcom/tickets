@@ -121,6 +121,4 @@ export const squarePaymentProvider: PaymentProvider = {
       error: "Square webhooks must be configured manually in the Square Developer Dashboard",
     });
   },
-
-  chargeRefundedEventType: "refund.updated",
 };

@@ -190,7 +190,7 @@ const setupWebhookEndpointImpl = async (
     // Create new webhook endpoint
     const endpoint = await client.webhookEndpoints.create({
       url: webhookUrl,
-      enabled_events: ["checkout.session.completed", "charge.refunded"],
+      enabled_events: ["checkout.session.completed"],
     });
 
     if (!endpoint.secret) {

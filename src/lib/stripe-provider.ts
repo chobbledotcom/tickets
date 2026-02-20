@@ -115,5 +115,4 @@ export const stripePaymentProvider: PaymentProvider = {
     return setupWebhookEndpoint(secretKey, webhookUrl, existingEndpointId);
   },
 
-  chargeRefundedEventType: "charge.refunded",
 };

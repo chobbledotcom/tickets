@@ -1043,7 +1043,6 @@ export const testAttendee = (overrides: Partial<Attendee> = {}): Attendee => ({
   special_instructions: "",
   created: "2024-01-01T12:00:00Z",
   payment_id: "",
-  payment_id_index: "",
   quantity: 1,
   price_paid: "0",
   checked_in: "false",

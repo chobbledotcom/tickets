@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add refunded and payment_id_index to attendees";
+export const LATEST_UPDATE = "add refunded to attendees";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -448,11 +448,6 @@ export const initDb = async (): Promise<void> => {
   // Migration: add refunded column to attendees (hybrid encrypted, "true"/"false" like checked_in)
   await runMigration(`ALTER TABLE attendees ADD COLUMN refunded TEXT NOT NULL DEFAULT ''`);
   await backfillHybridEncryptedColumn("attendees", "refunded", `refunded = ''`);
-
-  // Migration: add payment_id_index column to attendees (HMAC index for payment_intent lookups)
-  // Cannot backfill: payment_id is hybrid encrypted, needs private key to decrypt and compute HMAC.
-  // New attendees with payment_id will have this populated at creation time.
-  await runMigration(`ALTER TABLE attendees ADD COLUMN payment_id_index TEXT`);
 
   // Update the version marker
   await getDb().execute({

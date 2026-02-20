@@ -14,7 +14,6 @@ import {
   encrypt,
   encryptAttendeePII,
   generateTicketToken,
-  hmacHash,
 } from "#lib/crypto.ts";
 import { getDb, inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
@@ -124,7 +123,6 @@ type EncryptedAttendeeData = {
   encryptedAddress: string;
   encryptedSpecialInstructions: string;
   encryptedPaymentId: string;
-  paymentIdIndex: string | null;
   encryptedPricePaid: string;
   encryptedCheckedIn: string;
   encryptedRefunded: string;
@@ -138,10 +136,6 @@ type EncryptInput = ContactInfo & {
   paymentId: string;
   pricePaid: number;
 };
-
-/** Compute HMAC index for a payment ID (for webhook lookups) */
-export const computePaymentIdIndex = (paymentId: string): Promise<string> =>
-  hmacHash(paymentId);
 
 /** Encrypt attendee fields, returning null if key not configured */
 const encryptAttendeeFields = async (
@@ -163,7 +157,6 @@ const encryptAttendeeFields = async (
       publicKeyJwk,
     ),
     encryptedPaymentId: await encryptAttendeePII(input.paymentId, publicKeyJwk),
-    paymentIdIndex: input.paymentId ? await computePaymentIdIndex(input.paymentId) : null,
     encryptedPricePaid: await encrypt(String(input.pricePaid)),
     encryptedCheckedIn: await encryptAttendeePII("false", publicKeyJwk),
     encryptedRefunded: await encryptAttendeePII("false", publicKeyJwk),
@@ -179,7 +172,6 @@ type BuildAttendeeInput = ContactInfo & {
   eventId: number;
   created: string;
   paymentId: string;
-  paymentIdIndex: string | null;
   quantity: number;
   pricePaid: number;
   ticketToken: string;
@@ -198,7 +190,6 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   special_instructions: input.special_instructions,
   created: input.created,
   payment_id: input.paymentId,
-  payment_id_index: input.paymentIdIndex ?? "",
   quantity: input.quantity,
   price_paid: String(input.pricePaid),
   checked_in: "false",
@@ -354,8 +345,8 @@ export const attendeesApi = {
 
     // Atomic check-and-insert: only inserts if capacity allows
     const insertResult = await getDb().execute({
-      sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, payment_id_index, quantity, price_paid, checked_in, refunded, ticket_token, ticket_token_index, date)
-            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      sql: `INSERT INTO attendees (event_id, name, email, phone, address, special_instructions, created, payment_id, quantity, price_paid, checked_in, refunded, ticket_token, ticket_token_index, date)
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             WHERE (
               ${capacityFilter}
             ) + ? <= (
@@ -370,7 +361,6 @@ export const attendeesApi = {
         enc.encryptedSpecialInstructions,
         enc.created,
         enc.encryptedPaymentId,
-        enc.paymentIdIndex,
         qty,
         enc.encryptedPricePaid,
         enc.encryptedCheckedIn,
@@ -400,7 +390,6 @@ export const attendeesApi = {
         special_instructions,
         created: enc.created,
         paymentId,
-        paymentIdIndex: enc.paymentIdIndex,
         quantity: qty,
         pricePaid,
         ticketToken: enc.ticketToken,
@@ -467,19 +456,6 @@ export const markRefunded = async (attendeeId: number): Promise<void> => {
     args: [encryptedTrue, attendeeId],
   });
 };
-
-/**
- * Find attendees by payment_id HMAC index.
- * Used by refund webhooks to locate attendees for a payment_intent.
- * Multiple attendees may share the same payment_intent (multi-ticket purchases).
- */
-export const getAttendeesByPaymentIdIndex = (
-  paymentIdIndex: string,
-): Promise<Attendee[]> =>
-  queryAll<Attendee>(
-    "SELECT * FROM attendees WHERE payment_id_index = ?",
-    [paymentIdIndex],
-  );
 
 /**
  * Update an attendee's checked_in status (encrypted)
