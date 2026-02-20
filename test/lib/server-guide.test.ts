@@ -41,6 +41,13 @@ describe("server (admin guide)", () => {
       expect(html).toContain("Check-in");
     });
 
+    test("contains public links section", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Public Links");
+      expect(html).toContain("Facebook Sharing Debugger");
+    });
+
     test("contains payment reservation info", async () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();

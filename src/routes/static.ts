@@ -9,6 +9,7 @@ import {
   handleIframeResizerChildJs,
   handleIframeResizerParentJs,
   handleMvpCss,
+  handleRobotsTxt,
   handleScannerJs,
 } from "#routes/assets.ts";
 import { handleHealthCheck } from "#routes/health.ts";
@@ -17,6 +18,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 /** Static routes definition */
 const staticRoutes = defineRoutes({
   "GET /health": () => handleHealthCheck(),
+  "GET /robots.txt": () => handleRobotsTxt(),
   "GET /favicon.ico": () => handleFavicon(),
   "GET /mvp.css": () => handleMvpCss(),
   "GET /admin.js": () => handleAdminJs(),

@@ -173,6 +173,26 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
+      <Section title="Public Links">
+        <Q q="Why do I get a 403 error when sharing my link on Facebook?">
+          <p>
+            When you first share a link from a new domain on Facebook, Facebook
+            may return a 403 error. This is because Facebook doesn't recognise
+            the domain yet &mdash; the error comes from Facebook itself and
+            doesn't even reach your site.
+          </p>
+          <p>
+            To fix this, paste your public link into the{" "}
+            <a href="https://developers.facebook.com/tools/debug/">
+              Facebook Sharing Debugger
+            </a>{" "}
+            and click <strong>Scrape Again</strong> if the result looks wrong.
+            Once Facebook has successfully scraped the URL, future shares should
+            work normally.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Payments">
         <Q q="Which payment providers are supported?">
           <p>
