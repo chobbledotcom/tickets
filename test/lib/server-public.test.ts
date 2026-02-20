@@ -72,17 +72,11 @@ describe("server (public routes)", () => {
       );
     });
 
-    test("allows facebookexternalhit on /events/", async () => {
-      const response = await handleRequest(mockRequest("/robots.txt"));
-      const body = await response.text();
-      expect(body).toContain("User-agent: facebookexternalhit");
-      expect(body).toContain("Allow: /events/");
-    });
-
-    test("disallows all other crawlers", async () => {
+    test("allows crawlers on /events/ but disallows everything else", async () => {
       const response = await handleRequest(mockRequest("/robots.txt"));
       const body = await response.text();
       expect(body).toContain("User-agent: *");
+      expect(body).toContain("Allow: /events/");
       expect(body).toContain("Disallow: /");
     });
 

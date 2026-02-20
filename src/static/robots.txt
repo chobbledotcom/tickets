@@ -1,6 +1,3 @@
-User-agent: facebookexternalhit
-Allow: /events/
-Disallow: /
-
 User-agent: *
+Allow: /events/
 Disallow: /
