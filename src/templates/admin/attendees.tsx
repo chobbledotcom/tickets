@@ -187,7 +187,7 @@ const PaymentDetails = ({ attendee, csrfToken }: { attendee: Attendee; csrfToken
       <p>
         <strong>Refund Status:</strong>{" "}
         {isRefunded
-          ? <span style="color:red;font-weight:bold">Refunded</span>
+          ? <span class="badge-refunded">Refunded</span>
           : "Not refunded"}
       </p>
       <CsrfForm

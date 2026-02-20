@@ -1484,7 +1484,7 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Refunded");
-      expect(html).toContain("color:red");
+      expect(html).toContain("badge-refunded");
     });
 
     test("does not show payment details for free attendee", async () => {

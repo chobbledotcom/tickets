@@ -24,6 +24,7 @@ import {
   createPaymentLink,
   refundPayment,
   retrieveOrder,
+  retrievePayment,
   verifyWebhookSignature,
 } from "#lib/square.ts";
 import type { Event } from "#lib/types.ts";
@@ -104,9 +105,10 @@ export const squarePaymentProvider: PaymentProvider = {
     return refundPayment(paymentReference);
   },
 
-  isPaymentRefunded(_paymentReference: string): Promise<boolean> {
-    // Square refund status check not yet implemented
-    return Promise.resolve(false);
+  async isPaymentRefunded(paymentReference: string): Promise<boolean> {
+    const payment = await retrievePayment(paymentReference);
+    if (!payment) return false;
+    return (payment.refundedMoney?.amount ?? BigInt(0)) > BigInt(0);
   },
 
   setupWebhookEndpoint(

@@ -155,6 +155,10 @@ type SquarePayment = {
     amount?: bigint;
     currency?: string;
   };
+  refundedMoney?: {
+    amount?: bigint;
+    currency?: string;
+  };
 };
 
 /** Result of creating a payment link */
@@ -362,6 +366,10 @@ export const squareApi: {
           amountMoney: {
             amount: payment.amountMoney?.amount as bigint | undefined,
             currency: payment.amountMoney?.currency as string | undefined,
+          },
+          refundedMoney: {
+            amount: payment.refundedMoney?.amount as bigint | undefined,
+            currency: payment.refundedMoney?.currency as string | undefined,
           },
         };
       },

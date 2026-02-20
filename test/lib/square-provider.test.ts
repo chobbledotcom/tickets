@@ -29,9 +29,43 @@ describe("square-provider", () => {
   });
 
   describe("isPaymentRefunded", () => {
-    test("returns false (not yet implemented for Square)", async () => {
+    test("returns true when payment has refundedMoney", async () => {
+      const restore = spyOn(squareApi, "retrievePayment").mockResolvedValue({
+        id: "pay_123",
+        status: "COMPLETED",
+        refundedMoney: { amount: BigInt(1000), currency: "USD" },
+      });
+      const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
+      expect(result).toBe(true);
+      restore();
+    });
+
+    test("returns false when refundedMoney is zero", async () => {
+      const restore = spyOn(squareApi, "retrievePayment").mockResolvedValue({
+        id: "pay_123",
+        status: "COMPLETED",
+        refundedMoney: { amount: BigInt(0), currency: "USD" },
+      });
       const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
       expect(result).toBe(false);
+      restore();
+    });
+
+    test("returns false when payment not found", async () => {
+      const restore = spyOn(squareApi, "retrievePayment").mockResolvedValue(null);
+      const result = await squarePaymentProvider.isPaymentRefunded("pay_missing");
+      expect(result).toBe(false);
+      restore();
+    });
+
+    test("returns false when refundedMoney is missing", async () => {
+      const restore = spyOn(squareApi, "retrievePayment").mockResolvedValue({
+        id: "pay_123",
+        status: "COMPLETED",
+      });
+      const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
+      expect(result).toBe(false);
+      restore();
     });
   });
 
