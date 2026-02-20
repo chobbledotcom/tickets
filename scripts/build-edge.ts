@@ -50,6 +50,10 @@ for (const [filename] of ASSET_DEFS) {
   STATIC_ASSETS[filename] = await Deno.readTextFile(`./src/static/${filename}`);
 }
 
+// Packages to bundle directly (not externalize to CDN)
+// These are used on every request and should not depend on CDN availability
+const BUNDLED_PACKAGES = new Set(["@libsql/client"]);
+
 // Edge subpath overrides (e.g., use web-compatible libsql client)
 const EDGE_SUBPATHS: Record<string, string> = {
   "@libsql/client": "/web",
@@ -60,6 +64,7 @@ const ESM_SH_EXTERNALS: Record<string, string> = {};
 
 for (const [key, specifier] of Object.entries(denoImports)) {
   if (!specifier.startsWith("npm:")) continue;
+  if (BUNDLED_PACKAGES.has(key)) continue;
   const subpath = EDGE_SUBPATHS[key] ?? "";
   const url = `https://esm.sh/${specifier.slice(4)}${subpath}`;
   ESM_SH_EXTERNALS[key] = url;
@@ -141,6 +146,92 @@ const inlineAssetsPlugin: Plugin = {
   },
 };
 
+// --- Deno npm cache resolver for bundled packages ---
+
+const NPM_CACHE = "/root/.cache/deno/npm/registry.npmjs.org";
+
+/** Condition priority for resolving package.json exports (matches platform: "browser") */
+const CONDITIONS = ["browser", "import", "default"];
+
+/** Resolve a package.json "exports" entry to a file path */
+const resolveExport = (
+  entry: string | Record<string, unknown>,
+): string | null => {
+  if (typeof entry === "string") return entry;
+  for (const cond of CONDITIONS) {
+    const val = entry[cond];
+    if (val) return resolveExport(val as string | Record<string, unknown>);
+  }
+  return null;
+};
+
+/** Find a package in Deno's npm cache, returning its root directory */
+const findPackageDir = (name: string): string | null => {
+  const scopedDir = `${NPM_CACHE}/${name}`;
+  try {
+    // Find the installed version directory
+    for (const entry of Deno.readDirSync(scopedDir)) {
+      if (entry.isDirectory) return `${scopedDir}/${entry.name}`;
+    }
+  } catch { /* not found */ }
+  return null;
+};
+
+/** Resolve a bare npm specifier (e.g. "@libsql/client" or "@libsql/core/api") */
+const resolveNpmSpecifier = (specifier: string): string | null => {
+  // Split into package name and subpath
+  const parts = specifier.startsWith("@")
+    ? specifier.split("/", 3)
+    : specifier.split("/", 2);
+  const pkgName = specifier.startsWith("@")
+    ? `${parts[0]}/${parts[1]}`
+    : parts[0]!;
+  const subpath = specifier.startsWith("@")
+    ? parts.slice(2).join("/")
+    : parts.slice(1).join("/");
+
+  const pkgDir = findPackageDir(pkgName);
+  if (!pkgDir) return null;
+
+  const pkgJson = JSON.parse(Deno.readTextFileSync(`${pkgDir}/package.json`));
+  const exports = pkgJson.exports as Record<string, unknown> | undefined;
+  if (exports) {
+    const exportKey = subpath ? `./${subpath}` : ".";
+    const entry = exports[exportKey] as string | Record<string, unknown> | undefined;
+    if (entry) {
+      const resolved = resolveExport(entry);
+      if (resolved) return `${pkgDir}/${resolved}`;
+    }
+  }
+
+  // Fallback: "browser" field (used by cross-fetch, etc.), then "module", then "main"
+  if (!subpath) {
+    const entry = (typeof pkgJson.browser === "string" && pkgJson.browser)
+      || pkgJson.module
+      || pkgJson.main;
+    if (entry) return `${pkgDir}/${entry}`;
+  }
+
+  return null;
+};
+
+/**
+ * Plugin to resolve bundled npm packages from Deno's npm cache.
+ * Only handles packages listed in BUNDLED_PACKAGES and their transitive deps.
+ */
+const denoNpmResolverPlugin: Plugin = {
+  name: "deno-npm-resolver",
+  setup(build) {
+    // Match bare specifiers (not relative paths, not URLs, not node: builtins)
+    build.onResolve({ filter: /^[^./]/ }, (args) => {
+      if (args.path.startsWith("node:")) return undefined;
+      const resolved = resolveNpmSpecifier(args.path);
+      if (resolved) return { path: resolved };
+      return undefined;
+    });
+  },
+};
+
 // Banner to inject Node.js globals that many packages expect (per Bunny docs)
 // process.env is populated by Bunny's native secrets at runtime
 const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
@@ -158,7 +249,7 @@ const result = await esbuild.build({
   minify: true,
   bundle: true,
   external: ["node:async_hooks"],
-  plugins: [esmShExternalsPlugin, inlineAssetsPlugin],
+  plugins: [esmShExternalsPlugin, denoNpmResolverPlugin, inlineAssetsPlugin],
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
 
