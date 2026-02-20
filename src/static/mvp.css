@@ -740,19 +740,28 @@ fieldset.agreement {
   font-weight: bold;
 }
 
-.danger-text,
-.badge-refunded {
+.danger-text {
   color: #cc0000;
   font-weight: bold;
+}
+
+.badge-refunded {
+  font-size: 0.75em;
+  color: #fff;
+  background-color: #cc0000;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root[color-mode="user"] .password-warning {
     color: #ff4444;
   }
-  :root[color-mode="user"] .danger-text,
-  :root[color-mode="user"] .badge-refunded {
+  :root[color-mode="user"] .danger-text {
     color: #ff4444;
+  }
+  :root[color-mode="user"] .badge-refunded {
+    background-color: #ff4444;
   }
 }
 
