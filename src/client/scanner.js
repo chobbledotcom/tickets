@@ -73,6 +73,9 @@ const handleResult = (el, result) => {
         "warning",
       );
       break;
+    case "refunded":
+      showStatus(el, `${result.name} has been refunded`, "error");
+      break;
     case "not_found":
       showStatus(el, "Ticket not found", "error");
       break;

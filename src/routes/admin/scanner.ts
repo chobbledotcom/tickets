@@ -69,6 +69,14 @@ const handleScanPost = (request: Request, { id }: { id: number }): Promise<Respo
       return jsonResponse({ status: "not_found" }, 404);
     }
 
+    // Refunded - cannot check in
+    if (attendee.refunded) {
+      return jsonResponse({
+        status: "refunded",
+        name: attendee.name,
+      });
+    }
+
     // Wrong event - let client prompt for confirmation
     if (attendee.event_id !== id && !force) {
       const eventName = await getEventName(attendee.event_id);

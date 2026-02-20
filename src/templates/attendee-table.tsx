@@ -202,7 +202,7 @@ const AttendeeRow = ({ row, vis, opts }: {
       </td>
       {vis.showEvent && <td><a href={`/admin/event/${row.eventId}`}>{row.eventName}</a></td>}
       {vis.showDate && <td>{a.date ? formatDateLabel(a.date) : ""}</td>}
-      <td>{a.name}{a.refunded && <> <span class="badge-refunded">refunded</span></>}</td>
+      <td>{a.name}</td>
       {vis.showEmail && <td>{a.email || ""}</td>}
       {vis.showPhone && <td>{a.phone || ""}</td>}
       {vis.showAddress && <td>{formatAddressInline(a.address)}</td>}

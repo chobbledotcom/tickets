@@ -169,6 +169,23 @@ describe("QR Scanner", () => {
       expect(result.quantity).toBe(1);
     });
 
+    test("returns refunded status for refunded attendee", async () => {
+      const { getAttendeesByTokens, markRefunded } = await import("#lib/db/attendees.ts");
+      const { event, token, session } = await setupScanTest("Refund", "refund@test.com");
+
+      const attendees = await getAttendeesByTokens([token]);
+      await markRefunded(attendees[0]!.id);
+
+      const response = await handleRequest(
+        mockScanRequest(event.id, { token }, session.cookie, session.csrfToken),
+      );
+
+      expect(response.status).toBe(200);
+      const result = await response.json();
+      expect(result.status).toBe("refunded");
+      expect(result.name).toBe("Refund");
+    });
+
     test("returns wrong_event for attendee from different event", async () => {
       const { event: eventA, token } = await createTestAttendeeWithToken("Carol", "carol@test.com");
       const eventB = await createTestEvent({ maxAttendees: 10 });
