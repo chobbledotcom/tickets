@@ -218,13 +218,8 @@ const nodeExternals = [
 
 // Banner to inject Node.js globals that many packages expect (per Bunny docs)
 // process.env is populated by Bunny's native secrets at runtime
-// createRequire shim: npm packages bundled as CJS use require() for Node builtins
-// (e.g. Stripe SDK does require("crypto")); esbuild's CJS compat shim checks
-// typeof require, so a module-scoped `var require` makes it resolve correctly
 const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
 import { Buffer } from "node:buffer";
-import { createRequire as __createRequire } from "node:module";
-var require = __createRequire(import.meta.url);
 globalThis.process ??= process;
 globalThis.Buffer ??= Buffer;
 globalThis.global ??= globalThis;
