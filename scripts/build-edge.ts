@@ -24,9 +24,11 @@ const minifiedCss = await minifyCss(rawCss);
 const JS = "application/javascript; charset=utf-8";
 const CSS = "text/css; charset=utf-8";
 const SVG = "image/svg+xml";
+const TEXT = "text/plain; charset=utf-8";
 
 /** Asset definitions: [filename, exportName, contentType, pathConstant] */
 const ASSET_DEFS: [string, string, string, string][] = [
+  ["robots.txt", "handleRobotsTxt", TEXT, ""],
   ["favicon.svg", "handleFavicon", SVG, ""],
   ["mvp.css", "handleMvpCss", CSS, "CSS_PATH"],
   ["admin.js", "handleAdminJs", JS, "JS_PATH"],
