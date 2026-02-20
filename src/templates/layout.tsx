@@ -17,13 +17,17 @@ interface LayoutProps {
   bodyClass?: string;
   headExtra?: string;
   children?: Child;
+  theme?: string;
 }
 
 /**
  * Wrap content in MVP.css semantic HTML layout
  */
-export const Layout = ({ title, bodyClass, headExtra, children }: LayoutProps): SafeHtml =>
-  new SafeHtml(
+export const Layout = ({ title, bodyClass, headExtra, children, theme }: LayoutProps): SafeHtml => {
+  const colorScheme = theme === "dark" ? "dark" : "light";
+  const themeStyle = `<style>html { color-scheme: ${colorScheme}; }</style>`;
+
+  return new SafeHtml(
     "<!DOCTYPE html>" +
     (
       <html lang="en">
@@ -32,9 +36,10 @@ export const Layout = ({ title, bodyClass, headExtra, children }: LayoutProps): 
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
           <title>{title}</title>
           <link rel="stylesheet" href={CSS_PATH} />
+          <Raw html={themeStyle} />
           {headExtra && <Raw html={headExtra} />}
         </head>
-        <body class={bodyClass || undefined}>
+        <body class={bodyClass || undefined} data-theme={theme || "light"}>
           <main>
             {children}
           </main>
@@ -44,4 +49,5 @@ export const Layout = ({ title, bodyClass, headExtra, children }: LayoutProps): 
       </html>
     )
   );
+};
 

@@ -1503,4 +1503,127 @@ describe("server (admin settings)", () => {
     });
   });
 
+  describe("POST /admin/settings/theme", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/theme", {
+          theme: "dark",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            theme: "dark",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
+    test("rejects invalid theme value", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            theme: "invalid-theme",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Invalid theme selection");
+    });
+
+    test("updates theme to dark successfully", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            theme: "dark",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Theme updated to dark");
+    });
+
+    test("updates theme to light successfully", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            theme: "light",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Theme updated to light");
+    });
+
+    test("theme setting persists in database", async () => {
+      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Initially should be "light"
+      expect(await settingsApi.getThemeFromDb()).toBe("light");
+
+      // Update to dark
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/theme",
+          {
+            theme: "dark",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      // Should now be "dark"
+      expect(await settingsApi.getThemeFromDb()).toBe("dark");
+    });
+
+    test("settings page displays current theme selection", async () => {
+      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { cookie } = await loginAsAdmin();
+
+      // Set theme to dark
+      await settingsApi.updateTheme("dark");
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      // Check that dark radio button is checked
+      expect(html).toContain('value="dark"');
+      expect(html).toContain('checked');
+    });
+  });
+
 });

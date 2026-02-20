@@ -48,6 +48,8 @@ export const CONFIG_KEYS = {
   TIMEZONE: "timezone",
   // Business email (encrypted)
   BUSINESS_EMAIL: "business_email",
+  // Theme setting (plaintext - light or dark)
+  THEME: "theme",
 } as const;
 
 /**
@@ -518,6 +520,23 @@ export const updateTimezone = async (tz: string): Promise<void> => {
 };
 
 /**
+ * Get the configured theme from database.
+ * Returns "light" or "dark", defaulting to "light".
+ */
+export const getThemeFromDb = async (): Promise<string> => {
+  const value = await getSetting(CONFIG_KEYS.THEME);
+  return value === "dark" ? "dark" : "light";
+};
+
+/**
+ * Update the configured theme.
+ */
+export const updateTheme = async (theme: string): Promise<void> => {
+  const validTheme = theme === "dark" ? "dark" : "light";
+  await setSetting(CONFIG_KEYS.THEME, validTheme);
+};
+
+/**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
  */
@@ -555,4 +574,6 @@ export const settingsApi = {
   updateTermsAndConditions,
   getTimezoneFromDb,
   updateTimezone,
+  getThemeFromDb,
+  updateTheme,
 };

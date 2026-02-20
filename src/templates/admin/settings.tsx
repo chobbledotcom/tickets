@@ -30,6 +30,7 @@ export const adminSettingsPage = (
   termsAndConditions?: string | null,
   timezone?: string,
   businessEmail?: string,
+  theme?: string,
 ): string =>
   String(
     <Layout title="Settings">
@@ -63,6 +64,32 @@ export const adminSettingsPage = (
             autocomplete="email"
           />
           <button type="submit">Save Business Email</button>
+        </CsrfForm>
+
+        <CsrfForm action="/admin/settings/theme" csrfToken={session.csrfToken}>
+            <h2>Site Theme</h2>
+          <p>Choose between light and dark themes for the site interface.</p>
+          <fieldset>
+            <label>
+              <input
+                type="radio"
+                name="theme"
+                value="light"
+                checked={(theme ?? "light") === "light"}
+              />
+              Light
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="theme"
+                value="dark"
+                checked={theme === "dark"}
+              />
+              Dark
+            </label>
+          </fieldset>
+          <button type="submit">Save Theme</button>
         </CsrfForm>
 
         <CsrfForm action="/admin/settings/payment-provider" csrfToken={session.csrfToken}>
