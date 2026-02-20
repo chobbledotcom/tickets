@@ -79,9 +79,12 @@ const [getMockConfig, setMockConfig] = lazyRef<Stripe.StripeConfig | undefined>(
 const createStripeClient = async (secretKey: string): Promise<Stripe> => {
   const mockConfig = getMockConfig();
   const StripeClass = await loadStripe();
-  return mockConfig
-    ? new StripeClass(secretKey, mockConfig)
-    : new StripeClass(secretKey);
+  if (mockConfig) return new StripeClass(secretKey, mockConfig);
+  // Use fetch-based HTTP client for Bunny Edge compatibility
+  // (default Node.js http/https modules may hang in edge runtimes)
+  return new StripeClass(secretKey, {
+    httpClient: StripeClass.createFetchHttpClient(),
+  });
 };
 
 const [getCache, setCache] = lazyRef<StripeCache>(() => {
