@@ -218,11 +218,23 @@ const nodeExternals = [
 
 // Banner to inject Node.js globals that many packages expect (per Bunny docs)
 // process.env is populated by Bunny's native secrets at runtime
+// Bunny Edge (Deno-based) supports node: imports but not CJS require().
+// Some bundled packages (e.g. Stripe SDK) use require("crypto") internally.
+// esbuild's ESM output wraps these in __require() which checks for a global
+// `require` function — provide one that resolves Node built-ins we import here.
 const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
 import { Buffer } from "node:buffer";
+import * as __node_crypto from "node:crypto";
 globalThis.process ??= process;
 globalThis.Buffer ??= Buffer;
 globalThis.global ??= globalThis;
+if (typeof require === "undefined") {
+  const __builtins = { "crypto": __node_crypto, "node:crypto": __node_crypto };
+  globalThis.require = (id) => {
+    if (id in __builtins) return __builtins[id];
+    throw new Error("Dynamic require of \\"" + id + "\\" is not supported");
+  };
+}
 `;
 
 await esbuild.build({
