@@ -852,6 +852,10 @@ describe("square", () => {
             amount: BigInt(5000),
             currency: "GBP",
           },
+          refundedMoney: {
+            amount: BigInt(5000),
+            currency: "GBP",
+          },
         },
       });
 
@@ -865,6 +869,8 @@ describe("square", () => {
           expect(result!.orderId).toBe("order_999");
           expect(result!.amountMoney!.amount).toBe(BigInt(5000));
           expect(result!.amountMoney!.currency).toBe("GBP");
+          expect(result!.refundedMoney!.amount).toBe(BigInt(5000));
+          expect(result!.refundedMoney!.currency).toBe("GBP");
         },
       );
     });

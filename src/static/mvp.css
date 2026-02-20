@@ -740,7 +740,8 @@ fieldset.agreement {
   font-weight: bold;
 }
 
-.danger-text {
+.danger-text,
+.badge-refunded {
   color: #cc0000;
   font-weight: bold;
 }
@@ -749,7 +750,8 @@ fieldset.agreement {
   :root[color-mode="user"] .password-warning {
     color: #ff4444;
   }
-  :root[color-mode="user"] .danger-text {
+  :root[color-mode="user"] .danger-text,
+  :root[color-mode="user"] .badge-refunded {
     color: #ff4444;
   }
 }

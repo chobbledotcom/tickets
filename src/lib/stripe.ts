@@ -216,6 +216,7 @@ export const stripeApi: {
   getStripeClient: () => Promise<Stripe | null>;
   resetStripeClient: () => void;
   retrieveCheckoutSession: (id: string) => Promise<Stripe.Checkout.Session | null>;
+  retrievePaymentIntent: (id: string) => Promise<Stripe.PaymentIntent | null>;
   refundPayment: (intentId: string) => Promise<Stripe.Refund | null>;
   createCheckoutSessionWithIntent: (
     event: Event,
@@ -247,6 +248,15 @@ export const stripeApi: {
     id: string,
   ): Promise<Stripe.Checkout.Session | null> =>
     withClient((s) => s.checkout.sessions.retrieve(id), ErrorCode.STRIPE_SESSION),
+
+  /** Retrieve a payment intent (for checking refund status) */
+  retrievePaymentIntent: (
+    id: string,
+  ): Promise<Stripe.PaymentIntent | null> =>
+    withClient(
+      (s) => s.paymentIntents.retrieve(id, { expand: ["latest_charge"] }),
+      ErrorCode.STRIPE_SESSION,
+    ),
 
   /** Refund a payment */
   refundPayment: (intentId: string): Promise<Stripe.Refund | null> =>
@@ -409,6 +419,8 @@ export const getStripeClient = () => stripeApi.getStripeClient();
 export const resetStripeClient = () => stripeApi.resetStripeClient();
 export const retrieveCheckoutSession = (id: string) =>
   stripeApi.retrieveCheckoutSession(id);
+export const retrievePaymentIntent = (id: string) =>
+  stripeApi.retrievePaymentIntent(id);
 export const refundPayment = (id: string) => stripeApi.refundPayment(id);
 export const createCheckoutSessionWithIntent = (
   e: Event,

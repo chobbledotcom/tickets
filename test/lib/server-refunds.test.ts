@@ -506,6 +506,98 @@ describe("server (admin refunds)", () => {
     });
   });
 
+  describe("already-refunded guard", () => {
+    test("GET refund page shows error for already-refunded attendee", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_already_refunded");
+      const { markRefunded } = await import("#lib/db/attendees.ts");
+      await markRefunded(attendee.id);
+
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
+        { cookie },
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("already been refunded");
+    });
+
+    test("POST refund returns error for already-refunded attendee", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_post_already");
+      const { markRefunded } = await import("#lib/db/attendees.ts");
+      await markRefunded(attendee.id);
+
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
+          { confirm_name: "John Doe", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("already been refunded");
+    });
+
+    test("refund-all excludes already-refunded attendees", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const refundedAttendee = await createPaidTestAttendee(event.id, "Refunded", "refunded@example.com", "pi_ra_1");
+      await createPaidTestAttendee(event.id, "Not Refunded", "notrefunded@example.com", "pi_ra_2");
+      const { markRefunded } = await import("#lib/db/attendees.ts");
+      await markRefunded(refundedAttendee.id);
+
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/refund-all`,
+        { cookie },
+      );
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("1 attendee(s) with payments");
+    });
+
+    test("marks attendee as refunded after successful refund", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_mark_refund");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await withMocks(
+        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
+        async () => {
+          const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+          const mockRefund = spyOn(stripePaymentProvider, "refundPayment").mockResolvedValue(true);
+          try {
+            const response = await handleRequest(
+              mockFormRequest(
+                `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
+                { confirm_name: "John Doe", csrf_token: csrfToken },
+                cookie,
+              ),
+            );
+            expect(response.status).toBe(302);
+
+            // Verify attendee is marked as refunded by trying to refund again
+            const retryResponse = await handleRequest(
+              mockFormRequest(
+                `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
+                { confirm_name: "John Doe", csrf_token: csrfToken },
+                cookie,
+              ),
+            );
+            expect(retryResponse.status).toBe(400);
+            const html = await retryResponse.text();
+            expect(html).toContain("already been refunded");
+          } finally {
+            mockRefund.mockRestore?.();
+          }
+        },
+      );
+    });
+  });
+
   describe("event page UI", () => {
     test("shows Refund link for paid attendees on paid events", async () => {
       const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });

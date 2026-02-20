@@ -249,6 +249,37 @@ describe("AttendeeTable", () => {
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).not.toContain("Refund");
     });
+
+    test("hides Refund link when attendee is already refunded", () => {
+      const rows = [makeRow({
+        hasPaidEvent: true,
+        attendee: testAttendee({ payment_id: "pay_123", refunded: "true" }),
+      })];
+      const html = AttendeeTable(makeOpts({ rows }));
+      expect(html).not.toContain("/refund");
+    });
+  });
+
+  describe("refunded badge", () => {
+    test("shows Refunded badge for refunded attendee", () => {
+      const rows = [makeRow({ attendee: testAttendee({ refunded: "true" }) })];
+      const html = AttendeeTable(makeOpts({ rows }));
+      expect(html).toContain("Refunded");
+    });
+
+    test("does not show Check in button for refunded attendee", () => {
+      const rows = [makeRow({ attendee: testAttendee({ refunded: "true" }) })];
+      const html = AttendeeTable(makeOpts({ rows }));
+      expect(html).not.toContain("Check in");
+      expect(html).not.toContain("Check out");
+    });
+
+    test("shows Check in button for non-refunded attendee", () => {
+      const rows = [makeRow({ attendee: testAttendee({ refunded: "false" }) })];
+      const html = AttendeeTable(makeOpts({ rows }));
+      expect(html).toContain("Check in");
+      expect(html).not.toContain("Refunded");
+    });
   });
 
   describe("return_url", () => {

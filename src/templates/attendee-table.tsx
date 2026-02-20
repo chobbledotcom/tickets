@@ -140,18 +140,22 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter, returnUrl }: {
   );
 };
 
+/** Check if attendee is eligible for refund (has payment, not yet refunded) */
+const isRefundable = (row: AttendeeTableRow): boolean =>
+  row.hasPaidEvent && !!row.attendee.payment_id && row.attendee.refunded !== "true";
+
 /** Render the actions cell for a row */
 const ActionsCell = ({ row, returnUrl }: { row: AttendeeTableRow; returnUrl: string | undefined }): string => {
   const a = row.attendee;
   const suffix = returnSuffix(returnUrl);
   return String(
     <>
-      {row.hasPaidEvent && a.payment_id && (
+      {isRefundable(row) && (
         <a href={`/admin/event/${row.eventId}/attendee/${a.id}/refund${suffix}`} class="danger">
           Refund
         </a>
       )}
-      {row.hasPaidEvent && a.payment_id && " "}
+      {isRefundable(row) && " "}
       <a href={`/admin/attendees/${a.id}${suffix}`}>
         Edit
       </a>
@@ -167,6 +171,23 @@ const ActionsCell = ({ row, returnUrl }: { row: AttendeeTableRow; returnUrl: str
   );
 };
 
+/** Render the first column: refunded badge or check-in/out button */
+const StatusCell = ({ row, opts }: {
+  row: AttendeeTableRow;
+  opts: AttendeeTableOptions;
+}): string => {
+  if (row.attendee.refunded === "true") {
+    return String(<span class="badge-refunded">Refunded</span>);
+  }
+  return CheckinButton({
+    a: row.attendee,
+    eventId: row.eventId,
+    csrfToken: opts.csrfToken,
+    activeFilter: opts.activeFilter ?? "all",
+    returnUrl: opts.returnUrl,
+  });
+};
+
 /** Render a single attendee row */
 const AttendeeRow = ({ row, vis, opts }: {
   row: AttendeeTableRow;
@@ -177,13 +198,7 @@ const AttendeeRow = ({ row, vis, opts }: {
   return String(
     <tr>
       <td>
-        <Raw html={CheckinButton({
-          a,
-          eventId: row.eventId,
-          csrfToken: opts.csrfToken,
-          activeFilter: opts.activeFilter ?? "all",
-          returnUrl: opts.returnUrl,
-        })} />
+        <Raw html={StatusCell({ row, opts })} />
       </td>
       {vis.showEvent && <td><a href={`/admin/event/${row.eventId}`}>{row.eventName}</a></td>}
       {vis.showDate && <td>{a.date ? formatDateLabel(a.date) : ""}</td>}

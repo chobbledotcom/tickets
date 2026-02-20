@@ -156,6 +156,14 @@ export interface PaymentProvider {
     existingEndpointId?: string | null,
   ): Promise<WebhookSetupResult>;
 
+  /**
+   * Check if a payment has been refunded via the provider API.
+   * Used to refresh refund status from the edit attendee page.
+   * @param paymentReference - provider-specific payment reference
+   * @returns true if the payment has been refunded
+   */
+  isPaymentRefunded(paymentReference: string): Promise<boolean>;
+
   /** The webhook event type name that indicates a completed checkout */
   readonly checkoutCompletedEventType: string;
 }

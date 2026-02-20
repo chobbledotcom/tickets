@@ -171,6 +171,36 @@ const renderEventSelector = (
   return `<label for="event_id">Event<select id="event_id" name="event_id" required>${options}</select></label>`;
 };
 
+/** Render payment details section (read-only) */
+const PaymentDetails = ({ attendee, csrfToken }: { attendee: Attendee; csrfToken: string }): string => {
+  if (!attendee.payment_id) return "";
+  const pricePaid = Number.parseInt(attendee.price_paid, 10);
+  const isRefunded = attendee.refunded === "true";
+
+  return String(
+    <article>
+      <h3>Payment Details</h3>
+      <p><strong>Payment ID:</strong> {attendee.payment_id}</p>
+      {pricePaid > 0 && (
+        <p><strong>Amount Paid:</strong> {formatCurrency(attendee.price_paid)}</p>
+      )}
+      <p>
+        <strong>Refund Status:</strong>{" "}
+        {isRefunded
+          ? <span class="badge-refunded">Refunded</span>
+          : "Not refunded"}
+      </p>
+      <CsrfForm
+        action={`/admin/attendees/${attendee.id}/refresh-payment`}
+        csrfToken={csrfToken}
+        class="inline"
+      >
+        <button type="submit">Refresh payment status</button>
+      </CsrfForm>
+    </article>
+  );
+};
+
 /**
  * Admin edit attendee page
  */
@@ -179,13 +209,17 @@ export const adminEditAttendeePage = (
   session: AdminSession,
   error?: string,
   returnUrl?: string,
+  success?: string,
 ): string =>
   String(
     <Layout title={`Edit Attendee: ${attendee.name}`}>
       <AdminNav session={session} />
         {error && <div class="error">{error}</div>}
+        {success && <div class="success">{success}</div>}
 
         <h2>Edit Attendee</h2>
+
+        <Raw html={PaymentDetails({ attendee, csrfToken: session.csrfToken })} />
 
         <CsrfForm action={`/admin/attendees/${attendee.id}`} csrfToken={session.csrfToken}>
           {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}

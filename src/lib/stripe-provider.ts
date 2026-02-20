@@ -25,6 +25,7 @@ import {
   createMultiCheckoutSession,
   refundPayment as stripeRefund,
   retrieveCheckoutSession,
+  retrievePaymentIntent,
   setupWebhookEndpoint,
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
@@ -95,6 +96,16 @@ export const stripePaymentProvider: PaymentProvider = {
     return result !== null;
   },
 
+  async isPaymentRefunded(paymentReference: string): Promise<boolean> {
+    const intent = await retrievePaymentIntent(paymentReference);
+    if (!intent) return false;
+    const charge = intent.latest_charge;
+    if (typeof charge === "object" && charge !== null) {
+      return (charge as { refunded: boolean }).refunded;
+    }
+    return false;
+  },
+
   setupWebhookEndpoint(
     secretKey: string,
     webhookUrl: string,
@@ -102,4 +113,5 @@ export const stripePaymentProvider: PaymentProvider = {
   ): Promise<WebhookSetupResult> {
     return setupWebhookEndpoint(secretKey, webhookUrl, existingEndpointId);
   },
+
 };

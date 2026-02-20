@@ -15,7 +15,11 @@
  */
 
 import { map, unique } from "#fp";
-import { createAttendeeAtomic, deleteAttendee, getAttendeesByTokens } from "#lib/db/attendees.ts";
+import {
+  createAttendeeAtomic,
+  deleteAttendee,
+  getAttendeesByTokens,
+} from "#lib/db/attendees.ts";
 import { getEvent, getEventWithCount } from "#lib/db/events.ts";
 import {
   finalizeSession,
