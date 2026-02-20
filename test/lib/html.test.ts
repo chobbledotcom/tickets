@@ -19,7 +19,7 @@ import {
   reservationSuccessPage,
 } from "#templates/payment.tsx";
 import { eventFields } from "#templates/fields.ts";
-import { buildMultiTicketEvent, multiTicketPage, notFoundPage, renderEventImage, temporaryErrorPage, ticketPage } from "#templates/public.tsx";
+import { buildMultiTicketEvent, buildOgTags, multiTicketPage, notFoundPage, renderEventImage, temporaryErrorPage, ticketPage } from "#templates/public.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { testAttendee, testEvent, testEventWithCount, testGroup } from "#test-utils";
 
@@ -440,6 +440,73 @@ describe("html", () => {
       const html = ticketPage(event, csrfToken, undefined, false, false, undefined, undefined);
       expect(html).not.toContain('class="terms"');
       expect(html).not.toContain('name="agree_terms"');
+    });
+
+    test("includes OpenGraph tags when baseUrl is provided", () => {
+      const ev = testEventWithCount({ name: "Birthday Party", slug: "birthday-party", description: "A fun party" });
+      const html = ticketPage(ev, csrfToken, undefined, false, false, undefined, undefined, "https://tix.example.com");
+      expect(html).toContain('<meta property="og:title" content="Birthday Party">');
+      expect(html).toContain('<meta property="og:type" content="website">');
+      expect(html).toContain('<meta property="og:url" content="https://tix.example.com/ticket/birthday-party">');
+      expect(html).toContain('<meta property="og:description" content="A fun party">');
+    });
+
+    test("does not include OpenGraph tags when baseUrl is not provided", () => {
+      const html = ticketPage(event, csrfToken, undefined, false, false, undefined, undefined);
+      expect(html).not.toContain('og:title');
+    });
+  });
+
+  describe("buildOgTags", () => {
+    test("includes title, type, and url", () => {
+      const html = buildOgTags(
+        { name: "My Event", description: "", slug: "my-event", image_url: "" },
+        "https://example.com",
+      );
+      expect(html).toContain('<meta property="og:title" content="My Event">');
+      expect(html).toContain('<meta property="og:type" content="website">');
+      expect(html).toContain('<meta property="og:url" content="https://example.com/ticket/my-event">');
+    });
+
+    test("includes description when present", () => {
+      const html = buildOgTags(
+        { name: "My Event", description: "Come join us", slug: "my-event", image_url: "" },
+        "https://example.com",
+      );
+      expect(html).toContain('<meta property="og:description" content="Come join us">');
+    });
+
+    test("excludes description when empty", () => {
+      const html = buildOgTags(
+        { name: "My Event", description: "", slug: "my-event", image_url: "" },
+        "https://example.com",
+      );
+      expect(html).not.toContain("og:description");
+    });
+
+    test("includes image when present", () => {
+      const html = buildOgTags(
+        { name: "My Event", description: "", slug: "my-event", image_url: "photo.jpg" },
+        "https://example.com",
+      );
+      expect(html).toContain('<meta property="og:image" content="https://example.com/image/photo.jpg">');
+    });
+
+    test("excludes image when empty", () => {
+      const html = buildOgTags(
+        { name: "My Event", description: "", slug: "my-event", image_url: "" },
+        "https://example.com",
+      );
+      expect(html).not.toContain("og:image");
+    });
+
+    test("escapes HTML in event name", () => {
+      const html = buildOgTags(
+        { name: 'Event "with quotes"', description: "", slug: "my-event", image_url: "" },
+        "https://example.com",
+      );
+      expect(html).toContain("Event &quot;with quotes&quot;");
+      expect(html).not.toContain('content="Event "with quotes""');
     });
   });
 

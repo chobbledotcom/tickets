@@ -18,6 +18,25 @@ export const renderEventImage = (event: { image_url: string; name: string }, cla
     ? `<img src="${escapeHtml(getImageProxyUrl(event.image_url))}" alt="${escapeHtml(event.name)}" class="${className}" />`
     : "";
 
+/** Build OpenGraph meta tags for a public event page */
+export const buildOgTags = (
+  event: { name: string; description: string; slug: string; image_url: string },
+  baseUrl: string,
+): string => {
+  const tags = [
+    `<meta property="og:title" content="${escapeHtml(event.name)}">`,
+    `<meta property="og:type" content="website">`,
+    `<meta property="og:url" content="${escapeHtml(baseUrl)}/ticket/${escapeHtml(event.slug)}">`,
+  ];
+  if (event.description) {
+    tags.push(`<meta property="og:description" content="${escapeHtml(event.description)}">`);
+  }
+  if (event.image_url) {
+    tags.push(`<meta property="og:image" content="${escapeHtml(baseUrl)}${escapeHtml(getImageProxyUrl(event.image_url))}">`);
+  }
+  return tags.join("\n");
+};
+
 /** Render a date selector dropdown for daily events */
 const renderDateSelector = (dates: string[]): string =>
   dates.length === 0
@@ -55,6 +74,7 @@ export const ticketPage = (
   inIframe: boolean,
   availableDates: string[] | undefined,
   termsAndConditions: string | null | undefined,
+  baseUrl?: string,
 ): string => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isFull = spotsRemaining <= 0;
@@ -62,9 +82,10 @@ export const ticketPage = (
   const showQuantity = maxPurchasable > 1;
   const fields: Field[] = getTicketFields(event.fields);
   const isDaily = event.event_type === "daily";
+  const headExtra = baseUrl ? buildOgTags(event, baseUrl) : undefined;
 
   return String(
-    <Layout title={event.name} bodyClass={inIframe ? "iframe" : undefined}>
+    <Layout title={event.name} bodyClass={inIframe ? "iframe" : undefined} headExtra={headExtra}>
       {!inIframe && (
         <>
           <Raw html={renderEventImage(event)} />
