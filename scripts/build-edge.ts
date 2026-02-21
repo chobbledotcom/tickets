@@ -216,10 +216,19 @@ const resolveNpmSpecifier = (specifier: string): string | null => {
 
   // Fallback: browser → module → main → index.js
   if (!subpath) {
-    // browser field can be an object (module replacement map) — only use if string
-    const entry = (typeof pkgJson.browser === "string" ? pkgJson.browser : null)
-      ?? pkgJson.module ?? pkgJson.main;
-    if (entry) return resolveFile(`${pkgDir}/${entry}`);
+    if (typeof pkgJson.browser === "string") {
+      return resolveFile(`${pkgDir}/${pkgJson.browser}`);
+    }
+    const entry = pkgJson.module ?? pkgJson.main;
+    if (entry) {
+      // When browser is an object it's a module replacement map
+      // e.g. { "./lib/index.js": "./lib/browser.js", "fs": false }
+      if (typeof pkgJson.browser === "object" && pkgJson.browser !== null) {
+        const mapped = pkgJson.browser[entry];
+        if (typeof mapped === "string") return resolveFile(`${pkgDir}/${mapped}`);
+      }
+      return resolveFile(`${pkgDir}/${entry}`);
+    }
     return resolveFile(`${pkgDir}/index`);
   }
 
