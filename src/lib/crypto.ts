@@ -107,6 +107,12 @@ const [getKeyCache, setKeyCache] = lazyRef<KeyCache>(() => {
   throw new Error("Key cache not initialized");
 });
 
+type HmacKeyCache = { key: CryptoKey; source: string };
+
+const [getHmacKeyCache, setHmacKeyCache] = lazyRef<HmacKeyCache>(() => {
+  throw new Error("HMAC key cache not initialized");
+});
+
 /**
  * Get the encryption key bytes from environment variable (sync validation only)
  * Expects DB_ENCRYPTION_KEY to be a base64-encoded 256-bit (32 byte) key
@@ -260,10 +266,14 @@ export const decryptBytes = async (encrypted: Uint8Array): Promise<Uint8Array> =
 };
 
 /**
- * Clear the cached encryption key (useful for testing)
+ * Clear all crypto caches (encryption key, HMAC key, private key, hybrid decrypt LRU)
+ * Called on key rotation and during test setup/teardown
  */
 export const clearEncryptionKeyCache = (): void => {
   setKeyCache(null);
+  setHmacKeyCache(null);
+  privateKeyCache.clear();
+  hybridDecryptCache.clear();
 };
 
 /**
@@ -377,21 +387,42 @@ export const hashSessionToken = async (token: string): Promise<string> => {
 };
 
 /**
- * HMAC-SHA256 hash using DB_ENCRYPTION_KEY
- * Used for blind indexes and hashing limited keyspace values
- * Returns deterministic output for same input (unlike encrypt)
+ * Import HMAC key for Web Crypto API (cached via lazyRef)
+ * Same key material as importEncryptionKey but with HMAC algorithm
  */
-export const hmacHash = async (value: string): Promise<string> => {
+const importHmacKey = async (): Promise<CryptoKey> => {
   const keyString = getEncryptionKeyString();
-  const keyBytes = decodeKeyBytes(keyString);
 
-  const hmacKey = await crypto.subtle.importKey(
+  // Return cached key if source hasn't changed
+  try {
+    const cached = getHmacKeyCache();
+    if (cached.source === keyString) {
+      return cached.key;
+    }
+  } catch {
+    // Cache not initialized yet
+  }
+
+  const keyBytes = decodeKeyBytes(keyString);
+  const key = await crypto.subtle.importKey(
     "raw",
     keyBytes as BufferSource,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
   );
+
+  setHmacKeyCache({ key, source: keyString });
+  return key;
+};
+
+/**
+ * HMAC-SHA256 hash using DB_ENCRYPTION_KEY
+ * Used for blind indexes and hashing limited keyspace values
+ * Returns deterministic output for same input (unlike encrypt)
+ */
+export const hmacHash = async (value: string): Promise<string> => {
+  const hmacKey = await importHmacKey();
 
   const encoder = new TextEncoder();
   const signature = await crypto.subtle.sign(
@@ -694,13 +725,31 @@ export const hybridEncrypt = async (
 };
 
 /**
+ * Bounded LRU cache for hybrid decrypt results.
+ * Ciphertext is unique per encryption (random AES key + IV), making it a safe cache key.
+ * Bounded to prevent unbounded memory growth on edge runtimes.
+ */
+const HYBRID_CACHE_MAX = 10_000;
+const hybridDecryptCache = new Map<string, string>();
+
+/**
  * Decrypt data using hybrid encryption
  * Expects format: hyb:1:$base64WrappedKey:$base64iv:$base64ciphertext
+ * Results are cached in a bounded LRU (ciphertext -> plaintext)
  */
 export const hybridDecrypt = async (
   encrypted: string,
   privateKey: CryptoKey,
 ): Promise<string> => {
+  // Check LRU cache
+  const cached = hybridDecryptCache.get(encrypted);
+  if (cached !== undefined) {
+    // Move to end (most recently used)
+    hybridDecryptCache.delete(encrypted);
+    hybridDecryptCache.set(encrypted, cached);
+    return cached;
+  }
+
   if (!encrypted.startsWith(HYBRID_PREFIX)) {
     throw new Error("Invalid hybrid encrypted data format");
   }
@@ -737,13 +786,22 @@ export const hybridDecrypt = async (
   // Decrypt the data with AES
   const iv = fromBase64(ivB64);
   const ciphertext = fromBase64(ciphertextB64);
-  const plaintext = await crypto.subtle.decrypt(
+  const decryptedBuf = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: iv as BufferSource },
     aesKey,
     ciphertext as BufferSource,
   );
 
-  return new TextDecoder().decode(plaintext);
+  const result = new TextDecoder().decode(decryptedBuf);
+
+  // Store in LRU cache, evicting oldest if at capacity
+  if (hybridDecryptCache.size >= HYBRID_CACHE_MAX) {
+    const oldestKey = hybridDecryptCache.keys().next().value!;
+    hybridDecryptCache.delete(oldestKey);
+  }
+  hybridDecryptCache.set(encrypted, result);
+
+  return result;
 };
 
 /**
@@ -775,14 +833,29 @@ export const encryptAttendeePII = async (
 };
 
 /**
+ * Private key cache with TTL (10 seconds, matching session cache)
+ * Avoids re-running the full unwrap chain (PBKDF2 + AES + RSA import) per request
+ */
+const PRIVATE_KEY_CACHE_TTL_MS = 10_000;
+type PrivateKeyCacheEntry = { key: CryptoKey; cachedAt: number };
+const privateKeyCache = new Map<string, PrivateKeyCacheEntry>();
+
+/**
  * Derive the private key from session credentials
  * Used to decrypt attendee PII in admin views
+ * Results are cached per session token for 10 seconds
  */
 export const getPrivateKeyFromSession = async (
   sessionToken: string,
   wrappedDataKey: string,
   wrappedPrivateKey: string,
 ): Promise<CryptoKey> => {
+  // Check TTL cache
+  const cached = privateKeyCache.get(sessionToken);
+  if (cached && Date.now() - cached.cachedAt <= PRIVATE_KEY_CACHE_TTL_MS) {
+    return cached.key;
+  }
+
   // Unwrap DATA_KEY using session token
   const dataKey = await unwrapKeyWithToken(wrappedDataKey, sessionToken);
 
@@ -790,7 +863,10 @@ export const getPrivateKeyFromSession = async (
   const privateKeyJwk = await decryptWithKey(wrappedPrivateKey, dataKey);
 
   // Import and return the private key
-  return importPrivateKey(privateKeyJwk);
+  const key = await importPrivateKey(privateKeyJwk);
+
+  privateKeyCache.set(sessionToken, { key, cachedAt: Date.now() });
+  return key;
 };
 
 /**
