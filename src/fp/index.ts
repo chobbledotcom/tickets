@@ -316,3 +316,79 @@ export const mapAsync =
     }
     return results;
   };
+
+/** Bounded LRU cache returned by boundedLru() */
+export type BoundedLru<K, V> = {
+  get: (key: K) => V | undefined;
+  set: (key: K, value: V) => void;
+  clear: () => void;
+  size: () => number;
+};
+
+/**
+ * Create a bounded LRU (Least Recently Used) cache.
+ * Evicts the oldest entry when capacity is reached.
+ * Uses Map insertion order for O(1) LRU tracking.
+ */
+export const boundedLru = <K, V>(maxSize: number): BoundedLru<K, V> => {
+  const cache = new Map<K, V>();
+  return {
+    get: (key: K): V | undefined => {
+      const value = cache.get(key);
+      if (value !== undefined) {
+        // Move to end (most recently used)
+        cache.delete(key);
+        cache.set(key, value);
+      }
+      return value;
+    },
+    set: (key: K, value: V): void => {
+      if (cache.has(key)) {
+        cache.delete(key);
+      } else if (cache.size >= maxSize) {
+        cache.delete(cache.keys().next().value!);
+      }
+      cache.set(key, value);
+    },
+    clear: (): void => {
+      cache.clear();
+    },
+    size: (): number => cache.size,
+  };
+};
+
+/** TTL cache returned by ttlCache() */
+export type TtlCache<K, V> = {
+  get: (key: K) => V | undefined;
+  set: (key: K, value: V) => void;
+  clear: () => void;
+};
+
+/**
+ * Create a TTL (Time-To-Live) cache.
+ * Entries expire after ttlMs milliseconds.
+ * Accepts an optional clock function for testing.
+ */
+export const ttlCache = <K, V>(
+  ttlMs: number,
+  now: () => number = Date.now,
+): TtlCache<K, V> => {
+  const cache = new Map<K, { value: V; cachedAt: number }>();
+  return {
+    get: (key: K): V | undefined => {
+      const entry = cache.get(key);
+      if (!entry) return undefined;
+      if (now() - entry.cachedAt > ttlMs) {
+        cache.delete(key);
+        return undefined;
+      }
+      return entry.value;
+    },
+    set: (key: K, value: V): void => {
+      cache.set(key, { value, cachedAt: now() });
+    },
+    clear: (): void => {
+      cache.clear();
+    },
+  };
+};

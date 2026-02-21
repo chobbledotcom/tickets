@@ -3,7 +3,7 @@
  * Works in both Deno and browser/edge environments
  */
 
-import { lazyRef } from "#fp";
+import { boundedLru, lazyRef, ttlCache } from "#fp";
 import { getEnv } from "#lib/env.ts";
 
 /**
@@ -133,14 +133,20 @@ const getEncryptionKeyString = (): string => {
 };
 
 /**
- * Import encryption key for Web Crypto API
+ * Import a CryptoKey from DB_ENCRYPTION_KEY with caching.
+ * Shared by both AES-GCM (encrypt/decrypt) and HMAC (blind indexes).
  */
-const importEncryptionKey = async (): Promise<CryptoKey> => {
+const importCachedKey = async (
+  getCache: () => KeyCache,
+  setCache: (v: KeyCache | null) => void,
+  algorithm: Parameters<SubtleCrypto["importKey"]>[2],
+  usages: KeyUsage[],
+): Promise<CryptoKey> => {
   const keyString = getEncryptionKeyString();
 
   // Return cached key if source hasn't changed
   try {
-    const cached = getKeyCache();
+    const cached = getCache();
     if (cached.source === keyString) {
       return cached.key;
     }
@@ -152,14 +158,17 @@ const importEncryptionKey = async (): Promise<CryptoKey> => {
   const key = await crypto.subtle.importKey(
     "raw",
     keyBytes as BufferSource,
-    { name: "AES-GCM" },
+    algorithm,
     false,
-    ["encrypt", "decrypt"],
+    usages,
   );
 
-  setKeyCache({ key, source: keyString });
+  setCache({ key, source: keyString });
   return key;
 };
+
+const importEncryptionKey = (): Promise<CryptoKey> =>
+  importCachedKey(getKeyCache, setKeyCache, { name: "AES-GCM" }, ["encrypt", "decrypt"]);
 
 /**
  * Validate encryption key is present and valid
@@ -386,35 +395,8 @@ export const hashSessionToken = async (token: string): Promise<string> => {
   return toBase64(new Uint8Array(hashBuffer));
 };
 
-/**
- * Import HMAC key for Web Crypto API (cached via lazyRef)
- * Same key material as importEncryptionKey but with HMAC algorithm
- */
-const importHmacKey = async (): Promise<CryptoKey> => {
-  const keyString = getEncryptionKeyString();
-
-  // Return cached key if source hasn't changed
-  try {
-    const cached = getHmacKeyCache();
-    if (cached.source === keyString) {
-      return cached.key;
-    }
-  } catch {
-    // Cache not initialized yet
-  }
-
-  const keyBytes = decodeKeyBytes(keyString);
-  const key = await crypto.subtle.importKey(
-    "raw",
-    keyBytes as BufferSource,
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-
-  setHmacKeyCache({ key, source: keyString });
-  return key;
-};
+const importHmacKey = (): Promise<CryptoKey> =>
+  importCachedKey(getHmacKeyCache, setHmacKeyCache, { name: "HMAC", hash: "SHA-256" }, ["sign"]);
 
 /**
  * HMAC-SHA256 hash using DB_ENCRYPTION_KEY
@@ -727,10 +709,8 @@ export const hybridEncrypt = async (
 /**
  * Bounded LRU cache for hybrid decrypt results.
  * Ciphertext is unique per encryption (random AES key + IV), making it a safe cache key.
- * Bounded to prevent unbounded memory growth on edge runtimes.
  */
-const HYBRID_CACHE_MAX = 10_000;
-const hybridDecryptCache = new Map<string, string>();
+const hybridDecryptCache = boundedLru<string, string>(10_000);
 
 /**
  * Decrypt data using hybrid encryption
@@ -741,14 +721,8 @@ export const hybridDecrypt = async (
   encrypted: string,
   privateKey: CryptoKey,
 ): Promise<string> => {
-  // Check LRU cache
   const cached = hybridDecryptCache.get(encrypted);
-  if (cached !== undefined) {
-    // Move to end (most recently used)
-    hybridDecryptCache.delete(encrypted);
-    hybridDecryptCache.set(encrypted, cached);
-    return cached;
-  }
+  if (cached !== undefined) return cached;
 
   if (!encrypted.startsWith(HYBRID_PREFIX)) {
     throw new Error("Invalid hybrid encrypted data format");
@@ -793,14 +767,7 @@ export const hybridDecrypt = async (
   );
 
   const result = new TextDecoder().decode(decryptedBuf);
-
-  // Store in LRU cache, evicting oldest if at capacity
-  if (hybridDecryptCache.size >= HYBRID_CACHE_MAX) {
-    const oldestKey = hybridDecryptCache.keys().next().value!;
-    hybridDecryptCache.delete(oldestKey);
-  }
   hybridDecryptCache.set(encrypted, result);
-
   return result;
 };
 
@@ -836,9 +803,7 @@ export const encryptAttendeePII = async (
  * Private key cache with TTL (10 seconds, matching session cache)
  * Avoids re-running the full unwrap chain (PBKDF2 + AES + RSA import) per request
  */
-const PRIVATE_KEY_CACHE_TTL_MS = 10_000;
-type PrivateKeyCacheEntry = { key: CryptoKey; cachedAt: number };
-const privateKeyCache = new Map<string, PrivateKeyCacheEntry>();
+const privateKeyCache = ttlCache<string, CryptoKey>(10_000);
 
 /**
  * Derive the private key from session credentials
@@ -850,11 +815,8 @@ export const getPrivateKeyFromSession = async (
   wrappedDataKey: string,
   wrappedPrivateKey: string,
 ): Promise<CryptoKey> => {
-  // Check TTL cache
   const cached = privateKeyCache.get(sessionToken);
-  if (cached && Date.now() - cached.cachedAt <= PRIVATE_KEY_CACHE_TTL_MS) {
-    return cached.key;
-  }
+  if (cached) return cached;
 
   // Unwrap DATA_KEY using session token
   const dataKey = await unwrapKeyWithToken(wrappedDataKey, sessionToken);
@@ -865,7 +827,7 @@ export const getPrivateKeyFromSession = async (
   // Import and return the private key
   const key = await importPrivateKey(privateKeyJwk);
 
-  privateKeyCache.set(sessionToken, { key, cachedAt: Date.now() });
+  privateKeyCache.set(sessionToken, key);
   return key;
 };
 

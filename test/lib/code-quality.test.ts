@@ -45,8 +45,6 @@ const ALLOWED_FILES_STATE = [
   ...TEST_UTILITY_FILES,
   // Session cache with 10s TTL - legitimate performance optimization
   "lib/db/sessions.ts",
-  // Crypto caches: HMAC key, private key (10s TTL), hybrid decrypt LRU (10K bounded)
-  "lib/crypto.ts",
 ];
 
 /**
