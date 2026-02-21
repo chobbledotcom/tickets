@@ -247,7 +247,9 @@ export const cloneResponse = async (
   response: Response,
   headers: Headers,
 ): Promise<Response> => {
-  const body = response.body ? await response.arrayBuffer() : null;
+  const body = response.body
+    ? new Uint8Array(await response.arrayBuffer())
+    : null;
   return new Response(body, {
     status: response.status,
     statusText: response.statusText,

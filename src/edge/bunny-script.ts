@@ -19,7 +19,7 @@ const initialize = once(async (): Promise<void> => {
 BunnySDK.net.http.serve(async (request: Request): Promise<Response> => {
   try {
     await initialize();
-    return handleRequest(request);
+    return await handleRequest(request);
   } catch (error) {
     // biome-ignore lint/suspicious/noConsole: Edge script error logging
     console.error("[Tickets] Request error:", error);
