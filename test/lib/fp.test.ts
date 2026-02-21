@@ -1,5 +1,6 @@
 import { describe, expect, test } from "#test-compat";
 import {
+  boundedLru,
   bracket,
   compact,
   err,
@@ -20,6 +21,7 @@ import {
   reduce,
   sort,
   sortBy,
+  ttlCache,
   unique,
   uniqueBy,
 } from "#fp";
@@ -475,6 +477,112 @@ describe("fp", () => {
       const double = (x: number) => Promise.resolve(x * 2);
       const result = await mapAsync(double)([]);
       expect(result).toEqual([]);
+    });
+  });
+
+  describe("boundedLru", () => {
+    test("stores and retrieves values", () => {
+      const cache = boundedLru<string, number>(3);
+      cache.set("a", 1);
+      cache.set("b", 2);
+      expect(cache.get("a")).toBe(1);
+      expect(cache.get("b")).toBe(2);
+    });
+
+    test("returns undefined for missing keys", () => {
+      const cache = boundedLru<string, number>(3);
+      expect(cache.get("missing")).toBe(undefined);
+    });
+
+    test("evicts oldest entry when at capacity", () => {
+      const cache = boundedLru<string, number>(2);
+      cache.set("a", 1);
+      cache.set("b", 2);
+      cache.set("c", 3); // evicts "a"
+      expect(cache.get("a")).toBe(undefined);
+      expect(cache.get("b")).toBe(2);
+      expect(cache.get("c")).toBe(3);
+    });
+
+    test("get promotes entry to most recent", () => {
+      const cache = boundedLru<string, number>(2);
+      cache.set("a", 1);
+      cache.set("b", 2);
+      cache.get("a"); // promotes "a" to most recent
+      cache.set("c", 3); // evicts "b" (now oldest)
+      expect(cache.get("a")).toBe(1);
+      expect(cache.get("b")).toBe(undefined);
+      expect(cache.get("c")).toBe(3);
+    });
+
+    test("set updates existing entry without eviction", () => {
+      const cache = boundedLru<string, number>(2);
+      cache.set("a", 1);
+      cache.set("b", 2);
+      cache.set("a", 10); // update, not insert
+      expect(cache.size()).toBe(2);
+      expect(cache.get("a")).toBe(10);
+    });
+
+    test("clear empties the cache", () => {
+      const cache = boundedLru<string, number>(3);
+      cache.set("a", 1);
+      cache.set("b", 2);
+      cache.clear();
+      expect(cache.size()).toBe(0);
+      expect(cache.get("a")).toBe(undefined);
+    });
+
+    test("size returns current entry count", () => {
+      const cache = boundedLru<string, number>(5);
+      expect(cache.size()).toBe(0);
+      cache.set("a", 1);
+      expect(cache.size()).toBe(1);
+      cache.set("b", 2);
+      expect(cache.size()).toBe(2);
+    });
+  });
+
+  describe("ttlCache", () => {
+    test("stores and retrieves values within TTL", () => {
+      const cache = ttlCache<string, number>(1000);
+      cache.set("a", 1);
+      expect(cache.get("a")).toBe(1);
+    });
+
+    test("returns undefined for missing keys", () => {
+      const cache = ttlCache<string, number>(1000);
+      expect(cache.get("missing")).toBe(undefined);
+    });
+
+    test("expires entries after TTL", () => {
+      let time = 0;
+      const cache = ttlCache<string, number>(100, () => time);
+      cache.set("a", 1);
+      time = 50;
+      expect(cache.get("a")).toBe(1); // within TTL
+      time = 101;
+      expect(cache.get("a")).toBe(undefined); // expired
+    });
+
+    test("clear empties the cache", () => {
+      const cache = ttlCache<string, number>(1000);
+      cache.set("a", 1);
+      cache.set("b", 2);
+      cache.clear();
+      expect(cache.get("a")).toBe(undefined);
+      expect(cache.get("b")).toBe(undefined);
+    });
+
+    test("each entry has independent TTL", () => {
+      let time = 0;
+      const cache = ttlCache<string, number>(100, () => time);
+      cache.set("a", 1);
+      time = 60;
+      cache.set("b", 2);
+      time = 101;
+      expect(cache.get("a")).toBe(undefined); // expired (set at 0, now 101)
+      expect(cache.get("b")).toBe(2); // still valid (set at 60, now 101)
     });
   });
 });
