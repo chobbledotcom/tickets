@@ -261,6 +261,9 @@ describe("code quality", () => {
       // Reset cached currency code between tests
       "lib/currency.ts:setCurrencyCodeForTest",
       "lib/currency.ts:resetCurrencyCode",
+      // Reset cached theme between tests
+      "lib/theme.ts:setThemeForTest",
+      "lib/theme.ts:resetTheme",
       // Token format check used by CSRF tests (production verifies via verifySignedCsrfToken)
       "lib/csrf.ts:isSignedCsrfToken",
       // Response cookie helper used by auth tests (production sets cookies directly)

@@ -4,6 +4,7 @@
 
 import { type Child, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { CSS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
+import { getTheme } from "#lib/theme.ts";
 
 export const escapeHtml = (str: string): string =>
   str
@@ -24,13 +25,14 @@ interface LayoutProps {
  * Wrap content in MVP.css semantic HTML layout
  */
 export const Layout = ({ title, bodyClass, headExtra, children, theme }: LayoutProps): SafeHtml => {
-  const colorScheme = theme === "dark" ? "dark" : "light";
+  const resolvedTheme = theme ?? getTheme();
+  const colorScheme = resolvedTheme === "dark" ? "dark" : "light";
   const themeStyle = `<style>html { color-scheme: ${colorScheme}; }</style>`;
 
   return new SafeHtml(
     "<!DOCTYPE html>" +
     (
-      <html lang="en" data-theme={theme || "light"}>
+      <html lang="en" data-theme={resolvedTheme}>
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />

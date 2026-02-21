@@ -17,7 +17,7 @@ export const EventRow = ({ e }: { e: EventWithCount }): string => {
   return String(
     <tr style={rowStyle || undefined}>
       <td><Raw html={renderEventImage(e, "event-thumbnail")} /><a href={`/admin/event/${e.id}`}>{e.name}</a></td>
-      <td>{e.description}</td>
+      <td class="cell-description">{e.description}</td>
       <td>{isInactive ? "Inactive" : "Active"}</td>
       <td>{e.attendee_count} / {e.max_attendees}</td>
       <td>{new Date(e.created).toLocaleDateString()}</td>
