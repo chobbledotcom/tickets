@@ -1643,4 +1643,103 @@ describe("server (admin settings)", () => {
     });
   });
 
+  describe("POST /admin/settings/show-events-on-homepage", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/show-events-on-homepage", {
+          show_events_on_homepage: "true",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/show-events-on-homepage",
+          {
+            show_events_on_homepage: "true",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
+    test("enables show events on homepage", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/show-events-on-homepage",
+          {
+            show_events_on_homepage: "true",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Events will now be shown on the homepage");
+    });
+
+    test("disables show events on homepage", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/show-events-on-homepage",
+          {
+            show_events_on_homepage: "false",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Homepage will redirect to admin");
+    });
+
+    test("setting persists in database", async () => {
+      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Initially should be false
+      expect(await settingsApi.getShowEventsOnHomepageFromDb()).toBe(false);
+
+      // Enable it
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/show-events-on-homepage",
+          {
+            show_events_on_homepage: "true",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(await settingsApi.getShowEventsOnHomepageFromDb()).toBe(true);
+    });
+
+    test("settings page displays show events on homepage section", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Show events on homepage?");
+      expect(html).toContain("show_events_on_homepage");
+    });
+  });
+
 });

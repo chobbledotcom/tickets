@@ -12,6 +12,69 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
+/**
+ * Homepage with events - shows all active upcoming events as a multi-ticket booking page
+ */
+export const homepagePage = (
+  events: MultiTicketEvent[],
+  csrfToken: string,
+  error?: string,
+  availableDates?: string[],
+  termsAndConditions?: string | null,
+): string => {
+  if (events.length === 0) {
+    return String(
+      <Layout title="Events">
+        <p><em>No events listed.</em></p>
+        <footer class="homepage-footer">
+          <p><a href="/admin/login">Login</a></p>
+        </footer>
+      </Layout>
+    );
+  }
+
+  const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
+  const allClosed = events.every((e) => e.isClosed);
+  const fieldsSetting = mergeEventFields(events.map((e) => e.event.fields));
+  const fields: Field[] = getTicketFields(fieldsSetting);
+  const hasDaily = events.some((e) => e.event.event_type === "daily");
+
+  const eventRows = pipe(
+    map(renderMultiEventRow),
+    (rows: string[]) => rows.join(""),
+  )(events);
+
+  return String(
+    <Layout title="Events">
+      <Raw html={renderError(error)} />
+
+      {allUnavailable ? (
+        <div class="error">{allClosed ? "Registration closed." : "Sorry, all events are sold out."}</div>
+      ) : (
+        <CsrfForm action="/" csrfToken={csrfToken}>
+          <Raw html={renderFields(fields)} />
+          {hasDaily && availableDates && (
+            <Raw html={renderDateSelector(availableDates)} />
+          )}
+
+          <fieldset class="multi-ticket-events">
+            <legend>Select Tickets</legend>
+            <Raw html={eventRows} />
+          </fieldset>
+
+          {termsAndConditions && (
+            <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
+          )}
+          <button type="submit">Reserve Tickets</button>
+        </CsrfForm>
+      )}
+      <footer class="homepage-footer">
+        <p><a href="/admin/login">Login</a></p>
+      </footer>
+    </Layout>
+  );
+};
+
 /** Render event image HTML if image_url is set */
 export const renderEventImage = (event: { image_url: string; name: string }, className = "event-image"): string =>
   event.image_url

@@ -1040,3 +1040,10 @@ button.secondary:hover {
   font-family: monospace;
   font-size: small;
 }
+
+/* Homepage footer (Login link) */
+.homepage-footer {
+  margin-top: 5rem;
+  font-size: smaller;
+  opacity: 0.6;
+}

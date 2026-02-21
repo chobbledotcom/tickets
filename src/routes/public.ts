@@ -5,11 +5,11 @@
 import { compact, filter, map, pipe, reduce } from "#fp";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
-import { getTermsAndConditionsFromDb } from "#lib/db/settings.ts";
+import { getShowEventsOnHomepageFromDb, getTermsAndConditionsFromDb } from "#lib/db/settings.ts";
 import { getAvailableDates } from "#lib/dates.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { checkBatchAvailability, createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
-import { getEventsBySlugsBatch } from "#lib/db/events.ts";
+import { getAllEvents, getEventsBySlugsBatch } from "#lib/db/events.ts";
 import {
   computeGroupSlugIndex,
   getActiveEventsByGroupId,
@@ -45,15 +45,59 @@ import { getTicketFields, mergeEventFields, type TicketFormValues } from "#templ
 import { checkoutPopupPage, reservationSuccessPage } from "#templates/payment.tsx";
 import {
   buildMultiTicketEvent,
+  homepagePage,
   type MultiTicketEvent,
   multiTicketPage,
   ticketPage,
 } from "#templates/public.tsx";
 
+/** Load active events for the homepage, sorted and with registration status */
+const loadHomepageEvents = async (): Promise<MultiTicketEvent[]> => {
+  const [allEvents, holidays] = await Promise.all([getAllEvents(), getActiveHolidays()]);
+  const sorted = sortEvents(allEvents.filter((e) => e.active), holidays);
+  return sorted.map((e) => buildMultiTicketEvent(e, isRegistrationClosed(e)));
+};
+
 /**
- * Handle GET / (home page) - redirect to admin
+ * Handle GET / (home page) - redirect to admin or show events
  */
-export const handleHome = (): Response => redirect("/admin/");
+export const handleHome = async (): Promise<Response> => {
+  if (!await getShowEventsOnHomepageFromDb()) return redirect("/admin/");
+
+  const events = await loadHomepageEvents();
+  const [dates, terms, token] = await Promise.all([
+    computeSharedDates(events),
+    getTermsAndConditionsFromDb(),
+    signCsrfToken(),
+  ]);
+  return htmlResponse(homepagePage(events, token, undefined, dates ?? [], terms));
+};
+
+/**
+ * Handle POST / (home page form submission)
+ */
+export const handleHomePost = async (request: Request): Promise<Response> => {
+  if (!await getShowEventsOnHomepageFromDb()) return redirect("/admin/");
+
+  const activeEvents = await loadHomepageEvents();
+  if (activeEvents.length === 0) return redirect("/");
+
+  const [dates, terms, token] = await Promise.all([
+    computeSharedDates(activeEvents),
+    getTermsAndConditionsFromDb(),
+    signCsrfToken(),
+  ]);
+  const ctx: MultiTicketCtx = {
+    slugs: activeEvents.map((e) => e.event.slug),
+    events: activeEvents,
+    token,
+    dates: dates ?? [],
+    terms: terms ?? "",
+    inIframe: false,
+  };
+
+  return submitMultiTicket(request, ctx);
+};
 
 /** Ticket response builder (CSRF token embedded in form) */
 const ticketResponseWithToken =

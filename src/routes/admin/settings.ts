@@ -8,6 +8,7 @@ import {
   clearPaymentProvider,
   getEmbedHostsFromDb,
   getPaymentProviderFromDb,
+  getShowEventsOnHomepageFromDb,
   getStripeWebhookEndpointId,
   getTermsAndConditionsFromDb,
   getThemeFromDb,
@@ -18,6 +19,7 @@ import {
   setPaymentProvider,
   setStripeWebhookConfig,
   updateEmbedHosts,
+  updateShowEventsOnHomepage,
   updateSquareAccessToken,
   updateSquareLocationId,
   updateSquareWebhookSignatureKey,
@@ -81,6 +83,7 @@ const getSettingsPageState = async () => {
   const timezone = await getTimezoneFromDb();
   const businessEmail = await getBusinessEmailFromDb();
   const theme = await getThemeFromDb();
+  const showEventsOnHomepage = await getShowEventsOnHomepageFromDb();
   return {
     stripeKeyConfigured,
     paymentProvider,
@@ -92,6 +95,7 @@ const getSettingsPageState = async () => {
     timezone,
     businessEmail,
     theme,
+    showEventsOnHomepage,
   };
 };
 
@@ -116,6 +120,7 @@ const renderSettingsPage = async (
     state.timezone,
     state.businessEmail,
     state.theme,
+    state.showEventsOnHomepage,
   );
 };
 
@@ -437,6 +442,20 @@ const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
 /** Handle POST /admin/settings/theme - owner only */
 const handleThemePost = settingsRoute(processThemeForm);
 
+/** Validate and save show-events-on-homepage from form submission */
+const processShowEventsOnHomepageForm: SettingsFormHandler = async (form) => {
+  const value = form.get("show_events_on_homepage") === "true";
+  await updateShowEventsOnHomepage(value);
+  await logActivity(`Show events on homepage ${value ? "enabled" : "disabled"}`);
+  return redirectWithSuccess(
+    "/admin/settings",
+    value ? "Events will now be shown on the homepage" : "Homepage will redirect to admin",
+  );
+};
+
+/** Handle POST /admin/settings/show-events-on-homepage - owner only */
+const handleShowEventsOnHomepagePost = settingsRoute(processShowEventsOnHomepageForm);
+
 /**
  * Expected confirmation phrase for database reset
  */
@@ -476,5 +495,6 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/timezone": handleTimezonePost,
   "POST /admin/settings/business-email": handleBusinessEmailPost,
   "POST /admin/settings/theme": handleThemePost,
+  "POST /admin/settings/show-events-on-homepage": handleShowEventsOnHomepagePost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { updateTermsAndConditions } from "#lib/db/settings.ts";
+import { updateShowEventsOnHomepage, updateTermsAndConditions } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -40,9 +40,149 @@ describe("server (public routes)", () => {
   });
 
   describe("GET /", () => {
-    test("redirects to admin", async () => {
+    test("redirects to admin when show events on homepage is disabled", async () => {
       const response = await handleRequest(mockRequest("/"));
       expectRedirect("/admin/")(response);
+    });
+
+    test("shows no events message when enabled but no events exist", async () => {
+      await updateShowEventsOnHomepage(true);
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No events listed.");
+      expect(html).toContain("/admin/login");
+    });
+
+    test("shows active events when enabled with events", async () => {
+      await updateShowEventsOnHomepage(true);
+      const event = await createTestEvent({ name: "Concert", maxAttendees: 100 });
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain(event.name);
+      expect(html).toContain("Reserve Tickets");
+      expect(html).toContain("/admin/login");
+    });
+
+    test("does not show inactive events on homepage", async () => {
+      await updateShowEventsOnHomepage(true);
+      const event = await createTestEvent({ name: "Hidden Event", maxAttendees: 100 });
+      await deactivateTestEvent(event.id);
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No events listed.");
+      expect(html).not.toContain("Hidden Event");
+    });
+
+    test("shows login link styled as footer", async () => {
+      await updateShowEventsOnHomepage(true);
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('class="homepage-footer"');
+      expect(html).toContain('href="/admin/login"');
+      expect(html).toContain("Login");
+    });
+
+    test("shows sold out message when all events are at capacity", async () => {
+      await updateShowEventsOnHomepage(true);
+      const event = await createTestEvent({ name: "Full Event", maxAttendees: 1 });
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Attendee",
+        email: "a@test.com",
+        quantity: 1,
+      });
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("sold out");
+    });
+
+    test("shows registration closed when all events have passed closes_at", async () => {
+      await updateShowEventsOnHomepage(true);
+      const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
+      await createTestEvent({
+        name: "Closed Event",
+        maxAttendees: 100,
+        closesAt: pastDate,
+      });
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Registration closed");
+    });
+
+    test("shows date selector for daily events", async () => {
+      await updateShowEventsOnHomepage(true);
+      await createTestEvent({
+        name: "Daily Class",
+        maxAttendees: 100,
+        eventType: "daily",
+      });
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("date");
+    });
+
+    test("shows terms and conditions when configured", async () => {
+      await updateShowEventsOnHomepage(true);
+      await createTestEvent({ name: "Event With Terms", maxAttendees: 100 });
+      await updateTermsAndConditions("You must agree to these terms.");
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("You must agree to these terms.");
+    });
+
+    test("returns 404 for non-GET/POST requests", async () => {
+      const response = await handleRequest(
+        mockRequest("/", { method: "PUT" }),
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("POST /", () => {
+    test("redirects to admin when show events on homepage is disabled", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/", { name: "Test" }),
+      );
+      expectRedirect("/admin/")(response);
+    });
+
+    test("redirects to / when enabled but no active events exist", async () => {
+      await updateShowEventsOnHomepage(true);
+      const response = await handleRequest(
+        mockFormRequest("/", { name: "Test" }),
+      );
+      expectRedirect("/")(response);
+    });
+
+    test("processes form submission when enabled with events", async () => {
+      await updateShowEventsOnHomepage(true);
+      const event = await createTestEvent({ name: "Concert", maxAttendees: 100 });
+
+      // First GET the page to get a CSRF token
+      const getResponse = await handleRequest(mockRequest("/"));
+      const html = await getResponse.text();
+      const csrfToken = getTicketCsrfToken(html)!;
+
+      // Submit the form with the CSRF token from the page
+      const response = await handleRequest(
+        mockFormRequest("/", {
+          name: "Test Person",
+          email: "test@example.com",
+          [`quantity_${event.id}`]: "1",
+          csrf_token: csrfToken,
+        }),
+      );
+
+      // Should redirect to reserved page on success
+      expectReservedRedirectWithTokens(response);
     });
   });
 
