@@ -24,14 +24,14 @@ export const adminScannerPage = (
       <p><a href={`/admin/event/${event.id}`}>&larr; {event.name}</a></p>
 
       <article>
-        <div id="scanner-status" style="display:none"></div>
+        <div id="scanner-status" class="hidden"></div>
 
         <video
           id="scanner-video"
           data-event-id={String(event.id)}
           playsinline
           muted
-          style="display:none; width:100%; max-width:500px; border-radius:4px"
+          class="hidden"
         ></video>
 
         <button id="scanner-start" type="button">

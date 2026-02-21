@@ -33,31 +33,16 @@ const postScan = async (eventId, token, csrfToken, force) => {
   return res.json();
 };
 
-/** Status type style mappings (inline to avoid CSP issues with style tags) */
-const STATUS_STYLES = {
-  success: { bg: "#d4edda", color: "#155724", border: "#c3e6cb" },
-  warning: { bg: "#fff3cd", color: "#856404", border: "#ffeeba" },
-  error: { bg: "#f8d7da", color: "#721c24", border: "#f5c6cb" },
-};
-
 const formatTicketCount = (count) => {
   const safeCount = Number.isFinite(count) ? count : 1;
   return `${safeCount} ticket${safeCount === 1 ? "" : "s"}`;
 };
 
-/** Show a status message with color */
+/** Show a status message with color via CSS classes */
 const showStatus = (el, message, type) => {
-  const s = STATUS_STYLES[type];
   el.textContent = message;
-  el.style.display = "block";
-  el.style.padding = "0.75rem 1rem";
-  el.style.borderRadius = "4px";
-  el.style.marginBottom = "1rem";
-  el.style.fontWeight = "bold";
-  el.style.fontSize = "1.1rem";
-  el.style.background = s.bg;
-  el.style.color = s.color;
-  el.style.border = `1px solid ${s.border}`;
+  el.classList.remove("hidden", "scanner-status-success", "scanner-status-warning", "scanner-status-error");
+  el.classList.add("scanner-status", `scanner-status-${type}`);
 };
 
 /** Handle a scan result and display status */
@@ -184,8 +169,8 @@ const init = () => {
       });
       video.srcObject = stream;
       await video.play();
-      startBtn.style.display = "none";
-      video.style.display = "block";
+      startBtn.classList.add("hidden");
+      video.classList.remove("hidden");
       showStatus(statusEl, "Scanning...", "success");
       startScanner(video, canvas, statusEl, eventId, csrfToken);
     } catch {

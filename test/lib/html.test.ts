@@ -1048,7 +1048,7 @@ describe("html", () => {
     test("renders inactive event with reduced opacity", () => {
       const events = [testEventWithCount({ active: false, attendee_count: 5 })];
       const html = adminDashboardPage(events, TEST_SESSION, "localhost");
-      expect(html).toContain("opacity: 0.5");
+      expect(html).toContain("inactive-row");
       expect(html).toContain("Inactive");
     });
   });

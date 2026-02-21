@@ -146,8 +146,8 @@ if (btn instanceof HTMLButtonElement) {
     const resultDiv = document.getElementById("stripe-test-result")!;
     btn.disabled = true;
     btn.textContent = "Testing...";
-    resultDiv.style.display = "none";
-    resultDiv.className = "";
+    resultDiv.classList.add("hidden");
+    resultDiv.classList.remove("success", "error");
     try {
       const csrfInput = btn.closest("form")?.querySelector<HTMLInputElement>('input[name="csrf_token"]');
       const csrfToken = csrfInput?.value ?? "";
@@ -178,13 +178,12 @@ if (btn instanceof HTMLButtonElement) {
         );
       }
       resultDiv.textContent = lines.join("\n");
-      resultDiv.className = data.ok ? "success" : "error";
-      resultDiv.style.display = "block";
-      resultDiv.style.whiteSpace = "pre-wrap";
+      resultDiv.classList.remove("hidden", "success", "error");
+      resultDiv.classList.add(data.ok ? "success" : "error", "stripe-test-result");
     } catch (e) {
       resultDiv.textContent = `Connection test failed: ${e instanceof Error ? e.message : "Unknown error"}`;
-      resultDiv.className = "error";
-      resultDiv.style.display = "block";
+      resultDiv.classList.remove("hidden", "success", "error");
+      resultDiv.classList.add("error", "stripe-test-result");
     }
     btn.disabled = false;
     btn.textContent = "Test Connection";
