@@ -239,17 +239,37 @@ export const getSearchParam = (
   return url.searchParams.get(key) ?? "";
 };
 
+/** Content-type prefixes that represent text (safe to read via response.text()) */
+const TEXT_CONTENT_TYPES = ["text/", "application/json"];
+
+/** Check if a content-type header value represents text content */
+const isTextContentType = (contentType: string): boolean =>
+  TEXT_CONTENT_TYPES.some((prefix) => contentType.startsWith(prefix));
+
 /**
  * Clone a response with new headers, materializing the body to avoid
  * ReadableStream pass-through issues on Bunny Edge.
+ *
+ * Text responses use response.text() to keep the body as a JS string,
+ * avoiding Deno's readableStreamCollectIntoUint8Array path which can
+ * intermittently fail with "error decoding response body" on edge runtimes.
+ * Binary responses (images etc.) still use Uint8Array.
  */
 export const cloneResponse = async (
   response: Response,
   headers: Headers,
 ): Promise<Response> => {
-  const body = response.body
-    ? new Uint8Array(await response.arrayBuffer())
-    : null;
+  if (!response.body) {
+    return new Response(null, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
+  const contentType = response.headers.get("content-type") ?? "";
+  const body = isTextContentType(contentType)
+    ? await response.text()
+    : new Uint8Array(await response.arrayBuffer());
   return new Response(body, {
     status: response.status,
     statusText: response.statusText,
