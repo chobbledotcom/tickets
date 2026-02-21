@@ -867,7 +867,10 @@ body.iframe form {
   padding-left: 0;
 }
 
-fieldset,
+fieldset {
+  border: 0;
+}
+
 .checkbox-group {
   border: 0;
   padding: 0;
