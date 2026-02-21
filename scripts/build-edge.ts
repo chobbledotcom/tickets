@@ -55,13 +55,14 @@ const EDGE_SUBPATHS: Record<string, string> = {
 };
 
 // --- CDN externals for payment SDKs ---
-// Stripe and Square are large, rarely-used SDKs (lazy-loaded on payment paths only).
-// Keep them as runtime CDN imports via esm.sh instead of bundling.
+// Square is a large, rarely-used SDK (lazy-loaded on payment paths only).
+// Keep it as a runtime CDN import via esm.sh instead of bundling.
+// Stripe is bundled directly (small enough at ~130KB minified).
 const denoConfig = JSON.parse(Deno.readTextFileSync("./deno.json"));
 const denoImports: Record<string, string> = denoConfig.imports;
 
 /** Packages to load from esm.sh CDN at runtime instead of bundling */
-const CDN_PACKAGES = ["stripe", "square"];
+const CDN_PACKAGES = ["square"];
 
 const CDN_EXTERNALS: Record<string, string> = {};
 for (const pkg of CDN_PACKAGES) {
@@ -201,10 +202,16 @@ const resolveNpmSpecifier = (specifier: string): string | null => {
   const pkgJson = JSON.parse(Deno.readTextFileSync(`${pkgDir}/package.json`));
 
   // Try exports map first
-  const exportEntry = pkgJson.exports?.[subpath ? `./${subpath}` : "."];
-  if (exportEntry) {
-    const resolved = resolveExport(exportEntry);
-    if (resolved) return resolveFile(`${pkgDir}/${resolved}`);
+  if (pkgJson.exports) {
+    const key = subpath ? `./${subpath}` : ".";
+    // Handle both subpath exports ({ ".": { ... } }) and top-level condition
+    // exports ({ "browser": { ... }, "default": { ... } }) used by packages like stripe
+    const exportEntry = pkgJson.exports[key] ??
+      (!subpath && !("." in pkgJson.exports) ? pkgJson.exports : undefined);
+    if (exportEntry) {
+      const resolved = resolveExport(exportEntry);
+      if (resolved) return resolveFile(`${pkgDir}/${resolved}`);
+    }
   }
 
   // Fallback: browser → module → main → index.js
