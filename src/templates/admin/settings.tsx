@@ -194,28 +194,6 @@ export const adminSettingsPage = (
           <button type="submit">Change Password</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/reset-database" csrfToken={session.csrfToken}>
-            <h2>Reset Database</h2>
-          <article>
-            <aside>
-              <p><strong>Warning:</strong> This will permanently delete all events, attendees, settings, and other data. This action cannot be undone.</p>
-            </aside>
-          </article>
-          <p>To reset the database, type the following phrase into the box below:</p>
-          <p><strong>"The site will be fully reset and all data will be lost."</strong></p>
-          <label for="confirm_phrase">Confirmation phrase</label>
-          <input
-            type="text"
-            id="confirm_phrase"
-            name="confirm_phrase"
-            autocomplete="off"
-            required
-          />
-          <button type="submit" class="danger">
-            Reset Database
-          </button>
-        </CsrfForm>
-
         <CsrfForm action="/admin/settings/theme" csrfToken={session.csrfToken}>
             <h2>Site Theme</h2>
           <p>Choose between light and dark themes for the site interface.</p>
@@ -240,6 +218,28 @@ export const adminSettingsPage = (
             </label>
           </fieldset>
           <button type="submit">Save Theme</button>
+        </CsrfForm>
+
+        <CsrfForm action="/admin/settings/reset-database" csrfToken={session.csrfToken}>
+            <h2>Reset Database</h2>
+          <article>
+            <aside>
+              <p><strong>Warning:</strong> This will permanently delete all events, attendees, settings, and other data. This action cannot be undone.</p>
+            </aside>
+          </article>
+          <p>To reset the database, type the following phrase into the box below:</p>
+          <p><strong>"The site will be fully reset and all data will be lost."</strong></p>
+          <label for="confirm_phrase">Confirmation phrase</label>
+          <input
+            type="text"
+            id="confirm_phrase"
+            name="confirm_phrase"
+            autocomplete="off"
+            required
+          />
+          <button type="submit" class="danger">
+            Reset Database
+          </button>
         </CsrfForm>
     </Layout>
   );

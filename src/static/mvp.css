@@ -26,19 +26,17 @@
   --width-content: 1300px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root[color-mode="user"] {
-    --color-accent: #0097fc4f;
-    --color-bg: #333;
-    --color-bg-secondary: #555;
-    --color-link: #0097fc;
-    --color-secondary: #e20de9;
-    --color-secondary-accent: #e20de94f;
-    --color-shadow: #bbbbbb20;
-    --color-table: #0097fc;
-    --color-text: #f7f7f7;
-    --color-text-secondary: #aaa;
-  }
+:root[data-theme="dark"] {
+  --color-accent: #0097fc4f;
+  --color-bg: #333;
+  --color-bg-secondary: #555;
+  --color-link: #0097fc;
+  --color-secondary: #e20de9;
+  --color-secondary-accent: #e20de94f;
+  --color-shadow: #bbbbbb20;
+  --color-table: #0097fc;
+  --color-text: #f7f7f7;
+  --color-text-secondary: #aaa;
 }
 
 html {
@@ -687,15 +685,13 @@ article > h2:first-child {
   margin-bottom: 1rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root[color-mode="user"] .error {
-    background: #442222;
-    color: #ff6666;
-  }
-  :root[color-mode="user"] .success {
-    background: #224422;
-    color: #66ff66;
-  }
+[data-theme="dark"] .error {
+  background: #442222;
+  color: #ff6666;
+}
+[data-theme="dark"] .success {
+  background: #224422;
+  color: #66ff66;
 }
 
 /* Danger elements */
@@ -722,12 +718,10 @@ input[type="submit"].danger:hover {
   border-color: var(--color-danger-hover);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root[color-mode="user"] .danger,
-  :root[color-mode="user"] a.danger {
-    --color-danger: #ff4444;
-    --color-danger-hover: #cc0000;
-  }
+[data-theme="dark"] .danger,
+[data-theme="dark"] a.danger {
+  --color-danger: #ff4444;
+  --color-danger-hover: #cc0000;
 }
 
 /* Agreement/disclaimer styling */
@@ -753,16 +747,14 @@ fieldset.agreement {
   border-radius: 999px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root[color-mode="user"] .password-warning {
-    color: #ff4444;
-  }
-  :root[color-mode="user"] .danger-text {
-    color: #ff4444;
-  }
-  :root[color-mode="user"] .badge-refunded {
-    background-color: #ff4444;
-  }
+[data-theme="dark"] .password-warning {
+  color: #ff4444;
+}
+[data-theme="dark"] .danger-text {
+  color: #ff4444;
+}
+[data-theme="dark"] .badge-refunded {
+  background-color: #ff4444;
 }
 
 /* Bulk check-in / check-out button */
@@ -957,11 +949,9 @@ button.secondary:hover {
   border-color: var(--color-secondary-hover);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root[color-mode="user"] button.secondary {
-    --color-secondary: #888;
-    --color-secondary-hover: #aaa;
-  }
+[data-theme="dark"] button.secondary {
+  --color-secondary: #888;
+  --color-secondary-hover: #aaa;
 }
 
 /* Ticket slider */
@@ -1035,10 +1025,8 @@ button.secondary:hover {
   height: auto;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root[color-mode="user"] .ticket-card {
-    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
-  }
+[data-theme="dark"] .ticket-card {
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Owner debug footer */
