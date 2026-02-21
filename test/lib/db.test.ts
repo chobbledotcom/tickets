@@ -10,6 +10,7 @@ import {
   checkBatchAvailability,
   createAttendeeAtomic,
   decryptAttendees,
+  decryptAttendeesForTable,
   deleteAttendee,
   getAttendee,
   getAttendeesByTokens,
@@ -1767,6 +1768,181 @@ describe("db", () => {
       const raw = await getAttendeesRaw(event.id);
       const attendees = await decryptAttendees(raw, privateKey);
       expect(attendees[0]?.price_paid).toBe("2500");
+    });
+  });
+
+  describe("decryptAttendeesForTable", () => {
+    test("decrypts only contact fields listed in eventFields", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Full Contact",
+        email: "full@example.com",
+        phone: "+44 7700 900000",
+        address: "123 Main St",
+        special_instructions: "No nuts",
+        quantity: 1,
+      });
+
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+
+      // Only decrypt email - phone, address, special_instructions should be ""
+      const attendees = await decryptAttendeesForTable(raw, privateKey, "email");
+      expect(attendees.length).toBe(1);
+      expect(attendees[0]?.name).toBe("Full Contact");
+      expect(attendees[0]?.email).toBe("full@example.com");
+      expect(attendees[0]?.phone).toBe("");
+      expect(attendees[0]?.address).toBe("");
+      expect(attendees[0]?.special_instructions).toBe("");
+    });
+
+    test("decrypts all contact fields when all are listed", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "All Fields",
+        email: "all@example.com",
+        phone: "+1-555-1234",
+        address: "456 Oak Ave",
+        special_instructions: "Wheelchair access",
+        quantity: 1,
+      });
+
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendeesForTable(raw, privateKey, "email,phone,address,special_instructions");
+      expect(attendees[0]?.name).toBe("All Fields");
+      expect(attendees[0]?.email).toBe("all@example.com");
+      expect(attendees[0]?.phone).toBe("+1-555-1234");
+      expect(attendees[0]?.address).toBe("456 Oak Ave");
+      expect(attendees[0]?.special_instructions).toBe("Wheelchair access");
+    });
+
+    test("always decrypts name, ticket_token, payment_id, checked_in, refunded, price_paid", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+        unitPrice: 1500,
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Core Fields",
+        email: "core@example.com",
+        paymentId: "pi_test_core",
+        quantity: 2,
+        pricePaid: 1500,
+      });
+
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+
+      // Even with empty fields string, core fields are always decrypted
+      const attendees = await decryptAttendeesForTable(raw, privateKey, "");
+      expect(attendees[0]?.name).toBe("Core Fields");
+      expect(attendees[0]?.ticket_token).toBeTruthy();
+      expect(attendees[0]?.payment_id).toBe("pi_test_core");
+      expect(attendees[0]?.checked_in).toBe("false");
+      expect(attendees[0]?.refunded).toBe(false);
+      expect(attendees[0]?.price_paid).toBe("1500");
+      // Contact fields not listed should be empty
+      expect(attendees[0]?.email).toBe("");
+      expect(attendees[0]?.phone).toBe("");
+    });
+
+    test("returns empty array when no attendees", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendeesForTable(raw, privateKey, "email");
+      expect(attendees).toEqual([]);
+    });
+
+    test("handles email,phone fields subset", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Partial",
+        email: "partial@example.com",
+        phone: "+1-555-9876",
+        address: "789 Elm St",
+        special_instructions: "VIP",
+        quantity: 1,
+      });
+
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendeesForTable(raw, privateKey, "email,phone");
+      expect(attendees[0]?.email).toBe("partial@example.com");
+      expect(attendees[0]?.phone).toBe("+1-555-9876");
+      expect(attendees[0]?.address).toBe("");
+      expect(attendees[0]?.special_instructions).toBe("");
+    });
+
+    test("skips payment_id, refunded, and price_paid when paidEvent is false", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Free Attendee",
+        email: "free@example.com",
+        quantity: 1,
+      });
+
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendeesForTable(raw, privateKey, "email", false);
+      expect(attendees[0]?.name).toBe("Free Attendee");
+      expect(attendees[0]?.email).toBe("free@example.com");
+      expect(attendees[0]?.ticket_token).toBeTruthy();
+      expect(attendees[0]?.checked_in).toBe("false");
+      // Payment fields skipped for free events
+      expect(attendees[0]?.payment_id).toBe("");
+      expect(attendees[0]?.price_paid).toBe("0");
+      expect(attendees[0]?.refunded).toBe(false);
+    });
+
+    test("decrypts payment fields when paidEvent is true", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+        unitPrice: 2000,
+      });
+
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Paid Attendee",
+        email: "paid@example.com",
+        paymentId: "pi_test_paid",
+        pricePaid: 2000,
+        quantity: 1,
+      });
+
+      const privateKey = await getTestPrivateKey();
+      const raw = await getAttendeesRaw(event.id);
+      const attendees = await decryptAttendeesForTable(raw, privateKey, "email", true);
+      expect(attendees[0]?.payment_id).toBe("pi_test_paid");
+      expect(attendees[0]?.price_paid).toBe("2000");
+      expect(attendees[0]?.refunded).toBe(false);
     });
   });
 

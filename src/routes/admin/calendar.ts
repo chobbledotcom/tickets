@@ -6,7 +6,8 @@ import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { eventDateToCalendarDate, formatDateLabel, getAvailableDates } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
-import { decryptAttendees } from "#lib/db/attendees.ts";
+import { decryptAttendees, decryptAttendeesForTable } from "#lib/db/attendees.ts";
+import { mergeEventFields } from "#lib/event-fields.ts";
 import {
   getAllDailyEvents,
   getAllStandardEvents,
@@ -131,10 +132,17 @@ const loadStandardEventAttendees = async (
   dateFilter: string,
   standardEventDateMap: Map<string, number[]>,
   privateKey: CryptoKey,
+  standardEvents?: EventWithCount[],
 ): Promise<Attendee[]> => {
   const matchingEventIds = standardEventDateMap.get(dateFilter);
   if (!matchingEventIds || matchingEventIds.length === 0) return [];
   const rawStandardAttendees = await getAttendeesByEventIds(matchingEventIds);
+  if (standardEvents) {
+    const matchingEvents = standardEvents.filter((e) => matchingEventIds.includes(e.id));
+    const fields = mergeEventFields(matchingEvents.map((e) => e.fields));
+    const hasPaidEvent = matchingEvents.some((e) => e.unit_price !== null);
+    return decryptAttendeesForTable(rawStandardAttendees, privateKey, fields, hasPaidEvent);
+  }
   return decryptAttendees(rawStandardAttendees, privateKey);
 };
 
@@ -154,11 +162,13 @@ const handleAdminCalendarGet = (request: Request) =>
     let attendees: CalendarAttendeeRow[] = [];
     if (dateFilter) {
       const privateKey = (await getPrivateKey(session))!;
+      const dailyFields = mergeEventFields(dailyEvents.map((e) => e.fields));
       const [rawDailyAttendees, standardAttendees] = await Promise.all([
         getDailyEventAttendeesByDate(dateFilter),
-        loadStandardEventAttendees(dateFilter, standardCtx.standardEventDateMap, privateKey),
+        loadStandardEventAttendees(dateFilter, standardCtx.standardEventDateMap, privateKey, standardCtx.standardEvents),
       ]);
-      const dailyAttendees = await decryptAttendees(rawDailyAttendees, privateKey);
+      const hasPaidDailyEvent = dailyEvents.some((e) => e.unit_price !== null);
+      const dailyAttendees = await decryptAttendeesForTable(rawDailyAttendees, privateKey, dailyFields, hasPaidDailyEvent);
       const sortedAttendees = sortAttendeesByCreatedDesc([...dailyAttendees, ...standardAttendees]);
       attendees = buildCalendarAttendees(allEvents, sortedAttendees);
     }

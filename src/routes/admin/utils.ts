@@ -2,7 +2,7 @@
  * Shared admin utilities and types
  */
 
-import { decryptAttendees } from "#lib/db/attendees.ts";
+import { decryptAttendees, decryptAttendeesForTable } from "#lib/db/attendees.ts";
 import { getEventWithAttendeesRaw } from "#lib/db/events.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import type { validateForm } from "#lib/forms.tsx";
@@ -48,26 +48,36 @@ export const requirePrivateKey = async (session: AuthSession): Promise<CryptoKey
 };
 
 /** Handler that receives a decrypted event with its attendees */
-type EventAttendeesHandler = (event: EventWithCount, attendees: Attendee[], session: AuthSession) => Response | Promise<Response>;
+export type EventAttendeesHandler = (event: EventWithCount, attendees: Attendee[], session: AuthSession) => Response | Promise<Response>;
 
-/** Load event with all decrypted attendees, returning 404 response if not found */
+/** Decrypt strategy: full decrypts all fields, table skips unused contact fields */
+export type DecryptMode = "full" | "table";
+
+/**
+ * Load event with decrypted attendees, returning 404 if not found.
+ * Mode "full" decrypts all fields; "table" skips contact fields not in event config,
+ * saving expensive RSA decryption operations per attendee.
+ */
 export const withDecryptedAttendees = async (
   session: AuthSession,
   eventId: number,
   handler: EventAttendeesHandler,
+  mode: DecryptMode = "full",
 ): Promise<Response> => {
   const pk = await requirePrivateKey(session);
   const result = await getEventWithAttendeesRaw(eventId);
   if (!result) return notFoundResponse();
-  const attendees = await decryptAttendees(result.attendeesRaw, pk);
+  const attendees = mode === "table"
+    ? await decryptAttendeesForTable(result.attendeesRaw, pk, result.event.fields, result.event.unit_price !== null)
+    : await decryptAttendees(result.attendeesRaw, pk);
   return handler(result.event, attendees, session);
 };
 
-/** Require auth then load event with all decrypted attendees */
+/** Require auth then load event with decrypted attendees */
 export const withEventAttendeesAuth = (
   request: Request,
   eventId: number,
   handler: EventAttendeesHandler,
+  mode: DecryptMode = "full",
 ): Promise<Response> =>
-  requireSessionOr(request, (session) =>
-    withDecryptedAttendees(session, eventId, handler));
+  requireSessionOr(request, (session) => withDecryptedAttendees(session, eventId, handler, mode));

@@ -21,7 +21,8 @@ import { deleteProcessedPaymentsForAttendee } from "#lib/db/processed-payments.t
 import { nowIso } from "#lib/now.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
 import { col, defineTable } from "#lib/db/table.ts";
-import type { Attendee, ContactInfo } from "#lib/types.ts";
+import { parseEventFields } from "#lib/event-fields.ts";
+import type { Attendee, ContactField, ContactInfo } from "#lib/types.ts";
 
 /**
  * Minimal attendees table for deleteById operation
@@ -38,13 +39,27 @@ const attendeesTable = defineTable<Pick<Attendee, "id">, object>({
 const decryptBoolField = (value: string, privateKey: CryptoKey): Promise<string> =>
   value ? decryptAttendeePII(value, privateKey) : Promise.resolve("false");
 
+/** Conditionally decrypt a contact field, returning "" if not in the active set */
+const decryptField = (
+  value: string,
+  privateKey: CryptoKey,
+  field: ContactField,
+  activeFields: ReadonlySet<ContactField> | null,
+): Promise<string> =>
+  !activeFields || activeFields.has(field) ? decryptAttendeePII(value, privateKey) : Promise.resolve("");
+
 /**
- * Decrypt attendee fields using the private key
- * Requires authenticated session with access to private key
+ * Decrypt attendee fields using the private key.
+ * When activeFields is null, all contact fields are decrypted.
+ * When activeFields is provided, only those contact fields are decrypted
+ * (others are set to ""), saving expensive hybrid RSA+AES operations.
+ * When paidEvent is false, payment_id and refunded are skipped too.
  */
-const decryptAttendee = async (
+const decryptAttendeeFields = async (
   row: Attendee,
   privateKey: CryptoKey,
+  activeFields: ReadonlySet<ContactField> | null,
+  paidEvent = true,
 ): Promise<Attendee> => {
   const [
     name,
@@ -59,15 +74,15 @@ const decryptAttendee = async (
     ticket_token,
   ] = await Promise.all([
     decryptAttendeePII(row.name, privateKey),
-    decryptAttendeePII(row.email, privateKey),
-    decryptAttendeePII(row.phone, privateKey),
-    decryptAttendeePII(row.address, privateKey),
-    decryptAttendeePII(row.special_instructions, privateKey),
-    decryptAttendeePII(row.payment_id, privateKey),
-    decrypt(row.price_paid),
+    decryptField(row.email, privateKey, "email", activeFields),
+    decryptField(row.phone, privateKey, "phone", activeFields),
+    decryptField(row.address, privateKey, "address", activeFields),
+    decryptField(row.special_instructions, privateKey, "special_instructions", activeFields),
+    paidEvent ? decryptAttendeePII(row.payment_id, privateKey) : Promise.resolve(""),
+    paidEvent ? decrypt(row.price_paid) : Promise.resolve("0"),
     decryptBoolField(row.checked_in, privateKey),
     // Raw DB value is an encrypted string; cast needed since Attendee type declares boolean
-    decryptBoolField(row.refunded as unknown as string, privateKey),
+    paidEvent ? decryptBoolField(row.refunded as unknown as string, privateKey) : Promise.resolve("false"),
     decryptAttendeePII(row.ticket_token, privateKey),
   ]);
   return {
@@ -96,14 +111,14 @@ export const getAttendeesRaw = (eventId: number): Promise<Attendee[]> =>
   );
 
 /**
- * Decrypt a list of raw attendees.
+ * Decrypt a list of raw attendees (all fields).
  * Used when attendees are fetched via batch query.
  */
 export const decryptAttendees = (
   rows: Attendee[],
   privateKey: CryptoKey,
 ): Promise<Attendee[]> =>
-  Promise.all(map((row: Attendee) => decryptAttendee(row, privateKey))(rows));
+  Promise.all(map((row: Attendee) => decryptAttendeeFields(row, privateKey, null))(rows));
 
 /**
  * Decrypt a single raw attendee, handling null input.
@@ -113,7 +128,26 @@ export const decryptAttendeeOrNull = (
   row: Attendee | null,
   privateKey: CryptoKey,
 ): Promise<Attendee | null> =>
-  row ? decryptAttendee(row, privateKey) : Promise.resolve(null);
+  row ? decryptAttendeeFields(row, privateKey, null) : Promise.resolve(null);
+
+/**
+ * Decrypt attendees for table display, skipping contact fields
+ * not configured on the event and payment fields for free events.
+ * For a free event that only collects email, this skips up to 6
+ * RSA decryptions per attendee (phone, address, special_instructions,
+ * payment_id, refunded, plus 1 symmetric for price_paid).
+ */
+export const decryptAttendeesForTable = (
+  rows: Attendee[],
+  privateKey: CryptoKey,
+  eventFields: string,
+  paidEvent = true,
+): Promise<Attendee[]> => {
+  const activeFields = new Set(parseEventFields(eventFields));
+  return Promise.all(
+    map((row: Attendee) => decryptAttendeeFields(row, privateKey, activeFields, paidEvent))(rows),
+  );
+};
 
 /** Encrypted attendee data for insertion */
 type EncryptedAttendeeData = {
@@ -218,7 +252,7 @@ export const getAttendee = async (
   privateKey: CryptoKey,
 ): Promise<Attendee | null> => {
   const row = await getAttendeeRaw(id);
-  return row ? decryptAttendee(row, privateKey) : null;
+  return row ? decryptAttendeeFields(row, privateKey, null) : null;
 };
 
 /**

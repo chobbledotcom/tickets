@@ -27,7 +27,7 @@ import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.t
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { RouteParamsFor, TypedRouteHandler } from "#routes/router.ts";
-import { csvResponse, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
+import { csvResponse, type DecryptMode, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
   formDataToParams,
   htmlResponse,
@@ -172,9 +172,10 @@ const withEventAttendees = (
   request: Request,
   eventId: number,
   handler: (ctx: { event: EventWithCount; attendees: Attendee[]; session: AdminSession }) => Response | Promise<Response>,
+  mode: DecryptMode = "full",
 ): Promise<Response> =>
   withEventAttendeesAuth(request, eventId, (event, attendees, session) =>
-    handler({ event, attendees, session }));
+    handler({ event, attendees, session }), mode);
 
 /**
  * Handle GET /admin/event/new (show create event form)
@@ -262,7 +263,7 @@ const renderEventPage = async (request: Request, { id }: { id: number }, activeF
         imageError,
       }),
     );
-  });
+  }, "table");
 };
 
 /** Render event error page */
