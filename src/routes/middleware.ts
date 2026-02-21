@@ -207,8 +207,10 @@ export const getCleanUrl = (url: URL): string | null => {
 };
 
 /**
- * Apply security headers to a response
+ * Apply security headers to a response.
  * For embeddable pages, fetches embed host restrictions and adds frame-ancestors.
+ * Adds Cache-Control: private, no-store to dynamic responses (those without
+ * an explicit cache-control header) to prevent CDN caching issues.
  */
 export const applySecurityHeaders = async (
   response: Response,
@@ -219,6 +221,12 @@ export const applySecurityHeaders = async (
 
   for (const [key, value] of Object.entries(securityHeaders)) {
     headers.set(key, value);
+  }
+
+  // Prevent CDN from caching dynamic responses — static assets already set
+  // their own cache-control (e.g. "public, max-age=31536000, immutable")
+  if (!response.headers.has("cache-control")) {
+    headers.set("cache-control", "private, no-store");
   }
 
   if (embeddable) {
