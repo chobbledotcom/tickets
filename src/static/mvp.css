@@ -867,7 +867,7 @@ body.iframe form {
   padding-left: 0;
 }
 
-/* Checkbox group (used by form framework) */
+fieldset,
 .checkbox-group {
   border: 0;
   padding: 0;
