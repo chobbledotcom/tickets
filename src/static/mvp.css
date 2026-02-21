@@ -620,6 +620,13 @@ table input {
   margin: 0;
 }
 
+td.cell-description {
+  font-size: 0.85em;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Quotes */
 blockquote {
   display: block;
