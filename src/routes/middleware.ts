@@ -6,7 +6,6 @@ import { compact } from "#fp";
 import { getAllowedDomain, getEmbedHosts } from "#lib/config.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
-import { cloneResponse } from "#routes/utils.ts";
 
 /**
  * Security headers for all responses
@@ -208,6 +207,8 @@ export const getCleanUrl = (url: URL): string | null => {
 
 /**
  * Apply security headers to a response.
+ * Mutates headers in-place to avoid re-reading the response body, which
+ * intermittently fails with "error decoding response body" on Bunny Edge.
  * For embeddable pages, fetches embed host restrictions and adds frame-ancestors.
  * Adds Cache-Control: private, no-store to dynamic responses (those without
  * an explicit cache-control header) to prevent CDN caching issues.
@@ -216,25 +217,28 @@ export const applySecurityHeaders = async (
   response: Response,
   embeddable: boolean,
 ): Promise<Response> => {
-  const headers = new Headers(response.headers);
   const securityHeaders = getSecurityHeaders(embeddable);
 
+  // Check before setting security headers (they don't include cache-control)
+  const hasCacheControl = response.headers.has("cache-control");
+
   for (const [key, value] of Object.entries(securityHeaders)) {
-    headers.set(key, value);
+    response.headers.set(key, value);
   }
 
   // Prevent CDN from caching dynamic responses — static assets already set
   // their own cache-control (e.g. "public, max-age=31536000, immutable")
-  if (!response.headers.has("cache-control")) {
-    headers.set("cache-control", "private, no-store");
+  if (!hasCacheControl) {
+    response.headers.set("cache-control", "private, no-store");
   }
 
   if (embeddable) {
     const frameAncestors = buildFrameAncestors(await getEmbedHosts());
     if (frameAncestors) {
-      headers.set("content-security-policy", `${frameAncestors}; ${headers.get("content-security-policy")}`);
+      const csp = response.headers.get("content-security-policy");
+      response.headers.set("content-security-policy", `${frameAncestors}; ${csp}`);
     }
   }
 
-  return cloneResponse(response, headers);
+  return response;
 };

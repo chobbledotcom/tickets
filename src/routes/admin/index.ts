@@ -73,6 +73,8 @@ export const routeAdmin: RouterFn = async (request, path, method, server) => {
     performance.now() - startTime,
     getQueryLog(),
   );
+  // Delete content-length so the runtime recalculates it for the modified body
+  response.headers.delete("content-length");
   return new Response(html.replace("</body>", footer + "</body>"), {
     status: response.status,
     headers: response.headers,
