@@ -34,8 +34,8 @@ const loadAdminRoutes = once(async () => {
 
 /** Lazy-load public routes (ticket reservation) */
 const loadPublicRoutes = once(async () => {
-  const { handleHome, routeTicket } = await import("#routes/public.ts");
-  return { handleHome, routeTicket };
+  const { handleHome, handleHomePost, routeTicket } = await import("#routes/public.ts");
+  return { handleHome, handleHomePost, routeTicket };
 });
 
 /** Lazy-load setup routes */
@@ -101,10 +101,12 @@ const createLazyRoute =
   };
 
 /** Route home page requests */
-const routeHome: RouterFn = async (_, path, method) => {
-  if (path !== "/" || method !== "GET") return null;
-  const { handleHome } = await loadPublicRoutes();
-  return handleHome();
+const routeHome: RouterFn = async (request, path, method) => {
+  if (path !== "/") return null;
+  const { handleHome, handleHomePost } = await loadPublicRoutes();
+  if (method === "GET") return handleHome();
+  if (method === "POST") return handleHomePost(request);
+  return null;
 };
 
 /** Lazy-loaded route handlers */

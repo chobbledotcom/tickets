@@ -50,6 +50,8 @@ export const CONFIG_KEYS = {
   BUSINESS_EMAIL: "business_email",
   // Theme setting (plaintext - light or dark)
   THEME: "theme",
+  // Show events on homepage (plaintext - "true" or "false")
+  SHOW_EVENTS_ON_HOMEPAGE: "show_events_on_homepage",
 } as const;
 
 /**
@@ -537,6 +539,22 @@ export const updateTheme = async (theme: string): Promise<void> => {
 };
 
 /**
+ * Get the "show events on homepage" setting from database.
+ * Returns true if the setting is "true", false otherwise.
+ */
+export const getShowEventsOnHomepageFromDb = async (): Promise<boolean> => {
+  const value = await getSetting(CONFIG_KEYS.SHOW_EVENTS_ON_HOMEPAGE);
+  return value === "true";
+};
+
+/**
+ * Update the "show events on homepage" setting.
+ */
+export const updateShowEventsOnHomepage = async (show: boolean): Promise<void> => {
+  await setSetting(CONFIG_KEYS.SHOW_EVENTS_ON_HOMEPAGE, show ? "true" : "false");
+};
+
+/**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
  */
@@ -576,4 +594,6 @@ export const settingsApi = {
   updateTimezone,
   getThemeFromDb,
   updateTheme,
+  getShowEventsOnHomepageFromDb,
+  updateShowEventsOnHomepage,
 };

@@ -31,6 +31,7 @@ export const adminSettingsPage = (
   timezone?: string,
   businessEmail?: string,
   theme?: string,
+  showEventsOnHomepage?: boolean,
 ): string =>
   String(
     <Layout title="Settings" theme={theme}>
@@ -192,6 +193,32 @@ export const adminSettingsPage = (
           <p>Changing your password will log you out of all sessions.</p>
           <Raw html={renderFields(changePasswordFields)} />
           <button type="submit">Change Password</button>
+        </CsrfForm>
+
+        <CsrfForm action="/admin/settings/show-events-on-homepage" csrfToken={session.csrfToken}>
+            <h2>Show events on homepage?</h2>
+          <p>When enabled, the homepage will display all upcoming active events as a booking page instead of redirecting to the admin area.</p>
+          <fieldset>
+            <label>
+              <input
+                type="radio"
+                name="show_events_on_homepage"
+                value="true"
+                checked={showEventsOnHomepage === true}
+              />
+              Yes
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="show_events_on_homepage"
+                value="false"
+                checked={showEventsOnHomepage !== true}
+              />
+              No
+            </label>
+          </fieldset>
+          <button type="submit">Save</button>
         </CsrfForm>
 
         <CsrfForm action="/admin/settings/theme" csrfToken={session.csrfToken}>
