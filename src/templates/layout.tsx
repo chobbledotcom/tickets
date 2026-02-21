@@ -30,7 +30,7 @@ export const Layout = ({ title, bodyClass, headExtra, children, theme }: LayoutP
   return new SafeHtml(
     "<!DOCTYPE html>" +
     (
-      <html lang="en">
+      <html lang="en" data-theme={theme || "light"}>
         <head>
           <meta charset="UTF-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -39,7 +39,7 @@ export const Layout = ({ title, bodyClass, headExtra, children, theme }: LayoutP
           <Raw html={themeStyle} />
           {headExtra && <Raw html={headExtra} />}
         </head>
-        <body class={bodyClass || undefined} data-theme={theme || "light"}>
+        <body class={bodyClass || undefined}>
           <main>
             {children}
           </main>
