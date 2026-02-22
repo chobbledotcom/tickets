@@ -80,8 +80,8 @@ const decryptAttendeeFields = async (
     decryptField(row.special_instructions, privateKey, "special_instructions", activeFields),
     paidEvent ? decryptAttendeePII(row.payment_id, privateKey) : Promise.resolve(""),
     paidEvent ? decrypt(row.price_paid) : Promise.resolve("0"),
-    decryptBoolField(row.checked_in, privateKey),
-    // Raw DB value is an encrypted string; cast needed since Attendee type declares boolean
+    // Raw DB values are encrypted strings; cast needed since Attendee type declares boolean
+    decryptBoolField(row.checked_in as unknown as string, privateKey),
     paidEvent ? decryptBoolField(row.refunded as unknown as string, privateKey) : Promise.resolve("false"),
     decryptAttendeePII(row.ticket_token, privateKey),
   ]);
@@ -94,7 +94,7 @@ const decryptAttendeeFields = async (
     special_instructions,
     payment_id,
     price_paid,
-    checked_in,
+    checked_in: checked_in === "true",
     refunded: refundedStr === "true",
     ticket_token,
   };
@@ -227,7 +227,7 @@ const buildAttendeeResult = (input: BuildAttendeeInput): Attendee => ({
   payment_id: input.paymentId,
   quantity: input.quantity,
   price_paid: String(input.pricePaid),
-  checked_in: "false",
+  checked_in: false,
   refunded: false,
   ticket_token: input.ticketToken,
   ticket_token_index: input.ticketTokenIndex,

@@ -162,9 +162,9 @@ describe("html", () => {
 
     test("shows checked in count and remaining", () => {
       const attendees = [
-        testAttendee({ id: 1, checked_in: "true" }),
-        testAttendee({ id: 2, checked_in: "false" }),
-        testAttendee({ id: 3, checked_in: "false" }),
+        testAttendee({ id: 1, checked_in: true }),
+        testAttendee({ id: 2, checked_in: false }),
+        testAttendee({ id: 3, checked_in: false }),
       ];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).toContain("Checked In");
@@ -890,14 +890,14 @@ describe("html", () => {
     });
 
     test("includes Checked In as Yes for checked-in attendee", () => {
-      const attendees = [testAttendee({ checked_in: "true" })];
+      const attendees = [testAttendee({ checked_in: true })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
       expect(lines[1]).toContain(",Yes,");
     });
 
     test("includes Checked In as No for not checked-in attendee", () => {
-      const attendees = [testAttendee({ checked_in: "false" })];
+      const attendees = [testAttendee({ checked_in: false })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
       expect(lines[1]).toContain(",No,");
@@ -976,8 +976,8 @@ describe("html", () => {
     test("filters to only checked-in attendees when filter is in", () => {
       const event = testEventWithCount({ attendee_count: 2 });
       const attendees = [
-        testAttendee({ id: 1, name: "Checked In User", checked_in: "true" }),
-        testAttendee({ id: 2, name: "Not Checked In User", checked_in: "false" }),
+        testAttendee({ id: 1, name: "Checked In User", checked_in: true }),
+        testAttendee({ id: 2, name: "Not Checked In User", checked_in: false }),
       ];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION, activeFilter: "in" });
       expect(html).toContain("Checked In User");
@@ -987,8 +987,8 @@ describe("html", () => {
     test("filters to only checked-out attendees when filter is out", () => {
       const event = testEventWithCount({ attendee_count: 2 });
       const attendees = [
-        testAttendee({ id: 1, name: "Alice InPerson", checked_in: "true" }),
-        testAttendee({ id: 2, name: "Bob Remote", checked_in: "false" }),
+        testAttendee({ id: 1, name: "Alice InPerson", checked_in: true }),
+        testAttendee({ id: 2, name: "Bob Remote", checked_in: false }),
       ];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION, activeFilter: "out" });
       expect(html).not.toContain("Alice InPerson");
@@ -998,8 +998,8 @@ describe("html", () => {
     test("shows all attendees when filter is all", () => {
       const event = testEventWithCount({ attendee_count: 2 });
       const attendees = [
-        testAttendee({ id: 1, name: "Checked In User", checked_in: "true" }),
-        testAttendee({ id: 2, name: "Not Checked In User", checked_in: "false" }),
+        testAttendee({ id: 1, name: "Checked In User", checked_in: true }),
+        testAttendee({ id: 2, name: "Not Checked In User", checked_in: false }),
       ];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION, activeFilter: "all" });
       expect(html).toContain("Checked In User");
@@ -1008,7 +1008,7 @@ describe("html", () => {
 
     test("includes return_filter hidden field in checkin form", () => {
       const event = testEventWithCount({ attendee_count: 1 });
-      const attendees = [testAttendee({ checked_in: "true" })];
+      const attendees = [testAttendee({ checked_in: true })];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION, activeFilter: "in" });
       expect(html).toContain('name="return_filter"');
       expect(html).toContain('value="in"');
@@ -1212,17 +1212,17 @@ describe("html", () => {
 
     test("counts attendees with checked_in true", () => {
       const attendees = [
-        testAttendee({ id: 1, checked_in: "true" }),
-        testAttendee({ id: 2, checked_in: "false" }),
-        testAttendee({ id: 3, checked_in: "true" }),
+        testAttendee({ id: 1, checked_in: true }),
+        testAttendee({ id: 2, checked_in: false }),
+        testAttendee({ id: 3, checked_in: true }),
       ];
       expect(countCheckedIn(attendees)).toBe(2);
     });
 
     test("returns 0 when none checked in", () => {
       const attendees = [
-        testAttendee({ id: 1, checked_in: "false" }),
-        testAttendee({ id: 2, checked_in: "false" }),
+        testAttendee({ id: 1, checked_in: false }),
+        testAttendee({ id: 2, checked_in: false }),
       ];
       expect(countCheckedIn(attendees)).toBe(0);
     });
@@ -1673,7 +1673,7 @@ describe("html", () => {
         quantity: 2,
         price_paid: "2000",
         payment_id: "pi_abc",
-        checked_in: "true",
+        checked_in: true,
       })];
       const csv = generateCalendarCsv(attendees);
       const lines = csv.split("\n");

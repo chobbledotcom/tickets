@@ -34,7 +34,7 @@ export const checkinAdminPage = (
     })),
   )(entries);
 
-  const allCheckedIn = entries.every((e) => e.attendee.checked_in === "true");
+  const allCheckedIn = entries.every((e) => e.attendee.checked_in);
   const buttonLabel = allCheckedIn ? "Check Out All" : "Check In All";
   const buttonClass = allCheckedIn ? "bulk-checkout" : "bulk-checkin";
   const nextValue = allCheckedIn ? "false" : "true";

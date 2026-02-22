@@ -1851,7 +1851,7 @@ describe("db", () => {
       expect(attendees[0]?.name).toBe("Core Fields");
       expect(attendees[0]?.ticket_token).toBeTruthy();
       expect(attendees[0]?.payment_id).toBe("pi_test_core");
-      expect(attendees[0]?.checked_in).toBe("false");
+      expect(attendees[0]?.checked_in).toBe(false);
       expect(attendees[0]?.refunded).toBe(false);
       expect(attendees[0]?.price_paid).toBe("1500");
       // Contact fields not listed should be empty
@@ -1914,7 +1914,7 @@ describe("db", () => {
       expect(attendees[0]?.name).toBe("Free Attendee");
       expect(attendees[0]?.email).toBe("free@example.com");
       expect(attendees[0]?.ticket_token).toBeTruthy();
-      expect(attendees[0]?.checked_in).toBe("false");
+      expect(attendees[0]?.checked_in).toBe(false);
       // Payment fields skipped for free events
       expect(attendees[0]?.payment_id).toBe("");
       expect(attendees[0]?.price_paid).toBe("0");
@@ -2371,7 +2371,7 @@ describe("db", () => {
       const privateKey = await getTestPrivateKey();
       const rows = await getAttendeesRaw(event.id);
       const decrypted = await decryptAttendees(rows, privateKey);
-      expect(decrypted[0]?.checked_in).toBe("true");
+      expect(decrypted[0]?.checked_in).toBe(true);
     });
 
     test("updates checked_in back to false", async () => {
@@ -2384,7 +2384,7 @@ describe("db", () => {
       const privateKey = await getTestPrivateKey();
       const rows = await getAttendeesRaw(event.id);
       const decrypted = await decryptAttendees(rows, privateKey);
-      expect(decrypted[0]?.checked_in).toBe("false");
+      expect(decrypted[0]?.checked_in).toBe(false);
     });
   });
 
@@ -2401,10 +2401,10 @@ describe("db", () => {
 
       const privateKey = await getTestPrivateKey();
       const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]?.checked_in).toBe("");
+      expect(rows[0]?.checked_in as unknown).toBe("");
 
       const decrypted = await decryptAttendees(rows, privateKey);
-      expect(decrypted[0]?.checked_in).toBe("false");
+      expect(decrypted[0]?.checked_in).toBe(false);
     });
   });
 
@@ -2431,12 +2431,12 @@ describe("db", () => {
 
       // Verify the backfill encrypted the value (no longer empty)
       const rows = await getAttendeesRaw(event.id);
-      expect(rows[0]?.checked_in).not.toBe("");
+      expect(rows[0]?.checked_in as unknown).not.toBe("");
 
       // Verify it decrypts to "false"
       const privateKey = await getTestPrivateKey();
       const decrypted = await decryptAttendees(rows, privateKey);
-      expect(decrypted[0]?.checked_in).toBe("false");
+      expect(decrypted[0]?.checked_in).toBe(false);
     });
   });
 
@@ -2513,7 +2513,7 @@ describe("db", () => {
       expect(before[0]?.phone).toBe("");
       expect(before[0]?.address).toBe("");
       expect(before[0]?.special_instructions).toBe("");
-      expect(before[0]?.checked_in).toBe("");
+      expect(before[0]?.checked_in as unknown).toBe("");
 
       // Clear version marker and re-run migrations
       await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
@@ -2530,8 +2530,8 @@ describe("db", () => {
       expect(after[0]?.address).toContain("hyb:1:");
       expect(after[0]?.special_instructions).not.toBe("");
       expect(after[0]?.special_instructions).toContain("hyb:1:");
-      expect(after[0]?.checked_in).not.toBe("");
-      expect(after[0]?.checked_in).toContain("hyb:1:");
+      expect(after[0]?.checked_in as unknown).not.toBe("");
+      expect(after[0]?.checked_in as unknown as string).toContain("hyb:1:");
 
       // Verify they decrypt correctly
       const privateKey = await getTestPrivateKey();
@@ -2540,7 +2540,7 @@ describe("db", () => {
       expect(decrypted[0]?.phone).toBe("");
       expect(decrypted[0]?.address).toBe("");
       expect(decrypted[0]?.special_instructions).toBe("");
-      expect(decrypted[0]?.checked_in).toBe("false");
+      expect(decrypted[0]?.checked_in).toBe(false);
     });
 
     test("handles partial corruption gracefully", async () => {
@@ -2645,7 +2645,7 @@ describe("db", () => {
 
       // Verify corrupted state
       const before = await getAttendeesRaw(event.id);
-      expect(before[0]?.checked_in).toBe("");
+      expect(before[0]?.checked_in as unknown).toBe("");
 
       // Clear version marker and re-run migrations
       await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
@@ -2654,13 +2654,13 @@ describe("db", () => {
 
       // Verify checked_in is now encrypted
       const after = await getAttendeesRaw(event.id);
-      expect(after[0]?.checked_in).not.toBe("");
-      expect(after[0]?.checked_in).toContain("hyb:1:");
+      expect(after[0]?.checked_in as unknown).not.toBe("");
+      expect(after[0]?.checked_in as unknown as string).toContain("hyb:1:");
 
       // Verify it decrypts correctly to "false"
       const privateKey = await getTestPrivateKey();
       const decrypted = await decryptAttendees(after, privateKey);
-      expect(decrypted[0]?.checked_in).toBe("false");
+      expect(decrypted[0]?.checked_in).toBe(false);
     });
   });
 

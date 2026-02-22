@@ -37,7 +37,7 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
 
 /** Count how many attendees are checked in */
 export const countCheckedIn = (attendees: Attendee[]): number =>
-  filter((a: Attendee) => a.checked_in === "true")(attendees).length;
+  filter((a: Attendee) => a.checked_in)(attendees).length;
 
 
 /** Check if event is within 10% of capacity */
@@ -53,8 +53,8 @@ export type AddAttendeeMessage = { name: string } | { edited: string } | { error
 
 /** Filter attendees by check-in status */
 const filterAttendees = (attendees: Attendee[], activeFilter: AttendeeFilter): Attendee[] => {
-  if (activeFilter === "in") return filter((a: Attendee) => a.checked_in === "true")(attendees);
-  if (activeFilter === "out") return filter((a: Attendee) => a.checked_in !== "true")(attendees);
+  if (activeFilter === "in") return filter((a: Attendee) => a.checked_in)(attendees);
+  if (activeFilter === "out") return filter((a: Attendee) => !a.checked_in)(attendees);
   return attendees;
 };
 
