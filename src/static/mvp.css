@@ -942,7 +942,7 @@ form:has(select[name="event_type"] option[value="daily"]:checked) > label:has([n
 
 /* Event images */
 .event-image {
-  max-width: var(--width-card-wide);
+  max-width: min(100%, var(--width-card-wide));
   border-radius: 4px;
   margin-bottom: 1rem;
 }
