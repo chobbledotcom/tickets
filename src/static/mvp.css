@@ -24,6 +24,7 @@
   --width-card-medium: 460px;
   --width-card-wide: 800px;
   --width-content: 1300px;
+  /* Breakpoint: desktop ≥ 769px, mobile ≤ 768px (use in @media rules) */
 }
 
 :root[data-theme="dark"] {
@@ -216,6 +217,20 @@ nav ul li ul li a {
     box-shadow: none;
     display: block;
     position: static;
+  }
+}
+
+/* Nav for Desktop */
+@media (min-width: 769px) {
+  nav {
+    margin: 0 auto 7rem;
+    position: sticky;
+    top: 1rem;
+    background: var(--color-bg);
+    width: fit-content;
+    padding: 0 2rem;
+    border-radius: var(--border-radius);
+    z-index: 10;
   }
 }
 
