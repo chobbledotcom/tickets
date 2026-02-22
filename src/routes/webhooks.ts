@@ -668,7 +668,7 @@ const extractSessionFromEvent = (
       typeof obj.payment_intent === "string" ? obj.payment_intent : "",
     amountTotal: obj.amount_total,
     metadata: {
-      _origin: typeof metadata._origin === "string" ? metadata._origin : undefined,
+      _origin: metadata._origin as string | undefined,
       event_id: metadata.event_id as string | undefined,
       name: metadata.name,
       email: metadata.email,
