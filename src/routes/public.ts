@@ -87,35 +87,11 @@ export const handleHome = (): Promise<Response> =>
 /** Handle GET /events - public events listing */
 export const handlePublicEvents = (): Promise<Response> =>
   requirePublicSite(async () => {
-    const events = await loadHomepageEvents();
-    const [dates, terms, websiteTitle] = await Promise.all([
-      computeSharedDates(events),
-      getTermsAndConditionsFromDb(),
+    const [events, websiteTitle] = await Promise.all([
+      loadHomepageEvents(),
       getWebsiteTitleFromDb(),
-      signCsrfToken(),
     ]);
-    return htmlResponse(homepagePage(events, undefined, dates ?? [], terms, websiteTitle));
-  });
-
-/** Handle POST /events - public events form submission */
-export const handlePublicEventsPost = (request: Request): Promise<Response> =>
-  requirePublicSite(async () => {
-    const activeEvents = await loadHomepageEvents();
-    if (activeEvents.length === 0) return redirect("/events");
-
-    const [dates, terms] = await Promise.all([
-      computeSharedDates(activeEvents),
-      getTermsAndConditionsFromDb(),
-      signCsrfToken(),
-    ]);
-    const ctx: MultiTicketCtx = {
-      slugs: activeEvents.map((e) => e.event.slug),
-      events: activeEvents,
-      dates: dates ?? [],
-      terms: terms ?? "",
-      inIframe: false,
-    };
-    return submitMultiTicket(request, ctx);
+    return htmlResponse(homepagePage(events, websiteTitle));
   });
 
 /** Handle GET /terms - public terms and conditions page */

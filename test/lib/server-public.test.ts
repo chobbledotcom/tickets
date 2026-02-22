@@ -143,14 +143,15 @@ describe("server (public routes)", () => {
       expect(html).toContain("My Events");
     });
 
-    test("shows active events when enabled with events", async () => {
+    test("shows active events with book now links", async () => {
       await updateShowPublicSite(true);
       const event = await createTestEvent({ name: "Concert", maxAttendees: 100 });
       const response = await handleRequest(mockRequest("/events"));
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain(event.name);
-      expect(html).toContain("Reserve Tickets");
+      expect(html).toContain("Book now");
+      expect(html).toContain(`href="/ticket/${event.slug}"`);
     });
 
     test("does not show inactive events", async () => {
@@ -164,7 +165,7 @@ describe("server (public routes)", () => {
       expect(html).not.toContain("Hidden Event");
     });
 
-    test("shows sold out message when all events are at capacity", async () => {
+    test("shows sold out for events at capacity", async () => {
       await updateShowPublicSite(true);
       const event = await createTestEvent({ name: "Full Event", maxAttendees: 1 });
       await createAttendeeAtomic({
@@ -176,10 +177,11 @@ describe("server (public routes)", () => {
       const response = await handleRequest(mockRequest("/events"));
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("sold out");
+      expect(html).toContain("Sold Out");
+      expect(html).not.toContain(`href="/ticket/${event.slug}"`);
     });
 
-    test("shows registration closed when all events have passed closes_at", async () => {
+    test("shows registration closed for events past closes_at", async () => {
       await updateShowPublicSite(true);
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
       await createTestEvent({
@@ -190,30 +192,34 @@ describe("server (public routes)", () => {
       const response = await handleRequest(mockRequest("/events"));
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Registration closed");
+      expect(html).toContain("Registration Closed");
     });
 
-    test("shows date selector for daily events", async () => {
+    test("shows event location when set", async () => {
       await updateShowPublicSite(true);
-      await createTestEvent({
-        name: "Daily Class",
-        maxAttendees: 100,
-        eventType: "daily",
-      });
+      await createTestEvent({ name: "Located Event", maxAttendees: 100, location: "Town Hall" });
       const response = await handleRequest(mockRequest("/events"));
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("date");
+      expect(html).toContain("Town Hall");
     });
 
-    test("shows terms and conditions when configured", async () => {
+    test("shows event date when set", async () => {
       await updateShowPublicSite(true);
-      await createTestEvent({ name: "Event With Terms", maxAttendees: 100 });
-      await updateTermsAndConditions("You must agree to these terms.");
+      await createTestEvent({ name: "Dated Event", maxAttendees: 100, date: "2026-06-15T14:00" });
       const response = await handleRequest(mockRequest("/events"));
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("You must agree to these terms.");
+      expect(html).toContain("2026");
+    });
+
+    test("shows event description when set", async () => {
+      await updateShowPublicSite(true);
+      await createTestEvent({ name: "Described Event", maxAttendees: 100, description: "A great event" });
+      const response = await handleRequest(mockRequest("/events"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("A great event");
     });
 
     test("shows website title on events page", async () => {
@@ -236,45 +242,13 @@ describe("server (public routes)", () => {
       expect(html).toContain('href="/terms"');
       expect(html).toContain('href="/contact"');
     });
-  });
 
-  describe("POST /events", () => {
-    test("redirects to admin when public site is disabled", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/events", { name: "Test" }),
-      );
-      expectRedirect("/admin/")(response);
-    });
-
-    test("redirects to /events when enabled but no active events exist", async () => {
+    test("returns 404 for POST requests", async () => {
       await updateShowPublicSite(true);
       const response = await handleRequest(
         mockFormRequest("/events", { name: "Test" }),
       );
-      expectRedirect("/events")(response);
-    });
-
-    test("processes form submission when enabled with events", async () => {
-      await updateShowPublicSite(true);
-      const event = await createTestEvent({ name: "Concert", maxAttendees: 100 });
-
-      // First GET the page to get a CSRF token
-      const getResponse = await handleRequest(mockRequest("/events"));
-      const html = await getResponse.text();
-      const csrfToken = getTicketCsrfToken(html)!;
-
-      // Submit the form with the CSRF token from the page
-      const response = await handleRequest(
-        mockFormRequest("/events", {
-          name: "Test Person",
-          email: "test@example.com",
-          [`quantity_${event.id}`]: "1",
-          csrf_token: csrfToken,
-        }),
-      );
-
-      // Should redirect to reserved page on success
-      expectReservedRedirectWithTokens(response);
+      expect(response.status).toBe(404);
     });
   });
 

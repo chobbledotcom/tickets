@@ -62,14 +62,30 @@ export const publicSitePage = (
   );
 };
 
+/** Render a single event listing for the events page */
+const renderEventListing = (info: MultiTicketEvent): string => {
+  const { event, isSoldOut, isClosed } = info;
+  const details: string[] = [];
+  if (event.location) details.push(`<li><strong>${escapeHtml(event.location)}</strong></li>`);
+  if (event.date) details.push(`<li><em>${escapeHtml(formatDatetimeLabel(event.date))}</em></li>`);
+  const detailsHtml = details.length > 0 ? `<ul>${details.join("")}</ul>` : "";
+  const descriptionHtml = event.description
+    ? `<p>${escapeHtml(event.description)}</p>`
+    : "";
+  const linkHtml = isSoldOut
+    ? `<p><strong>Sold Out</strong></p>`
+    : isClosed
+      ? `<p><strong>Registration Closed</strong></p>`
+      : `<p><a href="/ticket/${escapeHtml(event.slug)}"><strong>Book now</strong></a></p>`;
+
+  return `<h2>${escapeHtml(event.name)}</h2>${detailsHtml}${descriptionHtml}${linkHtml}`;
+};
+
 /**
- * Homepage with events - shows all active upcoming events as a multi-ticket booking page
+ * Homepage with events - lists all active upcoming events with booking links
  */
 export const homepagePage = (
   events: MultiTicketEvent[],
-  error?: string,
-  availableDates?: string[],
-  termsAndConditions?: string | null,
   websiteTitle?: string | null,
 ): string => {
   const title = websiteTitle ? `Events - ${websiteTitle}` : "Events";
@@ -87,14 +103,8 @@ export const homepagePage = (
     );
   }
 
-  const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
-  const allClosed = events.every((e) => e.isClosed);
-  const fieldsSetting = mergeEventFields(events.map((e) => e.event.fields));
-  const fields: Field[] = getTicketFields(fieldsSetting);
-  const hasDaily = events.some((e) => e.event.event_type === "daily");
-
-  const eventRows = pipe(
-    map(renderMultiEventRow),
+  const eventListings = pipe(
+    map(renderEventListing),
     (rows: string[]) => rows.join(""),
   )(events);
 
@@ -102,28 +112,8 @@ export const homepagePage = (
     <Layout title={title}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav />
-      <Raw html={renderError(error)} />
-
-      {allUnavailable ? (
-        <div class="error">{allClosed ? "Registration closed." : "Sorry, all events are sold out."}</div>
-      ) : (
-        <CsrfForm action="/events">
-          <Raw html={renderFields(fields)} />
-          {hasDaily && availableDates && (
-            <Raw html={renderDateSelector(availableDates)} />
-          )}
-
-          <fieldset class="multi-ticket-events">
-            <legend>Select Tickets</legend>
-            <Raw html={eventRows} />
-          </fieldset>
-
-          {termsAndConditions && (
-            <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
-          )}
-          <button type="submit">Reserve Tickets</button>
-        </CsrfForm>
-      )}
+      <h2>All bookable events</h2>
+      <Raw html={eventListings} />
       <footer class="homepage-footer">
         <p><a href="/admin/login">Login</a></p>
       </footer>
