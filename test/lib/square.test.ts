@@ -328,7 +328,7 @@ describe("square", () => {
 
           // Verify checkout options
           expect(args.checkoutOptions.redirectUrl).toBe(
-            "https://tickets.example.com/payment/success?session_id={ORDER_ID}",
+            "https://tickets.example.com/payment/success",
           );
 
           // Verify pre-populated data
@@ -676,7 +676,7 @@ describe("square", () => {
           // Verify location and checkout options
           expect(args.order.locationId).toBe("L_multi_loc");
           expect(args.checkoutOptions.redirectUrl).toBe(
-            "https://tickets.example.com/payment/success?session_id={ORDER_ID}",
+            "https://tickets.example.com/payment/success",
           );
           expect(args.prePopulatedData.buyerEmail).toBe("alice@example.com");
           expect(args.prePopulatedData.buyerPhoneNumber).toBe("555-1111");
@@ -1424,6 +1424,7 @@ describe("square", () => {
       const result = await squarePaymentProvider.verifyWebhookSignature(
         '{"test": true}',
         "fakesig",
+        "https://example.com/payment/webhook",
       );
       expect(result.valid).toBe(false);
     });
