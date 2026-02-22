@@ -202,6 +202,17 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
+        <Q q="Which payment provider do you recommend?">
+          <p>
+            <strong>Stripe</strong>. The setup is a fair bit easier &mdash; you
+            just paste in your secret key and the webhook is created
+            automatically. With Square you need to create a developer
+            application, find your location ID, and manually configure the
+            webhook yourself. Both work well once set up, but Stripe gets you
+            going faster.
+          </p>
+        </Q>
+
         <Q q="What happens when someone books a paid ticket?">
           <p>
             They fill in the booking form, then are redirected to your payment

@@ -48,6 +48,13 @@ describe("server (admin guide)", () => {
       expect(html).toContain("Facebook Sharing Debugger");
     });
 
+    test("contains payment provider recommendation", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Which payment provider do you recommend?");
+      expect(html).toContain("setup is a fair bit easier");
+    });
+
     test("contains payment reservation info", async () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();
