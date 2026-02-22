@@ -9,6 +9,7 @@ import {
   verifyWebhookSignature,
 } from "#lib/square.ts";
 import { squarePaymentProvider } from "#lib/square-provider.ts";
+import { PaymentUserError } from "#lib/payment-helpers.ts";
 import type { WebhookEvent } from "#lib/payments.ts";
 import {
   updateSquareAccessToken,
@@ -724,6 +725,129 @@ describe("square", () => {
     });
   });
 
+  describe("createPaymentLink with validation errors", () => {
+    const validationIntent = {
+      eventId: 1,
+      name: "John",
+      email: "john@example.com",
+      phone: "bad-phone",
+      address: "",
+      special_instructions: "",
+      quantity: 1,
+    };
+
+    /** Set up Square credentials and a mock client with a failing checkout */
+    const setupFailingCheckout = async (sdkError: Error) => {
+      await updateSquareAccessToken("EAAAl_test_123");
+      await updateSquareLocationId("L_loc_456");
+      const { client, checkoutCreate } = createMockClient();
+      checkoutCreate.mockRejectedValue(sdkError);
+      return client;
+    };
+
+    const squareError = (errors: string) =>
+      new Error(`Status code: 400 Body: { "errors": [ ${errors} ] }`);
+
+    test("throws PaymentUserError for invalid phone number", async () => {
+      const client = await setupFailingCheckout(
+        squareError('{ "category": "INVALID_REQUEST_ERROR", "code": "INVALID_PHONE_NUMBER", "detail": "Invalid phone number.", "field": "pre_populated_data.buyer_phone_number" }'),
+      );
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const event = testEvent({ unit_price: 1000, fields: "email" as const });
+          try {
+            await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+            expect(true).toBe(false); // should not reach here
+          } catch (err) {
+            expect(err instanceof PaymentUserError).toBe(true);
+            expect((err as PaymentUserError).message).toContain("phone number");
+          }
+        },
+      );
+    });
+
+    test("throws PaymentUserError for invalid email address", async () => {
+      const client = await setupFailingCheckout(
+        squareError('{ "category": "INVALID_REQUEST_ERROR", "code": "INVALID_EMAIL_ADDRESS", "detail": "Invalid email.", "field": "pre_populated_data.buyer_email" }'),
+      );
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const event = testEvent({ unit_price: 1000, fields: "email" as const });
+          try {
+            await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+            expect(true).toBe(false);
+          } catch (err) {
+            expect(err instanceof PaymentUserError).toBe(true);
+            expect((err as PaymentUserError).message).toContain("email address");
+          }
+        },
+      );
+    });
+
+    test("returns null for non-user-facing API errors", async () => {
+      const client = await setupFailingCheckout(
+        squareError('{ "category": "API_ERROR", "code": "INTERNAL_SERVER_ERROR" }'),
+      );
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const event = testEvent({ unit_price: 1000, fields: "email" as const });
+          const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+          expect(result).toBeNull();
+        },
+      );
+    });
+
+    test("returns null for validation error on unknown field", async () => {
+      const client = await setupFailingCheckout(
+        squareError('{ "category": "INVALID_REQUEST_ERROR", "code": "MISSING_REQUIRED_PARAMETER", "field": "order.location_id" }'),
+      );
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const event = testEvent({ unit_price: 1000, fields: "email" as const });
+          const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+          expect(result).toBeNull();
+        },
+      );
+    });
+
+    test("returns null for non-Body error messages", async () => {
+      const client = await setupFailingCheckout(new Error("Network timeout"));
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const event = testEvent({ unit_price: 1000, fields: "email" as const });
+          const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+          expect(result).toBeNull();
+        },
+      );
+    });
+
+    test("returns null for malformed JSON in error body", async () => {
+      const client = await setupFailingCheckout(
+        new Error("Status code: 400 Body: { invalid json content }"),
+      );
+
+      await withMocks(
+        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        async () => {
+          const event = testEvent({ unit_price: 1000, fields: "email" as const });
+          const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
+          expect(result).toBeNull();
+        },
+      );
+    });
+
+  });
+
   describe("retrieveOrder", () => {
     test("returns null when access token not set", async () => {
       const result = await squareApi.retrieveOrder("order_123");
@@ -1357,8 +1481,10 @@ describe("square", () => {
             "http://localhost",
           );
           expect(result).not.toBeNull();
-          expect(result!.sessionId).toBe("order_prov");
-          expect(result!.checkoutUrl).toBe("https://square.link/prov");
+          expect(result).toHaveProperty("sessionId");
+          const success = result as { sessionId: string; checkoutUrl: string };
+          expect(success.sessionId).toBe("order_prov");
+          expect(success.checkoutUrl).toBe("https://square.link/prov");
         },
       );
     });
@@ -1390,8 +1516,10 @@ describe("square", () => {
             "http://localhost",
           );
           expect(result).not.toBeNull();
-          expect(result!.sessionId).toBe("order_mprov");
-          expect(result!.checkoutUrl).toBe("https://square.link/mprov");
+          expect(result).toHaveProperty("sessionId");
+          const success = result as { sessionId: string; checkoutUrl: string };
+          expect(success.sessionId).toBe("order_mprov");
+          expect(success.checkoutUrl).toBe("https://square.link/mprov");
         },
       );
     });

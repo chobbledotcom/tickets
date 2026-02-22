@@ -16,6 +16,7 @@ import { logDebug } from "#lib/logger.ts";
 import {
   extractSessionMetadata,
   hasRequiredSessionMetadata,
+  PaymentUserError,
   toCheckoutResult,
 } from "#lib/payment-helpers.ts";
 import {
@@ -28,6 +29,7 @@ import {
 } from "#lib/square.ts";
 import type { Event } from "#lib/types.ts";
 import type {
+  CheckoutSessionResult,
   MultiRegistrationIntent,
   PaymentProvider,
   RegistrationIntent,
@@ -36,27 +38,31 @@ import type {
   WebhookVerifyResult,
 } from "#lib/payments.ts";
 
+/** Wrap a checkout operation, converting PaymentUserError to { error } result */
+const withUserError = async <T extends { orderId: string; url: string }>(
+  op: () => Promise<T | null>,
+): Promise<CheckoutSessionResult> => {
+  try {
+    const result = await op();
+    return toCheckoutResult(result?.orderId, result?.url, "Square");
+  } catch (err) {
+    if (err instanceof PaymentUserError) return { error: err.message };
+    return null;
+  }
+};
+
 /** Square payment provider implementation */
 export const squarePaymentProvider: PaymentProvider = {
   type: "square",
 
   checkoutCompletedEventType: "payment.updated",
 
-  async createCheckoutSession(
-    event: Event,
-    intent: RegistrationIntent,
-    baseUrl: string,
-  ) {
-    const result = await createPaymentLink(event, intent, baseUrl);
-    return toCheckoutResult(result?.orderId, result?.url, "Square");
+  createCheckoutSession(event: Event, intent: RegistrationIntent, baseUrl: string) {
+    return withUserError(() => createPaymentLink(event, intent, baseUrl));
   },
 
-  async createMultiCheckoutSession(
-    intent: MultiRegistrationIntent,
-    baseUrl: string,
-  ) {
-    const result = await createMultiPaymentLink(intent, baseUrl);
-    return toCheckoutResult(result?.orderId, result?.url, "Square");
+  createMultiCheckoutSession(intent: MultiRegistrationIntent, baseUrl: string) {
+    return withUserError(() => createMultiPaymentLink(intent, baseUrl));
   },
 
   async retrieveSession(

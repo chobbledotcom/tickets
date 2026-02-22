@@ -208,6 +208,10 @@ const runCheckoutFlow = (
       const baseUrl = getBaseUrl(request);
       logDebug("Payment", `Creating checkout session baseUrl=${baseUrl}`);
       const result = await createSession(provider, baseUrl);
+      if (result && "error" in result) {
+        logDebug("Payment", `Checkout validation error for ${label}: ${result.error}`);
+        return onError(result.error, 400);
+      }
       logDebug("Payment", `Checkout result for ${label}: ${result ? `url=${result.checkoutUrl}` : "null"}`);
       return tryCheckoutRedirect(result?.checkoutUrl, inIframe, () => {
         logDebug("Payment", `Checkout redirect failed for ${label}: no session URL`);

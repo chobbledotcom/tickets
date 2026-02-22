@@ -386,6 +386,36 @@ describe("server (payment flow)", () => {
       expect(html).toContain("Failed to create payment session");
     });
 
+    test("shows specific error when payment provider returns validation error", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com/thanks",
+        unitPrice: 1000,
+      });
+
+      // Mock createCheckoutSession to return a validation error result
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockCreate = spyOn(stripePaymentProvider, "createCheckoutSession");
+      mockCreate.mockResolvedValue({
+        error: "The payment processor rejected the phone number as invalid. Please correct it and try again.",
+      });
+
+      try {
+        const response = await submitTicketForm(event.slug, {
+          name: "John Doe",
+          email: "john@example.com",
+        });
+
+        expect(response.status).toBe(400);
+        const html = await response.text();
+        expect(html).toContain("payment processor rejected the phone number");
+      } finally {
+        mockCreate.mockRestore();
+      }
+    });
+
     test("free ticket still works when payments enabled", async () => {
       await setupStripe("sk_test_fake_key");
 
