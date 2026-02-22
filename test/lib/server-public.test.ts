@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { updateShowPublicSite, updateTermsAndConditions, updateWebsiteTitle, updateHomepageText, updateContactPageText } from "#lib/db/settings.ts";
+import { updateContactPageText, updateHomepageText, updateShowPublicSite, updateTermsAndConditions, updateWebsiteTitle } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";

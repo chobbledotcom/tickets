@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add refunded to attendees";
+export const LATEST_UPDATE = "encrypt public site settings";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -448,6 +448,30 @@ export const initDb = async (): Promise<void> => {
   // Migration: add refunded column to attendees (hybrid encrypted, "true"/"false" like checked_in)
   await runMigration(`ALTER TABLE attendees ADD COLUMN refunded TEXT NOT NULL DEFAULT ''`);
   await backfillHybridEncryptedColumn("attendees", "refunded", `refunded = ''`);
+
+  // Migration: encrypt existing plaintext website_title in settings
+  {
+    const titleRaw = await getSetting("website_title");
+    if (titleRaw && !titleRaw.startsWith("enc:")) {
+      const encrypted = await encrypt(titleRaw);
+      await getDb().execute({
+        sql: "UPDATE settings SET value = ? WHERE key = 'website_title'",
+        args: [encrypted],
+      });
+    }
+  }
+
+  // Migration: encrypt existing plaintext homepage_text and contact_page_text in settings
+  for (const key of ["homepage_text", "contact_page_text"]) {
+    const raw = await getSetting(key);
+    if (raw && !raw.startsWith("enc:")) {
+      const encrypted = await encrypt(raw);
+      await getDb().execute({
+        sql: "UPDATE settings SET value = ? WHERE key = ?",
+        args: [encrypted, key],
+      });
+    }
+  }
 
   // Update the version marker
   await getDb().execute({

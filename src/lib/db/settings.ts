@@ -53,11 +53,11 @@ export const CONFIG_KEYS = {
   THEME: "theme",
   // Show public site (plaintext - "true" or "false")
   SHOW_PUBLIC_SITE: "show_public_site",
-  // Website title (plaintext - shown on public site)
+  // Website title (encrypted - shown on public site)
   WEBSITE_TITLE: "website_title",
-  // Homepage text (plaintext - shown on public site homepage)
+  // Homepage text (encrypted - shown on public site homepage)
   HOMEPAGE_TEXT: "homepage_text",
-  // Contact page text (plaintext - shown on public site contact page)
+  // Contact page text (encrypted - shown on public site contact page)
   CONTACT_PAGE_TEXT: "contact_page_text",
   // Phone prefix (plaintext - country calling code, e.g. "44")
   PHONE_PREFIX: "phone_prefix",
@@ -575,62 +575,67 @@ export const getShowPublicSiteFromDb = async (): Promise<boolean> => {
 };
 
 /**
+ * Get the "show public site" setting synchronously from cache.
+ * Returns false if the cache is not populated or the setting is not "true".
+ * Safe to call from synchronous template code after the settings cache is warmed.
+ */
+export const getShowPublicSiteCached = (): boolean => {
+  const state = getSettingsCacheState();
+  if (state.entries !== null) {
+    return state.entries.get(CONFIG_KEYS.SHOW_PUBLIC_SITE) === "true";
+  }
+  return false;
+};
+
+/**
  * Update the "show public site" setting.
  */
 export const updateShowPublicSite = async (show: boolean): Promise<void> => {
   await setSetting(CONFIG_KEYS.SHOW_PUBLIC_SITE, show ? "true" : "false");
 };
 
+/** Get an encrypted optional setting (decrypted). Returns null if not set. */
+const getEncryptedSetting = async (key: string): Promise<string | null> => {
+  const value = await getSetting(key);
+  if (!value) return null;
+  return decrypt(value);
+};
+
+/** Update an encrypted optional setting. Pass empty string to clear. */
+const updateEncryptedSetting = async (key: string, text: string): Promise<void> => {
+  if (text === "") return setOrDeleteSetting(key, "");
+  await setSetting(key, await encrypt(text));
+};
+
 /** Max length for website title */
 export const MAX_WEBSITE_TITLE_LENGTH = 128;
 
-/** Max length for homepage text */
-export const MAX_HOMEPAGE_TEXT_LENGTH = 2048;
+/** Max length for page text content */
+export const MAX_PAGE_TEXT_LENGTH = 2048;
 
-/** Max length for contact page text */
-export const MAX_CONTACT_PAGE_TEXT_LENGTH = 2048;
-
-/**
- * Get the website title from database.
- * Returns null if not configured.
- */
+/** Get the website title from database (decrypted). */
 export const getWebsiteTitleFromDb = (): Promise<string | null> =>
-  getSetting(CONFIG_KEYS.WEBSITE_TITLE);
+  getEncryptedSetting(CONFIG_KEYS.WEBSITE_TITLE);
 
-/**
- * Update the website title.
- * Pass empty string to clear.
- */
+/** Update the website title (encrypted at rest). Pass empty string to clear. */
 export const updateWebsiteTitle = (text: string): Promise<void> =>
-  setOrDeleteSetting(CONFIG_KEYS.WEBSITE_TITLE, text);
+  updateEncryptedSetting(CONFIG_KEYS.WEBSITE_TITLE, text);
 
-/**
- * Get the homepage text from database.
- * Returns null if not configured.
- */
+/** Get the homepage text from database (decrypted). */
 export const getHomepageTextFromDb = (): Promise<string | null> =>
-  getSetting(CONFIG_KEYS.HOMEPAGE_TEXT);
+  getEncryptedSetting(CONFIG_KEYS.HOMEPAGE_TEXT);
 
-/**
- * Update the homepage text.
- * Pass empty string to clear.
- */
+/** Update the homepage text (encrypted at rest). Pass empty string to clear. */
 export const updateHomepageText = (text: string): Promise<void> =>
-  setOrDeleteSetting(CONFIG_KEYS.HOMEPAGE_TEXT, text);
+  updateEncryptedSetting(CONFIG_KEYS.HOMEPAGE_TEXT, text);
 
-/**
- * Get the contact page text from database.
- * Returns null if not configured.
- */
+/** Get the contact page text from database (decrypted). */
 export const getContactPageTextFromDb = (): Promise<string | null> =>
-  getSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT);
+  getEncryptedSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT);
 
-/**
- * Update the contact page text.
- * Pass empty string to clear.
- */
+/** Update the contact page text (encrypted at rest). Pass empty string to clear. */
 export const updateContactPageText = (text: string): Promise<void> =>
-  setOrDeleteSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT, text);
+  updateEncryptedSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT, text);
 
 /**
  * Get the configured phone prefix from database.
@@ -691,6 +696,7 @@ export const settingsApi = {
   getThemeFromDb,
   updateTheme,
   getShowPublicSiteFromDb,
+  getShowPublicSiteCached,
   updateShowPublicSite,
   getWebsiteTitleFromDb,
   updateWebsiteTitle,

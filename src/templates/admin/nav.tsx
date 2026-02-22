@@ -2,6 +2,7 @@
  * Shared admin navigation component
  */
 
+import { getShowPublicSiteCached } from "#lib/db/settings.ts";
 import { CsrfForm } from "#lib/forms.tsx";
 import type { AdminSession } from "#lib/types.ts";
 
@@ -19,6 +20,7 @@ export const AdminNav = ({ session }: AdminNavProps): JSX.Element => (
       <li><a href="/admin/">Events</a></li>
       <li><a href="/admin/calendar">Calendar</a></li>
       {session.adminLevel === "owner" && <li><a href="/admin/users">Users</a></li>}
+      {session.adminLevel === "owner" && getShowPublicSiteCached() && <li><a href="/admin/site">Site</a></li>}
       {session.adminLevel === "owner" && <li><a href="/admin/settings">Settings</a></li>}
       {session.adminLevel === "owner" && <li><a href="/admin/log">Log</a></li>}
       {session.adminLevel === "owner" && <li><a href="/admin/groups">Groups</a></li>}

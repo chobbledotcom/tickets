@@ -6,9 +6,7 @@
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   clearPaymentProvider,
-  getContactPageTextFromDb,
   getEmbedHostsFromDb,
-  getHomepageTextFromDb,
   getPaymentProviderFromDb,
   getPhonePrefixFromDb,
   getShowPublicSiteFromDb,
@@ -17,18 +15,12 @@ import {
   getTermsAndConditionsFromDb,
   getThemeFromDb,
   getTimezoneFromDb,
-  getWebsiteTitleFromDb,
-  MAX_CONTACT_PAGE_TEXT_LENGTH,
-  MAX_HOMEPAGE_TEXT_LENGTH,
   MAX_TERMS_LENGTH,
-  MAX_WEBSITE_TITLE_LENGTH,
   hasSquareToken,
   hasStripeKey,
   setPaymentProvider,
   setStripeWebhookConfig,
-  updateContactPageText,
   updateEmbedHosts,
-  updateHomepageText,
   updatePhonePrefix,
   updateShowPublicSite,
   updateSquareAccessToken,
@@ -40,7 +32,6 @@ import {
   updateTheme,
   updateTimezone,
   updateUserPassword,
-  updateWebsiteTitle,
 } from "#lib/db/settings.ts";
 import { getBusinessEmailFromDb, updateBusinessEmail, isValidBusinessEmail } from "#lib/business-email.ts";
 import {
@@ -99,9 +90,6 @@ const getSettingsPageState = async () => {
   const theme = await getThemeFromDb();
   const showPublicSite = await getShowPublicSiteFromDb();
   const phonePrefix = await getPhonePrefixFromDb();
-  const websiteTitle = await getWebsiteTitleFromDb();
-  const homepageText = await getHomepageTextFromDb();
-  const contactPageText = await getContactPageTextFromDb();
   return {
     stripeKeyConfigured,
     paymentProvider,
@@ -116,9 +104,6 @@ const getSettingsPageState = async () => {
     theme,
     showPublicSite,
     phonePrefix,
-    websiteTitle,
-    homepageText,
-    contactPageText,
   };
 };
 
@@ -146,9 +131,6 @@ const renderSettingsPage = async (
     state.theme,
     state.showPublicSite,
     state.phonePrefix,
-    state.websiteTitle,
-    state.homepageText,
-    state.contactPageText,
   );
 };
 
@@ -486,75 +468,6 @@ const processShowPublicSiteForm: SettingsFormHandler = async (form) => {
 /** Handle POST /admin/settings/show-public-site - owner only */
 const handleShowPublicSitePost = settingsRoute(processShowPublicSiteForm);
 
-/** Validate and save website title from form submission */
-const processWebsiteTitleForm: SettingsFormHandler = async (form, errorPage) => {
-  const raw = form.get("website_title") ?? "";
-  const trimmed = raw.trim();
-
-  if (trimmed.length > MAX_WEBSITE_TITLE_LENGTH) {
-    return errorPage(
-      `Website title must be ${MAX_WEBSITE_TITLE_LENGTH} characters or fewer (currently ${trimmed.length})`,
-      400,
-    );
-  }
-
-  await updateWebsiteTitle(trimmed);
-  await logActivity(trimmed ? "Website title updated" : "Website title cleared");
-  return redirectWithSuccess(
-    "/admin/settings",
-    trimmed ? "Website title updated" : "Website title cleared",
-  );
-};
-
-/** Handle POST /admin/settings/website-title - owner only */
-const handleWebsiteTitlePost = settingsRoute(processWebsiteTitleForm);
-
-/** Validate and save homepage text from form submission */
-const processHomepageTextForm: SettingsFormHandler = async (form, errorPage) => {
-  const raw = form.get("homepage_text") ?? "";
-  const trimmed = raw.trim();
-
-  if (trimmed.length > MAX_HOMEPAGE_TEXT_LENGTH) {
-    return errorPage(
-      `Homepage text must be ${MAX_HOMEPAGE_TEXT_LENGTH} characters or fewer (currently ${trimmed.length})`,
-      400,
-    );
-  }
-
-  await updateHomepageText(trimmed);
-  await logActivity(trimmed ? "Homepage text updated" : "Homepage text cleared");
-  return redirectWithSuccess(
-    "/admin/settings",
-    trimmed ? "Homepage text updated" : "Homepage text cleared",
-  );
-};
-
-/** Handle POST /admin/settings/homepage-text - owner only */
-const handleHomepageTextPost = settingsRoute(processHomepageTextForm);
-
-/** Validate and save contact page text from form submission */
-const processContactPageTextForm: SettingsFormHandler = async (form, errorPage) => {
-  const raw = form.get("contact_page_text") ?? "";
-  const trimmed = raw.trim();
-
-  if (trimmed.length > MAX_CONTACT_PAGE_TEXT_LENGTH) {
-    return errorPage(
-      `Contact page text must be ${MAX_CONTACT_PAGE_TEXT_LENGTH} characters or fewer (currently ${trimmed.length})`,
-      400,
-    );
-  }
-
-  await updateContactPageText(trimmed);
-  await logActivity(trimmed ? "Contact page text updated" : "Contact page text cleared");
-  return redirectWithSuccess(
-    "/admin/settings",
-    trimmed ? "Contact page text updated" : "Contact page text cleared",
-  );
-};
-
-/** Handle POST /admin/settings/contact-page-text - owner only */
-const handleContactPageTextPost = settingsRoute(processContactPageTextForm);
-
 /** Validate and save phone prefix from form submission */
 const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
   const raw = (form.get("phone_prefix") ?? "").trim();
@@ -611,9 +524,6 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/business-email": handleBusinessEmailPost,
   "POST /admin/settings/theme": handleThemePost,
   "POST /admin/settings/show-public-site": handleShowPublicSitePost,
-  "POST /admin/settings/website-title": handleWebsiteTitlePost,
-  "POST /admin/settings/homepage-text": handleHomepageTextPost,
-  "POST /admin/settings/contact-page-text": handleContactPageTextPost,
   "POST /admin/settings/phone-prefix": handlePhonePrefixPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });
