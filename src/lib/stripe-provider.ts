@@ -80,6 +80,7 @@ export const stripePaymentProvider: PaymentProvider = {
   async verifyWebhookSignature(
     payload: string,
     signature: string,
+    _webhookUrl: string,
   ): Promise<WebhookVerifyResult> {
     const result = await verifyWebhookSignature(payload, signature);
     if (!result.valid) {

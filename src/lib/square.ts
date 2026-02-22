@@ -198,7 +198,7 @@ const createPaymentLinkImpl = (
           metadata: params.metadata,
         },
         checkoutOptions: {
-          redirectUrl: `${params.baseUrl}/payment/success?session_id={ORDER_ID}`,
+          redirectUrl: `${params.baseUrl}/payment/success`,
         },
         prePopulatedData: {
           buyerEmail: params.email,

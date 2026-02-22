@@ -476,6 +476,43 @@ describe("server (webhooks)", () => {
       }
     });
 
+    test("payment success reads orderId param for Square redirect", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
+      mockRetrieve.mockResolvedValue({
+        id: "cs_square_order",
+        payment_status: "paid",
+        payment_intent: "pi_square_order",
+        amount_total: 1000,
+        metadata: {
+          event_id: String(event.id),
+          name: "Square User",
+          email: "square@example.com",
+          quantity: "1",
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof stripeApi.retrieveCheckoutSession>
+      >);
+
+      try {
+        // Square appends orderId as a query parameter (not session_id)
+        const redirectResponse = await handleRequest(
+          mockRequest("/payment/success?orderId=cs_square_order"),
+        );
+        expect(redirectResponse.status).toBe(302);
+        const response = await followRedirect(redirectResponse, handleRequest);
+        expect(response.status).toBe(200);
+      } finally {
+        mockRetrieve.mockRestore();
+      }
+    });
+
     test("tryRefund returns false when paymentReference is empty", async () => {
       await setupStripe();
 

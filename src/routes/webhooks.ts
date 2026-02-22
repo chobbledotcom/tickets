@@ -41,6 +41,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/token-utils.ts";
 import {
   formatCreationError,
+  getBaseUrl,
   getSearchParam,
   htmlResponse,
   isRegistrationClosed,
@@ -574,7 +575,10 @@ const renderSuccessFromTokens = async (tokensParam: string): Promise<Response> =
  * 2. With tokens: verify tokens against DB, render success page with ticket link
  */
 const handlePaymentSuccess = (request: Request): Promise<Response> => {
-  const sessionId = getSearchParam(request, "session_id");
+  // Stripe uses session_id via {CHECKOUT_SESSION_ID} template variable;
+  // Square appends orderId as a query parameter to the redirect URL
+  const sessionId = getSearchParam(request, "session_id") ||
+    getSearchParam(request, "orderId");
   if (sessionId) return processSessionAndRedirect(sessionId);
 
   const tokensParam = getSearchParam(request, "tokens");
@@ -703,8 +707,12 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Read raw body for signature verification
   const payload = await request.text();
 
+  // Derive webhook URL from request for signature verification (Square needs
+  // the exact URL registered in the subscription to compute the HMAC signature)
+  const webhookUrl = `${getBaseUrl(request)}/payment/webhook`;
+
   // Verify signature
-  const verification = await provider.verifyWebhookSignature(payload, signature);
+  const verification = await provider.verifyWebhookSignature(payload, signature, webhookUrl);
   if (!verification.valid) {
     return new Response(verification.error, { status: 400 });
   }

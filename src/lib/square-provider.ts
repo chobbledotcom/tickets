@@ -12,7 +12,6 @@
  * - Webhook setup is manual (user provides signature key from dashboard)
  */
 
-import { getAllowedDomain } from "#lib/config.ts";
 import { logDebug } from "#lib/logger.ts";
 import {
   extractSessionMetadata,
@@ -95,10 +94,9 @@ export const squarePaymentProvider: PaymentProvider = {
   verifyWebhookSignature(
     payload: string,
     signature: string,
+    webhookUrl: string,
   ): Promise<WebhookVerifyResult> {
-    const domain = getAllowedDomain();
-    const notificationUrl = `https://${domain}/payment/webhook`;
-    return verifyWebhookSignature(payload, signature, notificationUrl);
+    return verifyWebhookSignature(payload, signature, webhookUrl);
   },
 
   refundPayment(paymentReference: string): Promise<boolean> {
