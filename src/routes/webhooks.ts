@@ -35,13 +35,12 @@ import {
   type WebhookEvent,
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
-import { getCurrencyCode } from "#lib/config.ts";
+import { getAllowedDomain, getCurrencyCode } from "#lib/config.ts";
 import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import { parseTokens } from "#routes/token-utils.ts";
 import {
   formatCreationError,
-  getBaseUrl,
   getSearchParam,
   htmlResponse,
   isRegistrationClosed,
@@ -707,9 +706,11 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Read raw body for signature verification
   const payload = await request.text();
 
-  // Derive webhook URL from request for signature verification (Square needs
-  // the exact URL registered in the subscription to compute the HMAC signature)
-  const webhookUrl = `${getBaseUrl(request)}/payment/webhook`;
+  // Use the public-facing domain for signature verification. Square signs the
+  // webhook using the exact notification URL from the subscription, which is the
+  // public https:// URL. Deriving from request.url fails behind CDNs that
+  // terminate TLS (the edge runtime sees http:// instead of https://).
+  const webhookUrl = `https://${getAllowedDomain()}/payment/webhook`;
 
   // Verify signature
   const verification = await provider.verifyWebhookSignature(payload, signature, webhookUrl);
