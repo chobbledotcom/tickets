@@ -72,6 +72,7 @@ describe("server (admin guide)", () => {
     test("contains payment setup section with Square instructions", async () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();
+      expect(html).toContain("create a Square application");
       expect(html).toContain("Square access token");
       expect(html).toContain("Square location ID");
       expect(html).toContain("developer.squareup.com");

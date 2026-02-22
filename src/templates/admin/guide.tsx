@@ -273,6 +273,32 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
+        <Q q="How do I create a Square application?">
+          <p>
+            Before you can accept payments with Square, you need to create an
+            application in the Square Developer Dashboard. This gives you the
+            API credentials the system needs.
+          </p>
+          <ol>
+            <li>
+              Go to the{" "}
+              <a href="https://developer.squareup.com/apps">
+                Square Developer Dashboard
+              </a>{" "}
+              and sign in with your Square account
+            </li>
+            <li>Click the <strong>+</strong> button to create a new application</li>
+            <li>
+              Give it a name (e.g. your organisation or event name) and click{" "}
+              <strong>Save</strong>
+            </li>
+          </ol>
+          <p>
+            Once created, you can find your access token and location ID from
+            the application's pages (see below).
+          </p>
+        </Q>
+
         <Q q="How do I find my Square access token?">
           <ol>
             <li>
@@ -281,7 +307,7 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
                 Square Developer Dashboard
               </a>
             </li>
-            <li>Select your application (or create one if you haven't already)</li>
+            <li>Select your application</li>
             <li>Open the <strong>Credentials</strong> page</li>
             <li>
               Copy the <strong>Access token</strong> for the environment you want
