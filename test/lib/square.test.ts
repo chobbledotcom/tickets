@@ -1424,6 +1424,7 @@ describe("square", () => {
       const result = await squarePaymentProvider.verifyWebhookSignature(
         '{"test": true}',
         "fakesig",
+        "https://example.com/payment/webhook",
       );
       expect(result.valid).toBe(false);
     });

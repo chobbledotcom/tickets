@@ -1656,6 +1656,7 @@ describe("stripe-provider", () => {
       const result = await stripePaymentProvider.verifyWebhookSignature(
         payload,
         signature,
+        "https://example.com/payment/webhook",
       );
       expect(result.valid).toBe(true);
       if (result.valid) {
@@ -1671,6 +1672,7 @@ describe("stripe-provider", () => {
       const result = await stripePaymentProvider.verifyWebhookSignature(
         '{"test": true}',
         `t=${timestamp},v1=invalid_sig`,
+        "https://example.com/payment/webhook",
       );
 
       expect(result.valid).toBe(false);
