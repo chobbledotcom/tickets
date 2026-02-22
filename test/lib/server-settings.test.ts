@@ -1646,11 +1646,11 @@ describe("server (admin settings)", () => {
     });
   });
 
-  describe("POST /admin/settings/show-events-on-homepage", () => {
+  describe("POST /admin/settings/show-public-site", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/settings/show-events-on-homepage", {
-          show_events_on_homepage: "true",
+        mockFormRequest("/admin/settings/show-public-site", {
+          show_public_site: "true",
         }),
       );
       expectAdminRedirect(response);
@@ -1661,9 +1661,9 @@ describe("server (admin settings)", () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/settings/show-events-on-homepage",
+          "/admin/settings/show-public-site",
           {
-            show_events_on_homepage: "true",
+            show_public_site: "true",
             csrf_token: "invalid-csrf-token",
           },
           cookie,
@@ -1674,14 +1674,14 @@ describe("server (admin settings)", () => {
       expect(text).toContain("Invalid CSRF token");
     });
 
-    test("enables show events on homepage", async () => {
+    test("enables public site", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/settings/show-events-on-homepage",
+          "/admin/settings/show-public-site",
           {
-            show_events_on_homepage: "true",
+            show_public_site: "true",
             csrf_token: csrfToken,
           },
           cookie,
@@ -1690,17 +1690,17 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Events will now be shown on the homepage");
+      expect(decodeURIComponent(location)).toContain("Public site enabled");
     });
 
-    test("disables show events on homepage", async () => {
+    test("disables public site", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/settings/show-events-on-homepage",
+          "/admin/settings/show-public-site",
           {
-            show_events_on_homepage: "false",
+            show_public_site: "false",
             csrf_token: csrfToken,
           },
           cookie,
@@ -1709,7 +1709,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Homepage will redirect to admin");
+      expect(decodeURIComponent(location)).toContain("Public site disabled");
     });
 
     test("setting persists in database", async () => {
@@ -1717,32 +1717,33 @@ describe("server (admin settings)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       // Initially should be false
-      expect(await settingsApi.getShowEventsOnHomepageFromDb()).toBe(false);
+      expect(await settingsApi.getShowPublicSiteFromDb()).toBe(false);
 
       // Enable it
       await handleRequest(
         mockFormRequest(
-          "/admin/settings/show-events-on-homepage",
+          "/admin/settings/show-public-site",
           {
-            show_events_on_homepage: "true",
+            show_public_site: "true",
             csrf_token: csrfToken,
           },
           cookie,
         ),
       );
 
-      expect(await settingsApi.getShowEventsOnHomepageFromDb()).toBe(true);
+      expect(await settingsApi.getShowPublicSiteFromDb()).toBe(true);
     });
 
-    test("settings page displays show events on homepage section", async () => {
+    test("settings page displays show public site section", async () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("Show events on homepage?");
-      expect(html).toContain("show_events_on_homepage");
+      expect(html).toContain("Show public site?");
+      expect(html).toContain("show_public_site");
     });
+
   });
 
   describe("POST /admin/settings/phone-prefix", () => {

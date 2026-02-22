@@ -9,7 +9,7 @@ import {
   getEmbedHostsFromDb,
   getPaymentProviderFromDb,
   getPhonePrefixFromDb,
-  getShowEventsOnHomepageFromDb,
+  getShowPublicSiteFromDb,
   getSquareSandboxFromDb,
   getStripeWebhookEndpointId,
   getTermsAndConditionsFromDb,
@@ -22,7 +22,7 @@ import {
   setStripeWebhookConfig,
   updateEmbedHosts,
   updatePhonePrefix,
-  updateShowEventsOnHomepage,
+  updateShowPublicSite,
   updateSquareAccessToken,
   updateSquareLocationId,
   updateSquareSandbox,
@@ -88,7 +88,7 @@ const getSettingsPageState = async () => {
   const timezone = await getTimezoneFromDb();
   const businessEmail = await getBusinessEmailFromDb();
   const theme = await getThemeFromDb();
-  const showEventsOnHomepage = await getShowEventsOnHomepageFromDb();
+  const showPublicSite = await getShowPublicSiteFromDb();
   const phonePrefix = await getPhonePrefixFromDb();
   return {
     stripeKeyConfigured,
@@ -102,7 +102,7 @@ const getSettingsPageState = async () => {
     timezone,
     businessEmail,
     theme,
-    showEventsOnHomepage,
+    showPublicSite,
     phonePrefix,
   };
 };
@@ -129,7 +129,7 @@ const renderSettingsPage = async (
     state.timezone,
     state.businessEmail,
     state.theme,
-    state.showEventsOnHomepage,
+    state.showPublicSite,
     state.phonePrefix,
   );
 };
@@ -454,19 +454,19 @@ const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
 /** Handle POST /admin/settings/theme - owner only */
 const handleThemePost = settingsRoute(processThemeForm);
 
-/** Validate and save show-events-on-homepage from form submission */
-const processShowEventsOnHomepageForm: SettingsFormHandler = async (form) => {
-  const value = form.get("show_events_on_homepage") === "true";
-  await updateShowEventsOnHomepage(value);
-  await logActivity(`Show events on homepage ${value ? "enabled" : "disabled"}`);
+/** Validate and save show-public-site from form submission */
+const processShowPublicSiteForm: SettingsFormHandler = async (form) => {
+  const value = form.get("show_public_site") === "true";
+  await updateShowPublicSite(value);
+  await logActivity(`Public site ${value ? "enabled" : "disabled"}`);
   return redirectWithSuccess(
     "/admin/settings",
-    value ? "Events will now be shown on the homepage" : "Homepage will redirect to admin",
+    value ? "Public site enabled" : "Public site disabled",
   );
 };
 
-/** Handle POST /admin/settings/show-events-on-homepage - owner only */
-const handleShowEventsOnHomepagePost = settingsRoute(processShowEventsOnHomepageForm);
+/** Handle POST /admin/settings/show-public-site - owner only */
+const handleShowPublicSitePost = settingsRoute(processShowPublicSiteForm);
 
 /** Validate and save phone prefix from form submission */
 const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
@@ -523,7 +523,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/timezone": handleTimezonePost,
   "POST /admin/settings/business-email": handleBusinessEmailPost,
   "POST /admin/settings/theme": handleThemePost,
-  "POST /admin/settings/show-events-on-homepage": handleShowEventsOnHomepagePost,
+  "POST /admin/settings/show-public-site": handleShowPublicSitePost,
   "POST /admin/settings/phone-prefix": handlePhonePrefixPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

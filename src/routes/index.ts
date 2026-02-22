@@ -35,8 +35,15 @@ const loadAdminRoutes = once(async () => {
 
 /** Lazy-load public routes (ticket reservation) */
 const loadPublicRoutes = once(async () => {
-  const { handleHome, handleHomePost, routeTicket } = await import("#routes/public.ts");
-  return { handleHome, handleHomePost, routeTicket };
+  const {
+    handleHome,
+    handlePublicEvents,
+    handlePublicEventsPost,
+    handlePublicTerms,
+    handlePublicContact,
+    routeTicket,
+  } = await import("#routes/public.ts");
+  return { handleHome, handlePublicEvents, handlePublicEventsPost, handlePublicTerms, handlePublicContact, routeTicket };
 });
 
 /** Lazy-load setup routes */
@@ -102,11 +109,28 @@ const createLazyRoute =
   };
 
 /** Route home page requests */
-const routeHome: RouterFn = async (request, path, method) => {
-  if (path !== "/") return null;
-  const { handleHome, handleHomePost } = await loadPublicRoutes();
-  if (method === "GET") return handleHome();
-  if (method === "POST") return handleHomePost(request);
+const routeHome: RouterFn = async (_request, path, method) => {
+  if (path !== "/" || method !== "GET") return null;
+  const { handleHome } = await loadPublicRoutes();
+  return handleHome();
+};
+
+/** Route public site pages (/events, /terms, /contact) */
+const routePublicPages: RouterFn = async (request, path, method) => {
+  if (path === "/events") {
+    const { handlePublicEvents, handlePublicEventsPost } = await loadPublicRoutes();
+    if (method === "GET") return handlePublicEvents();
+    if (method === "POST") return handlePublicEventsPost(request);
+    return null;
+  }
+  if (path === "/terms" && method === "GET") {
+    const { handlePublicTerms } = await loadPublicRoutes();
+    return handlePublicTerms();
+  }
+  if (path === "/contact" && method === "GET") {
+    const { handlePublicContact } = await loadPublicRoutes();
+    return handlePublicContact();
+  }
   return null;
 };
 
@@ -128,6 +152,7 @@ const routeImagePath = createLazyRoute("/image", loadImageRoutes);
  */
 const routeMainApp: RouterFn = async (request, path, method, server) =>
   (await routeHome(request, path, method, server)) ??
+  (await routePublicPages(request, path, method, server)) ??
   (await routeAdminPath(request, path, method, server)) ??
   (await routeTicketPath(request, path, method, server)) ??
   (await routeTicketViewPath(request, path, method, server)) ??

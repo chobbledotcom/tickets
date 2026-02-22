@@ -5,7 +5,13 @@
 import { compact, filter, map, pipe, reduce } from "#fp";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
-import { getShowEventsOnHomepageFromDb, getTermsAndConditionsFromDb } from "#lib/db/settings.ts";
+import {
+  getContactPageTextFromDb,
+  getHomepageTextFromDb,
+  getShowPublicSiteFromDb,
+  getTermsAndConditionsFromDb,
+  getWebsiteTitleFromDb,
+} from "#lib/db/settings.ts";
 import { getAvailableDates } from "#lib/dates.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { checkBatchAvailability, createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
@@ -48,6 +54,8 @@ import {
   homepagePage,
   type MultiTicketEvent,
   multiTicketPage,
+  publicSitePage,
+  type PublicPageType,
   ticketPage,
 } from "#templates/public.tsx";
 
@@ -58,45 +66,65 @@ const loadHomepageEvents = async (): Promise<MultiTicketEvent[]> => {
   return sorted.map((e) => buildMultiTicketEvent(e, isRegistrationClosed(e)));
 };
 
-/**
- * Handle GET / (home page) - redirect to admin or show events
- */
-export const handleHome = async (): Promise<Response> => {
-  if (!await getShowEventsOnHomepageFromDb()) return redirect("/admin/");
+/** Guard: redirect to admin if public site is disabled */
+const requirePublicSite = async (fn: () => Promise<Response>): Promise<Response> =>
+  await getShowPublicSiteFromDb() ? fn() : redirect("/admin/");
 
-  const events = await loadHomepageEvents();
-  const [dates, terms] = await Promise.all([
-    computeSharedDates(events),
-    getTermsAndConditionsFromDb(),
-    signCsrfToken(),
-  ]);
-  return htmlResponse(homepagePage(events, undefined, dates ?? [], terms));
-};
+/** Render a public site page with website title and content fetched in parallel */
+const renderPublicPage = (
+  pageType: PublicPageType,
+  getContent: () => Promise<string | null>,
+): Promise<Response> =>
+  requirePublicSite(async () => {
+    const [websiteTitle, content] = await Promise.all([getWebsiteTitleFromDb(), getContent()]);
+    return htmlResponse(publicSitePage(pageType, websiteTitle, content));
+  });
 
-/**
- * Handle POST / (home page form submission)
- */
-export const handleHomePost = async (request: Request): Promise<Response> => {
-  if (!await getShowEventsOnHomepageFromDb()) return redirect("/admin/");
+/** Handle GET / (home page) - redirect to admin or show public site */
+export const handleHome = (): Promise<Response> =>
+  renderPublicPage("home", getHomepageTextFromDb);
 
-  const activeEvents = await loadHomepageEvents();
-  if (activeEvents.length === 0) return redirect("/");
+/** Handle GET /events - public events listing */
+export const handlePublicEvents = (): Promise<Response> =>
+  requirePublicSite(async () => {
+    const events = await loadHomepageEvents();
+    const [dates, terms, websiteTitle] = await Promise.all([
+      computeSharedDates(events),
+      getTermsAndConditionsFromDb(),
+      getWebsiteTitleFromDb(),
+      signCsrfToken(),
+    ]);
+    return htmlResponse(homepagePage(events, undefined, dates ?? [], terms, websiteTitle));
+  });
 
-  const [dates, terms] = await Promise.all([
-    computeSharedDates(activeEvents),
-    getTermsAndConditionsFromDb(),
-    signCsrfToken(),
-  ]);
-  const ctx: MultiTicketCtx = {
-    slugs: activeEvents.map((e) => e.event.slug),
-    events: activeEvents,
-    dates: dates ?? [],
-    terms: terms ?? "",
-    inIframe: false,
-  };
+/** Handle POST /events - public events form submission */
+export const handlePublicEventsPost = (request: Request): Promise<Response> =>
+  requirePublicSite(async () => {
+    const activeEvents = await loadHomepageEvents();
+    if (activeEvents.length === 0) return redirect("/events");
 
-  return submitMultiTicket(request, ctx);
-};
+    const [dates, terms] = await Promise.all([
+      computeSharedDates(activeEvents),
+      getTermsAndConditionsFromDb(),
+      signCsrfToken(),
+    ]);
+    const ctx: MultiTicketCtx = {
+      slugs: activeEvents.map((e) => e.event.slug),
+      events: activeEvents,
+      dates: dates ?? [],
+      terms: terms ?? "",
+      inIframe: false,
+    };
+    return submitMultiTicket(request, ctx);
+  });
+
+/** Handle GET /terms - public terms and conditions page */
+export const handlePublicTerms = (): Promise<Response> =>
+  renderPublicPage("terms", getTermsAndConditionsFromDb);
+
+/** Handle GET /contact - public contact page */
+export const handlePublicContact = (): Promise<Response> =>
+  renderPublicPage("contact", getContactPageTextFromDb);
 
 /** Ticket response builder (CSRF token auto-embedded by CsrfForm) */
 const ticketResponseWithToken =

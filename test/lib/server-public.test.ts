@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { updateShowEventsOnHomepage, updateTermsAndConditions } from "#lib/db/settings.ts";
+import { updateContactPageText, updateHomepageText, updateShowPublicSite, updateTermsAndConditions, updateWebsiteTitle } from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -40,44 +40,59 @@ describe("server (public routes)", () => {
   });
 
   describe("GET /", () => {
-    test("redirects to admin when show events on homepage is disabled", async () => {
+    test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(mockRequest("/"));
       expectRedirect("/admin/")(response);
     });
 
-    test("shows no events message when enabled but no events exist", async () => {
-      await updateShowEventsOnHomepage(true);
+    test("shows public homepage when enabled", async () => {
+      await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/"));
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("No events listed.");
+      expect(html).toContain("Home");
       expect(html).toContain("/admin/login");
     });
 
-    test("shows active events when enabled with events", async () => {
-      await updateShowEventsOnHomepage(true);
-      const event = await createTestEvent({ name: "Concert", maxAttendees: 100 });
+    test("shows website title on homepage", async () => {
+      await updateShowPublicSite(true);
+      await updateWebsiteTitle("My Cool Site");
       const response = await handleRequest(mockRequest("/"));
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain(event.name);
-      expect(html).toContain("Reserve Tickets");
-      expect(html).toContain("/admin/login");
+      expect(html).toContain("My Cool Site");
     });
 
-    test("does not show inactive events on homepage", async () => {
-      await updateShowEventsOnHomepage(true);
-      const event = await createTestEvent({ name: "Hidden Event", maxAttendees: 100 });
-      await deactivateTestEvent(event.id);
+    test("shows homepage text when configured", async () => {
+      await updateShowPublicSite(true);
+      await updateHomepageText("Welcome to our events!");
       const response = await handleRequest(mockRequest("/"));
       expect(response.status).toBe(200);
       const html = await response.text();
-      expect(html).toContain("No events listed.");
-      expect(html).not.toContain("Hidden Event");
+      expect(html).toContain("Welcome to our events!");
+    });
+
+    test("shows no content message when homepage text not set", async () => {
+      await updateShowPublicSite(true);
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No content.");
+    });
+
+    test("shows public nav links", async () => {
+      await updateShowPublicSite(true);
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('href="/"');
+      expect(html).toContain('href="/events"');
+      expect(html).toContain('href="/terms"');
+      expect(html).toContain('href="/contact"');
     });
 
     test("shows login link styled as footer", async () => {
-      await updateShowEventsOnHomepage(true);
+      await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/"));
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -86,8 +101,71 @@ describe("server (public routes)", () => {
       expect(html).toContain("Login");
     });
 
+    test("returns 404 for non-GET requests to /", async () => {
+      const response = await handleRequest(
+        mockRequest("/", { method: "PUT" }),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("preserves line breaks in homepage text", async () => {
+      await updateShowPublicSite(true);
+      await updateHomepageText("Line one\nLine two");
+      const response = await handleRequest(mockRequest("/"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Line one<br>Line two");
+    });
+  });
+
+  describe("GET /events", () => {
+    test("redirects to admin when public site is disabled", async () => {
+      const response = await handleRequest(mockRequest("/events"));
+      expectRedirect("/admin/")(response);
+    });
+
+    test("shows no events message when enabled but no events exist", async () => {
+      await updateShowPublicSite(true);
+      const response = await handleRequest(mockRequest("/events"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No events listed.");
+      expect(html).toContain("/admin/login");
+    });
+
+    test("shows website title with no events message", async () => {
+      await updateShowPublicSite(true);
+      await updateWebsiteTitle("My Events");
+      const response = await handleRequest(mockRequest("/events"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No events listed.");
+      expect(html).toContain("My Events");
+    });
+
+    test("shows active events when enabled with events", async () => {
+      await updateShowPublicSite(true);
+      const event = await createTestEvent({ name: "Concert", maxAttendees: 100 });
+      const response = await handleRequest(mockRequest("/events"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain(event.name);
+      expect(html).toContain("Reserve Tickets");
+    });
+
+    test("does not show inactive events", async () => {
+      await updateShowPublicSite(true);
+      const event = await createTestEvent({ name: "Hidden Event", maxAttendees: 100 });
+      await deactivateTestEvent(event.id);
+      const response = await handleRequest(mockRequest("/events"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No events listed.");
+      expect(html).not.toContain("Hidden Event");
+    });
+
     test("shows sold out message when all events are at capacity", async () => {
-      await updateShowEventsOnHomepage(true);
+      await updateShowPublicSite(true);
       const event = await createTestEvent({ name: "Full Event", maxAttendees: 1 });
       await createAttendeeAtomic({
         eventId: event.id,
@@ -95,85 +173,99 @@ describe("server (public routes)", () => {
         email: "a@test.com",
         quantity: 1,
       });
-      const response = await handleRequest(mockRequest("/"));
+      const response = await handleRequest(mockRequest("/events"));
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("sold out");
     });
 
     test("shows registration closed when all events have passed closes_at", async () => {
-      await updateShowEventsOnHomepage(true);
+      await updateShowPublicSite(true);
       const pastDate = new Date(Date.now() - 60000).toISOString().slice(0, 16);
       await createTestEvent({
         name: "Closed Event",
         maxAttendees: 100,
         closesAt: pastDate,
       });
-      const response = await handleRequest(mockRequest("/"));
+      const response = await handleRequest(mockRequest("/events"));
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Registration closed");
     });
 
     test("shows date selector for daily events", async () => {
-      await updateShowEventsOnHomepage(true);
+      await updateShowPublicSite(true);
       await createTestEvent({
         name: "Daily Class",
         maxAttendees: 100,
         eventType: "daily",
       });
-      const response = await handleRequest(mockRequest("/"));
+      const response = await handleRequest(mockRequest("/events"));
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("date");
     });
 
     test("shows terms and conditions when configured", async () => {
-      await updateShowEventsOnHomepage(true);
+      await updateShowPublicSite(true);
       await createTestEvent({ name: "Event With Terms", maxAttendees: 100 });
       await updateTermsAndConditions("You must agree to these terms.");
-      const response = await handleRequest(mockRequest("/"));
+      const response = await handleRequest(mockRequest("/events"));
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("You must agree to these terms.");
     });
 
-    test("returns 404 for non-GET/POST requests", async () => {
-      const response = await handleRequest(
-        mockRequest("/", { method: "PUT" }),
-      );
-      expect(response.status).toBe(404);
+    test("shows website title on events page", async () => {
+      await updateShowPublicSite(true);
+      await updateWebsiteTitle("My Events Site");
+      await createTestEvent({ name: "Concert", maxAttendees: 100 });
+      const response = await handleRequest(mockRequest("/events"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("My Events Site");
+    });
+
+    test("shows public nav on events page", async () => {
+      await updateShowPublicSite(true);
+      const response = await handleRequest(mockRequest("/events"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('href="/"');
+      expect(html).toContain('href="/events"');
+      expect(html).toContain('href="/terms"');
+      expect(html).toContain('href="/contact"');
     });
   });
 
-  describe("POST /", () => {
-    test("redirects to admin when show events on homepage is disabled", async () => {
+  describe("POST /events", () => {
+    test("redirects to admin when public site is disabled", async () => {
       const response = await handleRequest(
-        mockFormRequest("/", { name: "Test" }),
+        mockFormRequest("/events", { name: "Test" }),
       );
       expectRedirect("/admin/")(response);
     });
 
-    test("redirects to / when enabled but no active events exist", async () => {
-      await updateShowEventsOnHomepage(true);
+    test("redirects to /events when enabled but no active events exist", async () => {
+      await updateShowPublicSite(true);
       const response = await handleRequest(
-        mockFormRequest("/", { name: "Test" }),
+        mockFormRequest("/events", { name: "Test" }),
       );
-      expectRedirect("/")(response);
+      expectRedirect("/events")(response);
     });
 
     test("processes form submission when enabled with events", async () => {
-      await updateShowEventsOnHomepage(true);
+      await updateShowPublicSite(true);
       const event = await createTestEvent({ name: "Concert", maxAttendees: 100 });
 
       // First GET the page to get a CSRF token
-      const getResponse = await handleRequest(mockRequest("/"));
+      const getResponse = await handleRequest(mockRequest("/events"));
       const html = await getResponse.text();
       const csrfToken = getTicketCsrfToken(html)!;
 
       // Submit the form with the CSRF token from the page
       const response = await handleRequest(
-        mockFormRequest("/", {
+        mockFormRequest("/events", {
           name: "Test Person",
           email: "test@example.com",
           [`quantity_${event.id}`]: "1",
@@ -183,6 +275,106 @@ describe("server (public routes)", () => {
 
       // Should redirect to reserved page on success
       expectReservedRedirectWithTokens(response);
+    });
+  });
+
+  describe("GET /terms", () => {
+    test("redirects to admin when public site is disabled", async () => {
+      const response = await handleRequest(mockRequest("/terms"));
+      expectRedirect("/admin/")(response);
+    });
+
+    test("shows terms page when enabled", async () => {
+      await updateShowPublicSite(true);
+      await updateTermsAndConditions("Our terms and conditions.");
+      const response = await handleRequest(mockRequest("/terms"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Our terms and conditions.");
+      expect(html).toContain("T&amp;Cs");
+    });
+
+    test("shows no content when terms not configured", async () => {
+      await updateShowPublicSite(true);
+      const response = await handleRequest(mockRequest("/terms"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No content.");
+    });
+
+    test("shows website title on terms page", async () => {
+      await updateShowPublicSite(true);
+      await updateWebsiteTitle("My Site");
+      const response = await handleRequest(mockRequest("/terms"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("My Site");
+    });
+  });
+
+  describe("GET /contact", () => {
+    test("redirects to admin when public site is disabled", async () => {
+      const response = await handleRequest(mockRequest("/contact"));
+      expectRedirect("/admin/")(response);
+    });
+
+    test("shows contact page when enabled", async () => {
+      await updateShowPublicSite(true);
+      await updateContactPageText("Email us at hello@example.com");
+      const response = await handleRequest(mockRequest("/contact"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Email us at hello@example.com");
+      expect(html).toContain("Contact");
+    });
+
+    test("shows no content when contact text not configured", async () => {
+      await updateShowPublicSite(true);
+      const response = await handleRequest(mockRequest("/contact"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No content.");
+    });
+
+    test("shows website title on contact page", async () => {
+      await updateShowPublicSite(true);
+      await updateWebsiteTitle("My Site");
+      const response = await handleRequest(mockRequest("/contact"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("My Site");
+    });
+
+    test("preserves line breaks in contact text", async () => {
+      await updateShowPublicSite(true);
+      await updateContactPageText("Phone: 123\nEmail: test@test.com");
+      const response = await handleRequest(mockRequest("/contact"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Phone: 123<br>Email: test@test.com");
+    });
+
+    test("returns 404 for non-GET requests to /contact", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/contact", { name: "Test" }),
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("non-GET/POST requests to public pages", () => {
+    test("returns 404 for POST to /terms", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/terms", { name: "Test" }),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 for PUT to /events", async () => {
+      const response = await handleRequest(
+        mockRequest("/events", { method: "PUT" }),
+      );
+      expect(response.status).toBe(404);
     });
   });
 

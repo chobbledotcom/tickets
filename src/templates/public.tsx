@@ -12,6 +12,56 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
+/** Public site navigation */
+const PublicNav = (): JSX.Element => (
+  <nav>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/events">Events</a></li>
+      <li><a href="/terms">T&amp;Cs</a></li>
+      <li><a href="/contact">Contact</a></li>
+    </ul>
+  </nav>
+);
+
+/** Public site page type */
+export type PublicPageType = "home" | "terms" | "contact";
+
+/** Render a plain-text content block with line breaks preserved */
+const renderPlainText = (text: string): string =>
+  escapeHtml(text).replace(/\r\n|\r|\n/g, "<br>");
+
+/**
+ * Public site page - basic page with nav and content
+ */
+export const publicSitePage = (
+  pageType: PublicPageType,
+  websiteTitle?: string | null,
+  content?: string | null,
+): string => {
+  const titles: Record<PublicPageType, string> = {
+    home: "Home",
+    terms: "Terms & Conditions",
+    contact: "Contact",
+  };
+  const pageTitle = websiteTitle ? `${titles[pageType]} - ${websiteTitle}` : titles[pageType];
+
+  return String(
+    <Layout title={pageTitle}>
+      {websiteTitle && <h1>{websiteTitle}</h1>}
+      <PublicNav />
+      {content ? (
+        <p><Raw html={renderPlainText(content)} /></p>
+      ) : (
+        <p><em>No content.</em></p>
+      )}
+      <footer class="homepage-footer">
+        <p><a href="/admin/login">Login</a></p>
+      </footer>
+    </Layout>
+  );
+};
+
 /**
  * Homepage with events - shows all active upcoming events as a multi-ticket booking page
  */
@@ -20,10 +70,15 @@ export const homepagePage = (
   error?: string,
   availableDates?: string[],
   termsAndConditions?: string | null,
+  websiteTitle?: string | null,
 ): string => {
+  const title = websiteTitle ? `Events - ${websiteTitle}` : "Events";
+
   if (events.length === 0) {
     return String(
-      <Layout title="Events">
+      <Layout title={title}>
+        {websiteTitle && <h1>{websiteTitle}</h1>}
+        <PublicNav />
         <p><em>No events listed.</em></p>
         <footer class="homepage-footer">
           <p><a href="/admin/login">Login</a></p>
@@ -44,13 +99,15 @@ export const homepagePage = (
   )(events);
 
   return String(
-    <Layout title="Events">
+    <Layout title={title}>
+      {websiteTitle && <h1>{websiteTitle}</h1>}
+      <PublicNav />
       <Raw html={renderError(error)} />
 
       {allUnavailable ? (
         <div class="error">{allClosed ? "Registration closed." : "Sorry, all events are sold out."}</div>
       ) : (
-        <CsrfForm action="/">
+        <CsrfForm action="/events">
           <Raw html={renderFields(fields)} />
           {hasDaily && availableDates && (
             <Raw html={renderDateSelector(availableDates)} />
