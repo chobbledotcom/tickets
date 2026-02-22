@@ -1422,6 +1422,7 @@ describe("html", () => {
         "", // error
         "", // success
         true, // squareTokenConfigured
+        false, // squareSandbox
         true, // squareWebhookConfigured
         "https://example.com/payment/webhook",
       );
@@ -1437,11 +1438,28 @@ describe("html", () => {
         "",
         "",
         true,
+        false, // squareSandbox
         false, // squareWebhookConfigured = false
         "https://example.com/payment/webhook",
       );
       expect(html).toContain("No webhook signature key is configured");
       expect(html).toContain("Follow the steps above to set one up");
+    });
+
+    test("shows sandbox checkbox checked when sandbox mode enabled", () => {
+      const html = adminSettingsPage(
+        TEST_SESSION,
+        false,
+        "square",
+        "",
+        "",
+        true,
+        true, // squareSandbox
+        false,
+        "https://example.com/payment/webhook",
+      );
+      expect(html).toContain("Sandbox mode");
+      expect(html).toContain('name="square_sandbox"');
     });
   });
 

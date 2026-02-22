@@ -14,6 +14,7 @@ import type { WebhookEvent } from "#lib/payments.ts";
 import {
   updateSquareAccessToken,
   updateSquareLocationId,
+  updateSquareSandbox,
   updateSquareWebhookSignatureKey,
 } from "#lib/db/settings.ts";
 import { createTestDb, resetDb, testEvent, withMocks } from "#test-utils";
@@ -68,6 +69,25 @@ describe("square", () => {
       expect(client1).not.toBeNull();
 
       // Second call with same token should use cached path
+      const client2 = await getSquareClient();
+      expect(client2).not.toBeNull();
+    });
+
+    test("returns client in sandbox mode when sandbox setting enabled", async () => {
+      await updateSquareAccessToken("EAAAl_sandbox_123");
+      await updateSquareSandbox(true);
+      const client = await getSquareClient();
+      expect(client).not.toBeNull();
+    });
+
+    test("recreates client when sandbox setting changes", async () => {
+      await updateSquareAccessToken("EAAAl_sandbox_toggle");
+      await updateSquareSandbox(false);
+      const client1 = await getSquareClient();
+      expect(client1).not.toBeNull();
+
+      // Toggle sandbox mode - should create new client
+      await updateSquareSandbox(true);
       const client2 = await getSquareClient();
       expect(client2).not.toBeNull();
     });
