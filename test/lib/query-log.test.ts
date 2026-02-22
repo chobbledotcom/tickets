@@ -3,6 +3,7 @@ import {
   addQueryLogEntry,
   enableQueryLog,
   getQueryLog,
+  getQueryLogStartTime,
   isQueryLogEnabled,
   runWithQueryLogContext,
 } from "#lib/db/query-log.ts";
@@ -68,6 +69,35 @@ describe("query-log", () => {
         addQueryLogEntry("SELECT 2", 2.0);
         expect(snapshot).toHaveLength(1);
         expect(getQueryLog()).toHaveLength(2);
+      });
+    });
+  });
+
+  describe("getQueryLogStartTime", () => {
+    test("returns 0 before logging is enabled", () => {
+      runWithQueryLogContext(() => {
+        expect(getQueryLogStartTime()).toBe(0);
+      });
+    });
+
+    test("records start time when enableQueryLog is called", () => {
+      runWithQueryLogContext(() => {
+        const before = performance.now();
+        enableQueryLog();
+        const after = performance.now();
+        const startTime = getQueryLogStartTime();
+        expect(startTime).toBeGreaterThanOrEqual(before);
+        expect(startTime).toBeLessThanOrEqual(after);
+      });
+    });
+
+    test("resets start time on subsequent enableQueryLog calls", () => {
+      runWithQueryLogContext(() => {
+        enableQueryLog();
+        const first = getQueryLogStartTime();
+        enableQueryLog();
+        const second = getQueryLogStartTime();
+        expect(second).toBeGreaterThanOrEqual(first);
       });
     });
   });

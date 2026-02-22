@@ -1,11 +1,13 @@
 /**
  * Admin routes - combined from individual route modules
  *
- * GET requests are wrapped to track SQL queries and inject an
- * owner-only debug footer showing render time and query details.
+ * GET requests are wrapped to enable SQL query logging for owner users.
+ * The owner debug footer is rendered inline by the Layout template when
+ * query logging is active, avoiding response body re-reading which
+ * intermittently fails on Bunny Edge.
  */
 
-import { enableQueryLog, getQueryLog } from "#lib/db/query-log.ts";
+import { enableQueryLog } from "#lib/db/query-log.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
@@ -20,7 +22,6 @@ import { scannerRoutes } from "#routes/admin/scanner.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
 import { createRouter } from "#routes/router.ts";
 import { getAuthenticatedSession } from "#routes/utils.ts";
-import { ownerFooterHtml } from "#templates/admin/footer.tsx";
 
 /** Combined admin routes */
 const adminRoutes = {
@@ -44,8 +45,8 @@ type RouterFn = ReturnType<typeof createRouter>;
 
 /**
  * Route admin requests.
- * For GET requests, enables query tracking and injects the owner debug
- * footer into HTML responses when the authenticated user is an owner.
+ * For GET requests by owners, enables query logging so the Layout template
+ * renders the debug footer inline (no response body re-reading needed).
  */
 export const routeAdmin: RouterFn = async (request, path, method, server) => {
   if (method !== "GET") {
@@ -54,29 +55,7 @@ export const routeAdmin: RouterFn = async (request, path, method, server) => {
 
   // Check owner status before tracking so the auth queries aren't logged
   const session = await getAuthenticatedSession(request);
-  const isOwner = session?.adminLevel === "owner";
+  if (session?.adminLevel === "owner") enableQueryLog();
 
-  if (isOwner) enableQueryLog();
-  const startTime = performance.now();
-
-  const response = await innerRouter(request, path, method, server);
-  if (!response) return null;
-  if (!isOwner) return response;
-
-  if (response.status !== 200) return response;
-  if (!response.headers.get("content-type")!.includes("text/html")) {
-    return response;
-  }
-
-  const html = await response.text();
-  const footer = ownerFooterHtml(
-    performance.now() - startTime,
-    getQueryLog(),
-  );
-  // Delete content-length so the runtime recalculates it for the modified body
-  response.headers.delete("content-length");
-  return new Response(html.replace("</body>", footer + "</body>"), {
-    status: response.status,
-    headers: response.headers,
-  });
+  return innerRouter(request, path, method, server);
 };

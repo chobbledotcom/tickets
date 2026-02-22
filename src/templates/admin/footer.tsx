@@ -2,7 +2,12 @@
  * Owner-only debug footer showing render time and SQL queries
  */
 
-import type { QueryLogEntry } from "#lib/db/query-log.ts";
+import {
+  type QueryLogEntry,
+  getQueryLog,
+  getQueryLogStartTime,
+  isQueryLogEnabled,
+} from "#lib/db/query-log.ts";
 
 /** Render the owner debug footer as an HTML string for injection before </body> */
 export const ownerFooterHtml = (
@@ -23,6 +28,16 @@ export const ownerFooterHtml = (
   `</ul>` +
   `</details>` +
   `</footer>`;
+
+/**
+ * Return the owner debug footer HTML if query logging is active, otherwise "".
+ * Called from the Layout template so the footer is part of the HTML string
+ * before it is wrapped in a Response, avoiding response.text() on Bunny Edge.
+ */
+export const renderOwnerDebugFooter = (): string =>
+  isQueryLogEnabled()
+    ? ownerFooterHtml(performance.now() - getQueryLogStartTime(), getQueryLog())
+    : "";
 
 /** Minimal HTML escaping for SQL strings in the footer */
 const escapeFooterHtml = (s: string): string =>
