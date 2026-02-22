@@ -32,7 +32,7 @@ export const adminSettingsPage = (
   timezone?: string,
   businessEmail?: string,
   theme?: string,
-  showEventsOnHomepage?: boolean,
+  showPublicSite?: boolean,
   phonePrefix?: string,
 ): string =>
   String(
@@ -226,25 +226,25 @@ export const adminSettingsPage = (
           <button type="submit">Change Password</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/show-events-on-homepage">
-            <h2>Show events on homepage?</h2>
-          <p>When enabled, the homepage will display all upcoming active events as a booking page instead of redirecting to the admin area.</p>
+        <CsrfForm action="/admin/settings/show-public-site">
+            <h2>Show public site?</h2>
+          <p>When enabled, the homepage will show a public website with navigation for Home, Events, T&amp;Cs and Contact pages.</p>
           <fieldset>
             <label>
               <input
                 type="radio"
-                name="show_events_on_homepage"
+                name="show_public_site"
                 value="true"
-                checked={showEventsOnHomepage === true}
+                checked={showPublicSite === true}
               />
               Yes
             </label>
             <label>
               <input
                 type="radio"
-                name="show_events_on_homepage"
+                name="show_public_site"
                 value="false"
-                checked={showEventsOnHomepage !== true}
+                checked={showPublicSite !== true}
               />
               No
             </label>

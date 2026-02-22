@@ -6,6 +6,7 @@
  */
 
 import { enableQueryLog, getQueryLog } from "#lib/db/query-log.ts";
+import { loadAllSettings } from "#lib/db/settings.ts";
 import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
@@ -16,6 +17,7 @@ import { groupsRoutes } from "#routes/admin/groups.ts";
 import { holidaysRoutes } from "#routes/admin/holidays.ts";
 import { sessionsRoutes } from "#routes/admin/sessions.ts";
 import { settingsRoutes } from "#routes/admin/settings.ts";
+import { siteRoutes } from "#routes/admin/site.ts";
 import { scannerRoutes } from "#routes/admin/scanner.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
 import { createRouter } from "#routes/router.ts";
@@ -27,6 +29,7 @@ const adminRoutes = {
   ...dashboardRoutes,
   ...authRoutes,
   ...settingsRoutes,
+  ...siteRoutes,
   ...sessionsRoutes,
   ...calendarRoutes,
   ...eventsRoutes,
@@ -56,7 +59,10 @@ export const routeAdmin: RouterFn = async (request, path, method, server) => {
   const session = await getAuthenticatedSession(request);
   const isOwner = session?.adminLevel === "owner";
 
-  if (isOwner) enableQueryLog();
+  if (isOwner) {
+    enableQueryLog();
+    await loadAllSettings();
+  }
   const startTime = performance.now();
 
   const response = await innerRouter(request, path, method, server);
