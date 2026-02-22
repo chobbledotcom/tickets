@@ -1,5 +1,6 @@
 import { describe, expect, test } from "#test-compat";
-import { ownerFooterHtml } from "#templates/admin/footer.tsx";
+import { enableQueryLog, runWithQueryLogContext } from "#lib/db/query-log.ts";
+import { ownerFooterHtml, renderOwnerDebugFooter } from "#templates/admin/footer.tsx";
 
 describe("ownerFooterHtml", () => {
   test("renders summary with render time", () => {
@@ -56,5 +57,23 @@ describe("ownerFooterHtml", () => {
     expect(html).toContain("<ul");
     expect(html).toContain("</ul>");
     expect(html).not.toContain("<li>");
+  });
+});
+
+describe("renderOwnerDebugFooter", () => {
+  test("returns empty string when query logging is not active", () => {
+    runWithQueryLogContext(() => {
+      expect(renderOwnerDebugFooter()).toBe("");
+    });
+  });
+
+  test("returns footer HTML when query logging is active", () => {
+    runWithQueryLogContext(() => {
+      enableQueryLog();
+      const html = renderOwnerDebugFooter();
+      expect(html).toContain('<footer class="debug-footer">');
+      expect(html).toContain("Chobble Tickets");
+      expect(html).toContain("ms</summary>");
+    });
   });
 });
