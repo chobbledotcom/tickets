@@ -11,6 +11,7 @@
  */
 
 import type { Square } from "square";
+import { SquareEnvironment } from "square";
 import { lazyRef, map, once } from "#fp";
 import {
   getCurrencyCode,
@@ -143,7 +144,7 @@ const createSquareClient = async (accessToken: string, sandbox: boolean) => {
   const SquareClient = await loadSquare();
   return new SquareClient({
     token: accessToken,
-    environment: sandbox ? "sandbox" : "production",
+    environment: sandbox ? SquareEnvironment.Sandbox : SquareEnvironment.Production,
   });
 };
 
