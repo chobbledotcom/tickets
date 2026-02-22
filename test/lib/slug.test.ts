@@ -8,29 +8,20 @@ describe("slug", () => {
       expect(slug.length).toBe(5);
     });
 
-    test("generates slugs from valid alphabet", () => {
-      const validChars = "0123456789abcdefgh";
+    test("generates slugs using only digits and lowercase letters a-h", () => {
       for (let i = 0; i < 50; i++) {
         const slug = generateSlug();
-        for (const ch of slug) {
-          expect(validChars.includes(ch)).toBe(true);
-        }
+        expect(slug).toMatch(/^[0-9a-h]{5}$/);
       }
     });
 
     test("generates slugs with at least 2 digits and 2 letters", () => {
-      const digits = "0123456789";
-      const letters = "abcdefgh";
       for (let i = 0; i < 50; i++) {
         const slug = generateSlug();
-        let digitCount = 0;
-        let letterCount = 0;
-        for (const ch of slug) {
-          if (digits.includes(ch)) digitCount++;
-          else if (letters.includes(ch)) letterCount++;
-        }
-        expect(digitCount >= 2).toBe(true);
-        expect(letterCount >= 2).toBe(true);
+        const digitCount = slug.replace(/[^0-9]/g, "").length;
+        const letterCount = slug.replace(/[^a-h]/g, "").length;
+        expect(digitCount).toBeGreaterThanOrEqual(2);
+        expect(letterCount).toBeGreaterThanOrEqual(2);
       }
     });
 

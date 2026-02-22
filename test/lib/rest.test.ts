@@ -120,21 +120,17 @@ describe("rest/resource", () => {
   });
 
   describe("defineResource", () => {
-    test("creates resource with table, fields, and methods", () => {
+    test("creates a working resource from table and fields", async () => {
       const resource = createTestResource();
-
-      expect(resource.table).toBeDefined();
-      expect(resource.fields).toBe(testFields);
-      expect(typeof resource.parseInput).toBe("function");
-      expect(typeof resource.parsePartialInput).toBe("function");
-      expect(typeof resource.create).toBe("function");
-      expect(typeof resource.update).toBe("function");
-      expect(typeof resource.delete).toBe("function");
+      const result = await resource.create(new URLSearchParams({ name: "Test", value: "1" }));
+      expect(result.ok).toBe(true);
     });
 
-    test("creates resource with verifyName when nameField provided", () => {
+    test("supports name verification when nameField is provided", () => {
       const resource = createTestResource(true);
-      expect(typeof resource.verifyName).toBe("function");
+      const row: TestRow = { id: 1, name: "Test", value: 1 };
+      expect(resource.verifyName?.(row, "Test")).toBe(true);
+      expect(resource.verifyName?.(row, "Wrong")).toBe(false);
     });
 
     test("does not create verifyName without nameField", () => {
