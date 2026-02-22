@@ -648,6 +648,7 @@ blockquote footer {
 
 /* Scrollbars */
 * {
+  box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: var(--color-scrollbar) transparent;
 }
@@ -926,7 +927,7 @@ form:has(select[name="event_type"] option[value="daily"]:checked) > label:has([n
 
 /* Event images */
 .event-image {
-  max-width: 100%;
+  max-width: var(--width-card-wide);
   border-radius: 4px;
   margin-bottom: 1rem;
 }
