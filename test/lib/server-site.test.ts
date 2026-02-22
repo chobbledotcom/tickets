@@ -283,6 +283,28 @@ describe("server (admin site)", () => {
     });
   });
 
+  describe("site subnav", () => {
+    test("homepage shows subnav with Homepage and Contact links", async () => {
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/admin/site", { cookie });
+      const html = await response.text();
+      expect(html).toContain('href="/admin/site"');
+      expect(html).toContain('href="/admin/site/contact"');
+      expect(html).toContain("Homepage");
+      expect(html).toContain("Contact");
+    });
+
+    test("contact page shows subnav with Homepage and Contact links", async () => {
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/admin/site/contact", { cookie });
+      const html = await response.text();
+      expect(html).toContain('href="/admin/site"');
+      expect(html).toContain('href="/admin/site/contact"');
+      expect(html).toContain("Homepage");
+      expect(html).toContain("Contact");
+    });
+  });
+
   describe("admin nav", () => {
     test("shows Site link when public site is enabled", async () => {
       await updateShowPublicSite(true);

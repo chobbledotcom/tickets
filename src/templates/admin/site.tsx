@@ -5,7 +5,17 @@
 import { CsrfForm } from "#lib/forms.tsx";
 import type { AdminSession } from "#lib/types.ts";
 import { Layout } from "#templates/layout.tsx";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AdminNav } from "#templates/admin/nav.tsx";
+
+/** Sub-navigation for site editor pages */
+const SiteSubNav = (): JSX.Element => (
+  <nav>
+    <ul>
+      <li><a href="/admin/site">Homepage</a></li>
+      <li><a href="/admin/site/contact">Contact</a></li>
+    </ul>
+  </nav>
+);
 
 /**
  * Homepage editor - website title + homepage text
@@ -20,6 +30,7 @@ export const adminSiteHomePage = (
   String(
     <Layout title="Site - Home">
       <AdminNav session={session} />
+      <SiteSubNav />
 
       {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}
@@ -64,7 +75,7 @@ export const adminSiteContactPage = (
   String(
     <Layout title="Site - Contact">
       <AdminNav session={session} />
-      <Breadcrumb href="/admin/site" label="Site" />
+      <SiteSubNav />
 
       {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}
