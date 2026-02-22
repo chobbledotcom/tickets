@@ -31,20 +31,27 @@ describe("square-provider", () => {
       );
     });
 
-    test("returns paid when order state is COMPLETED", async () => {
+    test("returns paid when payment status is COMPLETED", async () => {
       await withMocks(
-        () => spyOn(squareApi, "retrieveOrder").mockResolvedValue({
-          id: "order_completed",
-          metadata: { name: "Alice", email: "alice@example.com", event_id: "1", quantity: "1" },
-          tenders: [{ id: "tender_1", paymentId: "pay_1" }],
-          state: "COMPLETED",
-          totalMoney: { amount: BigInt(1000), currency: "USD" },
+        () => ({
+          order: spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+            id: "order_completed",
+            metadata: { name: "Alice", email: "alice@example.com", event_id: "1", quantity: "1" },
+            tenders: [{ id: "tender_1", paymentId: "pay_1" }],
+            state: "COMPLETED",
+            totalMoney: { amount: BigInt(1000), currency: "USD" },
+          }),
+          payment: spyOn(squareApi, "retrievePayment").mockResolvedValue({
+            id: "pay_1",
+            status: "COMPLETED",
+          }),
         }),
-        async () => {
+        async (mocks) => {
           const result = await squarePaymentProvider.retrieveSession("order_completed");
           expect(result).not.toBeNull();
           expect(result!.paymentStatus).toBe("paid");
           expect(result!.paymentReference).toBe("pay_1");
+          expect(mocks.payment).toHaveBeenCalledWith("pay_1");
         },
       );
     });
@@ -113,26 +120,6 @@ describe("square-provider", () => {
       );
     });
 
-    test("does not call retrievePayment when order state is COMPLETED", async () => {
-      await withMocks(
-        () => ({
-          order: spyOn(squareApi, "retrieveOrder").mockResolvedValue({
-            id: "order_done",
-            metadata: { name: "Eve", email: "eve@example.com", event_id: "1", quantity: "1" },
-            tenders: [{ id: "tender_1", paymentId: "pay_4" }],
-            state: "COMPLETED",
-            totalMoney: { amount: BigInt(1000), currency: "USD" },
-          }),
-          payment: spyOn(squareApi, "retrievePayment").mockResolvedValue(null),
-        }),
-        async (mocks) => {
-          const result = await squarePaymentProvider.retrieveSession("order_done");
-          expect(result).not.toBeNull();
-          expect(result!.paymentStatus).toBe("paid");
-          expect(mocks.payment).not.toHaveBeenCalled();
-        },
-      );
-    });
   });
 
   describe("isPaymentRefunded", () => {

@@ -81,19 +81,11 @@ export const squarePaymentProvider: PaymentProvider = {
       return null;
     }
 
-    // Determine payment status from order state and tenders
+    // Determine payment status from the payment itself (most reliable source)
     const paymentReference = order.tenders?.[0]?.paymentId ?? "";
 
-    // Square order state "COMPLETED" means payment is done.
-    // However, the order state may lag behind the actual payment —
-    // the redirect arrives before Square updates the order state from OPEN
-    // to COMPLETED. When the order isn't COMPLETED yet but has a tender
-    // with a paymentId, check the payment status directly.
     let paymentStatus: ValidatedPaymentSession["paymentStatus"] = "unpaid";
-
-    if (order.state === "COMPLETED") {
-      paymentStatus = "paid";
-    } else if (paymentReference) {
+    if (paymentReference) {
       const payment = await retrievePayment(paymentReference);
       if (payment?.status === "COMPLETED") {
         paymentStatus = "paid";

@@ -1268,7 +1268,7 @@ describe("square", () => {
 
   describe("squarePaymentProvider integration", () => {
     test("retrieveSession maps COMPLETED order to paid status", async () => {
-      const { client, ordersGet } = createMockClient();
+      const { client, ordersGet, paymentsGet } = createMockClient();
       ordersGet.mockResolvedValue({
         order: {
           id: "order_paid",
@@ -1283,6 +1283,9 @@ describe("square", () => {
           state: "COMPLETED",
           totalMoney: { amount: BigInt(5000), currency: "USD" },
         },
+      });
+      paymentsGet.mockResolvedValue({
+        payment: { id: "pay_abc", status: "COMPLETED" },
       });
 
       await withMocks(
@@ -1379,7 +1382,7 @@ describe("square", () => {
     });
 
     test("retrieveSession returns amountTotal from order totalMoney", async () => {
-      const { client, ordersGet } = createMockClient();
+      const { client, ordersGet, paymentsGet } = createMockClient();
       ordersGet.mockResolvedValue({
         order: {
           id: "order_with_amount",
@@ -1393,6 +1396,9 @@ describe("square", () => {
           state: "COMPLETED",
           totalMoney: { amount: BigInt(6000), currency: "GBP" },
         },
+      });
+      paymentsGet.mockResolvedValue({
+        payment: { id: "pay_total_123", status: "COMPLETED" },
       });
 
       await withMocks(
@@ -1410,7 +1416,7 @@ describe("square", () => {
 
     test("retrieveSession handles multi-ticket order", async () => {
       const items = JSON.stringify([{ e: 1, q: 2 }, { e: 2, q: 1 }]);
-      const { client, ordersGet } = createMockClient();
+      const { client, ordersGet, paymentsGet } = createMockClient();
       ordersGet.mockResolvedValue({
         order: {
           id: "order_multi",
@@ -1424,6 +1430,9 @@ describe("square", () => {
           state: "COMPLETED",
           totalMoney: { amount: BigInt(3000), currency: "USD" },
         },
+      });
+      paymentsGet.mockResolvedValue({
+        payment: { id: "pay_multi", status: "COMPLETED" },
       });
 
       await withMocks(
