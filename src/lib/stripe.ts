@@ -472,7 +472,8 @@ const parseSignatureHeader = (
 const computeSignature = async (
   payload: string,
   secret: string,
-): Promise<string> => hmacToHex(await computeHmacSha256(payload, secret));
+): Promise<string> =>
+  hmacToHex(await computeHmacSha256(new TextEncoder().encode(payload), secret));
 
 /** Stripe webhook event - alias for the provider-agnostic WebhookEvent */
 export type StripeWebhookEvent = WebhookEvent;

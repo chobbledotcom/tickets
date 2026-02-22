@@ -139,11 +139,13 @@ export interface PaymentProvider {
   /**
    * Verify a webhook request's signature and parse the event payload.
    * @param webhookUrl - The webhook endpoint URL derived from the incoming request
+   * @param payloadBytes - Raw body bytes from request.arrayBuffer()
    */
   verifyWebhookSignature(
     payload: string,
     signature: string,
     webhookUrl: string,
+    payloadBytes: Uint8Array,
   ): Promise<WebhookVerifyResult>;
 
   /**

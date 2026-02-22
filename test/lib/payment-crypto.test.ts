@@ -6,6 +6,8 @@ import {
   secureCompare,
 } from "#lib/payment-crypto.ts";
 
+const encode = (s: string) => new TextEncoder().encode(s);
+
 describe("payment-crypto", () => {
   describe("secureCompare", () => {
     test("returns true for identical strings", () => {
@@ -39,36 +41,36 @@ describe("payment-crypto", () => {
 
   describe("computeHmacSha256", () => {
     test("returns an ArrayBuffer", async () => {
-      const result = await computeHmacSha256("data", "secret");
+      const result = await computeHmacSha256(encode("data"), "secret");
       expect(result instanceof ArrayBuffer).toBe(true);
     });
 
     test("returns 32 bytes (SHA-256 output size)", async () => {
-      const result = await computeHmacSha256("data", "secret");
+      const result = await computeHmacSha256(encode("data"), "secret");
       expect(result.byteLength).toBe(32);
     });
 
     test("produces deterministic output for same inputs", async () => {
-      const a = await computeHmacSha256("hello", "key");
-      const b = await computeHmacSha256("hello", "key");
+      const a = await computeHmacSha256(encode("hello"), "key");
+      const b = await computeHmacSha256(encode("hello"), "key");
       expect(hmacToHex(a)).toBe(hmacToHex(b));
     });
 
     test("produces different output for different data", async () => {
-      const a = await computeHmacSha256("hello", "key");
-      const b = await computeHmacSha256("world", "key");
+      const a = await computeHmacSha256(encode("hello"), "key");
+      const b = await computeHmacSha256(encode("world"), "key");
       expect(hmacToHex(a)).not.toBe(hmacToHex(b));
     });
 
     test("produces different output for different secrets", async () => {
-      const a = await computeHmacSha256("data", "secret1");
-      const b = await computeHmacSha256("data", "secret2");
+      const a = await computeHmacSha256(encode("data"), "secret1");
+      const b = await computeHmacSha256(encode("data"), "secret2");
       expect(hmacToHex(a)).not.toBe(hmacToHex(b));
     });
 
     test("produces known HMAC-SHA256 value", async () => {
       // Known test vector: HMAC-SHA256("test", "secret")
-      const result = await computeHmacSha256("test", "secret");
+      const result = await computeHmacSha256(encode("test"), "secret");
       const hex = hmacToHex(result);
       expect(hex).toBe(
         "0329a06b62cd16b33eb6792be8c60b158d89a2ee3a876fce9a881ebb488c0914",
@@ -125,14 +127,14 @@ describe("payment-crypto", () => {
 
   describe("end-to-end: compute then convert", () => {
     test("computeHmacSha256 + hmacToHex produces consistent hex signature", async () => {
-      const buf = await computeHmacSha256("payload", "secret");
+      const buf = await computeHmacSha256(encode("payload"), "secret");
       const hex = hmacToHex(buf);
       expect(hex.length).toBe(64); // 32 bytes = 64 hex chars
       expect(hex).toMatch(/^[0-9a-f]{64}$/);
     });
 
     test("computeHmacSha256 + hmacToBase64 produces consistent base64 signature", async () => {
-      const buf = await computeHmacSha256("payload", "secret");
+      const buf = await computeHmacSha256(encode("payload"), "secret");
       const b64 = hmacToBase64(buf);
       expect(b64).toMatch(/^[A-Za-z0-9+/]+=*$/);
       // Base64 of 32 bytes is 44 chars (with padding)
