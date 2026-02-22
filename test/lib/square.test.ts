@@ -1216,6 +1216,54 @@ describe("square", () => {
         expect(result.event.type).toBe("payment.updated");
       }
     });
+
+    test("verifies valid signature with raw payload bytes", async () => {
+      const event: WebhookEvent = {
+        id: "evt_bytes_456",
+        type: "payment.updated",
+        data: {
+          object: {
+            id: "pay_789",
+            status: "COMPLETED",
+            order_id: "order_abc",
+          },
+        },
+      };
+
+      const { payload, signature } = await constructTestWebhookEvent(
+        event,
+        TEST_SECRET,
+        TEST_NOTIFICATION_URL,
+      );
+
+      const payloadBytes = new TextEncoder().encode(payload);
+      const result = await verifyWebhookSignature(
+        payload,
+        signature,
+        TEST_NOTIFICATION_URL,
+        payloadBytes,
+      );
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.event.id).toBe("evt_bytes_456");
+        expect(result.event.type).toBe("payment.updated");
+      }
+    });
+
+    test("rejects invalid signature when using raw payload bytes", async () => {
+      const payload = '{"id":"test","type":"test","data":{"object":{}}}';
+      const payloadBytes = new TextEncoder().encode(payload);
+      const result = await verifyWebhookSignature(
+        payload,
+        "invalidsignature",
+        TEST_NOTIFICATION_URL,
+        payloadBytes,
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error).toBe("Signature verification failed");
+      }
+    });
   });
 
   describe("constructTestWebhookEvent", () => {

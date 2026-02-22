@@ -703,8 +703,11 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     return new Response("Missing signature", { status: 400 });
   }
 
-  // Read raw body for signature verification
-  const payload = await request.text();
+  // Read raw body bytes for signature verification. Using arrayBuffer() and
+  // passing raw bytes to the HMAC avoids a text decoding/encoding round-trip
+  // that can silently alter the payload in CDN edge runtimes.
+  const payloadBytes = new Uint8Array(await request.arrayBuffer());
+  const payload = new TextDecoder().decode(payloadBytes);
 
   // Use the public-facing domain for signature verification. Square signs the
   // webhook using the exact notification URL from the subscription, which is the
@@ -712,8 +715,8 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // terminate TLS (the edge runtime sees http:// instead of https://).
   const webhookUrl = `https://${getAllowedDomain()}/payment/webhook`;
 
-  // Verify signature
-  const verification = await provider.verifyWebhookSignature(payload, signature, webhookUrl);
+  // Verify signature (pass raw bytes so HMAC is computed on exact received bytes)
+  const verification = await provider.verifyWebhookSignature(payload, signature, webhookUrl, payloadBytes);
   if (!verification.valid) {
     return new Response(verification.error, { status: 400 });
   }

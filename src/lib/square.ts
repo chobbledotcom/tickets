@@ -481,22 +481,38 @@ export const refundPayment = (id: string) => squareApi.refundPayment(id);
 
 /** Compute HMAC-SHA256 and return base64-encoded result (Square format) */
 const computeSquareSignature = async (
-  data: string,
+  data: string | Uint8Array,
   secret: string,
 ): Promise<string> => hmacToBase64(await computeHmacSha256(data, secret));
+
+/** Concatenate notification URL bytes with raw body bytes for HMAC signing.
+ *  Uses raw body bytes directly to avoid text decoding/encoding round-trip
+ *  that can alter the payload in edge runtimes (e.g. Bunny CDN). */
+const buildSignedPayloadBytes = (
+  notificationUrl: string,
+  bodyBytes: Uint8Array,
+): Uint8Array => {
+  const urlBytes = new TextEncoder().encode(notificationUrl);
+  const combined = new Uint8Array(urlBytes.length + bodyBytes.length);
+  combined.set(urlBytes);
+  combined.set(bodyBytes, urlBytes.length);
+  return combined;
+};
 
 /**
  * Verify Square webhook signature using Web Crypto API.
  * Square signs: HMAC-SHA256(signature_key, notification_url + raw_body)
  *
- * @param payload - Raw request body as string
+ * @param payload - Raw request body as string (used for JSON parsing)
  * @param signature - x-square-hmacsha256-signature header value
  * @param notificationUrl - The webhook notification URL registered with Square
+ * @param payloadBytes - Raw body bytes for HMAC computation (avoids text round-trip)
  */
 export const verifyWebhookSignature = async (
   payload: string,
   signature: string,
   notificationUrl?: string,
+  payloadBytes?: Uint8Array,
 ): Promise<WebhookVerifyResult> => {
   const secret = await getSquareWebhookSignatureKey();
   if (!secret) {
@@ -510,13 +526,17 @@ export const verifyWebhookSignature = async (
   }
 
   // Square signs: notification_url + raw_body
-  const signedPayload = notificationUrl + payload;
-  const expectedSignature = await computeSquareSignature(signedPayload, secret);
+  // Use raw bytes when available to avoid text decoding/encoding round-trip
+  // that can alter the payload in CDN edge runtimes.
+  const signedData: string | Uint8Array = payloadBytes
+    ? buildSignedPayloadBytes(notificationUrl, payloadBytes)
+    : notificationUrl + payload;
+  const expectedSignature = await computeSquareSignature(signedData, secret);
 
   if (!secureCompare(signature, expectedSignature)) {
     logError({
       code: ErrorCode.SQUARE_SIGNATURE,
-      detail: `mismatch: notificationUrl=${notificationUrl}, receivedLength=${signature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${signature.slice(0, 8)}..., expectedPrefix=${expectedSignature.slice(0, 8)}...`,
+      detail: `mismatch: notificationUrl=${notificationUrl}, receivedLength=${signature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${signature.slice(0, 8)}..., expectedPrefix=${expectedSignature.slice(0, 8)}..., bodyLength=${payloadBytes?.length ?? payload.length}`,
     });
     return { valid: false, error: "Signature verification failed" };
   }

@@ -17,9 +17,10 @@ export const secureCompare = (a: string, b: string): boolean => {
   return result === 0;
 };
 
-/** Compute HMAC-SHA256 using Web Crypto API, returning raw ArrayBuffer */
+/** Compute HMAC-SHA256 using Web Crypto API, returning raw ArrayBuffer.
+ *  Accepts either a UTF-8 string or raw bytes for the data parameter. */
 export const computeHmacSha256 = async (
-  data: string,
+  data: string | Uint8Array,
   secret: string,
 ): Promise<ArrayBuffer> => {
   const encoder = new TextEncoder();
@@ -30,7 +31,10 @@ export const computeHmacSha256 = async (
     false,
     ["sign"],
   );
-  return crypto.subtle.sign("HMAC", key, encoder.encode(data));
+  const dataBytes = typeof data === "string"
+    ? encoder.encode(data)
+    : new Uint8Array(data);
+  return crypto.subtle.sign("HMAC", key, dataBytes);
 };
 
 /** Convert ArrayBuffer to hex string */
