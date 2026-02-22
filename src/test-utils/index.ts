@@ -1181,6 +1181,16 @@ export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
 };
 
 /**
+ * Add the test-environment origin marker to webhook session metadata.
+ * Checkout sessions created by this instance carry an _origin field so the
+ * webhook handler can ignore sessions from unrelated applications sharing the
+ * same payment provider account.
+ */
+export const webhookMeta = <T extends Record<string, unknown>>(
+  metadata: T,
+): T & { _origin: string } => ({ _origin: "localhost", ...metadata });
+
+/**
  * Create a mock webhook POST request.
  */
 export const mockWebhookRequest = (

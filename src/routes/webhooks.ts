@@ -15,6 +15,7 @@
  */
 
 import { map, unique } from "#fp";
+import { logActivity } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
   deleteAttendee,
@@ -25,7 +26,7 @@ import {
   finalizeSession,
   reserveSession,
 } from "#lib/db/processed-payments.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
+import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
   getActivePaymentProvider,
   isPaymentStatus,
@@ -156,7 +157,9 @@ const tryRefund = async (paymentReference: string): Promise<boolean> => {
 
   const refunded = await provider.refundPayment(paymentReference);
 
-  if (!refunded) {
+  if (refunded) {
+    logDebug("Payment", "Refund issued");
+  } else {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
       detail: `Failed to refund payment ${paymentReference}`,
@@ -169,13 +172,22 @@ const tryRefund = async (paymentReference: string): Promise<boolean> => {
 /**
  * Attempt to refund payment and return failure result.
  * Reports refund status accurately based on API result.
+ * Logs a refund entry to the activity log for admin visibility.
+ *
+ * @param eventId - Explicit event ID for multi-ticket refunds. For single-ticket,
+ *   the event ID is derived from session metadata.
  */
 const refundAndFail = async (
   session: ValidatedPaymentSession,
   error: string,
   status?: number,
+  eventId?: number | null,
 ): Promise<PaymentResult> => {
   const refunded = await tryRefund(session.paymentReference);
+  if (refunded) {
+    const metadataEventId = session.metadata.event_id ? Number.parseInt(session.metadata.event_id, 10) : null;
+    await logActivity(`Automatic refund: ${error}`, eventId ?? metadataEventId);
+  }
   return { success: false, error, status, refunded };
 };
 
@@ -188,10 +200,11 @@ const refundAndFail = async (
 const validationFailure = (
   session: ValidatedPaymentSession,
   validation: { error: string; status?: number },
+  eventId?: number,
 ): Promise<PaymentResult> =>
   validation.status === 404
     ? Promise.resolve({ success: false, error: validation.error, status: 404 })
-    : refundAndFail(session, validation.error, validation.status);
+    : refundAndFail(session, validation.error, validation.status, eventId);
 
 /** Rollback created attendees (multi-ticket failure recovery) */
 const rollbackAttendees = async (
@@ -349,7 +362,7 @@ const processMultiPaymentSession = async (
 
   for (const item of intent.items) {
     const vp = await validateAndPrice({ eventId: item.e, quantity: item.q }, true);
-    if (!vp.ok) return validationFailure(session, vp);
+    if (!vp.ok) return validationFailure(session, vp, item.e);
     validatedItems.push({ item, event: vp.event, expectedPrice: vp.expectedPrice });
     expectedTotal += vp.expectedPrice;
   }
@@ -363,6 +376,8 @@ const processMultiPaymentSession = async (
     return refundAndFail(
       session,
       "The price for one or more events changed while you were completing payment.",
+      undefined,
+      validatedItems[0]?.event.id,
     );
   }
 
@@ -399,6 +414,8 @@ const processMultiPaymentSession = async (
     return refundAndFail(
       session,
       formatPostPaymentError(failureReason, failedEvent.name),
+      undefined,
+      failedEvent.id,
     );
   }
 
@@ -651,6 +668,7 @@ const extractSessionFromEvent = (
       typeof obj.payment_intent === "string" ? obj.payment_intent : "",
     amountTotal: obj.amount_total,
     metadata: {
+      _origin: metadata._origin as string | undefined,
       event_id: metadata.event_id as string | undefined,
       name: metadata.name,
       email: metadata.email,
@@ -752,6 +770,17 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     if (!session) {
       return new Response("Invalid session data", { status: 400 });
     }
+  }
+
+  // Verify session originated from this instance. Sessions created by a
+  // different application sharing the same payment provider account will not
+  // carry our _origin marker.
+  if (session.metadata._origin !== getAllowedDomain()) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: "Ignoring webhook for unrecognized payment session",
+    });
+    return webhookAckResponse();
   }
 
   // Verify payment is complete

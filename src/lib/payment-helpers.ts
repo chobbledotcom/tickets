@@ -4,6 +4,7 @@
  */
 
 import { map } from "#fp";
+import { getAllowedDomain } from "#lib/config.ts";
 import type { ErrorCodeType, LogCategory } from "#lib/logger.ts";
 import { logDebug, logError } from "#lib/logger.ts";
 import type {
@@ -91,6 +92,7 @@ export const buildSingleIntentMetadata = (
   eventId: number,
   intent: SingleIntentMetadata,
 ): Record<string, string> => ({
+  _origin: getAllowedDomain(),
   event_id: String(eventId),
   name: intent.name,
   email: intent.email,
@@ -105,6 +107,7 @@ export const buildSingleIntentMetadata = (
 export const buildMultiIntentMetadata = (
   intent: MultiRegistrationIntent,
 ): Record<string, string> => ({
+  _origin: getAllowedDomain(),
   multi: "1",
   name: intent.name,
   email: intent.email,
@@ -148,6 +151,7 @@ export const hasRequiredSessionMetadata = (
 export const extractSessionMetadata = (
   metadata: Record<string, string | undefined>,
 ): ValidatedPaymentSession["metadata"] => ({
+  _origin: metadata._origin,
   event_id: metadata.event_id,
   name: metadata.name!,
   email: metadata.email!,

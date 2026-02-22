@@ -53,6 +53,8 @@ export type CheckoutSessionResult = {
 
 /** Metadata attached to a validated payment session */
 export type SessionMetadata = {
+  /** Origin domain marker to identify sessions created by this instance */
+  _origin?: string;
   event_id?: string;
   name: string;
   email: string;
