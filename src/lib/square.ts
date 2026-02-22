@@ -23,6 +23,7 @@ import {
   buildMultiIntentMetadata,
   buildSingleIntentMetadata,
   createWithClient,
+  PaymentUserError,
 } from "#lib/payment-helpers.ts";
 
 import { computeHmacSha256, hmacToBase64, secureCompare } from "#lib/payment-crypto.ts";
@@ -41,6 +42,58 @@ import type { Event } from "#lib/types.ts";
  * - Value max 255 characters
  */
 const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
+
+/** A single error entry from Square's API error response */
+type SquareApiErrorEntry = {
+  category?: string;
+  code?: string;
+  detail?: string;
+  field?: string;
+};
+
+/** Map Square pre_populated_data fields to user-friendly labels */
+const SQUARE_FIELD_LABELS: Record<string, string> = {
+  "pre_populated_data.buyer_phone_number": "phone number",
+  "pre_populated_data.buyer_email": "email address",
+};
+
+/** Parse Square API error entries from a thrown error.
+ * The Square SDK error message contains "Status code: N Body: { ... }" */
+export const parseSquareApiErrors = (err: unknown): SquareApiErrorEntry[] | null => {
+  if (!(err instanceof Error)) return null;
+  const bodyMatch = err.message.match(/Body:\s*(\{[\s\S]*\})\s*$/);
+  if (!bodyMatch) return null;
+  try {
+    const body = JSON.parse(bodyMatch[1]!) as { errors?: SquareApiErrorEntry[] };
+    return Array.isArray(body.errors) ? body.errors : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Convert Square INVALID_REQUEST_ERROR entries on user-provided fields
+ * to a user-facing message, or null if no user-facing errors found. */
+export const toUserFacingSquareError = (errors: SquareApiErrorEntry[]): string | null => {
+  for (const err of errors) {
+    if (err.category !== "INVALID_REQUEST_ERROR" || !err.field) continue;
+    const label = SQUARE_FIELD_LABELS[err.field];
+    if (label) {
+      return `The payment processor rejected the ${label} as invalid. Please correct it and try again.`;
+    }
+  }
+  return null;
+};
+
+/** Check if a Square SDK error contains a user-facing validation error.
+ * Throws PaymentUserError if so, otherwise re-throws the original error. */
+const rethrowAsUserError = (err: unknown): never => {
+  const apiErrors = parseSquareApiErrors(err);
+  if (apiErrors) {
+    const userMessage = toUserFacingSquareError(apiErrors);
+    if (userMessage) throw new PaymentUserError(userMessage);
+  }
+  throw err;
+};
 
 /**
  * Enforce Square metadata value length limits.
@@ -204,7 +257,7 @@ const createPaymentLinkImpl = (
           buyerEmail: params.email,
           ...(params.phone ? { buyerPhoneNumber: params.phone } : {}),
         },
-      });
+      }).catch(rethrowAsUserError);
 
       const link = response.paymentLink;
       const orderId = link?.orderId;

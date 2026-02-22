@@ -18,7 +18,17 @@ import type { ContactInfo } from "#lib/types.ts";
 export const errorMessage = (err: unknown): string =>
   err instanceof Error ? err.message : "Unknown error";
 
-/** Safely execute async operation, returning null on error */
+/** Error subclass for user-facing payment validation errors (e.g. invalid phone number).
+ * These propagate through safeAsync so the message can be shown to the user. */
+export class PaymentUserError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PaymentUserError";
+  }
+}
+
+/** Safely execute async operation, returning null on error.
+ * Re-throws PaymentUserError so user-facing messages propagate. */
 export const safeAsync = async <T>(
   fn: () => Promise<T>,
   errorCode: ErrorCodeType,
@@ -26,6 +36,7 @@ export const safeAsync = async <T>(
   try {
     return await fn();
   } catch (err) {
+    if (err instanceof PaymentUserError) throw err;
     const detail = err instanceof Error ? err.message : "unknown";
     logError({ code: errorCode, detail });
     return null;

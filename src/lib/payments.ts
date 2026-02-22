@@ -40,10 +40,15 @@ export type MultiRegistrationIntent = ContactInfo & {
   items: MultiRegistrationItem[];
 };
 
-/** Result of creating a checkout session */
+/** Result of creating a checkout session.
+ * - Success: { sessionId, checkoutUrl }
+ * - User-facing error (e.g. invalid phone): { error }
+ * - Internal/unknown failure: null */
 export type CheckoutSessionResult = {
   sessionId: string;
   checkoutUrl: string;
+} | {
+  error: string;
 } | null;
 
 /** Metadata attached to a validated payment session */

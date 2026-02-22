@@ -6,6 +6,7 @@ import {
   errorMessage,
   extractSessionMetadata,
   hasRequiredSessionMetadata,
+  PaymentUserError,
   safeAsync,
   serializeMultiItems,
   toCheckoutResult,
@@ -59,6 +60,28 @@ describe("payment-helpers", () => {
       );
       expect(result).toEqual(obj);
     });
+
+    test("re-throws PaymentUserError instead of returning null", async () => {
+      await expect(
+        safeAsync(
+          () => Promise.reject(new PaymentUserError("Invalid phone number")),
+          ErrorCode.PAYMENT_CHECKOUT,
+        ),
+      ).rejects.toThrow("Invalid phone number");
+    });
+
+    test("re-thrown PaymentUserError preserves instance type", async () => {
+      try {
+        await safeAsync(
+          () => Promise.reject(new PaymentUserError("Bad phone")),
+          ErrorCode.PAYMENT_CHECKOUT,
+        );
+        expect(true).toBe(false); // should not reach here
+      } catch (err) {
+        expect(err instanceof PaymentUserError).toBe(true);
+        expect((err as PaymentUserError).message).toBe("Bad phone");
+      }
+    });
   });
 
   describe("createWithClient", () => {
@@ -93,6 +116,17 @@ describe("payment-helpers", () => {
       expect(result).toBeNull();
     });
 
+    test("re-throws PaymentUserError from operation", async () => {
+      const withClient = createWithClient(() =>
+        Promise.resolve({ token: "abc" }),
+      );
+      await expect(
+        withClient(
+          () => Promise.reject(new PaymentUserError("Phone invalid")),
+          ErrorCode.PAYMENT_CHECKOUT,
+        ),
+      ).rejects.toThrow("Phone invalid");
+    });
   });
 
   describe("serializeMultiItems", () => {
