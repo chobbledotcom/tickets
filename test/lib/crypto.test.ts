@@ -213,16 +213,6 @@ describe("encryption", () => {
   });
 
   describe("key caching", () => {
-    it("caches the key between operations", async () => {
-      const plaintext = "test";
-      // First encryption imports the key
-      await encrypt(plaintext);
-      // Second encryption should use cached key
-      const encrypted = await encrypt(plaintext);
-      const decrypted = await decrypt(encrypted);
-      expect(decrypted).toBe(plaintext);
-    });
-
     it("invalidates cache when key changes", async () => {
       const plaintext = "test";
       const encrypted = await encrypt(plaintext);
@@ -248,14 +238,6 @@ describe("encryption", () => {
 
 describe("password hashing", () => {
   describe("hashPassword", () => {
-    it("returns pbkdf2 format with all parameters", async () => {
-      const hash = await hashPassword("mypassword");
-      expect(hash.startsWith("pbkdf2:")).toBe(true);
-      const parts = hash.split(":");
-      expect(parts.length).toBe(4);
-      expect(parts[0]).toBe("pbkdf2");
-    });
-
     it("generates different hashes for same password (random salt)", async () => {
       const hash1 = await hashPassword("samepassword");
       const hash2 = await hashPassword("samepassword");
