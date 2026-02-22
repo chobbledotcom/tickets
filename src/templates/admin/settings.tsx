@@ -32,8 +32,11 @@ export const adminSettingsPage = (
   timezone?: string,
   businessEmail?: string,
   theme?: string,
-  showEventsOnHomepage?: boolean,
+  showPublicSite?: boolean,
   phonePrefix?: string,
+  websiteTitle?: string | null,
+  homepageText?: string | null,
+  contactPageText?: string | null,
 ): string =>
   String(
     <Layout title="Settings" theme={theme}>
@@ -226,31 +229,76 @@ export const adminSettingsPage = (
           <button type="submit">Change Password</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/show-events-on-homepage">
-            <h2>Show events on homepage?</h2>
-          <p>When enabled, the homepage will display all upcoming active events as a booking page instead of redirecting to the admin area.</p>
+        <CsrfForm action="/admin/settings/show-public-site">
+            <h2>Show public site?</h2>
+          <p>When enabled, the homepage will show a public website with navigation for Home, Events, T&amp;Cs and Contact pages.</p>
           <fieldset>
             <label>
               <input
                 type="radio"
-                name="show_events_on_homepage"
+                name="show_public_site"
                 value="true"
-                checked={showEventsOnHomepage === true}
+                checked={showPublicSite === true}
               />
               Yes
             </label>
             <label>
               <input
                 type="radio"
-                name="show_events_on_homepage"
+                name="show_public_site"
                 value="false"
-                checked={showEventsOnHomepage !== true}
+                checked={showPublicSite !== true}
               />
               No
             </label>
           </fieldset>
           <button type="submit">Save</button>
         </CsrfForm>
+
+        {showPublicSite && (
+        <>
+        <CsrfForm action="/admin/settings/website-title">
+            <h2>Website Title</h2>
+          <p>Displayed as the main heading on all public pages (max 128 characters).</p>
+          <label for="website_title">Website Title</label>
+          <input
+            type="text"
+            id="website_title"
+            name="website_title"
+            maxlength="128"
+            value={websiteTitle ?? ""}
+            autocomplete="off"
+          />
+          <button type="submit">Save Website Title</button>
+        </CsrfForm>
+
+        <CsrfForm action="/admin/settings/homepage-text">
+            <h2>Homepage Text</h2>
+          <p>Text displayed on the public homepage (max 2048 characters). Line breaks will be preserved.</p>
+          <label for="homepage_text">Homepage Text</label>
+          <textarea
+            id="homepage_text"
+            name="homepage_text"
+            rows="4"
+            placeholder="Welcome to our site..."
+          >{homepageText ?? ""}</textarea>
+          <button type="submit">Save Homepage Text</button>
+        </CsrfForm>
+
+        <CsrfForm action="/admin/settings/contact-page-text">
+            <h2>Contact Page Text</h2>
+          <p>Text displayed on the public contact page (max 2048 characters). Line breaks will be preserved.</p>
+          <label for="contact_page_text">Contact Page Text</label>
+          <textarea
+            id="contact_page_text"
+            name="contact_page_text"
+            rows="4"
+            placeholder="Get in touch with us..."
+          >{contactPageText ?? ""}</textarea>
+          <button type="submit">Save Contact Page Text</button>
+        </CsrfForm>
+        </>
+        )}
 
         <CsrfForm action="/admin/settings/theme">
             <h2>Site Theme</h2>
