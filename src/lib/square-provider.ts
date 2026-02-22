@@ -30,6 +30,7 @@ import {
 } from "#lib/square.ts";
 import type { Event } from "#lib/types.ts";
 import type {
+  CheckoutSessionResult,
   MultiRegistrationIntent,
   PaymentProvider,
   RegistrationIntent,
@@ -41,7 +42,7 @@ import type {
 /** Wrap a checkout operation, converting PaymentUserError to { error } result */
 const withUserError = async <T extends { orderId: string; url: string }>(
   op: () => Promise<T | null>,
-): Promise<import("#lib/payments.ts").CheckoutSessionResult> => {
+): Promise<CheckoutSessionResult> => {
   try {
     const result = await op();
     return toCheckoutResult(result?.orderId, result?.url, "Square");

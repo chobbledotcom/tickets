@@ -45,8 +45,8 @@ const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 
 /** A single error entry from Square's API error response */
 type SquareApiErrorEntry = {
-  category?: string;
-  code?: string;
+  category: string;
+  code: string;
   detail?: string;
   field?: string;
 };
@@ -57,15 +57,14 @@ const SQUARE_FIELD_LABELS: Record<string, string> = {
   "pre_populated_data.buyer_email": "email address",
 };
 
-/** Parse Square API error entries from a thrown error.
+/** Parse Square API error entries from an SDK error.
  * The Square SDK error message contains "Status code: N Body: { ... }" */
-export const parseSquareApiErrors = (err: unknown): SquareApiErrorEntry[] | null => {
-  if (!(err instanceof Error)) return null;
+const parseSquareApiErrors = (err: Error): SquareApiErrorEntry[] | null => {
   const bodyMatch = err.message.match(/Body:\s*(\{[\s\S]*\})\s*$/);
   if (!bodyMatch) return null;
   try {
-    const body = JSON.parse(bodyMatch[1]!) as { errors?: SquareApiErrorEntry[] };
-    return Array.isArray(body.errors) ? body.errors : null;
+    const body = JSON.parse(bodyMatch[1]!) as { errors: SquareApiErrorEntry[] };
+    return body.errors;
   } catch {
     return null;
   }
@@ -73,7 +72,7 @@ export const parseSquareApiErrors = (err: unknown): SquareApiErrorEntry[] | null
 
 /** Convert Square INVALID_REQUEST_ERROR entries on user-provided fields
  * to a user-facing message, or null if no user-facing errors found. */
-export const toUserFacingSquareError = (errors: SquareApiErrorEntry[]): string | null => {
+const toUserFacingSquareError = (errors: SquareApiErrorEntry[]): string | null => {
   for (const err of errors) {
     if (err.category !== "INVALID_REQUEST_ERROR" || !err.field) continue;
     const label = SQUARE_FIELD_LABELS[err.field];
@@ -87,10 +86,12 @@ export const toUserFacingSquareError = (errors: SquareApiErrorEntry[]): string |
 /** Check if a Square SDK error contains a user-facing validation error.
  * Throws PaymentUserError if so, otherwise re-throws the original error. */
 const rethrowAsUserError = (err: unknown): never => {
-  const apiErrors = parseSquareApiErrors(err);
-  if (apiErrors) {
-    const userMessage = toUserFacingSquareError(apiErrors);
-    if (userMessage) throw new PaymentUserError(userMessage);
+  if (err instanceof Error) {
+    const apiErrors = parseSquareApiErrors(err);
+    if (apiErrors) {
+      const userMessage = toUserFacingSquareError(apiErrors);
+      if (userMessage) throw new PaymentUserError(userMessage);
+    }
   }
   throw err;
 };

@@ -17,56 +17,71 @@ describe("square-provider", () => {
 
   describe("retrieveSession", () => {
     test("returns null when order metadata is missing required fields", async () => {
-      const restore = spyOn(squareApi, "retrieveOrder").mockResolvedValue({
-        id: "order_no_meta",
-        metadata: {},
-        state: "COMPLETED",
-        totalMoney: { amount: BigInt(1000), currency: "USD" },
-      });
-      const result = await squarePaymentProvider.retrieveSession("order_no_meta");
-      expect(result).toBeNull();
-      restore();
+      await withMocks(
+        () => spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+          id: "order_no_meta",
+          metadata: {},
+          state: "COMPLETED",
+          totalMoney: { amount: BigInt(1000), currency: "USD" },
+        }),
+        async () => {
+          const result = await squarePaymentProvider.retrieveSession("order_no_meta");
+          expect(result).toBeNull();
+        },
+      );
     });
   });
 
   describe("isPaymentRefunded", () => {
     test("returns true when payment has refundedMoney", async () => {
-      const restore = spyOn(squareApi, "retrievePayment").mockResolvedValue({
-        id: "pay_123",
-        status: "COMPLETED",
-        refundedMoney: { amount: BigInt(1000), currency: "USD" },
-      });
-      const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
-      expect(result).toBe(true);
-      restore();
+      await withMocks(
+        () => spyOn(squareApi, "retrievePayment").mockResolvedValue({
+          id: "pay_123",
+          status: "COMPLETED",
+          refundedMoney: { amount: BigInt(1000), currency: "USD" },
+        }),
+        async () => {
+          const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
+          expect(result).toBe(true);
+        },
+      );
     });
 
     test("returns false when refundedMoney is zero", async () => {
-      const restore = spyOn(squareApi, "retrievePayment").mockResolvedValue({
-        id: "pay_123",
-        status: "COMPLETED",
-        refundedMoney: { amount: BigInt(0), currency: "USD" },
-      });
-      const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
-      expect(result).toBe(false);
-      restore();
+      await withMocks(
+        () => spyOn(squareApi, "retrievePayment").mockResolvedValue({
+          id: "pay_123",
+          status: "COMPLETED",
+          refundedMoney: { amount: BigInt(0), currency: "USD" },
+        }),
+        async () => {
+          const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
+          expect(result).toBe(false);
+        },
+      );
     });
 
     test("returns false when payment not found", async () => {
-      const restore = spyOn(squareApi, "retrievePayment").mockResolvedValue(null);
-      const result = await squarePaymentProvider.isPaymentRefunded("pay_missing");
-      expect(result).toBe(false);
-      restore();
+      await withMocks(
+        () => spyOn(squareApi, "retrievePayment").mockResolvedValue(null),
+        async () => {
+          const result = await squarePaymentProvider.isPaymentRefunded("pay_missing");
+          expect(result).toBe(false);
+        },
+      );
     });
 
     test("returns false when refundedMoney is missing", async () => {
-      const restore = spyOn(squareApi, "retrievePayment").mockResolvedValue({
-        id: "pay_123",
-        status: "COMPLETED",
-      });
-      const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
-      expect(result).toBe(false);
-      restore();
+      await withMocks(
+        () => spyOn(squareApi, "retrievePayment").mockResolvedValue({
+          id: "pay_123",
+          status: "COMPLETED",
+        }),
+        async () => {
+          const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
+          expect(result).toBe(false);
+        },
+      );
     });
   });
 
@@ -84,13 +99,13 @@ describe("square-provider", () => {
       };
       await withMocks(
         () => spyOn(squareApi, "createPaymentLink").mockImplementation(() => {
-          throw new PaymentUserError("The payment processor rejected the phone number as invalid. Please correct it and try again.");
+          throw new PaymentUserError("Phone number is invalid");
         }),
         async () => {
           const result = await squarePaymentProvider.createCheckoutSession(event, intent, "http://localhost");
           expect(result).not.toBeNull();
           expect(result).toHaveProperty("error");
-          expect((result as { error: string }).error).toContain("phone number");
+          expect((result as { error: string }).error).toBe("Phone number is invalid");
         },
       );
     });
@@ -130,13 +145,13 @@ describe("square-provider", () => {
       };
       await withMocks(
         () => spyOn(squareApi, "createMultiPaymentLink").mockImplementation(() => {
-          throw new PaymentUserError("The payment processor rejected the email address as invalid. Please correct it and try again.");
+          throw new PaymentUserError("Email address is invalid");
         }),
         async () => {
           const result = await squarePaymentProvider.createMultiCheckoutSession(intent, "http://localhost");
           expect(result).not.toBeNull();
           expect(result).toHaveProperty("error");
-          expect((result as { error: string }).error).toContain("email address");
+          expect((result as { error: string }).error).toBe("Email address is invalid");
         },
       );
     });
