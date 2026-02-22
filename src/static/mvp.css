@@ -226,7 +226,7 @@ nav ul li ul li a {
     margin: 0 auto 7rem;
     position: sticky;
     top: 1rem;
-    background: white;
+    background: var(--color-bg);
     width: fit-content;
     padding: 0 2rem;
     border-radius: var(--border-radius);
