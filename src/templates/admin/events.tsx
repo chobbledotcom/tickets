@@ -308,7 +308,6 @@ export const adminEventPage = ({
             <Raw html={AttendeeTable({
               rows: tableRows,
               allowedDomain,
-              csrfToken: session.csrfToken,
               showEvent: false,
               showDate: isDaily,
               activeFilter,
@@ -334,7 +333,7 @@ export const adminEventPage = ({
               {addAttendeeMessage.error}
             </p>
           )}
-          <CsrfForm action={`/admin/event/${event.id}/attendee`} csrfToken={session.csrfToken}>
+          <CsrfForm action={`/admin/event/${event.id}/attendee`}>
             <Raw html={renderFields(getAddAttendeeFields(event.fields, event.event_type === "daily"))} />
             <button type="submit">Add Attendee</button>
           </CsrfForm>
@@ -394,7 +393,7 @@ export const adminEventNewPage = (
       <Breadcrumb href="/admin/" label="Events" />
       <h1>Add Event</h1>
       <Raw html={renderError(error)} />
-      <CsrfForm action="/admin/event" csrfToken={session.csrfToken} enctype="multipart/form-data">
+      <CsrfForm action="/admin/event" enctype="multipart/form-data">
         <Raw html={renderFields(fields)} />
         <EventGroupSelect groups={groups} selectedGroupId={0} />
         <button type="submit">Create Event</button>
@@ -421,7 +420,7 @@ export const adminDuplicateEventPage = (
       <AdminNav session={session} />
         <h2>Duplicate Event</h2>
         <p>Creating a new event based on <strong>{event.name}</strong>.</p>
-        <CsrfForm action="/admin/event" csrfToken={session.csrfToken} enctype="multipart/form-data">
+        <CsrfForm action="/admin/event" enctype="multipart/form-data">
           <Raw html={renderFields(fields, values)} />
           <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
           <button type="submit">Create Event</button>
@@ -445,7 +444,7 @@ export const adminEventEditPage = (
     <Layout title={`Edit: ${event.name}`}>
       <AdminNav session={session} />
         <Raw html={renderError(error)} />
-        <CsrfForm action={`/admin/event/${event.id}/edit`} csrfToken={session.csrfToken} enctype="multipart/form-data">
+        <CsrfForm action={`/admin/event/${event.id}/edit`} enctype="multipart/form-data">
           <Raw html={renderFields(fields, eventToFieldValues(event))} />
           <EventGroupSelect groups={groups} selectedGroupId={event.group_id} />
           <Raw html={renderField(slugField, String(event.slug))} />
@@ -455,7 +454,7 @@ export const adminEventEditPage = (
           <button type="submit">Save Changes</button>
         </CsrfForm>
         {storageEnabled && event.image_url && (
-          <CsrfForm action={`/admin/event/${event.id}/image/delete`} csrfToken={session.csrfToken}>
+          <CsrfForm action={`/admin/event/${event.id}/image/delete`}>
             <button type="submit" class="secondary">Remove Image</button>
           </CsrfForm>
         )}
@@ -484,7 +483,7 @@ export const adminDeleteEventPage = (
 
         <p>To delete this event, type its name "{event.name}" into the box below:</p>
 
-        <CsrfForm action={`/admin/event/${event.id}/delete`} csrfToken={session.csrfToken}>
+        <CsrfForm action={`/admin/event/${event.id}/delete`}>
           <label for="confirm_identifier">Event name</label>
           <input
             type="text"
@@ -528,7 +527,7 @@ export const adminDeactivateEventPage = (
 
         <p>To deactivate this event, type its name "{event.name}" into the box below:</p>
 
-        <CsrfForm action={`/admin/event/${event.id}/deactivate`} csrfToken={session.csrfToken}>
+        <CsrfForm action={`/admin/event/${event.id}/deactivate`}>
           <label for="confirm_identifier">Event name</label>
           <input
             type="text"
@@ -567,7 +566,7 @@ export const adminReactivateEventPage = (
 
         <p>To reactivate this event, type its name "{event.name}" into the box below:</p>
 
-        <CsrfForm action={`/admin/event/${event.id}/reactivate`} csrfToken={session.csrfToken}>
+        <CsrfForm action={`/admin/event/${event.id}/reactivate`}>
           <label for="confirm_identifier">Event name</label>
           <input
             type="text"

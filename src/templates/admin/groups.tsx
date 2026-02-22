@@ -84,7 +84,7 @@ export const adminGroupNewPage = (
       <Breadcrumb href="/admin/groups" label="Groups" />
       <h1>Add Group</h1>
       <Raw html={renderError(error)} />
-      <CsrfForm action="/admin/group" csrfToken={session.csrfToken}>
+      <CsrfForm action="/admin/group">
         <Raw html={renderFields(groupCreateFields, groupToFieldValues())} />
         <button type="submit">Create Group</button>
       </CsrfForm>
@@ -105,7 +105,7 @@ export const adminGroupEditPage = (
       <Breadcrumb href={`/admin/group/${group.id}`} label={group.name} />
       <h1>Edit Group</h1>
       <Raw html={renderError(error)} />
-      <CsrfForm action={`/admin/group/${group.id}/edit`} csrfToken={session.csrfToken}>
+      <CsrfForm action={`/admin/group/${group.id}/edit`}>
         <Raw html={renderFields(groupFields, groupToFieldValues(group))} />
         <button type="submit">Save Changes</button>
       </CsrfForm>
@@ -133,7 +133,7 @@ export const adminGroupDeletePage = (
         Events in this group will not be deleted -- they will be moved out of the group.
       </p>
       <p>Type the group name to confirm:</p>
-      <CsrfForm action={`/admin/group/${group.id}/delete`} csrfToken={session.csrfToken}>
+      <CsrfForm action={`/admin/group/${group.id}/delete`}>
         <label>
           Group Name
           <input type="text" name="confirm_identifier" required />
@@ -236,7 +236,7 @@ export const adminGroupDetailPage = (
       {ungroupedEvents.length > 0 && (
         <>
           <h2>Add Events to Group</h2>
-          <CsrfForm action={`/admin/group/${group.id}/add-events`} csrfToken={session.csrfToken}>
+          <CsrfForm action={`/admin/group/${group.id}/add-events`}>
             {ungroupedEvents.map((e) => (
               <label>
                 <input type="checkbox" name="event_ids" value={String(e.id)} />

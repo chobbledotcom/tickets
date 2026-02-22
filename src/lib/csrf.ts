@@ -13,6 +13,9 @@ import { nowMs } from "#lib/now.ts";
 const SIGNED_PREFIX = "s1.";
 const DEFAULT_MAX_AGE_S = 3600; // 1 hour
 
+/** Most recently generated CSRF token, readable synchronously by CsrfForm */
+const _tokenStore = { value: "" };
+
 /** Default message for invalid/expired CSRF form submissions */
 export const CSRF_INVALID_FORM_MESSAGE =
   "Invalid or expired form. Please try again.";
@@ -31,8 +34,12 @@ export const signCsrfToken = async (): Promise<string> => {
   const nonce = generateSecureToken();
   const message = buildMessage(timestamp, nonce);
   const hmac = toBase64Url(await hmacHash(message));
-  return `${message}.${hmac}`;
+  _tokenStore.value = `${message}.${hmac}`;
+  return _tokenStore.value;
 };
+
+/** Get the most recently generated CSRF token (for synchronous JSX rendering) */
+export const getCurrentCsrfToken = (): string => _tokenStore.value;
 
 /** Check whether a token uses the signed format */
 export const isSignedCsrfToken = (token: string): boolean =>

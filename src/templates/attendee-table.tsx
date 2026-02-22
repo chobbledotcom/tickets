@@ -23,7 +23,6 @@ export type AttendeeTableRow = {
 export type AttendeeTableOptions = {
   rows: AttendeeTableRow[];
   allowedDomain: string;
-  csrfToken: string;
   showEvent: boolean;
   showDate: boolean;
   activeFilter?: string;
@@ -115,10 +114,9 @@ const returnSuffix = (returnUrl: string | undefined): string =>
   returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : "";
 
 /** Render the check-in/check-out button form */
-const CheckinButton = ({ a, eventId, csrfToken, activeFilter, returnUrl }: {
+const CheckinButton = ({ a, eventId, activeFilter, returnUrl }: {
   a: Attendee;
   eventId: number;
-  csrfToken: string;
   activeFilter: string;
   returnUrl: string | undefined;
 }): string => {
@@ -128,7 +126,6 @@ const CheckinButton = ({ a, eventId, csrfToken, activeFilter, returnUrl }: {
   return String(
     <CsrfForm
       action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
-      csrfToken={csrfToken}
       class="inline"
     >
       <input type="hidden" name="return_filter" value={activeFilter} />
@@ -182,7 +179,6 @@ const StatusCell = ({ row, opts }: {
   return CheckinButton({
     a: row.attendee,
     eventId: row.eventId,
-    csrfToken: opts.csrfToken,
     activeFilter: opts.activeFilter ?? "all",
     returnUrl: opts.returnUrl,
   });

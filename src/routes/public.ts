@@ -65,12 +65,12 @@ export const handleHome = async (): Promise<Response> => {
   if (!await getShowEventsOnHomepageFromDb()) return redirect("/admin/");
 
   const events = await loadHomepageEvents();
-  const [dates, terms, token] = await Promise.all([
+  const [dates, terms] = await Promise.all([
     computeSharedDates(events),
     getTermsAndConditionsFromDb(),
     signCsrfToken(),
   ]);
-  return htmlResponse(homepagePage(events, token, undefined, dates ?? [], terms));
+  return htmlResponse(homepagePage(events, undefined, dates ?? [], terms));
 };
 
 /**
@@ -82,7 +82,7 @@ export const handleHomePost = async (request: Request): Promise<Response> => {
   const activeEvents = await loadHomepageEvents();
   if (activeEvents.length === 0) return redirect("/");
 
-  const [dates, terms, token] = await Promise.all([
+  const [dates, terms] = await Promise.all([
     computeSharedDates(activeEvents),
     getTermsAndConditionsFromDb(),
     signCsrfToken(),
@@ -90,7 +90,6 @@ export const handleHomePost = async (request: Request): Promise<Response> => {
   const ctx: MultiTicketCtx = {
     slugs: activeEvents.map((e) => e.event.slug),
     events: activeEvents,
-    token,
     dates: dates ?? [],
     terms: terms ?? "",
     inIframe: false,
@@ -99,12 +98,11 @@ export const handleHomePost = async (request: Request): Promise<Response> => {
   return submitMultiTicket(request, ctx);
 };
 
-/** Ticket response builder (CSRF token embedded in form) */
+/** Ticket response builder (CSRF token auto-embedded by CsrfForm) */
 const ticketResponseWithToken =
   (event: EventWithCount, isClosed: boolean, inIframe: boolean, dates: string[] | undefined, terms: string | null | undefined, baseUrl?: string) =>
-  (token: string) =>
   (error?: string, status = 200) =>
-    htmlResponse(ticketPage(event, token, error, isClosed, inIframe, dates, terms, baseUrl), status);
+    htmlResponse(ticketPage(event, error, isClosed, inIframe, dates, terms, baseUrl), status);
 
 /** Curried error response: render(error) → (error, status) → Response */
 const errorResponse =
@@ -121,8 +119,8 @@ const validationErrorResponder = <Args extends unknown[]>(
 
 /** Ticket error response - for validation errors after CSRF passed */
 const ticketResponse = validationErrorResponder(
-  (error: string, event: EventWithCount, token: string, inIframe: boolean, dates: string[] | undefined, terms: string | null | undefined) =>
-    ticketPage(event, token, error, false, inIframe, dates, terms),
+  (error: string, event: EventWithCount, inIframe: boolean, dates: string[] | undefined, terms: string | null | undefined) =>
+    ticketPage(event, error, false, inIframe, dates, terms),
 );
 
 /** Check if request URL has ?iframe=true */
@@ -140,11 +138,11 @@ const handleSingleTicketGet = (slug: string, request: Request): Promise<Response
   withActiveEventBySlug(slug, async (event) => {
     const closed = isRegistrationClosed(event);
     const inIframe = isIframeRequest(request.url);
-    const token = await signCsrfToken();
+    await signCsrfToken();
     const dates = await computeDatesForEvent(event);
     const terms = await getTermsAndConditionsFromDb();
     const baseUrl = getBaseUrl(request);
-    return ticketResponseWithToken(event, closed, inIframe, dates, terms, baseUrl)(token)();
+    return ticketResponseWithToken(event, closed, inIframe, dates, terms, baseUrl)();
   });
 
 /**
@@ -164,7 +162,6 @@ const requiresPayment = async (
 type ReservationParams = ContactInfo & {
   event: EventWithCount;
   quantity: number;
-  token: string;
   date: string | null;
 };
 
@@ -228,7 +225,6 @@ const handlePaymentFlow = (
   request: Request,
   event: EventWithCount,
   intent: RegistrationIntent,
-  csrfToken: string,
   ctx: TicketContext,
 ): Promise<Response> =>
   runCheckoutFlow(
@@ -236,7 +232,7 @@ const handlePaymentFlow = (
     request,
     ctx.inIframe,
     (provider, baseUrl) => provider.createCheckoutSession(event, intent, baseUrl),
-    (msg, status) => ticketResponse(event, csrfToken, ctx.inIframe, undefined, ctx.terms)(msg, status),
+    (msg, status) => ticketResponse(event, ctx.inIframe, undefined, ctx.terms)(msg, status),
   );
 
 /** Extract contact details from validated form values */
@@ -262,16 +258,16 @@ const parseQuantity = (form: URLSearchParams, event: EventWithCount): number =>
 /** Handle paid event registration - check availability, create Stripe session */
 const processPaidReservation = async (
   request: Request,
-  { event, token, ...contact }: ReservationParams,
+  { event, ...contact }: ReservationParams,
   ctx: TicketContext,
 ): Promise<Response> => {
   const available = await hasAvailableSpots(event.id, contact.quantity, contact.date);
   if (!available) {
-    return ticketResponse(event, token, ctx.inIframe, ctx.dates, ctx.terms)("Sorry, not enough spots available");
+    return ticketResponse(event, ctx.inIframe, ctx.dates, ctx.terms)("Sorry, not enough spots available");
   }
 
   const intent: RegistrationIntent = { eventId: event.id, ...contact };
-  return handlePaymentFlow(request, event, intent, token, ctx);
+  return handlePaymentFlow(request, event, intent, ctx);
 };
 
 /** Format error message for failed attendee creation */
@@ -286,11 +282,11 @@ const processFreeReservation = async (
   reservation: ReservationParams,
   ctx: TicketContext,
 ): Promise<Response> => {
-  const { event, quantity, token, date, ...contact } = reservation;
+  const { event, quantity, date, ...contact } = reservation;
   const result = await createAttendeeAtomic({ eventId: event.id, ...contact, quantity, date });
 
   if (!result.success) {
-    return ticketResponse(event, token, ctx.inIframe, ctx.dates, ctx.terms)(formatAtomicError(result.reason));
+    return ticketResponse(event, ctx.inIframe, ctx.dates, ctx.terms)(formatAtomicError(result.reason));
   }
 
   await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
@@ -308,9 +304,6 @@ const processFreeReservation = async (
 const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
   "Sorry, registration closed while you were submitting.";
 
-/** Generate a fresh signed CSRF token for re-rendered forms */
-const newFormToken = (): Promise<string> => signCsrfToken();
-
 /** Validate submitted date against available dates; returns the date or null if invalid */
 const validateSubmittedDate = (form: URLSearchParams, dates: string[]): string | null => {
   const submitted = form.get("date") || "";
@@ -323,19 +316,18 @@ const processTicketReservation = async (
 ): Promise<Response> => {
   const terms = await getTermsAndConditionsFromDb();
   const inIframe = isIframeRequest(request.url);
-  const currentToken = await newFormToken();
 
   return withCsrfForm(
     request,
-    (newToken, message, status) =>
-      ticketResponseWithToken(event, false, inIframe, undefined, terms)(newToken)(
+    (message, status) =>
+      ticketResponseWithToken(event, false, inIframe, undefined, terms)(
         message,
         status,
       ),
     async (form) => {
       // Check if registration has closed since the form was loaded
       if (isRegistrationClosed(event)) {
-        return ticketResponse(event, currentToken, inIframe, undefined, terms)(
+        return ticketResponse(event, inIframe, undefined, terms)(
           REGISTRATION_CLOSED_SUBMIT_MESSAGE,
         );
       }
@@ -343,14 +335,14 @@ const processTicketReservation = async (
       const fields = getTicketFields(event.fields);
       const validation = validateForm<TicketFormValues>(form, fields);
       if (!validation.valid) {
-        return ticketResponse(event, currentToken, inIframe, undefined, terms)(
+        return ticketResponse(event, inIframe, undefined, terms)(
           validation.error,
         );
       }
 
       // Validate terms and conditions acceptance if configured
       if (terms && form.get("agree_terms") !== "1") {
-        return ticketResponse(event, currentToken, inIframe, undefined, terms)(
+        return ticketResponse(event, inIframe, undefined, terms)(
           "You must agree to the terms and conditions",
         );
       }
@@ -362,7 +354,7 @@ const processTicketReservation = async (
         dates = getAvailableDates(event, await getActiveHolidays());
         date = validateSubmittedDate(form, dates);
         if (!date) {
-          return ticketResponse(event, currentToken, inIframe, dates, terms)(
+          return ticketResponse(event, inIframe, dates, terms)(
             "Please select a valid date",
           );
         }
@@ -374,7 +366,6 @@ const processTicketReservation = async (
         event,
         ...contact,
         quantity,
-        token: currentToken,
         date,
       };
 
@@ -411,12 +402,11 @@ const getActiveMultiEvents = (
     map((e: EventWithCount) => buildMultiTicketEvent(e, isRegistrationClosed(e))),
   )(compact(events));
 
-/** Render multi-ticket HTML (token embedded in form) */
+/** Render multi-ticket HTML (CSRF token auto-embedded by CsrfForm) */
 const renderMultiTicketPage = (ctx: MultiTicketCtx, error?: string) =>
   multiTicketPage(
     ctx.events,
     ctx.slugs,
-    ctx.token,
     error,
     ctx.dates,
     ctx.terms,
@@ -431,7 +421,6 @@ const multiTicketResponse = (ctx: MultiTicketCtx) =>
 type MultiTicketCtx = {
   slugs: string[];
   events: MultiTicketEvent[];
-  token: string;
   dates: string[];
   terms: string;
   inIframe: boolean;
@@ -490,8 +479,8 @@ const submitMultiTicket = (
 ): Promise<Response> =>
   withCsrfForm(
     request,
-    (newToken, message, status) =>
-      multiTicketResponse({ ...ctx, token: newToken })(message, status),
+    (message, status) =>
+      multiTicketResponse(ctx)(message, status),
     async (form) => {
       const { inIframe, dates, terms } = ctx;
 
@@ -583,14 +572,13 @@ const handleMultiTicket = async (
   activeEvents: MultiTicketEvent[],
   getContext: MultiTicketContextProvider,
 ): Promise<Response> => {
-  const [{ inIframe, dates, terms }, token] = await Promise.all([
+  const [{ inIframe, dates, terms }] = await Promise.all([
     loadMultiTicketMeta(request, activeEvents, getContext),
     signCsrfToken(),
   ]);
   const ctx: MultiTicketCtx = {
     slugs: actionSlugs,
     events: activeEvents,
-    token,
     dates,
     terms,
     inIframe,

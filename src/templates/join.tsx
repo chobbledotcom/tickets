@@ -13,15 +13,14 @@ import { Layout } from "#templates/layout.tsx";
 export const joinPage = (
   code: string,
   username: string,
-  error: string | undefined,
-  csrfToken: string,
+  error?: string,
 ): string =>
   String(
     <Layout title="Set Your Password">
       <h1>Welcome, {username}</h1>
       <p>Set your password to complete your account setup.</p>
       <Raw html={renderError(error)} />
-      <CsrfForm action={`/join/${code}`} csrfToken={csrfToken}>
+      <CsrfForm action={`/join/${code}`}>
         <Raw html={renderFields(joinFields)} />
         <button type="submit">Set Password</button>
       </CsrfForm>

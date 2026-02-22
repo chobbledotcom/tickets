@@ -19,7 +19,6 @@ export type { TokenEntry as CheckinEntry };
  */
 export const checkinAdminPage = (
   entries: TokenEntry[],
-  csrfToken: string,
   checkinPath: string,
   message: string | null,
   allowedDomain: string,
@@ -43,7 +42,7 @@ export const checkinAdminPage = (
     <Layout title="Check-in">
       <h1>Check-in</h1>
       {message && <p class="success">{message}</p>}
-      <CsrfForm action={checkinPath} csrfToken={csrfToken}>
+      <CsrfForm action={checkinPath}>
         <input type="hidden" name="check_in" value={nextValue} />
         <button type="submit" class={buttonClass}>{buttonLabel}</button>
       </CsrfForm>
@@ -51,7 +50,6 @@ export const checkinAdminPage = (
         <Raw html={AttendeeTable({
           rows: tableRows,
           allowedDomain,
-          csrfToken,
           showEvent: true,
           showDate,
           returnUrl: checkinPath,

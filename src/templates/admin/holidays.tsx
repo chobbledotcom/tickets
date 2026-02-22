@@ -80,7 +80,7 @@ export const adminHolidayNewPage = (
       <Breadcrumb href="/admin/holidays" label="Holidays" />
       <h1>Add Holiday</h1>
       <Raw html={renderError(error)} />
-      <CsrfForm action="/admin/holiday" csrfToken={session.csrfToken}>
+      <CsrfForm action="/admin/holiday">
         <Raw html={renderFields(holidayFields)} />
         <button type="submit">Create Holiday</button>
       </CsrfForm>
@@ -101,7 +101,7 @@ export const adminHolidayEditPage = (
       <Breadcrumb href="/admin/holidays" label="Holidays" />
       <h1>Edit Holiday</h1>
       <Raw html={renderError(error)} />
-      <CsrfForm action={`/admin/holiday/${holiday.id}/edit`} csrfToken={session.csrfToken}>
+      <CsrfForm action={`/admin/holiday/${holiday.id}/edit`}>
         <Raw html={renderFields(holidayFields, holidayToFieldValues(holiday))} />
         <button type="submit">Save Changes</button>
       </CsrfForm>
@@ -126,7 +126,7 @@ export const adminHolidayDeletePage = (
         Are you sure you want to delete the holiday <strong>{holiday.name}</strong> ({holiday.start_date} to {holiday.end_date})?
       </p>
       <p>Type the holiday name to confirm:</p>
-      <CsrfForm action={`/admin/holiday/${holiday.id}/delete`} csrfToken={session.csrfToken}>
+      <CsrfForm action={`/admin/holiday/${holiday.id}/delete`}>
         <label>
           Holiday Name
           <input type="text" name="confirm_identifier" required />

@@ -95,7 +95,6 @@ export const isAdminLevel = (s: string): s is AdminLevel =>
 
 /** Session data needed by admin page templates */
 export type AdminSession = {
-  readonly csrfToken: string;
   readonly adminLevel: AdminLevel;
 };
 

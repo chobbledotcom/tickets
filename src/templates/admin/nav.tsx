@@ -26,7 +26,7 @@ export const AdminNav = ({ session }: AdminNavProps): JSX.Element => (
       {session.adminLevel === "owner" && <li><a href="/admin/sessions">Sessions</a></li>}
       <li><a href="/admin/guide">Guide</a></li>
       <li>
-        <CsrfForm action="/admin/logout" csrfToken={session.csrfToken} class="inline">
+        <CsrfForm action="/admin/logout" class="inline">
           <button type="submit">Logout</button>
         </CsrfForm>
       </li>

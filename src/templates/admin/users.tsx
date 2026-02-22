@@ -78,14 +78,14 @@ export const adminUsersPage = (
                 <td>{userStatus(user)}</td>
                 <td>
                   {user.hasPassword && !user.hasDataKey && (
-                    <CsrfForm class="inline" action={`/admin/users/${user.id}/activate`} csrfToken={session.csrfToken}>
+                    <CsrfForm class="inline" action={`/admin/users/${user.id}/activate`}>
                       <button type="submit">Activate</button>
                     </CsrfForm>
                   )}
                 </td>
                 <td>
                   {user.adminLevel !== "owner" && (
-                    <CsrfForm class="inline" action={`/admin/users/${user.id}/delete`} csrfToken={session.csrfToken}>
+                    <CsrfForm class="inline" action={`/admin/users/${user.id}/delete`}>
                       <button type="submit">Delete</button>
                     </CsrfForm>
                   )}
@@ -111,7 +111,7 @@ export const adminUserNewPage = (
       <Breadcrumb href="/admin/users" label="Users" />
       <h1>Invite User</h1>
       <Raw html={renderError(error)} />
-      <CsrfForm action="/admin/users" csrfToken={session.csrfToken}>
+      <CsrfForm action="/admin/users">
         <Raw html={renderFields(inviteUserFields)} />
         <button type="submit">Create Invite</button>
       </CsrfForm>

@@ -58,13 +58,13 @@ const DataControllerAgreement = (): JSX.Element => (
 /**
  * Initial setup page
  */
-export const setupPage = (error: string | undefined, csrfToken: string): string =>
+export const setupPage = (error?: string): string =>
   String(
     <Layout title="Setup">
         <h1>Initial Setup</h1>
         <p>Welcome! Please configure your ticket reservation system.</p>
         <Raw html={renderError(error)} />
-        <CsrfForm action="/setup/" csrfToken={csrfToken}>
+        <CsrfForm action="/setup/">
           <Raw html={renderFields(setupFields, { currency_code: "GBP" })} />
           <DataControllerAgreement />
           <button type="submit">Complete Setup</button>

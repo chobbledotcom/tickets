@@ -16,8 +16,8 @@ import { adminLoginPage } from "#templates/admin/login.tsx";
 
 /** Login page response helper */
 export const loginResponse = async (error?: string, status = 200): Promise<Response> => {
-  const csrfToken = await signCsrfToken();
-  return htmlResponse(adminLoginPage(csrfToken, error), status);
+  await signCsrfToken();
+  return htmlResponse(adminLoginPage(error), status);
 };
 
 /**

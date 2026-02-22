@@ -16,11 +16,10 @@ import {
 import { setupFields, type SetupFormValues } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
 
-/** Response helper with signed CSRF token - curried to thread token through */
+/** Response helper - renders setup page with current stored CSRF token */
 const setupResponse =
-  (token: string) =>
   (error?: string, status = 200) =>
-    htmlResponse(setupPage(error, token), status);
+    htmlResponse(setupPage(error), status);
 
 /**
  * Validate setup form data (uses form framework + custom validation)
@@ -88,8 +87,8 @@ const handleSetupGet = async (
   if (await isSetupComplete()) {
     return redirect("/");
   }
-  const csrfToken = await signCsrfToken();
-  return setupResponse(csrfToken)();
+  await signCsrfToken();
+  return setupResponse();
 };
 
 /**
@@ -117,8 +116,8 @@ const handleSetupPost = async (
 
   if (!formCsrf || !await verifySignedCsrfToken(formCsrf)) {
     logError({ code: ErrorCode.AUTH_CSRF_MISMATCH, detail: "setup form" });
-    const newCsrfToken = await signCsrfToken();
-    return setupResponse(newCsrfToken)(
+    await signCsrfToken();
+    return setupResponse(
       "Invalid or expired form. Please try again.",
       403,
     );
@@ -131,7 +130,7 @@ const handleSetupPost = async (
   if (!validation.valid) {
     logError({ code: ErrorCode.VALIDATION_FORM, detail: "setup" });
     // Keep the same CSRF token for validation errors
-    return htmlResponse(setupPage(validation.error, formCsrf), 400);
+    return htmlResponse(setupPage(validation.error), 400);
   }
 
   logDebug("Setup", "Form validation passed, completing setup...");

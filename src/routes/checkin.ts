@@ -46,7 +46,7 @@ const renderAdminView = async (
   const privateKey = (await getPrivateKey(session))!;
   const decrypted = await decryptAttendees(rawAttendees, privateKey);
   const entries = await resolveEntries(decrypted);
-  return htmlResponse(checkinAdminPage(entries, session.csrfToken, `/checkin/${tokens.join("+")}`, message, getAllowedDomain()));
+  return htmlResponse(checkinAdminPage(entries, `/checkin/${tokens.join("+")}`, message, getAllowedDomain()));
 };
 
 /** Handle GET /checkin/:tokens - show current status */

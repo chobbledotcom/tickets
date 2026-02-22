@@ -40,7 +40,7 @@ export const adminDeleteAttendeePage = (
 
         <p>To delete this attendee, you must type their name "{attendee.name}" into the box below:</p>
 
-        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`} csrfToken={session.csrfToken}>
+        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/delete`}>
           {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
           <label for="confirm_name">Attendee name</label>
           <input
@@ -91,7 +91,7 @@ export const adminRefundAttendeePage = (
 
         <p>To refund this attendee, you must type their name "{attendee.name}" into the box below:</p>
 
-        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`} csrfToken={session.csrfToken}>
+        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/refund`}>
           {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
           <label for="confirm_name">Attendee name</label>
           <input
@@ -131,7 +131,7 @@ export const adminRefundAllAttendeesPage = (
 
         <p>To refund all attendees, you must type the event name "{event.name}" into the box below:</p>
 
-        <CsrfForm action={`/admin/event/${event.id}/refund-all`} csrfToken={session.csrfToken}>
+        <CsrfForm action={`/admin/event/${event.id}/refund-all`}>
           <label for="confirm_name">Event name</label>
           <input
             type="text"
@@ -172,7 +172,7 @@ const renderEventSelector = (
 };
 
 /** Render payment details section (read-only) */
-const PaymentDetails = ({ attendee, csrfToken }: { attendee: Attendee; csrfToken: string }): string => {
+const PaymentDetails = ({ attendee }: { attendee: Attendee }): string => {
   if (!attendee.payment_id) return "";
   const pricePaid = Number.parseInt(attendee.price_paid, 10);
   const isRefunded = attendee.refunded;
@@ -192,7 +192,6 @@ const PaymentDetails = ({ attendee, csrfToken }: { attendee: Attendee; csrfToken
       </p>
       <CsrfForm
         action={`/admin/attendees/${attendee.id}/refresh-payment`}
-        csrfToken={csrfToken}
         class="inline"
       >
         <button type="submit">Refresh payment status</button>
@@ -219,9 +218,9 @@ export const adminEditAttendeePage = (
 
         <h2>Edit Attendee</h2>
 
-        <Raw html={PaymentDetails({ attendee, csrfToken: session.csrfToken })} />
+        <Raw html={PaymentDetails({ attendee })} />
 
-        <CsrfForm action={`/admin/attendees/${attendee.id}`} csrfToken={session.csrfToken}>
+        <CsrfForm action={`/admin/attendees/${attendee.id}`}>
           {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
 
           <label for="name">
@@ -314,7 +313,7 @@ export const adminResendWebhookPage = (
 
         <p>To re-send the webhook for this attendee, you must type their name "{attendee.name}" into the box below:</p>
 
-        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`} csrfToken={session.csrfToken}>
+        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`}>
           {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
           <label for="confirm_name">Attendee name</label>
           <input

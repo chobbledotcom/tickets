@@ -64,8 +64,8 @@ type InviteCodeParams = { code: string };
  */
 const handleJoinGet = (_request: Request, { code }: InviteCodeParams): Promise<Response> =>
   withValidInvite(code, async (code, _user, username) => {
-    const csrfToken = await signCsrfToken();
-    return htmlResponse(joinPage(code, username, undefined, csrfToken));
+    await signCsrfToken();
+    return htmlResponse(joinPage(code, username));
   });
 
 /**
@@ -75,29 +75,27 @@ const handleJoinPost = (request: Request, { code }: InviteCodeParams): Promise<R
   withValidInvite(code, (code, user, username) =>
     withCsrfForm(
       request,
-      (newToken, message, status) =>
-        htmlResponse(joinPage(code, username, message, newToken), status),
+      (message, status) =>
+        htmlResponse(joinPage(code, username, message), status),
       async (form) => {
-        const formCsrf = form.get("csrf_token")!;
-
         // Validate password fields
         const validation = validateForm<JoinFormValues>(form, joinFields);
         if (!validation.valid) {
-          return htmlResponse(joinPage(code, username, validation.error, formCsrf), 400);
+          return htmlResponse(joinPage(code, username, validation.error), 400);
         }
 
         const { password, password_confirm: passwordConfirm } = validation.values;
 
         if (password.length < 8) {
           return htmlResponse(
-            joinPage(code, username, "Password must be at least 8 characters", formCsrf),
+            joinPage(code, username, "Password must be at least 8 characters"),
             400,
           );
         }
 
         if (password !== passwordConfirm) {
           return htmlResponse(
-            joinPage(code, username, "Passwords do not match", formCsrf),
+            joinPage(code, username, "Passwords do not match"),
             400,
           );
         }
