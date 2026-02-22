@@ -449,30 +449,6 @@ export const initDb = async (): Promise<void> => {
   await runMigration(`ALTER TABLE attendees ADD COLUMN refunded TEXT NOT NULL DEFAULT ''`);
   await backfillHybridEncryptedColumn("attendees", "refunded", `refunded = ''`);
 
-  // Migration: encrypt existing plaintext website_title in settings
-  {
-    const titleRaw = await getSetting("website_title");
-    if (titleRaw && !titleRaw.startsWith("enc:")) {
-      const encrypted = await encrypt(titleRaw);
-      await getDb().execute({
-        sql: "UPDATE settings SET value = ? WHERE key = 'website_title'",
-        args: [encrypted],
-      });
-    }
-  }
-
-  // Migration: encrypt existing plaintext homepage_text and contact_page_text in settings
-  for (const key of ["homepage_text", "contact_page_text"]) {
-    const raw = await getSetting(key);
-    if (raw && !raw.startsWith("enc:")) {
-      const encrypted = await encrypt(raw);
-      await getDb().execute({
-        sql: "UPDATE settings SET value = ? WHERE key = ?",
-        args: [encrypted, key],
-      });
-    }
-  }
-
   // Update the version marker
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
