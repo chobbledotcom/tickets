@@ -13,9 +13,8 @@ const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
 export const EventRow = ({ e }: { e: EventWithCount }): string => {
   const isInactive = !e.active;
-  const rowStyle = isInactive ? 'opacity: 0.5;' : '';
   return String(
-    <tr style={rowStyle || undefined}>
+    <tr class={isInactive ? "inactive-row" : undefined}>
       <td><Raw html={renderEventImage(e, "event-thumbnail")} /><a href={`/admin/event/${e.id}`}>{e.name}</a></td>
       <td class="cell-description">{e.description}</td>
       <td>{isInactive ? "Inactive" : "Active"}</td>
