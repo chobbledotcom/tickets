@@ -38,12 +38,11 @@ const loadPublicRoutes = once(async () => {
   const {
     handleHome,
     handlePublicEvents,
-    handlePublicEventsPost,
     handlePublicTerms,
     handlePublicContact,
     routeTicket,
   } = await import("#routes/public.ts");
-  return { handleHome, handlePublicEvents, handlePublicEventsPost, handlePublicTerms, handlePublicContact, routeTicket };
+  return { handleHome, handlePublicEvents, handlePublicTerms, handlePublicContact, routeTicket };
 });
 
 /** Lazy-load setup routes */
@@ -116,11 +115,10 @@ const routeHome: RouterFn = async (_request, path, method) => {
 };
 
 /** Route public site pages (/events, /terms, /contact) */
-const routePublicPages: RouterFn = async (request, path, method) => {
+const routePublicPages: RouterFn = async (_request, path, method) => {
   if (path === "/events") {
-    const { handlePublicEvents, handlePublicEventsPost } = await loadPublicRoutes();
+    const { handlePublicEvents } = await loadPublicRoutes();
     if (method === "GET") return handlePublicEvents();
-    if (method === "POST") return handlePublicEventsPost(request);
     return null;
   }
   if (path === "/terms" && method === "GET") {
