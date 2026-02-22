@@ -110,6 +110,7 @@ export const adminSettingsPage = (
               ? "A Stripe secret key is currently configured. Enter a new key below to replace it."
               : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
           </p>
+          <p><small><a href="/admin/guide#payment-setup">Where do I find this?</a></small></p>
           <Raw html={renderFields(stripeKeyFields)} />
           <button type="submit">Update Stripe Key</button>
           {stripeKeyConfigured && (
@@ -127,6 +128,7 @@ export const adminSettingsPage = (
               ? "A Square access token is currently configured. Enter new credentials below to replace them."
               : "No Square access token is configured. Enter your Square credentials to enable Square payments."}
           </p>
+          <p><small><a href="/admin/guide#payment-setup">Where do I find these?</a></small></p>
           <Raw html={renderFields(squareAccessTokenFields)} />
           <button type="submit">Update Square Credentials</button>
         </CsrfForm>
@@ -135,6 +137,9 @@ export const adminSettingsPage = (
         {paymentProvider === "square" && squareTokenConfigured && (
         <CsrfForm action="/admin/settings/square-webhook">
             <h2>Square Webhook</h2>
+          <p>
+            <a href="/admin/guide#payment-setup">See the full setup guide</a>
+          </p>
           <article>
             <aside>
               <p>To receive payment notifications, set up a webhook in your Square Developer Dashboard:</p>
