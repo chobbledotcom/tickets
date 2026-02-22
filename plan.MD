@@ -17,12 +17,12 @@ Add a configurable phone prefix setting (default: `44`) used in two places:
 export const normalizePhone = (phone: string, prefix: string): string => {
   const digits = phone.replace(/\D/g, "");
   if (!digits) return "";
-  return digits.startsWith("0") ? prefix + digits.slice(1) : digits;
+  return digits.startsWith("0") ? "+" + prefix + digits.slice(1) : "+" + digits;
 };
 ```
 
 - Input: raw phone string (e.g. `"07700 900000"`) + prefix (e.g. `"44"`)
-- Output: digits-only, prefixed if needed (e.g. `"447700900000"`)
+- Output: `+` prefixed, digits-only, country-prefixed if needed (e.g. `"+447700900000"`)
 
 ---
 
@@ -42,10 +42,10 @@ export const normalizePhone = (phone: string, prefix: string): string => {
 ### Template: `src/templates/admin/settings.tsx`
 
 - Add `phonePrefix?: string` parameter to `adminSettingsPage()`
-- Add a form section with a text input for the phone prefix:
+- Add a form section immediately after the currency code setting:
   - Label: "Phone Prefix"
   - Description: Country calling code used when normalizing phone numbers that start with 0 (e.g. 44 for UK, 1 for US)
-  - Input: text, defaulting to `"44"`, `name="phone_prefix"`
+  - Input: `type="number"` with `step="1"` (integer only, no decimals), defaulting to `"44"`, `name="phone_prefix"`
   - Action: `/admin/settings/phone-prefix`
 
 ### Route: `src/routes/admin/settings.ts`
@@ -73,7 +73,7 @@ In `squareApi.createPaymentLink` and `squareApi.createMultiPaymentLink`:
   const prefix = await getPhonePrefixFromDb();
   const normalizedPhone = intent.phone ? normalizePhone(intent.phone, prefix) : undefined;
   ```
-- Pass `normalizedPhone` (with `+` prefix for E.164) as `phone` to `createPaymentLinkImpl`
+- Pass `normalizedPhone` as `phone` to `createPaymentLinkImpl` (already includes `+` prefix from `normalizePhone`)
 - The metadata phone (`buildSingleIntentMetadata` / `buildMultiIntentMetadata`) stays as the raw user input — it's used for attendee record creation, not the payment form
 
 ---
@@ -90,9 +90,9 @@ In `squareApi.createPaymentLink` and `squareApi.createMultiPaymentLink`:
   ```
   to:
   ```tsx
-  {vis.showPhone && <td>{a.phone ? <a href={`tel:+${normalizePhone(a.phone, opts.phonePrefix || "44")}`}>{a.phone}</a> : ""}</td>}
+  {vis.showPhone && <td>{a.phone ? <a href={`tel:${normalizePhone(a.phone, opts.phonePrefix || "44")}`}>{a.phone}</a> : ""}</td>}
   ```
-- The display text remains the original phone number; the `href` uses the normalized version with `+` prefix
+- The display text remains the original phone number; the `href` uses the normalized version (already includes `+` from `normalizePhone`)
 
 ### Update all 3 call sites to pass `phonePrefix`:
 
