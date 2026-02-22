@@ -35,6 +35,10 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
   reduce((sum: number, a: Attendee) =>
     sum + Number.parseInt(a.price_paid, 10), 0)(attendees);
 
+/** Count how many attendees are checked in */
+export const countCheckedIn = (attendees: Attendee[]): number =>
+  filter((a: Attendee) => a.checked_in === "true")(attendees).length;
+
 
 /** Check if event is within 10% of capacity */
 export const nearCapacity = (event: EventWithCount): boolean =>
@@ -110,6 +114,8 @@ export const adminEventPage = ({
   const isDaily = event.event_type === "daily";
   const filteredAttendees = filterAttendees(attendees, activeFilter);
   const hasPaidEvent = event.unit_price !== null;
+  const checkedIn = countCheckedIn(attendees);
+  const checkedInRemaining = attendees.length - checkedIn;
   const basePath = `/admin/event/${event.id}`;
   const dateQs = dateFilter ? `?date=${dateFilter}` : "";
   const suffix = filterSuffix(activeFilter);
@@ -206,6 +212,14 @@ export const adminEventPage = ({
                   {isDaily && !dateFilter && (
                     <>{" "}<small>Capacity of {event.max_attendees} applies per date</small></>
                   )}
+                </td>
+              </tr>
+              <tr>
+                <th>Checked In{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
+                <td>
+                  <span>
+                    {checkedIn} / {attendees.length} &mdash; {checkedInRemaining} remain
+                  </span>
                 </td>
               </tr>
               {event.unit_price !== null && (
