@@ -332,9 +332,9 @@ describe("square", () => {
             "https://tickets.example.com/payment/success",
           );
 
-          // Verify pre-populated data
+          // Verify pre-populated data (phone is normalized: stripped + prefixed)
           expect(args.prePopulatedData.buyerEmail).toBe("jane@example.com");
-          expect(args.prePopulatedData.buyerPhoneNumber).toBe("555-9876");
+          expect(args.prePopulatedData.buyerPhoneNumber).toBe("+5559876");
 
           // Verify idempotency key is present
           expect(typeof args.idempotencyKey).toBe("string");
@@ -680,7 +680,7 @@ describe("square", () => {
             "https://tickets.example.com/payment/success",
           );
           expect(args.prePopulatedData.buyerEmail).toBe("alice@example.com");
-          expect(args.prePopulatedData.buyerPhoneNumber).toBe("555-1111");
+          expect(args.prePopulatedData.buyerPhoneNumber).toBe("+5551111");
         },
       );
     });

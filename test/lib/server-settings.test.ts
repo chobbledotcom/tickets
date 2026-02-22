@@ -1745,4 +1745,158 @@ describe("server (admin settings)", () => {
     });
   });
 
+  describe("POST /admin/settings/phone-prefix", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/phone-prefix", {
+          phone_prefix: "44",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/phone-prefix",
+          {
+            phone_prefix: "44",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(403);
+      const text = await response.text();
+      expect(text).toContain("Invalid CSRF token");
+    });
+
+    test("saves valid phone prefix", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/phone-prefix",
+          {
+            phone_prefix: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Phone prefix updated to 1");
+    });
+
+    test("rejects non-digit input", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/phone-prefix",
+          {
+            phone_prefix: "abc",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Phone prefix must be a number");
+    });
+
+    test("rejects empty input", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/phone-prefix",
+          {
+            phone_prefix: "",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Phone prefix must be a number");
+    });
+
+    test("rejects when phone_prefix field is missing", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/phone-prefix",
+          {
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(400);
+      const html = await response.text();
+      expect(html).toContain("Phone prefix must be a number");
+    });
+
+    test("setting persists in database", async () => {
+      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Default should be "44"
+      expect(await settingsApi.getPhonePrefixFromDb()).toBe("44");
+
+      // Update it
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/phone-prefix",
+          {
+            phone_prefix: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(await settingsApi.getPhonePrefixFromDb()).toBe("1");
+    });
+
+    test("settings page displays phone prefix form", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("Phone Prefix");
+      expect(html).toContain("phone_prefix");
+    });
+
+    test("logs activity when phone prefix is changed", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/phone-prefix",
+          {
+            phone_prefix: "33",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      const logs = await getAllActivityLog();
+      expect(logs.some(l => l.message.includes("Phone prefix set to 33"))).toBe(true);
+    });
+  });
+
 });

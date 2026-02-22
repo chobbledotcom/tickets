@@ -6,6 +6,7 @@
 
 import { filter, map } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
+import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { decryptAttendees, updateCheckedIn } from "#lib/db/attendees.ts";
 import type { Attendee } from "#lib/types.ts";
 import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
@@ -46,7 +47,8 @@ const renderAdminView = async (
   const privateKey = (await getPrivateKey(session))!;
   const decrypted = await decryptAttendees(rawAttendees, privateKey);
   const entries = await resolveEntries(decrypted);
-  return htmlResponse(checkinAdminPage(entries, `/checkin/${tokens.join("+")}`, message, getAllowedDomain()));
+  const phonePrefix = await getPhonePrefixFromDb();
+  return htmlResponse(checkinAdminPage(entries, `/checkin/${tokens.join("+")}`, message, getAllowedDomain(), phonePrefix));
 };
 
 /** Handle GET /checkin/:tokens - show current status */

@@ -4,6 +4,7 @@
 
 import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
+import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { eventDateToCalendarDate, formatDateLabel, getAvailableDates } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendees, decryptAttendeesForTable } from "#lib/db/attendees.ts";
@@ -177,6 +178,7 @@ const handleAdminCalendarGet = (request: Request) =>
       dailyEvents, attendeeDates, standardCtx.standardEventDateMap,
       standardCtx.standardEvents, holidays,
     );
+    const phonePrefix = await getPhonePrefixFromDb();
     return htmlResponse(
       adminCalendarPage(
         attendees,
@@ -184,6 +186,7 @@ const handleAdminCalendarGet = (request: Request) =>
         session,
         dateFilter,
         availableDates,
+        phonePrefix,
       ),
     );
   });
