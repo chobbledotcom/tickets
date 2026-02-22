@@ -115,6 +115,7 @@ describe("QR Scanner", () => {
       expect(response.status).toBe(200);
       const body = await response.text();
       expect(body).toContain("Scanner");
+      expect(body).toContain("scanner-container");
       expect(body).toContain("scanner-video");
       expect(body).toContain("scanner-start");
       expect(body).toContain(`data-event-id="${event.id}"`);
