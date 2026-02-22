@@ -22,6 +22,7 @@ export const checkinAdminPage = (
   checkinPath: string,
   message: string | null,
   allowedDomain: string,
+  phonePrefix?: string,
 ): string => {
   const showDate = entries.some((e) => e.attendee.date !== null);
   const tableRows: AttendeeTableRow[] = pipe(
@@ -53,6 +54,7 @@ export const checkinAdminPage = (
           showEvent: true,
           showDate,
           returnUrl: checkinPath,
+          phonePrefix,
         })} />
       </div>
     </Layout>

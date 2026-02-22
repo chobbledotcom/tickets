@@ -19,6 +19,8 @@ import {
   getSquareSandbox,
   getSquareWebhookSignatureKey,
 } from "#lib/config.ts";
+import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
+import { normalizePhone } from "#lib/phone.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
 import {
   buildMultiIntentMetadata,
@@ -280,6 +282,13 @@ const createPaymentLinkImpl = (
     ErrorCode.SQUARE_CHECKOUT,
   );
 
+/** Normalize a phone number for Square pre-populated checkout data */
+const normalizeCheckoutPhone = async (phone: string | undefined): Promise<string | undefined> => {
+  if (!phone) return undefined;
+  const prefix = await getPhonePrefixFromDb();
+  return normalizePhone(phone, prefix);
+};
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  */
@@ -335,7 +344,7 @@ export const squareApi: {
       metadata,
       baseUrl,
       email: intent.email,
-      phone: intent.phone || undefined,
+      phone: await normalizeCheckoutPhone(intent.phone),
       label: "Payment link",
     });
 
@@ -369,7 +378,7 @@ export const squareApi: {
       metadata,
       baseUrl,
       email: intent.email,
-      phone: intent.phone || undefined,
+      phone: await normalizeCheckoutPhone(intent.phone),
       label: "Multi payment link",
     });
 

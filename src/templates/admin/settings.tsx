@@ -33,6 +33,7 @@ export const adminSettingsPage = (
   businessEmail?: string,
   theme?: string,
   showEventsOnHomepage?: boolean,
+  phonePrefix?: string,
 ): string =>
   String(
     <Layout title="Settings" theme={theme}>
@@ -51,6 +52,22 @@ export const adminSettingsPage = (
             ))}
           </select>
           <button type="submit">Save Timezone</button>
+        </CsrfForm>
+
+        <CsrfForm action="/admin/settings/phone-prefix">
+            <h2>Phone Prefix</h2>
+          <p>Country calling code used when normalizing phone numbers that start with 0 (e.g. 44 for UK, 1 for US).</p>
+          <label for="phone_prefix">Phone Prefix</label>
+          <input
+            type="number"
+            id="phone_prefix"
+            name="phone_prefix"
+            step="1"
+            min="1"
+            value={phonePrefix ?? "44"}
+            required
+          />
+          <button type="submit">Save Phone Prefix</button>
         </CsrfForm>
 
         <CsrfForm action="/admin/settings/business-email">

@@ -49,6 +49,7 @@ export const adminCalendarPage = (
   session: AdminSession,
   dateFilter: string | null,
   availableDates: CalendarDateOption[],
+  phonePrefix?: string,
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
     map((a: CalendarAttendeeRow): AttendeeTableRow => ({
@@ -90,6 +91,7 @@ export const adminCalendarPage = (
               showDate: false,
               returnUrl,
               emptyMessage,
+              phonePrefix,
             })} />
           </div>
         </article>

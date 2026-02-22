@@ -8,6 +8,7 @@ import {
   clearPaymentProvider,
   getEmbedHostsFromDb,
   getPaymentProviderFromDb,
+  getPhonePrefixFromDb,
   getShowEventsOnHomepageFromDb,
   getSquareSandboxFromDb,
   getStripeWebhookEndpointId,
@@ -20,6 +21,7 @@ import {
   setPaymentProvider,
   setStripeWebhookConfig,
   updateEmbedHosts,
+  updatePhonePrefix,
   updateShowEventsOnHomepage,
   updateSquareAccessToken,
   updateSquareLocationId,
@@ -87,6 +89,7 @@ const getSettingsPageState = async () => {
   const businessEmail = await getBusinessEmailFromDb();
   const theme = await getThemeFromDb();
   const showEventsOnHomepage = await getShowEventsOnHomepageFromDb();
+  const phonePrefix = await getPhonePrefixFromDb();
   return {
     stripeKeyConfigured,
     paymentProvider,
@@ -100,6 +103,7 @@ const getSettingsPageState = async () => {
     businessEmail,
     theme,
     showEventsOnHomepage,
+    phonePrefix,
   };
 };
 
@@ -126,6 +130,7 @@ const renderSettingsPage = async (
     state.businessEmail,
     state.theme,
     state.showEventsOnHomepage,
+    state.phonePrefix,
   );
 };
 
@@ -463,6 +468,22 @@ const processShowEventsOnHomepageForm: SettingsFormHandler = async (form) => {
 /** Handle POST /admin/settings/show-events-on-homepage - owner only */
 const handleShowEventsOnHomepagePost = settingsRoute(processShowEventsOnHomepageForm);
 
+/** Validate and save phone prefix from form submission */
+const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
+  const raw = (form.get("phone_prefix") ?? "").trim();
+
+  if (raw === "" || !/^\d+$/.test(raw)) {
+    return errorPage("Phone prefix must be a number (digits only)", 400);
+  }
+
+  await updatePhonePrefix(raw);
+  await logActivity(`Phone prefix set to ${raw}`);
+  return redirectWithSuccess("/admin/settings", `Phone prefix updated to ${raw}`);
+};
+
+/** Handle POST /admin/settings/phone-prefix - owner only */
+const handlePhonePrefixPost = settingsRoute(processPhonePrefixForm);
+
 /**
  * Expected confirmation phrase for database reset
  */
@@ -503,5 +524,6 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/business-email": handleBusinessEmailPost,
   "POST /admin/settings/theme": handleThemePost,
   "POST /admin/settings/show-events-on-homepage": handleShowEventsOnHomepagePost,
+  "POST /admin/settings/phone-prefix": handlePhonePrefixPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

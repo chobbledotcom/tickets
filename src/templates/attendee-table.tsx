@@ -6,6 +6,7 @@
 import { map, pipe, reduce, sort } from "#fp";
 import { formatDateLabel } from "#lib/dates.ts";
 import { CsrfForm } from "#lib/forms.tsx";
+import { normalizePhone } from "#lib/phone.ts";
 import type { Attendee } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 
@@ -28,6 +29,7 @@ export type AttendeeTableOptions = {
   activeFilter?: string;
   returnUrl?: string;
   emptyMessage?: string;
+  phonePrefix?: string;
 };
 
 /** Column visibility flags computed from data */
@@ -200,7 +202,7 @@ const AttendeeRow = ({ row, vis, opts }: {
       {vis.showDate && <td>{a.date ? formatDateLabel(a.date) : ""}</td>}
       <td>{a.name}</td>
       {vis.showEmail && <td>{a.email || ""}</td>}
-      {vis.showPhone && <td>{a.phone || ""}</td>}
+      {vis.showPhone && <td>{a.phone ? <a href={`tel:${normalizePhone(a.phone, opts.phonePrefix || "44")}`}>{a.phone}</a> : ""}</td>}
       {vis.showAddress && <td>{formatAddressInline(a.address)}</td>}
       {vis.showSpecialInstructions && <td>{formatInstructionsInline(a.special_instructions)}</td>}
       <td>{a.quantity}</td>

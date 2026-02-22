@@ -89,6 +89,7 @@ export type AdminEventPageOptions = {
   availableDates?: DateOption[];
   addAttendeeMessage?: AddAttendeeMessage;
   imageError?: string | null;
+  phonePrefix?: string;
 };
 
 export const adminEventPage = ({
@@ -102,6 +103,7 @@ export const adminEventPage = ({
   availableDates = [],
   addAttendeeMessage = null,
   imageError = null,
+  phonePrefix,
 }: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
@@ -312,6 +314,7 @@ export const adminEventPage = ({
               showDate: isDaily,
               activeFilter,
               returnUrl,
+              phonePrefix,
             })} />
           </div>
         </article>

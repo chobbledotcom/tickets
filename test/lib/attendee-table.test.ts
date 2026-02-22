@@ -140,6 +140,25 @@ describe("AttendeeTable", () => {
       expect(html).toContain("555-1234");
     });
 
+    test("renders phone as clickable tel link", () => {
+      const rows = [makeRow({ attendee: testAttendee({ phone: "07700 900000" }) })];
+      const html = AttendeeTable(makeOpts({ rows, phonePrefix: "44" }));
+      expect(html).toContain('href="tel:+447700900000"');
+      expect(html).toContain(">07700 900000</a>");
+    });
+
+    test("uses phonePrefix option for tel link normalization", () => {
+      const rows = [makeRow({ attendee: testAttendee({ phone: "0234 567 8900" }) })];
+      const html = AttendeeTable(makeOpts({ rows, phonePrefix: "1" }));
+      expect(html).toContain('href="tel:+12345678900"');
+    });
+
+    test("defaults to prefix 44 when phonePrefix not provided", () => {
+      const rows = [makeRow({ attendee: testAttendee({ phone: "07700 900000" }) })];
+      const html = AttendeeTable(makeOpts({ rows }));
+      expect(html).toContain('href="tel:+447700900000"');
+    });
+
     test("renders empty cell for attendee without phone when column is shown", () => {
       const rows = [
         makeRow({ attendee: testAttendee({ phone: "555-1234" }) }),
@@ -147,9 +166,8 @@ describe("AttendeeTable", () => {
       ];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).toContain("<th>Phone</th>");
-      // Two phone cells: one with data, one empty
-      const phoneCells = html.match(/<td>555-1234<\/td>/g);
-      expect(phoneCells).toHaveLength(1);
+      // Attendee with phone gets a tel link
+      expect(html).toContain('href="tel:+5551234"');
     });
   });
 

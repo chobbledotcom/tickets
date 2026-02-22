@@ -4,6 +4,7 @@
 
 import { filter } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
+import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
 import {
@@ -244,11 +245,12 @@ const getUniqueDates = (attendees: Attendee[]): { value: string; label: string }
 /** Render event page with attendee list and optional filter */
 const renderEventPage = async (request: Request, { id }: { id: number }, activeFilter: AttendeeFilter = "all") => {
   await deleteAllStaleReservations();
-  return withEventAttendees(request, id, ({ event, attendees, session }) => {
+  return withEventAttendees(request, id, async ({ event, attendees, session }) => {
     const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
     const availableDates = event.event_type === "daily" ? getUniqueDates(attendees) : [];
     const filteredByDate = filterByDate(attendees, dateFilter);
     const imageError = new URL(request.url).searchParams.get("image_error");
+    const phonePrefix = await getPhonePrefixFromDb();
     return htmlResponse(
       adminEventPage({
         event,
@@ -261,6 +263,7 @@ const renderEventPage = async (request: Request, { id }: { id: number }, activeF
         availableDates,
         addAttendeeMessage: getAddAttendeeMessage(request),
         imageError,
+        phonePrefix,
       }),
     );
   }, "table");

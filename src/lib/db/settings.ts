@@ -53,6 +53,8 @@ export const CONFIG_KEYS = {
   THEME: "theme",
   // Show events on homepage (plaintext - "true" or "false")
   SHOW_EVENTS_ON_HOMEPAGE: "show_events_on_homepage",
+  // Phone prefix (plaintext - country calling code, e.g. "44")
+  PHONE_PREFIX: "phone_prefix",
 } as const;
 
 /**
@@ -572,6 +574,22 @@ export const updateShowEventsOnHomepage = async (show: boolean): Promise<void> =
 };
 
 /**
+ * Get the configured phone prefix from database.
+ * Returns the country calling code, defaulting to "44" (UK).
+ */
+export const getPhonePrefixFromDb = async (): Promise<string> => {
+  const value = await getSetting(CONFIG_KEYS.PHONE_PREFIX);
+  return value || "44";
+};
+
+/**
+ * Update the configured phone prefix.
+ */
+export const updatePhonePrefix = async (prefix: string): Promise<void> => {
+  await setSetting(CONFIG_KEYS.PHONE_PREFIX, prefix);
+};
+
+/**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
  */
@@ -615,4 +633,6 @@ export const settingsApi = {
   updateTheme,
   getShowEventsOnHomepageFromDb,
   updateShowEventsOnHomepage,
+  getPhonePrefixFromDb,
+  updatePhonePrefix,
 };
