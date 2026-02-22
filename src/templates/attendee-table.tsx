@@ -122,7 +122,7 @@ const CheckinButton = ({ a, eventId, activeFilter, returnUrl }: {
   activeFilter: string;
   returnUrl: string | undefined;
 }): string => {
-  const isCheckedIn = a.checked_in === "true";
+  const isCheckedIn = a.checked_in;
   const label = isCheckedIn ? "Check out" : "Check in";
   const buttonClass = isCheckedIn ? "link-button checkout" : "link-button checkin";
   return String(

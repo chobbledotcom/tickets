@@ -171,7 +171,7 @@ const handleAttendeeDelete = attendeeFormAction(async (data, session, form, even
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/checkin */
 const handleAttendeeCheckin = attendeeFormAction(async (data, _session, form, eventId, attendeeId) => {
-  const wasCheckedIn = data.attendee.checked_in === "true";
+  const wasCheckedIn = data.attendee.checked_in;
   const nowCheckedIn = !wasCheckedIn;
 
   await updateCheckedIn(attendeeId, nowCheckedIn);

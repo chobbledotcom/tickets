@@ -31,8 +31,8 @@ const formatPrice = (pricePaid: string): string =>
   toMajorUnits(Number.parseInt(pricePaid, 10));
 
 /** Format checked_in value as Yes/No */
-const formatCheckedIn = (checkedIn: string): string =>
-  checkedIn === "true" ? "Yes" : "No";
+const formatCheckedIn = (checkedIn: boolean): string =>
+  checkedIn ? "Yes" : "No";
 
 /** Build standard attendee CSV columns (shared by all CSV generators) */
 const attendeeCols = (a: Attendee, domain: string): string[] => [

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "#test-compat";
 import { CSS_PATH, EMBED_JS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, IFRAME_RESIZER_PARENT_JS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
-import { adminDuplicateEventPage, adminEventEditPage, adminEventNewPage, adminEventPage, calculateTotalRevenue, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
+import { adminDuplicateEventPage, adminEventEditPage, adminEventNewPage, adminEventPage, calculateTotalRevenue, countCheckedIn, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
@@ -151,6 +151,25 @@ describe("html", () => {
       expect(html).toContain("Attendees");
       expect(html).toContain("2 / 100");
       expect(html).toContain("98 remain");
+    });
+
+    test("shows checked in row with 0 of 0 when no attendees", () => {
+      const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).toContain("Checked In");
+      expect(html).toContain("0 / 0");
+      expect(html).toContain("0 remain");
+    });
+
+    test("shows checked in count and remaining", () => {
+      const attendees = [
+        testAttendee({ id: 1, checked_in: true }),
+        testAttendee({ id: 2, checked_in: false }),
+        testAttendee({ id: 3, checked_in: false }),
+      ];
+      const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).toContain("Checked In");
+      expect(html).toContain("1 / 3");
+      expect(html).toContain("2 remain");
     });
 
     test("shows thank you URL in copyable input", () => {
@@ -871,14 +890,14 @@ describe("html", () => {
     });
 
     test("includes Checked In as Yes for checked-in attendee", () => {
-      const attendees = [testAttendee({ checked_in: "true" })];
+      const attendees = [testAttendee({ checked_in: true })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
       expect(lines[1]).toContain(",Yes,");
     });
 
     test("includes Checked In as No for not checked-in attendee", () => {
-      const attendees = [testAttendee({ checked_in: "false" })];
+      const attendees = [testAttendee({ checked_in: false })];
       const csv = generateAttendeesCsv(attendees);
       const lines = csv.split("\n");
       expect(lines[1]).toContain(",No,");
@@ -957,8 +976,8 @@ describe("html", () => {
     test("filters to only checked-in attendees when filter is in", () => {
       const event = testEventWithCount({ attendee_count: 2 });
       const attendees = [
-        testAttendee({ id: 1, name: "Checked In User", checked_in: "true" }),
-        testAttendee({ id: 2, name: "Not Checked In User", checked_in: "false" }),
+        testAttendee({ id: 1, name: "Checked In User", checked_in: true }),
+        testAttendee({ id: 2, name: "Not Checked In User", checked_in: false }),
       ];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION, activeFilter: "in" });
       expect(html).toContain("Checked In User");
@@ -968,8 +987,8 @@ describe("html", () => {
     test("filters to only checked-out attendees when filter is out", () => {
       const event = testEventWithCount({ attendee_count: 2 });
       const attendees = [
-        testAttendee({ id: 1, name: "Alice InPerson", checked_in: "true" }),
-        testAttendee({ id: 2, name: "Bob Remote", checked_in: "false" }),
+        testAttendee({ id: 1, name: "Alice InPerson", checked_in: true }),
+        testAttendee({ id: 2, name: "Bob Remote", checked_in: false }),
       ];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION, activeFilter: "out" });
       expect(html).not.toContain("Alice InPerson");
@@ -979,8 +998,8 @@ describe("html", () => {
     test("shows all attendees when filter is all", () => {
       const event = testEventWithCount({ attendee_count: 2 });
       const attendees = [
-        testAttendee({ id: 1, name: "Checked In User", checked_in: "true" }),
-        testAttendee({ id: 2, name: "Not Checked In User", checked_in: "false" }),
+        testAttendee({ id: 1, name: "Checked In User", checked_in: true }),
+        testAttendee({ id: 2, name: "Not Checked In User", checked_in: false }),
       ];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION, activeFilter: "all" });
       expect(html).toContain("Checked In User");
@@ -989,7 +1008,7 @@ describe("html", () => {
 
     test("includes return_filter hidden field in checkin form", () => {
       const event = testEventWithCount({ attendee_count: 1 });
-      const attendees = [testAttendee({ checked_in: "true" })];
+      const attendees = [testAttendee({ checked_in: true })];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION, activeFilter: "in" });
       expect(html).toContain('name="return_filter"');
       expect(html).toContain('value="in"');
@@ -1183,6 +1202,29 @@ describe("html", () => {
         testAttendee({ id: 2, quantity: 2 }),
       ];
       expect(calculateTotalRevenue(attendees)).toBe(1500);
+    });
+  });
+
+  describe("countCheckedIn", () => {
+    test("returns 0 for empty attendees", () => {
+      expect(countCheckedIn([])).toBe(0);
+    });
+
+    test("counts attendees with checked_in true", () => {
+      const attendees = [
+        testAttendee({ id: 1, checked_in: true }),
+        testAttendee({ id: 2, checked_in: false }),
+        testAttendee({ id: 3, checked_in: true }),
+      ];
+      expect(countCheckedIn(attendees)).toBe(2);
+    });
+
+    test("returns 0 when none checked in", () => {
+      const attendees = [
+        testAttendee({ id: 1, checked_in: false }),
+        testAttendee({ id: 2, checked_in: false }),
+      ];
+      expect(countCheckedIn(attendees)).toBe(0);
     });
   });
 
@@ -1631,7 +1673,7 @@ describe("html", () => {
         quantity: 2,
         price_paid: "2000",
         payment_id: "pi_abc",
-        checked_in: "true",
+        checked_in: true,
       })];
       const csv = generateCalendarCsv(attendees);
       const lines = csv.split("\n");

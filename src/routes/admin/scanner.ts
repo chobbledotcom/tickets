@@ -88,7 +88,7 @@ const handleScanPost = (request: Request, { id }: { id: number }): Promise<Respo
     }
 
     // Already checked in
-    if (attendee.checked_in === "true") {
+    if (attendee.checked_in) {
       return jsonResponse({
         status: "already_checked_in",
         name: attendee.name,

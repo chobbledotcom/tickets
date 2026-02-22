@@ -84,7 +84,7 @@ const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response
     const totalTickets = sumTicketCount(eligible);
     const uncheckedTickets = sumTicketCount(
       eligible,
-      (attendee) => attendee.checked_in !== "true",
+      (attendee) => !attendee.checked_in,
     );
     await Promise.all(map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(eligible));
 

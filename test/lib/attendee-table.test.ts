@@ -214,14 +214,14 @@ describe("AttendeeTable", () => {
 
   describe("check-in button", () => {
     test("shows Check in for unchecked attendee", () => {
-      const rows = [makeRow({ attendee: testAttendee({ checked_in: "false" }) })];
+      const rows = [makeRow({ attendee: testAttendee({ checked_in: false }) })];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).toContain("Check in");
       expect(html).toContain('class="link-button checkin"');
     });
 
     test("shows Check out for checked-in attendee", () => {
-      const rows = [makeRow({ attendee: testAttendee({ checked_in: "true" }) })];
+      const rows = [makeRow({ attendee: testAttendee({ checked_in: true }) })];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).toContain("Check out");
       expect(html).toContain('class="link-button checkout"');
