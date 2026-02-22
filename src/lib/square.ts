@@ -481,14 +481,12 @@ export const refundPayment = (id: string) => squareApi.refundPayment(id);
 
 /** Compute HMAC-SHA256 and return base64-encoded result (Square format) */
 const computeSquareSignature = async (
-  data: string | Uint8Array,
+  data: Uint8Array,
   secret: string,
 ): Promise<string> => hmacToBase64(await computeHmacSha256(data, secret));
 
-/** Concatenate notification URL bytes with raw body bytes for HMAC signing.
- *  Uses raw body bytes directly to avoid text decoding/encoding round-trip
- *  that can alter the payload in edge runtimes (e.g. Bunny CDN). */
-const buildSignedPayloadBytes = (
+/** Concatenate notification URL bytes with raw body bytes for HMAC signing */
+const buildSignedPayload = (
   notificationUrl: string,
   bodyBytes: Uint8Array,
 ): Uint8Array => {
@@ -503,16 +501,19 @@ const buildSignedPayloadBytes = (
  * Verify Square webhook signature using Web Crypto API.
  * Square signs: HMAC-SHA256(signature_key, notification_url + raw_body)
  *
+ * Uses raw body bytes directly for HMAC computation to avoid a text
+ * decoding/encoding round-trip that can alter the payload in CDN edge runtimes.
+ *
  * @param payload - Raw request body as string (used for JSON parsing)
  * @param signature - x-square-hmacsha256-signature header value
  * @param notificationUrl - The webhook notification URL registered with Square
- * @param payloadBytes - Raw body bytes for HMAC computation (avoids text round-trip)
+ * @param payloadBytes - Raw body bytes from request.arrayBuffer()
  */
 export const verifyWebhookSignature = async (
   payload: string,
   signature: string,
-  notificationUrl?: string,
-  payloadBytes?: Uint8Array,
+  notificationUrl: string,
+  payloadBytes: Uint8Array,
 ): Promise<WebhookVerifyResult> => {
   const secret = await getSquareWebhookSignatureKey();
   if (!secret) {
@@ -520,23 +521,14 @@ export const verifyWebhookSignature = async (
     return { valid: false, error: "Webhook signature key not configured" };
   }
 
-  if (!notificationUrl) {
-    logError({ code: ErrorCode.SQUARE_SIGNATURE, detail: "notification URL required" });
-    return { valid: false, error: "Notification URL required for verification" };
-  }
-
   // Square signs: notification_url + raw_body
-  // Use raw bytes when available to avoid text decoding/encoding round-trip
-  // that can alter the payload in CDN edge runtimes.
-  const signedData: string | Uint8Array = payloadBytes
-    ? buildSignedPayloadBytes(notificationUrl, payloadBytes)
-    : notificationUrl + payload;
+  const signedData = buildSignedPayload(notificationUrl, payloadBytes);
   const expectedSignature = await computeSquareSignature(signedData, secret);
 
   if (!secureCompare(signature, expectedSignature)) {
     logError({
       code: ErrorCode.SQUARE_SIGNATURE,
-      detail: `mismatch: notificationUrl=${notificationUrl}, receivedLength=${signature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${signature.slice(0, 8)}..., expectedPrefix=${expectedSignature.slice(0, 8)}..., bodyLength=${payloadBytes?.length ?? payload.length}`,
+      detail: `mismatch: notificationUrl=${notificationUrl}, receivedLength=${signature.length}, expectedLength=${expectedSignature.length}, receivedPrefix=${signature.slice(0, 8)}..., expectedPrefix=${expectedSignature.slice(0, 8)}..., bodyLength=${payloadBytes.length}`,
     });
     return { valid: false, error: "Signature verification failed" };
   }
@@ -561,6 +553,8 @@ export const constructTestWebhookEvent = async (
   notificationUrl: string,
 ): Promise<{ payload: string; signature: string }> => {
   const body = JSON.stringify(event);
-  const signature = await computeSquareSignature(notificationUrl + body, secret);
+  const bodyBytes = new TextEncoder().encode(body);
+  const signedPayload = buildSignedPayload(notificationUrl, bodyBytes);
+  const signature = await computeSquareSignature(signedPayload, secret);
   return { payload: body, signature };
 };

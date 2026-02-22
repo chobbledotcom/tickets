@@ -1104,6 +1104,7 @@ describe("square", () => {
   describe("verifyWebhookSignature", () => {
     const TEST_SECRET = "square_test_signature_key";
     const TEST_NOTIFICATION_URL = "https://example.com/payment/webhook";
+    const toBytes = (s: string) => new TextEncoder().encode(s);
 
     beforeEach(async () => {
       await updateSquareWebhookSignatureKey(TEST_SECRET);
@@ -1112,10 +1113,12 @@ describe("square", () => {
     test("returns error when webhook signature key not configured", async () => {
       await resetDb();
       await createTestDb();
+      const payload = '{"test": true}';
       const result = await verifyWebhookSignature(
-        '{"test": true}',
+        payload,
         "somesig",
         TEST_NOTIFICATION_URL,
+        toBytes(payload),
       );
       expect(result.valid).toBe(false);
       if (!result.valid) {
@@ -1123,22 +1126,13 @@ describe("square", () => {
       }
     });
 
-    test("returns error when notification URL not provided", async () => {
-      const result = await verifyWebhookSignature(
-        '{"test": true}',
-        "somesig",
-      );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Notification URL required for verification");
-      }
-    });
-
     test("returns error for invalid signature", async () => {
+      const payload = '{"test": true}';
       const result = await verifyWebhookSignature(
-        '{"test": true}',
+        payload,
         "invalidsignature",
         TEST_NOTIFICATION_URL,
+        toBytes(payload),
       );
       expect(result.valid).toBe(false);
       if (!result.valid) {
@@ -1148,16 +1142,14 @@ describe("square", () => {
 
     test("returns error for invalid JSON payload with valid signature", async () => {
       const payload = "not valid json {{{";
-      const { signature } = await constructTestWebhookEvent(
-        // We'll sign the raw payload by constructing manually
-        { id: "dummy", type: "dummy", data: { object: {} } },
-        TEST_SECRET,
-        TEST_NOTIFICATION_URL,
-      );
-
       // Generate correct signature for invalid JSON payload
-      const signedPayload = TEST_NOTIFICATION_URL + payload;
       const encoder = new TextEncoder();
+      const urlBytes = encoder.encode(TEST_NOTIFICATION_URL);
+      const bodyBytes = encoder.encode(payload);
+      const combined = new Uint8Array(urlBytes.length + bodyBytes.length);
+      combined.set(urlBytes);
+      combined.set(bodyBytes, urlBytes.length);
+
       const key = await crypto.subtle.importKey(
         "raw",
         encoder.encode(TEST_SECRET),
@@ -1165,20 +1157,14 @@ describe("square", () => {
         false,
         ["sign"],
       );
-      const sig = await crypto.subtle.sign(
-        "HMAC",
-        key,
-        encoder.encode(signedPayload),
-      );
+      const sig = await crypto.subtle.sign("HMAC", key, combined);
       const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(sig)));
-
-      // Use the underscore prefix to suppress unused var lint
-      void signature;
 
       const result = await verifyWebhookSignature(
         payload,
         sigBase64,
         TEST_NOTIFICATION_URL,
+        toBytes(payload),
       );
       expect(result.valid).toBe(false);
       if (!result.valid) {
@@ -1209,59 +1195,12 @@ describe("square", () => {
         payload,
         signature,
         TEST_NOTIFICATION_URL,
+        toBytes(payload),
       );
       expect(result.valid).toBe(true);
       if (result.valid) {
         expect(result.event.id).toBe("evt_square_123");
         expect(result.event.type).toBe("payment.updated");
-      }
-    });
-
-    test("verifies valid signature with raw payload bytes", async () => {
-      const event: WebhookEvent = {
-        id: "evt_bytes_456",
-        type: "payment.updated",
-        data: {
-          object: {
-            id: "pay_789",
-            status: "COMPLETED",
-            order_id: "order_abc",
-          },
-        },
-      };
-
-      const { payload, signature } = await constructTestWebhookEvent(
-        event,
-        TEST_SECRET,
-        TEST_NOTIFICATION_URL,
-      );
-
-      const payloadBytes = new TextEncoder().encode(payload);
-      const result = await verifyWebhookSignature(
-        payload,
-        signature,
-        TEST_NOTIFICATION_URL,
-        payloadBytes,
-      );
-      expect(result.valid).toBe(true);
-      if (result.valid) {
-        expect(result.event.id).toBe("evt_bytes_456");
-        expect(result.event.type).toBe("payment.updated");
-      }
-    });
-
-    test("rejects invalid signature when using raw payload bytes", async () => {
-      const payload = '{"id":"test","type":"test","data":{"object":{}}}';
-      const payloadBytes = new TextEncoder().encode(payload);
-      const result = await verifyWebhookSignature(
-        payload,
-        "invalidsignature",
-        TEST_NOTIFICATION_URL,
-        payloadBytes,
-      );
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toBe("Signature verification failed");
       }
     });
   });
@@ -1301,6 +1240,7 @@ describe("square", () => {
         payload,
         signature,
         notificationUrl,
+        new TextEncoder().encode(payload),
       );
       expect(result.valid).toBe(true);
     });
@@ -1597,10 +1537,12 @@ describe("square", () => {
 
     test("verifyWebhookSignature delegates with notification URL", async () => {
       // Without a real key configured, verification should fail
+      const body = '{"test": true}';
       const result = await squarePaymentProvider.verifyWebhookSignature(
-        '{"test": true}',
+        body,
         "fakesig",
         "https://example.com/payment/webhook",
+        new TextEncoder().encode(body),
       );
       expect(result.valid).toBe(false);
     });

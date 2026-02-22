@@ -101,7 +101,7 @@ export const squarePaymentProvider: PaymentProvider = {
     payload: string,
     signature: string,
     webhookUrl: string,
-    payloadBytes?: Uint8Array,
+    payloadBytes: Uint8Array,
   ): Promise<WebhookVerifyResult> {
     return verifyWebhookSignature(payload, signature, webhookUrl, payloadBytes);
   },

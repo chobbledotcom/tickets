@@ -1657,6 +1657,7 @@ describe("stripe-provider", () => {
         payload,
         signature,
         "https://example.com/payment/webhook",
+        new TextEncoder().encode(payload),
       );
       expect(result.valid).toBe(true);
       if (result.valid) {
@@ -1669,10 +1670,12 @@ describe("stripe-provider", () => {
       await setStripeWebhookConfig({ secret: TEST_SECRET, endpointId: "we_provider_inv" });
 
       const timestamp = Math.floor(Date.now() / 1000);
+      const body = '{"test": true}';
       const result = await stripePaymentProvider.verifyWebhookSignature(
-        '{"test": true}',
+        body,
         `t=${timestamp},v1=invalid_sig`,
         "https://example.com/payment/webhook",
+        new TextEncoder().encode(body),
       );
 
       expect(result.valid).toBe(false);
