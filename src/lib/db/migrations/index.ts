@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "encrypt public site settings";
+export const LATEST_UPDATE = "add refunded to attendees";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
