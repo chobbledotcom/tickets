@@ -60,6 +60,30 @@ describe("server (admin guide)", () => {
       expect(html).toContain("Add Attendee");
     });
 
+    test("contains payment setup section with Stripe instructions", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Payment Setup");
+      expect(html).toContain("Stripe secret key");
+      expect(html).toContain("sk_test_");
+      expect(html).toContain("dashboard.stripe.com");
+    });
+
+    test("contains payment setup section with Square instructions", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Square access token");
+      expect(html).toContain("Square location ID");
+      expect(html).toContain("developer.squareup.com");
+      expect(html).toContain("payment.updated");
+    });
+
+    test("contains test vs live credentials guidance", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("test or live credentials");
+    });
+
     test("contains admin navigation", async () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();

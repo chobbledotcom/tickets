@@ -236,6 +236,154 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
+      <Section title="Payment Setup">
+        <Q q="How do I find my Stripe secret key?">
+          <ol>
+            <li>Log in to your <a href="https://dashboard.stripe.com">Stripe Dashboard</a></li>
+            <li>Click <strong>Developers</strong> in the top navigation bar</li>
+            <li>Select <strong>API keys</strong> from the sidebar</li>
+            <li>
+              Under <strong>Standard keys</strong>, find the{" "}
+              <strong>Secret key</strong> row and click <strong>Reveal</strong>
+            </li>
+            <li>
+              Copy the key &mdash; it starts with <code>sk_live_</code> for live
+              mode or <code>sk_test_</code> for test mode
+            </li>
+            <li>
+              Paste it into the Stripe Secret Key field on the{" "}
+              <a href="/admin/settings">Settings</a> page
+            </li>
+          </ol>
+          <p>
+            <strong>Tip:</strong> Use a <code>sk_test_</code> key first to
+            verify everything works before switching to your live key. Test mode
+            lets you make bookings without real charges.
+          </p>
+        </Q>
+
+        <Q q="Do I need to set up a Stripe webhook myself?">
+          <p>
+            No. When you save your Stripe secret key in{" "}
+            <a href="/admin/settings">Settings</a>, the system automatically
+            creates a webhook endpoint in your Stripe account and stores the
+            signing secret. You can verify it's working by clicking the{" "}
+            <strong>Test Connection</strong> button that appears after saving
+            your key.
+          </p>
+        </Q>
+
+        <Q q="How do I find my Square access token?">
+          <ol>
+            <li>
+              Log in to the{" "}
+              <a href="https://developer.squareup.com/apps">
+                Square Developer Dashboard
+              </a>
+            </li>
+            <li>Select your application (or create one if you haven't already)</li>
+            <li>Open the <strong>Credentials</strong> page</li>
+            <li>
+              Copy the <strong>Access token</strong> for the environment you want
+              (Sandbox for testing, Production for real payments)
+            </li>
+            <li>
+              Paste it into the Square Access Token field on the{" "}
+              <a href="/admin/settings">Settings</a> page
+            </li>
+          </ol>
+        </Q>
+
+        <Q q="How do I find my Square location ID?">
+          <ol>
+            <li>
+              Log in to the{" "}
+              <a href="https://developer.squareup.com/apps">
+                Square Developer Dashboard
+              </a>{" "}
+              and select your application
+            </li>
+            <li>Open the <strong>Locations</strong> page in the sidebar</li>
+            <li>
+              Copy the <strong>Location ID</strong> for the location you want to
+              accept payments at
+            </li>
+          </ol>
+          <p>
+            You can also find your location ID in the main{" "}
+            <a href="https://squareup.com/dashboard">Square Dashboard</a> under{" "}
+            <strong>Account &amp; Settings</strong> &rarr;{" "}
+            <strong>Business information</strong> &rarr;{" "}
+            <strong>Locations</strong>.
+          </p>
+        </Q>
+
+        <Q q="How do I set up the Square webhook?">
+          <p>
+            Unlike Stripe, the Square webhook must be configured manually. After
+            saving your Square access token and location ID:
+          </p>
+          <ol>
+            <li>
+              Go to the{" "}
+              <a href="https://developer.squareup.com/apps">
+                Square Developer Dashboard
+              </a>{" "}
+              and select your application
+            </li>
+            <li>Navigate to <strong>Webhooks</strong> in the sidebar</li>
+            <li>Click <strong>Add Subscription</strong></li>
+            <li>
+              Set the <strong>Notification URL</strong> to the webhook URL shown
+              on your <a href="/admin/settings">Settings</a> page
+            </li>
+            <li>
+              Subscribe to the <strong>payment.updated</strong> event
+            </li>
+            <li>
+              Save the subscription, then copy the{" "}
+              <strong>Signature Key</strong> that Square provides
+            </li>
+            <li>
+              Paste the signature key into the webhook field on your{" "}
+              <a href="/admin/settings">Settings</a> page
+            </li>
+          </ol>
+          <p>
+            The webhook is what tells the system when a payment has been
+            completed, so bookings won't be confirmed until this is set up.
+          </p>
+        </Q>
+
+        <Q q="Should I use test or live credentials?">
+          <p>
+            Start with test credentials to make sure everything is working
+            before accepting real payments. Both Stripe and Square provide
+            separate test environments:
+          </p>
+          <ul>
+            <li>
+              <strong>Stripe:</strong> Use a key starting with{" "}
+              <code>sk_test_</code>. You can make test payments with{" "}
+              <a href="https://docs.stripe.com/testing#cards">
+                Stripe's test card numbers
+              </a>.
+            </li>
+            <li>
+              <strong>Square:</strong> Use your Sandbox access token and
+              location. You can make test payments with{" "}
+              <a href="https://developer.squareup.com/docs/devtools/sandbox/payments">
+                Square's sandbox test values
+              </a>.
+            </li>
+          </ul>
+          <p>
+            When you're ready to go live, replace the test credentials with your
+            production credentials in <a href="/admin/settings">Settings</a>.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Refunds">
         <Q q="When do automatic refunds happen?">
           <p>
