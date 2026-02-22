@@ -64,6 +64,7 @@ describe("server (admin guide)", () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();
       expect(html).toContain("Payment Setup");
+      expect(html).toContain('id="payment-setup"');
       expect(html).toContain("Stripe secret key");
       expect(html).toContain("sk_test_");
       expect(html).toContain("dashboard.stripe.com");

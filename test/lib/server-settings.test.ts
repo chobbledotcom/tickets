@@ -317,6 +317,7 @@ describe("server (admin settings)", () => {
       const html = await response.text();
       expect(html).toContain("No Stripe key is configured");
       expect(html).toContain("Enter your Stripe secret key to enable Stripe payments");
+      expect(html).toContain("/admin/guide#payment-setup");
       expect(html).not.toContain("stripe-test-btn");
     });
 
@@ -600,6 +601,7 @@ describe("server (admin settings)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("No Square access token is configured");
+      expect(html).toContain("/admin/guide#payment-setup");
     });
 
     test("settings page shows Square is configured after setting token", async () => {
@@ -1106,6 +1108,7 @@ describe("server (admin settings)", () => {
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("webhook");
+      expect(html).toContain("full setup guide");
     });
 
     test("settings page shows Square webhook configured message", async () => {

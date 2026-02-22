@@ -236,7 +236,7 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
-      <Section title="Payment Setup">
+      <Section id="payment-setup" title="Payment Setup">
         <Q q="How do I find my Stripe secret key?">
           <ol>
             <li>Log in to your <a href="https://dashboard.stripe.com">Stripe Dashboard</a></li>
