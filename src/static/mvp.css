@@ -234,6 +234,10 @@ nav ul li ul li a {
   }
 }
 
+nav a.active {
+  color: var(--color-text);
+}
+
 /* Typography */
 code,
 samp {
