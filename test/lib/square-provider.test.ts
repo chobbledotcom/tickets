@@ -30,6 +30,96 @@ describe("square-provider", () => {
         },
       );
     });
+
+    test("returns paid when payment status is COMPLETED", async () => {
+      await withMocks(
+        () => ({
+          order: spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+            id: "order_completed",
+            metadata: { name: "Alice", email: "alice@example.com", event_id: "1", quantity: "1" },
+            tenders: [{ id: "tender_1", paymentId: "pay_1" }],
+            state: "COMPLETED",
+            totalMoney: { amount: BigInt(1000), currency: "USD" },
+          }),
+          payment: spyOn(squareApi, "retrievePayment").mockResolvedValue({
+            id: "pay_1",
+            status: "COMPLETED",
+          }),
+        }),
+        async (mocks) => {
+          const result = await squarePaymentProvider.retrieveSession("order_completed");
+          expect(result).not.toBeNull();
+          expect(result!.paymentStatus).toBe("paid");
+          expect(result!.paymentReference).toBe("pay_1");
+          expect(mocks.payment).toHaveBeenCalledWith("pay_1");
+        },
+      );
+    });
+
+    test("returns paid when order state is OPEN but payment is COMPLETED", async () => {
+      await withMocks(
+        () => ({
+          order: spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+            id: "order_open",
+            metadata: { name: "Bob", email: "bob@example.com", event_id: "1", quantity: "1" },
+            tenders: [{ id: "tender_1", paymentId: "pay_2" }],
+            state: "OPEN",
+            totalMoney: { amount: BigInt(1000), currency: "USD" },
+          }),
+          payment: spyOn(squareApi, "retrievePayment").mockResolvedValue({
+            id: "pay_2",
+            status: "COMPLETED",
+          }),
+        }),
+        async (mocks) => {
+          const result = await squarePaymentProvider.retrieveSession("order_open");
+          expect(result).not.toBeNull();
+          expect(result!.paymentStatus).toBe("paid");
+          expect(result!.paymentReference).toBe("pay_2");
+          expect(mocks.payment).toHaveBeenCalledWith("pay_2");
+        },
+      );
+    });
+
+    test("returns unpaid when order state is OPEN and payment is not COMPLETED", async () => {
+      await withMocks(
+        () => ({
+          order: spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+            id: "order_open",
+            metadata: { name: "Carol", email: "carol@example.com", event_id: "1", quantity: "1" },
+            tenders: [{ id: "tender_1", paymentId: "pay_3" }],
+            state: "OPEN",
+            totalMoney: { amount: BigInt(1000), currency: "USD" },
+          }),
+          payment: spyOn(squareApi, "retrievePayment").mockResolvedValue({
+            id: "pay_3",
+            status: "PENDING",
+          }),
+        }),
+        async () => {
+          const result = await squarePaymentProvider.retrieveSession("order_open");
+          expect(result).not.toBeNull();
+          expect(result!.paymentStatus).toBe("unpaid");
+        },
+      );
+    });
+
+    test("returns unpaid when order state is OPEN and no tenders exist", async () => {
+      await withMocks(
+        () => spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+          id: "order_no_tenders",
+          metadata: { name: "Dave", email: "dave@example.com", event_id: "1", quantity: "1" },
+          state: "OPEN",
+          totalMoney: { amount: BigInt(1000), currency: "USD" },
+        }),
+        async () => {
+          const result = await squarePaymentProvider.retrieveSession("order_no_tenders");
+          expect(result).not.toBeNull();
+          expect(result!.paymentStatus).toBe("unpaid");
+        },
+      );
+    });
+
   });
 
   describe("isPaymentRefunded", () => {
