@@ -40,6 +40,7 @@ export const CONFIG_KEYS = {
   SQUARE_ACCESS_TOKEN: "square_access_token",
   SQUARE_WEBHOOK_SIGNATURE_KEY: "square_webhook_signature_key",
   SQUARE_LOCATION_ID: "square_location_id",
+  SQUARE_SANDBOX: "square_sandbox",
   // Embed host restrictions (encrypted)
   EMBED_HOSTS: "embed_hosts",
   // Terms and conditions (plaintext - displayed publicly)
@@ -417,6 +418,22 @@ export const updateSquareLocationId = async (
 };
 
 /**
+ * Get Square sandbox mode from database.
+ * Returns true if sandbox mode is enabled, false otherwise.
+ */
+export const getSquareSandboxFromDb = async (): Promise<boolean> => {
+  const value = await getSetting(CONFIG_KEYS.SQUARE_SANDBOX);
+  return value === "true";
+};
+
+/**
+ * Update Square sandbox mode setting.
+ */
+export const updateSquareSandbox = async (sandbox: boolean): Promise<void> => {
+  await setSetting(CONFIG_KEYS.SQUARE_SANDBOX, sandbox ? "true" : "false");
+};
+
+/**
  * Get allowed embed hosts from database (decrypted)
  * Returns null if not configured (embedding allowed from anywhere)
  */
@@ -586,6 +603,8 @@ export const settingsApi = {
   updateSquareWebhookSignatureKey,
   getSquareLocationIdFromDb,
   updateSquareLocationId,
+  getSquareSandboxFromDb,
+  updateSquareSandbox,
   getEmbedHostsFromDb,
   updateEmbedHosts,
   getTermsAndConditionsFromDb,

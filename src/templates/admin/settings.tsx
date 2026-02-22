@@ -24,6 +24,7 @@ export const adminSettingsPage = (
   error: string,
   success: string,
   squareTokenConfigured: boolean,
+  squareSandbox: boolean,
   squareWebhookConfigured: boolean,
   webhookUrl: string,
   embedHosts?: string | null,
@@ -130,6 +131,14 @@ export const adminSettingsPage = (
           </p>
           <p><small><a href="/admin/guide#payment-setup">Where do I find these?</a></small></p>
           <Raw html={renderFields(squareAccessTokenFields)} />
+          <label>
+            <input
+              type="checkbox"
+              name="square_sandbox"
+              checked={squareSandbox}
+            />
+            Sandbox mode (use Square's test environment)
+          </label>
           <button type="submit">Update Square Credentials</button>
         </CsrfForm>
         )}

@@ -16,6 +16,7 @@ import {
   getCurrencyCode,
   getSquareAccessToken,
   getSquareLocationId,
+  getSquareSandbox,
   getSquareWebhookSignatureKey,
 } from "#lib/config.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
@@ -129,16 +130,19 @@ const loadSquare = once(async () => {
   return SquareClient;
 });
 
-type SquareCache = { accessToken: string };
+type SquareCache = { accessToken: string; sandbox: boolean };
 
 const [getCache, setCache] = lazyRef<SquareCache>(() => {
   throw new Error("Square cache not initialized");
 });
 
-/** Create a Square client instance */
-const createSquareClient = async (accessToken: string) => {
+/** Create a Square client instance with the correct environment */
+const createSquareClient = async (accessToken: string, sandbox: boolean) => {
   const SquareClient = await loadSquare();
-  return new SquareClient({ token: accessToken });
+  return new SquareClient({
+    token: accessToken,
+    environment: sandbox ? "sandbox" : "production",
+  });
 };
 
 /** Internal getSquareClient implementation */
@@ -149,19 +153,21 @@ const getClientImpl = async () => {
     return null;
   }
 
+  const sandbox = await getSquareSandbox();
+
   try {
     const cached = getCache();
-    if (cached.accessToken === accessToken) {
+    if (cached.accessToken === accessToken && cached.sandbox === sandbox) {
       logDebug("Square", "Using cached Square client");
-      return createSquareClient(accessToken);
+      return createSquareClient(accessToken, sandbox);
     }
   } catch {
     // Cache not initialized
   }
 
-  logDebug("Square", "Creating new Square client");
-  setCache({ accessToken });
-  return createSquareClient(accessToken);
+  logDebug("Square", `Creating new Square client (${sandbox ? "sandbox" : "production"})`);
+  setCache({ accessToken, sandbox });
+  return createSquareClient(accessToken, sandbox);
 };
 
 /** Run operation with Square client, return null if not available */

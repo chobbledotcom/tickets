@@ -10,6 +10,7 @@ import {
   getPaymentProviderFromDb,
   getSquareAccessTokenFromDb,
   getSquareLocationIdFromDb,
+  getSquareSandboxFromDb,
   getSquareWebhookSignatureKeyFromDb,
   getStripeSecretKeyFromDb,
   getStripeWebhookSecretFromDb,
@@ -92,6 +93,13 @@ export const getSquareWebhookSignatureKey = (): Promise<string | null> =>
  */
 export const getSquareLocationId = (): Promise<string | null> =>
   getSquareLocationIdFromDb();
+
+/**
+ * Get Square sandbox mode setting from database
+ * Returns true if sandbox mode is enabled
+ */
+export const getSquareSandbox = (): Promise<boolean> =>
+  getSquareSandboxFromDb();
 
 /**
  * Get currency code from database

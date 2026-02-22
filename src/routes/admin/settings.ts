@@ -9,6 +9,7 @@ import {
   getEmbedHostsFromDb,
   getPaymentProviderFromDb,
   getShowEventsOnHomepageFromDb,
+  getSquareSandboxFromDb,
   getStripeWebhookEndpointId,
   getTermsAndConditionsFromDb,
   getThemeFromDb,
@@ -22,6 +23,7 @@ import {
   updateShowEventsOnHomepage,
   updateSquareAccessToken,
   updateSquareLocationId,
+  updateSquareSandbox,
   updateSquareWebhookSignatureKey,
   updateStripeKey,
   updateTermsAndConditions,
@@ -75,6 +77,7 @@ const getSettingsPageState = async () => {
   const stripeKeyConfigured = await hasStripeKey();
   const paymentProvider = await getPaymentProviderFromDb();
   const squareTokenConfigured = await hasSquareToken();
+  const squareSandbox = await getSquareSandboxFromDb();
   const squareWebhookKey = await getSquareWebhookSignatureKey();
   const squareWebhookConfigured = squareWebhookKey !== null;
   const webhookUrl = getWebhookUrl();
@@ -88,6 +91,7 @@ const getSettingsPageState = async () => {
     stripeKeyConfigured,
     paymentProvider,
     squareTokenConfigured,
+    squareSandbox,
     squareWebhookConfigured,
     webhookUrl,
     embedHosts,
@@ -113,6 +117,7 @@ const renderSettingsPage = async (
     error,
     success,
     state.squareTokenConfigured,
+    state.squareSandbox,
     state.squareWebhookConfigured,
     state.webhookUrl,
     state.embedHosts,
@@ -292,9 +297,11 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   }
 
   const { square_access_token: accessToken, square_location_id: locationId } = validation.values;
+  const sandbox = form.get("square_sandbox") === "on";
 
   await updateSquareAccessToken(accessToken);
   await updateSquareLocationId(locationId);
+  await updateSquareSandbox(sandbox);
 
   // Auto-set payment provider to square when credentials are configured
   await setPaymentProvider("square");
