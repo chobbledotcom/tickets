@@ -38,6 +38,9 @@ const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee
   ...overrides,
 });
 
+/** Flush pending async operations (fire-and-forget webhooks) */
+const flushAsync = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
 describe("webhook", () => {
   // deno-lint-ignore no-explicit-any
   let fetchSpy: any;
@@ -384,6 +387,7 @@ describe("webhook", () => {
       const attendee = makeAttendee();
 
       await logAndNotifyRegistration(event, attendee, "GBP");
+      await flushAsync();
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [url, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
@@ -405,6 +409,7 @@ describe("webhook", () => {
       const attendee = makeAttendee();
 
       await logAndNotifyRegistration(event, attendee, "GBP");
+      await flushAsync();
 
       expect(fetchSpy).not.toHaveBeenCalled();
     });
@@ -422,6 +427,7 @@ describe("webhook", () => {
       const attendee = makeAttendee();
 
       await logAndNotifyRegistration(event, attendee, "GBP");
+      await flushAsync();
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
@@ -465,6 +471,7 @@ describe("webhook", () => {
       ];
 
       await logAndNotifyMultiRegistration(entries, "GBP");
+      await flushAsync();
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
@@ -488,6 +495,7 @@ describe("webhook", () => {
       ];
 
       await logAndNotifyMultiRegistration(entries, "USD");
+      await flushAsync();
 
       expect(fetchSpy).not.toHaveBeenCalled();
     });
@@ -509,6 +517,7 @@ describe("webhook", () => {
       ];
 
       await logAndNotifyMultiRegistration(entries, "USD");
+      await flushAsync();
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];

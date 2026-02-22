@@ -137,9 +137,7 @@ export const sendRegistrationWebhooks = async (
   if (webhookUrls.length === 0) return;
 
   const payload = await buildWebhookPayload(entries, currency);
-  for (const url of webhookUrls) {
-    await sendWebhook(url, payload);
-  }
+  await Promise.allSettled(webhookUrls.map((url) => sendWebhook(url, payload)));
 };
 
 /**
@@ -152,7 +150,7 @@ export const logAndNotifyRegistration = async (
   currency: string,
 ): Promise<void> => {
   await logActivity(`Attendee registered for '${event.name}'`, event);
-  await sendRegistrationWebhooks([{ event, attendee }], currency);
+  void sendRegistrationWebhooks([{ event, attendee }], currency);
 };
 
 /**
@@ -165,5 +163,5 @@ export const logAndNotifyMultiRegistration = async (
   for (const { event } of entries) {
     await logActivity(`Attendee registered for '${event.name}'`, event);
   }
-  await sendRegistrationWebhooks(entries, currency);
+  void sendRegistrationWebhooks(entries, currency);
 };
