@@ -133,6 +133,16 @@ describe("server (public routes)", () => {
       expect(html).toContain("/admin/login");
     });
 
+    test("shows website title with no events message", async () => {
+      await updateShowPublicSite(true);
+      await updateWebsiteTitle("My Events");
+      const response = await handleRequest(mockRequest("/events"));
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain("No events listed.");
+      expect(html).toContain("My Events");
+    });
+
     test("shows active events when enabled with events", async () => {
       await updateShowPublicSite(true);
       const event = await createTestEvent({ name: "Concert", maxAttendees: 100 });

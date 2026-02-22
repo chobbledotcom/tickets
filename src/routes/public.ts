@@ -55,6 +55,7 @@ import {
   type MultiTicketEvent,
   multiTicketPage,
   publicSitePage,
+  type PublicPageType,
   ticketPage,
 } from "#templates/public.tsx";
 
@@ -66,14 +67,14 @@ const loadHomepageEvents = async (): Promise<MultiTicketEvent[]> => {
 };
 
 /** Guard: redirect to admin if public site is disabled */
-const requirePublicSite = async <T>(fn: () => Promise<T>): Promise<Response | T> =>
+const requirePublicSite = async (fn: () => Promise<Response>): Promise<Response> =>
   await getShowPublicSiteFromDb() ? fn() : redirect("/admin/");
 
 /** Render a public site page with website title and content fetched in parallel */
 const renderPublicPage = (
-  pageType: import("#templates/public.tsx").PublicPageType,
+  pageType: PublicPageType,
   getContent: () => Promise<string | null>,
-): Promise<Response | Response> =>
+): Promise<Response> =>
   requirePublicSite(async () => {
     const [websiteTitle, content] = await Promise.all([getWebsiteTitleFromDb(), getContent()]);
     return htmlResponse(publicSitePage(pageType, websiteTitle, content));
@@ -94,7 +95,7 @@ export const handlePublicEvents = (): Promise<Response> =>
       signCsrfToken(),
     ]);
     return htmlResponse(homepagePage(events, undefined, dates ?? [], terms, websiteTitle));
-  }) as Promise<Response>;
+  });
 
 /** Handle POST /events - public events form submission */
 export const handlePublicEventsPost = (request: Request): Promise<Response> =>
@@ -115,7 +116,7 @@ export const handlePublicEventsPost = (request: Request): Promise<Response> =>
       inIframe: false,
     };
     return submitMultiTicket(request, ctx);
-  }) as Promise<Response>;
+  });
 
 /** Handle GET /terms - public terms and conditions page */
 export const handlePublicTerms = (): Promise<Response> =>

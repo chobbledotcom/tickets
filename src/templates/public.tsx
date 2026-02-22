@@ -12,19 +12,16 @@ import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
-/** Public site navigation - reuses same structure as admin nav */
-const PublicNav = ({ title }: { title?: string | null }): JSX.Element => (
-  <>
-    {title && <h1>{title}</h1>}
-    <nav>
-      <ul>
-        <li><a href="/">Home</a></li>
-        <li><a href="/events">Events</a></li>
-        <li><a href="/terms">T&amp;Cs</a></li>
-        <li><a href="/contact">Contact</a></li>
-      </ul>
-    </nav>
-  </>
+/** Public site navigation */
+const PublicNav = (): JSX.Element => (
+  <nav>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/events">Events</a></li>
+      <li><a href="/terms">T&amp;Cs</a></li>
+      <li><a href="/contact">Contact</a></li>
+    </ul>
+  </nav>
 );
 
 /** Public site page type */
@@ -51,7 +48,8 @@ export const publicSitePage = (
 
   return String(
     <Layout title={pageTitle}>
-      <PublicNav title={websiteTitle} />
+      {websiteTitle && <h1>{websiteTitle}</h1>}
+      <PublicNav />
       {content ? (
         <p><Raw html={renderPlainText(content)} /></p>
       ) : (
@@ -79,7 +77,8 @@ export const homepagePage = (
   if (events.length === 0) {
     return String(
       <Layout title={title}>
-        <PublicNav title={websiteTitle} />
+        {websiteTitle && <h1>{websiteTitle}</h1>}
+        <PublicNav />
         <p><em>No events listed.</em></p>
         <footer class="homepage-footer">
           <p><a href="/admin/login">Login</a></p>
@@ -101,7 +100,8 @@ export const homepagePage = (
 
   return String(
     <Layout title={title}>
-      <PublicNav title={websiteTitle} />
+      {websiteTitle && <h1>{websiteTitle}</h1>}
+      <PublicNav />
       <Raw html={renderError(error)} />
 
       {allUnavailable ? (
