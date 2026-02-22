@@ -3,6 +3,7 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { getCurrentCsrfToken } from "#lib/csrf.ts";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 
 const escapeHtml = (str: string): string =>
@@ -264,19 +265,20 @@ export const renderError = (error?: string): string =>
 /**
  * Form component that always includes CSRF token.
  * Renders a POST form with a hidden csrf_token input.
+ * Reads the token from the module-scoped store set by signCsrfToken(),
+ * which is always called before rendering begins.
  * Supports extra attributes like class and enctype for multipart forms.
  */
 export const CsrfForm = (
-  { action, csrfToken, children, ...rest }: {
+  { action, children, ...rest }: {
     action: string;
-    csrfToken: string;
     children?: Child;
     class?: string;
     enctype?: string;
   },
 ): JSX.Element => (
   <form method="POST" action={action} {...rest}>
-    <input type="hidden" name="csrf_token" value={csrfToken} />
+    <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
     {children}
   </form>
 );

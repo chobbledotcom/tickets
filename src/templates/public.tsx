@@ -17,7 +17,6 @@ import { escapeHtml, Layout } from "#templates/layout.tsx";
  */
 export const homepagePage = (
   events: MultiTicketEvent[],
-  csrfToken: string,
   error?: string,
   availableDates?: string[],
   termsAndConditions?: string | null,
@@ -51,7 +50,7 @@ export const homepagePage = (
       {allUnavailable ? (
         <div class="error">{allClosed ? "Registration closed." : "Sorry, all events are sold out."}</div>
       ) : (
-        <CsrfForm action="/" csrfToken={csrfToken}>
+        <CsrfForm action="/">
           <Raw html={renderFields(fields)} />
           {hasDaily && availableDates && (
             <Raw html={renderDateSelector(availableDates)} />
@@ -131,7 +130,6 @@ const renderTermsAndCheckbox = (terms: string): string =>
  */
 export const ticketPage = (
   event: EventWithCount,
-  csrfToken: string,
   error: string | undefined,
   isClosed: boolean,
   inIframe: boolean,
@@ -173,7 +171,7 @@ export const ticketPage = (
       ) : isFull ? (
           <div class="error">Sorry, this event is full.</div>
       ) : (
-          <CsrfForm action={`/ticket/${event.slug}${inIframe ? "?iframe=true" : ""}`} csrfToken={csrfToken}>
+          <CsrfForm action={`/ticket/${event.slug}${inIframe ? "?iframe=true" : ""}`}>
             <Raw html={renderFields(fields)} />
             {isDaily && availableDates && (
               <Raw html={renderDateSelector(availableDates)} />
@@ -302,7 +300,6 @@ const getMultiTicketFieldsSetting = (events: MultiTicketEvent[]): EventFields =>
 export const multiTicketPage = (
   events: MultiTicketEvent[],
   slugs: string[],
-  csrfToken: string,
   error?: string,
   availableDates?: string[],
   termsAndConditions?: string | null,
@@ -327,7 +324,7 @@ export const multiTicketPage = (
       {allUnavailable ? (
         <div class="error">{allClosed ? "Registration closed." : "Sorry, all events are sold out."}</div>
       ) : (
-        <CsrfForm action={formAction} csrfToken={csrfToken}>
+        <CsrfForm action={formAction}>
           <Raw html={renderFields(fields)} />
           {hasDaily && availableDates && (
             <Raw html={renderDateSelector(availableDates)} />

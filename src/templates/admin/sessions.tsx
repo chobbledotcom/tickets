@@ -74,7 +74,7 @@ export const adminSessionsPage = (
         <>
           <br />
 
-            <CsrfForm action="/admin/sessions" csrfToken={adminSession.csrfToken} class="one-button">
+            <CsrfForm action="/admin/sessions" class="one-button">
               <button type="submit" class="danger">
                 Log out of all other sessions ({otherSessionCount})
               </button>

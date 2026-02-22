@@ -1,4 +1,5 @@
-import { describe, expect, test } from "#test-compat";
+import { beforeAll, describe, expect, test } from "#test-compat";
+import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
 import {
   CsrfForm,
   type Field,
@@ -27,7 +28,13 @@ import {
   expectInvalid,
   expectInvalidForm,
   expectValid,
+  setupTestEncryptionKey,
 } from "#test-utils";
+
+beforeAll(async () => {
+  setupTestEncryptionKey();
+  await signCsrfToken();
+});
 
 /** Helper: build a Field definition with minimal boilerplate. */
 const field = (
@@ -1072,28 +1079,28 @@ describe("forms", () => {
 
   describe("CsrfForm", () => {
     test("renders form with POST method and action", () => {
-      const html = String(CsrfForm({ action: "/submit", csrfToken: "tok123" }));
+      const html = String(CsrfForm({ action: "/submit" }));
       expect(html).toContain('<form method="POST" action="/submit"');
       expect(html).toContain("</form>");
     });
 
-    test("includes hidden csrf_token input", () => {
-      const html = String(CsrfForm({ action: "/submit", csrfToken: "tok123" }));
-      expect(html).toContain('<input type="hidden" name="csrf_token" value="tok123"');
+    test("includes hidden csrf_token input with stored token", () => {
+      const html = String(CsrfForm({ action: "/submit" }));
+      expect(html).toContain(`<input type="hidden" name="csrf_token" value="${getCurrentCsrfToken()}"`);
     });
 
     test("passes through class attribute", () => {
-      const html = String(CsrfForm({ action: "/submit", csrfToken: "tok123", class: "inline" }));
+      const html = String(CsrfForm({ action: "/submit", class: "inline" }));
       expect(html).toContain('class="inline"');
     });
 
     test("passes through enctype for multipart forms", () => {
-      const html = String(CsrfForm({ action: "/upload", csrfToken: "tok123", enctype: "multipart/form-data" }));
+      const html = String(CsrfForm({ action: "/upload", enctype: "multipart/form-data" }));
       expect(html).toContain('enctype="multipart/form-data"');
     });
 
     test("renders children inside the form", () => {
-      const html = String(CsrfForm({ action: "/submit", csrfToken: "tok123", children: "Submit here" }));
+      const html = String(CsrfForm({ action: "/submit", children: "Submit here" }));
       expect(html).toContain("Submit here");
       expect(html).toContain("</form>");
     });

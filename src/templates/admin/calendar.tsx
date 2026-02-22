@@ -86,7 +86,6 @@ export const adminCalendarPage = (
             <Raw html={AttendeeTable({
               rows: tableRows,
               allowedDomain,
-              csrfToken: session.csrfToken,
               showEvent: true,
               showDate: false,
               returnUrl,

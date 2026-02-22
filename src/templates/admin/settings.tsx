@@ -40,7 +40,7 @@ export const adminSettingsPage = (
       {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}
 
-        <CsrfForm action="/admin/settings/timezone" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings/timezone">
             <h2>Timezone</h2>
           <p>All dates and times will be interpreted and displayed in this timezone.</p>
           <label for="timezone">IANA Timezone</label>
@@ -52,7 +52,7 @@ export const adminSettingsPage = (
           <button type="submit">Save Timezone</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/business-email" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings/business-email">
             <h2>Business Email</h2>
           <p>This email will be included in webhook notifications to identify your business.</p>
           <label for="business_email">Business Email</label>
@@ -67,7 +67,7 @@ export const adminSettingsPage = (
           <button type="submit">Save Business Email</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/payment-provider" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings/payment-provider">
             <h2>Payment Provider</h2>
           <p>Choose which payment provider to use for paid events.</p>
           <fieldset>
@@ -103,7 +103,7 @@ export const adminSettingsPage = (
         </CsrfForm>
 
         {paymentProvider === "stripe" && (
-        <CsrfForm action="/admin/settings/stripe" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings/stripe">
             <h2>Stripe Settings</h2>
           <p>
             {stripeKeyConfigured
@@ -120,7 +120,7 @@ export const adminSettingsPage = (
         )}
 
         {paymentProvider === "square" && (
-        <CsrfForm action="/admin/settings/square" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings/square">
             <h2>Square Settings</h2>
           <p>
             {squareTokenConfigured
@@ -133,7 +133,7 @@ export const adminSettingsPage = (
         )}
 
         {paymentProvider === "square" && squareTokenConfigured && (
-        <CsrfForm action="/admin/settings/square-webhook" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings/square-webhook">
             <h2>Square Webhook</h2>
           <article>
             <aside>
@@ -159,7 +159,7 @@ export const adminSettingsPage = (
         </CsrfForm>
         )}
 
-        <CsrfForm action="/admin/settings/embed-hosts" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings/embed-hosts">
             <h2>Only allow embedding on these hosts</h2>
           <p>Restrict which websites can embed your booking forms in an iframe. Leave blank to allow embedding from any site.</p>
           <label for="embed_hosts">Hosts (comma-separated)</label>
@@ -175,7 +175,7 @@ export const adminSettingsPage = (
           <button type="submit">Save Embed Hosts</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/terms" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings/terms">
             <h2>Terms and Conditions</h2>
           <p>If set, users must agree to these terms before reserving tickets.</p>
           <label for="terms_and_conditions">Terms and Conditions</label>
@@ -188,14 +188,14 @@ export const adminSettingsPage = (
           <button type="submit">Save Terms</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings">
             <h2>Change Password</h2>
           <p>Changing your password will log you out of all sessions.</p>
           <Raw html={renderFields(changePasswordFields)} />
           <button type="submit">Change Password</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/show-events-on-homepage" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings/show-events-on-homepage">
             <h2>Show events on homepage?</h2>
           <p>When enabled, the homepage will display all upcoming active events as a booking page instead of redirecting to the admin area.</p>
           <fieldset>
@@ -221,7 +221,7 @@ export const adminSettingsPage = (
           <button type="submit">Save</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/theme" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings/theme">
             <h2>Site Theme</h2>
           <p>Choose between light and dark themes for the site interface.</p>
           <fieldset>
@@ -247,7 +247,7 @@ export const adminSettingsPage = (
           <button type="submit">Save Theme</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/reset-database" csrfToken={session.csrfToken}>
+        <CsrfForm action="/admin/settings/reset-database">
             <h2>Reset Database</h2>
           <article>
             <aside>

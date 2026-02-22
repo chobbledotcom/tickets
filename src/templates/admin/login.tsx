@@ -10,11 +10,11 @@ import { Layout } from "#templates/layout.tsx";
 /**
  * Admin login page
  */
-export const adminLoginPage = (csrfToken: string, error?: string): string =>
+export const adminLoginPage = (error?: string): string =>
   String(
     <Layout title="Login">
       <Raw html={renderError(error)} />
-      <CsrfForm action="/admin/login" csrfToken={csrfToken}>
+      <CsrfForm action="/admin/login">
         <Raw html={renderFields(loginFields)} />
         <button type="submit">Login</button>
       </CsrfForm>

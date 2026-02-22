@@ -102,11 +102,10 @@ export const getAuthenticatedSession = async (
   }
 
   const adminLevel = await decryptAdminLevel(user);
-  const csrfToken = await signCsrfToken();
+  await signCsrfToken();
 
   return {
     token,
-    csrfToken,
     wrappedDataKey: session.wrapped_data_key,
     userId: session.user_id,
     adminLevel,
@@ -354,10 +353,9 @@ export const formatCountdown = (closesAt: string): string => {
   return `${pl(Math.max(1, Math.floor(diffMs / (1000 * 60))), "minute")} from now`;
 };
 
-/** Session with CSRF token, wrapped data key for private key derivation, and user role */
+/** Session with wrapped data key for private key derivation, and user role */
 export type AuthSession = {
   token: string;
-  csrfToken: string;
   wrappedDataKey: string | null;
   userId: number;
   adminLevel: AdminLevel;
@@ -398,10 +396,11 @@ export type CsrfFormResult =
 /**
  * Parse form with CSRF validation.
  * Verifies the form token's HMAC signature and expiry.
+ * On failure, generates a fresh token (stored for CsrfForm) before calling onInvalid.
  */
 export const requireCsrfForm = async (
   request: Request,
-  onInvalid: (newToken: string) => Response,
+  onInvalid: () => Response,
 ): Promise<CsrfFormResult> => {
   const form = await parseFormData(request);
   const formCsrf = form.get("csrf_token") || "";
@@ -410,22 +409,23 @@ export const requireCsrfForm = async (
     return { ok: true, form };
   }
 
-  const newToken = await signCsrfToken();
-  return { ok: false, response: onInvalid(newToken) };
+  await signCsrfToken();
+  return { ok: false, response: onInvalid() };
 };
 
 /**
  * Parse a CSRF-protected form, re-rendering the form on invalid CSRF.
  * Centralizes the default invalid/expired message.
+ * On failure, generates a fresh token (stored for CsrfForm) and calls onInvalid.
  */
 export const withCsrfForm = async (
   request: Request,
-  onInvalid: (newToken: string, message: string, status: number) => Response,
+  onInvalid: (message: string, status: number) => Response,
   handler: (form: URLSearchParams) => Response | Promise<Response>,
 ): Promise<Response> => {
   const csrf = await requireCsrfForm(
     request,
-    (newToken) => onInvalid(newToken, CSRF_INVALID_FORM_MESSAGE, 403),
+    () => onInvalid(CSRF_INVALID_FORM_MESSAGE, 403),
   );
   return csrf.ok ? handler(csrf.form) : csrf.response;
 };

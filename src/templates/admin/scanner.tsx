@@ -2,6 +2,7 @@
  * Admin QR scanner page template
  */
 
+import { getCurrentCsrfToken } from "#lib/csrf.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { SCANNER_JS_PATH } from "#src/config/asset-paths.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -17,7 +18,7 @@ export const adminScannerPage = (
   String(
     <Layout
       title={`Scanner: ${event.name}`}
-      headExtra={`<meta name="csrf-token" content="${session.csrfToken}" /><script src="${SCANNER_JS_PATH}" defer></script>`}
+      headExtra={`<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" defer></script>`}
     >
       <AdminNav session={session} />
       <h1>Scanner</h1>

@@ -1,9 +1,15 @@
+import { beforeAll } from "#test-compat";
 import { describe, expect, test } from "#test-compat";
+import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
 import { AttendeeTable, type AttendeeTableOptions, type AttendeeTableRow, formatAddressInline, sortAttendeeRows } from "#templates/attendee-table.tsx";
-import { testAttendee } from "#test-utils";
+import { setupTestEncryptionKey, testAttendee } from "#test-utils";
 
-const CSRF_TOKEN = "test-csrf-token";
 const ALLOWED_DOMAIN = "example.com";
+
+beforeAll(async () => {
+  setupTestEncryptionKey();
+  await signCsrfToken();
+});
 
 const makeRow = (overrides: Partial<AttendeeTableRow> = {}): AttendeeTableRow => ({
   attendee: testAttendee(),
@@ -16,7 +22,6 @@ const makeRow = (overrides: Partial<AttendeeTableRow> = {}): AttendeeTableRow =>
 const makeOpts = (overrides: Partial<AttendeeTableOptions> = {}): AttendeeTableOptions => ({
   rows: [makeRow()],
   allowedDomain: ALLOWED_DOMAIN,
-  csrfToken: CSRF_TOKEN,
   showEvent: false,
   showDate: false,
   ...overrides,
@@ -206,7 +211,7 @@ describe("AttendeeTable", () => {
 
     test("includes csrf token in form", () => {
       const html = AttendeeTable(makeOpts());
-      expect(html).toContain(`value="${CSRF_TOKEN}"`);
+      expect(html).toContain(`value="${getCurrentCsrfToken()}"`);
     });
 
     test("form action points to correct endpoint", () => {

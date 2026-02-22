@@ -1,4 +1,4 @@
-import { describe, expect, test } from "#test-compat";
+import { beforeAll, describe, expect, test } from "#test-compat";
 import { CSS_PATH, EMBED_JS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, IFRAME_RESIZER_PARENT_JS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminDuplicateEventPage, adminEventEditPage, adminEventNewPage, adminEventPage, calculateTotalRevenue, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
@@ -21,10 +21,15 @@ import {
 import { eventFields } from "#templates/fields.ts";
 import { buildMultiTicketEvent, buildOgTags, multiTicketPage, notFoundPage, renderEventImage, temporaryErrorPage, ticketPage } from "#templates/public.tsx";
 import { ticketViewPage } from "#templates/tickets.tsx";
-import { testAttendee, testEvent, testEventWithCount, testGroup } from "#test-utils";
+import { setupTestEncryptionKey, testAttendee, testEvent, testEventWithCount, testGroup } from "#test-utils";
+import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
 
-const TEST_CSRF_TOKEN = "test-csrf-token-abc123";
-const TEST_SESSION = { csrfToken: TEST_CSRF_TOKEN, adminLevel: "owner" as const };
+const TEST_SESSION = { adminLevel: "owner" as const };
+
+beforeAll(async () => {
+  setupTestEncryptionKey();
+  await signCsrfToken();
+});
 
 describe("asset-paths", () => {
   test("CSS_PATH defaults to /mvp.css in dev", () => {
@@ -32,7 +37,7 @@ describe("asset-paths", () => {
   });
 
   test("pages include CSS_PATH in stylesheet link", () => {
-    const html = adminLoginPage(TEST_CSRF_TOKEN);
+    const html = adminLoginPage();
     expect(html).toContain(`href="${CSS_PATH}"`);
     expect(html).toContain('rel="stylesheet"');
   });
@@ -42,7 +47,7 @@ describe("asset-paths", () => {
   });
 
   test("pages include JS_PATH in deferred script tag", () => {
-    const html = adminLoginPage(TEST_CSRF_TOKEN);
+    const html = adminLoginPage();
     expect(html).toContain(`src="${JS_PATH}"`);
     expect(html).toContain("defer");
   });
@@ -67,7 +72,7 @@ describe("asset-paths", () => {
 describe("html", () => {
   describe("adminLoginPage", () => {
     test("renders login form", () => {
-      const html = adminLoginPage(TEST_CSRF_TOKEN);
+      const html = adminLoginPage();
       expect(html).toContain("Login");
       expect(html).toContain('action="/admin/login"');
       expect(html).toContain('type="password"');
@@ -75,13 +80,13 @@ describe("html", () => {
     });
 
     test("shows error when provided", () => {
-      const html = adminLoginPage(TEST_CSRF_TOKEN, "Invalid password");
+      const html = adminLoginPage("Invalid password");
       expect(html).toContain("Invalid password");
       expect(html).toContain('class="error"');
     });
 
     test("escapes error message", () => {
-      const html = adminLoginPage(TEST_CSRF_TOKEN, "<script>evil()</script>");
+      const html = adminLoginPage("<script>evil()</script>");
       expect(html).toContain("&lt;script&gt;");
     });
   });
@@ -296,11 +301,10 @@ describe("html", () => {
 
   describe("ticketPage", () => {
     const event = testEventWithCount({ attendee_count: 50 });
-    const csrfToken = "test-csrf-token";
     const renderTicket = (
       ev: Parameters<typeof ticketPage>[0],
       opts?: { error?: string; isClosed?: boolean; iframe?: boolean; dates?: string[]; terms?: string | null },
-    ) => ticketPage(ev, csrfToken, opts?.error, opts?.isClosed ?? false, opts?.iframe ?? false, opts?.dates, opts?.terms);
+    ) => ticketPage(ev, opts?.error, opts?.isClosed ?? false, opts?.iframe ?? false, opts?.dates, opts?.terms);
 
     test("renders page title", () => {
       const html = renderTicket(event);
@@ -318,7 +322,7 @@ describe("html", () => {
     test("includes CSRF token in form", () => {
       const html = renderTicket(event);
       expect(html).toContain('name="csrf_token"');
-      expect(html).toContain(`value="${csrfToken}"`);
+      expect(html).toContain(`value="${getCurrentCsrfToken()}"`);
     });
 
     test("shows error when provided", () => {
@@ -420,31 +424,31 @@ describe("html", () => {
     });
 
     test("renders terms and conditions with checkbox", () => {
-      const html = ticketPage(event, csrfToken, undefined, false, false, undefined, "No refunds allowed");
+      const html = ticketPage(event, undefined, false, false, undefined, "No refunds allowed");
       expect(html).toContain("No refunds allowed");
       expect(html).toContain('class="terms"');
       expect(html).toContain('name="agree_terms"');
     });
 
     test("preserves line breaks in terms and conditions", () => {
-      const html = ticketPage(event, csrfToken, undefined, false, false, undefined, "Line one\nLine two\nLine three");
+      const html = ticketPage(event, undefined, false, false, undefined, "Line one\nLine two\nLine three");
       expect(html).toContain("Line one<br>Line two<br>Line three");
     });
 
     test("preserves carriage return line feeds in terms and conditions", () => {
-      const html = ticketPage(event, csrfToken, undefined, false, false, undefined, "Line one\r\nLine two");
+      const html = ticketPage(event, undefined, false, false, undefined, "Line one\r\nLine two");
       expect(html).toContain("Line one<br>Line two");
     });
 
     test("does not render terms when not provided", () => {
-      const html = ticketPage(event, csrfToken, undefined, false, false, undefined, undefined);
+      const html = ticketPage(event, undefined, false, false, undefined, undefined);
       expect(html).not.toContain('class="terms"');
       expect(html).not.toContain('name="agree_terms"');
     });
 
     test("includes OpenGraph tags when baseUrl is provided", () => {
       const ev = testEventWithCount({ name: "Birthday Party", slug: "birthday-party", description: "A fun party" });
-      const html = ticketPage(ev, csrfToken, undefined, false, false, undefined, undefined, "https://tix.example.com");
+      const html = ticketPage(ev, undefined, false, false, undefined, undefined, "https://tix.example.com");
       expect(html).toContain('<meta property="og:title" content="Birthday Party">');
       expect(html).toContain('<meta property="og:type" content="website">');
       expect(html).toContain('<meta property="og:url" content="https://tix.example.com/ticket/birthday-party">');
@@ -452,7 +456,7 @@ describe("html", () => {
     });
 
     test("does not include OpenGraph tags when baseUrl is not provided", () => {
-      const html = ticketPage(event, csrfToken, undefined, false, false, undefined, undefined);
+      const html = ticketPage(event, undefined, false, false, undefined, undefined);
       expect(html).not.toContain('og:title');
     });
   });
@@ -1359,7 +1363,7 @@ describe("html", () => {
         buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 100, max_attendees: 100 })),
         buildMultiTicketEvent(testEventWithCount({ id: 2, slug: "cd34e", name: "Event B", attendee_count: 50, max_attendees: 50 })),
       ];
-      const html = multiTicketPage(events, ["ab12c", "cd34e"], TEST_CSRF_TOKEN);
+      const html = multiTicketPage(events, ["ab12c", "cd34e"]);
       expect(html).toContain("Sorry, all events are sold out.");
       expect(html).not.toContain("Reserve Tickets</button>");
     });
@@ -1368,7 +1372,7 @@ describe("html", () => {
       const events = [
         buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
       ];
-      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN, undefined, undefined, "Rule one\nRule two");
+      const html = multiTicketPage(events, ["ab12c"], undefined, undefined, "Rule one\nRule two");
       expect(html).toContain("Rule one<br>Rule two");
       expect(html).toContain('name="agree_terms"');
     });
@@ -1377,7 +1381,7 @@ describe("html", () => {
       const events = [
         buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
       ];
-      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN, undefined, undefined, undefined, true);
+      const html = multiTicketPage(events, ["ab12c"], undefined, undefined, undefined, true);
       expect(html).toContain('action="/ticket/ab12c?iframe=true"');
       expect(html).toContain('class="iframe"');
     });
@@ -1386,7 +1390,7 @@ describe("html", () => {
       const events = [
         buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
       ];
-      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN, undefined, undefined, undefined, true);
+      const html = multiTicketPage(events, ["ab12c"], undefined, undefined, undefined, true);
       expect(html).toContain("iframe-resizer-child.js");
     });
 
@@ -1394,7 +1398,7 @@ describe("html", () => {
       const events = [
         buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
       ];
-      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN);
+      const html = multiTicketPage(events, ["ab12c"]);
       expect(html).not.toContain("iframe-resizer-child.js");
     });
 
@@ -1402,7 +1406,7 @@ describe("html", () => {
       const events = [
         buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
       ];
-      const html = multiTicketPage(events, ["ab12c"], TEST_CSRF_TOKEN);
+      const html = multiTicketPage(events, ["ab12c"]);
       expect(html).toContain('action="/ticket/ab12c"');
       expect(html).not.toContain("?iframe=true");
       expect(html).not.toContain('class="iframe"');
@@ -1771,11 +1775,10 @@ describe("html", () => {
   });
 
   describe("ticketPage event date and location", () => {
-    const csrfToken = "test-csrf-token";
     const renderTicket = (
       ev: Parameters<typeof ticketPage>[0],
       opts?: { iframe?: boolean },
-    ) => ticketPage(ev, csrfToken, undefined, false, opts?.iframe ?? false, undefined, undefined);
+    ) => ticketPage(ev, undefined, false, opts?.iframe ?? false, undefined, undefined);
 
     test("shows date on public ticket page when event has date", () => {
       const event = testEventWithCount({
@@ -1960,7 +1963,7 @@ describe("html", () => {
       test("shows event image when image_url is set", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "event-img.jpg" });
-        const html = ticketPage(event, TEST_CSRF_TOKEN, undefined, false, false, undefined, null);
+        const html = ticketPage(event, undefined, false, false, undefined, null);
         expect(html).toContain("/image/event-img.jpg");
         expect(html).toContain('class="event-image"');
         cleanupStorage();
@@ -1969,7 +1972,7 @@ describe("html", () => {
       test("does not show image when image_url is null", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "" });
-        const html = ticketPage(event, TEST_CSRF_TOKEN, undefined, false, false, undefined, null);
+        const html = ticketPage(event, undefined, false, false, undefined, null);
         expect(html).not.toContain("/image/");
         cleanupStorage();
       });
@@ -1977,7 +1980,7 @@ describe("html", () => {
       test("does not show image in iframe mode", () => {
         setupStorage();
         const event = testEventWithCount({ image_url: "event-img.jpg" });
-        const html = ticketPage(event, TEST_CSRF_TOKEN, undefined, false, true, undefined, null);
+        const html = ticketPage(event, undefined, false, true, undefined, null);
         expect(html).not.toContain("event-img.jpg");
         cleanupStorage();
       });
@@ -1990,7 +1993,7 @@ describe("html", () => {
           buildMultiTicketEvent(testEventWithCount({ id: 1, name: "Event A", image_url: "img-a.jpg" })),
           buildMultiTicketEvent(testEventWithCount({ id: 2, name: "Event B", image_url: "img-b.jpg" })),
         ];
-        const html = multiTicketPage(events, ["slug-a", "slug-b"], TEST_CSRF_TOKEN);
+        const html = multiTicketPage(events, ["slug-a", "slug-b"]);
         expect(html).toContain("/image/img-a.jpg");
         expect(html).toContain("/image/img-b.jpg");
         cleanupStorage();
@@ -2001,7 +2004,7 @@ describe("html", () => {
         const events = [
           buildMultiTicketEvent(testEventWithCount({ id: 1, name: "Event A", image_url: "" })),
         ];
-        const html = multiTicketPage(events, ["slug-a"], TEST_CSRF_TOKEN);
+        const html = multiTicketPage(events, ["slug-a"]);
         expect(html).not.toContain("/image/");
         cleanupStorage();
       });
