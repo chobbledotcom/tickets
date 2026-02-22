@@ -1,0 +1,14 @@
+.git
+test
+coverage
+.github
+*.md
+flake.nix
+flake.lock
+setup.sh
+biome.json
+bunfig.toml
+tsconfig.json
+.jscpd.json
+.dockerignore
+Dockerfile
