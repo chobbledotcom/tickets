@@ -444,10 +444,13 @@ export const testStripeConnection = () => stripeApi.testStripeConnection();
 /** Default timestamp tolerance: 5 minutes (300 seconds) */
 const DEFAULT_TOLERANCE_SECONDS = 300;
 
+/** Result of parsing a Stripe signature header */
+type SignatureParseResult =
+  | { ok: true; timestamp: number; signatures: string[] }
+  | { ok: false; reason: string };
+
 /** Parse Stripe signature header into components */
-const parseSignatureHeader = (
-  header: string,
-): { timestamp: number; signatures: string[] } | null => {
+const parseSignatureHeader = (header: string): SignatureParseResult => {
   const parts = header.split(",");
   let timestamp = 0;
   const signatures: string[] = [];
@@ -461,11 +464,17 @@ const parseSignatureHeader = (
     }
   }
 
-  if (timestamp === 0 || signatures.length === 0) {
-    return null;
+  if (timestamp === 0 && signatures.length === 0) {
+    return { ok: false, reason: "missing timestamp and signature" };
+  }
+  if (timestamp === 0) {
+    return { ok: false, reason: "missing timestamp" };
+  }
+  if (signatures.length === 0) {
+    return { ok: false, reason: "missing signature" };
   }
 
-  return { timestamp, signatures };
+  return { ok: true, timestamp, signatures };
 };
 
 /** Compute HMAC-SHA256 and return hex-encoded result (Stripe format) */
@@ -513,8 +522,8 @@ export const verifyWebhookSignature = async (
   }
 
   const parsed = parseSignatureHeader(signature);
-  if (!parsed) {
-    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "invalid header format" });
+  if (!parsed.ok) {
+    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: `invalid header: ${parsed.reason}` });
     return { valid: false, error: "Invalid signature header format" };
   }
 
@@ -522,8 +531,12 @@ export const verifyWebhookSignature = async (
 
   // Check timestamp tolerance
   const nowSecs = Math.floor(nowMs() / 1000);
-  if (Math.abs(nowSecs - timestamp) > toleranceSeconds) {
-    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "timestamp out of tolerance" });
+  const timestampDelta = nowSecs - timestamp;
+  if (Math.abs(timestampDelta) > toleranceSeconds) {
+    logError({
+      code: ErrorCode.STRIPE_SIGNATURE,
+      detail: `timestamp out of tolerance delta=${timestampDelta}s tolerance=${toleranceSeconds}s`,
+    });
     return { valid: false, error: "Timestamp outside tolerance window" };
   }
 
@@ -543,8 +556,8 @@ export const verifyWebhookSignature = async (
   try {
     const event = JSON.parse(payload) as StripeWebhookEvent;
     return { valid: true, event };
-  } catch {
-    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "invalid JSON" });
+  } catch (err) {
+    logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: `invalid JSON: ${err}` });
     return { valid: false, error: "Invalid JSON payload" };
   }
 };

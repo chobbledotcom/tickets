@@ -1297,6 +1297,112 @@ describe("stripe", () => {
       }
     });
   });
+
+  describe("verifyWebhookSignature - enhanced error details", () => {
+    const TEST_SECRET = "whsec_test_secret_key_for_detail_tests";
+
+    beforeEach(async () => {
+      await setStripeWebhookConfig({ secret: TEST_SECRET, endpointId: "we_test_details" });
+    });
+
+    test("logs 'missing timestamp' when header has signature but no timestamp", async () => {
+      const errorSpy = spyOn(console, "error");
+      try {
+        await verifyWebhookSignature('{"test": true}', "v1=abc123");
+        const callArg = errorSpy.mock.calls[0]![0] as string;
+        expect(callArg).toContain('detail="invalid header: missing timestamp"');
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    test("logs 'missing signature' when header has timestamp but no v1", async () => {
+      const errorSpy = spyOn(console, "error");
+      try {
+        await verifyWebhookSignature('{"test": true}', "t=1234");
+        const callArg = errorSpy.mock.calls[0]![0] as string;
+        expect(callArg).toContain('detail="invalid header: missing signature"');
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    test("logs 'missing timestamp and signature' for completely invalid header", async () => {
+      const errorSpy = spyOn(console, "error");
+      try {
+        await verifyWebhookSignature('{"test": true}', "invalid-header");
+        const callArg = errorSpy.mock.calls[0]![0] as string;
+        expect(callArg).toContain('detail="invalid header: missing timestamp and signature"');
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    test("logs timestamp delta and tolerance when out of tolerance", async () => {
+      const errorSpy = spyOn(console, "error");
+      const oldTimestamp = Math.floor(Date.now() / 1000) - 400;
+      const payload = '{"test": true}';
+      const signedPayload = `${oldTimestamp}.${payload}`;
+
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(TEST_SECRET),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+      const signature = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        encoder.encode(signedPayload),
+      );
+      const sigHex = Array.from(new Uint8Array(signature))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      try {
+        await verifyWebhookSignature(payload, `t=${oldTimestamp},v1=${sigHex}`);
+        const callArg = errorSpy.mock.calls[0]![0] as string;
+        expect(callArg).toContain("timestamp out of tolerance delta=");
+        expect(callArg).toContain("tolerance=300s");
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    test("logs JSON parse error message for invalid payload", async () => {
+      const errorSpy = spyOn(console, "error");
+      const payload = "not valid json {{{";
+      const timestamp = Math.floor(Date.now() / 1000);
+      const signedPayload = `${timestamp}.${payload}`;
+
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(TEST_SECRET),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"],
+      );
+      const signature = await crypto.subtle.sign(
+        "HMAC",
+        key,
+        encoder.encode(signedPayload),
+      );
+      const sigHex = Array.from(new Uint8Array(signature))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      try {
+        await verifyWebhookSignature(payload, `t=${timestamp},v1=${sigHex}`);
+        const callArg = errorSpy.mock.calls[0]![0] as string;
+        expect(callArg).toContain('detail="invalid JSON:');
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+  });
 });
 
 describe("stripe-provider", () => {
