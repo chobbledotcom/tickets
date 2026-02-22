@@ -176,6 +176,7 @@ describe("payment-helpers", () => {
         quantity: 3,
       });
       expect(result).toEqual({
+        _origin: "localhost",
         event_id: "42",
         name: "Alice",
         email: "alice@example.com",
@@ -311,6 +312,7 @@ describe("payment-helpers", () => {
         ],
       };
       const result = buildMultiIntentMetadata(intent);
+      expect(result._origin).toBe("localhost");
       expect(result.multi).toBe("1");
       expect(result.name).toBe("Alice");
       expect(result.email).toBe("alice@example.com");
@@ -529,6 +531,7 @@ describe("payment-helpers", () => {
       };
       const result = extractSessionMetadata(metadata);
       expect(result).toEqual({
+        _origin: undefined,
         event_id: "42",
         name: "Alice",
         email: "alice@example.com",
@@ -551,6 +554,7 @@ describe("payment-helpers", () => {
       };
       const result = extractSessionMetadata(metadata);
       expect(result).toEqual({
+        _origin: undefined,
         event_id: undefined,
         name: "Bob",
         email: "bob@example.com",

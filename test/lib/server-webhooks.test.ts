@@ -12,6 +12,7 @@ import {
   resetDb,
   resetTestSlugCounter,
   setupStripe,
+  webhookMeta,
 } from "#test-utils";
 
 describe("server (webhooks)", () => {
@@ -162,12 +163,12 @@ describe("server (webhooks)", () => {
               payment_status: "unpaid",
               payment_intent: "pi_test",
               amount_total: 1000,
-              metadata: {
+              metadata: webhookMeta({
                 event_id: String(event.id),
                 name: "John",
                 email: "john@example.com",
                 quantity: "1",
-              },
+              }),
             },
           },
         },
@@ -210,12 +211,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_webhook_test",
               amount_total: 1000,
-              metadata: {
+              metadata: webhookMeta({
                 event_id: String(event.id),
                 name: "Webhook User",
                 email: "webhook@example.com",
                 quantity: "1",
-              },
+              }),
             },
           },
         },
@@ -270,7 +271,7 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_multi_webhook",
               amount_total: 2000,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Multi User",
                 email: "multi@example.com",
                 phone: "123456",
@@ -279,7 +280,7 @@ describe("server (webhooks)", () => {
                   { e: event1.id, q: 2 },
                   { e: event2.id, q: 1 },
                 ]),
-              },
+              }),
             },
           },
         },
@@ -326,12 +327,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_bad",
               amount_total: 0,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Bad Multi",
                 email: "bad@example.com",
                 multi: "1",
                 items: "not-valid-json{",
-              },
+              }),
             },
           },
         },
@@ -376,12 +377,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_soldout",
               amount_total: 1000,
-              metadata: {
+              metadata: webhookMeta({
                 event_id: String(event.id),
                 name: "Late Buyer",
                 email: "late@example.com",
                 quantity: "1",
-              },
+              }),
             },
           },
         },
@@ -572,12 +573,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_extracted_ref",
               amount_total: 1000,
-              metadata: {
+              metadata: webhookMeta({
                 event_id: String(event.id),
                 name: "PI User",
                 email: "pi@example.com",
                 quantity: "1",
-              },
+              }),
             },
           },
         },
@@ -620,12 +621,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_non_array",
               amount_total: 0,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Test",
                 email: "test@example.com",
                 multi: "1",
                 items: '{"not":"an-array"}', // Valid JSON but not an array
-              },
+              }),
             },
           },
         },
@@ -662,12 +663,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_no_items",
               amount_total: 0,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Test",
                 email: "test@example.com",
                 multi: "1",
                 items: "", // empty string: isMultiSession returns true but extractMultiIntent returns null
-              },
+              }),
             },
           },
         },
@@ -1025,12 +1026,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_already_done",
               amount_total: 500,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Already Done",
                 email: "already@example.com",
                 multi: "1",
                 items: JSON.stringify([{ e: event.id, q: 1 }]),
-              },
+              }),
             },
           },
         },
@@ -1079,7 +1080,7 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_multi_inactive_wh",
               amount_total: 1000,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Multi Inactive",
                 email: "inactive@example.com",
                 multi: "1",
@@ -1087,7 +1088,7 @@ describe("server (webhooks)", () => {
                   { e: event1.id, q: 1 },
                   { e: event2.id, q: 1 },
                 ]),
-              },
+              }),
             },
           },
         },
@@ -1147,7 +1148,7 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_multi_soldout_wh",
               amount_total: 1000,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Sold Out Multi",
                 email: "soldout@example.com",
                 multi: "1",
@@ -1155,7 +1156,7 @@ describe("server (webhooks)", () => {
                   { e: event1.id, q: 1 },
                   { e: event2.id, q: 1 },
                 ]),
-              },
+              }),
             },
           },
         },
@@ -1254,7 +1255,7 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_multi_ok",
               amount_total: 1100,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Multi Buyer",
                 email: "multi@example.com",
                 multi: "1",
@@ -1262,7 +1263,7 @@ describe("server (webhooks)", () => {
                   { e: event1.id, q: 1 },
                   { e: event2.id, q: 2 },
                 ]),
-              },
+              }),
             },
           },
         },
@@ -1299,14 +1300,14 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_multi_notfound",
               amount_total: 1000,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Multi NotFound",
                 email: "notfound@example.com",
                 multi: "1",
                 items: JSON.stringify([
                   { e: 99999, q: 1 },
                 ]),
-              },
+              }),
             },
           },
         },
@@ -1362,7 +1363,7 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_multi_cap",
               amount_total: 800,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Multi Cap",
                 email: "cap@example.com",
                 multi: "1",
@@ -1370,7 +1371,7 @@ describe("server (webhooks)", () => {
                   { e: event1.id, q: 1 },
                   { e: event2.id, q: 1 },
                 ]),
-              },
+              }),
             },
           },
         },
@@ -1426,12 +1427,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_del_event_wh",
               amount_total: 1000,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Deleted Event",
                 email: "deleted@example.com",
                 event_id: "99999",
                 quantity: "1",
-              },
+              }),
             },
           },
         },
@@ -1474,12 +1475,12 @@ describe("server (webhooks)", () => {
               id: "cs_noref",
               payment_status: "paid",
               amount_total: 500,
-              metadata: {
+              metadata: webhookMeta({
                 name: "No Ref",
                 email: "noref@example.com",
                 event_id: String(event.id),
                 quantity: "1",
-              },
+              }),
             },
           },
         },
@@ -1536,12 +1537,13 @@ describe("server (webhooks)", () => {
         id: "cs_no_event_id",
         paymentStatus: "paid" as const,
         paymentReference: "pi_no_event_id",
-        metadata: {
+        amountTotal: 0,
+        metadata: webhookMeta({
           name: "No EventId",
           email: "noeventid@example.com",
           quantity: "1",
           // event_id intentionally undefined -> triggers ?? "0"
-        },
+        }),
       });
 
       const mockRefund = spyOn(stripeApi, "refundPayment");
@@ -1602,12 +1604,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_tryrefund_noprov",
               amount_total: 500,
-              metadata: {
+              metadata: webhookMeta({
                 name: "No Provider",
                 email: "noprov@example.com",
                 event_id: String(event.id),
                 quantity: "1",
-              },
+              }),
             },
           },
         },
@@ -1652,7 +1654,7 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_multi_rollback",
               amount_total: 500,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Rollback Test",
                 email: "rollback@example.com",
                 multi: "1",
@@ -1660,7 +1662,7 @@ describe("server (webhooks)", () => {
                   { e: event1.id, q: 1 },
                   { e: 99999, q: 1 },
                 ]),
-              },
+              }),
             },
           },
         },
@@ -1969,12 +1971,12 @@ describe("server (webhooks)", () => {
               payment_status: "completed", // invalid status, should fall back to "unpaid"
               payment_intent: "pi_bad_status",
               amount_total: 1000,
-              metadata: {
+              metadata: webhookMeta({
                 event_id: String(event.id),
                 name: "Bad Status",
                 email: "badstatus@example.com",
                 quantity: "1",
-              },
+              }),
             },
           },
         },
@@ -2019,12 +2021,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_amount_total",
               amount_total: 2500,
-              metadata: {
+              metadata: webhookMeta({
                 event_id: String(event.id),
                 name: "Amount User",
                 email: "amount@example.com",
                 quantity: "1",
-              },
+              }),
             },
           },
         },
@@ -2074,12 +2076,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_mismatch",
               amount_total: 1200,
-              metadata: {
+              metadata: webhookMeta({
                 event_id: String(event.id),
                 name: "Mismatch User",
                 email: "mismatch@example.com",
                 quantity: "1",
-              },
+              }),
             },
           },
         },
@@ -2145,7 +2147,7 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_multi_mismatch",
               amount_total: 1000,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Multi Mismatch",
                 email: "multimismatch@example.com",
                 multi: "1",
@@ -2153,7 +2155,7 @@ describe("server (webhooks)", () => {
                   { e: event1.id, q: 1 },
                   { e: event2.id, q: 2 },
                 ]),
-              },
+              }),
             },
           },
         },
@@ -2319,12 +2321,12 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_closed_wh",
               amount_total: 1000,
-              metadata: {
+              metadata: webhookMeta({
                 event_id: String(event.id),
                 name: "Jane",
                 email: "jane@example.com",
                 quantity: "1",
-              },
+              }),
             },
           },
         },
@@ -2376,7 +2378,7 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_multi_closed",
               amount_total: 1500,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Jane",
                 email: "jane@example.com",
                 multi: "1",
@@ -2384,7 +2386,7 @@ describe("server (webhooks)", () => {
                   { e: event1.id, q: 1 },
                   { e: event2.id, q: 1 },
                 ]),
-              },
+              }),
             },
           },
         },
@@ -2445,7 +2447,7 @@ describe("server (webhooks)", () => {
               payment_status: "paid",
               payment_intent: "pi_multi_daily",
               amount_total: 800,
-              metadata: {
+              metadata: webhookMeta({
                 name: "Multi Daily Buyer",
                 email: "multidaily@example.com",
                 multi: "1",
@@ -2454,7 +2456,7 @@ describe("server (webhooks)", () => {
                   { e: event1.id, q: 1 },
                   { e: event2.id, q: 1 },
                 ]),
-              },
+              }),
             },
           },
         },
@@ -2483,6 +2485,300 @@ describe("server (webhooks)", () => {
         expect(attendees2[0]?.date).toBeNull();
       } finally {
         mockVerify.mockRestore();
+      }
+    });
+  });
+
+  describe("unrecognized webhook sessions", () => {
+    afterEach(() => {
+      resetStripeClient();
+    });
+
+    test("webhook ignores session with no _origin marker", async () => {
+      await setupStripe();
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_foreign",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_foreign",
+              payment_status: "paid",
+              payment_intent: "pi_foreign",
+              amount_total: 30,
+              metadata: {
+                event_id: "1",
+                name: "Foreign Buyer",
+                email: "foreign@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        // Returns 200 to prevent provider retries
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        // Should not attempt to process or refund
+        expect(json.processed).toBeUndefined();
+        expect(mockRefund).not.toHaveBeenCalled();
+      } finally {
+        mockVerify.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("webhook ignores session with wrong _origin marker", async () => {
+      await setupStripe();
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_other_instance",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_other_instance",
+              payment_status: "paid",
+              payment_intent: "pi_other_instance",
+              amount_total: 500,
+              metadata: {
+                _origin: "other-domain.com",
+                event_id: "1",
+                name: "Other Instance",
+                email: "other@example.com",
+                quantity: "1",
+              },
+            },
+          },
+        },
+      });
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        expect(json.processed).toBeUndefined();
+        expect(mockRefund).not.toHaveBeenCalled();
+      } finally {
+        mockVerify.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("webhook ignores unrecognized session via fallback retrieval path", async () => {
+      await setupStripe();
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_fallback_foreign",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_fallback_foreign",
+              status: "COMPLETED",
+              // No proper metadata -> extractSessionFromEvent returns null
+            },
+          },
+        },
+      });
+
+      const mockRetrieveSession = spyOn(stripePaymentProvider, "retrieveSession");
+      mockRetrieveSession.mockResolvedValue({
+        id: "cs_fallback_foreign",
+        paymentStatus: "paid" as const,
+        paymentReference: "pi_fallback_foreign",
+        amountTotal: 100,
+        metadata: {
+          name: "Fallback Foreign",
+          email: "fallback@example.com",
+          quantity: "1",
+          // No _origin -> should be rejected as unrecognized
+        },
+      });
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        expect(json.processed).toBeUndefined();
+        expect(mockRefund).not.toHaveBeenCalled();
+      } finally {
+        mockVerify.mockRestore();
+        mockRetrieveSession.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+  });
+
+  describe("refund logging", () => {
+    afterEach(() => {
+      resetStripeClient();
+    });
+
+    test("tryRefund logs success message when refund succeeds", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      await deactivateTestEvent(event.id);
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_refund_log",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_refund_log",
+              payment_status: "paid",
+              payment_intent: "pi_refund_log",
+              amount_total: 1000,
+              metadata: webhookMeta({
+                event_id: String(event.id),
+                name: "Refund Log",
+                email: "refundlog@example.com",
+                quantity: "1",
+              }),
+            },
+          },
+        },
+      });
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_log" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      const debugLogs: string[] = [];
+      const origDebug = console.debug;
+      console.debug = (...args: unknown[]) => {
+        debugLogs.push(args.join(" "));
+      };
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        expect(mockRefund).toHaveBeenCalledWith("pi_refund_log");
+
+        // Verify refund success was logged to console
+        const refundLog = debugLogs.find((log) => log.includes("Refund issued"));
+        expect(refundLog).toBeDefined();
+
+        // Verify refund was logged to activity log tagged to event
+        const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
+        const entries = await getEventActivityLog(event.id);
+        const refundEntry = entries.find((e) => e.message.includes("Automatic refund"));
+        expect(refundEntry).toBeDefined();
+        expect(refundEntry!.event_id).toBe(event.id);
+        expect(refundEntry!.message).toContain("no longer accepting registrations");
+      } finally {
+        console.debug = origDebug;
+        mockVerify.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
+
+    test("automatic refund logs to activity log for price mismatch", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_refund_activity",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_refund_activity",
+              payment_status: "paid",
+              payment_intent: "pi_refund_activity",
+              amount_total: 500,
+              metadata: webhookMeta({
+                event_id: String(event.id),
+                name: "Activity Log User",
+                email: "activity@example.com",
+                quantity: "1",
+              }),
+            },
+          },
+        },
+      });
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_activity" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+
+        const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
+        const entries = await getEventActivityLog(event.id);
+        const refundEntry = entries.find((e) => e.message.includes("Automatic refund"));
+        expect(refundEntry).toBeDefined();
+        expect(refundEntry!.event_id).toBe(event.id);
+        expect(refundEntry!.message).toContain("price");
+      } finally {
+        mockVerify.mockRestore();
+        mockRefund.mockRestore();
       }
     });
   });
