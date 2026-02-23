@@ -112,13 +112,22 @@ export const sendWebhook = async (
   payload: WebhookPayload,
 ): Promise<void> => {
   try {
-    await fetch(webhookUrl, {
+    const response = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-  } catch {
-    logError({ code: ErrorCode.WEBHOOK_SEND });
+    if (!response.ok) {
+      logError({
+        code: ErrorCode.WEBHOOK_SEND,
+        detail: `status=${response.status}`,
+      });
+    }
+  } catch (error) {
+    logError({
+      code: ErrorCode.WEBHOOK_SEND,
+      detail: error instanceof Error ? error.message : String(error),
+    });
   }
 };
 

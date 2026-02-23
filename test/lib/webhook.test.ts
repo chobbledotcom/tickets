@@ -238,6 +238,74 @@ describe("webhook", () => {
 
       expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
+
+    test("logs error message on fetch error", async () => {
+      const errorSpy = spyOn(console, "error");
+      fetchSpy.mockRejectedValue(new Error("Connection refused"));
+
+      const payload = await buildWebhookPayload(
+        [{ event: makeEvent(), attendee: makeAttendee() }],
+        "GBP",
+      );
+
+      await sendWebhook("https://example.com/webhook", payload);
+
+      const calls = errorSpy.mock.calls.map((c) => c[0] as string);
+      expect(calls.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("Connection refused"))).toBe(true);
+
+      errorSpy.mockRestore();
+    });
+
+    test("logs non-Error thrown values as strings", async () => {
+      const errorSpy = spyOn(console, "error");
+      fetchSpy.mockRejectedValue("socket hang up");
+
+      const payload = await buildWebhookPayload(
+        [{ event: makeEvent(), attendee: makeAttendee() }],
+        "GBP",
+      );
+
+      await sendWebhook("https://example.com/webhook", payload);
+
+      const calls = errorSpy.mock.calls.map((c) => c[0] as string);
+      expect(calls.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("socket hang up"))).toBe(true);
+
+      errorSpy.mockRestore();
+    });
+
+    test("logs status on non-2xx response", async () => {
+      const errorSpy = spyOn(console, "error");
+      fetchSpy.mockResolvedValue(new Response("Not Found", { status: 404 }));
+
+      const payload = await buildWebhookPayload(
+        [{ event: makeEvent(), attendee: makeAttendee() }],
+        "GBP",
+      );
+
+      await sendWebhook("https://example.com/webhook", payload);
+
+      const calls = errorSpy.mock.calls.map((c) => c[0] as string);
+      expect(calls.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("status=404"))).toBe(true);
+
+      errorSpy.mockRestore();
+    });
+
+    test("does not log error on successful 2xx response", async () => {
+      const errorSpy = spyOn(console, "error");
+      fetchSpy.mockResolvedValue(new Response("OK", { status: 200 }));
+
+      const payload = await buildWebhookPayload(
+        [{ event: makeEvent(), attendee: makeAttendee() }],
+        "GBP",
+      );
+
+      await sendWebhook("https://example.com/webhook", payload);
+
+      const calls = errorSpy.mock.calls.map((c) => c[0] as string);
+      expect(calls.some((c) => c.includes("E_WEBHOOK_SEND"))).toBe(false);
+
+      errorSpy.mockRestore();
+    });
   });
 
   describe("sendRegistrationWebhooks", () => {
