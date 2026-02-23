@@ -928,6 +928,10 @@ form > label {
   margin-bottom: 1rem;
 }
 
+label.terms-agree {
+  display: block;
+}
+
 /* Remove button margins inside forms */
 form > button {
   margin: 0;

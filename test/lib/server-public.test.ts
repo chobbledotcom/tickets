@@ -2924,7 +2924,7 @@ describe("server (public routes)", () => {
       const html = await response.text();
       expect(html).toContain("agree_terms");
       expect(html).toContain("I agree to the event rules.");
-      expect(html).toContain("I agree to the terms and conditions above");
+      expect(html).toContain("I agree to the terms above");
     });
 
     test("does not show terms checkbox when no terms configured", async () => {
