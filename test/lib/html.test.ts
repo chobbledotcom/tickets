@@ -139,16 +139,6 @@ describe("html", () => {
       expect(html).toContain("Bob");
     });
 
-    test("newest attendees summary links to multi-ticket URL", () => {
-      const events = [testEventWithCount({ id: 1 })];
-      const attendees = [
-        testAttendee({ id: 1, event_id: 1, ticket_token: "tok-a" }),
-        testAttendee({ id: 2, event_id: 1, ticket_token: "tok-b" }),
-      ];
-      const html = adminDashboardPage(events, TEST_SESSION, null, attendees);
-      expect(html).toContain('href="https://localhost/t/tok-a+tok-b"');
-    });
-
     test("newest attendees section not shown when no attendees", () => {
       const html = adminDashboardPage([], TEST_SESSION, null, []);
       expect(html).not.toContain("Newest");
@@ -159,7 +149,7 @@ describe("html", () => {
       const events = [testEventWithCount({ id: 1 })];
       const attendees = [testAttendee({ id: 1, event_id: 1 })];
       const html = adminDashboardPage(events, TEST_SESSION, null, attendees);
-      expect(html).toContain("Newest 1 Attendee</a>");
+      expect(html).toContain("Newest 1 Attendee</summary>");
     });
 
     test("newest attendees shows event column", () => {
@@ -200,7 +190,7 @@ describe("html", () => {
       const html = adminDashboardPage(events, TEST_SESSION, null, attendees);
       expect(html).toContain("Valid");
       expect(html).not.toContain("Orphan");
-      expect(html).toContain("Newest 1 Attendee</a>");
+      expect(html).toContain("Newest 1 Attendee</summary>");
     });
   });
 

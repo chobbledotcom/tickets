@@ -107,17 +107,15 @@ const newestAttendeesSection = (
 
   if (tableRows.length === 0) return "";
 
-  const domain = getAllowedDomain();
-  const tokens = pipe(map((r: AttendeeTableRow) => r.attendee.ticket_token))(tableRows);
   const count = tableRows.length;
 
   return String(
     <details open>
-      <summary><a href={`https://${domain}/t/${tokens.join("+")}`}>Newest {count} Attendee{count !== 1 ? "s" : ""}</a></summary>
+      <summary>Newest {count} Attendee{count !== 1 ? "s" : ""}</summary>
       <div class="table-scroll">
         <Raw html={AttendeeTable({
           rows: tableRows,
-          allowedDomain: domain,
+          allowedDomain: getAllowedDomain(),
           showEvent: true,
           showDate: false,
           showCheckin: false,
