@@ -488,7 +488,7 @@ textarea {
 }
 
 input[type="file"] {
-  max-width: 100%;
+  width: calc(100% - 1.6rem);
 }
 
 input[readonly],
