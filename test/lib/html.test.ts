@@ -125,6 +125,83 @@ describe("html", () => {
       const html = adminDashboardPage([], TEST_SESSION, "localhost");
       expect(html).toContain("/admin/logout");
     });
+
+    test("renders newest attendees section when attendees provided", () => {
+      const events = [testEventWithCount({ id: 1, name: "Gala Night" })];
+      const attendees = [
+        testAttendee({ id: 1, event_id: 1, name: "Alice", ticket_token: "tok-a" }),
+        testAttendee({ id: 2, event_id: 1, name: "Bob", ticket_token: "tok-b" }),
+      ];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost", null, attendees);
+      expect(html).toContain("<details open");
+      expect(html).toContain("Newest 2 Attendees");
+      expect(html).toContain("Alice");
+      expect(html).toContain("Bob");
+    });
+
+    test("newest attendees summary links to multi-ticket URL", () => {
+      const events = [testEventWithCount({ id: 1 })];
+      const attendees = [
+        testAttendee({ id: 1, event_id: 1, ticket_token: "tok-a" }),
+        testAttendee({ id: 2, event_id: 1, ticket_token: "tok-b" }),
+      ];
+      const html = adminDashboardPage(events, TEST_SESSION, "example.com", null, attendees);
+      expect(html).toContain('href="https://example.com/t/tok-a+tok-b"');
+    });
+
+    test("newest attendees section not shown when no attendees", () => {
+      const html = adminDashboardPage([], TEST_SESSION, "localhost", null, []);
+      expect(html).not.toContain("Newest");
+      expect(html).not.toContain("<details open");
+    });
+
+    test("newest attendees shows singular for single attendee", () => {
+      const events = [testEventWithCount({ id: 1 })];
+      const attendees = [testAttendee({ id: 1, event_id: 1 })];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost", null, attendees);
+      expect(html).toContain("Newest 1 Attendee</a>");
+    });
+
+    test("newest attendees shows event column", () => {
+      const events = [testEventWithCount({ id: 1, name: "Workshop" })];
+      const attendees = [testAttendee({ id: 1, event_id: 1 })];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost", null, attendees);
+      expect(html).toContain("<th>Event</th>");
+      expect(html).toContain("Workshop");
+    });
+
+    test("newest attendees hides check-in and actions columns", () => {
+      const events = [testEventWithCount({ id: 1 })];
+      const attendees = [testAttendee({ id: 1, event_id: 1 })];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost", null, attendees);
+      // The details section should have an attendee table without check-in/actions
+      const detailsMatch = html.match(/<details open[\s\S]*?<\/details>/);
+      expect(detailsMatch).not.toBeNull();
+      const detailsHtml = detailsMatch![0];
+      expect(detailsHtml).not.toContain("Check in");
+      expect(detailsHtml).not.toContain("Check out");
+      expect(detailsHtml).not.toContain("Delete");
+    });
+
+    test("newest attendees not shown when all attendees have unknown event_id", () => {
+      const events = [testEventWithCount({ id: 1 })];
+      const attendees = [testAttendee({ id: 1, event_id: 999 })];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost", null, attendees);
+      expect(html).not.toContain("Newest");
+      expect(html).not.toContain("<details open");
+    });
+
+    test("newest attendees skips attendees with unknown event_id", () => {
+      const events = [testEventWithCount({ id: 1, name: "Known Event" })];
+      const attendees = [
+        testAttendee({ id: 1, event_id: 1, name: "Valid" }),
+        testAttendee({ id: 2, event_id: 999, name: "Orphan" }),
+      ];
+      const html = adminDashboardPage(events, TEST_SESSION, "localhost", null, attendees);
+      expect(html).toContain("Valid");
+      expect(html).not.toContain("Orphan");
+      expect(html).toContain("Newest 1 Attendee</a>");
+    });
   });
 
   describe("adminEventEditPage group select", () => {

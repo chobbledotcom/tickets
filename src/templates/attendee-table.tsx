@@ -30,6 +30,10 @@ export type AttendeeTableOptions = {
   returnUrl?: string;
   emptyMessage?: string;
   phonePrefix?: string;
+  /** Hide check-in/check-out and actions columns (default: true) */
+  showCheckin?: boolean;
+  /** Skip default sort and use rows as-is (default: false) */
+  presorted?: boolean;
 };
 
 /** Column visibility flags computed from data */
@@ -72,8 +76,9 @@ const computeVisibility = (rows: AttendeeTableRow[], opts: AttendeeTableOptions)
 });
 
 /** Count visible columns for colspan on empty row */
-const countColumns = (vis: Visibility): number => {
-  let count = 6; // Checked In, Name, Qty, Ticket, Registered, Actions
+const countColumns = (vis: Visibility, showCheckin: boolean): number => {
+  let count = 4; // Name, Qty, Ticket, Registered
+  if (showCheckin) count += 2; // Checked In, Actions
   if (vis.showEvent) count++;
   if (vis.showDate) count++;
   if (vis.showEmail) count++;
@@ -193,11 +198,14 @@ const AttendeeRow = ({ row, vis, opts }: {
   opts: AttendeeTableOptions;
 }): string => {
   const a = row.attendee;
+  const showCheckin = opts.showCheckin !== false;
   return String(
     <tr>
-      <td>
-        <Raw html={StatusCell({ row, opts })} />
-      </td>
+      {showCheckin && (
+        <td>
+          <Raw html={StatusCell({ row, opts })} />
+        </td>
+      )}
       {vis.showEvent && <td><a href={`/admin/event/${row.eventId}`}>{row.eventName}</a></td>}
       {vis.showDate && <td>{a.date ? formatDateLabel(a.date) : ""}</td>}
       <td>{a.name}</td>
@@ -208,31 +216,34 @@ const AttendeeRow = ({ row, vis, opts }: {
       <td>{a.quantity}</td>
       <td><a href={`https://${opts.allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
       <td>{new Date(a.created).toLocaleString()}</td>
-      <td>
-        <Raw html={ActionsCell({ row, returnUrl: opts.returnUrl })} />
-      </td>
+      {showCheckin && (
+        <td>
+          <Raw html={ActionsCell({ row, returnUrl: opts.returnUrl })} />
+        </td>
+      )}
     </tr>
   );
 };
 
 /** Render the unified attendee table */
 export const AttendeeTable = (opts: AttendeeTableOptions): string => {
-  const sortedRows = sortAttendeeRows(opts.rows);
-  const vis = computeVisibility(sortedRows, opts);
-  const colCount = countColumns(vis);
+  const orderedRows = opts.presorted ? opts.rows : sortAttendeeRows(opts.rows);
+  const vis = computeVisibility(orderedRows, opts);
+  const showCheckin = opts.showCheckin !== false;
+  const colCount = countColumns(vis, showCheckin);
 
-  const rows = sortedRows.length > 0
+  const rows = orderedRows.length > 0
     ? pipe(
         map((row: AttendeeTableRow) => AttendeeRow({ row, vis, opts })),
         joinStrings,
-      )(sortedRows)
+      )(orderedRows)
     : `<tr><td colspan="${colCount}">${opts.emptyMessage ?? "No attendees yet"}</td></tr>`;
 
   return String(
     <table>
       <thead>
         <tr>
-          <th></th>
+          {showCheckin && <th></th>}
           {vis.showEvent && <th>Event</th>}
           {vis.showDate && <th>Date</th>}
           <th>Name</th>
@@ -243,7 +254,7 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
           <th>Qty</th>
           <th>Ticket</th>
           <th>Registered</th>
-          <th></th>
+          {showCheckin && <th></th>}
         </tr>
       </thead>
       <tbody>

@@ -3,11 +3,12 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
-import type { AdminSession, EventWithCount } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { renderEventImage } from "#templates/public.tsx";
+import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -84,6 +85,54 @@ const multiBookingSection = (
   );
 };
 
+/** Build the newest attendees section with a details/summary wrapper */
+const newestAttendeesSection = (
+  attendees: Attendee[],
+  events: EventWithCount[],
+  allowedDomain: string,
+): string => {
+  const eventMap = new Map(events.map((e) => [e.id, e]));
+  const tableRows = reduce(
+    (acc: AttendeeTableRow[], a: Attendee) => {
+      const event = eventMap.get(a.event_id);
+      if (event) {
+        acc.push({
+          attendee: a,
+          eventId: event.id,
+          eventName: event.name,
+          hasPaidEvent: event.unit_price !== null,
+        });
+      }
+      return acc;
+    },
+    [] as AttendeeTableRow[],
+  )(attendees);
+
+  if (tableRows.length === 0) return "";
+
+  const tokens = pipe(
+    map((r: AttendeeTableRow) => r.attendee.ticket_token),
+  )(tableRows);
+  const multiTicketUrl = `https://${allowedDomain}/t/${tokens.join("+")}`;
+  const count = tableRows.length;
+
+  return String(
+    <details open>
+      <summary><a href={multiTicketUrl}>Newest {count} Attendee{count !== 1 ? "s" : ""}</a></summary>
+      <div class="table-scroll">
+        <Raw html={AttendeeTable({
+          rows: tableRows,
+          allowedDomain,
+          showEvent: true,
+          showDate: false,
+          showCheckin: false,
+          presorted: true,
+        })} />
+      </div>
+    </details>
+  );
+};
+
 /**
  * Admin dashboard page
  */
@@ -92,6 +141,7 @@ export const adminDashboardPage = (
   session: AdminSession,
   allowedDomain: string,
   imageError?: string | null,
+  newestAttendees: Attendee[] = [],
 ): string => {
   const eventRows =
     events.length > 0
@@ -109,6 +159,10 @@ export const adminDashboardPage = (
       )}
 
       <p><a href="/admin/event/new">Add Event</a></p>
+
+      {newestAttendees.length > 0 && (
+        <Raw html={newestAttendeesSection(newestAttendees, events, allowedDomain)} />
+      )}
 
       <div class="table-scroll">
         <table>

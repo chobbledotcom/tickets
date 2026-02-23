@@ -111,6 +111,16 @@ export const getAttendeesRaw = (eventId: number): Promise<Attendee[]> =>
   );
 
 /**
+ * Get the newest attendees across all events without decrypting PII.
+ * Used for the admin dashboard to show recent registrations.
+ */
+export const getNewestAttendeesRaw = (limit: number): Promise<Attendee[]> =>
+  queryAll<Attendee>(
+    "SELECT * FROM attendees ORDER BY created DESC LIMIT ?",
+    [limit],
+  );
+
+/**
  * Decrypt a list of raw attendees (all fields).
  * Used when attendees are fetched via batch query.
  */
