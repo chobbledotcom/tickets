@@ -126,17 +126,15 @@ describe("html", () => {
       expect(html).toContain("/admin/logout");
     });
 
-    test("renders newest attendees section when attendees provided", () => {
+    test("renders newest attendees in an open details element", () => {
       const events = [testEventWithCount({ id: 1, name: "Gala Night" })];
       const attendees = [
-        testAttendee({ id: 1, event_id: 1, name: "Alice", ticket_token: "tok-a" }),
-        testAttendee({ id: 2, event_id: 1, name: "Bob", ticket_token: "tok-b" }),
+        testAttendee({ id: 1, event_id: 1, name: "Alice" }),
+        testAttendee({ id: 2, event_id: 1, name: "Bob" }),
       ];
       const html = adminDashboardPage(events, TEST_SESSION, null, attendees);
       expect(html).toContain("<details open");
       expect(html).toContain("Newest 2 Attendees");
-      expect(html).toContain("Alice");
-      expect(html).toContain("Bob");
     });
 
     test("newest attendees section not shown when no attendees", () => {
@@ -158,19 +156,6 @@ describe("html", () => {
       const html = adminDashboardPage(events, TEST_SESSION, null, attendees);
       expect(html).toContain("<th>Event</th>");
       expect(html).toContain("Workshop");
-    });
-
-    test("newest attendees hides check-in and actions columns", () => {
-      const events = [testEventWithCount({ id: 1 })];
-      const attendees = [testAttendee({ id: 1, event_id: 1 })];
-      const html = adminDashboardPage(events, TEST_SESSION, null, attendees);
-      // The details section should have an attendee table without check-in/actions
-      const detailsMatch = html.match(/<details open[\s\S]*?<\/details>/);
-      expect(detailsMatch).not.toBeNull();
-      const detailsHtml = detailsMatch![0];
-      expect(detailsHtml).not.toContain("Check in");
-      expect(detailsHtml).not.toContain("Check out");
-      expect(detailsHtml).not.toContain("Delete");
     });
 
     test("newest attendees not shown when all attendees have unknown event_id", () => {

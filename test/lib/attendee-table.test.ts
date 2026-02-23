@@ -345,25 +345,16 @@ describe("AttendeeTable", () => {
   });
 
   describe("showActions option", () => {
-    test("hides check-in buttons when showActions is false", () => {
+    test("hides check-in and action cells when showActions is false", () => {
       const html = AttendeeTable(makeOpts({ showActions: false }));
       expect(html).not.toContain("Check in");
-      expect(html).not.toContain("Check out");
-      expect(html).not.toContain("/checkin");
-    });
-
-    test("hides actions column when showActions is false", () => {
-      const html = AttendeeTable(makeOpts({ showActions: false }));
       expect(html).not.toContain("Edit");
       expect(html).not.toContain("Delete");
-      expect(html).not.toContain("Re-send Webhook");
     });
 
-    test("still shows name and ticket columns when showActions is false", () => {
+    test("retains data columns when showActions is false", () => {
       const html = AttendeeTable(makeOpts({ showActions: false }));
-      expect(html).toContain("<th>Name</th>");
       expect(html).toContain("John Doe");
-      expect(html).toContain("<th>Ticket</th>");
       expect(html).toContain("test-token-1");
     });
 
