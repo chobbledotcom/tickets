@@ -6,7 +6,7 @@ import { decryptAttendees, decryptAttendeesForTable } from "#lib/db/attendees.ts
 import { getEventWithAttendeesRaw } from "#lib/db/events.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import type { validateForm } from "#lib/forms.tsx";
-import { type AuthSession, getPrivateKey, notFoundResponse, requireSessionOr } from "#routes/utils.ts";
+import { type AuthSession, encodeBody, getPrivateKey, notFoundResponse, requireSessionOr } from "#routes/utils.ts";
 
 /** Form field definition type */
 export type FormFields = Parameters<typeof validateForm>[1];
@@ -33,7 +33,7 @@ export const getDateFilter = (request: Request): string | null => {
 
 /** Build a CSV file download response */
 export const csvResponse = (csv: string, filename: string): Response =>
-  new Response(csv, {
+  new Response(encodeBody(csv), {
     headers: {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="${filename}"`,
