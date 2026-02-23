@@ -524,6 +524,13 @@ export const jsonResponse = (data: unknown, status = 200): Response =>
     headers: { "content-type": "application/json; charset=utf-8" },
   });
 
+/** Create plain text response */
+export const plainResponse = (text: string, status = 200): Response =>
+  new Response(encodeBody(text), {
+    status,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+
 type JsonHandler = (session: AuthSession, body: Record<string, unknown>) => Response | Promise<Response>;
 
 /**

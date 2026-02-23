@@ -6,8 +6,7 @@ import { compact } from "#fp";
 import { getAllowedDomain, getEmbedHosts } from "#lib/config.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
-
-const encoder = new TextEncoder();
+import { encodeBody } from "#routes/utils.ts";
 
 /**
  * Security headers for all responses
@@ -146,7 +145,7 @@ export const isValidContentType = (request: Request, path: string): boolean => {
  * Create Content-Type rejection response
  */
 export const contentTypeRejectionResponse = (): Response =>
-  new Response(encoder.encode("Bad Request: Invalid Content-Type"), {
+  new Response(encodeBody("Bad Request: Invalid Content-Type"), {
     status: 400,
     headers: {
       "content-type": "text/plain",
@@ -158,7 +157,7 @@ export const contentTypeRejectionResponse = (): Response =>
  * Create domain rejection response
  */
 export const domainRejectionResponse = (): Response =>
-  new Response(encoder.encode("Forbidden: Invalid domain"), {
+  new Response(encodeBody("Forbidden: Invalid domain"), {
     status: 403,
     headers: {
       "content-type": "text/plain",

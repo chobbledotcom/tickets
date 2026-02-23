@@ -3,6 +3,7 @@
  */
 
 import { dirname, fromFileUrl, join } from "@std/path";
+import { encodeBody } from "#routes/utils.ts";
 
 const currentDir = dirname(fromFileUrl(import.meta.url));
 const staticDir = join(currentDir, "..", "static");
@@ -12,11 +13,9 @@ const CACHE_HEADERS = {
   "cache-control": "public, max-age=31536000, immutable",
 };
 
-const encoder = new TextEncoder();
-
 /** Create a handler that serves a static file with the given content type */
 const staticHandler = (filename: string, contentType: string): (() => Response) => {
-  const content = encoder.encode(Deno.readTextFileSync(join(staticDir, filename)));
+  const content = encodeBody(Deno.readTextFileSync(join(staticDir, filename)));
   return () =>
     new Response(content, {
       headers: { "content-type": contentType, ...CACHE_HEADERS },
