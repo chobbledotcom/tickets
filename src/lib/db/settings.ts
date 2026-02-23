@@ -719,6 +719,7 @@ export const updatePhonePrefix = async (prefix: string): Promise<void> => {
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
  */
 export const settingsApi = {
+  PAGE_CACHE_TTL_MS,
   completeSetup,
   getSetting,
   setSetting,

@@ -1,19 +1,22 @@
 import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compat";
 import {
+  CONFIG_KEYS,
   getContactPageTextFromDb,
   getHomepageTextFromDb,
   getTermsAndConditionsFromDb,
   getWebsiteTitleFromDb,
   invalidatePageCache,
   invalidateSettingsCache,
+  settingsApi,
   updateContactPageText,
   updateHomepageText,
   updateTermsAndConditions,
   updateWebsiteTitle,
 } from "#lib/db/settings.ts";
 
-/** 30 minutes in ms - matches PAGE_CACHE_TTL_MS in settings.ts */
-const PAGE_CACHE_TTL_MS = 30 * 60 * 1_000;
+const { PAGE_CACHE_TTL_MS } = settingsApi;
+import { encrypt } from "#lib/crypto.ts";
+import { getDb } from "#lib/db/client.ts";
 import {
   createTestDbWithSetup,
   resetDb,
@@ -37,14 +40,6 @@ describe("page content cache", () => {
     test("returns decrypted value after update", async () => {
       await updateWebsiteTitle("My Site");
       expect(await getWebsiteTitleFromDb()).toBe("My Site");
-    });
-
-    test("serves cached value on repeated reads", async () => {
-      await updateWebsiteTitle("Cached Title");
-      const first = await getWebsiteTitleFromDb();
-      const second = await getWebsiteTitleFromDb();
-      expect(first).toBe("Cached Title");
-      expect(second).toBe("Cached Title");
     });
 
     test("returns updated value after update invalidates cache", async () => {
@@ -124,39 +119,63 @@ describe("page content cache", () => {
   });
 
   describe("TTL expiry", () => {
-    test("serves cached value within TTL", async () => {
+    test("serves stale cached value when DB changes within TTL", async () => {
       jest.useFakeTimers();
       const startTime = Date.now();
       jest.setSystemTime(startTime);
 
-      await updateWebsiteTitle("Cached");
-      expect(await getWebsiteTitleFromDb()).toBe("Cached");
+      await updateTermsAndConditions("Original");
+      expect(await getTermsAndConditionsFromDb()).toBe("Original");
 
-      // Advance time to just before TTL expiry
+      // Write directly to DB, bypassing page cache invalidation
+      await getDb().execute({
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        args: [CONFIG_KEYS.TERMS_AND_CONDITIONS, "Changed"],
+      });
+
+      // Advance to just before TTL boundary — cache still valid
       jest.setSystemTime(startTime + PAGE_CACHE_TTL_MS - 1);
-      expect(await getWebsiteTitleFromDb()).toBe("Cached");
+      expect(await getTermsAndConditionsFromDb()).toBe("Original");
     });
 
-    test("re-fetches after TTL expires", async () => {
+    test("re-fetches from DB after TTL expires", async () => {
       jest.useFakeTimers();
       const startTime = Date.now();
       jest.setSystemTime(startTime);
 
-      await updateWebsiteTitle("Original");
-      // Populate cache
-      expect(await getWebsiteTitleFromDb()).toBe("Original");
+      await updateTermsAndConditions("Original");
+      expect(await getTermsAndConditionsFromDb()).toBe("Original");
 
-      // Directly update the DB without going through updateWebsiteTitle
-      // (simulates another instance writing) - we use updateWebsiteTitle
-      // which invalidates, then re-read to populate cache
-      invalidatePageCache();
-      await updateWebsiteTitle("Updated");
-      expect(await getWebsiteTitleFromDb()).toBe("Updated");
+      // Write directly to DB, bypassing page cache invalidation
+      await getDb().execute({
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        args: [CONFIG_KEYS.TERMS_AND_CONDITIONS, "Changed"],
+      });
 
-      // Advance past TTL - should still work since cache was repopulated
+      // Advance past TTL
       jest.setSystemTime(startTime + PAGE_CACHE_TTL_MS + 1);
-      // Cache expired, re-fetches from DB
-      expect(await getWebsiteTitleFromDb()).toBe("Updated");
+      // Cache expired — re-fetches from DB and picks up new value
+      expect(await getTermsAndConditionsFromDb()).toBe("Changed");
+    });
+
+    test("serves stale cached encrypted value when DB changes within TTL", async () => {
+      jest.useFakeTimers();
+      const startTime = Date.now();
+      jest.setSystemTime(startTime);
+
+      await updateWebsiteTitle("Original Title");
+      expect(await getWebsiteTitleFromDb()).toBe("Original Title");
+
+      // Write a different encrypted value directly to DB
+      const newEncrypted = await encrypt("Changed Title");
+      await getDb().execute({
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        args: [CONFIG_KEYS.WEBSITE_TITLE, newEncrypted],
+      });
+
+      // Within TTL — cache still serves decrypted "Original Title"
+      jest.setSystemTime(startTime + PAGE_CACHE_TTL_MS - 1);
+      expect(await getWebsiteTitleFromDb()).toBe("Original Title");
     });
   });
 
@@ -198,38 +217,19 @@ describe("page content cache", () => {
     });
   });
 
-  describe("cross-key isolation", () => {
-    test("updating one page does not invalidate other page caches", async () => {
-      jest.useFakeTimers();
-      const startTime = Date.now();
-      jest.setSystemTime(startTime);
-
-      await updateWebsiteTitle("Title");
-      await updateHomepageText("Homepage");
-
-      // Populate both caches
-      expect(await getWebsiteTitleFromDb()).toBe("Title");
-      expect(await getHomepageTextFromDb()).toBe("Homepage");
-
-      // Update only homepage - title cache should remain valid
-      await updateHomepageText("New Homepage");
-
-      // Advance time but still within TTL
-      jest.setSystemTime(startTime + PAGE_CACHE_TTL_MS - 1000);
-
-      // Title should still be served from cache (no re-fetch needed)
-      expect(await getWebsiteTitleFromDb()).toBe("Title");
-      // Homepage should reflect the update
-      expect(await getHomepageTextFromDb()).toBe("New Homepage");
-    });
-  });
-
   describe("null value caching", () => {
-    test("caches null values to avoid repeated lookups", async () => {
-      // First read - cache miss, returns null
-      expect(await getWebsiteTitleFromDb()).toBeNull();
-      // Second read - should serve from cache (null is a valid cached value)
-      expect(await getWebsiteTitleFromDb()).toBeNull();
+    test("serves cached null when value is added to DB within TTL", async () => {
+      // First read populates page cache with null
+      expect(await getTermsAndConditionsFromDb()).toBeNull();
+
+      // Write directly to DB, bypassing page cache invalidation
+      await getDb().execute({
+        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        args: [CONFIG_KEYS.TERMS_AND_CONDITIONS, "Surprise"],
+      });
+
+      // Page cache still holds null
+      expect(await getTermsAndConditionsFromDb()).toBeNull();
     });
   });
 });
