@@ -2,6 +2,7 @@ import { describe, expect, test } from "#test-compat";
 import {
   boundedLru,
   bracket,
+  collectionCache,
   compact,
   err,
   filter,
@@ -583,6 +584,83 @@ describe("fp", () => {
       time = 101;
       expect(cache.get("a")).toBe(undefined); // expired (set at 0, now 101)
       expect(cache.get("b")).toBe(2); // still valid (set at 60, now 101)
+    });
+  });
+
+  describe("collectionCache", () => {
+    test("fetches items on first call", async () => {
+      const calls: number[] = [];
+      const cache = collectionCache(
+        () => { calls.push(1); return Promise.resolve([1, 2, 3]); },
+        100,
+      );
+      const result = await cache.getAll();
+      expect(result).toEqual([1, 2, 3]);
+      expect(calls.length).toBe(1);
+    });
+
+    test("returns cached items within TTL", async () => {
+      let time = 0;
+      const calls: number[] = [];
+      const cache = collectionCache(
+        () => { calls.push(1); return Promise.resolve([1, 2, 3]); },
+        100,
+        () => time,
+      );
+      await cache.getAll();
+      time = 50;
+      const result = await cache.getAll();
+      expect(result).toEqual([1, 2, 3]);
+      expect(calls.length).toBe(1);
+    });
+
+    test("refetches after TTL expires", async () => {
+      let time = 0;
+      const calls: number[] = [];
+      const cache = collectionCache(
+        () => { calls.push(1); return Promise.resolve([calls.length]); },
+        100,
+        () => time,
+      );
+      await cache.getAll();
+      expect(calls.length).toBe(1);
+      time = 101;
+      const result = await cache.getAll();
+      expect(result).toEqual([2]);
+      expect(calls.length).toBe(2);
+    });
+
+    test("refetches after invalidate", async () => {
+      const calls: number[] = [];
+      const cache = collectionCache(
+        () => { calls.push(1); return Promise.resolve([calls.length]); },
+        100,
+        () => 0,
+      );
+      await cache.getAll();
+      expect(calls.length).toBe(1);
+      cache.invalidate();
+      const result = await cache.getAll();
+      expect(result).toEqual([2]);
+      expect(calls.length).toBe(2);
+    });
+
+    test("invalidate resets TTL timer", async () => {
+      let time = 0;
+      const calls: number[] = [];
+      const cache = collectionCache(
+        () => { calls.push(1); return Promise.resolve([calls.length]); },
+        100,
+        () => time,
+      );
+      await cache.getAll();
+      time = 80;
+      cache.invalidate();
+      await cache.getAll();
+      time = 150; // 150 - 80 = 70, within TTL of the refetch
+      const result = await cache.getAll();
+      expect(result).toEqual([2]);
+      expect(calls.length).toBe(2);
     });
   });
 });

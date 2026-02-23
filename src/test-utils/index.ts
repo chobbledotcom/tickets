@@ -8,13 +8,14 @@ import { getSessionCookieName } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { resetCurrencyCode, setCurrencyCodeForTest, toMajorUnits } from "#lib/currency.ts";
 import { setDb } from "#lib/db/client.ts";
-import type { GroupInput } from "#lib/db/groups.ts";
+import { invalidateGroupsCache, type GroupInput } from "#lib/db/groups.ts";
 import {
   getEventWithCount,
   invalidateEventsCache,
   type EventInput,
 } from "#lib/db/events.ts";
 import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
+import { invalidateHolidaysCache } from "#lib/db/holidays.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, updateTimezone } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
@@ -120,6 +121,8 @@ const prepareTestClient = async (): Promise<{ reused: boolean }> => {
   resetSessionCache();
   invalidateUsersCache();
   invalidateEventsCache();
+  invalidateHolidaysCache();
+  invalidateGroupsCache();
 
   if (cachedClient && await isSchemaIntact(cachedClient)) {
     setDb(cachedClient);
@@ -233,6 +236,8 @@ export const resetDb = (): void => {
   invalidateSettingsCache();
   invalidateUsersCache();
   invalidateEventsCache();
+  invalidateHolidaysCache();
+  invalidateGroupsCache();
   resetSessionCache();
   resetTestSession();
   resetCurrencyCode();

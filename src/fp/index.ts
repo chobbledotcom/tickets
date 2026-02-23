@@ -357,6 +357,42 @@ export const boundedLru = <K, V>(maxSize: number): BoundedLru<K, V> => {
   };
 };
 
+/** Collection cache returned by collectionCache() */
+export type CollectionCache<T> = {
+  getAll: () => Promise<T[]>;
+  invalidate: () => void;
+};
+
+/**
+ * Create an in-memory collection cache with TTL.
+ * Loads all items via fetchAll on first access or after invalidation/expiry,
+ * then serves from memory until the TTL expires or invalidate() is called.
+ * Accepts an optional clock function for testing.
+ */
+export const collectionCache = <T>(
+  fetchAll: () => Promise<T[]>,
+  ttlMs: number,
+  now: () => number = Date.now,
+): CollectionCache<T> => {
+  const [getState, setState] = lazyRef<{ items: T[] | null; time: number }>(
+    () => ({ items: null, time: 0 }),
+  );
+  return {
+    getAll: async (): Promise<T[]> => {
+      const state = getState();
+      if (state.items !== null && now() - state.time < ttlMs) {
+        return state.items;
+      }
+      const items = await fetchAll();
+      setState({ items, time: now() });
+      return items;
+    },
+    invalidate: (): void => {
+      setState(null);
+    },
+  };
+};
+
 /** TTL cache returned by ttlCache() */
 export type TtlCache<K, V> = {
   get: (key: K) => V | undefined;

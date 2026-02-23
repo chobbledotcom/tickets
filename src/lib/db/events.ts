@@ -3,7 +3,7 @@
  */
 
 import type { ResultSet } from "@libsql/client";
-import { filter as fpFilter, lazyRef } from "#fp";
+import { filter as fpFilter, collectionCache } from "#fp";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { executeByField, getDb, inPlaceholders, queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
 import { encryptedNameSchema, idAndEncryptedSlugSchema } from "#lib/db/common-schema.ts";
@@ -103,25 +103,6 @@ export const writeEventDate = (v: string): Promise<string> =>
  */
 export const EVENTS_CACHE_TTL_MS = 60_000;
 
-type EventsCacheState = {
-  events: EventWithCount[] | null;
-  time: number;
-};
-
-const [getEventsCacheState, setEventsCacheState] = lazyRef<EventsCacheState>(
-  () => ({ events: null, time: 0 }),
-);
-
-const isEventsCacheValid = (): boolean => {
-  const state = getEventsCacheState();
-  return state.events !== null && nowMs() - state.time < EVENTS_CACHE_TTL_MS;
-};
-
-/** Invalidate the events cache (for testing or after writes). */
-export const invalidateEventsCache = (): void => {
-  setEventsCacheState(null);
-};
-
 /**
  * Events table definition
  * slug is encrypted; slug_index is HMAC for lookups
@@ -182,7 +163,7 @@ export const eventsTable: typeof rawEventsTable = {
 
 /** Find a cached event by ID */
 const findCachedEventById = async (id: number): Promise<EventWithCount | null> => {
-  const events = await loadAllEventsCached();
+  const events = await eventsCache.getAll();
   return events.find((e) => e.id === id) ?? null;
 };
 
@@ -248,21 +229,22 @@ const queryEventsWithCounts = async (
   return Promise.all(rows.map((row) => decryptAndAttachCount(row, row.attendee_count)));
 };
 
-/**
- * Load all events with counts into the in-memory cache with a single query.
- */
-const loadAllEventsCached = async (): Promise<EventWithCount[]> => {
-  if (isEventsCacheValid()) return getEventsCacheState().events!;
-  const events = await queryEventsWithCounts();
-  setEventsCacheState({ events, time: nowMs() });
-  return events;
+const eventsCache = collectionCache(
+  () => queryEventsWithCounts(),
+  EVENTS_CACHE_TTL_MS,
+  nowMs,
+);
+
+/** Invalidate the events cache (for testing or after writes). */
+export const invalidateEventsCache = (): void => {
+  eventsCache.invalidate();
 };
 
 /**
  * Get all events with attendee counts (from cache)
  */
 export const getAllEvents = (): Promise<EventWithCount[]> =>
-  loadAllEventsCached();
+  eventsCache.getAll();
 
 /**
  * Get event with attendee count (from cache)
@@ -277,7 +259,7 @@ export const getEventWithCountBySlug = async (
   slug: string,
 ): Promise<EventWithCount | null> => {
   const slugIndex = await computeSlugIndex(slug);
-  const events = await loadAllEventsCached();
+  const events = await eventsCache.getAll();
   return events.find((e) => e.slug_index === slugIndex) ?? null;
 };
 
@@ -311,7 +293,7 @@ export const getEventWithAttendeesRaw = async (
 
 /** Get cached events filtered by event_type */
 const getCachedEventsByType = async (type: EventType): Promise<EventWithCount[]> => {
-  const events = await loadAllEventsCached();
+  const events = await eventsCache.getAll();
   return fpFilter((e: EventWithCount) => e.event_type === type)(events);
 };
 
@@ -414,7 +396,7 @@ export const getEventsBySlugsBatch = async (
   // Compute slug indices for all slugs
   const slugIndices = await Promise.all(slugs.map(computeSlugIndex));
 
-  const events = await loadAllEventsCached();
+  const events = await eventsCache.getAll();
   const eventBySlugIndex = new Map<string, EventWithCount>();
   for (const event of events) {
     eventBySlugIndex.set(event.slug_index, event);

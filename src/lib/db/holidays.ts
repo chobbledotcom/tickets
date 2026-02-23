@@ -2,6 +2,7 @@
  * Holidays table operations
  */
 
+import { collectionCache, filter } from "#fp";
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { getTz } from "#lib/config.ts";
 import { todayInTz } from "#lib/timezone.ts";
@@ -16,8 +17,15 @@ export type HolidayInput = {
   endDate: string;
 };
 
-/** Holidays table with CRUD operations — name is encrypted, dates are plaintext */
-export const holidaysTable = defineTable<Holiday, HolidayInput>({
+/**
+ * In-memory holidays cache. Loads all holidays in a single query and
+ * serves subsequent reads from memory until the TTL expires or a
+ * write invalidates the cache.
+ */
+export const HOLIDAYS_CACHE_TTL_MS = 60_000;
+
+/** Raw holidays table with CRUD operations — name is encrypted, dates are plaintext */
+const rawHolidaysTable = defineTable<Holiday, HolidayInput>({
   name: "holidays",
   primaryKey: "id",
   schema: {
@@ -29,22 +37,49 @@ export const holidaysTable = defineTable<Holiday, HolidayInput>({
 });
 
 /** Execute a query and decrypt the resulting holiday rows */
-const queryHolidays = queryAndMap<Holiday, Holiday>((row) => holidaysTable.fromDb(row));
+const queryHolidays = queryAndMap<Holiday, Holiday>((row) => rawHolidaysTable.fromDb(row));
+
+const holidaysCache = collectionCache(
+  () => queryHolidays("SELECT * FROM holidays ORDER BY start_date ASC"),
+  HOLIDAYS_CACHE_TTL_MS,
+);
+
+/** Invalidate the holidays cache (for testing or after writes). */
+export const invalidateHolidaysCache = (): void => {
+  holidaysCache.invalidate();
+};
+
+/** Holidays table with CRUD operations — writes auto-invalidate the cache */
+export const holidaysTable: typeof rawHolidaysTable = {
+  ...rawHolidaysTable,
+  insert: async (input) => {
+    const result = await rawHolidaysTable.insert(input);
+    invalidateHolidaysCache();
+    return result;
+  },
+  update: async (id, input) => {
+    const result = await rawHolidaysTable.update(id, input);
+    invalidateHolidaysCache();
+    return result;
+  },
+  deleteById: async (id) => {
+    await rawHolidaysTable.deleteById(id);
+    invalidateHolidaysCache();
+  },
+};
 
 /**
- * Get all holidays, decrypted, ordered by start_date
+ * Get all holidays, decrypted, ordered by start_date (from cache)
  */
 export const getAllHolidays = (): Promise<Holiday[]> =>
-  queryHolidays("SELECT * FROM holidays ORDER BY start_date ASC");
+  holidaysCache.getAll();
 
 /**
- * Get active holidays (end_date >= today) for date computation.
+ * Get active holidays (end_date >= today) for date computation (from cache).
  * "today" is computed in the configured timezone.
  */
-export const getActiveHolidays = (): Promise<Holiday[]> => {
-  const tz = getTz();
-  return queryHolidays({
-    sql: "SELECT * FROM holidays WHERE end_date >= ? ORDER BY start_date ASC",
-    args: [todayInTz(tz)],
-  });
+export const getActiveHolidays = async (): Promise<Holiday[]> => {
+  const today = todayInTz(getTz());
+  const holidays = await holidaysCache.getAll();
+  return filter((h: Holiday) => h.end_date >= today)(holidays);
 };

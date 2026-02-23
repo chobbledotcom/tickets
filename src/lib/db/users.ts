@@ -2,7 +2,7 @@
  * Users table operations
  */
 
-import { lazyRef } from "#fp";
+import { collectionCache } from "#fp";
 import {
   decrypt,
   deriveKEK,
@@ -14,7 +14,7 @@ import {
   wrapKey,
 } from "#lib/crypto.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
-import { now, nowMs } from "#lib/now.ts";
+import { now } from "#lib/now.ts";
 import { isAdminLevel, type AdminLevel, type User } from "#lib/types.ts";
 
 /**
@@ -24,33 +24,19 @@ import { isAdminLevel, type AdminLevel, type User } from "#lib/types.ts";
  */
 export const USERS_CACHE_TTL_MS = 60_000;
 
-type UsersCacheState = {
-  users: User[] | null;
-  time: number;
-};
-
-const [getUsersCacheState, setUsersCacheState] = lazyRef<UsersCacheState>(
-  () => ({ users: null, time: 0 }),
-);
-
-const isUsersCacheValid = (): boolean => {
-  const state = getUsersCacheState();
-  return state.users !== null && nowMs() - state.time < USERS_CACHE_TTL_MS;
-};
-
 const USER_SELECT =
   "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC";
 
-const loadAllUsers = async (): Promise<User[]> => {
-  if (isUsersCacheValid()) return getUsersCacheState().users!;
-  const users = await queryAll<User>(USER_SELECT);
-  setUsersCacheState({ users, time: nowMs() });
-  return users;
-};
+const usersCache = collectionCache(
+  () => queryAll<User>(USER_SELECT),
+  USERS_CACHE_TTL_MS,
+);
+
+const loadAllUsers = (): Promise<User[]> => usersCache.getAll();
 
 /** Invalidate the users cache (for testing or after writes). */
 export const invalidateUsersCache = (): void => {
-  setUsersCacheState(null);
+  usersCache.invalidate();
 };
 
 /** Shared user creation logic */
