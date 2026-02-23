@@ -583,7 +583,7 @@ dialog hr {
 
 /* Tables */
 .table-scroll {
-  margin: 2rem 0;
+  margin: 2rem 0 7rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
