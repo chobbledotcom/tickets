@@ -152,10 +152,6 @@ export const adminDashboardPage = (
 
       <p><a href="/admin/event/new">Add Event</a></p>
 
-      {newestAttendees.length > 0 && (
-        <Raw html={newestAttendeesSection(newestAttendees, events)} />
-      )}
-
       <div class="table-scroll">
         <table>
           <thead>
@@ -175,6 +171,10 @@ export const adminDashboardPage = (
 
       {activeEvents.length >= 2 && (
         <Raw html={multiBookingSection(activeEvents)} />
+      )}
+
+      {newestAttendees.length > 0 && (
+        <Raw html={newestAttendeesSection(newestAttendees, events)} />
       )}
     </Layout>
   );
