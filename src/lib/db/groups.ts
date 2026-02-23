@@ -2,7 +2,7 @@
  * Groups table operations
  */
 
-import { mapAsync } from "#fp";
+import { collectionCache, mapAsync } from "#fp";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
 import { encryptedNameSchema, idAndEncryptedSlugSchema } from "#lib/db/common-schema.ts";
@@ -23,33 +23,66 @@ export type GroupInput = {
 export const computeGroupSlugIndex = (slug: string): Promise<string> =>
   hmacHash(slug);
 
-/** Groups table with CRUD operations */
-export const groupsTable = defineIdTable<Group, GroupInput>("groups", {
+/**
+ * In-memory groups cache. Loads all groups in a single query and
+ * serves subsequent reads from memory until the TTL expires or a
+ * write invalidates the cache.
+ */
+export const GROUPS_CACHE_TTL_MS = 60_000;
+
+/** Raw groups table with CRUD operations */
+const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
   ...encryptedNameSchema(encrypt, decrypt),
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
   terms_and_conditions: { default: () => "", write: encrypt, read: decrypt },
 });
 
 /** Execute a query and decrypt the resulting group rows */
-const queryGroups = queryAndMap<Group, Group>((row) => groupsTable.fromDb(row));
+const queryGroups = queryAndMap<Group, Group>((row) => rawGroupsTable.fromDb(row));
+
+const groupsCache = collectionCache(
+  () => queryGroups("SELECT * FROM groups ORDER BY id ASC"),
+  GROUPS_CACHE_TTL_MS,
+);
+
+/** Invalidate the groups cache (for testing or after writes). */
+export const invalidateGroupsCache = (): void => {
+  groupsCache.invalidate();
+};
+
+/** Groups table with CRUD operations — writes auto-invalidate the cache */
+export const groupsTable: typeof rawGroupsTable = {
+  ...rawGroupsTable,
+  insert: async (input) => {
+    const result = await rawGroupsTable.insert(input);
+    invalidateGroupsCache();
+    return result;
+  },
+  update: async (id, input) => {
+    const result = await rawGroupsTable.update(id, input);
+    invalidateGroupsCache();
+    return result;
+  },
+  deleteById: async (id) => {
+    await rawGroupsTable.deleteById(id);
+    invalidateGroupsCache();
+  },
+};
 
 /**
- * Get all groups, decrypted, ordered by id
+ * Get all groups, decrypted, ordered by id (from cache)
  */
 export const getAllGroups = (): Promise<Group[]> =>
-  queryGroups("SELECT * FROM groups ORDER BY id ASC");
+  groupsCache.getAll();
 
 /**
- * Get a single group by slug_index
+ * Get a single group by slug_index (from cache)
  */
 export const getGroupBySlugIndex = async (
   slugIndex: string,
 ): Promise<Group | null> => {
-  const result = await queryGroups({
-    sql: "SELECT * FROM groups WHERE slug_index = ? LIMIT 1",
-    args: [slugIndex],
-  });
-  return result[0] ?? null;
+  const groups = await groupsCache.getAll();
+  return groups.find((g) => g.slug_index === slugIndex) ?? null;
 };
 
 /**
