@@ -344,23 +344,23 @@ describe("AttendeeTable", () => {
     });
   });
 
-  describe("showCheckin option", () => {
-    test("hides check-in button when showCheckin is false", () => {
-      const html = AttendeeTable(makeOpts({ showCheckin: false }));
+  describe("showActions option", () => {
+    test("hides check-in buttons when showActions is false", () => {
+      const html = AttendeeTable(makeOpts({ showActions: false }));
       expect(html).not.toContain("Check in");
       expect(html).not.toContain("Check out");
       expect(html).not.toContain("/checkin");
     });
 
-    test("hides actions column when showCheckin is false", () => {
-      const html = AttendeeTable(makeOpts({ showCheckin: false }));
+    test("hides actions column when showActions is false", () => {
+      const html = AttendeeTable(makeOpts({ showActions: false }));
       expect(html).not.toContain("Edit");
       expect(html).not.toContain("Delete");
       expect(html).not.toContain("Re-send Webhook");
     });
 
-    test("still shows name and ticket columns when showCheckin is false", () => {
-      const html = AttendeeTable(makeOpts({ showCheckin: false }));
+    test("still shows name and ticket columns when showActions is false", () => {
+      const html = AttendeeTable(makeOpts({ showActions: false }));
       expect(html).toContain("<th>Name</th>");
       expect(html).toContain("John Doe");
       expect(html).toContain("<th>Ticket</th>");
@@ -372,8 +372,8 @@ describe("AttendeeTable", () => {
       expect(html).toContain("Check in");
     });
 
-    test("empty row colspan is reduced when showCheckin is false", () => {
-      const html = AttendeeTable(makeOpts({ rows: [], showCheckin: false }));
+    test("empty row colspan is reduced when showActions is false", () => {
+      const html = AttendeeTable(makeOpts({ rows: [], showActions: false }));
       expect(html).toContain('colspan="4"');
     });
   });

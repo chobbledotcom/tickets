@@ -118,7 +118,7 @@ const newestAttendeesSection = (
           allowedDomain: getAllowedDomain(),
           showEvent: true,
           showDate: false,
-          showCheckin: false,
+          showActions: false,
           presorted: true,
         })} />
       </div>

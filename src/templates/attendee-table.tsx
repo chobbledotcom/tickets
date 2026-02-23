@@ -30,8 +30,8 @@ export type AttendeeTableOptions = {
   returnUrl?: string;
   emptyMessage?: string;
   phonePrefix?: string;
-  /** Hide check-in/check-out and actions columns (default: true) */
-  showCheckin?: boolean;
+  /** Show check-in/check-out status and actions columns (default: true) */
+  showActions?: boolean;
   /** Skip default sort and use rows as-is (default: false) */
   presorted?: boolean;
 };
@@ -76,9 +76,9 @@ const computeVisibility = (rows: AttendeeTableRow[], opts: AttendeeTableOptions)
 });
 
 /** Count visible columns for colspan on empty row */
-const countColumns = (vis: Visibility, showCheckin: boolean): number => {
+const countColumns = (vis: Visibility, showActions: boolean): number => {
   let count = 4; // Name, Qty, Ticket, Registered
-  if (showCheckin) count += 2; // Checked In, Actions
+  if (showActions) count += 2; // Checked In, Actions
   if (vis.showEvent) count++;
   if (vis.showDate) count++;
   if (vis.showEmail) count++;
@@ -198,10 +198,10 @@ const AttendeeRow = ({ row, vis, opts }: {
   opts: AttendeeTableOptions;
 }): string => {
   const a = row.attendee;
-  const showCheckin = opts.showCheckin !== false;
+  const showActions = opts.showActions !== false;
   return String(
     <tr>
-      {showCheckin && (
+      {showActions && (
         <td>
           <Raw html={StatusCell({ row, opts })} />
         </td>
@@ -216,7 +216,7 @@ const AttendeeRow = ({ row, vis, opts }: {
       <td>{a.quantity}</td>
       <td><a href={`https://${opts.allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
       <td>{new Date(a.created).toLocaleString()}</td>
-      {showCheckin && (
+      {showActions && (
         <td>
           <Raw html={ActionsCell({ row, returnUrl: opts.returnUrl })} />
         </td>
@@ -229,8 +229,8 @@ const AttendeeRow = ({ row, vis, opts }: {
 export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   const orderedRows = opts.presorted ? opts.rows : sortAttendeeRows(opts.rows);
   const vis = computeVisibility(orderedRows, opts);
-  const showCheckin = opts.showCheckin !== false;
-  const colCount = countColumns(vis, showCheckin);
+  const showActions = opts.showActions !== false;
+  const colCount = countColumns(vis, showActions);
 
   const rows = orderedRows.length > 0
     ? pipe(
@@ -243,7 +243,7 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
     <table>
       <thead>
         <tr>
-          {showCheckin && <th></th>}
+          {showActions && <th></th>}
           {vis.showEvent && <th>Event</th>}
           {vis.showDate && <th>Date</th>}
           <th>Name</th>
@@ -254,7 +254,7 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
           <th>Qty</th>
           <th>Ticket</th>
           <th>Registered</th>
-          {showCheckin && <th></th>}
+          {showActions && <th></th>}
         </tr>
       </thead>
       <tbody>
