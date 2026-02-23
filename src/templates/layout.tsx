@@ -27,8 +27,6 @@ interface LayoutProps {
  */
 export const Layout = ({ title, bodyClass, headExtra, children, theme }: LayoutProps): SafeHtml => {
   const resolvedTheme = theme ?? getTheme();
-  const colorScheme = resolvedTheme === "dark" ? "dark" : "light";
-  const themeStyle = `<style>html { color-scheme: ${colorScheme}; }</style>`;
 
   return new SafeHtml(
     "<!DOCTYPE html>" +
@@ -39,7 +37,6 @@ export const Layout = ({ title, bodyClass, headExtra, children, theme }: LayoutP
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
           <title>{title}</title>
           <link rel="stylesheet" href={CSS_PATH} />
-          <Raw html={themeStyle} />
           {headExtra && <Raw html={headExtra} />}
         </head>
         <body class={bodyClass || undefined}>
