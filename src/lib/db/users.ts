@@ -2,6 +2,7 @@
  * Users table operations
  */
 
+import { lazyRef } from "#fp";
 import {
   decrypt,
   deriveKEK,
@@ -12,9 +13,45 @@ import {
   verifyPassword,
   wrapKey,
 } from "#lib/crypto.ts";
-import { getDb, queryAll, queryOne } from "#lib/db/client.ts";
-import { now } from "#lib/now.ts";
+import { getDb, queryAll } from "#lib/db/client.ts";
+import { now, nowMs } from "#lib/now.ts";
 import { isAdminLevel, type AdminLevel, type User } from "#lib/types.ts";
+
+/**
+ * In-memory users cache. Loads all rows in a single query and
+ * serves subsequent reads from memory until the TTL expires or a
+ * write invalidates the cache.
+ */
+export const USERS_CACHE_TTL_MS = 60_000;
+
+type UsersCacheState = {
+  users: User[] | null;
+  time: number;
+};
+
+const [getUsersCacheState, setUsersCacheState] = lazyRef<UsersCacheState>(
+  () => ({ users: null, time: 0 }),
+);
+
+const isUsersCacheValid = (): boolean => {
+  const state = getUsersCacheState();
+  return state.users !== null && nowMs() - state.time < USERS_CACHE_TTL_MS;
+};
+
+const USER_SELECT =
+  "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC";
+
+const loadAllUsers = async (): Promise<User[]> => {
+  if (isUsersCacheValid()) return getUsersCacheState().users!;
+  const users = await queryAll<User>(USER_SELECT);
+  setUsersCacheState({ users, time: nowMs() });
+  return users;
+};
+
+/** Invalidate the users cache (for testing or after writes). */
+export const invalidateUsersCache = (): void => {
+  setUsersCacheState(null);
+};
 
 /** Shared user creation logic */
 const insertUser = async (opts: {
@@ -46,6 +83,7 @@ const insertUser = async (opts: {
     ],
   });
 
+  invalidateUsersCache();
   const id = Number(result.lastInsertRowid);
   return {
     id,
@@ -82,26 +120,23 @@ export const createInvitedUser = (
   insertUser({ username, adminLevel, passwordHash: "", wrappedDataKey: null, inviteCodeHash, inviteExpiry });
 
 /**
- * Look up a user by username (using blind index)
+ * Look up a user by username (using blind index, from cache)
  */
 export const getUserByUsername = async (
   username: string,
 ): Promise<User | null> => {
   const usernameIndex = await hmacHash(username.toLowerCase());
-  return queryOne<User>(
-    "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users WHERE username_index = ?",
-    [usernameIndex],
-  );
+  const users = await loadAllUsers();
+  return users.find((u) => u.username_index === usernameIndex) ?? null;
 };
 
 /**
- * Get a user by ID
+ * Get a user by ID (from cache)
  */
-export const getUserById = (id: number): Promise<User | null> =>
-  queryOne<User>(
-    "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users WHERE id = ?",
-    [id],
-  );
+export const getUserById = async (id: number): Promise<User | null> => {
+  const users = await loadAllUsers();
+  return users.find((u) => u.id === id) ?? null;
+};
 
 /**
  * Check if a username is already taken
@@ -112,12 +147,9 @@ export const isUsernameTaken = async (username: string): Promise<boolean> => {
 };
 
 /**
- * Get all users (for admin user management page)
+ * Get all users (for admin user management page, from cache)
  */
-export const getAllUsers = (): Promise<User[]> =>
-  queryAll<User>(
-    "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC",
-  );
+export const getAllUsers = (): Promise<User[]> => loadAllUsers();
 
 /**
  * Verify a user's password (decrypt stored hash, then verify)
@@ -165,6 +197,7 @@ export const setUserPassword = async (
     sql: "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
     args: [encryptedHash, encryptedNull, encryptedNull, userId],
   });
+  invalidateUsersCache();
 
   return passwordHash;
 };
@@ -184,6 +217,7 @@ export const activateUser = async (
     sql: "UPDATE users SET wrapped_data_key = ? WHERE id = ?",
     args: [wrappedDataKey, userId],
   });
+  invalidateUsersCache();
 };
 
 /**
@@ -198,6 +232,7 @@ export const deleteUser = async (userId: number): Promise<void> => {
     sql: "DELETE FROM users WHERE id = ?",
     args: [userId],
   });
+  invalidateUsersCache();
 };
 
 /**
@@ -270,4 +305,5 @@ export const usersApi = {
   hashInviteCode,
   isInviteValid,
   hasPassword,
+  invalidateUsersCache,
 };

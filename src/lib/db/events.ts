@@ -3,14 +3,15 @@
  */
 
 import type { ResultSet } from "@libsql/client";
+import { filter as fpFilter, lazyRef } from "#fp";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
-import { executeByField, getDb, inPlaceholders, queryAll, queryBatch, queryOne, resultRows } from "#lib/db/client.ts";
+import { executeByField, getDb, inPlaceholders, queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
 import { encryptedNameSchema, idAndEncryptedSlugSchema } from "#lib/db/common-schema.ts";
 import { deleteProcessedPaymentsForEvent } from "#lib/db/processed-payments.ts";
 import { defineIdTable } from "#lib/db/define-id-table.ts";
 import { col } from "#lib/db/table.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
-import { nowIso } from "#lib/now.ts";
+import { nowIso, nowMs } from "#lib/now.ts";
 import { VALID_DAY_NAMES } from "#templates/fields.ts";
 import type { Attendee, Event, EventFields, EventType, EventWithCount } from "#lib/types.ts";
 
@@ -96,10 +97,37 @@ export const writeEventDate = (v: string): Promise<string> =>
   encryptDatetime(v, "date");
 
 /**
+ * In-memory events cache. Loads all events with attendee counts
+ * in a single query and serves subsequent reads from memory until
+ * the TTL expires or a write invalidates the cache.
+ */
+export const EVENTS_CACHE_TTL_MS = 60_000;
+
+type EventsCacheState = {
+  events: EventWithCount[] | null;
+  time: number;
+};
+
+const [getEventsCacheState, setEventsCacheState] = lazyRef<EventsCacheState>(
+  () => ({ events: null, time: 0 }),
+);
+
+const isEventsCacheValid = (): boolean => {
+  const state = getEventsCacheState();
+  return state.events !== null && nowMs() - state.time < EVENTS_CACHE_TTL_MS;
+};
+
+/** Invalidate the events cache (for testing or after writes). */
+export const invalidateEventsCache = (): void => {
+  setEventsCacheState(null);
+};
+
+/**
  * Events table definition
  * slug is encrypted; slug_index is HMAC for lookups
+ * Write methods (insert, update, deleteById) auto-invalidate the events cache.
  */
-export const eventsTable = defineIdTable<Event, EventInput>("events", {
+const rawEventsTable = defineIdTable<Event, EventInput>("events", {
     ...idAndEncryptedSlugSchema(encrypt, decrypt),
     ...encryptedNameSchema(encrypt, decrypt),
     description: { default: () => "", write: encrypt, read: decrypt },
@@ -133,12 +161,36 @@ export const eventsTable = defineIdTable<Event, EventInput>("events", {
     image_url: { default: () => "", write: encrypt, read: decrypt },
   });
 
+export const eventsTable: typeof rawEventsTable = {
+  ...rawEventsTable,
+  insert: async (input) => {
+    const result = await rawEventsTable.insert(input);
+    invalidateEventsCache();
+    return result;
+  },
+  update: async (id, input) => {
+    const result = await rawEventsTable.update(id, input);
+    invalidateEventsCache();
+    return result;
+  },
+  deleteById: async (id) => {
+    await rawEventsTable.deleteById(id);
+    invalidateEventsCache();
+  },
+};
+
+
+/** Find a cached event by ID */
+const findCachedEventById = async (id: number): Promise<EventWithCount | null> => {
+  const events = await loadAllEventsCached();
+  return events.find((e) => e.id === id) ?? null;
+};
 
 /**
- * Get a single event by ID
+ * Get a single event by ID (from cache)
  */
 export const getEvent = (id: number): Promise<Event | null> =>
-  eventsTable.findById(id);
+  findCachedEventById(id);
 
 /**
  * Check if a slug is already in use (optionally excluding a specific event ID)
@@ -197,47 +249,36 @@ const queryEventsWithCounts = async (
 };
 
 /**
- * Get all events with attendee counts (sum of quantities)
- * Uses custom JOIN query - not covered by table abstraction
+ * Load all events with counts into the in-memory cache with a single query.
  */
-export const getAllEvents = (): Promise<EventWithCount[]> =>
-  queryEventsWithCounts();
-
-/**
- * Get event with attendee count (sum of quantities)
- * Uses custom JOIN query - not covered by table abstraction
- */
-export const getEventWithCount = async (
-  id: number,
-): Promise<EventWithCount | null> => {
-  const row = await queryOne<EventWithCount>(
-    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
-     FROM events e
-     LEFT JOIN attendees a ON e.id = a.event_id
-     WHERE e.id = ?
-     GROUP BY e.id`,
-    [id],
-  );
-  return row ? decryptAndAttachCount(row, row.attendee_count) : null;
+const loadAllEventsCached = async (): Promise<EventWithCount[]> => {
+  if (isEventsCacheValid()) return getEventsCacheState().events!;
+  const events = await queryEventsWithCounts();
+  setEventsCacheState({ events, time: nowMs() });
+  return events;
 };
 
 /**
- * Get event with attendee count by slug (uses slug_index for lookup)
- * Uses custom JOIN query - not covered by table abstraction
+ * Get all events with attendee counts (from cache)
+ */
+export const getAllEvents = (): Promise<EventWithCount[]> =>
+  loadAllEventsCached();
+
+/**
+ * Get event with attendee count (from cache)
+ */
+export const getEventWithCount = (id: number): Promise<EventWithCount | null> =>
+  findCachedEventById(id);
+
+/**
+ * Get event with attendee count by slug (from cache)
  */
 export const getEventWithCountBySlug = async (
   slug: string,
 ): Promise<EventWithCount | null> => {
   const slugIndex = await computeSlugIndex(slug);
-  const row = await queryOne<EventWithCount>(
-    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
-     FROM events e
-     LEFT JOIN attendees a ON e.id = a.event_id
-     WHERE e.slug_index = ?
-     GROUP BY e.id`,
-    [slugIndex],
-  );
-  return row ? decryptAndAttachCount(row, row.attendee_count) : null;
+  const events = await loadAllEventsCached();
+  return events.find((e) => e.slug_index === slugIndex) ?? null;
 };
 
 /** Result type for combined event + attendees query */
@@ -268,18 +309,24 @@ export const getEventWithAttendeesRaw = async (
   return { event: await decryptAndAttachCount(eventRow, count), attendeesRaw };
 };
 
-/**
- * Get all daily events with attendee counts (no attendees loaded).
- */
-export const getAllDailyEvents = (): Promise<EventWithCount[]> =>
-  queryEventsWithCounts("WHERE e.event_type = 'daily'");
+/** Get cached events filtered by event_type */
+const getCachedEventsByType = async (type: EventType): Promise<EventWithCount[]> => {
+  const events = await loadAllEventsCached();
+  return fpFilter((e: EventWithCount) => e.event_type === type)(events);
+};
 
 /**
- * Get all standard events with attendee counts (no attendees loaded).
+ * Get all daily events with attendee counts (from cache).
+ */
+export const getAllDailyEvents = (): Promise<EventWithCount[]> =>
+  getCachedEventsByType("daily");
+
+/**
+ * Get all standard events with attendee counts (from cache).
  * Used by the calendar view to include one-time events on their scheduled date.
  */
 export const getAllStandardEvents = (): Promise<EventWithCount[]> =>
-  queryEventsWithCounts("WHERE e.event_type = 'standard'");
+  getCachedEventsByType("standard");
 
 /**
  * Get distinct attendee dates for daily events.
@@ -355,7 +402,7 @@ export const getEventWithAttendeeRaw = async (
 };
 
 /**
- * Get multiple events by slugs in a single database round-trip.
+ * Get multiple events by slugs (from cache).
  * Returns events in the same order as the input slugs.
  * Missing or inactive events are returned as null.
  */
@@ -367,21 +414,9 @@ export const getEventsBySlugsBatch = async (
   // Compute slug indices for all slugs
   const slugIndices = await Promise.all(slugs.map(computeSlugIndex));
 
-  // Build a single query with IN clause for all slug indices
-  const rows = await queryAll<EventWithCount>(
-    `SELECT e.*, COALESCE(SUM(a.quantity), 0) as attendee_count
-          FROM events e
-          LEFT JOIN attendees a ON e.id = a.event_id
-          WHERE e.slug_index IN (${inPlaceholders(slugIndices)})
-          GROUP BY e.id`,
-    slugIndices,
-  );
-
-  const decryptedEvents = await Promise.all(rows.map((row) => decryptAndAttachCount(row, row.attendee_count)));
-
-  // Create a map of slug_index -> event for ordering
+  const events = await loadAllEventsCached();
   const eventBySlugIndex = new Map<string, EventWithCount>();
-  for (const event of decryptedEvents) {
+  for (const event of events) {
     eventBySlugIndex.set(event.slug_index, event);
   }
 

@@ -8,7 +8,7 @@ import { getDb, queryAll } from "#lib/db/client.ts";
 import { encryptedNameSchema, idAndEncryptedSlugSchema } from "#lib/db/common-schema.ts";
 import { defineIdTable } from "#lib/db/define-id-table.ts";
 import { queryAndMap } from "#lib/db/query.ts";
-import { eventsTable } from "#lib/db/events.ts";
+import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
 import type { Event, EventWithCount, Group } from "#lib/types.ts";
 
 /** Group input fields for create/update (camelCase) */
@@ -147,6 +147,7 @@ export const assignEventsToGroup = async (
       args: [groupId, eventId],
     });
   }
+  if (eventIds.length > 0) invalidateEventsCache();
 };
 
 /**
@@ -157,4 +158,5 @@ export const resetGroupEvents = async (groupId: number): Promise<void> => {
     sql: "UPDATE events SET group_id = 0 WHERE group_id = ?",
     args: [groupId],
   });
+  invalidateEventsCache();
 };

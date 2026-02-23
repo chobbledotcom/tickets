@@ -3,6 +3,7 @@ import type { InStatement } from "@libsql/client";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
 import { addDays } from "#lib/dates.ts";
+import { invalidateEventsCache } from "#lib/db/events.ts";
 import { todayInTz } from "#lib/timezone.ts";
 
 import { handleRequest } from "#routes";
@@ -1791,6 +1792,7 @@ describe("server (admin events)", () => {
           // Delete the event from DB so getEventWithCount returns null
           const { getDb } = await import("#lib/db/client.ts");
           await getDb().execute({ sql: "DELETE FROM events WHERE id = ?", args: [id as number] });
+          invalidateEventsCache();
         }
         return row;
       });

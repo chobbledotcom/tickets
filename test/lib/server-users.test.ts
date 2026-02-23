@@ -10,6 +10,7 @@ import {
   getAllUsers,
   getUserByUsername,
   hasPassword,
+  invalidateUsersCache,
   isInviteValid,
   verifyUserPassword,
 } from "#lib/db/users.ts";
@@ -154,6 +155,7 @@ describe("server (multi-user admin)", () => {
           await encrypt("manager"),
         ],
       });
+      invalidateUsersCache();
 
       // Create a session for the manager user
       const managerUserId = 2;
@@ -508,6 +510,7 @@ describe("server (multi-user admin)", () => {
       const { clearSetupCompleteCache, invalidateSettingsCache: invalidateCache } = await import("#lib/db/settings.ts");
       clearSetupCompleteCache();
       invalidateCache();
+      invalidateUsersCache();
 
       const response = await handleRequest(mockRequest("/setup/"));
       expect(response.status).toBe(200);
@@ -810,6 +813,7 @@ describe("server (multi-user admin)", () => {
           null,
         ],
       });
+      invalidateUsersCache();
 
       const user = await getUserByUsername("no-expiry-user");
       const valid = await isInviteValid(user!);
@@ -832,6 +836,7 @@ describe("server (multi-user admin)", () => {
           null,
         ],
       });
+      invalidateUsersCache();
 
       const user = await getUserByUsername("badlevel-user");
       await expect(decryptAdminLevel(user!)).rejects.toThrow("Invalid admin level");
@@ -853,6 +858,7 @@ describe("server (multi-user admin)", () => {
           await encrypt(""),
         ],
       });
+      invalidateUsersCache();
 
       const user = await getUserByUsername("empty-expiry-user");
       const valid = await isInviteValid(user!);
@@ -877,6 +883,7 @@ describe("server (multi-user admin)", () => {
           await encrypt("manager"),
         ],
       });
+      invalidateUsersCache();
 
       await createSession("mgr-form-session", "mgr-form-csrf", Date.now() + 3600000, null, 2);
 
@@ -945,6 +952,7 @@ describe("server (multi-user admin)", () => {
         sql: "UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1",
         args: [],
       });
+      invalidateUsersCache();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -973,6 +981,7 @@ describe("server (multi-user admin)", () => {
         sql: "DELETE FROM users WHERE id = 1",
         args: [],
       });
+      invalidateUsersCache();
 
       const response = await handleRequest(
         mockFormRequest(

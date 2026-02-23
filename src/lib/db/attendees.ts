@@ -16,7 +16,7 @@ import {
   generateTicketToken,
 } from "#lib/crypto.ts";
 import { getDb, inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
-import { getEventWithCount } from "#lib/db/events.ts";
+import { getEventWithCount, invalidateEventsCache } from "#lib/db/events.ts";
 import { deleteProcessedPaymentsForAttendee } from "#lib/db/processed-payments.ts";
 import { nowIso } from "#lib/now.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
@@ -271,6 +271,7 @@ export const getAttendee = async (
 export const deleteAttendee = async (attendeeId: number): Promise<void> => {
   await deleteProcessedPaymentsForAttendee(attendeeId);
   await attendeesTable.deleteById(attendeeId);
+  invalidateEventsCache();
 };
 
 /** Result of atomic attendee creation */
@@ -423,6 +424,7 @@ export const attendeesApi = {
       return { success: false, reason: "capacity_exceeded" };
     }
 
+    invalidateEventsCache();
     return {
       success: true,
       attendee: buildAttendeeResult({
