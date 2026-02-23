@@ -1591,3 +1591,43 @@ export const adminEventPage =
     const response = await awaitTestRequest(pathFn(ctx), { cookie: ctx.cookie });
     return { ...ctx, response };
   };
+
+/**
+ * Create a manager user with a properly wrapped data key and return a session cookie.
+ * Uses the admin user's data key (shared system key) wrapped with the new session token.
+ * Must be called after createTestDbWithSetup().
+ */
+export const createTestManagerSession = async (
+  token = "mgr-session",
+  username = "testmanager",
+): Promise<string> => {
+  const { deriveKEK, encrypt: enc, hmacHash, unwrapKey, wrapKeyWithToken } = await import("#lib/crypto.ts");
+  const { getDb } = await import("#lib/db/client.ts");
+  const { createSession } = await import("#lib/db/sessions.ts");
+  const { getUserByUsername, verifyUserPassword } = await import("#lib/db/users.ts");
+
+  // Get the system DATA_KEY via the admin user (always exists after createTestDbWithSetup)
+  const user = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
+  const passwordHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
+  const kek = await deriveKEK(passwordHash);
+  const dataKey = await unwrapKey(user.wrapped_data_key!, kek);
+
+  // Create manager user with a properly wrapped data key
+  const managerIdx = await hmacHash(username);
+  const managerWrappedKey = await wrapKeyWithToken(dataKey, "user-key-placeholder");
+  await getDb().execute({
+    sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
+          VALUES (?, ?, ?, ?, ?)`,
+    args: [await enc(username), managerIdx, "", managerWrappedKey, await enc("manager")],
+  });
+
+  // Find the manager user ID
+  const result = await getDb().execute("SELECT id FROM users ORDER BY id DESC LIMIT 1");
+  const userId = result.rows[0]!.id as number;
+
+  // Create session with properly wrapped data key
+  const wrappedDataKey = await wrapKeyWithToken(dataKey, token);
+  await createSession(token, "mgr-csrf", Date.now() + 60_000, wrappedDataKey, userId);
+
+  return `${getSessionCookieName()}=${token}`;
+};

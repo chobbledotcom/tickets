@@ -3,11 +3,13 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
-import type { AdminSession, EventWithCount } from "#lib/types.ts";
+import { getAllowedDomain } from "#lib/config.ts";
+import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { renderEventImage } from "#templates/public.tsx";
+import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -36,10 +38,7 @@ const MultiBookingCheckbox = ({ e }: { e: EventWithCount }): string =>
   );
 
 /** Multi-booking link builder section (only rendered when 2+ active events) */
-const multiBookingSection = (
-  activeEvents: EventWithCount[],
-  allowedDomain: string,
-): string => {
+const multiBookingSection = (activeEvents: EventWithCount[]): string => {
   const checkboxes = pipe(
     map((e: EventWithCount) => MultiBookingCheckbox({ e })),
     joinStrings,
@@ -59,7 +58,7 @@ const multiBookingSection = (
         readonly
         data-select-on-click
         data-multi-booking-url
-        data-domain={allowedDomain}
+        data-domain={getAllowedDomain()}
         placeholder="Select two or more events"
       />
       <label for="multi-booking-embed-script">Embed Script</label>
@@ -84,14 +83,57 @@ const multiBookingSection = (
   );
 };
 
+/** Build the newest attendees section with a details/summary wrapper */
+const newestAttendeesSection = (
+  attendees: Attendee[],
+  events: EventWithCount[],
+): string => {
+  const eventMap = new Map(events.map((e) => [e.id, e]));
+  const tableRows = reduce(
+    (acc: AttendeeTableRow[], a: Attendee) => {
+      const event = eventMap.get(a.event_id);
+      if (event) {
+        acc.push({
+          attendee: a,
+          eventId: event.id,
+          eventName: event.name,
+          hasPaidEvent: event.unit_price !== null,
+        });
+      }
+      return acc;
+    },
+    [] as AttendeeTableRow[],
+  )(attendees);
+
+  if (tableRows.length === 0) return "";
+
+  const count = tableRows.length;
+
+  return String(
+    <details open>
+      <summary>Newest {count} Attendee{count !== 1 ? "s" : ""}</summary>
+      <div class="table-scroll">
+        <Raw html={AttendeeTable({
+          rows: tableRows,
+          allowedDomain: getAllowedDomain(),
+          showEvent: true,
+          showDate: false,
+          showActions: false,
+          presorted: true,
+        })} />
+      </div>
+    </details>
+  );
+};
+
 /**
  * Admin dashboard page
  */
 export const adminDashboardPage = (
   events: EventWithCount[],
   session: AdminSession,
-  allowedDomain: string,
   imageError?: string | null,
+  newestAttendees: Attendee[] = [],
 ): string => {
   const eventRows =
     events.length > 0
@@ -109,6 +151,10 @@ export const adminDashboardPage = (
       )}
 
       <p><a href="/admin/event/new">Add Event</a></p>
+
+      {newestAttendees.length > 0 && (
+        <Raw html={newestAttendeesSection(newestAttendees, events)} />
+      )}
 
       <div class="table-scroll">
         <table>
@@ -128,7 +174,7 @@ export const adminDashboardPage = (
       </div>
 
       {activeEvents.length >= 2 && (
-        <Raw html={multiBookingSection(activeEvents, allowedDomain)} />
+        <Raw html={multiBookingSection(activeEvents)} />
       )}
     </Layout>
   );

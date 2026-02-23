@@ -16,6 +16,7 @@ import {
   getAttendeesByTokens,
   getAttendeesRaw,
   getDateAttendeeCount,
+  getNewestAttendeesRaw,
   hasAvailableSpots,
   updateCheckedIn,
 } from "#lib/db/attendees.ts";
@@ -780,6 +781,36 @@ describe("db", () => {
       const raw = await getAttendeesRaw(event.id);
       const attendees = await decryptAttendees(raw, privateKey);
       expect(attendees.length).toBe(2);
+    });
+
+    test("getNewestAttendeesRaw returns attendees across events ordered by newest first", async () => {
+      const event1 = await createTestEvent({ maxAttendees: 50 });
+      const event2 = await createTestEvent({ maxAttendees: 50 });
+      await createTestAttendee(event1.id, event1.slug, "First", "first@example.com");
+      await createTestAttendee(event2.id, event2.slug, "Second", "second@example.com");
+      await createTestAttendee(event1.id, event1.slug, "Third", "third@example.com");
+
+      const raw = await getNewestAttendeesRaw(10);
+      expect(raw.length).toBe(3);
+      // Newest first (Third created last)
+      expect(raw[0]?.event_id).toBe(event1.id);
+      expect(raw[1]?.event_id).toBe(event2.id);
+      expect(raw[2]?.event_id).toBe(event1.id);
+    });
+
+    test("getNewestAttendeesRaw respects limit", async () => {
+      const event = await createTestEvent({ maxAttendees: 50 });
+      await createTestAttendee(event.id, event.slug, "A", "a@example.com");
+      await createTestAttendee(event.id, event.slug, "B", "b@example.com");
+      await createTestAttendee(event.id, event.slug, "C", "c@example.com");
+
+      const raw = await getNewestAttendeesRaw(2);
+      expect(raw.length).toBe(2);
+    });
+
+    test("getNewestAttendeesRaw returns empty array when no attendees", async () => {
+      const raw = await getNewestAttendeesRaw(10);
+      expect(raw).toEqual([]);
     });
 
     test("attendee count reflects in getEventWithCount", async () => {

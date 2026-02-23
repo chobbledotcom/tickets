@@ -19,6 +19,7 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   createTestInvite,
+  createTestManagerSession,
   expectAdminRedirect,
   expectRedirect,
   loginAsAdmin,
@@ -197,27 +198,8 @@ describe("server (multi-user admin)", () => {
     });
 
     test("manager user can access dashboard", async () => {
-      // Create manager user manually with proper HMAC index
-      const { hmacHash } = await import("#lib/crypto.ts");
-      const managerIdx = await hmacHash("dashmanager");
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
-              VALUES (?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("dashmanager"),
-          managerIdx,
-          "",
-          null,
-          await encrypt("manager"),
-        ],
-      });
-
-      // Create a session directly for the manager user (id=2)
-      await createSession("mgr-session", "mgr-csrf", Date.now() + 3600000, null, 2);
-
-      const response = await awaitTestRequest("/admin/", {
-        cookie: `${getSessionCookieName()}=mgr-session`,
-      });
+      const cookie = await createTestManagerSession("mgr-dash-session", "dashmanager");
+      const response = await awaitTestRequest("/admin/", { cookie });
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).toContain("Events");
@@ -508,27 +490,8 @@ describe("server (multi-user admin)", () => {
     });
 
     test("manager does not see owner-only nav links", async () => {
-      // Create manager user with proper HMAC index
-      const { hmacHash } = await import("#lib/crypto.ts");
-      const managerIdx = await hmacHash("navmanager");
-      await getDb().execute({
-        sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
-              VALUES (?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("navmanager"),
-          managerIdx,
-          "",
-          null,
-          await encrypt("manager"),
-        ],
-      });
-
-      // Create a session directly for the manager user (id=2)
-      await createSession("navmgr-session", "navmgr-csrf", Date.now() + 3600000, null, 2);
-
-      const dashboardResponse = await awaitTestRequest("/admin/", {
-        cookie: `${getSessionCookieName()}=navmgr-session`,
-      });
+      const cookie = await createTestManagerSession("navmgr-session", "navmanager");
+      const dashboardResponse = await awaitTestRequest("/admin/", { cookie });
       const html = await dashboardResponse.text();
       expect(html).not.toContain("Settings");
       expect(html).not.toContain("Sessions");

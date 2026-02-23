@@ -343,6 +343,55 @@ describe("AttendeeTable", () => {
       expect(html).toContain('colspan="8"');
     });
   });
+
+  describe("showActions option", () => {
+    test("hides check-in and action cells when showActions is false", () => {
+      const html = AttendeeTable(makeOpts({ showActions: false }));
+      expect(html).not.toContain("Check in");
+      expect(html).not.toContain("Edit");
+      expect(html).not.toContain("Delete");
+    });
+
+    test("retains data columns when showActions is false", () => {
+      const html = AttendeeTable(makeOpts({ showActions: false }));
+      expect(html).toContain("John Doe");
+      expect(html).toContain("test-token-1");
+    });
+
+    test("shows check-in button by default", () => {
+      const html = AttendeeTable(makeOpts());
+      expect(html).toContain("Check in");
+    });
+
+    test("empty row colspan is reduced when showActions is false", () => {
+      const html = AttendeeTable(makeOpts({ rows: [], showActions: false }));
+      expect(html).toContain('colspan="4"');
+    });
+  });
+
+  describe("presorted option", () => {
+    test("preserves row order when presorted is true", () => {
+      const rows = [
+        makeRow({ attendee: testAttendee({ id: 1, name: "Zara" }), eventName: "B Event" }),
+        makeRow({ attendee: testAttendee({ id: 2, name: "Alice" }), eventName: "A Event" }),
+      ];
+      const html = AttendeeTable(makeOpts({ rows, showEvent: true, presorted: true }));
+      const nameIdx1 = html.indexOf("Zara");
+      const nameIdx2 = html.indexOf("Alice");
+      expect(nameIdx1).toBeLessThan(nameIdx2);
+    });
+
+    test("sorts rows by default when presorted is not set", () => {
+      const rows = [
+        makeRow({ attendee: testAttendee({ id: 1, name: "Zara" }), eventName: "B Event" }),
+        makeRow({ attendee: testAttendee({ id: 2, name: "Alice" }), eventName: "A Event" }),
+      ];
+      const html = AttendeeTable(makeOpts({ rows, showEvent: true }));
+      const nameIdx1 = html.indexOf("Alice");
+      const nameIdx2 = html.indexOf("Zara");
+      expect(nameIdx1).toBeLessThan(nameIdx2);
+    });
+  });
 });
 
 describe("sortAttendeeRows", () => {
