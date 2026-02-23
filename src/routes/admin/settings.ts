@@ -51,6 +51,7 @@ import {
   type AuthSession,
   getSearchParam,
   htmlResponse,
+  jsonResponse,
   redirect,
   redirectWithSuccess,
   requireOwnerOr,
@@ -341,9 +342,7 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
 const handleStripeTestPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async () => {
     const result = await testStripeConnection();
-    return new Response(JSON.stringify(result), {
-      headers: { "content-type": "application/json" },
-    });
+    return jsonResponse(result);
   });
 
 /**

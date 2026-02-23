@@ -2,7 +2,7 @@
  * Health check route
  */
 
-const HEALTH_RESPONSE = JSON.stringify({ status: "ok" });
+const HEALTH_RESPONSE = new TextEncoder().encode(JSON.stringify({ status: "ok" }));
 
 /**
  * Handle health check request - returns JSON status

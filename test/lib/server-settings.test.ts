@@ -391,7 +391,7 @@ describe("server (admin settings)", () => {
             mockFormRequest("/admin/settings/stripe/test", { csrf_token: csrfToken }, cookie),
           );
           expect(response.status).toBe(200);
-          expect(response.headers.get("content-type")).toBe("application/json");
+          expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
           const json = await response.json();
           expect(json.ok).toBe(false);
           expect(json.apiKey.valid).toBe(false);

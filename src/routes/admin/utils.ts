@@ -31,9 +31,11 @@ export const getDateFilter = (request: Request): string | null => {
   return date;
 };
 
+const encoder = new TextEncoder();
+
 /** Build a CSV file download response */
 export const csvResponse = (csv: string, filename: string): Response =>
-  new Response(csv, {
+  new Response(encoder.encode(csv), {
     headers: {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="${filename}"`,

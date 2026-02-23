@@ -12,9 +12,11 @@ const CACHE_HEADERS = {
   "cache-control": "public, max-age=31536000, immutable",
 };
 
+const encoder = new TextEncoder();
+
 /** Create a handler that serves a static file with the given content type */
 const staticHandler = (filename: string, contentType: string): (() => Response) => {
-  const content = Deno.readTextFileSync(join(staticDir, filename));
+  const content = encoder.encode(Deno.readTextFileSync(join(staticDir, filename)));
   return () =>
     new Response(content, {
       headers: { "content-type": contentType, ...CACHE_HEADERS },

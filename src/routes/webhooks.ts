@@ -681,9 +681,11 @@ const extractSessionFromEvent = (
   };
 };
 
+const encoder = new TextEncoder();
+
 /** JSON response acknowledging a webhook event without processing */
 const webhookAckResponse = (extra?: Record<string, unknown>): Response =>
-  new Response(JSON.stringify({ received: true, ...extra }), {
+  new Response(encoder.encode(JSON.stringify({ received: true, ...extra })), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
@@ -712,13 +714,13 @@ const extractSessionIdFromObject = (obj: Record<string, unknown>): string | null
 const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   const provider = await getActivePaymentProvider();
   if (!provider) {
-    return new Response("Payment provider not configured", { status: 400 });
+    return new Response(encoder.encode("Payment provider not configured"), { status: 400 });
   }
 
   // Get signature header
   const signature = getWebhookSignatureHeader(request);
   if (!signature) {
-    return new Response("Missing signature", { status: 400 });
+    return new Response(encoder.encode("Missing signature"), { status: 400 });
   }
 
   // Read raw body bytes for signature verification. Using arrayBuffer() and
@@ -736,7 +738,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Verify signature (pass raw bytes so HMAC is computed on exact received bytes)
   const verification = await provider.verifyWebhookSignature(payload, signature, webhookUrl, payloadBytes);
   if (!verification.valid) {
-    return new Response(verification.error, { status: 400 });
+    return new Response(encoder.encode(verification.error), { status: 400 });
   }
 
   const event = verification.event;
@@ -758,7 +760,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     const sessionId = extractSessionIdFromObject(obj);
 
     if (!sessionId) {
-      return new Response("Invalid session data", { status: 400 });
+      return new Response(encoder.encode("Invalid session data"), { status: 400 });
     }
 
     // For Square payment.updated: check payment status before retrieving order
@@ -768,7 +770,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
     session = await provider.retrieveSession(sessionId);
     if (!session) {
-      return new Response("Invalid session data", { status: 400 });
+      return new Response(encoder.encode("Invalid session data"), { status: 400 });
     }
   }
 
@@ -797,7 +799,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   if (isMulti) {
     const multiIntent = extractMultiIntent(session);
     if (!multiIntent) {
-      return new Response("Invalid multi-ticket session data", { status: 400 });
+      return new Response(encoder.encode("Invalid multi-ticket session data"), { status: 400 });
     }
     eventIdForLog = multiIntent.items[0]?.e;
     result = await processMultiPaymentSession(session.id, { session, intent: multiIntent });

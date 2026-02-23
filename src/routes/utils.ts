@@ -24,6 +24,16 @@ import { notFoundPage, temporaryErrorPage } from "#templates/public.tsx";
 export { generateSecureToken };
 
 /**
+ * Shared TextEncoder for pre-encoding string response bodies to Uint8Array.
+ * Bunny Edge's runtime intermittently fails to decode JS string bodies
+ * ("Unknown: error decoding response body"). Pre-encoding to bytes
+ * bypasses the runtime's string-to-UTF8 path entirely.
+ */
+const encoder = new TextEncoder();
+export const encodeBody = (text: string): BodyInit =>
+  encoder.encode(text) as unknown as BodyInit;
+
+/**
  * Get client IP from request
  * Note: This server runs directly on edge, not behind a proxy,
  * so we use the direct connection IP from the server context.
@@ -135,7 +145,7 @@ export const getPrivateKey = async (
  * Create HTML response
  */
 export const htmlResponse = (html: string, status = 200): Response =>
-  new Response(html, {
+  new Response(encodeBody(html), {
     status,
     headers: { "content-type": "text/html; charset=utf-8" },
   });
@@ -509,7 +519,7 @@ export const withAuthMultipartForm = async (
 
 /** Create JSON response */
 export const jsonResponse = (data: unknown, status = 200): Response =>
-  new Response(JSON.stringify(data), {
+  new Response(encodeBody(JSON.stringify(data)), {
     status,
     headers: { "content-type": "application/json; charset=utf-8" },
   });
