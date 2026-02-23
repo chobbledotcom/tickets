@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
 
-import { encrypt, hmacHash } from "#lib/crypto.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
-import { getSessionCookieName } from "#lib/cookies.ts";
-import { getDb } from "#lib/db/client.ts";
-import { createSession } from "#lib/db/sessions.ts";
 
 import { handleRequest } from "#routes";
 import {
@@ -14,6 +10,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
+  createTestManagerSession,
   deleteTestGroup,
   expectAdminRedirect,
   expectStatus,
@@ -24,23 +21,6 @@ import {
   resetTestSlugCounter,
   updateTestGroup,
 } from "#test-utils";
-
-const createManagerCookie = async (token = "mgr-groups-session"): Promise<string> => {
-  const managerIdx = await hmacHash("groupsmanager");
-  await getDb().execute({
-    sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
-          VALUES (?, ?, ?, ?, ?)`,
-    args: [
-      await encrypt("groupsmanager"),
-      managerIdx,
-      "",
-      null,
-      await encrypt("manager"),
-    ],
-  });
-  await createSession(token, "mgr-csrf", Date.now() + 60_000, null, 2);
-  return `${getSessionCookieName()}=${token}`;
-};
 
 describe("server (admin groups)", () => {
   beforeEach(async () => {
@@ -60,7 +40,7 @@ describe("server (admin groups)", () => {
 
     test("returns 403 for non-owner", async () => {
       const response = await awaitTestRequest("/admin/groups", {
-        cookie: await createManagerCookie(),
+        cookie: await createTestManagerSession(),
       });
       expectStatus(403)(response);
     });
@@ -98,7 +78,7 @@ describe("server (admin groups)", () => {
 
     test("returns 403 for non-owner", async () => {
       const response = await awaitTestRequest("/admin/group/new", {
-        cookie: await createManagerCookie(),
+        cookie: await createTestManagerSession(),
       });
       expectStatus(403)(response);
     });
@@ -123,7 +103,7 @@ describe("server (admin groups)", () => {
     });
 
     test("returns 403 for non-owner", async () => {
-      const cookie = await createManagerCookie("mgr-create-post");
+      const cookie = await createTestManagerSession("mgr-create-post");
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest("/admin/group", { name: "X", csrf_token: csrfToken }, cookie),
@@ -179,7 +159,7 @@ describe("server (admin groups)", () => {
   describe("POST /admin/group/:id/edit", () => {
     test("returns 403 for non-owner", async () => {
       const group = await createTestGroup({ name: "Edit Deny", slug: "edit-deny" });
-      const cookie = await createManagerCookie("mgr-edit-post");
+      const cookie = await createTestManagerSession("mgr-edit-post");
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(`/admin/group/${group.id}/edit`, {
@@ -248,7 +228,7 @@ describe("server (admin groups)", () => {
   describe("POST /admin/group/:id/delete", () => {
     test("returns 403 for non-owner", async () => {
       const group = await createTestGroup({ name: "Delete Deny", slug: "delete-deny" });
-      const cookie = await createManagerCookie("mgr-delete-post");
+      const cookie = await createTestManagerSession("mgr-delete-post");
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(`/admin/group/${group.id}/delete`, {
@@ -332,7 +312,7 @@ describe("server (admin groups)", () => {
     test("returns 403 for non-owner", async () => {
       const group = await createTestGroup({ name: "Detail Deny", slug: "detail-deny" });
       const response = await awaitTestRequest(`/admin/group/${group.id}`, {
-        cookie: await createManagerCookie("mgr-detail"),
+        cookie: await createTestManagerSession("mgr-detail"),
       });
       expectStatus(403)(response);
     });
@@ -405,7 +385,7 @@ describe("server (admin groups)", () => {
 
     test("returns 403 for non-owner", async () => {
       const group = await createTestGroup({ name: "Add Deny", slug: "add-deny" });
-      const cookie = await createManagerCookie("mgr-add-events");
+      const cookie = await createTestManagerSession("mgr-add-events");
       const csrfToken = await signCsrfToken();
       const response = await handleRequest(
         mockFormRequest(`/admin/group/${group.id}/add-events`, {
@@ -502,7 +482,7 @@ describe("server (admin groups)", () => {
 
     test("groups link not visible to managers", async () => {
       const response = await awaitTestRequest("/admin/", {
-        cookie: await createManagerCookie("mgr-groups-nav"),
+        cookie: await createTestManagerSession("mgr-groups-nav"),
       });
       expectStatus(200)(response);
       const html = await response.text();

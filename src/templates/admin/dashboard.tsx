@@ -3,6 +3,7 @@
  */
 
 import { filter, map, pipe, reduce } from "#fp";
+import { getAllowedDomain } from "#lib/config.ts";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -37,10 +38,7 @@ const MultiBookingCheckbox = ({ e }: { e: EventWithCount }): string =>
   );
 
 /** Multi-booking link builder section (only rendered when 2+ active events) */
-const multiBookingSection = (
-  activeEvents: EventWithCount[],
-  allowedDomain: string,
-): string => {
+const multiBookingSection = (activeEvents: EventWithCount[]): string => {
   const checkboxes = pipe(
     map((e: EventWithCount) => MultiBookingCheckbox({ e })),
     joinStrings,
@@ -60,7 +58,7 @@ const multiBookingSection = (
         readonly
         data-select-on-click
         data-multi-booking-url
-        data-domain={allowedDomain}
+        data-domain={getAllowedDomain()}
         placeholder="Select two or more events"
       />
       <label for="multi-booking-embed-script">Embed Script</label>
@@ -89,7 +87,6 @@ const multiBookingSection = (
 const newestAttendeesSection = (
   attendees: Attendee[],
   events: EventWithCount[],
-  allowedDomain: string,
 ): string => {
   const eventMap = new Map(events.map((e) => [e.id, e]));
   const tableRows = reduce(
@@ -110,19 +107,17 @@ const newestAttendeesSection = (
 
   if (tableRows.length === 0) return "";
 
-  const tokens = pipe(
-    map((r: AttendeeTableRow) => r.attendee.ticket_token),
-  )(tableRows);
-  const multiTicketUrl = `https://${allowedDomain}/t/${tokens.join("+")}`;
+  const domain = getAllowedDomain();
+  const tokens = pipe(map((r: AttendeeTableRow) => r.attendee.ticket_token))(tableRows);
   const count = tableRows.length;
 
   return String(
     <details open>
-      <summary><a href={multiTicketUrl}>Newest {count} Attendee{count !== 1 ? "s" : ""}</a></summary>
+      <summary><a href={`https://${domain}/t/${tokens.join("+")}`}>Newest {count} Attendee{count !== 1 ? "s" : ""}</a></summary>
       <div class="table-scroll">
         <Raw html={AttendeeTable({
           rows: tableRows,
-          allowedDomain,
+          allowedDomain: domain,
           showEvent: true,
           showDate: false,
           showCheckin: false,
@@ -139,7 +134,6 @@ const newestAttendeesSection = (
 export const adminDashboardPage = (
   events: EventWithCount[],
   session: AdminSession,
-  allowedDomain: string,
   imageError?: string | null,
   newestAttendees: Attendee[] = [],
 ): string => {
@@ -161,7 +155,7 @@ export const adminDashboardPage = (
       <p><a href="/admin/event/new">Add Event</a></p>
 
       {newestAttendees.length > 0 && (
-        <Raw html={newestAttendeesSection(newestAttendees, events, allowedDomain)} />
+        <Raw html={newestAttendeesSection(newestAttendees, events)} />
       )}
 
       <div class="table-scroll">
@@ -182,7 +176,7 @@ export const adminDashboardPage = (
       </div>
 
       {activeEvents.length >= 2 && (
-        <Raw html={multiBookingSection(activeEvents, allowedDomain)} />
+        <Raw html={multiBookingSection(activeEvents)} />
       )}
     </Layout>
   );

@@ -2,7 +2,6 @@
  * Admin dashboard route
  */
 
-import { getAllowedDomain } from "#lib/config.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { decryptAttendees, getNewestAttendeesRaw } from "#lib/db/attendees.ts";
@@ -10,7 +9,8 @@ import { getAllEvents } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { defineRoutes } from "#routes/router.ts";
-import { getPrivateKey, htmlResponse, requireSessionOr, withSession } from "#routes/utils.ts";
+import { requirePrivateKey } from "#routes/admin/utils.ts";
+import { htmlResponse, requireSessionOr, withSession } from "#routes/utils.ts";
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
@@ -36,11 +36,11 @@ const handleAdminGet = (request: Request): Promise<Response> =>
         getAllEvents(),
         getActiveHolidays(),
         getNewestAttendeesRaw(NEWEST_ATTENDEES_LIMIT),
-        getPrivateKey(session),
+        requirePrivateKey(session),
       ]);
-      const newestAttendees = privateKey ? await decryptAttendees(newestRaw, privateKey) : [];
+      const newestAttendees = await decryptAttendees(newestRaw, privateKey);
       const sortedEvents = sortEvents(events, holidays);
-      return htmlResponse(adminDashboardPage(sortedEvents, session, getAllowedDomain(), imageError, newestAttendees));
+      return htmlResponse(adminDashboardPage(sortedEvents, session, imageError, newestAttendees));
     },
     () => loginResponse(),
   );
