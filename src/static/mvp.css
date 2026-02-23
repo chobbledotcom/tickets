@@ -19,7 +19,7 @@
   --hover-brightness: 1.2;
   --justify-important: left;
   --justify-normal: left;
-  --line-height: 1.5;
+  --line-height: 1.8;
   --width-card: 285px;
   --width-card-medium: 460px;
   --width-card-wide: 800px;
@@ -29,15 +29,22 @@
 
 :root[data-theme="dark"] {
   --color-accent: #0097fc4f;
-  --color-bg: #333;
-  --color-bg-secondary: #555;
-  --color-link: #0097fc;
+  --color-bg: #01001c;
+  --color-bg-secondary: #460066;
+  --color-link: #95d5ff;
   --color-secondary: #e20de9;
   --color-secondary-accent: #e20de94f;
   --color-shadow: #00000022;
-  --color-table: #0097fc;
+  --color-table: #95d5ff;
   --color-text: #f7f7f7;
   --color-text-secondary: #aaa;
+}
+
+[data-theme="dark"] body {
+  background: #23062b;
+  background: linear-gradient(342deg, rgb(16, 2, 19) 0%, rgb(5, 5, 61) 35%, rgb(22, 1, 23) 100%);
+  background-size: 100% 100%;
+  background-attachment: fixed;
 }
 
 html {
