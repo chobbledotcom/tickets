@@ -29,7 +29,7 @@ export const adminSiteHomePage = (
 ): string =>
   String(
     <Layout title="Site - Home">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/site" />
       <SiteSubNav />
 
       {error && <div class="error">{error}</div>}
@@ -74,7 +74,7 @@ export const adminSiteContactPage = (
 ): string =>
   String(
     <Layout title="Site - Contact">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/site" />
       <SiteSubNav />
 
       {error && <div class="error">{error}</div>}

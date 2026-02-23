@@ -8,25 +8,30 @@ import type { AdminSession } from "#lib/types.ts";
 
 interface AdminNavProps {
   session: AdminSession;
+  active: string;
 }
+
+const navLink = (href: string, label: string, active: string): JSX.Element => (
+  <li><a href={href} class={href === active ? "active" : undefined}>{label}</a></li>
+);
 
 /**
  * Universal admin navigation - shown at top of all admin pages
  * Users, Settings, and Sessions links only shown to owners
  */
-export const AdminNav = ({ session }: AdminNavProps): JSX.Element => (
+export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
   <nav>
     <ul>
-      <li><a href="/admin/">Events</a></li>
-      <li><a href="/admin/calendar">Calendar</a></li>
-      {session.adminLevel === "owner" && <li><a href="/admin/users">Users</a></li>}
-      {session.adminLevel === "owner" && getShowPublicSiteCached() && <li><a href="/admin/site">Site</a></li>}
-      {session.adminLevel === "owner" && <li><a href="/admin/settings">Settings</a></li>}
-      {session.adminLevel === "owner" && <li><a href="/admin/log">Log</a></li>}
-      {session.adminLevel === "owner" && <li><a href="/admin/groups">Groups</a></li>}
-      {session.adminLevel === "owner" && <li><a href="/admin/holidays">Holidays</a></li>}
-      {session.adminLevel === "owner" && <li><a href="/admin/sessions">Sessions</a></li>}
-      <li><a href="/admin/guide">Guide</a></li>
+      {navLink("/admin/", "Events", active)}
+      {navLink("/admin/calendar", "Calendar", active)}
+      {session.adminLevel === "owner" && navLink("/admin/users", "Users", active)}
+      {session.adminLevel === "owner" && getShowPublicSiteCached() && navLink("/admin/site", "Site", active)}
+      {session.adminLevel === "owner" && navLink("/admin/settings", "Settings", active)}
+      {session.adminLevel === "owner" && navLink("/admin/log", "Log", active)}
+      {session.adminLevel === "owner" && navLink("/admin/groups", "Groups", active)}
+      {session.adminLevel === "owner" && navLink("/admin/holidays", "Holidays", active)}
+      {session.adminLevel === "owner" && navLink("/admin/sessions", "Sessions", active)}
+      {navLink("/admin/guide", "Guide", active)}
       <li>
         <CsrfForm action="/admin/logout" class="inline">
           <button type="submit">Logout</button>

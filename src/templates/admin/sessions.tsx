@@ -51,7 +51,7 @@ export const adminSessionsPage = (
 
   return String(
     <Layout title="Sessions">
-      <AdminNav session={adminSession} />
+      <AdminNav session={adminSession} active="/admin/sessions" />
 
       {success && <div class="success">{success}</div>}
 

@@ -41,7 +41,7 @@ const Q = ({
 export const adminGuidePage = (adminSession: AdminSession): string =>
   String(
     <Layout title="Guide">
-      <AdminNav session={adminSession} />
+      <AdminNav session={adminSession} active="/admin/guide" />
 
       <h2>Guide</h2>
 

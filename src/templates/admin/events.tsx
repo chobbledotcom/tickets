@@ -134,7 +134,7 @@ export const adminEventPage = ({
 
   return String(
     <Layout title={`Event: ${event.name}`}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
 
         <h1>{event.name}</h1>
         <nav>
@@ -406,7 +406,7 @@ export const adminEventNewPage = (
   const fields = storageEnabled ? [...eventFields, imageField] : eventFields;
   return String(
     <Layout title="Add Event">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
       <Breadcrumb href="/admin/" label="Events" />
       <h1>Add Event</h1>
       <Raw html={renderError(error)} />
@@ -434,7 +434,7 @@ export const adminDuplicateEventPage = (
 
   return String(
     <Layout title={`Duplicate: ${event.name}`}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
         <h2>Duplicate Event</h2>
         <p>Creating a new event based on <strong>{event.name}</strong>.</p>
         <CsrfForm action="/admin/event" enctype="multipart/form-data">
@@ -459,7 +459,7 @@ export const adminEventEditPage = (
   const fields = storageEnabled ? [...eventFields, imageField] : eventFields;
   return String(
     <Layout title={`Edit: ${event.name}`}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
         <Raw html={renderError(error)} />
         <CsrfForm action={`/admin/event/${event.id}/edit`} enctype="multipart/form-data">
           <Raw html={renderFields(fields, eventToFieldValues(event))} />
@@ -489,7 +489,7 @@ export const adminDeleteEventPage = (
 ): string =>
   String(
     <Layout title={`Delete: ${event.name}`}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -527,7 +527,7 @@ export const adminDeactivateEventPage = (
 ): string =>
   String(
     <Layout title={`Deactivate: ${event.name}`}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -571,7 +571,7 @@ export const adminReactivateEventPage = (
 ): string =>
   String(
     <Layout title={`Reactivate: ${event.name}`}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
         {error && <div class="error">{error}</div>}
 
         <article>

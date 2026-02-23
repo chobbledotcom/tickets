@@ -24,7 +24,7 @@ export const adminGroupsPage = (
 ): string =>
   String(
     <Layout title="Groups">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/groups" />
       <h1>Groups</h1>
       <Raw html={renderError(error)} />
       <p><a href="/admin/group/new">Add Group</a></p>
@@ -80,7 +80,7 @@ export const adminGroupNewPage = (
 ): string =>
   String(
     <Layout title="Add Group">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/groups" />
       <Breadcrumb href="/admin/groups" label="Groups" />
       <h1>Add Group</h1>
       <Raw html={renderError(error)} />
@@ -101,7 +101,7 @@ export const adminGroupEditPage = (
 ): string =>
   String(
     <Layout title="Edit Group">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/groups" />
       <Breadcrumb href={`/admin/group/${group.id}`} label={group.name} />
       <h1>Edit Group</h1>
       <Raw html={renderError(error)} />
@@ -122,7 +122,7 @@ export const adminGroupDeletePage = (
 ): string =>
   String(
     <Layout title="Delete Group">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/groups" />
       <Breadcrumb href={`/admin/group/${group.id}`} label={group.name} />
       <h1>Delete Group</h1>
       <Raw html={renderError(error)} />
@@ -163,7 +163,7 @@ export const adminGroupDetailPage = (
 
   return String(
     <Layout title={group.name}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/groups" />
       <Breadcrumb href="/admin/groups" label="Groups" />
       <h1>{group.name}</h1>
       {group.terms_and_conditions && (

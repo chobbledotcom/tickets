@@ -37,7 +37,7 @@ export const adminSettingsPage = (
 ): string =>
   String(
     <Layout title="Settings" theme={theme}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/settings" />
 
       {error && <div class="error">{error}</div>}
       {success && <div class="success">{success}</div>}

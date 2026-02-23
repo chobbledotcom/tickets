@@ -432,7 +432,7 @@ describe("QR Scanner", () => {
     test("nav contains guide link", async () => {
       const { response } = await adminGet("/admin/guide");
       const body = await response.text();
-      expect(body).toContain('/admin/guide">Guide</a>');
+      expect(body).toContain('/admin/guide" class="active">Guide</a>');
     });
   });
 });

@@ -41,7 +41,7 @@ export const adminUsersPage = (
 ): string =>
   String(
     <Layout title="Users">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/users" />
       <h1>Users</h1>
       <p>
         <a href="/admin/guide#user-classes">User roles and permissions</a>
@@ -107,7 +107,7 @@ export const adminUserNewPage = (
 ): string =>
   String(
     <Layout title="Invite User">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/users" />
       <Breadcrumb href="/admin/users" label="Users" />
       <h1>Invite User</h1>
       <Raw html={renderError(error)} />

@@ -102,7 +102,7 @@ export const adminDashboardPage = (
 
   return String(
     <Layout title="Events">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
 
       {imageError && (
         <p class="error">Event created but image was not saved: {imageError}</p>
