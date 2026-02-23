@@ -70,6 +70,44 @@ export const CONFIG_KEYS = {
  */
 export const SETTINGS_CACHE_TTL_MS = 5_000;
 
+/**
+ * Decrypted page content cache. Pages like homepage, contact, terms
+ * and website title change very rarely, so we cache the decrypted
+ * values for 30 minutes per edge instance, avoiding repeated
+ * AES-GCM decryption and DB round-trips on every public page view.
+ * Invalidated immediately when content is saved via admin routes.
+ */
+const PAGE_CACHE_TTL_MS = 30 * 60 * 1_000;
+
+type PageCacheEntry = { value: string | null; time: number };
+
+const [getPageCacheMap, setPageCacheMap] = lazyRef<Map<string, PageCacheEntry>>(
+  () => new Map(),
+);
+
+const getPageCacheEntry = (key: string): string | null | undefined => {
+  const entry = getPageCacheMap().get(key);
+  if (!entry) return undefined;
+  if (nowMs() - entry.time >= PAGE_CACHE_TTL_MS) {
+    getPageCacheMap().delete(key);
+    return undefined;
+  }
+  return entry.value;
+};
+
+const setPageCacheEntry = (key: string, value: string | null): void => {
+  getPageCacheMap().set(key, { value, time: nowMs() });
+};
+
+const invalidatePageCacheEntry = (key: string): void => {
+  getPageCacheMap().delete(key);
+};
+
+/** Clear the entire page content cache (for testing or after bulk changes). */
+export const invalidatePageCache = (): void => {
+  setPageCacheMap(null);
+};
+
 type SettingsCacheState = {
   entries: Map<string, string> | null;
   time: number;
@@ -99,11 +137,13 @@ export const loadAllSettings = async (): Promise<Map<string, string>> => {
 
 /**
  * Invalidate the settings cache (for testing or after writes).
- * Also clears the permanent timezone cache since it derives from settings.
+ * Also clears the permanent timezone cache since it derives from settings,
+ * and the page content cache since it derives from encrypted settings.
  */
 export const invalidateSettingsCache = (): void => {
   setSettingsCacheState(null);
   invalidateTimezoneCache();
+  invalidatePageCache();
 };
 
 /**
@@ -483,19 +523,25 @@ export const updateEmbedHosts = async (hosts: string): Promise<void> => {
 export const MAX_TERMS_LENGTH = 10_240;
 
 /**
- * Get terms and conditions text from database (uses settings cache).
+ * Get terms and conditions text from database (30m cached).
  * Returns null if not configured.
  */
 export const getTermsAndConditionsFromDb = async (): Promise<string | null> => {
-  return await getSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS);
+  const cached = getPageCacheEntry(CONFIG_KEYS.TERMS_AND_CONDITIONS);
+  if (cached !== undefined) return cached;
+  const value = await getSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS);
+  setPageCacheEntry(CONFIG_KEYS.TERMS_AND_CONDITIONS, value);
+  return value;
 };
 
 /**
  * Update terms and conditions text
  * Pass empty string to clear
  */
-export const updateTermsAndConditions = (text: string): Promise<void> =>
-  setOrDeleteSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS, text);
+export const updateTermsAndConditions = async (text: string): Promise<void> => {
+  await setOrDeleteSetting(CONFIG_KEYS.TERMS_AND_CONDITIONS, text);
+  invalidatePageCacheEntry(CONFIG_KEYS.TERMS_AND_CONDITIONS);
+};
 
 /**
  * Permanent timezone cache. Timezone changes very rarely, so we cache it
@@ -613,29 +659,44 @@ export const MAX_WEBSITE_TITLE_LENGTH = 128;
 /** Max length for page text content */
 export const MAX_PAGE_TEXT_LENGTH = 2048;
 
-/** Get the website title from database (decrypted). */
+/** Get a page setting with 30m decrypted content cache. */
+const getCachedPageSetting = async (key: string): Promise<string | null> => {
+  const cached = getPageCacheEntry(key);
+  if (cached !== undefined) return cached;
+  const value = await getEncryptedSetting(key);
+  setPageCacheEntry(key, value);
+  return value;
+};
+
+/** Get the website title from database (decrypted, 30m cached). */
 export const getWebsiteTitleFromDb = (): Promise<string | null> =>
-  getEncryptedSetting(CONFIG_KEYS.WEBSITE_TITLE);
+  getCachedPageSetting(CONFIG_KEYS.WEBSITE_TITLE);
 
 /** Update the website title (encrypted at rest). Pass empty string to clear. */
-export const updateWebsiteTitle = (text: string): Promise<void> =>
-  updateEncryptedSetting(CONFIG_KEYS.WEBSITE_TITLE, text);
+export const updateWebsiteTitle = async (text: string): Promise<void> => {
+  await updateEncryptedSetting(CONFIG_KEYS.WEBSITE_TITLE, text);
+  invalidatePageCacheEntry(CONFIG_KEYS.WEBSITE_TITLE);
+};
 
-/** Get the homepage text from database (decrypted). */
+/** Get the homepage text from database (decrypted, 30m cached). */
 export const getHomepageTextFromDb = (): Promise<string | null> =>
-  getEncryptedSetting(CONFIG_KEYS.HOMEPAGE_TEXT);
+  getCachedPageSetting(CONFIG_KEYS.HOMEPAGE_TEXT);
 
 /** Update the homepage text (encrypted at rest). Pass empty string to clear. */
-export const updateHomepageText = (text: string): Promise<void> =>
-  updateEncryptedSetting(CONFIG_KEYS.HOMEPAGE_TEXT, text);
+export const updateHomepageText = async (text: string): Promise<void> => {
+  await updateEncryptedSetting(CONFIG_KEYS.HOMEPAGE_TEXT, text);
+  invalidatePageCacheEntry(CONFIG_KEYS.HOMEPAGE_TEXT);
+};
 
-/** Get the contact page text from database (decrypted). */
+/** Get the contact page text from database (decrypted, 30m cached). */
 export const getContactPageTextFromDb = (): Promise<string | null> =>
-  getEncryptedSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT);
+  getCachedPageSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT);
 
 /** Update the contact page text (encrypted at rest). Pass empty string to clear. */
-export const updateContactPageText = (text: string): Promise<void> =>
-  updateEncryptedSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT, text);
+export const updateContactPageText = async (text: string): Promise<void> => {
+  await updateEncryptedSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT, text);
+  invalidatePageCacheEntry(CONFIG_KEYS.CONTACT_PAGE_TEXT);
+};
 
 /**
  * Get the configured phone prefix from database.
@@ -663,6 +724,7 @@ export const settingsApi = {
   setSetting,
   loadAllSettings,
   invalidateSettingsCache,
+  invalidatePageCache,
   isSetupComplete,
   clearSetupCompleteCache,
   getPublicKey,
