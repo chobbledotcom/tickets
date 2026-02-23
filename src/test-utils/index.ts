@@ -11,11 +11,13 @@ import { setDb } from "#lib/db/client.ts";
 import type { GroupInput } from "#lib/db/groups.ts";
 import {
   getEventWithCount,
+  invalidateEventsCache,
   type EventInput,
 } from "#lib/db/events.ts";
 import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, updateTimezone } from "#lib/db/settings.ts";
+import { invalidateUsersCache } from "#lib/db/users.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
 /**
@@ -116,6 +118,8 @@ const prepareTestClient = async (): Promise<{ reused: boolean }> => {
   setupTestEncryptionKey();
   clearSetupCompleteCache();
   resetSessionCache();
+  invalidateUsersCache();
+  invalidateEventsCache();
 
   if (cachedClient && await isSchemaIntact(cachedClient)) {
     setDb(cachedClient);
@@ -227,6 +231,8 @@ export const resetDb = (): void => {
   setDb(null);
   clearSetupCompleteCache();
   invalidateSettingsCache();
+  invalidateUsersCache();
+  invalidateEventsCache();
   resetSessionCache();
   resetTestSession();
   resetCurrencyCode();
@@ -1604,7 +1610,7 @@ export const createTestManagerSession = async (
   const { deriveKEK, encrypt: enc, hmacHash, unwrapKey, wrapKeyWithToken } = await import("#lib/crypto.ts");
   const { getDb } = await import("#lib/db/client.ts");
   const { createSession } = await import("#lib/db/sessions.ts");
-  const { getUserByUsername, verifyUserPassword } = await import("#lib/db/users.ts");
+  const { getUserByUsername, verifyUserPassword, invalidateUsersCache: invalidateUsers } = await import("#lib/db/users.ts");
 
   // Get the system DATA_KEY via the admin user (always exists after createTestDbWithSetup)
   const user = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
@@ -1620,6 +1626,7 @@ export const createTestManagerSession = async (
           VALUES (?, ?, ?, ?, ?)`,
     args: [await enc(username), managerIdx, "", managerWrappedKey, await enc("manager")],
   });
+  invalidateUsers();
 
   // Find the manager user ID
   const result = await getDb().execute("SELECT id FROM users ORDER BY id DESC LIMIT 1");

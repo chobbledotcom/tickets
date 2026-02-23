@@ -3,6 +3,7 @@ import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { getEmbedHostsFromDb, getTimezoneFromDb, setPaymentProvider, updateTermsAndConditions } from "#lib/db/settings.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
+import { invalidateUsersCache } from "#lib/db/users.ts";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
@@ -212,6 +213,7 @@ describe("server (admin settings)", () => {
         sql: "UPDATE users SET wrapped_data_key = ?",
         args: ["corrupted-key-data"],
       });
+      invalidateUsersCache();
 
       const response = await handleRequest(
         mockFormRequest(

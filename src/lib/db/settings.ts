@@ -18,7 +18,7 @@ import {
 import { getDb, queryAll } from "#lib/db/client.ts";
 import { nowMs } from "#lib/now.ts";
 import { deleteAllSessions } from "#lib/db/sessions.ts";
-import { createUser } from "#lib/db/users.ts";
+import { createUser, invalidateUsersCache } from "#lib/db/users.ts";
 import type { Settings } from "#lib/types.ts";
 
 /**
@@ -68,7 +68,7 @@ export const CONFIG_KEYS = {
  * serves subsequent reads from memory until the TTL expires or a
  * write invalidates the cache.
  */
-export const SETTINGS_CACHE_TTL_MS = 5_000;
+export const SETTINGS_CACHE_TTL_MS = 60_000;
 
 /**
  * Decrypted page content cache. Pages like homepage, contact, terms
@@ -410,6 +410,7 @@ export const updateUserPassword = async (
     sql: "UPDATE users SET password_hash = ?, wrapped_data_key = ? WHERE id = ?",
     args: [encryptedNewHash, newWrappedDataKey, userId],
   });
+  invalidateUsersCache();
 
   // Invalidate all sessions (force re-login with new password)
   await deleteAllSessions();
