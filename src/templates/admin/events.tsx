@@ -167,12 +167,14 @@ export const adminEventPage = ({
         <article>
           <h2>Event Details</h2>
           <div class="table-scroll">
-          <table>
+          <table class="event-details-table">
             <tbody>
               {event.date && (
                 <tr>
                   <th>Event Date</th>
-                  <td>{formatDatetimeLabel(event.date)}</td>
+                  <td>
+                    <span><a href={`/admin/calendar?date=${event.date.slice(0, 10)}`}>{formatDatetimeLabel(event.date)}</a> <small><em>({formatCountdown(event.date)})</em></small></span>
+                  </td>
                 </tr>
               )}
               {event.location && (
@@ -244,10 +246,10 @@ export const adminEventPage = ({
                   <a href={ticketUrl}>{`${allowedDomain}/ticket/${event.slug}`}</a>
                 </td>
               </tr>
-              <tr>
-                <th><label for={`thank-you-url-${event.id}`}>Thank You URL</label></th>
-                <td>
-                  {event.thank_you_url ? (
+              {event.thank_you_url && (
+                <tr>
+                  <th><label for={`thank-you-url-${event.id}`}>Thank You URL</label></th>
+                  <td>
                     <input
                       type="text"
                       id={`thank-you-url-${event.id}`}
@@ -255,11 +257,9 @@ export const adminEventPage = ({
                       readonly
                       data-select-on-click
                     />
-                  ) : (
-                    <em>None (shows simple success message)</em>
-                  )}
-                </td>
-              </tr>
+                  </td>
+                </tr>
+              )}
               {event.webhook_url && (
                 <tr>
                   <th><label for={`webhook-url-${event.id}`}>Webhook URL</label></th>

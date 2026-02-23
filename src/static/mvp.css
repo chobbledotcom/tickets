@@ -658,6 +658,15 @@ td.cell-description {
   text-overflow: ellipsis;
 }
 
+.event-details-table {
+  width: auto;
+  max-width: 100%;
+}
+
+.event-details-table th {
+  width: 220px;
+}
+
 /* Quotes */
 blockquote {
   display: block;

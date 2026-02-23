@@ -728,8 +728,7 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             Yes to both. I can set you up on your own Bunny CDN account (or
             another host) and handle the technical configuration. I also design
-            event images if you need them &mdash; clean, professional graphics
-            that match your brand. Get in touch and we'll figure out exactly
+            event images if you need them. Get in touch and we'll figure out exactly
             what you need.
           </p>
         </Q>

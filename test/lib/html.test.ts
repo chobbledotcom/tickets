@@ -1315,10 +1315,10 @@ describe("html", () => {
       expect(html).toContain("Reactivate");
     });
 
-    test("shows simple success message text when no thank_you_url", () => {
+    test("hides thank you URL row when no thank_you_url", () => {
       const event = testEventWithCount({ thank_you_url: null, attendee_count: 0 });
       const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
-      expect(html).toContain("None (shows simple success message)");
+      expect(html).not.toContain("Thank You URL");
     });
 
     test("shows webhook URL in copyable input when present", () => {
