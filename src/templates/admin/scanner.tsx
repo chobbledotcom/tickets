@@ -20,7 +20,7 @@ export const adminScannerPage = (
       title={`Scanner: ${event.name}`}
       headExtra={`<meta name="csrf-token" content="${getCurrentCsrfToken()}" /><script src="${SCANNER_JS_PATH}" defer></script>`}
     >
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
       <h1>Scanner</h1>
       <p><a href={`/admin/event/${event.id}`}>&larr; {event.name}</a></p>
 

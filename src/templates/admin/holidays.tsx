@@ -19,7 +19,7 @@ export const adminHolidaysPage = (
 ): string =>
   String(
     <Layout title="Holidays">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/holidays" />
       <h1>Holidays</h1>
       <Raw html={renderError(error)} />
       <p><a href="/admin/holiday/new">Add Holiday</a></p>
@@ -76,7 +76,7 @@ export const adminHolidayNewPage = (
 ): string =>
   String(
     <Layout title="Add Holiday">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/holidays" />
       <Breadcrumb href="/admin/holidays" label="Holidays" />
       <h1>Add Holiday</h1>
       <Raw html={renderError(error)} />
@@ -97,7 +97,7 @@ export const adminHolidayEditPage = (
 ): string =>
   String(
     <Layout title="Edit Holiday">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/holidays" />
       <Breadcrumb href="/admin/holidays" label="Holidays" />
       <h1>Edit Holiday</h1>
       <Raw html={renderError(error)} />
@@ -118,7 +118,7 @@ export const adminHolidayDeletePage = (
 ): string =>
   String(
     <Layout title="Delete Holiday">
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/holidays" />
       <Breadcrumb href="/admin/holidays" label="Holidays" />
       <h1>Delete Holiday</h1>
       <Raw html={renderError(error)} />

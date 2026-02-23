@@ -21,7 +21,7 @@ export const adminDeleteAttendeePage = (
 ): string =>
   String(
     <Layout title={`Delete Attendee: ${attendee.name}`}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -69,7 +69,7 @@ export const adminRefundAttendeePage = (
 ): string =>
   String(
     <Layout title={`Refund Attendee: ${attendee.name}`}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -120,7 +120,7 @@ export const adminRefundAllAttendeesPage = (
 ): string =>
   String(
     <Layout title={`Refund All: ${event.name}`}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
         {error && <div class="error">{error}</div>}
 
         <article>
@@ -212,7 +212,7 @@ export const adminEditAttendeePage = (
 ): string =>
   String(
     <Layout title={`Edit Attendee: ${attendee.name}`}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
         {error && <div class="error">{error}</div>}
         {success && <div class="success">{success}</div>}
 
@@ -291,7 +291,7 @@ export const adminResendWebhookPage = (
 ): string =>
   String(
     <Layout title={`Re-send Webhook: ${attendee.name}`}>
-      <AdminNav session={session} />
+      <AdminNav session={session} active="/admin/" />
         {error && <div class="error">{error}</div>}
 
         <article>

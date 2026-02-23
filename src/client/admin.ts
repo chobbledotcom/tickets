@@ -3,23 +3,6 @@
 
 import { buildEmbedSnippets } from "#lib/embed.ts";
 
-/* Active nav link: highlight the most specific matching link per nav */
-const activePath = location.pathname;
-for (const nav of document.querySelectorAll("nav")) {
-  let best: HTMLAnchorElement | null = null;
-  let bestLen = 0;
-  for (const a of nav.querySelectorAll<HTMLAnchorElement>("a[href]")) {
-    const href = a.getAttribute("href")!;
-    const matches = activePath === href ||
-      activePath.startsWith(href.endsWith("/") ? href : href + "/");
-    if (matches && href.length > bestLen) {
-      best = a;
-      bestLen = href.length;
-    }
-  }
-  best?.classList.add("active");
-}
-
 /* Select-on-click: auto-select input contents when clicked */
 for (const el of document.querySelectorAll<HTMLInputElement>("[data-select-on-click]")) {
   el.addEventListener("click", () => el.select());
