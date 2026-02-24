@@ -11,7 +11,6 @@
  */
 
 import type { Square } from "square";
-import { SquareEnvironment } from "square";
 import { lazyRef, map, once } from "#fp";
 import {
   getCurrencyCode,
@@ -129,8 +128,8 @@ export const enforceMetadataLimits = (
 
 /** Lazy-load Square SDK only when needed */
 const loadSquare = once(async () => {
-  const { SquareClient } = await import("square");
-  return SquareClient;
+  const { SquareClient, SquareEnvironment } = await import("square");
+  return { SquareClient, SquareEnvironment };
 });
 
 type SquareCache = { accessToken: string; sandbox: boolean };
@@ -141,7 +140,7 @@ const [getCache, setCache] = lazyRef<SquareCache>(() => {
 
 /** Create a Square client instance with the correct environment */
 const createSquareClient = async (accessToken: string, sandbox: boolean) => {
-  const SquareClient = await loadSquare();
+  const { SquareClient, SquareEnvironment } = await loadSquare();
   return new SquareClient({
     token: accessToken,
     environment: sandbox ? SquareEnvironment.Sandbox : SquareEnvironment.Production,
