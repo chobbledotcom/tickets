@@ -361,6 +361,7 @@ export const boundedLru = <K, V>(maxSize: number): BoundedLru<K, V> => {
 export type CollectionCache<T> = {
   getAll: () => Promise<T[]>;
   invalidate: () => void;
+  size: () => number;
 };
 
 /**
@@ -390,6 +391,7 @@ export const collectionCache = <T>(
     invalidate: (): void => {
       setState(null);
     },
+    size: (): number => getState().items?.length ?? 0,
   };
 };
 
@@ -398,6 +400,7 @@ export type TtlCache<K, V> = {
   get: (key: K) => V | undefined;
   set: (key: K, value: V) => void;
   clear: () => void;
+  size: () => number;
 };
 
 /**
@@ -426,5 +429,6 @@ export const ttlCache = <K, V>(
     clear: (): void => {
       cache.clear();
     },
+    size: (): number => cache.size,
   };
 };

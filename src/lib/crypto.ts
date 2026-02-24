@@ -4,6 +4,7 @@
  */
 
 import { boundedLru, lazyRef, ttlCache } from "#fp";
+import { registerCache } from "#lib/cache-registry.ts";
 import { getEnv } from "#lib/env.ts";
 
 /**
@@ -712,6 +713,12 @@ export const hybridEncrypt = async (
  */
 const hybridDecryptCache = boundedLru<string, string>(10_000);
 
+registerCache(() => ({
+  name: "decrypt",
+  entries: hybridDecryptCache.size(),
+  capacity: 10_000,
+}));
+
 /**
  * Decrypt data using hybrid encryption
  * Expects format: hyb:1:$base64WrappedKey:$base64iv:$base64ciphertext
@@ -804,6 +811,8 @@ export const encryptAttendeePII = async (
  * Avoids re-running the full unwrap chain (PBKDF2 + AES + RSA import) per request
  */
 const privateKeyCache = ttlCache<string, CryptoKey>(10_000);
+
+registerCache(() => ({ name: "privateKeys", entries: privateKeyCache.size() }));
 
 /**
  * Derive the private key from session credentials

@@ -1,5 +1,5 @@
 /**
- * Request-scoped SQL query logging for the owner debug footer.
+ * Request-scoped SQL query logging for the admin debug footer.
  *
  * Call `enableQueryLog()` at the start of a request and `getQueryLog()`
  * after the response body has been built to retrieve every tracked query.

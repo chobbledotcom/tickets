@@ -3,6 +3,7 @@
  */
 
 import { lazyRef } from "#fp";
+import { registerCache } from "#lib/cache-registry.ts";
 import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
 import {
   decrypt,
@@ -121,6 +122,18 @@ const isCacheValid = (): boolean => {
   const state = getSettingsCacheState();
   return state.entries !== null && nowMs() - state.time < SETTINGS_CACHE_TTL_MS;
 };
+
+const settingsCacheSize = (): number => {
+  const { entries } = getSettingsCacheState();
+  return entries ? entries.size : 0;
+};
+
+registerCache(() => ({ name: "settings", entries: settingsCacheSize() }));
+
+registerCache(() => ({
+  name: "pageContent",
+  entries: getPageCacheMap().size,
+}));
 
 /**
  * Load every setting row into the in-memory cache with a single query.

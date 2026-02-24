@@ -3,6 +3,7 @@
  */
 
 import { collectionCache, filter } from "#fp";
+import { registerCache } from "#lib/cache-registry.ts";
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { getTz } from "#lib/config.ts";
 import { todayInTz } from "#lib/timezone.ts";
@@ -43,6 +44,8 @@ const holidaysCache = collectionCache(
   () => queryHolidays("SELECT * FROM holidays ORDER BY start_date ASC"),
   HOLIDAYS_CACHE_TTL_MS,
 );
+
+registerCache(() => ({ name: "holidays", entries: holidaysCache.size() }));
 
 /** Invalidate the holidays cache (for testing or after writes). */
 export const invalidateHolidaysCache = (): void => {

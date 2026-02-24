@@ -14,7 +14,7 @@ import {
   resetTestSlugCounter,
 } from "#test-utils";
 
-describe("owner debug footer", () => {
+describe("admin debug footer", () => {
   beforeEach(async () => {
     resetTestSlugCounter();
     await createTestDbWithSetup();
@@ -39,6 +39,25 @@ describe("owner debug footer", () => {
     expect(html).toContain("ms</li>");
   });
 
+  test("footer shows query count in summary", async () => {
+    const { response } = await adminGet("/admin/");
+    const html = await response.text();
+    expect(html).toMatch(/\d+ quer(y|ies)/);
+  });
+
+  test("footer shows timing breakdown", async () => {
+    const { response } = await adminGet("/admin/");
+    const html = await response.text();
+    expect(html).toContain("sql ");
+    expect(html).toContain("other ");
+  });
+
+  test("footer shows cache stats", async () => {
+    const { response } = await adminGet("/admin/");
+    const html = await response.text();
+    expect(html).toContain("cached");
+  });
+
   test("footer is inside a <footer> element before </body>", async () => {
     const { response } = await adminGet("/admin/");
     const html = await response.text();
@@ -60,7 +79,7 @@ describe("owner debug footer", () => {
     expect(html).not.toContain("Chobble Tickets");
   });
 
-  test("manager does not see footer", async () => {
+  test("manager sees footer", async () => {
     // Create and activate a manager user
     const { cookie: ownerCookie, csrfToken: ownerCsrf } = await loginAsAdmin();
 
@@ -104,11 +123,12 @@ describe("owner debug footer", () => {
     );
     const managerCookie = loginResponse.headers.get("set-cookie") ?? "";
 
-    // Manager GET should not contain the footer
+    // Manager GET should now contain the footer
     const response = await awaitTestRequest("/admin/", { cookie: managerCookie });
     const html = await response.text();
     expect(html).toContain("Events");
-    expect(html).not.toContain("Chobble Tickets");
+    expect(html).toContain("Chobble Tickets");
+    expect(html).toContain("debug-footer");
   });
 
   test("footer not injected for POST responses", async () => {

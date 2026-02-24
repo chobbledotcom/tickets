@@ -3,6 +3,7 @@
  */
 
 import { collectionCache } from "#fp";
+import { registerCache } from "#lib/cache-registry.ts";
 import {
   decrypt,
   deriveKEK,
@@ -33,6 +34,8 @@ const usersCache = collectionCache(
 );
 
 const loadAllUsers = (): Promise<User[]> => usersCache.getAll();
+
+registerCache(() => ({ name: "users", entries: usersCache.size() }));
 
 /** Invalidate the users cache (for testing or after writes). */
 export const invalidateUsersCache = (): void => {
