@@ -54,39 +54,6 @@ const EDGE_SUBPATHS: Record<string, string> = {
   "@bunny.net/edgescript-sdk": "/esm-bunny/lib.mjs",
 };
 
-// --- CDN externals for payment SDKs ---
-// Square is a large, rarely-used SDK (lazy-loaded on payment paths only).
-// Keep it as a runtime CDN import via esm.sh instead of bundling.
-// Stripe is bundled directly (small enough at ~130KB minified).
-const denoConfig = JSON.parse(Deno.readTextFileSync("./deno.json"));
-const denoImports: Record<string, string> = denoConfig.imports;
-
-/** Packages to load from esm.sh CDN at runtime instead of bundling */
-const CDN_PACKAGES = ["square"];
-
-const CDN_EXTERNALS: Record<string, string> = {};
-for (const pkg of CDN_PACKAGES) {
-  const specifier = denoImports[pkg];
-  if (!specifier?.startsWith("npm:")) {
-    throw new Error(`Expected npm: specifier for "${pkg}" in deno.json imports`);
-  }
-  CDN_EXTERNALS[pkg] = `https://esm.sh/${specifier.slice(4)}`;
-}
-
-/** Rewrite payment SDK imports to esm.sh CDN URLs and mark them external */
-const cdnExternalsPlugin: Plugin = {
-  name: "cdn-externals",
-  setup(build) {
-    const filter = new RegExp(
-      "^(" + CDN_PACKAGES.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")$",
-    );
-    build.onResolve({ filter }, (args) => ({
-      path: CDN_EXTERNALS[args.path]!,
-      external: true,
-    }));
-  },
-};
-
 /** Build the inline asset-paths module with cache-busted paths */
 const buildAssetPathsModule = (): string =>
   ASSET_DEFS
@@ -282,7 +249,7 @@ await esbuild.build({
   bundle: true,
   external: nodeExternals,
   define: { "process.env.NODE_ENV": '"production"' },
-  plugins: [cdnExternalsPlugin, denoNpmResolverPlugin, inlineAssetsPlugin],
+  plugins: [denoNpmResolverPlugin, inlineAssetsPlugin],
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
 

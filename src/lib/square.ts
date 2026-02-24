@@ -1,6 +1,6 @@
 /**
  * Square integration module for ticket payments
- * Uses lazy loading to avoid importing the Square SDK at startup
+ * Uses direct HTTP calls to the Square REST API (no SDK dependency)
  *
  * Square flow differs from Stripe:
  * - Checkout uses Payment Links (CreatePaymentLink) instead of sessions
@@ -10,8 +10,7 @@
  * - Retrieving session data requires fetching the Order by ID
  */
 
-import type { Square } from "square";
-import { lazyRef, map, once } from "#fp";
+import { lazyRef, map } from "#fp";
 import {
   getCurrencyCode,
   getSquareAccessToken,
@@ -126,26 +125,172 @@ export const enforceMetadataLimits = (
   return metadata;
 };
 
-/** Lazy-load Square SDK only when needed */
-const loadSquare = once(async () => {
-  const { SquareClient, SquareEnvironment } = await import("square");
-  return { SquareClient, SquareEnvironment };
-});
+/** Square API version for all requests */
+const SQUARE_API_VERSION = "2025-01-23";
+
+/** Base URLs for Square environments */
+const SQUARE_BASE_URL = {
+  production: "https://connect.squareup.com",
+  sandbox: "https://connect.squareupsandbox.com",
+} as const;
+
+/** JSON.stringify with BigInt → Number conversion for Square money fields */
+const jsonStringify = (obj: unknown): string =>
+  JSON.stringify(obj, (_, v) => typeof v === "bigint" ? Number(v) : v);
+
+/** Make an authenticated request to the Square REST API */
+const squareFetch = async (
+  token: string,
+  baseUrl: string,
+  path: string,
+  options?: { method?: string; body?: unknown },
+  // deno-lint-ignore no-explicit-any
+): Promise<any> => {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: options?.method ?? "GET",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "Square-Version": SQUARE_API_VERSION,
+    },
+    ...(options?.body != null ? { body: jsonStringify(options.body) } : {}),
+  });
+
+  if (!response.ok) {
+    const bodyText = await response.text();
+    throw new Error(`Status code: ${response.status} Body: ${bodyText}`);
+  }
+
+  return response.json();
+};
+
+/**
+ * Create a lightweight Square API client using direct fetch calls.
+ * Translates between camelCase (app code) and snake_case (Square REST API).
+ * Only implements the 4 endpoints we actually use.
+ */
+const createSquareClient = (accessToken: string, sandbox: boolean) => {
+  const base = sandbox ? SQUARE_BASE_URL.sandbox : SQUARE_BASE_URL.production;
+
+  const post = (path: string, body: unknown) =>
+    squareFetch(accessToken, base, path, { method: "POST", body });
+  const get = (path: string) => squareFetch(accessToken, base, path);
+
+  return {
+    checkout: {
+      paymentLinks: {
+        // deno-lint-ignore no-explicit-any
+        create: async (p: any) => {
+          const data = await post("/v2/online-checkout/payment-links", {
+            idempotency_key: p.idempotencyKey,
+            order: {
+              location_id: p.order.locationId,
+              // deno-lint-ignore no-explicit-any
+              line_items: p.order.lineItems.map((i: any) => ({
+                name: i.name,
+                quantity: i.quantity,
+                note: i.note,
+                base_price_money: {
+                  amount: i.basePriceMoney.amount,
+                  currency: i.basePriceMoney.currency,
+                },
+              })),
+              metadata: p.order.metadata,
+            },
+            checkout_options: { redirect_url: p.checkoutOptions.redirectUrl },
+            pre_populated_data: {
+              buyer_email: p.prePopulatedData.buyerEmail,
+              ...(p.prePopulatedData.buyerPhoneNumber
+                ? { buyer_phone_number: p.prePopulatedData.buyerPhoneNumber }
+                : {}),
+            },
+          });
+          const link = data?.payment_link;
+          return {
+            paymentLink: link
+              ? { orderId: link.order_id, url: link.url }
+              : undefined,
+          };
+        },
+      },
+    },
+    orders: {
+      get: async (p: { orderId: string }) => {
+        const data = await get(
+          `/v2/orders/${encodeURIComponent(p.orderId)}`,
+        );
+        const o = data?.order;
+        if (!o) return { order: null };
+        return {
+          order: {
+            id: o.id,
+            metadata: o.metadata,
+            // deno-lint-ignore no-explicit-any
+            tenders: o.tenders?.map((t: any) => ({
+              id: t.id,
+              paymentId: t.payment_id ?? null,
+            })),
+            state: o.state,
+            totalMoney: o.total_money
+              ? {
+                  amount: BigInt(o.total_money.amount),
+                  currency: o.total_money.currency,
+                }
+              : undefined,
+          },
+        };
+      },
+    },
+    payments: {
+      get: async (p: { paymentId: string }) => {
+        const data = await get(
+          `/v2/payments/${encodeURIComponent(p.paymentId)}`,
+        );
+        const pm = data?.payment;
+        if (!pm) return { payment: null };
+        return {
+          payment: {
+            id: pm.id,
+            status: pm.status,
+            orderId: pm.order_id,
+            amountMoney: pm.amount_money
+              ? {
+                  amount: BigInt(pm.amount_money.amount),
+                  currency: pm.amount_money.currency,
+                }
+              : undefined,
+            refundedMoney: pm.refunded_money
+              ? {
+                  amount: BigInt(pm.refunded_money.amount),
+                  currency: pm.refunded_money.currency,
+                }
+              : undefined,
+          },
+        };
+      },
+    },
+    refunds: {
+      // deno-lint-ignore no-explicit-any
+      refundPayment: async (p: any) => {
+        await post("/v2/refunds", {
+          idempotency_key: p.idempotencyKey,
+          payment_id: p.paymentId,
+          amount_money: {
+            amount: p.amountMoney.amount,
+            currency: p.amountMoney.currency,
+          },
+        });
+        return {};
+      },
+    },
+  };
+};
 
 type SquareCache = { accessToken: string; sandbox: boolean };
 
 const [getCache, setCache] = lazyRef<SquareCache>(() => {
   throw new Error("Square cache not initialized");
 });
-
-/** Create a Square client instance with the correct environment */
-const createSquareClient = async (accessToken: string, sandbox: boolean) => {
-  const { SquareClient, SquareEnvironment } = await loadSquare();
-  return new SquareClient({
-    token: accessToken,
-    environment: sandbox ? SquareEnvironment.Sandbox : SquareEnvironment.Production,
-  });
-};
 
 /** Internal getSquareClient implementation */
 const getClientImpl = async () => {
@@ -186,13 +331,13 @@ const getLocationId = async (): Promise<string | null> => {
 };
 
 /** Resolved location and currency for payment link creation */
-type PaymentLinkConfig = { locationId: string; currency: Square.Currency };
+type PaymentLinkConfig = { locationId: string; currency: string };
 
 /** Get location ID and currency, returning null if location is not configured */
 const getPaymentLinkConfig = async (): Promise<PaymentLinkConfig | null> => {
   const locationId = await getLocationId();
   if (!locationId) return null;
-  const currency = (await getCurrencyCode()).toUpperCase() as Square.Currency;
+  const currency = (await getCurrencyCode()).toUpperCase();
   return { locationId, currency };
 };
 
@@ -232,12 +377,12 @@ export type PaymentLinkResult = {
 /** Common parameters for creating a payment link */
 type PaymentLinkParams = {
   locationId: string;
-  currency: Square.Currency;
+  currency: string;
   lineItems: Array<{
     name: string;
     quantity: string;
     note: string;
-    basePriceMoney: { amount: bigint; currency: Square.Currency };
+    basePriceMoney: { amount: bigint; currency: string };
   }>;
   metadata: Record<string, string>;
   baseUrl: string;
@@ -407,7 +552,8 @@ export const squareApi: {
         return {
           id: order.id,
           metadata,
-          tenders: order.tenders?.map((t) => ({
+          // deno-lint-ignore no-explicit-any
+          tenders: order.tenders?.map((t: any) => ({
             id: t.id,
             paymentId: t.paymentId ?? undefined,
           })),
@@ -463,7 +609,7 @@ export const squareApi: {
           paymentId,
           amountMoney: {
             amount: payment.amountMoney!.amount,
-            currency: payment.amountMoney!.currency as Square.Currency,
+            currency: payment.amountMoney!.currency as string,
           },
         });
         return true;
