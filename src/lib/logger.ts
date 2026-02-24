@@ -9,6 +9,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { sendNtfyError } from "#lib/ntfy.ts";
+import { addPendingWork, runWithPendingWork } from "#lib/pending-work.ts";
 
 /** Request-scoped random ID for correlating log entries */
 const requestIdStorage = new AsyncLocalStorage<string>();
@@ -28,7 +29,9 @@ const getLogPrefix = (): string => {
 
 /** Run a function with a request-scoped random ID for log correlation */
 export const runWithRequestId = <T>(fn: () => T): T =>
-  requestIdStorage.run(generateRequestId(), fn);
+  requestIdStorage.run(generateRequestId(), () =>
+    runWithPendingWork(fn),
+  );
 
 /**
  * Error codes for classified error logging
@@ -173,7 +176,7 @@ export const logError = (context: ErrorContext): void => {
   // biome-ignore lint/suspicious/noConsole: Intentional error logging
   console.error(`${getLogPrefix()}${parts.join(" ")}`);
 
-  sendNtfyError(code);
+  addPendingWork(sendNtfyError(code));
 };
 
 /**
