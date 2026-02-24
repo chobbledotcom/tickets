@@ -13,8 +13,8 @@ import { sendNtfyError } from "#lib/ntfy.ts";
 /** Request-scoped random ID for correlating log entries */
 const requestIdStorage = new AsyncLocalStorage<string>();
 
-/** Request-scoped collection of pending ntfy notification promises */
-const pendingNotifications = new AsyncLocalStorage<Promise<void>[]>();
+/** Request-scoped collection of background work that must complete before response */
+const pendingWork = new AsyncLocalStorage<Promise<void>[]>();
 
 /** Generate a 4-char lowercase hex string */
 const generateRequestId = (): string => {
@@ -32,16 +32,26 @@ const getLogPrefix = (): string => {
 /** Run a function with a request-scoped random ID for log correlation */
 export const runWithRequestId = <T>(fn: () => T): T =>
   requestIdStorage.run(generateRequestId(), () =>
-    pendingNotifications.run([], fn),
+    pendingWork.run([], fn),
   );
 
 /**
- * Await all ntfy notifications queued during this request.
- * Call before returning the response so fetches complete within the
- * edge runtime's request lifecycle.
+ * Queue a promise that must complete before the response is sent.
+ * Used for background work (webhooks, ntfy) that needs to finish within
+ * the edge runtime's request lifecycle.
  */
-export const flushPendingNotifications = async (): Promise<void> => {
-  const pending = pendingNotifications.getStore();
+export const addPendingWork = (p: Promise<void>): void => {
+  const pending = pendingWork.getStore();
+  if (pending) pending.push(p);
+};
+
+/**
+ * Await all background work queued during this request.
+ * Called in handleRequest's finally block so fetches complete
+ * before the edge runtime tears down the request context.
+ */
+export const flushPendingWork = async (): Promise<void> => {
+  const pending = pendingWork.getStore();
   if (!pending || pending.length === 0) return;
   await Promise.allSettled(pending);
   pending.length = 0;
@@ -190,9 +200,7 @@ export const logError = (context: ErrorContext): void => {
   // biome-ignore lint/suspicious/noConsole: Intentional error logging
   console.error(`${getLogPrefix()}${parts.join(" ")}`);
 
-  const pending = pendingNotifications.getStore();
-  const p = sendNtfyError(code);
-  if (pending) pending.push(p);
+  addPendingWork(sendNtfyError(code));
 };
 
 /**

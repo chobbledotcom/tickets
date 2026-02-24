@@ -7,7 +7,7 @@ import { compact, map, unique } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getEnv } from "#lib/env.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
+import { ErrorCode, addPendingWork, logError } from "#lib/logger.ts";
 import type { ContactInfo } from "#lib/types.ts";
 import { nowIso } from "#lib/now.ts";
 import { getBusinessEmailFromDb } from "#lib/business-email.ts";
@@ -153,9 +153,8 @@ export const sendRegistrationWebhooks = async (
  * Log attendee registration and send consolidated webhook
  * Used for single-event registrations
  *
- * Webhook sends are awaited to ensure they complete before the edge
- * runtime tears down the request context (Bunny Edge Scripting rejects
- * fetch calls after the response is sent with "api limit reached: fetch").
+ * Webhook sends are queued as pending work so they run in the background
+ * but complete before the edge runtime tears down the request context.
  */
 export const logAndNotifyRegistration = async (
   event: WebhookEvent,
@@ -163,7 +162,7 @@ export const logAndNotifyRegistration = async (
   currency: string,
 ): Promise<void> => {
   await logActivity(`Attendee registered for '${event.name}'`, event);
-  await sendRegistrationWebhooks([{ event, attendee }], currency);
+  addPendingWork(sendRegistrationWebhooks([{ event, attendee }], currency));
 };
 
 /**
@@ -176,5 +175,5 @@ export const logAndNotifyMultiRegistration = async (
   for (const { event } of entries) {
     await logActivity(`Attendee registered for '${event.name}'`, event);
   }
-  await sendRegistrationWebhooks(entries, currency);
+  addPendingWork(sendRegistrationWebhooks(entries, currency));
 };

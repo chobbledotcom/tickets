@@ -8,7 +8,7 @@ import { isSetupComplete } from "#lib/config.ts";
 import { loadCurrencyCode } from "#lib/currency.ts";
 import { loadTheme } from "#lib/theme.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
-import { createRequestTimer, ErrorCode, flushPendingNotifications, logError, logRequest, runWithRequestId } from "#lib/logger.ts";
+import { createRequestTimer, ErrorCode, flushPendingWork, logError, logRequest, runWithRequestId } from "#lib/logger.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
@@ -247,7 +247,7 @@ export const handleRequest = (
     return logAndReturn(temporaryErrorResponse(), method, path, getElapsed);
   }
   } finally {
-    await flushPendingNotifications();
+    await flushPendingWork();
   }
   }));
 };
