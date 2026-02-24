@@ -152,6 +152,10 @@ export const sendRegistrationWebhooks = async (
 /**
  * Log attendee registration and send consolidated webhook
  * Used for single-event registrations
+ *
+ * Webhook sends are awaited to ensure they complete before the edge
+ * runtime tears down the request context (Bunny Edge Scripting rejects
+ * fetch calls after the response is sent with "api limit reached: fetch").
  */
 export const logAndNotifyRegistration = async (
   event: WebhookEvent,
@@ -159,7 +163,7 @@ export const logAndNotifyRegistration = async (
   currency: string,
 ): Promise<void> => {
   await logActivity(`Attendee registered for '${event.name}'`, event);
-  void sendRegistrationWebhooks([{ event, attendee }], currency);
+  await sendRegistrationWebhooks([{ event, attendee }], currency);
 };
 
 /**
@@ -172,5 +176,5 @@ export const logAndNotifyMultiRegistration = async (
   for (const { event } of entries) {
     await logActivity(`Attendee registered for '${event.name}'`, event);
   }
-  void sendRegistrationWebhooks(entries, currency);
+  await sendRegistrationWebhooks(entries, currency);
 };
