@@ -208,12 +208,12 @@ describe("admin calendar", () => {
 
     test("does not show standard attendees when no standard events match date", async () => {
       const event = await createTestEvent({ name: "Concert", date: "2026-06-15T14:00" });
-      await submitTicketForm(event.slug, { name: "Fan", email: "fan@test.com" });
+      await submitTicketForm(event.slug, { name: "Concert Fan", email: "fan@test.com" });
 
       // Request a completely different date
       const response = await awaitTestRequest("/admin/calendar?date=2026-07-01", { cookie });
       const html = await response.text();
-      expect(html).not.toContain("Fan");
+      expect(html).not.toContain("Concert Fan");
     });
 
     test("standard event date without attendees shows as disabled", async () => {
