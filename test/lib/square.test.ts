@@ -1266,6 +1266,299 @@ describe("square", () => {
     });
   });
 
+  describe("Square REST client transport", () => {
+    let originalFetch: typeof globalThis.fetch;
+    let mockFetch: ReturnType<typeof jest.fn>;
+
+    beforeEach(async () => {
+      originalFetch = globalThis.fetch;
+      mockFetch = jest.fn();
+      // deno-lint-ignore no-explicit-any
+      globalThis.fetch = mockFetch as any;
+      await updateSquareAccessToken("EAAAl_rest_test");
+      await updateSquareSandbox(true);
+    });
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch;
+    });
+
+    test("sends correct headers and snake_case body for payment link creation", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          payment_link: { order_id: "ord_rest", url: "https://square.link/rest" },
+        }),
+      });
+
+      const client = await getSquareClient();
+      const result = await client!.checkout.paymentLinks.create({
+        idempotencyKey: "idem-rest",
+        order: {
+          locationId: "L_rest",
+          lineItems: [{
+            name: "Ticket: Show",
+            quantity: "2",
+            note: "2 Tickets",
+            basePriceMoney: { amount: BigInt(2500), currency: "GBP" },
+          }],
+          metadata: { event_id: "1", name: "Test" },
+        },
+        checkoutOptions: { redirectUrl: "https://example.com/success" },
+        prePopulatedData: { buyerEmail: "test@test.com", buyerPhoneNumber: "+44123" },
+      });
+
+      // Response mapped from snake_case
+      expect(result.paymentLink!.orderId).toBe("ord_rest");
+      expect(result.paymentLink!.url).toBe("https://square.link/rest");
+
+      // Request verification
+      // deno-lint-ignore no-explicit-any
+      const [url, opts] = mockFetch.mock.calls[0] as any[];
+      expect(url).toBe("https://connect.squareupsandbox.com/v2/online-checkout/payment-links");
+      expect(opts.method).toBe("POST");
+      expect(opts.headers.Authorization).toBe("Bearer EAAAl_rest_test");
+      expect(opts.headers["Square-Version"]).toBe("2025-01-23");
+
+      const body = JSON.parse(opts.body);
+      expect(body.idempotency_key).toBe("idem-rest");
+      expect(body.order.location_id).toBe("L_rest");
+      expect(body.order.line_items[0].base_price_money.amount).toBe(2500);
+      expect(body.order.line_items[0].base_price_money.currency).toBe("GBP");
+      expect(body.order.metadata.event_id).toBe("1");
+      expect(body.checkout_options.redirect_url).toBe("https://example.com/success");
+      expect(body.pre_populated_data.buyer_email).toBe("test@test.com");
+      expect(body.pre_populated_data.buyer_phone_number).toBe("+44123");
+    });
+
+    test("omits buyer_phone_number from request when not provided", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          payment_link: { order_id: "ord_2", url: "https://square.link/2" },
+        }),
+      });
+
+      const client = await getSquareClient();
+      await client!.checkout.paymentLinks.create({
+        idempotencyKey: "idem-2",
+        order: {
+          locationId: "L_test",
+          lineItems: [{ name: "T", quantity: "1", note: "T", basePriceMoney: { amount: BigInt(100), currency: "USD" } }],
+          metadata: {},
+        },
+        checkoutOptions: { redirectUrl: "https://example.com" },
+        prePopulatedData: { buyerEmail: "a@b.com" },
+      });
+
+      // deno-lint-ignore no-explicit-any
+      const body = JSON.parse((mockFetch.mock.calls[0] as any[])[1].body);
+      expect(body.pre_populated_data.buyer_phone_number).toBeUndefined();
+    });
+
+    test("returns undefined paymentLink when API returns no payment_link", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const client = await getSquareClient();
+      const result = await client!.checkout.paymentLinks.create({
+        idempotencyKey: "idem-3",
+        order: { locationId: "L", lineItems: [], metadata: {} },
+        checkoutOptions: { redirectUrl: "https://example.com" },
+        prePopulatedData: { buyerEmail: "a@b.com" },
+      });
+
+      expect(result.paymentLink).toBeUndefined();
+    });
+
+    test("orders.get fetches correct URL and maps response to camelCase", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          order: {
+            id: "ord_100",
+            metadata: { event_id: "5" },
+            tenders: [
+              { id: "t_1", payment_id: "pay_1" },
+              { id: "t_2", payment_id: null },
+            ],
+            state: "COMPLETED",
+            total_money: { amount: 5000, currency: "USD" },
+          },
+        }),
+      });
+
+      const client = await getSquareClient();
+      const result = await client!.orders.get({ orderId: "ord_100" });
+
+      // deno-lint-ignore no-explicit-any
+      expect((mockFetch.mock.calls[0] as any[])[0]).toBe(
+        "https://connect.squareupsandbox.com/v2/orders/ord_100",
+      );
+      expect(result.order!.id).toBe("ord_100");
+      expect(result.order!.metadata.event_id).toBe("5");
+      expect(result.order!.tenders[0].paymentId).toBe("pay_1");
+      expect(result.order!.tenders[1].paymentId).toBeNull();
+      expect(result.order!.state).toBe("COMPLETED");
+      expect(result.order!.totalMoney!.amount).toBe(BigInt(5000));
+      expect(result.order!.totalMoney!.currency).toBe("USD");
+    });
+
+    test("orders.get handles missing total_money", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          order: { id: "ord_no_total", metadata: {}, state: "OPEN" },
+        }),
+      });
+
+      const client = await getSquareClient();
+      const result = await client!.orders.get({ orderId: "ord_no_total" });
+      expect(result.order!.id).toBe("ord_no_total");
+      expect(result.order!.totalMoney).toBeUndefined();
+    });
+
+    test("orders.get returns null order when API returns none", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const client = await getSquareClient();
+      const result = await client!.orders.get({ orderId: "missing" });
+      expect(result.order).toBeNull();
+    });
+
+    test("payments.get maps response with BigInt amounts", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          payment: {
+            id: "pay_1",
+            status: "COMPLETED",
+            order_id: "ord_1",
+            amount_money: { amount: 3000, currency: "GBP" },
+            refunded_money: { amount: 1000, currency: "GBP" },
+          },
+        }),
+      });
+
+      const client = await getSquareClient();
+      const result = await client!.payments.get({ paymentId: "pay_1" });
+
+      // deno-lint-ignore no-explicit-any
+      expect((mockFetch.mock.calls[0] as any[])[0]).toBe(
+        "https://connect.squareupsandbox.com/v2/payments/pay_1",
+      );
+      expect(result.payment!.id).toBe("pay_1");
+      expect(result.payment!.orderId).toBe("ord_1");
+      expect(result.payment!.amountMoney!.amount).toBe(BigInt(3000));
+      expect(result.payment!.refundedMoney!.amount).toBe(BigInt(1000));
+    });
+
+    test("payments.get handles missing amount_money", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          payment: { id: "pay_no_amount", status: "PENDING", order_id: "ord_x" },
+        }),
+      });
+
+      const client = await getSquareClient();
+      const result = await client!.payments.get({ paymentId: "pay_no_amount" });
+      expect(result.payment!.id).toBe("pay_no_amount");
+      expect(result.payment!.amountMoney).toBeUndefined();
+    });
+
+    test("payments.get handles missing refunded_money", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          payment: {
+            id: "pay_2",
+            status: "COMPLETED",
+            order_id: "ord_2",
+            amount_money: { amount: 2000, currency: "USD" },
+          },
+        }),
+      });
+
+      const client = await getSquareClient();
+      const result = await client!.payments.get({ paymentId: "pay_2" });
+      expect(result.payment!.amountMoney!.amount).toBe(BigInt(2000));
+      expect(result.payment!.refundedMoney).toBeUndefined();
+    });
+
+    test("payments.get returns null payment when API returns none", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const client = await getSquareClient();
+      const result = await client!.payments.get({ paymentId: "missing" });
+      expect(result.payment).toBeNull();
+    });
+
+    test("refunds.refundPayment sends correct snake_case body", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ refund: { id: "ref_1" } }),
+      });
+
+      const client = await getSquareClient();
+      await client!.refunds.refundPayment({
+        idempotencyKey: "idem-ref",
+        paymentId: "pay_1",
+        amountMoney: { amount: BigInt(3000), currency: "GBP" },
+      });
+
+      // deno-lint-ignore no-explicit-any
+      const [url, opts] = mockFetch.mock.calls[0] as any[];
+      expect(url).toBe("https://connect.squareupsandbox.com/v2/refunds");
+      expect(opts.method).toBe("POST");
+      const body = JSON.parse(opts.body);
+      expect(body.idempotency_key).toBe("idem-ref");
+      expect(body.payment_id).toBe("pay_1");
+      expect(body.amount_money.amount).toBe(3000);
+      expect(body.amount_money.currency).toBe("GBP");
+    });
+
+    test("throws error with status code and body for HTTP errors", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        text: () => Promise.resolve('{"errors":[{"code":"BAD_REQUEST"}]}'),
+      });
+
+      const client = await getSquareClient();
+      try {
+        await client!.orders.get({ orderId: "bad" });
+        expect(true).toBe(false);
+      } catch (err) {
+        expect((err as Error).message).toContain("Status code: 400");
+        expect((err as Error).message).toContain("BAD_REQUEST");
+      }
+    });
+
+    test("uses production URL when sandbox is disabled", async () => {
+      resetSquareClient();
+      await updateSquareSandbox(false);
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+      const client = await getSquareClient();
+      await client!.orders.get({ orderId: "test" });
+
+      // deno-lint-ignore no-explicit-any
+      expect((mockFetch.mock.calls[0] as any[])[0]).toContain("connect.squareup.com");
+    });
+  });
+
   describe("squarePaymentProvider integration", () => {
     test("retrieveSession maps COMPLETED order to paid status", async () => {
       const { client, ordersGet, paymentsGet } = createMockClient();
