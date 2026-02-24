@@ -13,6 +13,9 @@ import { sendNtfyError } from "#lib/ntfy.ts";
 /** Request-scoped random ID for correlating log entries */
 const requestIdStorage = new AsyncLocalStorage<string>();
 
+/** Request-scoped collection of pending ntfy notification promises */
+const pendingNotifications = new AsyncLocalStorage<Promise<void>[]>();
+
 /** Generate a 4-char lowercase hex string */
 const generateRequestId = (): string => {
   const bytes = new Uint8Array(2);
@@ -28,7 +31,21 @@ const getLogPrefix = (): string => {
 
 /** Run a function with a request-scoped random ID for log correlation */
 export const runWithRequestId = <T>(fn: () => T): T =>
-  requestIdStorage.run(generateRequestId(), fn);
+  requestIdStorage.run(generateRequestId(), () =>
+    pendingNotifications.run([], fn),
+  );
+
+/**
+ * Await all ntfy notifications queued during this request.
+ * Call before returning the response so fetches complete within the
+ * edge runtime's request lifecycle.
+ */
+export const flushPendingNotifications = async (): Promise<void> => {
+  const pending = pendingNotifications.getStore();
+  if (!pending || pending.length === 0) return;
+  await Promise.allSettled(pending);
+  pending.length = 0;
+};
 
 /**
  * Error codes for classified error logging
@@ -173,7 +190,9 @@ export const logError = (context: ErrorContext): void => {
   // biome-ignore lint/suspicious/noConsole: Intentional error logging
   console.error(`${getLogPrefix()}${parts.join(" ")}`);
 
-  sendNtfyError(code);
+  const pending = pendingNotifications.getStore();
+  const p = sendNtfyError(code);
+  if (pending) pending.push(p);
 };
 
 /**

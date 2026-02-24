@@ -8,7 +8,7 @@ import { isSetupComplete } from "#lib/config.ts";
 import { loadCurrencyCode } from "#lib/currency.ts";
 import { loadTheme } from "#lib/theme.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
-import { createRequestTimer, ErrorCode, logError, logRequest, runWithRequestId } from "#lib/logger.ts";
+import { createRequestTimer, ErrorCode, flushPendingNotifications, logError, logRequest, runWithRequestId } from "#lib/logger.ts";
 import {
   applySecurityHeaders,
   contentTypeRejectionResponse,
@@ -213,6 +213,7 @@ export const handleRequest = (
   const { url, path, method } = parseRequest(request);
   const getElapsed = createRequestTimer();
 
+  try {
   // Strip tracking parameters (fbclid, utm_*, etc.) to avoid CDN caching issues
   if (method === "GET") {
     const cleanUrl = getCleanUrl(url);
@@ -244,6 +245,9 @@ export const handleRequest = (
   } catch (error) {
     logError({ code: ErrorCode.CDN_REQUEST, detail: String(error) });
     return logAndReturn(temporaryErrorResponse(), method, path, getElapsed);
+  }
+  } finally {
+    await flushPendingNotifications();
   }
   }));
 };
