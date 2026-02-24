@@ -217,6 +217,24 @@ describe("page content cache", () => {
     });
   });
 
+  describe("cache stats after invalidation", () => {
+    test("settings cache reports 0 entries after invalidation", async () => {
+      const { getAllCacheStats } = await import("#lib/cache-registry.ts");
+
+      // Load settings to populate cache
+      const { loadAllSettings } = await import("#lib/db/settings.ts");
+      await loadAllSettings();
+
+      const before = getAllCacheStats().find((s) => s.name === "settings");
+      expect(before!.entries).toBeGreaterThan(0);
+
+      invalidateSettingsCache();
+
+      const after = getAllCacheStats().find((s) => s.name === "settings");
+      expect(after!.entries).toBe(0);
+    });
+  });
+
   describe("null value caching", () => {
     test("serves cached null when value is added to DB within TTL", async () => {
       // First read populates page cache with null

@@ -2,6 +2,7 @@
  * Sessions table operations
  */
 
+import { registerCache } from "#lib/cache-registry.ts";
 import { hashSessionToken } from "#lib/crypto.ts";
 import { executeByField, getDb, queryAll, queryOne } from "#lib/db/client.ts";
 
@@ -15,6 +16,8 @@ import type { Session } from "#lib/types.ts";
 const SESSION_CACHE_TTL_MS = 10_000;
 type CacheEntry = { session: Session | null; cachedAt: number };
 const sessionCache = new Map<string, CacheEntry>();
+
+registerCache(() => ({ name: "sessions", entries: sessionCache.size }));
 
 /**
  * Get cached session if still valid

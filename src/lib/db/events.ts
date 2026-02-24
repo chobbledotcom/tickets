@@ -4,6 +4,7 @@
 
 import type { ResultSet } from "@libsql/client";
 import { filter as fpFilter, collectionCache } from "#fp";
+import { registerCache } from "#lib/cache-registry.ts";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { executeByField, getDb, inPlaceholders, queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
 import { encryptedNameSchema, idAndEncryptedSlugSchema } from "#lib/db/common-schema.ts";
@@ -234,6 +235,8 @@ const eventsCache = collectionCache(
   EVENTS_CACHE_TTL_MS,
   nowMs,
 );
+
+registerCache(() => ({ name: "events", entries: eventsCache.size() }));
 
 /** Invalidate the events cache (for testing or after writes). */
 export const invalidateEventsCache = (): void => {

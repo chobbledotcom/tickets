@@ -1,7 +1,7 @@
 /**
  * Database client setup and core utilities
  *
- * When query logging is enabled (owner debug footer), the core query
+ * When query logging is enabled (admin debug footer), the core query
  * functions (queryOne, queryAll, queryBatch, executeByField) time each
  * call and record the SQL via the query-log module.
  */

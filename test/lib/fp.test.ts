@@ -585,6 +585,21 @@ describe("fp", () => {
       expect(cache.get("a")).toBe(undefined); // expired (set at 0, now 101)
       expect(cache.get("b")).toBe(2); // still valid (set at 60, now 101)
     });
+
+    test("size returns number of entries", () => {
+      const cache = ttlCache<string, number>(1000);
+      expect(cache.size()).toBe(0);
+      cache.set("a", 1);
+      cache.set("b", 2);
+      expect(cache.size()).toBe(2);
+    });
+
+    test("size decreases after clear", () => {
+      const cache = ttlCache<string, number>(1000);
+      cache.set("a", 1);
+      cache.clear();
+      expect(cache.size()).toBe(0);
+    });
   });
 
   describe("collectionCache", () => {
@@ -661,6 +676,33 @@ describe("fp", () => {
       const result = await cache.getAll();
       expect(result).toEqual([2]);
       expect(calls.length).toBe(2);
+    });
+
+    test("size returns 0 before first load", () => {
+      const cache = collectionCache(
+        () => Promise.resolve([1, 2, 3]),
+        100,
+      );
+      expect(cache.size()).toBe(0);
+    });
+
+    test("size returns item count after load", async () => {
+      const cache = collectionCache(
+        () => Promise.resolve([1, 2, 3]),
+        100,
+      );
+      await cache.getAll();
+      expect(cache.size()).toBe(3);
+    });
+
+    test("size returns 0 after invalidate", async () => {
+      const cache = collectionCache(
+        () => Promise.resolve([1, 2, 3]),
+        100,
+      );
+      await cache.getAll();
+      cache.invalidate();
+      expect(cache.size()).toBe(0);
     });
   });
 });

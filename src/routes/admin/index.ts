@@ -1,10 +1,10 @@
 /**
  * Admin routes - combined from individual route modules
  *
- * GET requests are wrapped to enable SQL query logging for owner users.
- * The owner debug footer is rendered inline by the Layout template when
- * query logging is active, avoiding response body re-reading which
- * intermittently fails on Bunny Edge.
+ * GET requests are wrapped to enable SQL query logging for admin users
+ * (owners and managers). The debug footer is rendered inline by the
+ * Layout template when query logging is active, avoiding response body
+ * re-reading which intermittently fails on Bunny Edge.
  */
 
 import { enableQueryLog } from "#lib/db/query-log.ts";
@@ -48,17 +48,17 @@ type RouterFn = ReturnType<typeof createRouter>;
 
 /**
  * Route admin requests.
- * For GET requests by owners, enables query logging so the Layout template
- * renders the debug footer inline (no response body re-reading needed).
+ * For GET requests by authenticated admins (owner or manager), enables
+ * query logging so the Layout template renders the debug footer inline.
  */
 export const routeAdmin: RouterFn = async (request, path, method, server) => {
   if (method !== "GET") {
     return innerRouter(request, path, method, server);
   }
 
-  // Check owner status before tracking so the auth queries aren't logged
+  // Check admin status before tracking so the auth queries aren't logged
   const session = await getAuthenticatedSession(request);
-  if (session?.adminLevel === "owner") {
+  if (session) {
     enableQueryLog();
     await loadAllSettings();
   }

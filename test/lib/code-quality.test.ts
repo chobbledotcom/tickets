@@ -268,6 +268,8 @@ describe("code quality", () => {
       "lib/csrf.ts:isSignedCsrfToken",
       // Response cookie helper used by auth tests (production sets cookies directly)
       "routes/utils.ts:withCookie",
+      // Reset cache registry between tests
+      "lib/cache-registry.ts:resetCacheRegistry",
     ];
 
     /**

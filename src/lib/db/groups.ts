@@ -3,6 +3,7 @@
  */
 
 import { collectionCache, mapAsync } from "#fp";
+import { registerCache } from "#lib/cache-registry.ts";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
 import { encryptedNameSchema, idAndEncryptedSlugSchema } from "#lib/db/common-schema.ts";
@@ -44,6 +45,8 @@ const groupsCache = collectionCache(
   () => queryGroups("SELECT * FROM groups ORDER BY id ASC"),
   GROUPS_CACHE_TTL_MS,
 );
+
+registerCache(() => ({ name: "groups", entries: groupsCache.size() }));
 
 /** Invalidate the groups cache (for testing or after writes). */
 export const invalidateGroupsCache = (): void => {
