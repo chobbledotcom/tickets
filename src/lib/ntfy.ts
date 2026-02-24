@@ -9,23 +9,26 @@ import { getEnv } from "#lib/env.ts";
 
 /**
  * Send an error notification to the configured ntfy URL
- * Fire and forget - delivery failures are logged but don't propagate
+ * Returns a promise so callers can await delivery if needed.
+ * Delivery failures are logged to console but never throw.
  */
-export const sendNtfyError = (code: string): void => {
+export const sendNtfyError = async (code: string): Promise<void> => {
   const ntfyUrl = getEnv("NTFY_URL");
   if (!ntfyUrl) return;
 
   const domain = getAllowedDomain();
 
-  fetch(ntfyUrl, {
-    method: "POST",
-    headers: {
-      "Title": `${domain} error`,
-      "Tags": "warning",
-    },
-    body: code,
-  }).catch(() => {
+  try {
+    await fetch(ntfyUrl, {
+      method: "POST",
+      headers: {
+        "Title": `${domain} error`,
+        "Tags": "warning",
+      },
+      body: code,
+    });
+  } catch {
     // biome-ignore lint/suspicious/noConsole: Can't use logError here (would cause infinite loop)
     console.error("[Error] E_NTFY_SEND");
-  });
+  }
 };
