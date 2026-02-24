@@ -9,12 +9,10 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { sendNtfyError } from "#lib/ntfy.ts";
+import { addPendingWork, runWithPendingWork } from "#lib/pending-work.ts";
 
 /** Request-scoped random ID for correlating log entries */
 const requestIdStorage = new AsyncLocalStorage<string>();
-
-/** Request-scoped collection of background work that must complete before response */
-const pendingWork = new AsyncLocalStorage<Promise<void>[]>();
 
 /** Generate a 4-char lowercase hex string */
 const generateRequestId = (): string => {
@@ -32,30 +30,8 @@ const getLogPrefix = (): string => {
 /** Run a function with a request-scoped random ID for log correlation */
 export const runWithRequestId = <T>(fn: () => T): T =>
   requestIdStorage.run(generateRequestId(), () =>
-    pendingWork.run([], fn),
+    runWithPendingWork(fn),
   );
-
-/**
- * Queue a promise that must complete before the response is sent.
- * Used for background work (webhooks, ntfy) that needs to finish within
- * the edge runtime's request lifecycle.
- */
-export const addPendingWork = (p: Promise<void>): void => {
-  const pending = pendingWork.getStore();
-  if (pending) pending.push(p);
-};
-
-/**
- * Await all background work queued during this request.
- * Called in handleRequest's finally block so fetches complete
- * before the edge runtime tears down the request context.
- */
-export const flushPendingWork = async (): Promise<void> => {
-  const pending = pendingWork.getStore();
-  if (!pending || pending.length === 0) return;
-  await Promise.allSettled(pending);
-  pending.length = 0;
-};
 
 /**
  * Error codes for classified error logging
