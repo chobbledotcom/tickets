@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "#test-compat";
 import { CSS_PATH, EMBED_JS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, IFRAME_RESIZER_PARENT_JS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
-import { adminDuplicateEventPage, adminEventEditPage, adminEventNewPage, adminEventPage, calculateTotalRevenue, countCheckedIn, formatAddressInline, isIncompletePayment, nearCapacity } from "#templates/admin/events.tsx";
+import { adminDuplicateEventPage, adminEventEditPage, adminEventNewPage, adminEventPage, calculateTotalRevenue, countCheckedIn, countCheckedInRows, formatAddressInline, isIncompletePayment, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
@@ -222,6 +222,44 @@ describe("html", () => {
       expect(html).toContain("Checked In");
       expect(html).toContain("1 / 3");
       expect(html).toContain("2 remain");
+    });
+
+    test("shows dual checked-in rows when attendees have multi-quantity", () => {
+      const attendees = [
+        testAttendee({ id: 1, checked_in: true, quantity: 2 }),
+        testAttendee({ id: 2, checked_in: false, quantity: 3 }),
+      ];
+      const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      // Attendees Checked In: 1 row / 2 rows, 1 remain
+      expect(html).toContain("Attendees Checked In");
+      expect(html).toContain("1 / 2");
+      expect(html).toContain("1 remain");
+      // Tickets Checked In: 2 qty / 5 total qty, 3 remain
+      expect(html).toContain("Tickets Checked In");
+      expect(html).toContain("2 / 5");
+      expect(html).toContain("3 remain");
+    });
+
+    test("dual checked-in rows show daily suffix when daily event with dateFilter", () => {
+      const dailyEvent = testEventWithCount({ event_type: "daily", attendee_count: 5 });
+      const attendees = [
+        testAttendee({ id: 1, checked_in: true, quantity: 2 }),
+        testAttendee({ id: 2, checked_in: false, quantity: 3 }),
+      ];
+      const html = adminEventPage({ event: dailyEvent, attendees, allowedDomain: "localhost", session: TEST_SESSION, dateFilter: "2026-03-15" });
+      expect(html).toContain("Attendees Checked In (Sunday 15 March 2026)");
+      expect(html).toContain("Tickets Checked In (Sunday 15 March 2026)");
+    });
+
+    test("dual checked-in rows show total suffix when daily event without dateFilter", () => {
+      const dailyEvent = testEventWithCount({ event_type: "daily", attendee_count: 5 });
+      const attendees = [
+        testAttendee({ id: 1, checked_in: true, quantity: 2 }),
+        testAttendee({ id: 2, checked_in: false, quantity: 3 }),
+      ];
+      const html = adminEventPage({ event: dailyEvent, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).toContain("Attendees Checked In (total)");
+      expect(html).toContain("Tickets Checked In (total)");
     });
 
     test("shows thank you URL in copyable input", () => {
@@ -1262,7 +1300,7 @@ describe("html", () => {
       expect(countCheckedIn([])).toBe(0);
     });
 
-    test("counts attendees with checked_in true", () => {
+    test("sums quantity for attendees with checked_in true", () => {
       const attendees = [
         testAttendee({ id: 1, checked_in: true }),
         testAttendee({ id: 2, checked_in: false }),
@@ -1277,6 +1315,30 @@ describe("html", () => {
         testAttendee({ id: 2, checked_in: false }),
       ];
       expect(countCheckedIn(attendees)).toBe(0);
+    });
+
+    test("sums quantity for multi-quantity checked-in registrations", () => {
+      const attendees = [
+        testAttendee({ id: 1, checked_in: true, quantity: 3 }),
+        testAttendee({ id: 2, checked_in: false, quantity: 2 }),
+        testAttendee({ id: 3, checked_in: true, quantity: 1 }),
+      ];
+      expect(countCheckedIn(attendees)).toBe(4);
+    });
+  });
+
+  describe("countCheckedInRows", () => {
+    test("returns 0 for empty attendees", () => {
+      expect(countCheckedInRows([])).toBe(0);
+    });
+
+    test("counts rows regardless of quantity", () => {
+      const attendees = [
+        testAttendee({ id: 1, checked_in: true, quantity: 3 }),
+        testAttendee({ id: 2, checked_in: false, quantity: 2 }),
+        testAttendee({ id: 3, checked_in: true, quantity: 1 }),
+      ];
+      expect(countCheckedInRows(attendees)).toBe(2);
     });
   });
 
