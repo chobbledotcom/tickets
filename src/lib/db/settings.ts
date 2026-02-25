@@ -62,6 +62,8 @@ export const CONFIG_KEYS = {
   CONTACT_PAGE_TEXT: "contact_page_text",
   // Phone prefix (plaintext - country calling code, e.g. "44")
   PHONE_PREFIX: "phone_prefix",
+  // Header image (encrypted - Bunny CDN filename)
+  HEADER_IMAGE_URL: "header_image_url",
 } as const;
 
 /**
@@ -728,6 +730,15 @@ export const updatePhonePrefix = async (prefix: string): Promise<void> => {
   await setSetting(CONFIG_KEYS.PHONE_PREFIX, prefix);
 };
 
+/** Get header image URL from database (decrypted). Returns null if not set. */
+export const getHeaderImageUrlFromDb = (): Promise<string | null> =>
+  getEncryptedSetting(CONFIG_KEYS.HEADER_IMAGE_URL);
+
+/** Update header image URL (encrypted at rest). Pass empty string to clear. */
+export const updateHeaderImageUrl = async (url: string): Promise<void> => {
+  await updateEncryptedSetting(CONFIG_KEYS.HEADER_IMAGE_URL, url);
+};
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
@@ -783,4 +794,6 @@ export const settingsApi = {
   updateContactPageText,
   getPhonePrefixFromDb,
   updatePhonePrefix,
+  getHeaderImageUrlFromDb,
+  updateHeaderImageUrl,
 };

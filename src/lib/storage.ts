@@ -8,6 +8,7 @@
 import * as BunnyStorageSDK from "@bunny.net/storage-sdk";
 import { decryptBytes, encryptBytes } from "#lib/crypto.ts";
 import { getEnv, requireEnv } from "#lib/env.ts";
+import { ErrorCode, logError } from "#lib/logger.ts";
 
 /** Maximum image file size in bytes (256KB) */
 const MAX_IMAGE_SIZE = 256 * 1024;
@@ -94,6 +95,26 @@ export const validateImage = (
   }
 
   return { valid: true, detectedType };
+};
+
+/** User-facing messages for image validation errors */
+export const IMAGE_ERROR_MESSAGES: Record<ImageValidationError, string> = {
+  too_large: "Image exceeds the 256KB size limit",
+  invalid_type: "Image must be a JPEG, PNG, GIF, or WebP file",
+  invalid_content: "File does not appear to be a valid image",
+};
+
+/** Try to delete an image from CDN storage, logging errors on failure */
+export const tryDeleteImage = async (
+  filename: string,
+  detail: string,
+  eventId?: number,
+): Promise<void> => {
+  try {
+    await deleteImage(filename);
+  } catch {
+    logError({ code: ErrorCode.STORAGE_DELETE, detail, eventId });
+  }
 };
 
 /** Generate a random filename with the correct extension */

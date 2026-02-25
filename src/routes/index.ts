@@ -6,6 +6,7 @@
 import { once } from "#fp";
 import { isSetupComplete } from "#lib/config.ts";
 import { loadCurrencyCode } from "#lib/currency.ts";
+import { loadHeaderImage } from "#lib/header-image.ts";
 import { loadTheme } from "#lib/theme.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
 import { createRequestTimer, ErrorCode, logError, logRequest, runWithRequestId } from "#lib/logger.ts";
@@ -189,6 +190,7 @@ const handleRequestInternal = async (
 
   await loadCurrencyCode();
   await loadTheme();
+  await loadHeaderImage();
   return (await routeMainApp(request, path, method, server))!;
 };
 

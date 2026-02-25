@@ -11,7 +11,6 @@ import {
   getEventWithActivityLog,
   logActivity,
 } from "#lib/db/activityLog.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
 import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
 import {
   computeSlugIndex,
@@ -52,23 +51,18 @@ import {
   type AttendeeFilter,
 } from "#templates/admin/events.tsx";
 import {
-  deleteImage,
-  type ImageValidationError,
+  IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
+  tryDeleteImage as tryDeleteImageBase,
   uploadImage,
   validateImage,
 } from "#lib/storage.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields, groupIdField, slugField } from "#templates/fields.ts";
 
-/** Try to delete an image from CDN storage, logging errors on failure */
-const tryDeleteImage = async (filename: string, eventId: number, detail: string): Promise<void> => {
-  try {
-    await deleteImage(filename);
-  } catch {
-    logError({ code: ErrorCode.STORAGE_DELETE, eventId, detail });
-  }
-};
+/** Try to delete an event image from CDN storage, logging errors with event ID */
+const tryDeleteImage = (filename: string, eventId: number, detail: string): Promise<void> =>
+  tryDeleteImageBase(filename, detail, eventId);
 
 /** Generate a unique event slug, retrying on collision */
 const generateUniqueEventSlug = (excludeEventId?: number) =>
@@ -135,13 +129,6 @@ const eventsResource = defineResource({
   nameField: "name",
   validate: validateGroupExists,
 });
-
-/** User-facing messages for image validation errors */
-const IMAGE_ERROR_MESSAGES: Record<ImageValidationError, string> = {
-  too_large: "Image exceeds the 256KB size limit",
-  invalid_type: "Image must be a JPEG, PNG, GIF, or WebP file",
-  invalid_content: "File does not appear to be a valid image",
-};
 
 /** Process image from multipart form and attach to event. Returns error message if validation fails. */
 const processFormImage = async (

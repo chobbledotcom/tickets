@@ -4,6 +4,8 @@
 
 import { type Child, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { CSS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
+import { getHeaderImageUrl } from "#lib/header-image.ts";
+import { getImageProxyUrl } from "#lib/storage.ts";
 import { getTheme } from "#lib/theme.ts";
 import { renderDebugFooter } from "#templates/admin/footer.tsx";
 
@@ -27,6 +29,7 @@ interface LayoutProps {
  */
 export const Layout = ({ title, bodyClass, headExtra, children, theme }: LayoutProps): SafeHtml => {
   const resolvedTheme = theme ?? getTheme();
+  const headerImage = getHeaderImageUrl();
 
   return new SafeHtml(
     "<!DOCTYPE html>" +
@@ -41,6 +44,7 @@ export const Layout = ({ title, bodyClass, headExtra, children, theme }: LayoutP
         </head>
         <body class={bodyClass || undefined}>
           <main>
+            {headerImage && <img src={getImageProxyUrl(headerImage)} alt="" class="header-image" />}
             {children}
           </main>
           {bodyClass?.includes("iframe") && <script src={IFRAME_RESIZER_CHILD_JS_PATH}></script>}
