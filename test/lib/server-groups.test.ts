@@ -456,7 +456,7 @@ describe("server (admin groups)", () => {
       const html = await response.text();
       expect(html).toContain("Attendees Checked In");
       expect(html).toContain("Tickets Checked In");
-      // 0 / 2 attendees checked in, 0 / 4 tickets checked in
+      // 0 / 2 tickets checked in, 0 / 4 attendees checked in
       expect(html).toContain("0 / 2");
       expect(html).toContain("0 / 4");
     });

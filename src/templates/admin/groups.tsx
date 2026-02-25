@@ -231,11 +231,11 @@ export const adminGroupDetailPage = (
               {hasMultiQuantity ? (
                 <>
                   <tr>
-                    <th>Attendees Checked In</th>
+                    <th>Tickets Checked In</th>
                     <td>{attendeesCheckedIn} / {attendees.length} &mdash; {attendeesCheckedInRemaining} remain</td>
                   </tr>
                   <tr>
-                    <th>Tickets Checked In</th>
+                    <th>Attendees Checked In</th>
                     <td>{ticketsCheckedIn} / {attendeeQuantitySum} &mdash; {ticketsCheckedInRemaining} remain</td>
                   </tr>
                 </>

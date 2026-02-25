@@ -230,12 +230,12 @@ describe("html", () => {
         testAttendee({ id: 2, checked_in: false, quantity: 3 }),
       ];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
-      // Attendees Checked In: 1 row / 2 rows, 1 remain
-      expect(html).toContain("Attendees Checked In");
+      // Tickets Checked In: 1 row / 2 rows, 1 remain
+      expect(html).toContain("Tickets Checked In");
       expect(html).toContain("1 / 2");
       expect(html).toContain("1 remain");
-      // Tickets Checked In: 2 qty / 5 total qty, 3 remain
-      expect(html).toContain("Tickets Checked In");
+      // Attendees Checked In: 2 qty / 5 total qty, 3 remain
+      expect(html).toContain("Attendees Checked In");
       expect(html).toContain("2 / 5");
       expect(html).toContain("3 remain");
     });
