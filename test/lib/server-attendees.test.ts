@@ -26,6 +26,7 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  setupEventAndLogin,
   withMocks,
 } from "#test-utils";
 import { paymentsApi } from "#lib/payments.ts";
@@ -303,8 +304,7 @@ describe("server (admin attendees)", () => {
 
   describe("routes/admin/attendees.ts (parseAttendeeIds)", () => {
     test("returns 404 for non-existent attendee on delete page", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         name: "Att Del 404",
         maxAttendees: 50,
       });
@@ -326,8 +326,7 @@ describe("server (admin attendees)", () => {
 
   describe("routes/admin/attendees.ts (parseAttendeeIds)", () => {
     test("exercises parseAttendeeIds via POST route with valid params", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Parse Ids Test",
         maxAttendees: 50,
       });
@@ -364,8 +363,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("deletes incomplete attendee without name confirmation", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100, unitPrice: 1000 });
       const attendee = await createPaidTestAttendee(event.id, "Jane Stuck", "jane@example.com", "", 1000);
 
       const response = await handleRequest(
@@ -384,8 +382,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("refuses to delete complete attendee via delete-incomplete", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100, unitPrice: 1000 });
       const attendee = await createPaidTestAttendee(event.id, "John Paid", "john@example.com", "pi_test_123", 1000);
 
       const response = await handleRequest(
@@ -403,8 +400,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("refuses to delete admin-added attendee on paid event via delete-incomplete", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100, unitPrice: 1000 });
       // Admin-added attendee: no payment_id and price_paid=0
       const attendee = await createTestAttendee(event.id, event.slug, "Admin Added", "admin@example.com");
 
@@ -423,8 +419,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100, unitPrice: 1000 });
 
       const response = await handleRequest(
         mockFormRequest(
@@ -642,8 +637,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const { cookie } = await loginAsAdmin();
+      const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
       const response = await handleRequest(
         mockFormRequest(
@@ -679,11 +673,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("adds attendee to email event", async () => {
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         fields: "email",
       });
-      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -707,11 +700,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("adds attendee to phone event", async () => {
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         fields: "phone",
       });
-      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -733,11 +725,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("adds attendee to both event", async () => {
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         fields: "email,phone",
       });
-      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -761,8 +752,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("redirects with error on validation failure", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100 });
 
       const response = await handleRequest(
         mockFormRequest(
@@ -812,8 +802,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("redirects with error on encryption failure", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100 });
 
       await withMocks(
         () =>
@@ -847,7 +836,7 @@ describe("server (admin attendees)", () => {
       const { todayInTz } = await import("#lib/timezone.ts");
       const futureDate = addDays(todayInTz("UTC"), 7);
 
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         eventType: "daily",
         bookableDays: [
@@ -860,7 +849,6 @@ describe("server (admin attendees)", () => {
           "Sunday",
         ],
       });
-      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -884,8 +872,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("event page shows add attendee form", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const { cookie } = await loginAsAdmin();
+      const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}`,
@@ -902,8 +889,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("event page shows success message when ?added param present", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const { cookie } = await loginAsAdmin();
+      const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}?added=Jane%20Doe`,
@@ -913,8 +899,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("event page shows error message when ?add_error param present", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const { cookie } = await loginAsAdmin();
+      const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}?add_error=Not%20enough%20spots`,
@@ -1333,8 +1318,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("event page shows edit success message", async () => {
-      const event = await createTestEvent({ maxAttendees: 100 });
-      const { cookie } = await loginAsAdmin();
+      const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}?edited=Jane%20Doe`,

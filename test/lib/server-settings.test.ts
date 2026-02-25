@@ -19,7 +19,6 @@ import { invalidateUsersCache } from "#lib/db/users.ts";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
-  createTestEvent,
   expectAdminRedirect,
   expectHtmlResponse,
   expectRedirect,
@@ -29,6 +28,7 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  setupEventAndLogin,
   TEST_ADMIN_PASSWORD,
   withMocks,
 } from "#test-utils";
@@ -776,13 +776,11 @@ describe("server (admin settings)", () => {
 
     test("resets database and redirects to setup on correct phrase", async () => {
       // Create some data first
-      await createTestEvent({
+      const { cookie, csrfToken } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
       });
-
-      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
