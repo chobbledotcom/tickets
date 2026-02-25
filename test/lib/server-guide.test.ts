@@ -4,6 +4,7 @@ import {
   adminGet,
   createTestDbWithSetup,
   expectAdminRedirect,
+  expectHtmlResponse,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
@@ -27,9 +28,7 @@ describe("server (admin guide)", () => {
 
     test("renders guide page when authenticated", async () => {
       const { response } = await adminGet("/admin/guide");
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Guide");
+      await expectHtmlResponse(response, 200, "Guide");
     });
 
     test("contains FAQ sections", async () => {

@@ -7,6 +7,7 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
+  expectHtmlResponse,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -26,25 +27,23 @@ describe("server (embed hosts)", () => {
   describe("GET /admin/settings (embed hosts section)", () => {
     test("shows embed hosts section on settings page", async () => {
       const { response } = await adminGet("/admin/settings");
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Only allow embedding on these hosts");
-      expect(html).toContain("embed_hosts");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Only allow embedding on these hosts",
+        "embed_hosts",
+      );
     });
 
     test("shows current embed hosts value when configured", async () => {
       await updateEmbedHosts("example.com, *.mysite.org");
       const { response } = await adminGet("/admin/settings");
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("example.com, *.mysite.org");
+      await expectHtmlResponse(response, 200, "example.com, *.mysite.org");
     });
 
     test("shows empty field when no embed hosts configured", async () => {
       const { response } = await adminGet("/admin/settings");
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('value=""');
+      await expectHtmlResponse(response, 200, 'value=""');
     });
   });
 
@@ -64,9 +63,7 @@ describe("server (embed hosts)", () => {
         embed_hosts: "example.com",
         csrf_token: "invalid-csrf-token",
       });
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("saves valid embed hosts", async () => {
@@ -76,7 +73,9 @@ describe("server (embed hosts)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Allowed embed hosts updated");
+      expect(decodeURIComponent(location)).toContain(
+        "Allowed embed hosts updated",
+      );
     });
 
     test("normalizes hosts to lowercase", async () => {
@@ -85,16 +84,21 @@ describe("server (embed hosts)", () => {
       });
 
       // Verify by checking the settings page
-      const settingsResponse = await awaitTestRequest("/admin/settings", { cookie });
+      const settingsResponse = await awaitTestRequest("/admin/settings", {
+        cookie,
+      });
       const html = await settingsResponse.text();
       expect(html).toContain("example.com, *.mysite.org");
     });
 
     test("clears embed hosts when empty", async () => {
       // First set some hosts
-      const { cookie, csrfToken } = await adminFormPost("/admin/settings/embed-hosts", {
-        embed_hosts: "example.com",
-      });
+      const { cookie, csrfToken } = await adminFormPost(
+        "/admin/settings/embed-hosts",
+        {
+          embed_hosts: "example.com",
+        },
+      );
 
       // Now clear them
       const response = await handleRequest(
@@ -107,7 +111,9 @@ describe("server (embed hosts)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Embed host restrictions removed");
+      expect(decodeURIComponent(location)).toContain(
+        "Embed host restrictions removed",
+      );
     });
 
     test("rejects invalid host pattern", async () => {
@@ -115,9 +121,7 @@ describe("server (embed hosts)", () => {
         embed_hosts: "example.com, *",
       });
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Bare wildcard");
+      await expectHtmlResponse(response, 400, "Bare wildcard");
     });
 
     test("rejects host with protocol", async () => {
@@ -125,17 +129,20 @@ describe("server (embed hosts)", () => {
         embed_hosts: "https://example.com",
       });
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Invalid host pattern");
+      await expectHtmlResponse(response, 400, "Invalid host pattern");
     });
 
     test("handles missing embed_hosts field gracefully", async () => {
-      const { response } = await adminFormPost("/admin/settings/embed-hosts", {});
+      const { response } = await adminFormPost(
+        "/admin/settings/embed-hosts",
+        {},
+      );
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Embed host restrictions removed");
+      expect(decodeURIComponent(location)).toContain(
+        "Embed host restrictions removed",
+      );
     });
   });
 

@@ -10,10 +10,11 @@ import {
   adminGet,
   awaitTestRequest,
   createTestAttendeeWithToken,
+  createTestDbWithSetup,
   createTestEvent,
+  expectHtmlResponse,
   loginAsAdmin,
   resetDb,
-  createTestDbWithSetup,
   resetTestSlugCounter,
 } from "#test-utils";
 import { isJsonApiPath } from "#routes/middleware.ts";
@@ -37,8 +38,16 @@ const mockScanRequest = (
   });
 
 /** Create event + attendee and return session + scan-ready token */
-const setupScanTest = async (name: string, email: string, eventOverrides = {}) => {
-  const { event, token } = await createTestAttendeeWithToken(name, email, eventOverrides);
+const setupScanTest = async (
+  name: string,
+  email: string,
+  eventOverrides = {},
+) => {
+  const { event, token } = await createTestAttendeeWithToken(
+    name,
+    email,
+    eventOverrides,
+  );
   const session = await loginAsAdmin();
   return { event, token, session };
 };
@@ -83,7 +92,12 @@ describe("QR Scanner", () => {
     test("accepts JSON content type for scan endpoint", async () => {
       const { event, session } = await setupScanTest("CT", "ct@test.com");
       const response = await handleRequest(
-        mockScanRequest(event.id, { token: "nonexistent" }, session.cookie, session.csrfToken),
+        mockScanRequest(
+          event.id,
+          { token: "nonexistent" },
+          session.cookie,
+          session.csrfToken,
+        ),
       );
       // Should not be 400 (Content-Type rejection) - it should process the request
       expect(response.status).not.toBe(400);
@@ -112,19 +126,23 @@ describe("QR Scanner", () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const { response } = await adminGet(`/admin/event/${event.id}/scanner`);
 
-      expect(response.status).toBe(200);
-      const body = await response.text();
-      expect(body).toContain("Scanner");
-      expect(body).toContain("scanner-container");
-      expect(body).toContain("scanner-video");
-      expect(body).toContain("scanner-start");
-      expect(body).toContain(`data-event-id="${event.id}"`);
-      expect(body).toContain("scanner.js");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Scanner",
+        "scanner-container",
+        "scanner-video",
+        "scanner-start",
+        `data-event-id="${event.id}"`,
+        "scanner.js",
+      );
     });
 
     test("redirects to /admin when not authenticated", async () => {
       const event = await createTestEvent({ maxAttendees: 10 });
-      const response = await awaitTestRequest(`/admin/event/${event.id}/scanner`);
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/scanner`,
+      );
 
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin");
@@ -138,7 +156,10 @@ describe("QR Scanner", () => {
 
   describe("POST /admin/event/:id/scan", () => {
     test("checks in attendee from same event", async () => {
-      const { event, token, session } = await setupScanTest("Alice", "alice@test.com");
+      const { event, token, session } = await setupScanTest(
+        "Alice",
+        "alice@test.com",
+      );
       const response = await handleRequest(
         mockScanRequest(event.id, { token }, session.cookie, session.csrfToken),
       );
@@ -151,7 +172,10 @@ describe("QR Scanner", () => {
     });
 
     test("returns already_checked_in for checked-in attendee", async () => {
-      const { event, token, session } = await setupScanTest("Bob", "bob@test.com");
+      const { event, token, session } = await setupScanTest(
+        "Bob",
+        "bob@test.com",
+      );
 
       // First scan - check in
       await handleRequest(
@@ -171,8 +195,13 @@ describe("QR Scanner", () => {
     });
 
     test("returns refunded status for refunded attendee", async () => {
-      const { getAttendeesByTokens, markRefunded } = await import("#lib/db/attendees.ts");
-      const { event, token, session } = await setupScanTest("Refund", "refund@test.com");
+      const { getAttendeesByTokens, markRefunded } = await import(
+        "#lib/db/attendees.ts"
+      );
+      const { event, token, session } = await setupScanTest(
+        "Refund",
+        "refund@test.com",
+      );
 
       const attendees = await getAttendeesByTokens([token]);
       await markRefunded(attendees[0]!.id);
@@ -188,13 +217,21 @@ describe("QR Scanner", () => {
     });
 
     test("returns wrong_event for attendee from different event", async () => {
-      const { event: eventA, token } = await createTestAttendeeWithToken("Carol", "carol@test.com");
+      const { event: eventA, token } = await createTestAttendeeWithToken(
+        "Carol",
+        "carol@test.com",
+      );
       const eventB = await createTestEvent({ maxAttendees: 10 });
       const session = await loginAsAdmin();
 
       // Scan token from event A while on event B's scanner
       const response = await handleRequest(
-        mockScanRequest(eventB.id, { token }, session.cookie, session.csrfToken),
+        mockScanRequest(
+          eventB.id,
+          { token },
+          session.cookie,
+          session.csrfToken,
+        ),
       );
 
       expect(response.status).toBe(200);
@@ -205,13 +242,21 @@ describe("QR Scanner", () => {
     });
 
     test("checks in cross-event attendee with force flag", async () => {
-      const { token } = await createTestAttendeeWithToken("Dave", "dave@test.com");
+      const { token } = await createTestAttendeeWithToken(
+        "Dave",
+        "dave@test.com",
+      );
       const eventB = await createTestEvent({ maxAttendees: 10 });
       const session = await loginAsAdmin();
 
       // Force check-in from event B's scanner
       const response = await handleRequest(
-        mockScanRequest(eventB.id, { token, force: true }, session.cookie, session.csrfToken),
+        mockScanRequest(
+          eventB.id,
+          { token, force: true },
+          session.cookie,
+          session.csrfToken,
+        ),
       );
 
       expect(response.status).toBe(200);
@@ -223,7 +268,10 @@ describe("QR Scanner", () => {
     test("returns Unknown event when attendee's event is deleted", async () => {
       const { getDb } = await import("#lib/db/client.ts");
       const { computeTicketTokenIndex } = await import("#lib/crypto.ts");
-      const { token } = await createTestAttendeeWithToken("Frank", "frank@test.com");
+      const { token } = await createTestAttendeeWithToken(
+        "Frank",
+        "frank@test.com",
+      );
       const eventB = await createTestEvent({ maxAttendees: 10 });
       const session = await loginAsAdmin();
 
@@ -233,14 +281,20 @@ describe("QR Scanner", () => {
       // Point attendee at a non-existent event to simulate orphan
       await getDb().execute({ sql: "PRAGMA foreign_keys = OFF", args: [] });
       await getDb().execute({
-        sql: "UPDATE attendees SET event_id = 99999 WHERE ticket_token_index = ?",
+        sql:
+          "UPDATE attendees SET event_id = 99999 WHERE ticket_token_index = ?",
         args: [tokenIndex],
       });
       await getDb().execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
 
       // Scan from event B - attendee's event_id still points to deleted event A
       const response = await handleRequest(
-        mockScanRequest(eventB.id, { token }, session.cookie, session.csrfToken),
+        mockScanRequest(
+          eventB.id,
+          { token },
+          session.cookie,
+          session.csrfToken,
+        ),
       );
 
       expect(response.status).toBe(200);
@@ -253,7 +307,12 @@ describe("QR Scanner", () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const session = await loginAsAdmin();
       const response = await handleRequest(
-        mockScanRequest(event.id, { token: "nonexistent-token" }, session.cookie, session.csrfToken),
+        mockScanRequest(
+          event.id,
+          { token: "nonexistent-token" },
+          session.cookie,
+          session.csrfToken,
+        ),
       );
 
       expect(response.status).toBe(404);
@@ -282,7 +341,12 @@ describe("QR Scanner", () => {
       const event = await createTestEvent({ maxAttendees: 10 });
       const session = await loginAsAdmin();
       const response = await handleRequest(
-        mockScanRequest(event.id, { token: "test" }, session.cookie, "wrong-csrf-token"),
+        mockScanRequest(
+          event.id,
+          { token: "test" },
+          session.cookie,
+          "wrong-csrf-token",
+        ),
       );
 
       expect(response.status).toBe(403);
@@ -351,7 +415,12 @@ describe("QR Scanner", () => {
       invalidateSettingsCache();
 
       const response = await handleRequest(
-        mockScanRequest(event.id, { token: "some-token" }, session.cookie, session.csrfToken),
+        mockScanRequest(
+          event.id,
+          { token: "some-token" },
+          session.cookie,
+          session.csrfToken,
+        ),
       );
 
       expect(response.status).toBe(500);
@@ -360,7 +429,10 @@ describe("QR Scanner", () => {
     });
 
     test("logs activity when checking in via scanner", async () => {
-      const { event, token, session } = await setupScanTest("Eve", "eve@test.com");
+      const { event, token, session } = await setupScanTest(
+        "Eve",
+        "eve@test.com",
+      );
       await handleRequest(
         mockScanRequest(event.id, { token }, session.cookie, session.csrfToken),
       );
@@ -397,7 +469,9 @@ describe("QR Scanner", () => {
       const response = await awaitTestRequest("/scanner.js");
 
       expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toContain("application/javascript");
+      expect(response.headers.get("content-type")).toContain(
+        "application/javascript",
+      );
     });
   });
 
@@ -414,12 +488,14 @@ describe("QR Scanner", () => {
   describe("GET /admin/guide", () => {
     test("renders guide page when authenticated", async () => {
       const { response } = await adminGet("/admin/guide");
-      expect(response.status).toBe(200);
-      const body = await response.text();
-      expect(body).toContain("Guide");
-      expect(body).toContain("QR Scanner");
-      expect(body).toContain("How do I use the QR scanner?");
-      expect(body).toContain("scanner check people out");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Guide",
+        "QR Scanner",
+        "How do I use the QR scanner?",
+        "scanner check people out",
+      );
     });
 
     test("redirects to /admin when not authenticated", async () => {

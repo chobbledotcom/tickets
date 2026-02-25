@@ -1,10 +1,23 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { getCleanUrl, handleRequest, isValidContentType, normalizeHostname } from "#routes";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  spyOn,
+  test,
+} from "#test-compat";
+import {
+  getCleanUrl,
+  handleRequest,
+  isValidContentType,
+  normalizeHostname,
+} from "#routes";
 import { temporaryErrorResponse } from "#routes/utils.ts";
 import {
   createTestDb,
   createTestDbWithSetup,
   createTestEvent,
+  expectHtmlResponse,
   loginAsAdmin,
   mockFormRequest,
   mockRequest,
@@ -158,9 +171,7 @@ describe("server (misc)", () => {
           body: "password=test",
         }),
       );
-      expect(response.status).toBe(400);
-      const text = await response.text();
-      expect(text).toContain("Invalid Content-Type");
+      await expectHtmlResponse(response, 400, "Invalid Content-Type");
     });
 
     test("rejects POST requests with wrong Content-Type", async () => {
@@ -174,9 +185,7 @@ describe("server (misc)", () => {
           body: JSON.stringify({ password: "test" }),
         }),
       );
-      expect(response.status).toBe(400);
-      const text = await response.text();
-      expect(text).toContain("Invalid Content-Type");
+      await expectHtmlResponse(response, 400, "Invalid Content-Type");
     });
 
     test("accepts POST requests with multipart/form-data Content-Type", () => {
@@ -204,9 +213,7 @@ describe("server (misc)", () => {
           body: "password=test",
         }),
       );
-      expect(response.status).toBe(400);
-      const text = await response.text();
-      expect(text).toContain("Invalid Content-Type");
+      await expectHtmlResponse(response, 400, "Invalid Content-Type");
     });
   });
 
@@ -217,7 +224,9 @@ describe("server (misc)", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
       expect(response.status).toBe(200);
     });
   });
@@ -225,13 +234,18 @@ describe("server (misc)", () => {
   describe("routes/utils.ts (getPrivateKey)", () => {
     test("returns null when wrappedDataKey is null", async () => {
       const { getPrivateKey } = await import("#routes/utils.ts");
-      const result = await getPrivateKey({ token: "any-token", wrappedDataKey: null });
+      const result = await getPrivateKey({
+        token: "any-token",
+        wrappedDataKey: null,
+      });
       expect(result).toBeNull();
     });
 
     test("returns null when wrappedPrivateKey is not set in DB", async () => {
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
-      const { invalidateSettingsCache: invalidateCache } = await import("#lib/db/settings.ts");
+      const { invalidateSettingsCache: invalidateCache } = await import(
+        "#lib/db/settings.ts"
+      );
       await getDbFn().execute({
         sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
         args: [],
@@ -239,13 +253,19 @@ describe("server (misc)", () => {
       invalidateCache();
 
       const { getPrivateKey } = await import("#routes/utils.ts");
-      const result = await getPrivateKey({ token: "any-token", wrappedDataKey: "some-wrapped-key" });
+      const result = await getPrivateKey({
+        token: "any-token",
+        wrappedDataKey: "some-wrapped-key",
+      });
       expect(result).toBeNull();
     });
 
     test("returns null when crypto operation throws", async () => {
       const { getPrivateKey } = await import("#routes/utils.ts");
-      const result = await getPrivateKey({ token: "any-token", wrappedDataKey: "corrupt-key-data" });
+      const result = await getPrivateKey({
+        token: "any-token",
+        wrappedDataKey: "corrupt-key-data",
+      });
       expect(result).toBeNull();
     });
   });
@@ -253,8 +273,13 @@ describe("server (misc)", () => {
   describe("routes/admin/utils.ts (requirePrivateKey)", () => {
     test("throws when private key is unavailable", async () => {
       const { requirePrivateKey } = await import("#routes/admin/utils.ts");
-      const session = { token: "any-token", wrappedDataKey: null } as Parameters<typeof requirePrivateKey>[0];
-      await expect(requirePrivateKey(session)).rejects.toThrow("Private key unavailable");
+      const session = {
+        token: "any-token",
+        wrappedDataKey: null,
+      } as Parameters<typeof requirePrivateKey>[0];
+      await expect(requirePrivateKey(session)).rejects.toThrow(
+        "Private key unavailable",
+      );
     });
   });
 
@@ -270,9 +295,7 @@ describe("server (misc)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
   });
 
@@ -308,9 +331,7 @@ describe("server (misc)", () => {
       const response = await handleRequest(
         mockRequestWithHost("/", "evil.com"),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid domain");
+      await expectHtmlResponse(response, 403, "Invalid domain");
     });
 
     test("rejects POST requests to invalid domain", async () => {
@@ -323,9 +344,7 @@ describe("server (misc)", () => {
           body: "password=test",
         }),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid domain");
+      await expectHtmlResponse(response, 403, "Invalid domain");
     });
 
     test("allows requests with valid domain including port", async () => {
@@ -359,9 +378,7 @@ describe("server (misc)", () => {
     test("rejects requests where neither Host header nor URL matches", async () => {
       const request = new Request("http://evil.com/", {});
       const response = await handleRequest(request);
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid domain");
+      await expectHtmlResponse(response, 403, "Invalid domain");
     });
 
     test("domain rejection response has security headers", async () => {
@@ -399,7 +416,6 @@ describe("server (misc)", () => {
     });
   });
 
-
   describe("Tracking parameter stripping", () => {
     describe("getCleanUrl", () => {
       test("returns null when URL has no tracking params", () => {
@@ -418,12 +434,16 @@ describe("server (misc)", () => {
       });
 
       test("strips fbclid but preserves other params", () => {
-        const url = new URL("http://localhost/ticket/my-event?iframe=true&fbclid=abc123");
+        const url = new URL(
+          "http://localhost/ticket/my-event?iframe=true&fbclid=abc123",
+        );
         expect(getCleanUrl(url)).toBe("/ticket/my-event?iframe=true");
       });
 
       test("strips utm parameters", () => {
-        const url = new URL("http://localhost/ticket/my-event?utm_source=facebook&utm_medium=social");
+        const url = new URL(
+          "http://localhost/ticket/my-event?utm_source=facebook&utm_medium=social",
+        );
         expect(getCleanUrl(url)).toBe("/ticket/my-event");
       });
 
@@ -433,7 +453,9 @@ describe("server (misc)", () => {
       });
 
       test("strips multiple tracking params while preserving non-tracking ones", () => {
-        const url = new URL("http://localhost/ticket/reserved?tokens=abc&fbclid=123&utm_source=fb");
+        const url = new URL(
+          "http://localhost/ticket/reserved?tokens=abc&fbclid=123&utm_source=fb",
+        );
         expect(getCleanUrl(url)).toBe("/ticket/reserved?tokens=abc");
       });
     });
@@ -452,7 +474,9 @@ describe("server (misc)", () => {
           mockRequest("/ticket/my-event?iframe=true&fbclid=abc123"),
         );
         expect(response.status).toBe(301);
-        expect(response.headers.get("location")).toBe("/ticket/my-event?iframe=true");
+        expect(response.headers.get("location")).toBe(
+          "/ticket/my-event?iframe=true",
+        );
       });
 
       test("does not redirect POST requests with tracking params", async () => {
@@ -486,7 +510,9 @@ describe("server (misc)", () => {
         name: "My Test Event",
         maxAttendees: 50,
       });
-      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
       expect(response.status).toBe(200);
     });
 
@@ -545,10 +571,10 @@ describe("server (misc)", () => {
   describe("routes/index.ts (routeMainApp null fallback)", () => {
     test("returns 404 when routeMainApp returns null for unmatched path", async () => {
       // A path that doesn't match any registered route
-      const response = await handleRequest(mockRequest("/completely-unknown-path-xyz-987"));
-      expect(response.status).toBe(404);
-      const text = await response.text();
-      expect(text).toContain("Not Found");
+      const response = await handleRequest(
+        mockRequest("/completely-unknown-path-xyz-987"),
+      );
+      await expectHtmlResponse(response, 404, "Not Found");
     });
   });
 
@@ -564,13 +590,16 @@ describe("server (misc)", () => {
   describe("CDN/transient error handling", () => {
     test("temporaryErrorResponse returns 503 with styled HTML and auto-refresh", async () => {
       const response = temporaryErrorResponse();
-      expect(response.status).toBe(503);
-      const text = await response.text();
-      expect(text).toContain("Temporary Error");
-      expect(text).toContain("Retrying automatically");
-      expect(text).toContain('http-equiv="refresh"');
-      expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+      await expectHtmlResponse(
+        response,
+        503,
+        "Temporary Error",
+        "Retrying automatically",
+        'http-equiv="refresh"',
+      );
+      expect(response.headers.get("content-type")).toBe(
+        "text/html; charset=utf-8",
+      );
     });
   });
-
 });

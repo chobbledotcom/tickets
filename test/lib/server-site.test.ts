@@ -5,21 +5,22 @@ import {
   getWebsiteTitleFromDb,
   MAX_PAGE_TEXT_LENGTH,
   MAX_WEBSITE_TITLE_LENGTH,
+  updateContactPageText,
+  updateHomepageText,
   updateShowPublicSite,
   updateWebsiteTitle,
-  updateHomepageText,
-  updateContactPageText,
 } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
+  expectAdminRedirect,
+  expectHtmlResponse,
+  loginAsAdmin,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
-  expectAdminRedirect,
-  loginAsAdmin,
 } from "#test-utils";
 
 describe("server (admin site)", () => {
@@ -41,11 +42,13 @@ describe("server (admin site)", () => {
     test("shows homepage editor when authenticated", async () => {
       const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest("/admin/site", { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Home Page");
-      expect(html).toContain("website_title");
-      expect(html).toContain("homepage_text");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Home Page",
+        "website_title",
+        "homepage_text",
+      );
     });
 
     test("displays existing values", async () => {
@@ -97,12 +100,18 @@ describe("server (admin site)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site",
-          { website_title: "My Site", homepage_text: "Welcome!", csrf_token: csrfToken },
+          {
+            website_title: "My Site",
+            homepage_text: "Welcome!",
+            csrf_token: csrfToken,
+          },
           cookie,
         ),
       );
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!)).toContain("Homepage updated");
+      expect(decodeURIComponent(response.headers.get("location")!)).toContain(
+        "Homepage updated",
+      );
 
       expect(await getWebsiteTitleFromDb()).toBe("My Site");
       expect(await getHomepageTextFromDb()).toBe("Welcome!");
@@ -137,9 +146,11 @@ describe("server (admin site)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain(`${MAX_WEBSITE_TITLE_LENGTH} characters or fewer`);
+      await expectHtmlResponse(
+        response,
+        400,
+        `${MAX_WEBSITE_TITLE_LENGTH} characters or fewer`,
+      );
     });
 
     test("rejects homepage text exceeding max length", async () => {
@@ -155,9 +166,11 @@ describe("server (admin site)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain(`${MAX_PAGE_TEXT_LENGTH} characters or fewer`);
+      await expectHtmlResponse(
+        response,
+        400,
+        `${MAX_PAGE_TEXT_LENGTH} characters or fewer`,
+      );
     });
 
     test("handles missing fields gracefully", async () => {
@@ -177,17 +190,23 @@ describe("server (admin site)", () => {
 
     test("shows contact editor when authenticated", async () => {
       const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/site/contact", { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Contact Page");
-      expect(html).toContain("contact_page_text");
+      const response = await awaitTestRequest("/admin/site/contact", {
+        cookie,
+      });
+      await expectHtmlResponse(
+        response,
+        200,
+        "Contact Page",
+        "contact_page_text",
+      );
     });
 
     test("displays existing contact text", async () => {
       await updateContactPageText("Call us!");
       const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/site/contact", { cookie });
+      const response = await awaitTestRequest("/admin/site/contact", {
+        cookie,
+      });
       const html = await response.text();
       expect(html).toContain("Call us!");
     });
@@ -235,7 +254,9 @@ describe("server (admin site)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!)).toContain("Contact page updated");
+      expect(decodeURIComponent(response.headers.get("location")!)).toContain(
+        "Contact page updated",
+      );
       expect(await getContactPageTextFromDb()).toBe("Email us!");
     });
 
@@ -265,9 +286,11 @@ describe("server (admin site)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain(`${MAX_PAGE_TEXT_LENGTH} characters or fewer`);
+      await expectHtmlResponse(
+        response,
+        400,
+        `${MAX_PAGE_TEXT_LENGTH} characters or fewer`,
+      );
     });
 
     test("handles missing field gracefully", async () => {
@@ -296,7 +319,9 @@ describe("server (admin site)", () => {
 
     test("contact page shows subnav with Homepage and Contact links", async () => {
       const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/site/contact", { cookie });
+      const response = await awaitTestRequest("/admin/site/contact", {
+        cookie,
+      });
       const html = await response.text();
       expect(html).toContain('href="/admin/site"');
       expect(html).toContain('href="/admin/site/contact"');

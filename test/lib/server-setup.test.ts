@@ -5,13 +5,14 @@ import {
   awaitTestRequest,
   createTestDb,
   createTestDbWithSetup,
+  expectHtmlResponse,
+  expectRedirect,
   getSetupCsrfToken,
   mockFormRequest,
   mockRequest,
   mockSetupFormRequest,
   resetDb,
   resetTestSlugCounter,
-  expectRedirect,
   withMocks,
 } from "#test-utils";
 
@@ -52,19 +53,19 @@ describe("server (setup)", () => {
 
       test("GET /setup/ shows setup page", async () => {
         const response = await handleRequest(mockRequest("/setup/"));
-        expect(response.status).toBe(200);
-        const html = await response.text();
-        expect(html).toContain("Initial Setup");
-        expect(html).toContain("Admin Password");
-        expect(html).toContain("Currency Code");
-        expect(html).toContain("Data Controller Agreement");
+        await expectHtmlResponse(
+          response,
+          200,
+          "Initial Setup",
+          "Admin Password",
+          "Currency Code",
+          "Data Controller Agreement",
+        );
       });
 
       test("GET /setup (without trailing slash) shows setup page", async () => {
         const response = await handleRequest(mockRequest("/setup"));
-        expect(response.status).toBe(200);
-        const html = await response.text();
-        expect(html).toContain("Initial Setup");
+        await expectHtmlResponse(response, 200, "Initial Setup");
       });
 
       test("POST /setup/ with valid data completes setup", async () => {
@@ -92,14 +93,12 @@ describe("server (setup)", () => {
         const response = await handleRequest(
           mockFormRequest("/setup/", {
             admin_username: "testadmin",
-              admin_password: "mypassword123",
+            admin_password: "mypassword123",
             admin_password_confirm: "mypassword123",
             currency_code: "USD",
           }),
         );
-        expect(response.status).toBe(403);
-        const html = await response.text();
-        expect(html).toContain("Invalid or expired form");
+        await expectHtmlResponse(response, 403, "Invalid or expired form");
       });
 
       test("POST /setup/ with invalid CSRF token rejects request", async () => {
@@ -113,9 +112,7 @@ describe("server (setup)", () => {
             csrf_token: "wrong-token-in-form",
           }),
         );
-        expect(response.status).toBe(403);
-        const html = await response.text();
-        expect(html).toContain("Invalid or expired form");
+        await expectHtmlResponse(response, 403, "Invalid or expired form");
       });
 
       test("POST /setup/ with empty password shows validation error", async () => {
@@ -133,9 +130,7 @@ describe("server (setup)", () => {
             csrfToken as string,
           ),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("Admin Password * is required");
+        await expectHtmlResponse(response, 400, "Admin Password * is required");
       });
 
       test("POST /setup/ with mismatched passwords shows error", async () => {
@@ -153,9 +148,7 @@ describe("server (setup)", () => {
             csrfToken as string,
           ),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("Passwords do not match");
+        await expectHtmlResponse(response, 400, "Passwords do not match");
       });
 
       test("POST /setup/ with short password shows error", async () => {
@@ -173,9 +166,7 @@ describe("server (setup)", () => {
             csrfToken as string,
           ),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("at least 8 characters");
+        await expectHtmlResponse(response, 400, "at least 8 characters");
       });
 
       test("POST /setup/ with invalid currency shows error", async () => {
@@ -193,9 +184,11 @@ describe("server (setup)", () => {
             csrfToken as string,
           ),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("Currency code must be 3 uppercase letters");
+        await expectHtmlResponse(
+          response,
+          400,
+          "Currency code must be 3 uppercase letters",
+        );
       });
 
       test("POST /setup/ without accepting agreement shows error", async () => {
@@ -214,9 +207,11 @@ describe("server (setup)", () => {
             csrfToken as string,
           ),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("must accept the Data Controller Agreement");
+        await expectHtmlResponse(
+          response,
+          400,
+          "must accept the Data Controller Agreement",
+        );
       });
 
       test("POST /setup/ normalizes lowercase currency to uppercase", async () => {
@@ -246,10 +241,13 @@ describe("server (setup)", () => {
 
         await withMocks(
           () => ({
-            mockCompleteSetup: spyOn(settingsApi, "completeSetup").mockRejectedValue(
-              new Error("Database error"),
+            mockCompleteSetup: spyOn(settingsApi, "completeSetup")
+              .mockRejectedValue(
+                new Error("Database error"),
+              ),
+            mockConsoleError: spyOn(console, "error").mockImplementation(
+              () => {},
             ),
-            mockConsoleError: spyOn(console, "error").mockImplementation(() => {}),
           }),
           async () => {
             const response = await handleRequest(
@@ -263,9 +261,7 @@ describe("server (setup)", () => {
                 csrfToken as string,
               ),
             );
-            expect(response.status).toBe(503);
-            const text = await response.text();
-            expect(text).toContain("Temporary Error");
+            await expectHtmlResponse(response, 503, "Temporary Error");
           },
         );
       });
@@ -366,9 +362,7 @@ describe("server (setup)", () => {
 
       test("GET /setup/complete shows success page when setup is done", async () => {
         const response = await handleRequest(mockRequest("/setup/complete"));
-        expect(response.status).toBe(200);
-        const html = await response.text();
-        expect(html).toContain("Setup Complete");
+        await expectHtmlResponse(response, 200, "Setup Complete");
       });
     });
   });
@@ -394,7 +388,8 @@ describe("server (setup)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Initial setup completed"))).toBe(true);
+      expect(logs.some((l) => l.message.includes("Initial setup completed")))
+        .toBe(true);
     });
   });
 
@@ -421,5 +416,4 @@ describe("server (setup)", () => {
       expectRedirect("/setup/complete")(response);
     });
   });
-
 });
