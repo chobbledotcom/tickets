@@ -32,6 +32,7 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  setupEventAndLogin,
   submitTicketForm,
   updateTestEvent,
 } from "#test-utils";
@@ -213,13 +214,11 @@ describe("server (admin events)", () => {
 
     test("rejects duplicate slug", async () => {
       // First, create an event with a specific name
-      await createTestEvent({
+      const { cookie, csrfToken } = await setupEventAndLogin({
         name: "Duplicate Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-
-      const { cookie, csrfToken } = await loginAsAdmin();
 
       // Try to create another event with the same name (generates same slug)
       const response = await handleRequest(
@@ -256,9 +255,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows event details when authenticated", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -271,9 +268,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows Edit link on event page", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -309,9 +304,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows duplicate form pre-filled with event settings but no name", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie } = await setupEventAndLogin({
         name: "Original Event",
         maxAttendees: 75,
         thankYouUrl: "https://example.com/thanks",
@@ -341,9 +334,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows Duplicate link on event detail page", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -377,9 +368,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows only checked-in attendees", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -434,9 +423,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows only checked-out attendees", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -495,9 +482,7 @@ describe("server (admin events)", () => {
     });
 
     test("returns CSV with correct headers when authenticated", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -516,9 +501,7 @@ describe("server (admin events)", () => {
     });
 
     test("returns CSV with attendee data", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -552,9 +535,7 @@ describe("server (admin events)", () => {
     });
 
     test("returns CSV with Checked In column", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -588,9 +569,7 @@ describe("server (admin events)", () => {
     });
 
     test("sanitizes slug for filename", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie } = await setupEventAndLogin({
         name: "Test Event Special",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -625,9 +604,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows edit form when authenticated", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com/thanks",
@@ -690,9 +667,7 @@ describe("server (admin events)", () => {
     });
 
     test("rejects request with invalid CSRF token", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -715,9 +690,7 @@ describe("server (admin events)", () => {
     });
 
     test("validates required fields", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -740,9 +713,7 @@ describe("server (admin events)", () => {
     });
 
     test("updates event when authenticated", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -781,13 +752,11 @@ describe("server (admin events)", () => {
         name: "Group Two",
         slug: "group-two",
       });
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Group Switch Event",
         groupId: group1.id,
         maxAttendees: 50,
       });
-
-      const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
@@ -810,11 +779,10 @@ describe("server (admin events)", () => {
     });
 
     test("rejects non-existent group_id on edit", async () => {
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Edit Bad Group",
         maxAttendees: 50,
       });
-      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -834,9 +802,7 @@ describe("server (admin events)", () => {
     });
 
     test("updates event slug", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Slug Update Test",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -864,9 +830,7 @@ describe("server (admin events)", () => {
     });
 
     test("normalizes slug on update (spaces, uppercase)", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Normalize Test",
         maxAttendees: 50,
       });
@@ -892,9 +856,7 @@ describe("server (admin events)", () => {
     });
 
     test("rejects invalid slug characters", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie, csrfToken } = await setupEventAndLogin({
         name: "Invalid Slug Test",
         maxAttendees: 50,
       });
@@ -957,11 +919,10 @@ describe("server (admin events)", () => {
         name: "Slug Group",
         slug: "slug-group",
       });
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Event Slug Collision",
         maxAttendees: 50,
       });
-      const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -984,9 +945,7 @@ describe("server (admin events)", () => {
     });
 
     test("allows keeping the same slug on update", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Same Slug Test",
         maxAttendees: 50,
       });
@@ -1035,9 +994,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows deactivate confirmation page when authenticated", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1070,9 +1027,7 @@ describe("server (admin events)", () => {
     });
 
     test("deactivates event and redirects", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1093,9 +1048,7 @@ describe("server (admin events)", () => {
     });
 
     test("returns error when identifier does not match", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie, csrfToken } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1125,9 +1078,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows reactivate confirmation page when authenticated", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1150,9 +1101,7 @@ describe("server (admin events)", () => {
 
   describe("POST /admin/event/:id/reactivate", () => {
     test("reactivates event and redirects", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -1175,9 +1124,7 @@ describe("server (admin events)", () => {
     });
 
     test("returns error when name does not match", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1218,9 +1165,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows delete confirmation page when authenticated", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1271,9 +1216,7 @@ describe("server (admin events)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1293,9 +1236,7 @@ describe("server (admin events)", () => {
     });
 
     test("rejects mismatched event identifier", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie, csrfToken } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1315,9 +1256,7 @@ describe("server (admin events)", () => {
     });
 
     test("deletes event with matching identifier (case insensitive)", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie, csrfToken } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1342,9 +1281,7 @@ describe("server (admin events)", () => {
     });
 
     test("deletes event with matching identifier (trimmed)", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie, csrfToken } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1364,9 +1301,7 @@ describe("server (admin events)", () => {
     });
 
     test("deletes event and all attendees", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1557,9 +1492,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows log for existing event", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         name: "Event Log",
         maxAttendees: 50,
       });
@@ -1604,9 +1537,7 @@ describe("server (admin events)", () => {
 
   describe("admin/events.ts (event delete handler via onDelete)", () => {
     test("delete event handler cleans up associated data", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "On Delete Test",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1638,9 +1569,7 @@ describe("server (admin events)", () => {
 
   describe("admin/events.ts (eventErrorPage with deleted event)", () => {
     test("edit validation returns 400 with error when event exists", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie, csrfToken } = await setupEventAndLogin({
         name: "First Edit Err",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1667,9 +1596,7 @@ describe("server (admin events)", () => {
 
   describe("admin/events.ts (form.get fallbacks)", () => {
     test("deactivate event without confirm_identifier uses empty fallback", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Deactivate Fallback",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1687,9 +1614,7 @@ describe("server (admin events)", () => {
     });
 
     test("reactivate event without confirm_identifier uses empty fallback", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Reactivate Fallback",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1708,9 +1633,7 @@ describe("server (admin events)", () => {
     });
 
     test("delete event without confirm_identifier uses empty fallback", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await createTestEvent({
+      const { cookie, csrfToken } = await setupEventAndLogin({
         name: "Delete Fallback",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -1746,8 +1669,7 @@ describe("server (admin events)", () => {
     });
 
     test("shows edit page with error when name is empty", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event1 = await createTestEvent({
+      const { event: event1, cookie, csrfToken } = await setupEventAndLogin({
         name: "Edit Orig",
         maxAttendees: 50,
       });
@@ -1770,8 +1692,7 @@ describe("server (admin events)", () => {
 
   describe("POST /admin/event/:id/delete with custom onDelete", () => {
     test("deletes event and cascades to attendees", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Cascade Delete",
         maxAttendees: 50,
       });
@@ -1801,8 +1722,7 @@ describe("server (admin events)", () => {
 
   describe("routes/admin/events.ts (event error page)", () => {
     test("shows edit error page for existing event with validation error", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event1 = await createTestEvent({
+      const { event: event1, cookie, csrfToken } = await setupEventAndLogin({
         name: "Event Err 1",
         maxAttendees: 50,
       });
@@ -1823,8 +1743,7 @@ describe("server (admin events)", () => {
     });
 
     test("event delete cascades to attendees using custom onDelete", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Cascade Del Test",
         maxAttendees: 50,
       });
@@ -1903,8 +1822,7 @@ describe("server (admin events)", () => {
 
   describe("admin event onDelete handler", () => {
     test("deleting an event triggers the onDelete handler which calls deleteEvent", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Delete OnDelete Test",
         maxAttendees: 10,
       });
@@ -1970,8 +1888,7 @@ describe("server (admin events)", () => {
 
   describe("edit event notFound race condition", () => {
     test("returns 404 when event is deleted during edit update", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         name: "Race Condition Event",
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
@@ -2044,8 +1961,7 @@ describe("server (admin events)", () => {
     });
 
     test("admin event detail page shows closes_at with countdown when set", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({ closesAt: "2099-06-15T14:30" });
+      const { event, cookie } = await setupEventAndLogin({ closesAt: "2099-06-15T14:30" });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
@@ -2060,8 +1976,7 @@ describe("server (admin events)", () => {
     });
 
     test("admin event detail page shows 'No deadline' when closes_at is null", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent();
+      const { event, cookie } = await setupEventAndLogin();
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
@@ -2070,8 +1985,7 @@ describe("server (admin events)", () => {
     });
 
     test("admin event edit page shows closes_at in form", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({ closesAt: "2099-06-15T14:30" });
+      const { event, cookie } = await setupEventAndLogin({ closesAt: "2099-06-15T14:30" });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie,
@@ -2086,8 +2000,7 @@ describe("server (admin events)", () => {
     });
 
     test("admin event detail page shows 'closed' countdown for past closes_at", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({ closesAt: "2024-01-01T00:00" });
+      const { event, cookie } = await setupEventAndLogin({ closesAt: "2024-01-01T00:00" });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
@@ -2174,8 +2087,7 @@ describe("server (admin events)", () => {
     });
 
     test("rejects invalid closes_at format", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent();
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -2233,8 +2145,7 @@ describe("server (admin events)", () => {
     });
 
     test("admin detail page shows Event Date and Location when set", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         date: "2026-06-15T14:00",
         location: "Village Hall",
       });
@@ -2252,8 +2163,7 @@ describe("server (admin events)", () => {
     });
 
     test("admin detail page hides Event Date and Location when empty", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent();
+      const { event, cookie } = await setupEventAndLogin();
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
       });
@@ -2264,8 +2174,7 @@ describe("server (admin events)", () => {
     });
 
     test("admin edit page pre-fills date as split inputs", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({ date: "2026-06-15T14:00" });
+      const { event, cookie } = await setupEventAndLogin({ date: "2026-06-15T14:00" });
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie,
       });
@@ -2278,8 +2187,7 @@ describe("server (admin events)", () => {
     });
 
     test("admin edit page pre-fills location", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({ location: "Village Hall" });
+      const { event, cookie } = await setupEventAndLogin({ location: "Village Hall" });
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie,
       });
@@ -2287,8 +2195,7 @@ describe("server (admin events)", () => {
     });
 
     test("CSV export includes Event Date and Event Location columns", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         date: "2026-06-15T14:00",
         location: "Village Hall",
       });
@@ -2307,8 +2214,7 @@ describe("server (admin events)", () => {
     });
 
     test("CSV export omits Event Date and Event Location when empty", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent();
+      const { event, cookie } = await setupEventAndLogin();
       await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com");
       const response = await awaitTestRequest(
         `/admin/event/${event.id}/export`,
@@ -2321,8 +2227,7 @@ describe("server (admin events)", () => {
     });
 
     test("rejects invalid event date on edit", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent();
+      const { event, cookie, csrfToken } = await setupEventAndLogin();
       const response = await handleRequest(
         mockFormRequest(
           `/admin/event/${event.id}/edit`,
@@ -2432,8 +2337,7 @@ describe("server (admin events)", () => {
     });
 
     test("admin event detail page shows Daily type for daily events", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         eventType: "daily",
         bookableDays: ["Monday", "Tuesday"],
         minimumDaysBefore: 3,
@@ -2458,8 +2362,7 @@ describe("server (admin events)", () => {
     });
 
     test("admin event detail page shows Standard type without daily config", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent();
+      const { event, cookie } = await setupEventAndLogin();
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
@@ -2475,8 +2378,7 @@ describe("server (admin events)", () => {
     });
 
     test("admin event edit page pre-fills daily config", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         eventType: "daily",
         bookableDays: ["Wednesday", "Friday"],
         minimumDaysBefore: 5,
@@ -2529,8 +2431,7 @@ describe("server (admin events)", () => {
     });
 
     test("duplicate page pre-fills daily event config", async () => {
-      const { cookie } = await loginAsAdmin();
-      await createTestEvent({
+      const { cookie } = await setupEventAndLogin({
         eventType: "daily",
         bookableDays: ["Tuesday", "Thursday"],
         minimumDaysBefore: 2,
@@ -2572,8 +2473,7 @@ describe("server (admin events)", () => {
     });
 
     test("rejects invalid bookable_days value", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      await createTestEvent({ name: "Edit Target" });
+      const { cookie, csrfToken } = await setupEventAndLogin({ name: "Edit Target" });
 
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const event = (await getEventWithCount(1))!;
@@ -2601,8 +2501,7 @@ describe("server (admin events)", () => {
 
   describe("audit logging (event edit)", () => {
     test("logs activity when event is updated", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
@@ -2699,8 +2598,7 @@ describe("server (admin events)", () => {
     });
 
     test("does not show Date column for standard events", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent();
+      const { event, cookie } = await setupEventAndLogin();
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
@@ -2780,8 +2678,7 @@ describe("server (admin events)", () => {
     });
 
     test("ignores ?date= for standard events", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent();
+      const { event, cookie } = await setupEventAndLogin();
       await createTestAttendee(
         event.id,
         event.slug,
@@ -2811,8 +2708,7 @@ describe("server (admin events)", () => {
     });
 
     test("CSV export excludes Date column for standard events", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent();
+      const { event, cookie } = await setupEventAndLogin();
       await createTestAttendee(
         event.id,
         event.slug,
@@ -2888,8 +2784,7 @@ describe("server (admin events)", () => {
 
   describe("stale reservation cleanup on admin event view", () => {
     test("cleans up stale reservations when viewing an event", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         name: "Cleanup Test Event",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
@@ -2925,8 +2820,7 @@ describe("server (admin events)", () => {
     });
 
     test("does not clean up fresh reservations when viewing an event", async () => {
-      const { cookie } = await loginAsAdmin();
-      const event = await createTestEvent({
+      const { event, cookie } = await setupEventAndLogin({
         name: "Fresh Reservation Test",
         maxAttendees: 100,
         thankYouUrl: "https://example.com",

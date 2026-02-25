@@ -15,6 +15,7 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  setupEventAndLogin,
   withMocks,
 } from "#test-utils";
 import type { Attendee, Event } from "#lib/types.ts";
@@ -130,8 +131,7 @@ describe("server (admin refunds)", () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      await createTestEvent({ maxAttendees: 100 });
-      const { cookie } = await loginAsAdmin();
+      const { cookie } = await setupEventAndLogin({ maxAttendees: 100 });
       const response = await awaitTestRequest(refundUrl(1, 999), { cookie });
       expect(response.status).toBe(404);
     });
