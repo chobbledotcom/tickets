@@ -93,6 +93,36 @@ describe("server (admin guide)", () => {
       expect(html).toContain("test or live credentials");
     });
 
+    test("contains public site section", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Public Site");
+      expect(html).toContain("homepage and contact page");
+    });
+
+    test("contains calendar and activity log sections", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Calendar");
+      expect(html).toContain("Activity Log");
+    });
+
+    test("contains settings overview section", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Settings Overview");
+      expect(html).toContain("Phone prefix");
+      expect(html).toContain("Site theme");
+    });
+
+    test("contains event image, duplicate, and deactivate info", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("image to an event");
+      expect(html).toContain("Duplicate");
+      expect(html).toContain("Deactivate");
+    });
+
     test("contains admin navigation", async () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();

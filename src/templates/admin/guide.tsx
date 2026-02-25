@@ -163,6 +163,32 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
+        <Q q="How do I add an image to an event?">
+          <p>
+            When creating or editing an event, use the image upload field to
+            attach a picture. The image is displayed on the booking page and
+            in the public events listing. Supported formats include JPEG and
+            PNG.
+          </p>
+        </Q>
+
+        <Q q="How do I duplicate an event?">
+          <p>
+            Open the event and click <strong>Duplicate</strong>. This creates
+            a new event with the same settings (name, capacity, price, fields,
+            etc.) so you can adjust what you need without starting from scratch.
+          </p>
+        </Q>
+
+        <Q q="How do I deactivate an event?">
+          <p>
+            Open the event and click <strong>Deactivate</strong>. Deactivated
+            events no longer accept bookings and are hidden from the public
+            events listing, but all existing attendee data is kept. Click{" "}
+            <strong>Reactivate</strong> to make the event bookable again.
+          </p>
+        </Q>
+
         <Q q="How do I add terms and conditions?">
           <p>
             In <strong>Settings</strong>, enter your terms in the "Terms and
@@ -189,6 +215,30 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             and click <strong>Scrape Again</strong> if the result looks wrong.
             Once Facebook has successfully scraped the URL, future shares should
             work normally.
+          </p>
+        </Q>
+      </Section>
+
+      <Section title="Public Site">
+        <Q q="What is the public site?">
+          <p>
+            When enabled in <strong>Settings</strong>, your domain shows a
+            public website with navigation for Home, Events, Terms &amp;
+            Conditions, and Contact pages. The <strong>Events</strong> page
+            lists all active events with booking links. Visitors can browse
+            event details and book directly. If the public site is disabled,
+            visitors can still book via direct ticket links.
+          </p>
+        </Q>
+
+        <Q q="How do I edit the homepage and contact page?">
+          <p>
+            Enable the public site in <strong>Settings</strong>, then open the{" "}
+            <strong>Site</strong> section from the admin navigation. The
+            homepage editor lets you set a website title (shown as the heading
+            on all public pages) and homepage text. The contact page editor
+            lets you set contact information. Line breaks are preserved in
+            both.
           </p>
         </Q>
       </Section>
@@ -408,10 +458,11 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             </li>
             <li>
               <strong>Square:</strong> Use your Sandbox access token and
-              location. You can make test payments with{" "}
+              location, and tick the <strong>Sandbox mode</strong> checkbox
+              on the Settings page. You can make test payments with{" "}
               <a href="https://developer.squareup.com/docs/devtools/sandbox/payments">
                 Square's sandbox test values
-              </a>.
+              </a>. Untick Sandbox mode when switching to production.
             </li>
           </ul>
           <p>
@@ -696,6 +747,71 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             other admins to log in again. Useful if you suspect an account has
             been compromised.
           </p>
+        </Q>
+      </Section>
+
+      <Section title="Calendar">
+        <Q q="What is the calendar page?">
+          <p>
+            The <strong>Calendar</strong> page lets you pick a date and see
+            every attendee booked across all events on that day. This is
+            especially useful for daily events. You can export a CSV of the
+            day's attendees and manage check-ins, edits, and deletions from
+            the same view.
+          </p>
+        </Q>
+      </Section>
+
+      <Section title="Activity Log">
+        <Q q="What is the activity log?">
+          <p>
+            The <strong>Log</strong> page (owners only) shows a chronological
+            list of admin actions such as event creation, attendee changes,
+            and settings updates. Each event also has its own log, accessible
+            from the event page, showing only actions related to that event.
+          </p>
+        </Q>
+      </Section>
+
+      <Section title="Settings Overview">
+        <Q q="What settings are available?">
+          <p>
+            The <strong>Settings</strong> page (owners only) lets you
+            configure:
+          </p>
+          <ul>
+            <li>
+              <strong>Timezone</strong> &mdash; all dates and times use this
+              timezone
+            </li>
+            <li>
+              <strong>Phone prefix</strong> &mdash; country calling code
+              (e.g. 44 for UK, 1 for US) used to normalise phone numbers
+            </li>
+            <li>
+              <strong>Business email</strong> &mdash; included in webhook
+              notifications
+            </li>
+            <li>
+              <strong>Payment provider</strong> &mdash; Stripe, Square, or
+              none
+            </li>
+            <li>
+              <strong>Embed hosts</strong> &mdash; restrict which websites can
+              embed your booking forms
+            </li>
+            <li>
+              <strong>Terms and conditions</strong> &mdash; attendees must
+              agree before booking
+            </li>
+            <li>
+              <strong>Public site</strong> &mdash; enable or disable the
+              public website
+            </li>
+            <li>
+              <strong>Site theme</strong> &mdash; light or dark
+            </li>
+          </ul>
         </Q>
       </Section>
 
