@@ -35,10 +35,16 @@ export const calculateTotalRevenue = (attendees: Attendee[]): number =>
   reduce((sum: number, a: Attendee) =>
     sum + Number.parseInt(a.price_paid, 10), 0)(attendees);
 
-/** Count how many attendees are checked in */
+/** Count how many people are checked in (summing quantity per registration) */
 export const countCheckedIn = (attendees: Attendee[]): number =>
-  filter((a: Attendee) => a.checked_in)(attendees).length;
+  pipe(
+    filter((a: Attendee) => a.checked_in),
+    reduce((sum: number, a: Attendee) => sum + a.quantity, 0),
+  )(attendees);
 
+/** Count how many attendee rows are checked in (ignoring quantity) */
+export const countCheckedInRows = (attendees: Attendee[]): number =>
+  filter((a: Attendee) => a.checked_in)(attendees).length;
 
 /** Check if event is within 10% of capacity */
 export const nearCapacity = (event: EventWithCount): boolean =>
@@ -54,7 +60,7 @@ export const isIncompletePayment = (attendee: Attendee, hasPaidEvent: boolean): 
   hasPaidEvent && !attendee.payment_id && Number.parseInt(attendee.price_paid, 10) > 0;
 
 /** Sum the quantity field across a list of attendees */
-const sumQuantity = reduce((sum: number, a: Attendee) => sum + a.quantity, 0);
+export const sumQuantity = reduce((sum: number, a: Attendee) => sum + a.quantity, 0);
 
 /** Concatenate strings (curried reducer for use in pipe) */
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
@@ -173,10 +179,14 @@ export const adminEventPage = ({
     : attendees;
   const incompleteQuantitySum = sumQuantity(incompleteAttendees);
   const adjustedCount = event.attendee_count - incompleteQuantitySum;
+  const completeQuantitySum = sumQuantity(completeAttendees);
 
+  const hasMultiQuantity = completeQuantitySum !== completeAttendees.length;
   const filteredAttendees = filterAttendees(completeAttendees, activeFilter);
-  const checkedIn = countCheckedIn(completeAttendees);
-  const checkedInRemaining = completeAttendees.length - checkedIn;
+  const ticketsCheckedIn = countCheckedIn(completeAttendees);
+  const ticketsCheckedInRemaining = completeQuantitySum - ticketsCheckedIn;
+  const attendeesCheckedIn = countCheckedInRows(completeAttendees);
+  const attendeesCheckedInRemaining = completeAttendees.length - attendeesCheckedIn;
   const basePath = `/admin/event/${event.id}`;
   const dateQs = dateFilter ? `?date=${dateFilter}` : "";
   const suffix = filterSuffix(activeFilter);
@@ -264,8 +274,8 @@ export const adminEventPage = ({
                 <th>Attendees{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
                 <td>
                   {isDaily && dateFilter ? (
-                    <span class={completeAttendees.length >= event.max_attendees ? "danger-text" : ""}>
-                      {completeAttendees.length} / {event.max_attendees} &mdash; {event.max_attendees - completeAttendees.length} remain
+                    <span class={completeQuantitySum >= event.max_attendees ? "danger-text" : ""}>
+                      {completeQuantitySum} / {event.max_attendees} &mdash; {event.max_attendees - completeQuantitySum} remain
                     </span>
                   ) : (
                     <span class={adjustedCount >= event.max_attendees * 0.9 ? "danger-text" : ""}>
@@ -277,14 +287,35 @@ export const adminEventPage = ({
                   )}
                 </td>
               </tr>
-              <tr>
-                <th>Checked In{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
-                <td>
-                  <span>
-                    {checkedIn} / {completeAttendees.length} &mdash; {checkedInRemaining} remain
-                  </span>
-                </td>
-              </tr>
+              {hasMultiQuantity ? (
+                <>
+                  <tr>
+                    <th>Attendees Checked In{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
+                    <td>
+                      <span>
+                        {attendeesCheckedIn} / {completeAttendees.length} &mdash; {attendeesCheckedInRemaining} remain
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Tickets Checked In{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
+                    <td>
+                      <span>
+                        {ticketsCheckedIn} / {completeQuantitySum} &mdash; {ticketsCheckedInRemaining} remain
+                      </span>
+                    </td>
+                  </tr>
+                </>
+              ) : (
+                <tr>
+                  <th>Checked In{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
+                  <td>
+                    <span>
+                      {ticketsCheckedIn} / {completeQuantitySum} &mdash; {ticketsCheckedInRemaining} remain
+                    </span>
+                  </td>
+                </tr>
+              )}
               {event.unit_price !== null && (
                 <tr>
                   <th>Total Revenue</th>
