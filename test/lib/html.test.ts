@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "#test-compat";
 import { CSS_PATH, EMBED_JS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, IFRAME_RESIZER_PARENT_JS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
-import { adminDuplicateEventPage, adminEventEditPage, adminEventNewPage, adminEventPage, calculateTotalRevenue, countCheckedIn, formatAddressInline, nearCapacity } from "#templates/admin/events.tsx";
+import { adminDuplicateEventPage, adminEventEditPage, adminEventNewPage, adminEventPage, calculateTotalRevenue, countCheckedIn, formatAddressInline, isIncompletePayment, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
 import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
 import { Breadcrumb } from "#templates/admin/nav.tsx";
@@ -1284,8 +1284,8 @@ describe("html", () => {
     test("shows total revenue for paid events", () => {
       const event = testEventWithCount({ unit_price: 1000, attendee_count: 2 });
       const attendees = [
-        testAttendee({ price_paid: "1000" }),
-        testAttendee({ id: 2, price_paid: "2000" }),
+        testAttendee({ price_paid: "1000", payment_id: "pi_test_1" }),
+        testAttendee({ id: 2, price_paid: "2000", payment_id: "pi_test_2" }),
       ];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).toContain("Total Revenue");
@@ -1349,6 +1349,107 @@ describe("html", () => {
     test("returns true when fully sold out", () => {
       const event = testEventWithCount({ attendee_count: 100, max_attendees: 100 });
       expect(nearCapacity(event)).toBe(true);
+    });
+  });
+
+  describe("isIncompletePayment", () => {
+    test("returns true for paid event attendee with no payment_id and price > 0", () => {
+      const attendee = testAttendee({ payment_id: "", price_paid: "1000" });
+      expect(isIncompletePayment(attendee, true)).toBe(true);
+    });
+
+    test("returns false for free event", () => {
+      const attendee = testAttendee({ payment_id: "", price_paid: "0" });
+      expect(isIncompletePayment(attendee, false)).toBe(false);
+    });
+
+    test("returns false for admin-added attendee on paid event (price_paid=0)", () => {
+      const attendee = testAttendee({ payment_id: "", price_paid: "0" });
+      expect(isIncompletePayment(attendee, true)).toBe(false);
+    });
+
+    test("returns false for completed payment attendee", () => {
+      const attendee = testAttendee({ payment_id: "pi_test_123", price_paid: "1000" });
+      expect(isIncompletePayment(attendee, true)).toBe(false);
+    });
+  });
+
+  describe("adminEventPage failed payments", () => {
+    test("shows Failed Payments section when incomplete attendees exist", () => {
+      const event = testEventWithCount({ unit_price: 1000, attendee_count: 3 });
+      const attendees = [
+        testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
+        testAttendee({ id: 2, payment_id: "", price_paid: "1000" }),
+      ];
+      const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).toContain("Failed Payments");
+      expect(html).toContain("1 attendee(s) with unresolved payments");
+      expect(html).toContain("/delete-incomplete");
+    });
+
+    test("hides Failed Payments section when no incomplete attendees", () => {
+      const event = testEventWithCount({ unit_price: 1000, attendee_count: 1 });
+      const attendees = [
+        testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
+      ];
+      const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).not.toContain("Failed Payments");
+    });
+
+    test("hides Failed Payments section for free events", () => {
+      const event = testEventWithCount({ unit_price: null, attendee_count: 1 });
+      const attendees = [testAttendee({ id: 1, price_paid: "0" })];
+      const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).not.toContain("Failed Payments");
+    });
+
+    test("excludes incomplete attendees from attendee count", () => {
+      const event = testEventWithCount({ unit_price: 1000, attendee_count: 3, max_attendees: 100 });
+      const attendees = [
+        testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
+        testAttendee({ id: 2, payment_id: "", price_paid: "1000" }),
+      ];
+      const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      // adjusted count: 3 - 1 (incomplete qty) = 2
+      expect(html).toContain("2 / 100");
+    });
+
+    test("excludes incomplete attendees from checked-in count", () => {
+      const event = testEventWithCount({ unit_price: 1000, attendee_count: 2 });
+      const attendees = [
+        testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000", checked_in: true }),
+        testAttendee({ id: 2, payment_id: "", price_paid: "1000", checked_in: true }),
+      ];
+      const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      // Only complete attendees count: 1 checked in / 1 total
+      expect(html).toContain("1 / 1");
+    });
+
+    test("excludes incomplete attendees from revenue", () => {
+      const event = testEventWithCount({ unit_price: 1000, attendee_count: 2 });
+      const attendees = [
+        testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
+        testAttendee({ id: 2, payment_id: "", price_paid: "2000" }),
+      ];
+      const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      expect(html).toContain("10.00");
+      expect(html).not.toContain("30.00");
+    });
+
+    test("failed payments table has delete button but no check-in or refund", () => {
+      const event = testEventWithCount({ unit_price: 1000, attendee_count: 1 });
+      const attendees = [
+        testAttendee({ id: 1, name: "Jane Stuck", payment_id: "", price_paid: "1000" }),
+      ];
+      const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
+      const failedSection = html.split("Failed Payments")[1]!.split("Add Attendee")[0]!;
+      expect(failedSection).toContain("Jane Stuck");
+      expect(failedSection).toContain("Delete");
+      expect(failedSection).toContain("/delete-incomplete");
+      expect(failedSection).not.toContain("Check in");
+      expect(failedSection).not.toContain("Check out");
+      expect(failedSection).not.toContain("Refund");
+      expect(failedSection).not.toContain("Re-send Webhook");
     });
   });
 

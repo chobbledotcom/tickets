@@ -169,6 +169,25 @@ const handleAttendeeDelete = attendeeFormAction(async (data, session, form, even
   return redirectOrReturn(form, `/admin/event/${eventId}`);
 });
 
+/**
+ * Handle POST /admin/event/:eventId/attendee/:attendeeId/delete-incomplete
+ * Deletes an attendee with an incomplete payment without requiring name confirmation.
+ * Verifies the attendee is actually incomplete before deleting.
+ */
+const handleDeleteIncomplete = attendeeFormAction(async (data, _session, _form, eventId, attendeeId) => {
+  const hasPaidEvent = data.event.unit_price !== null;
+  const isIncomplete = hasPaidEvent && !data.attendee.payment_id &&
+    Number.parseInt(data.attendee.price_paid, 10) > 0;
+
+  if (!isIncomplete) {
+    return redirect(`/admin/event/${eventId}`);
+  }
+
+  await deleteAttendee(attendeeId);
+  await logActivity(`Incomplete attendee deleted from '${data.event.name}'`, eventId);
+  return redirect(`/admin/event/${eventId}`);
+});
+
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/checkin */
 const handleAttendeeCheckin = attendeeFormAction(async (data, _session, form, eventId, attendeeId) => {
   const wasCheckedIn = data.attendee.checked_in;
@@ -519,6 +538,7 @@ export const attendeesRoutes = defineRoutes({
   "POST /admin/event/:eventId/attendee": handleAddAttendee,
   "POST /admin/event/:eventId/attendee/:attendeeId/delete": handleAttendeeDelete,
   "DELETE /admin/event/:eventId/attendee/:attendeeId/delete": handleAttendeeDelete,
+  "POST /admin/event/:eventId/attendee/:attendeeId/delete-incomplete": handleDeleteIncomplete,
   "POST /admin/event/:eventId/attendee/:attendeeId/checkin": handleAttendeeCheckin,
   "GET /admin/event/:eventId/attendee/:attendeeId/refund": handleAdminAttendeeRefundGet,
   "POST /admin/event/:eventId/attendee/:attendeeId/refund": handleAttendeeRefund,
