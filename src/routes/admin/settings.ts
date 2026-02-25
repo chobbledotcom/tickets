@@ -523,7 +523,7 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
     // Delete old header image if one exists
     const existingUrl = await getHeaderImageUrlFromDb();
     if (existingUrl) {
-      await tryDeleteImage(existingUrl, `header image: ${existingUrl}`);
+      await tryDeleteImage(existingUrl, undefined, `header image: ${existingUrl}`);
     }
 
     const filename = await uploadImage(data, validation.detectedType);
@@ -539,7 +539,7 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, errorPage) => {
     return errorPage("No header image to remove", 400);
   }
 
-  await tryDeleteImage(existingUrl, `header image: ${existingUrl}`);
+  await tryDeleteImage(existingUrl, undefined, `header image: ${existingUrl}`);
   await updateHeaderImageUrl("");
   await logActivity("Header image removed");
   return redirectWithSuccess("/admin/settings", "Header image removed");
