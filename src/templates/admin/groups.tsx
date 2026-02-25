@@ -3,14 +3,17 @@
  */
 
 import { map, pipe, reduce } from "#fp";
+import { formatCurrency } from "#lib/currency.ts";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession, EventWithCount, Group } from "#lib/types.ts";
+import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
 import { groupCreateFields, groupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { EventRow } from "#templates/admin/dashboard.tsx";
+import { calculateTotalRevenue, countCheckedIn } from "#templates/admin/events.tsx";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -143,6 +146,30 @@ export const adminGroupDeletePage = (
     </Layout>,
   );
 
+/** Build AttendeeTableRows from attendees with event lookup */
+const buildAttendeeRows = (
+  attendees: Attendee[],
+  events: EventWithCount[],
+): AttendeeTableRow[] => {
+  const eventMap = new Map(map((e: EventWithCount) => [e.id, e] as const)(events));
+  return pipe(
+    map((a: Attendee): AttendeeTableRow => {
+      const event = eventMap.get(a.event_id)!;
+      return {
+        attendee: a,
+        eventId: event.id,
+        eventName: event.name,
+        hasPaidEvent: event.unit_price !== null,
+      };
+    }),
+  )(attendees);
+};
+
+/** Sum attendee_count across all events in the group */
+const totalAttendeeCount = reduce(
+  (sum: number, e: EventWithCount) => sum + e.attendee_count, 0,
+);
+
 /**
  * Admin group detail page - shows group info, events in group, and add-events form
  */
@@ -150,8 +177,10 @@ export const adminGroupDetailPage = (
   group: Group,
   events: EventWithCount[],
   ungroupedEvents: EventWithCount[],
+  attendees: Attendee[],
   session: AdminSession,
   allowedDomain: string,
+  phonePrefix?: string,
 ): string => {
   const eventRows =
     events.length > 0
@@ -160,6 +189,11 @@ export const adminGroupDetailPage = (
 
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
+  const hasPaidEvent = events.some((e) => e.unit_price !== null);
+  const checkedIn = countCheckedIn(attendees);
+  const checkedInRemaining = attendees.length - checkedIn;
+  const totalCount = totalAttendeeCount(events);
+  const tableRows = buildAttendeeRows(attendees, events);
 
   return String(
     <Layout title={group.name}>
@@ -178,7 +212,7 @@ export const adminGroupDetailPage = (
       <article>
         <h2>Group Details</h2>
         <div class="table-scroll">
-          <table>
+          <table class="event-details-table">
             <tbody>
               <tr>
                 <th>Public URL</th>
@@ -186,6 +220,20 @@ export const adminGroupDetailPage = (
                   <a href={ticketUrl}>{`${allowedDomain}/ticket/${group.slug}`}</a>
                 </td>
               </tr>
+              <tr>
+                <th>Attendees</th>
+                <td>{totalCount}</td>
+              </tr>
+              <tr>
+                <th>Checked In</th>
+                <td>{checkedIn} / {attendees.length} &mdash; {checkedInRemaining} remain</td>
+              </tr>
+              {hasPaidEvent && (
+                <tr>
+                  <th>Total Revenue</th>
+                  <td>{formatCurrency(calculateTotalRevenue(attendees))}</td>
+                </tr>
+              )}
               <tr>
                 <th><label for={`embed-script-${group.id}`}>Embed Script</label></th>
                 <td>
@@ -232,6 +280,20 @@ export const adminGroupDetailPage = (
           </tbody>
         </table>
       </div>
+
+      <article>
+        <h2 id="attendees">Attendees</h2>
+        <div class="table-scroll">
+          <Raw html={AttendeeTable({
+            rows: tableRows,
+            allowedDomain,
+            showEvent: true,
+            showDate: events.some((e) => e.event_type === "daily"),
+            returnUrl: `/admin/group/${group.id}#attendees`,
+            phonePrefix,
+          })} />
+        </div>
+      </article>
 
       {ungroupedEvents.length > 0 && (
         <>

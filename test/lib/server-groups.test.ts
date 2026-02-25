@@ -7,6 +7,7 @@ import {
   adminGet,
   adminFormPost,
   awaitTestRequest,
+  createTestAttendee,
   createTestDbWithSetup,
   createTestEvent,
   createTestGroup,
@@ -372,6 +373,81 @@ describe("server (admin groups)", () => {
       expectStatus(200)(response);
       const html = await response.text();
       expect(html).not.toContain("Add Events to Group");
+    });
+
+    test("shows attendee count and checked-in stats", async () => {
+      const group = await createTestGroup({ name: "Stats Group", slug: "stats-group" });
+      const event = await createTestEvent({ name: "Stats Event", groupId: group.id, maxAttendees: 20 });
+      await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
+      await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com");
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("Attendees");
+      expect(html).toContain("Checked In");
+      expect(html).toContain("0 / 2");
+      expect(html).toContain("2 remain");
+    });
+
+    test("shows attendees table with event name column", async () => {
+      const group = await createTestGroup({ name: "Table Group", slug: "table-group" });
+      const event = await createTestEvent({ name: "Table Event", groupId: group.id, maxAttendees: 10 });
+      await createTestAttendee(event.id, event.slug, "Charlie", "charlie@test.com");
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("Charlie");
+      expect(html).toContain("Table Event");
+      expect(html).toContain(`/admin/event/${event.id}`);
+    });
+
+    test("shows total revenue for paid events", async () => {
+      const group = await createTestGroup({ name: "Revenue Group", slug: "revenue-group" });
+      const event = await createTestEvent({ name: "Paid Event", groupId: group.id, maxAttendees: 10, unitPrice: 1000 });
+      await createTestAttendee(event.id, event.slug, "Donor", "donor@test.com");
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("Total Revenue");
+    });
+
+    test("hides total revenue for free events", async () => {
+      const group = await createTestGroup({ name: "Free Group", slug: "free-group" });
+      await createTestEvent({ name: "Free Event", groupId: group.id, maxAttendees: 10 });
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).not.toContain("Total Revenue");
+    });
+
+    test("shows attendees from multiple events in group", async () => {
+      const group = await createTestGroup({ name: "Multi Group", slug: "multi-group" });
+      const event1 = await createTestEvent({ name: "Event Alpha", groupId: group.id, maxAttendees: 10 });
+      const event2 = await createTestEvent({ name: "Event Beta", groupId: group.id, maxAttendees: 10 });
+      await createTestAttendee(event1.id, event1.slug, "Alice Alpha", "alice@test.com");
+      await createTestAttendee(event2.id, event2.slug, "Bob Beta", "bob@test.com");
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("Alice Alpha");
+      expect(html).toContain("Bob Beta");
+      expect(html).toContain("Event Alpha");
+      expect(html).toContain("Event Beta");
+    });
+
+    test("shows no attendees message for group with events but no registrations", async () => {
+      const group = await createTestGroup({ name: "No Reg Group", slug: "no-reg-group" });
+      await createTestEvent({ name: "Empty Event", groupId: group.id, maxAttendees: 10 });
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("No attendees yet");
     });
   });
 

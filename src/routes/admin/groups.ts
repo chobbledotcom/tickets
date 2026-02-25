@@ -2,8 +2,12 @@
  * Admin group management routes - owner only
  */
 
+import { map } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
+import { decryptAttendeesForTable } from "#lib/db/attendees.ts";
 import { getAllowedDomain } from "#lib/config.ts";
+import { getAttendeesByEventIds } from "#lib/db/events.ts";
+import { mergeEventFields } from "#lib/event-fields.ts";
 import {
   assignEventsToGroup,
   computeGroupSlugIndex,
@@ -16,11 +20,13 @@ import {
   type GroupInput,
 } from "#lib/db/groups.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
+import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
-import type { Group } from "#lib/types.ts";
+import type { Attendee, Group } from "#lib/types.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
+import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import { htmlResponse, notFoundResponse, redirect, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
 import {
@@ -128,8 +134,23 @@ const handleGroupDetail = (
         getUngroupedEvents(),
         getActiveHolidays(),
       ]);
+      const sortedEvents = sortEvents(events, holidays);
+      const eventIds = map((e: { id: number }) => e.id)(sortedEvents);
+      let attendees: Attendee[] = [];
+      let phonePrefix: string | undefined;
+      if (eventIds.length > 0) {
+        const privateKey = await requirePrivateKey(session);
+        const fields = mergeEventFields(map((e: { fields: string }) => e.fields)(sortedEvents));
+        const hasPaidEvent = sortedEvents.some((e) => e.unit_price !== null);
+        const [rawAttendees, prefix] = await Promise.all([
+          getAttendeesByEventIds(eventIds),
+          getPhonePrefixFromDb(),
+        ]);
+        attendees = await decryptAttendeesForTable(rawAttendees, privateKey, fields, hasPaidEvent);
+        phonePrefix = prefix;
+      }
       const allowedDomain = getAllowedDomain();
-      return htmlResponse(adminGroupDetailPage(group, sortEvents(events, holidays), sortEvents(ungroupedEvents, holidays), session, allowedDomain));
+      return htmlResponse(adminGroupDetailPage(group, sortedEvents, sortEvents(ungroupedEvents, holidays), attendees, session, allowedDomain, phonePrefix));
     }));
 
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
