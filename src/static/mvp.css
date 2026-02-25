@@ -218,10 +218,7 @@ nav ul li ul li a {
 @media (max-width: 768px) {
   nav {
     flex-wrap: wrap;
-  }
-
-  nav ul li {
-    width: 100%;
+    justify-content: flex-start;
   }
 
   nav ul li ul {
