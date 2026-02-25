@@ -304,6 +304,91 @@ describe("server (admin attendees)", () => {
     });
   });
 
+  describe("POST /admin/event/:eventId/attendee/:attendeeId/delete-incomplete", () => {
+    test("redirects to login when not authenticated", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "", 1000);
+
+      const response = await handleRequest(
+        mockFormRequest(`/admin/event/${event.id}/attendee/${attendee.id}/delete-incomplete`, {}),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("deletes incomplete attendee without name confirmation", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+      const attendee = await createPaidTestAttendee(event.id, "Jane Stuck", "jane@example.com", "", 1000);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete-incomplete`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expectRedirect(`/admin/event/${event.id}`)(response);
+
+      // Verify attendee was deleted
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const deleted = await getAttendeeRaw(attendee.id);
+      expect(deleted).toBeNull();
+    });
+
+    test("refuses to delete complete attendee via delete-incomplete", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+      const attendee = await createPaidTestAttendee(event.id, "John Paid", "john@example.com", "pi_test_123", 1000);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete-incomplete`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expectRedirect(`/admin/event/${event.id}`)(response);
+
+      // Verify attendee was NOT deleted (still exists)
+      const rows = await getAttendeesRaw(event.id);
+      expect(rows.length).toBe(1);
+    });
+
+    test("refuses to delete admin-added attendee on paid event via delete-incomplete", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+      // Admin-added attendee: no payment_id and price_paid=0
+      const attendee = await createTestAttendee(event.id, event.slug, "Admin Added", "admin@example.com");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete-incomplete`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expectRedirect(`/admin/event/${event.id}`)(response);
+
+      // Verify attendee was NOT deleted
+      const rows = await getAttendeesRaw(event.id);
+      expect(rows.length).toBe(1);
+    });
+
+    test("returns 404 for non-existent attendee", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/999/delete-incomplete`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(404);
+    });
+  });
+
   describe("POST /admin/event/:eventId/attendee/:attendeeId/checkin", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({

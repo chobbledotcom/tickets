@@ -44,6 +44,56 @@ export const countCheckedIn = (attendees: Attendee[]): number =>
 export const nearCapacity = (event: EventWithCount): boolean =>
   event.attendee_count >= event.max_attendees * 0.9;
 
+/**
+ * Check if an attendee has an incomplete/failed payment.
+ * True when the event is paid, the attendee has no payment reference,
+ * but was charged a non-zero price (distinguishing from admin-added attendees
+ * who have price_paid=0).
+ */
+export const isIncompletePayment = (attendee: Attendee, hasPaidEvent: boolean): boolean =>
+  hasPaidEvent && !attendee.payment_id && Number.parseInt(attendee.price_paid, 10) > 0;
+
+/** Sum the quantity field across a list of attendees */
+const sumQuantity = reduce((sum: number, a: Attendee) => sum + a.quantity, 0);
+
+/** Concatenate strings (curried reducer for use in pipe) */
+const joinStrings = reduce((acc: string, s: string) => acc + s, "");
+
+/** Render a single row in the Failed Payments table */
+const FailedPaymentRow = ({ attendee, eventId }: { attendee: Attendee; eventId: number }): string =>
+  String(
+    <tr>
+      <td>{attendee.name}</td>
+      <td>{attendee.quantity}</td>
+      <td>{new Date(attendee.created).toLocaleString()}</td>
+      <td>
+        <CsrfForm action={`/admin/event/${eventId}/attendee/${attendee.id}/delete-incomplete`} class="inline">
+          <button type="submit" class="link-button danger">Delete</button>
+        </CsrfForm>
+      </td>
+    </tr>
+  );
+
+/** Render a table of attendees with failed/incomplete payments */
+const FailedPaymentsTable = ({ attendees, eventId }: { attendees: Attendee[]; eventId: number }): string =>
+  String(
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Qty</th>
+          <th>Registered</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <Raw html={pipe(
+          map((a: Attendee) => FailedPaymentRow({ attendee: a, eventId })),
+          joinStrings,
+        )(attendees)} />
+      </tbody>
+    </table>
+  );
 
 /** Check-in message to display after toggling */
 export type CheckinMessage = { name: string; status: string } | null;
@@ -112,10 +162,21 @@ export const adminEventPage = ({
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
   const isDaily = event.event_type === "daily";
-  const filteredAttendees = filterAttendees(attendees, activeFilter);
   const hasPaidEvent = event.unit_price !== null;
-  const checkedIn = countCheckedIn(attendees);
-  const checkedInRemaining = attendees.length - checkedIn;
+
+  // Separate attendees with incomplete/failed payments from the main list
+  const incompleteAttendees = hasPaidEvent
+    ? filter((a: Attendee) => isIncompletePayment(a, true))(attendees)
+    : [];
+  const completeAttendees = hasPaidEvent
+    ? filter((a: Attendee) => !isIncompletePayment(a, true))(attendees)
+    : attendees;
+  const incompleteQuantitySum = sumQuantity(incompleteAttendees);
+  const adjustedCount = event.attendee_count - incompleteQuantitySum;
+
+  const filteredAttendees = filterAttendees(completeAttendees, activeFilter);
+  const checkedIn = countCheckedIn(completeAttendees);
+  const checkedInRemaining = completeAttendees.length - checkedIn;
   const basePath = `/admin/event/${event.id}`;
   const dateQs = dateFilter ? `?date=${dateFilter}` : "";
   const suffix = filterSuffix(activeFilter);
@@ -203,12 +264,12 @@ export const adminEventPage = ({
                 <th>Attendees{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
                 <td>
                   {isDaily && dateFilter ? (
-                    <span class={attendees.length >= event.max_attendees ? "danger-text" : ""}>
-                      {attendees.length} / {event.max_attendees} &mdash; {event.max_attendees - attendees.length} remain
+                    <span class={completeAttendees.length >= event.max_attendees ? "danger-text" : ""}>
+                      {completeAttendees.length} / {event.max_attendees} &mdash; {event.max_attendees - completeAttendees.length} remain
                     </span>
                   ) : (
-                    <span class={nearCapacity(event) ? "danger-text" : ""}>
-                      {event.attendee_count}{!isDaily && <> / {event.max_attendees} &mdash; {event.max_attendees - event.attendee_count} remain</>}
+                    <span class={adjustedCount >= event.max_attendees * 0.9 ? "danger-text" : ""}>
+                      {adjustedCount}{!isDaily && <> / {event.max_attendees} &mdash; {event.max_attendees - adjustedCount} remain</>}
                     </span>
                   )}
                   {isDaily && !dateFilter && (
@@ -220,14 +281,14 @@ export const adminEventPage = ({
                 <th>Checked In{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
                 <td>
                   <span>
-                    {checkedIn} / {attendees.length} &mdash; {checkedInRemaining} remain
+                    {checkedIn} / {completeAttendees.length} &mdash; {checkedInRemaining} remain
                   </span>
                 </td>
               </tr>
               {event.unit_price !== null && (
                 <tr>
                   <th>Total Revenue</th>
-                  <td>{formatCurrency(calculateTotalRevenue(attendees))}</td>
+                  <td>{formatCurrency(calculateTotalRevenue(completeAttendees))}</td>
                 </tr>
               )}
               <tr>
@@ -332,6 +393,16 @@ export const adminEventPage = ({
             })} />
           </div>
         </article>
+
+        {incompleteAttendees.length > 0 && (
+          <article>
+            <h2 id="failed-payments">Failed Payments</h2>
+            <p>{incompleteAttendees.length} attendee(s) with unresolved payments</p>
+            <div class="table-scroll">
+              <Raw html={FailedPaymentsTable({ attendees: incompleteAttendees, eventId: event.id })} />
+            </div>
+          </article>
+        )}
 
         <article>
           <h2 id="add-attendee">Add Attendee</h2>
