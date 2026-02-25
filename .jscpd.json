@@ -1,6 +1,6 @@
 {
-	"threshold": 12,
-	"_comment": "Ratchet: was 12.91% before refactoring server-refunds.test.ts, now 11.75%. Lower as more files are de-duped.",
+	"threshold": 0,
+	"_comment": "0% duplication threshold is non-negotiable - use FP patterns from #fp to eliminate all duplication",
 	"reporters": ["console", "json"],
 	"output": ".jscpd-report",
 	"ignore": [
@@ -12,7 +12,7 @@
 	"format": ["typescript", "json"],
 	"absolute": false,
 	"gitignore": true,
-	"exitCode": 0,
+	"exitCode": 1,
 	"minLines": 1,
 	"minTokens": 25,
 	"path": ["src", "test", "scripts"]
