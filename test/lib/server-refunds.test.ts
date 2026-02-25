@@ -7,16 +7,102 @@ import {
   createTestAttendee,
   createTestDbWithSetup,
   createTestEvent,
+  expectAdminRedirect,
+  expectHtmlResponse,
+  loginAsAdmin,
   mockFormRequest,
   mockProviderType,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
-  expectAdminRedirect,
-  loginAsAdmin,
   withMocks,
 } from "#test-utils";
+import type { Attendee, Event } from "#lib/types.ts";
+import type { EventInput } from "#lib/db/events.ts";
 import { paymentsApi } from "#lib/payments.ts";
+
+// -- URL builders --------------------------------------------------------- //
+
+const refundUrl = (eventId: number, attendeeId: number) =>
+  `/admin/event/${eventId}/attendee/${attendeeId}/refund`;
+
+const refundAllUrl = (eventId: number) =>
+  `/admin/event/${eventId}/refund-all`;
+
+// -- Setup helpers -------------------------------------------------------- //
+
+const createPaidEvent = (overrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {}) =>
+  createTestEvent({ maxAttendees: 100, unitPrice: 500, ...overrides });
+
+type RefundCtx = {
+  event: Event;
+  attendee: Attendee;
+  cookie: string;
+  csrfToken: string;
+};
+
+/** Create a paid event + paid John Doe attendee + admin session. */
+const setupRefundTest = async (paymentId: string): Promise<RefundCtx> => {
+  const event = await createPaidEvent();
+  const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", paymentId);
+  const { cookie, csrfToken } = await loginAsAdmin();
+  return { event, attendee, cookie, csrfToken };
+};
+
+/** POST the single-attendee refund form. Defaults to John Doe + ctx csrf. */
+const submitRefund = (
+  { event, attendee, csrfToken, cookie }: RefundCtx,
+  overrides: Record<string, string> = {},
+) =>
+  handleRequest(
+    mockFormRequest(
+      refundUrl(event.id, attendee.id),
+      { confirm_name: "John Doe", csrf_token: csrfToken, ...overrides },
+      cookie,
+    ),
+  );
+
+/** POST the refund-all form. Defaults to event name + ctx csrf. */
+const submitRefundAll = (
+  { event, csrfToken, cookie }: RefundCtx,
+  overrides: Record<string, string> = {},
+) =>
+  handleRequest(
+    mockFormRequest(
+      refundAllUrl(event.id),
+      { confirm_name: event.name, csrf_token: csrfToken, ...overrides },
+      cookie,
+    ),
+  );
+
+const markAsRefunded = async (attendeeId: number) => {
+  const { markRefunded } = await import("#lib/db/attendees.ts");
+  await markRefunded(attendeeId);
+};
+
+// -- Mock provider helper ------------------------------------------------- //
+
+const withRefundMock = async (
+  refundBehavior: boolean | (() => Promise<boolean>),
+  fn: (mockRefund: unknown) => Promise<void>,
+) => {
+  await withMocks(
+    () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
+    async () => {
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockRefund = typeof refundBehavior === "function"
+        ? spyOn(stripePaymentProvider, "refundPayment").mockImplementation(refundBehavior)
+        : spyOn(stripePaymentProvider, "refundPayment").mockResolvedValue(refundBehavior);
+      try {
+        await fn(mockRefund);
+      } finally {
+        mockRefund.mockRestore?.();
+      }
+    },
+  );
+};
+
+// -- Tests ---------------------------------------------------------------- //
 
 describe("server (admin refunds)", () => {
   beforeEach(async () => {
@@ -30,36 +116,23 @@ describe("server (admin refunds)", () => {
 
   describe("GET /admin/event/:eventId/attendee/:attendeeId/refund", () => {
     test("redirects to login when not authenticated", async () => {
-      const event = await createTestEvent({
-        maxAttendees: 100,
-        unitPrice: 500,
-      });
+      const event = await createPaidEvent();
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
-      const response = await handleRequest(
-        mockRequest(`/admin/event/${event.id}/attendee/${attendee.id}/refund`),
-      );
+      const response = await handleRequest(mockRequest(refundUrl(event.id, attendee.id)));
       expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
       const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        "/admin/event/999/attendee/1/refund",
-        { cookie },
-      );
+      const response = await awaitTestRequest(refundUrl(999, 1), { cookie });
       expect(response.status).toBe(404);
     });
 
     test("returns 404 for non-existent attendee", async () => {
       await createTestEvent({ maxAttendees: 100 });
       const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        "/admin/event/1/attendee/999/refund",
-        { cookie },
-      );
+      const response = await awaitTestRequest(refundUrl(1, 999), { cookie });
       expect(response.status).toBe(404);
     });
 
@@ -69,11 +142,7 @@ describe("server (admin refunds)", () => {
       const attendee = await createTestAttendee(event2.id, event2.slug, "John Doe", "john@example.com");
 
       const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event1.id}/attendee/${attendee.id}/refund`,
-        { cookie },
-      );
+      const response = await awaitTestRequest(refundUrl(event1.id, attendee.id), { cookie });
       expect(response.status).toBe(404);
     });
 
@@ -82,228 +151,107 @@ describe("server (admin refunds)", () => {
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-        { cookie },
-      );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("no payment to refund");
+      const response = await awaitTestRequest(refundUrl(event.id, attendee.id), { cookie });
+      await expectHtmlResponse(response, 400, "no payment to refund");
     });
 
     test("shows refund confirmation page for paid attendee", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "Jane Smith", "jane@example.com", "pi_test_123");
-
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-        { cookie },
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Refund Attendee");
-      expect(html).toContain("Jane Smith");
-      expect(html).toContain("type their name");
-      expect(html).toContain("5.00");
+      const ctx = await setupRefundTest("pi_test_123");
+      const response = await awaitTestRequest(refundUrl(ctx.event.id, ctx.attendee.id), { cookie: ctx.cookie });
+      await expectHtmlResponse(response, 200, "Refund Attendee", "John Doe", "type their name", "5.00");
     });
 
     test("includes return_url as hidden field when provided", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "Jane Smith", "jane@example.com", "pi_test_123");
-
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${attendee.id}/refund?return_url=${encodeURIComponent("/admin/calendar#attendees")}`,
-        { cookie },
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('name="return_url"');
-      expect(html).toContain("/admin/calendar#attendees");
+      const ctx = await setupRefundTest("pi_test_return");
+      const url = `${refundUrl(ctx.event.id, ctx.attendee.id)}?return_url=${encodeURIComponent("/admin/calendar#attendees")}`;
+      const response = await awaitTestRequest(url, { cookie: ctx.cookie });
+      await expectHtmlResponse(response, 200, 'name="return_url"', "/admin/calendar#attendees");
     });
   });
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/refund", () => {
     test("redirects to login when not authenticated", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const event = await createPaidEvent();
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       const response = await handleRequest(
-        mockFormRequest(`/admin/event/${event.id}/attendee/${attendee.id}/refund`, {
-          confirm_name: "John Doe",
-        }),
+        mockFormRequest(refundUrl(event.id, attendee.id), { confirm_name: "John Doe" }),
       );
       expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_456");
-
-      const { cookie } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-          { confirm_name: "John Doe", csrf_token: "invalid-token" },
-          cookie,
-        ),
-      );
+      const ctx = await setupRefundTest("pi_test_456");
+      const response = await submitRefund(ctx, { csrf_token: "invalid-token" });
       expect(response.status).toBe(403);
     });
 
     test("rejects mismatched attendee name", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_789");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-          { confirm_name: "Wrong Name", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("does not match");
+      const ctx = await setupRefundTest("pi_test_789");
+      const response = await submitRefund(ctx, { confirm_name: "Wrong Name" });
+      await expectHtmlResponse(response, 400, "does not match");
     });
 
     test("returns error when attendee has no payment", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
+          refundUrl(event.id, attendee.id),
           { confirm_name: "John Doe", csrf_token: csrfToken },
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("no payment to refund");
+      await expectHtmlResponse(response, 400, "no payment to refund");
     });
 
     test("returns error when no payment provider configured", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_noprov");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-          { confirm_name: "John Doe", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("No payment provider configured");
+      const ctx = await setupRefundTest("pi_test_noprov");
+      const response = await submitRefund(ctx);
+      await expectHtmlResponse(response, 400, "No payment provider configured");
     });
 
     test("successfully refunds attendee payment", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_success");
+      const ctx = await setupRefundTest("pi_test_success");
 
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
-        async () => {
-          const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-          const mockRefund = spyOn(stripePaymentProvider, "refundPayment").mockResolvedValue(true);
-          try {
-            const response = await handleRequest(
-              mockFormRequest(
-                `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-                { confirm_name: "John Doe", csrf_token: csrfToken },
-                cookie,
-              ),
-            );
-            expect(response.status).toBe(302);
-            expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
-            expect(mockRefund).toHaveBeenCalled();
-          } finally {
-            mockRefund.mockRestore?.();
-          }
-        },
-      );
+      await withRefundMock(true, async (mockRefund) => {
+        const response = await submitRefund(ctx);
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe(`/admin/event/${ctx.event.id}`);
+        expect(mockRefund).toHaveBeenCalled();
+      });
     });
 
     test("shows error when refund fails", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_fail");
+      const ctx = await setupRefundTest("pi_test_fail");
 
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
-        async () => {
-          const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-          const mockRefund = spyOn(stripePaymentProvider, "refundPayment").mockResolvedValue(false);
-          try {
-            const response = await handleRequest(
-              mockFormRequest(
-                `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-                { confirm_name: "John Doe", csrf_token: csrfToken },
-                cookie,
-              ),
-            );
-            expect(response.status).toBe(400);
-            const html = await response.text();
-            expect(html).toContain("Refund failed");
-          } finally {
-            mockRefund.mockRestore?.();
-          }
-        },
-      );
+      await withRefundMock(false, async () => {
+        const response = await submitRefund(ctx);
+        await expectHtmlResponse(response, 400, "Refund failed");
+      });
     });
 
     test("handles missing confirm_name field", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_test_missing");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
+      const ctx = await setupRefundTest("pi_test_missing");
       const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+        mockFormRequest(refundUrl(ctx.event.id, ctx.attendee.id), { csrf_token: ctx.csrfToken }, ctx.cookie),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("does not match");
+      await expectHtmlResponse(response, 400, "does not match");
     });
   });
 
   describe("GET /admin/event/:id/refund-all", () => {
     test("redirects to login when not authenticated", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-
-      const response = await handleRequest(
-        mockRequest(`/admin/event/${event.id}/refund-all`),
-      );
+      const event = await createPaidEvent();
+      const response = await handleRequest(mockRequest(refundAllUrl(event.id)));
       expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
       const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        "/admin/event/999/refund-all",
-        { cookie },
-      );
+      const response = await awaitTestRequest(refundAllUrl(999), { cookie });
       expect(response.status).toBe(404);
     });
 
@@ -312,195 +260,103 @@ describe("server (admin refunds)", () => {
       await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
 
       const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/refund-all`,
-        { cookie },
-      );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("No attendees have payments to refund");
+      const response = await awaitTestRequest(refundAllUrl(event.id), { cookie });
+      await expectHtmlResponse(response, 400, "No attendees have payments to refund");
     });
 
     test("shows refund all confirmation page with refundable count", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const event = await createPaidEvent();
       await createPaidTestAttendee(event.id, "Paid User", "paid@example.com", "pi_paid_1");
-      // Also add a free attendee (no payment_id)
       await createTestAttendee(event.id, event.slug, "Free User", "free@example.com");
 
       const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/refund-all`,
-        { cookie },
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Refund All");
-      expect(html).toContain("1 attendee(s) with payments");
-      expect(html).toContain("type the event name");
+      const response = await awaitTestRequest(refundAllUrl(event.id), { cookie });
+      await expectHtmlResponse(response, 200, "Refund All", "1 attendee(s) with payments", "type the event name");
     });
   });
 
   describe("POST /admin/event/:id/refund-all", () => {
     test("redirects to login when not authenticated", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-
+      const event = await createPaidEvent();
       const response = await handleRequest(
-        mockFormRequest(`/admin/event/${event.id}/refund-all`, {
-          confirm_name: event.name,
-        }),
+        mockFormRequest(refundAllUrl(event.id), { confirm_name: event.name }),
       );
       expectAdminRedirect(response);
     });
 
     test("returns 404 for non-existent event", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
-
       const response = await handleRequest(
-        mockFormRequest(
-          "/admin/event/999/refund-all",
-          { confirm_name: "Test", csrf_token: csrfToken },
-          cookie,
-        ),
+        mockFormRequest(refundAllUrl(999), { confirm_name: "Test", csrf_token: csrfToken }, cookie),
       );
       expect(response.status).toBe(404);
     });
 
     test("rejects mismatched event name", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_refundall_1");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/refund-all`,
-          { confirm_name: "Wrong Event Name", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("does not match");
+      const ctx = await setupRefundTest("pi_refundall_1");
+      const response = await submitRefundAll(ctx, { confirm_name: "Wrong Event Name" });
+      await expectHtmlResponse(response, 400, "does not match");
     });
 
     test("rejects when confirm_name is missing", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_refundall_missing");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
+      const ctx = await setupRefundTest("pi_refundall_missing");
       const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/refund-all`,
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+        mockFormRequest(refundAllUrl(ctx.event.id), { csrf_token: ctx.csrfToken }, ctx.cookie),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("does not match");
+      await expectHtmlResponse(response, 400, "does not match");
     });
 
     test("returns error when no attendees have payments", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/refund-all`,
+          refundAllUrl(event.id),
           { confirm_name: event.name, csrf_token: csrfToken },
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("No attendees have payments to refund");
+      await expectHtmlResponse(response, 400, "No attendees have payments to refund");
     });
 
     test("returns error when no payment provider configured", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_noprov_all");
-
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/refund-all`,
-          { confirm_name: event.name, csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("No payment provider configured");
+      const ctx = await setupRefundTest("pi_noprov_all");
+      const response = await submitRefundAll(ctx);
+      await expectHtmlResponse(response, 400, "No payment provider configured");
     });
 
     test("successfully refunds all attendees", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const event = await createPaidEvent();
       await createPaidTestAttendee(event.id, "User One", "one@example.com", "pi_all_1");
       await createPaidTestAttendee(event.id, "User Two", "two@example.com", "pi_all_2");
-
       const { cookie, csrfToken } = await loginAsAdmin();
 
-      await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
-        async () => {
-          const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-          const mockRefund = spyOn(stripePaymentProvider, "refundPayment").mockResolvedValue(true);
-          try {
-            const response = await handleRequest(
-              mockFormRequest(
-                `/admin/event/${event.id}/refund-all`,
-                { confirm_name: event.name, csrf_token: csrfToken },
-                cookie,
-              ),
-            );
-            expect(response.status).toBe(302);
-            expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
-            expect(mockRefund).toHaveBeenCalledTimes(2);
-          } finally {
-            mockRefund.mockRestore?.();
-          }
-        },
-      );
+      await withRefundMock(true, async (mockRefund) => {
+        const response = await handleRequest(
+          mockFormRequest(refundAllUrl(event.id), { confirm_name: event.name, csrf_token: csrfToken }, cookie),
+        );
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
+        expect(mockRefund).toHaveBeenCalledTimes(2);
+      });
     });
 
     test("reports partial failure when some refunds fail", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const event = await createPaidEvent();
       await createPaidTestAttendee(event.id, "Good User", "good@example.com", "pi_partial_ok");
       await createPaidTestAttendee(event.id, "Bad User", "bad@example.com", "pi_partial_fail");
-
       const { cookie, csrfToken } = await loginAsAdmin();
 
       let callNum = 0;
-      await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
+      await withRefundMock(
+        () => Promise.resolve(++callNum <= 1),
         async () => {
-          const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-          const mockRefund = spyOn(stripePaymentProvider, "refundPayment").mockImplementation(() => {
-            callNum++;
-            // First refund succeeds, second fails
-            return Promise.resolve(callNum <= 1);
-          });
-          try {
-            const response = await handleRequest(
-              mockFormRequest(
-                `/admin/event/${event.id}/refund-all`,
-                { confirm_name: event.name, csrf_token: csrfToken },
-                cookie,
-              ),
-            );
-            expect(response.status).toBe(400);
-            const html = await response.text();
-            expect(html).toContain("1 refund(s) succeeded");
-            expect(html).toContain("1 failed");
-          } finally {
-            mockRefund.mockRestore?.();
-          }
+          const response = await handleRequest(
+            mockFormRequest(refundAllUrl(event.id), { confirm_name: event.name, csrf_token: csrfToken }, cookie),
+          );
+          await expectHtmlResponse(response, 400, "1 refund(s) succeeded", "1 failed");
         },
       );
     });
@@ -508,111 +364,54 @@ describe("server (admin refunds)", () => {
 
   describe("already-refunded guard", () => {
     test("GET refund page shows error for already-refunded attendee", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_already_refunded");
-      const { markRefunded } = await import("#lib/db/attendees.ts");
-      await markRefunded(attendee.id);
+      const ctx = await setupRefundTest("pi_already_refunded");
+      await markAsRefunded(ctx.attendee.id);
 
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-        { cookie },
-      );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("already been refunded");
+      const response = await awaitTestRequest(refundUrl(ctx.event.id, ctx.attendee.id), { cookie: ctx.cookie });
+      await expectHtmlResponse(response, 400, "already been refunded");
     });
 
     test("POST refund returns error for already-refunded attendee", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_post_already");
-      const { markRefunded } = await import("#lib/db/attendees.ts");
-      await markRefunded(attendee.id);
+      const ctx = await setupRefundTest("pi_post_already");
+      await markAsRefunded(ctx.attendee.id);
 
-      const { cookie, csrfToken } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-          { confirm_name: "John Doe", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("already been refunded");
+      const response = await submitRefund(ctx);
+      await expectHtmlResponse(response, 400, "already been refunded");
     });
 
     test("refund-all excludes already-refunded attendees", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const event = await createPaidEvent();
       const refundedAttendee = await createPaidTestAttendee(event.id, "Refunded", "refunded@example.com", "pi_ra_1");
       await createPaidTestAttendee(event.id, "Not Refunded", "notrefunded@example.com", "pi_ra_2");
-      const { markRefunded } = await import("#lib/db/attendees.ts");
-      await markRefunded(refundedAttendee.id);
+      await markAsRefunded(refundedAttendee.id);
 
       const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/refund-all`,
-        { cookie },
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("1 attendee(s) with payments");
+      const response = await awaitTestRequest(refundAllUrl(event.id), { cookie });
+      await expectHtmlResponse(response, 200, "1 attendee(s) with payments");
     });
 
     test("marks attendee as refunded after successful refund", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_mark_refund");
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const ctx = await setupRefundTest("pi_mark_refund");
 
-      await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
-        async () => {
-          const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-          const mockRefund = spyOn(stripePaymentProvider, "refundPayment").mockResolvedValue(true);
-          try {
-            const response = await handleRequest(
-              mockFormRequest(
-                `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-                { confirm_name: "John Doe", csrf_token: csrfToken },
-                cookie,
-              ),
-            );
-            expect(response.status).toBe(302);
+      await withRefundMock(true, async () => {
+        const response = await submitRefund(ctx);
+        expect(response.status).toBe(302);
 
-            // Verify attendee is marked as refunded by trying to refund again
-            const retryResponse = await handleRequest(
-              mockFormRequest(
-                `/admin/event/${event.id}/attendee/${attendee.id}/refund`,
-                { confirm_name: "John Doe", csrf_token: csrfToken },
-                cookie,
-              ),
-            );
-            expect(retryResponse.status).toBe(400);
-            const html = await retryResponse.text();
-            expect(html).toContain("already been refunded");
-          } finally {
-            mockRefund.mockRestore?.();
-          }
-        },
-      );
+        // Verify attendee is marked as refunded by trying to refund again
+        const retryResponse = await submitRefund(ctx);
+        await expectHtmlResponse(retryResponse, 400, "already been refunded");
+      });
     });
   });
 
   describe("event page UI", () => {
     test("shows Refund link for paid attendees on paid events", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const event = await createPaidEvent();
       await createPaidTestAttendee(event.id, "Paid User", "paid@example.com", "pi_ui_1");
 
       const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}`,
-        { cookie },
-      );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("/refund");
-      expect(html).toContain("Refund All");
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
+      await expectHtmlResponse(response, 200, "/refund", "Refund All");
     });
 
     test("does not show Refund link for free events", async () => {
@@ -620,27 +419,19 @@ describe("server (admin refunds)", () => {
       await createTestAttendee(event.id, event.slug, "Free User", "free@example.com");
 
       const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}`,
-        { cookie },
-      );
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).not.toContain("Refund All");
     });
 
     test("does not show Refund link for attendees without payment_id on paid events", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
+      const event = await createPaidEvent();
       // Create a free attendee on a paid event (no payment_id)
       await createTestAttendee(event.id, event.slug, "No Payment User", "nopay@example.com");
 
       const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}`,
-        { cookie },
-      );
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
       expect(response.status).toBe(200);
       const html = await response.text();
       // The event nav should still show Refund All (because it's a paid event)
