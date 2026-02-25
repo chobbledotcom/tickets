@@ -1,6 +1,18 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  spyOn,
+  test,
+} from "#test-compat";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
-import { getEmbedHostsFromDb, getTimezoneFromDb, setPaymentProvider, updateTermsAndConditions } from "#lib/db/settings.ts";
+import {
+  getEmbedHostsFromDb,
+  getTimezoneFromDb,
+  setPaymentProvider,
+  updateTermsAndConditions,
+} from "#lib/db/settings.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { invalidateUsersCache } from "#lib/db/users.ts";
@@ -8,14 +20,15 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
+  expectAdminRedirect,
+  expectHtmlResponse,
+  expectRedirect,
+  loginAsAdmin,
+  mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
-  expectAdminRedirect,
-  expectRedirect,
-  loginAsAdmin,
-  mockAdminLoginRequest,
   TEST_ADMIN_PASSWORD,
   withMocks,
 } from "#test-utils";
@@ -40,10 +53,7 @@ describe("server (admin settings)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Settings");
-      expect(html).toContain("Change Password");
+      await expectHtmlResponse(response, 200, "Settings", "Change Password");
     });
 
     test("displays success message from query param", async () => {
@@ -53,10 +63,12 @@ describe("server (admin settings)", () => {
         "/admin/settings?success=Test+success+message",
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Test success message");
-      expect(html).toContain('class="success"');
+      await expectHtmlResponse(
+        response,
+        200,
+        "Test success message",
+        'class="success"',
+      );
     });
   });
 
@@ -87,9 +99,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects missing required fields", async () => {
@@ -107,9 +117,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("required");
+      await expectHtmlResponse(response, 400, "required");
     });
 
     test("rejects password shorter than 8 characters", async () => {
@@ -127,9 +135,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("at least 8 characters");
+      await expectHtmlResponse(response, 400, "at least 8 characters");
     });
 
     test("rejects mismatched passwords", async () => {
@@ -147,9 +153,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("do not match");
+      await expectHtmlResponse(response, 400, "do not match");
     });
 
     test("rejects incorrect current password", async () => {
@@ -167,9 +171,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(401);
-      const html = await response.text();
-      expect(html).toContain("Current password is incorrect");
+      await expectHtmlResponse(response, 401, "Current password is incorrect");
     });
 
     test("changes password and invalidates session", async () => {
@@ -199,7 +201,10 @@ describe("server (admin settings)", () => {
 
       // Verify new password works
       const newLoginResponse = await handleRequest(
-        await mockAdminLoginRequest({ username: "testadmin", password: "newpassword123" }),
+        await mockAdminLoginRequest({
+          username: "testadmin",
+          password: "newpassword123",
+        }),
       );
       expectAdminRedirect(newLoginResponse);
     });
@@ -227,9 +232,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(500);
-      const html = await response.text();
-      expect(html).toContain("Failed to update password");
+      await expectHtmlResponse(response, 500, "Failed to update password");
     });
   });
 
@@ -256,9 +259,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects missing stripe key", async () => {
@@ -274,18 +275,17 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("required");
+      await expectHtmlResponse(response, 400, "required");
     });
 
     test("updates Stripe key successfully", async () => {
       await withMocks(
-        () => spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
-          success: true,
-          endpointId: "we_test_123",
-          secret: "whsec_test_secret",
-        }),
+        () =>
+          spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
+            success: true,
+            endpointId: "we_test_123",
+            secret: "whsec_test_secret",
+          }),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -315,21 +315,24 @@ describe("server (admin settings)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("No Stripe key is configured");
-      expect(html).toContain("Enter your Stripe secret key to enable Stripe payments");
-      expect(html).toContain("/admin/guide#payment-setup");
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "No Stripe key is configured",
+        "Enter your Stripe secret key to enable Stripe payments",
+        "/admin/guide#payment-setup",
+      );
       expect(html).not.toContain("stripe-test-btn");
     });
 
     test("settings page shows Stripe is configured after setting key", async () => {
       await withMocks(
-        () => spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
-          success: true,
-          endpointId: "we_test_123",
-          secret: "whsec_test_secret",
-        }),
+        () =>
+          spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
+            success: true,
+            endpointId: "we_test_123",
+            secret: "whsec_test_secret",
+          }),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -346,7 +349,9 @@ describe("server (admin settings)", () => {
           );
 
           // Check the settings page shows it's configured and has test button
-          const response = await awaitTestRequest("/admin/settings", { cookie });
+          const response = await awaitTestRequest("/admin/settings", {
+            cookie,
+          });
           const html = await response.text();
           expect(html).toContain("A Stripe secret key is currently configured");
           expect(html).toContain("stripe-test-btn");
@@ -373,50 +378,58 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("returns JSON result when API key is not configured", async () => {
       await withMocks(
-        () => spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
-          ok: false,
-          apiKey: { valid: false, error: "No Stripe secret key configured" },
-          webhook: { configured: false },
-        }),
+        () =>
+          spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
+            ok: false,
+            apiKey: { valid: false, error: "No Stripe secret key configured" },
+            webhook: { configured: false },
+          }),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
-            mockFormRequest("/admin/settings/stripe/test", { csrf_token: csrfToken }, cookie),
+            mockFormRequest("/admin/settings/stripe/test", {
+              csrf_token: csrfToken,
+            }, cookie),
           );
           expect(response.status).toBe(200);
-          expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+          expect(response.headers.get("content-type")).toBe(
+            "application/json; charset=utf-8",
+          );
           const json = await response.json();
           expect(json.ok).toBe(false);
           expect(json.apiKey.valid).toBe(false);
-          expect(json.apiKey.error).toContain("No Stripe secret key configured");
+          expect(json.apiKey.error).toContain(
+            "No Stripe secret key configured",
+          );
         },
       );
     });
 
     test("returns success when API key and webhook are valid", async () => {
       await withMocks(
-        () => spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
-          ok: true,
-          apiKey: { valid: true, mode: "test" },
-          webhook: {
-            configured: true,
-            endpointId: "we_test_123",
-            url: "https://example.com/payment/webhook",
-            status: "enabled",
-            enabledEvents: ["checkout.session.completed"],
-          },
-        }),
+        () =>
+          spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
+            ok: true,
+            apiKey: { valid: true, mode: "test" },
+            webhook: {
+              configured: true,
+              endpointId: "we_test_123",
+              url: "https://example.com/payment/webhook",
+              status: "enabled",
+              enabledEvents: ["checkout.session.completed"],
+            },
+          }),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
-            mockFormRequest("/admin/settings/stripe/test", { csrf_token: csrfToken }, cookie),
+            mockFormRequest("/admin/settings/stripe/test", {
+              csrf_token: csrfToken,
+            }, cookie),
           );
           expect(response.status).toBe(200);
           const json = await response.json();
@@ -426,22 +439,30 @@ describe("server (admin settings)", () => {
           expect(json.webhook.configured).toBe(true);
           expect(json.webhook.url).toBe("https://example.com/payment/webhook");
           expect(json.webhook.status).toBe("enabled");
-          expect(json.webhook.enabledEvents).toContain("checkout.session.completed");
+          expect(json.webhook.enabledEvents).toContain(
+            "checkout.session.completed",
+          );
         },
       );
     });
 
     test("returns partial failure when API key valid but webhook missing", async () => {
       await withMocks(
-        () => spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
-          ok: false,
-          apiKey: { valid: true, mode: "test" },
-          webhook: { configured: false, error: "No webhook endpoint ID stored" },
-        }),
+        () =>
+          spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
+            ok: false,
+            apiKey: { valid: true, mode: "test" },
+            webhook: {
+              configured: false,
+              error: "No webhook endpoint ID stored",
+            },
+          }),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
-            mockFormRequest("/admin/settings/stripe/test", { csrf_token: csrfToken }, cookie),
+            mockFormRequest("/admin/settings/stripe/test", {
+              csrf_token: csrfToken,
+            }, cookie),
           );
           expect(response.status).toBe(200);
           const json = await response.json();
@@ -468,7 +489,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Embed host restrictions removed");
+      expect(decodeURIComponent(location)).toContain(
+        "Embed host restrictions removed",
+      );
       expect(await getEmbedHostsFromDb()).toBe(null);
     });
 
@@ -483,9 +506,7 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Bare wildcard");
+      await expectHtmlResponse(response, 400, "Bare wildcard");
     });
 
     test("normalizes and saves embed hosts", async () => {
@@ -494,15 +515,22 @@ describe("server (admin settings)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/embed-hosts",
-          { embed_hosts: "Example.com, *.Sub.Example.com", csrf_token: csrfToken },
+          {
+            embed_hosts: "Example.com, *.Sub.Example.com",
+            csrf_token: csrfToken,
+          },
           cookie,
         ),
       );
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Allowed embed hosts updated");
-      expect(await getEmbedHostsFromDb()).toBe("example.com, *.sub.example.com");
+      expect(decodeURIComponent(location)).toContain(
+        "Allowed embed hosts updated",
+      );
+      expect(await getEmbedHostsFromDb()).toBe(
+        "example.com, *.sub.example.com",
+      );
     });
   });
 
@@ -531,9 +559,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects missing square access token", async () => {
@@ -550,9 +576,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("required");
+      await expectHtmlResponse(response, 400, "required");
     });
 
     test("rejects missing location ID", async () => {
@@ -569,9 +593,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("required");
+      await expectHtmlResponse(response, 400, "required");
     });
 
     test("updates Square credentials successfully", async () => {
@@ -591,7 +613,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Square credentials updated");
+      expect(decodeURIComponent(location)).toContain(
+        "Square credentials updated",
+      );
     });
 
     test("settings page shows Square is not configured initially", async () => {
@@ -600,10 +624,12 @@ describe("server (admin settings)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("No Square access token is configured");
-      expect(html).toContain("/admin/guide#payment-setup");
+      await expectHtmlResponse(
+        response,
+        200,
+        "No Square access token is configured",
+        "/admin/guide#payment-setup",
+      );
     });
 
     test("settings page shows Square is configured after setting token", async () => {
@@ -652,9 +678,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("required");
+      await expectHtmlResponse(response, 400, "required");
     });
 
     test("updates Square webhook key successfully", async () => {
@@ -673,7 +697,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Square webhook signature key updated");
+      expect(decodeURIComponent(location)).toContain(
+        "Square webhook signature key updated",
+      );
     });
   });
 
@@ -694,7 +720,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Payment provider set to square");
+      expect(decodeURIComponent(location)).toContain(
+        "Payment provider set to square",
+      );
     });
   });
 
@@ -723,9 +751,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects wrong confirmation phrase", async () => {
@@ -741,9 +767,11 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Confirmation phrase does not match");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Confirmation phrase does not match",
+      );
     });
 
     test("resets database and redirects to setup on correct phrase", async () => {
@@ -777,9 +805,7 @@ describe("server (admin settings)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Reset Database");
+      const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(
         "The site will be fully reset and all data will be lost.",
       );
@@ -812,7 +838,9 @@ describe("server (admin settings)", () => {
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Payment provider set to stripe");
+      expect(decodeURIComponent(location)).toContain(
+        "Payment provider set to stripe",
+      );
     });
 
     test("disables payment provider with none", async () => {
@@ -830,7 +858,9 @@ describe("server (admin settings)", () => {
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Payment provider disabled");
+      expect(decodeURIComponent(location)).toContain(
+        "Payment provider disabled",
+      );
     });
 
     test("rejects invalid payment provider", async () => {
@@ -846,9 +876,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Invalid payment provider");
+      await expectHtmlResponse(response, 400, "Invalid payment provider");
     });
   });
 
@@ -873,10 +901,12 @@ describe("server (admin settings)", () => {
             cookie,
           ),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("Failed to set up Stripe webhook");
-        expect(html).toContain("Connection refused");
+        await expectHtmlResponse(
+          response,
+          400,
+          "Failed to set up Stripe webhook",
+          "Connection refused",
+        );
       } finally {
         mockSetupWebhook.mockRestore();
       }
@@ -897,9 +927,11 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Confirmation phrase does not match");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Confirmation phrase does not match",
+      );
     });
   });
 
@@ -915,9 +947,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Invalid payment provider");
+      await expectHtmlResponse(response, 400, "Invalid payment provider");
     });
 
     test("reset database POST without confirm_phrase field uses empty fallback", async () => {
@@ -931,9 +961,11 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Confirmation phrase does not match");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Confirmation phrase does not match",
+      );
     });
   });
 
@@ -960,9 +992,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("saves terms and conditions", async () => {
@@ -972,7 +1002,8 @@ describe("server (admin settings)", () => {
         mockFormRequest(
           "/admin/settings/terms",
           {
-            terms_and_conditions: "By registering you agree to our event policy.",
+            terms_and_conditions:
+              "By registering you agree to our event policy.",
             csrf_token: csrfToken,
           },
           cookie,
@@ -981,7 +1012,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Terms and conditions updated");
+      expect(decodeURIComponent(location)).toContain(
+        "Terms and conditions updated",
+      );
     });
 
     test("rejects terms exceeding max length", async () => {
@@ -998,9 +1031,7 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("10240 characters or fewer");
+      await expectHtmlResponse(response, 400, "10240 characters or fewer");
     });
 
     test("accepts terms at exactly max length", async () => {
@@ -1019,7 +1050,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Terms and conditions updated");
+      expect(decodeURIComponent(location)).toContain(
+        "Terms and conditions updated",
+      );
     });
 
     test("clears terms when empty", async () => {
@@ -1051,7 +1084,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Terms and conditions removed");
+      expect(decodeURIComponent(location)).toContain(
+        "Terms and conditions removed",
+      );
     });
 
     test("handles missing terms field gracefully", async () => {
@@ -1067,17 +1102,21 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Terms and conditions removed");
+      expect(decodeURIComponent(location)).toContain(
+        "Terms and conditions removed",
+      );
     });
 
     test("settings page shows terms and conditions section", async () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Terms and Conditions");
-      expect(html).toContain("terms_and_conditions");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Terms and Conditions",
+        "terms_and_conditions",
+      );
     });
 
     test("settings page shows current terms when configured", async () => {
@@ -1086,9 +1125,7 @@ describe("server (admin settings)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("You must be 18 or older.");
+      await expectHtmlResponse(response, 200, "You must be 18 or older.");
     });
   });
 
@@ -1107,16 +1144,14 @@ describe("server (admin settings)", () => {
           },
         }),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("webhook");
-      expect(html).toContain("full setup guide");
+      await expectHtmlResponse(response, 200, "webhook", "full setup guide");
     });
 
     test("settings page shows Square webhook configured message", async () => {
       const { cookie } = await loginAsAdmin();
       await setPaymentProvider("square");
-      const { updateSquareAccessToken, updateSquareWebhookSignatureKey } = await import("#lib/db/settings.ts");
+      const { updateSquareAccessToken, updateSquareWebhookSignatureKey } =
+        await import("#lib/db/settings.ts");
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareWebhookSignatureKey("sig_key_test");
 
@@ -1128,9 +1163,7 @@ describe("server (admin settings)", () => {
           },
         }),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("currently configured");
+      await expectHtmlResponse(response, 200, "currently configured");
     });
   });
 
@@ -1183,9 +1216,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Timezone is required");
+      await expectHtmlResponse(response, 400, "Timezone is required");
     });
 
     test("rejects invalid timezone identifier", async () => {
@@ -1198,9 +1229,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Invalid timezone");
+      await expectHtmlResponse(response, 400, "Invalid timezone");
     });
   });
 
@@ -1227,9 +1256,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const html = await response.text();
-      expect(html).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("updates business email successfully", async () => {
@@ -1256,7 +1283,9 @@ describe("server (admin settings)", () => {
     });
 
     test("clears business email when empty string", async () => {
-      const { getBusinessEmailFromDb, updateBusinessEmail } = await import("#lib/business-email.ts");
+      const { getBusinessEmailFromDb, updateBusinessEmail } = await import(
+        "#lib/business-email.ts"
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
 
       // First set an email
@@ -1297,9 +1326,7 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Invalid email format");
+      await expectHtmlResponse(response, 400, "Invalid email format");
     });
   });
 
@@ -1321,7 +1348,9 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Password changed"))).toBe(true);
+      expect(logs.some((l) => l.message.includes("Password changed"))).toBe(
+        true,
+      );
     });
 
     test("logs activity when payment provider is set", async () => {
@@ -1336,7 +1365,9 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Payment provider set to stripe"))).toBe(true);
+      expect(
+        logs.some((l) => l.message.includes("Payment provider set to stripe")),
+      ).toBe(true);
     });
 
     test("logs activity when payment provider is disabled", async () => {
@@ -1351,16 +1382,18 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Payment provider disabled"))).toBe(true);
+      expect(logs.some((l) => l.message.includes("Payment provider disabled")))
+        .toBe(true);
     });
 
     test("logs activity when Stripe key is configured", async () => {
       await withMocks(
-        () => spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
-          success: true,
-          endpointId: "we_test_123",
-          secret: "whsec_test_secret",
-        }),
+        () =>
+          spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
+            success: true,
+            endpointId: "we_test_123",
+            secret: "whsec_test_secret",
+          }),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -1373,7 +1406,8 @@ describe("server (admin settings)", () => {
           );
 
           const logs = await getAllActivityLog();
-          expect(logs.some((l) => l.message.includes("Stripe key configured"))).toBe(true);
+          expect(logs.some((l) => l.message.includes("Stripe key configured")))
+            .toBe(true);
         },
       );
     });
@@ -1394,7 +1428,9 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Square credentials configured"))).toBe(true);
+      expect(
+        logs.some((l) => l.message.includes("Square credentials configured")),
+      ).toBe(true);
     });
 
     test("logs activity when Square webhook key is configured", async () => {
@@ -1403,13 +1439,20 @@ describe("server (admin settings)", () => {
       await handleRequest(
         mockFormRequest(
           "/admin/settings/square-webhook",
-          { square_webhook_signature_key: "sig_key_log", csrf_token: csrfToken },
+          {
+            square_webhook_signature_key: "sig_key_log",
+            csrf_token: csrfToken,
+          },
           cookie,
         ),
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Square webhook signature key configured"))).toBe(true);
+      expect(
+        logs.some((l) =>
+          l.message.includes("Square webhook signature key configured")
+        ),
+      ).toBe(true);
     });
 
     test("logs activity when terms and conditions are updated", async () => {
@@ -1424,7 +1467,9 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Terms and conditions updated"))).toBe(true);
+      expect(
+        logs.some((l) => l.message.includes("Terms and conditions updated")),
+      ).toBe(true);
     });
 
     test("logs activity when terms and conditions are removed", async () => {
@@ -1439,7 +1484,9 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Terms and conditions removed"))).toBe(true);
+      expect(
+        logs.some((l) => l.message.includes("Terms and conditions removed")),
+      ).toBe(true);
     });
 
     test("logs activity when timezone is updated", async () => {
@@ -1454,7 +1501,11 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Timezone set to America/New_York"))).toBe(true);
+      expect(
+        logs.some((l) =>
+          l.message.includes("Timezone set to America/New_York")
+        ),
+      ).toBe(true);
     });
 
     test("logs activity when business email is updated", async () => {
@@ -1469,7 +1520,8 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Business email updated"))).toBe(true);
+      expect(logs.some((l) => l.message.includes("Business email updated")))
+        .toBe(true);
     });
 
     test("logs activity when business email is cleared", async () => {
@@ -1484,7 +1536,8 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Business email cleared"))).toBe(true);
+      expect(logs.some((l) => l.message.includes("Business email cleared")))
+        .toBe(true);
     });
 
     test("logs activity when database reset is initiated", async () => {
@@ -1494,7 +1547,8 @@ describe("server (admin settings)", () => {
         mockFormRequest(
           "/admin/settings/reset-database",
           {
-            confirm_phrase: "The site will be fully reset and all data will be lost.",
+            confirm_phrase:
+              "The site will be fully reset and all data will be lost.",
             csrf_token: csrfToken,
           },
           cookie,
@@ -1531,9 +1585,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects invalid theme value", async () => {
@@ -1549,9 +1601,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Invalid theme selection");
+      await expectHtmlResponse(response, 400, "Invalid theme selection");
     });
 
     test("rejects missing theme field", async () => {
@@ -1566,9 +1616,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Invalid theme selection");
+      await expectHtmlResponse(response, 400, "Invalid theme selection");
     });
 
     test("updates theme to dark successfully", async () => {
@@ -1644,7 +1692,7 @@ describe("server (admin settings)", () => {
       const html = await response.text();
       // Check that dark radio button is checked
       expect(html).toContain('value="dark"');
-      expect(html).toContain('checked');
+      expect(html).toContain("checked");
     });
   });
 
@@ -1671,9 +1719,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("enables public site", async () => {
@@ -1740,12 +1786,13 @@ describe("server (admin settings)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Show public site?");
-      expect(html).toContain("show_public_site");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Show public site?",
+        "show_public_site",
+      );
     });
-
   });
 
   describe("POST /admin/settings/phone-prefix", () => {
@@ -1771,9 +1818,7 @@ describe("server (admin settings)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("saves valid phone prefix", async () => {
@@ -1792,7 +1837,9 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Phone prefix updated to 1");
+      expect(decodeURIComponent(location)).toContain(
+        "Phone prefix updated to 1",
+      );
     });
 
     test("rejects non-digit input", async () => {
@@ -1809,9 +1856,7 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Phone prefix must be a number");
+      await expectHtmlResponse(response, 400, "Phone prefix must be a number");
     });
 
     test("rejects empty input", async () => {
@@ -1828,9 +1873,7 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Phone prefix must be a number");
+      await expectHtmlResponse(response, 400, "Phone prefix must be a number");
     });
 
     test("rejects when phone_prefix field is missing", async () => {
@@ -1846,9 +1889,7 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Phone prefix must be a number");
+      await expectHtmlResponse(response, 400, "Phone prefix must be a number");
     });
 
     test("setting persists in database", async () => {
@@ -1877,10 +1918,7 @@ describe("server (admin settings)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Phone Prefix");
-      expect(html).toContain("phone_prefix");
+      await expectHtmlResponse(response, 200, "Phone Prefix", "phone_prefix");
     });
 
     test("logs activity when phone prefix is changed", async () => {
@@ -1898,8 +1936,8 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some(l => l.message.includes("Phone prefix set to 33"))).toBe(true);
+      expect(logs.some((l) => l.message.includes("Phone prefix set to 33")))
+        .toBe(true);
     });
   });
-
 });

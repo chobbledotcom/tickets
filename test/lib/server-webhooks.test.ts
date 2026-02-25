@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  spyOn,
+  test,
+} from "#test-compat";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -6,6 +13,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   deactivateTestEvent,
+  expectHtmlResponse,
   followRedirect,
   mockRequest,
   mockWebhookRequest,
@@ -37,9 +45,11 @@ describe("server (webhooks)", () => {
           { "stripe-signature": "sig_test" },
         ),
       );
-      expect(response.status).toBe(400);
-      const text = await response.text();
-      expect(text).toContain("Payment provider not configured");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Payment provider not configured",
+      );
     });
 
     test("returns 400 when signature header is missing", async () => {
@@ -50,9 +60,7 @@ describe("server (webhooks)", () => {
           { type: "checkout.session.completed" },
         ),
       );
-      expect(response.status).toBe(400);
-      const text = await response.text();
-      expect(text).toContain("Missing signature");
+      await expectHtmlResponse(response, 400, "Missing signature");
     });
 
     test("returns 400 when signature verification fails", async () => {
@@ -60,7 +68,10 @@ describe("server (webhooks)", () => {
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({ valid: false, error: "Invalid signature" });
+      mockVerify.mockResolvedValue({
+        valid: false,
+        error: "Invalid signature",
+      });
 
       try {
         const response = await handleRequest(
@@ -69,9 +80,7 @@ describe("server (webhooks)", () => {
             { "stripe-signature": "sig_bad" },
           ),
         );
-        expect(response.status).toBe(400);
-        const text = await response.text();
-        expect(text).toContain("Invalid signature");
+        await expectHtmlResponse(response, 400, "Invalid signature");
       } finally {
         mockVerify.mockRestore();
       }
@@ -134,9 +143,7 @@ describe("server (webhooks)", () => {
             { "stripe-signature": "sig_valid" },
           ),
         );
-        expect(response.status).toBe(400);
-        const text = await response.text();
-        expect(text).toContain("Invalid session data");
+        await expectHtmlResponse(response, 400, "Invalid session data");
       } finally {
         mockVerify.mockRestore();
       }
@@ -345,9 +352,11 @@ describe("server (webhooks)", () => {
             { "stripe-signature": "sig_valid" },
           ),
         );
-        expect(response.status).toBe(400);
-        const text = await response.text();
-        expect(text).toContain("Invalid multi-ticket session data");
+        await expectHtmlResponse(
+          response,
+          400,
+          "Invalid multi-ticket session data",
+        );
       } finally {
         mockVerify.mockRestore();
       }
@@ -362,7 +371,12 @@ describe("server (webhooks)", () => {
       });
 
       // Fill the event
-      await createAttendeeAtomic({ eventId: event.id, name: "First", email: "first@example.com", paymentId: "pi_first" });
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "First",
+        email: "first@example.com",
+        paymentId: "pi_first",
+      });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -424,9 +438,7 @@ describe("server (webhooks)", () => {
           body: "test=123",
         }),
       );
-      expect(response.status).toBe(400);
-      const text = await response.text();
-      expect(text).toContain("Invalid Content-Type");
+      await expectHtmlResponse(response, 400, "Invalid Content-Type");
     });
   });
 
@@ -542,9 +554,11 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_null_ref"),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("no longer accepting registrations");
+        const html = await expectHtmlResponse(
+          response,
+          400,
+          "no longer accepting registrations",
+        );
         // Should show "contact support" since refund failed (no payment reference)
         expect(html).toContain("contact support");
       } finally {
@@ -639,9 +653,11 @@ describe("server (webhooks)", () => {
             { "stripe-signature": "sig_valid" },
           ),
         );
-        expect(response.status).toBe(400);
-        const text = await response.text();
-        expect(text).toContain("Invalid multi-ticket session data");
+        await expectHtmlResponse(
+          response,
+          400,
+          "Invalid multi-ticket session data",
+        );
       } finally {
         mockVerify.mockRestore();
       }
@@ -681,9 +697,11 @@ describe("server (webhooks)", () => {
             { "stripe-signature": "sig_valid" },
           ),
         );
-        expect(response.status).toBe(400);
-        const text = await response.text();
-        expect(text).toContain("Invalid multi-ticket session data");
+        await expectHtmlResponse(
+          response,
+          400,
+          "Invalid multi-ticket session data",
+        );
       } finally {
         mockVerify.mockRestore();
       }
@@ -699,7 +717,9 @@ describe("server (webhooks)", () => {
       });
 
       // Pre-reserve the session to simulate concurrent processing
-      const { reserveSession: reserveSessionFn } = await import("#lib/db/processed-payments.ts");
+      const { reserveSession: reserveSessionFn } = await import(
+        "#lib/db/processed-payments.ts"
+      );
       await reserveSessionFn("cs_multi_concurrent");
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
@@ -721,9 +741,7 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_concurrent"),
         );
-        expect(response.status).toBe(409);
-        const html = await response.text();
-        expect(html).toContain("being processed");
+        await expectHtmlResponse(response, 409, "being processed");
       } finally {
         mockRetrieve.mockRestore();
       }
@@ -738,7 +756,9 @@ describe("server (webhooks)", () => {
       });
 
       // Pre-reserve the session to simulate concurrent processing
-      const { reserveSession: reserveSessionFn } = await import("#lib/db/processed-payments.ts");
+      const { reserveSession: reserveSessionFn } = await import(
+        "#lib/db/processed-payments.ts"
+      );
       await reserveSessionFn("cs_single_concurrent");
 
       const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
@@ -760,9 +780,7 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_single_concurrent"),
         );
-        expect(response.status).toBe(409);
-        const html = await response.text();
-        expect(html).toContain("being processed");
+        await expectHtmlResponse(response, 409, "being processed");
       } finally {
         mockRetrieve.mockRestore();
       }
@@ -879,9 +897,11 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_plain_error"),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("Payment verification failed");
+        const html = await expectHtmlResponse(
+          response,
+          400,
+          "Payment verification failed",
+        );
         // Should NOT contain refund-related text
         expect(html).not.toContain("refunded");
         expect(html).not.toContain("contact support for a refund");
@@ -895,9 +915,11 @@ describe("server (webhooks)", () => {
       const response = await handleRequest(
         mockRequest("/payment/cancel?session_id=cs_cancel_no_prov"),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Payment provider not configured");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Payment provider not configured",
+      );
     });
 
     test("multi-ticket failure error message for encryption_error", async () => {
@@ -942,10 +964,12 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_enc_err"),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("Registration failed");
-        expect(html).toContain("refunded");
+        await expectHtmlResponse(
+          response,
+          400,
+          "Registration failed",
+          "refunded",
+        );
       } finally {
         mockRetrieve.mockRestore();
         mockRefund.mockRestore();
@@ -988,7 +1012,6 @@ describe("server (webhooks)", () => {
         mockRefund.mockRestore();
       }
     });
-
   });
 
   describe("webhook multi-ticket already processed", () => {
@@ -1005,11 +1028,20 @@ describe("server (webhooks)", () => {
         unitPrice: 500,
       });
       // Create attendee directly (not via public form which redirects to Stripe for paid events)
-      const result = await createAttendeeAtomic({ eventId: event.id, name: "Already Done", email: "already@example.com", paymentId: "pi_already_done", quantity: 1 });
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Already Done",
+        email: "already@example.com",
+        paymentId: "pi_already_done",
+        quantity: 1,
+      });
       if (!result.success) throw new Error("Failed to create test attendee");
       const attendee = result.attendee;
 
-      const { reserveSession: reserveSessionFn, finalizeSession: finalizeSessionFn } = await import("#lib/db/processed-payments.ts");
+      const {
+        reserveSession: reserveSessionFn,
+        finalizeSession: finalizeSessionFn,
+      } = await import("#lib/db/processed-payments.ts");
       await reserveSessionFn("cs_multi_already_done");
       await finalizeSessionFn("cs_multi_already_done", attendee.id);
 
@@ -1133,7 +1165,13 @@ describe("server (webhooks)", () => {
         maxAttendees: 1,
         unitPrice: 500,
       });
-      await createAttendeeAtomic({ eventId: event2.id, name: "First", email: "first@example.com", paymentId: "pi_first", quantity: 1 });
+      await createAttendeeAtomic({
+        eventId: event2.id,
+        name: "First",
+        email: "first@example.com",
+        paymentId: "pi_first",
+        quantity: 1,
+      });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -1348,7 +1386,12 @@ describe("server (webhooks)", () => {
       });
 
       // Fill event2 to capacity
-      await createAttendeeAtomic({ eventId: event2.id, name: "Existing", email: "existing@example.com", quantity: 1 });
+      await createAttendeeAtomic({
+        eventId: event2.id,
+        name: "Existing",
+        email: "existing@example.com",
+        quantity: 1,
+      });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
@@ -1405,11 +1448,20 @@ describe("server (webhooks)", () => {
         maxAttendees: 50,
         unitPrice: 500,
       });
-      const attResult = await createAttendeeAtomic({ eventId: event.id, name: "WH Del", email: "whdel@example.com", paymentId: "pi_del", quantity: 1 });
+      const attResult = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "WH Del",
+        email: "whdel@example.com",
+        paymentId: "pi_del",
+        quantity: 1,
+      });
       if (!attResult.success) throw new Error("Failed to create attendee");
 
       // Reserve and finalize the session with the real attendee
-      const { reserveSession: reserveSessionFn, finalizeSession: finalizeSessionFn } = await import("#lib/db/processed-payments.ts");
+      const {
+        reserveSession: reserveSessionFn,
+        finalizeSession: finalizeSessionFn,
+      } = await import("#lib/db/processed-payments.ts");
       await reserveSessionFn("cs_del_event_wh");
       await finalizeSessionFn("cs_del_event_wh", attResult.attendee.id);
 
@@ -1500,7 +1552,6 @@ describe("server (webhooks)", () => {
         mockVerify.mockRestore();
       }
     });
-
   });
 
   describe("routes/webhooks.ts (uncovered line coverage)", () => {
@@ -1532,7 +1583,10 @@ describe("server (webhooks)", () => {
         },
       });
 
-      const mockRetrieveSession = spyOn(stripePaymentProvider, "retrieveSession");
+      const mockRetrieveSession = spyOn(
+        stripePaymentProvider,
+        "retrieveSession",
+      );
       mockRetrieveSession.mockResolvedValue({
         id: "cs_no_event_id",
         paymentStatus: "paid" as const,
@@ -1877,7 +1931,10 @@ describe("server (webhooks)", () => {
         },
       });
 
-      const mockRetrieveSession = spyOn(stripePaymentProvider, "retrieveSession");
+      const mockRetrieveSession = spyOn(
+        stripePaymentProvider,
+        "retrieveSession",
+      );
       mockRetrieveSession.mockResolvedValue(null);
 
       try {
@@ -1940,9 +1997,7 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_multi_no_att"),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("sold out");
+        await expectHtmlResponse(response, 400, "sold out");
       } finally {
         mockAtomic.mockRestore();
         mockRetrieve.mockRestore();
@@ -2162,9 +2217,11 @@ describe("server (webhooks)", () => {
       });
 
       const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_multi_mismatch" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >);
+      mockRefund.mockResolvedValue(
+        { id: "re_multi_mismatch" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >,
+      );
 
       try {
         const response = await handleRequest(
@@ -2229,11 +2286,7 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_redirect_mismatch"),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("price");
-        expect(html).toContain("changed");
-        expect(html).toContain("refunded");
+        await expectHtmlResponse(response, 400, "price", "changed", "refunded");
 
         // Verify no attendee was created
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
@@ -2288,10 +2341,12 @@ describe("server (webhooks)", () => {
         const response = await handleRequest(
           mockRequest("/payment/success?session_id=cs_closed"),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("registration closed");
-        expect(html).toContain("refunded");
+        await expectHtmlResponse(
+          response,
+          400,
+          "registration closed",
+          "refunded",
+        );
       } finally {
         mockRetrieve.mockRestore();
         mockRefund.mockRestore();
@@ -2393,9 +2448,11 @@ describe("server (webhooks)", () => {
       });
 
       const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_multi_closed" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >);
+      mockRefund.mockResolvedValue(
+        { id: "re_multi_closed" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >,
+      );
 
       try {
         const response = await handleRequest(
@@ -2424,7 +2481,15 @@ describe("server (webhooks)", () => {
         maxAttendees: 50,
         unitPrice: 500,
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2611,7 +2676,10 @@ describe("server (webhooks)", () => {
         },
       });
 
-      const mockRetrieveSession = spyOn(stripePaymentProvider, "retrieveSession");
+      const mockRetrieveSession = spyOn(
+        stripePaymentProvider,
+        "retrieveSession",
+      );
       mockRetrieveSession.mockResolvedValue({
         id: "cs_fallback_foreign",
         paymentStatus: "paid" as const,
@@ -2707,16 +2775,22 @@ describe("server (webhooks)", () => {
         expect(mockRefund).toHaveBeenCalledWith("pi_refund_log");
 
         // Verify refund success was logged to console
-        const refundLog = debugLogs.find((log) => log.includes("Refund issued"));
+        const refundLog = debugLogs.find((log) =>
+          log.includes("Refund issued")
+        );
         expect(refundLog).toBeDefined();
 
         // Verify refund was logged to activity log tagged to event
         const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
         const entries = await getEventActivityLog(event.id);
-        const refundEntry = entries.find((e) => e.message.includes("Automatic refund"));
+        const refundEntry = entries.find((e) =>
+          e.message.includes("Automatic refund")
+        );
         expect(refundEntry).toBeDefined();
         expect(refundEntry!.event_id).toBe(event.id);
-        expect(refundEntry!.message).toContain("no longer accepting registrations");
+        expect(refundEntry!.message).toContain(
+          "no longer accepting registrations",
+        );
       } finally {
         console.debug = origDebug;
         mockVerify.mockRestore();
@@ -2772,7 +2846,9 @@ describe("server (webhooks)", () => {
 
         const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
         const entries = await getEventActivityLog(event.id);
-        const refundEntry = entries.find((e) => e.message.includes("Automatic refund"));
+        const refundEntry = entries.find((e) =>
+          e.message.includes("Automatic refund")
+        );
         expect(refundEntry).toBeDefined();
         expect(refundEntry!.event_id).toBe(event.id);
         expect(refundEntry!.message).toContain("price");
@@ -2782,5 +2858,4 @@ describe("server (webhooks)", () => {
       }
     });
   });
-
 });

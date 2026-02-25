@@ -1,5 +1,18 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
-import { updateContactPageText, updateHomepageText, updateShowPublicSite, updateTermsAndConditions, updateWebsiteTitle } from "#lib/db/settings.ts";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  spyOn,
+  test,
+} from "#test-compat";
+import {
+  updateContactPageText,
+  updateHomepageText,
+  updateShowPublicSite,
+  updateTermsAndConditions,
+  updateWebsiteTitle,
+} from "#lib/db/settings.ts";
 import { resetStripeClient } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -12,12 +25,13 @@ import {
   createTestGroup,
   createTestHoliday,
   deactivateTestEvent,
+  expectHtmlResponse,
+  expectRedirect,
   getTicketCsrfToken,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
-  expectRedirect,
   setupStripe,
   submitTicketForm,
   updateTestEvent,
@@ -48,57 +62,52 @@ describe("server (public routes)", () => {
     test("shows public homepage when enabled", async () => {
       await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Home");
-      expect(html).toContain("/admin/login");
+      await expectHtmlResponse(response, 200, "Home", "/admin/login");
     });
 
     test("shows website title on homepage", async () => {
       await updateShowPublicSite(true);
       await updateWebsiteTitle("My Cool Site");
       const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("My Cool Site");
+      await expectHtmlResponse(response, 200, "My Cool Site");
     });
 
     test("shows homepage text when configured", async () => {
       await updateShowPublicSite(true);
       await updateHomepageText("Welcome to our events!");
       const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Welcome to our events!");
+      await expectHtmlResponse(response, 200, "Welcome to our events!");
     });
 
     test("shows no content message when homepage text not set", async () => {
       await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("No content.");
+      await expectHtmlResponse(response, 200, "No content.");
     });
 
     test("shows public nav links", async () => {
       await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('href="/"');
-      expect(html).toContain('href="/events"');
-      expect(html).toContain('href="/terms"');
-      expect(html).toContain('href="/contact"');
+      await expectHtmlResponse(
+        response,
+        200,
+        'href="/"',
+        'href="/events"',
+        'href="/terms"',
+        'href="/contact"',
+      );
     });
 
     test("shows login link styled as footer", async () => {
       await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('class="homepage-footer"');
-      expect(html).toContain('href="/admin/login"');
-      expect(html).toContain("Login");
+      await expectHtmlResponse(
+        response,
+        200,
+        'class="homepage-footer"',
+        'href="/admin/login"',
+        "Login",
+      );
     });
 
     test("returns 404 for non-GET requests to /", async () => {
@@ -112,9 +121,7 @@ describe("server (public routes)", () => {
       await updateShowPublicSite(true);
       await updateHomepageText("Line one\nLine two");
       const response = await handleRequest(mockRequest("/"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Line one<br>Line two");
+      await expectHtmlResponse(response, 200, "Line one<br>Line two");
     });
   });
 
@@ -127,47 +134,55 @@ describe("server (public routes)", () => {
     test("shows no events message when enabled but no events exist", async () => {
       await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/events"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("No events listed.");
-      expect(html).toContain("/admin/login");
+      await expectHtmlResponse(
+        response,
+        200,
+        "No events listed.",
+        "/admin/login",
+      );
     });
 
     test("shows website title with no events message", async () => {
       await updateShowPublicSite(true);
       await updateWebsiteTitle("My Events");
       const response = await handleRequest(mockRequest("/events"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("No events listed.");
-      expect(html).toContain("My Events");
+      await expectHtmlResponse(response, 200, "No events listed.", "My Events");
     });
 
     test("shows active events with book now links", async () => {
       await updateShowPublicSite(true);
-      const event = await createTestEvent({ name: "Concert", maxAttendees: 100 });
+      const event = await createTestEvent({
+        name: "Concert",
+        maxAttendees: 100,
+      });
       const response = await handleRequest(mockRequest("/events"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain(event.name);
-      expect(html).toContain("Book now");
-      expect(html).toContain(`href="/ticket/${event.slug}"`);
+      await expectHtmlResponse(
+        response,
+        200,
+        event.name,
+        "Book now",
+        `href="/ticket/${event.slug}"`,
+      );
     });
 
     test("does not show inactive events", async () => {
       await updateShowPublicSite(true);
-      const event = await createTestEvent({ name: "Hidden Event", maxAttendees: 100 });
+      const event = await createTestEvent({
+        name: "Hidden Event",
+        maxAttendees: 100,
+      });
       await deactivateTestEvent(event.id);
       const response = await handleRequest(mockRequest("/events"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("No events listed.");
+      const html = await expectHtmlResponse(response, 200, "No events listed.");
       expect(html).not.toContain("Hidden Event");
     });
 
     test("shows sold out for events at capacity", async () => {
       await updateShowPublicSite(true);
-      const event = await createTestEvent({ name: "Full Event", maxAttendees: 1 });
+      const event = await createTestEvent({
+        name: "Full Event",
+        maxAttendees: 1,
+      });
       await createAttendeeAtomic({
         eventId: event.id,
         name: "Attendee",
@@ -175,9 +190,7 @@ describe("server (public routes)", () => {
         quantity: 1,
       });
       const response = await handleRequest(mockRequest("/events"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Sold Out");
+      const html = await expectHtmlResponse(response, 200, "Sold Out");
       expect(html).not.toContain(`href="/ticket/${event.slug}"`);
     });
 
@@ -190,36 +203,40 @@ describe("server (public routes)", () => {
         closesAt: pastDate,
       });
       const response = await handleRequest(mockRequest("/events"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Registration Closed");
+      await expectHtmlResponse(response, 200, "Registration Closed");
     });
 
     test("shows event location when set", async () => {
       await updateShowPublicSite(true);
-      await createTestEvent({ name: "Located Event", maxAttendees: 100, location: "Town Hall" });
+      await createTestEvent({
+        name: "Located Event",
+        maxAttendees: 100,
+        location: "Town Hall",
+      });
       const response = await handleRequest(mockRequest("/events"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Town Hall");
+      await expectHtmlResponse(response, 200, "Town Hall");
     });
 
     test("shows event date when set", async () => {
       await updateShowPublicSite(true);
-      await createTestEvent({ name: "Dated Event", maxAttendees: 100, date: "2026-06-15T14:00" });
+      await createTestEvent({
+        name: "Dated Event",
+        maxAttendees: 100,
+        date: "2026-06-15T14:00",
+      });
       const response = await handleRequest(mockRequest("/events"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("2026");
+      await expectHtmlResponse(response, 200, "2026");
     });
 
     test("shows event description when set", async () => {
       await updateShowPublicSite(true);
-      await createTestEvent({ name: "Described Event", maxAttendees: 100, description: "A great event" });
+      await createTestEvent({
+        name: "Described Event",
+        maxAttendees: 100,
+        description: "A great event",
+      });
       const response = await handleRequest(mockRequest("/events"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("A great event");
+      await expectHtmlResponse(response, 200, "A great event");
     });
 
     test("shows website title on events page", async () => {
@@ -227,20 +244,20 @@ describe("server (public routes)", () => {
       await updateWebsiteTitle("My Events Site");
       await createTestEvent({ name: "Concert", maxAttendees: 100 });
       const response = await handleRequest(mockRequest("/events"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("My Events Site");
+      await expectHtmlResponse(response, 200, "My Events Site");
     });
 
     test("shows public nav on events page", async () => {
       await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/events"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('href="/"');
-      expect(html).toContain('href="/events"');
-      expect(html).toContain('href="/terms"');
-      expect(html).toContain('href="/contact"');
+      await expectHtmlResponse(
+        response,
+        200,
+        'href="/"',
+        'href="/events"',
+        'href="/terms"',
+        'href="/contact"',
+      );
     });
 
     test("returns 404 for POST requests", async () => {
@@ -262,27 +279,25 @@ describe("server (public routes)", () => {
       await updateShowPublicSite(true);
       await updateTermsAndConditions("Our terms and conditions.");
       const response = await handleRequest(mockRequest("/terms"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Our terms and conditions.");
-      expect(html).toContain("T&amp;Cs");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Our terms and conditions.",
+        "T&amp;Cs",
+      );
     });
 
     test("shows no content when terms not configured", async () => {
       await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/terms"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("No content.");
+      await expectHtmlResponse(response, 200, "No content.");
     });
 
     test("shows website title on terms page", async () => {
       await updateShowPublicSite(true);
       await updateWebsiteTitle("My Site");
       const response = await handleRequest(mockRequest("/terms"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("My Site");
+      await expectHtmlResponse(response, 200, "My Site");
     });
   });
 
@@ -296,36 +311,36 @@ describe("server (public routes)", () => {
       await updateShowPublicSite(true);
       await updateContactPageText("Email us at hello@example.com");
       const response = await handleRequest(mockRequest("/contact"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Email us at hello@example.com");
-      expect(html).toContain("Contact");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Email us at hello@example.com",
+        "Contact",
+      );
     });
 
     test("shows no content when contact text not configured", async () => {
       await updateShowPublicSite(true);
       const response = await handleRequest(mockRequest("/contact"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("No content.");
+      await expectHtmlResponse(response, 200, "No content.");
     });
 
     test("shows website title on contact page", async () => {
       await updateShowPublicSite(true);
       await updateWebsiteTitle("My Site");
       const response = await handleRequest(mockRequest("/contact"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("My Site");
+      await expectHtmlResponse(response, 200, "My Site");
     });
 
     test("preserves line breaks in contact text", async () => {
       await updateShowPublicSite(true);
       await updateContactPageText("Phone: 123\nEmail: test@test.com");
       const response = await handleRequest(mockRequest("/contact"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Phone: 123<br>Email: test@test.com");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Phone: 123<br>Email: test@test.com",
+      );
     });
 
     test("returns 404 for non-GET requests to /contact", async () => {
@@ -513,7 +528,9 @@ describe("server (public routes)", () => {
 
   describe("GET /iframe-resizer-parent.js", () => {
     test("returns JavaScript file", async () => {
-      const response = await handleRequest(mockRequest("/iframe-resizer-parent.js"));
+      const response = await handleRequest(
+        mockRequest("/iframe-resizer-parent.js"),
+      );
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
         "application/javascript; charset=utf-8",
@@ -521,7 +538,9 @@ describe("server (public routes)", () => {
     });
 
     test("has long cache headers", async () => {
-      const response = await handleRequest(mockRequest("/iframe-resizer-parent.js"));
+      const response = await handleRequest(
+        mockRequest("/iframe-resizer-parent.js"),
+      );
       expect(response.headers.get("cache-control")).toBe(
         "public, max-age=31536000, immutable",
       );
@@ -530,7 +549,9 @@ describe("server (public routes)", () => {
 
   describe("GET /iframe-resizer-child.js", () => {
     test("returns JavaScript file", async () => {
-      const response = await handleRequest(mockRequest("/iframe-resizer-child.js"));
+      const response = await handleRequest(
+        mockRequest("/iframe-resizer-child.js"),
+      );
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe(
         "application/javascript; charset=utf-8",
@@ -538,7 +559,9 @@ describe("server (public routes)", () => {
     });
 
     test("has long cache headers", async () => {
-      const response = await handleRequest(mockRequest("/iframe-resizer-child.js"));
+      const response = await handleRequest(
+        mockRequest("/iframe-resizer-child.js"),
+      );
       expect(response.headers.get("cache-control")).toBe(
         "public, max-age=31536000, immutable",
       );
@@ -576,10 +599,12 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Reserve Ticket");
-      expect(html).toContain(`action="/ticket/${event.slug}"`);
+      await expectHtmlResponse(
+        response,
+        200,
+        "Reserve Ticket",
+        `action="/ticket/${event.slug}"`,
+      );
     });
 
     test("includes OpenGraph meta tags", async () => {
@@ -592,9 +617,13 @@ describe("server (public routes)", () => {
         mockRequest(`/ticket/${event.slug}`),
       );
       const html = await response.text();
-      expect(html).toContain('<meta property="og:title" content="Birthday Party">');
+      expect(html).toContain(
+        '<meta property="og:title" content="Birthday Party">',
+      );
       expect(html).toContain('<meta property="og:type" content="website">');
-      expect(html).toContain(`<meta property="og:url" content="http://localhost/ticket/${event.slug}">`);
+      expect(html).toContain(
+        `<meta property="og:url" content="http://localhost/ticket/${event.slug}">`,
+      );
     });
 
     test("shows description when event has one", async () => {
@@ -606,10 +635,12 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("A &lt;b&gt;great&lt;/b&gt; event");
-      expect(html).toContain('class="description"');
+      await expectHtmlResponse(
+        response,
+        200,
+        "A &lt;b&gt;great&lt;/b&gt; event",
+        'class="description"',
+      );
     });
 
     test("shows date and location when event has them", async () => {
@@ -622,12 +653,14 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("<strong>Date:</strong>");
-      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
-      expect(html).toContain("<strong>Location:</strong>");
-      expect(html).toContain("Village Hall");
+      await expectHtmlResponse(
+        response,
+        200,
+        "<strong>Date:</strong>",
+        "Monday 15 June 2026 at 14:00 UTC",
+        "<strong>Location:</strong>",
+        "Village Hall",
+      );
     });
 
     test("does not show date or location when they are empty", async () => {
@@ -667,9 +700,7 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}`),
       );
-      expect(response.status).toBe(404);
-      const html = await response.text();
-      expect(html).toContain("<h1>Not Found</h1>");
+      await expectHtmlResponse(response, 404, "<h1>Not Found</h1>");
     });
 
     test("hides header and description in iframe mode", async () => {
@@ -681,9 +712,7 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}?iframe=true`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('class="iframe"');
+      const html = await expectHtmlResponse(response, 200, 'class="iframe"');
       expect(html).not.toContain("<h1>");
       expect(html).not.toContain("A <b>great</b> event");
       expect(html).toContain("Reserve Ticket");
@@ -744,7 +773,12 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockFormRequest(
           `/ticket/${event.slug}?iframe=true`,
-          { name: "Test User", email: "test@example.com", quantity: "1", csrf_token: csrfToken! },
+          {
+            name: "Test User",
+            email: "test@example.com",
+            quantity: "1",
+            csrf_token: csrfToken!,
+          },
         ),
       );
       expect(response.status).toBe(302);
@@ -789,7 +823,12 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockFormRequest(
           `/ticket/${event.slug}`,
-          { name: "Test User", email: "test@example.com", quantity: "1", csrf_token: signedToken },
+          {
+            name: "Test User",
+            email: "test@example.com",
+            quantity: "1",
+            csrf_token: signedToken,
+          },
         ),
       );
       expect(response.status).toBe(302);
@@ -810,28 +849,52 @@ describe("server (public routes)", () => {
     });
 
     test("renders multi-ticket page for group slug", async () => {
-      const group = await createTestGroup({ name: "Public Group", slug: "public-group" });
-      const event1 = await createTestEvent({ name: "Group Event 1", groupId: group.id, maxAttendees: 50 });
-      const event2 = await createTestEvent({ name: "Group Event 2", groupId: group.id, maxAttendees: 50 });
+      const group = await createTestGroup({
+        name: "Public Group",
+        slug: "public-group",
+      });
+      const event1 = await createTestEvent({
+        name: "Group Event 1",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        name: "Group Event 2",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
 
-      const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Reserve Tickets");
-      expect(html).toContain("Select Tickets");
-      expect(html).toContain("Group Event 1");
-      expect(html).toContain("Group Event 2");
-      expect(html).toContain(`action="/ticket/${group.slug}"`);
-      expect(html).toContain(`quantity_${event1.id}`);
-      expect(html).toContain(`quantity_${event2.id}`);
+      const response = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Reserve Tickets",
+        "Select Tickets",
+        "Group Event 1",
+        "Group Event 2",
+        `action="/ticket/${group.slug}"`,
+        `quantity_${event1.id}`,
+        `quantity_${event2.id}`,
+      );
     });
 
     test("returns 404 when group has no active events", async () => {
-      const group = await createTestGroup({ name: "Empty Group", slug: "empty-group" });
-      const event = await createTestEvent({ name: "Inactive In Group", groupId: group.id, maxAttendees: 50 });
+      const group = await createTestGroup({
+        name: "Empty Group",
+        slug: "empty-group",
+      });
+      const event = await createTestEvent({
+        name: "Inactive In Group",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
       await deactivateTestEvent(event.id);
 
-      const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+      const response = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
       expect(response.status).toBe(404);
     });
 
@@ -842,9 +905,15 @@ describe("server (public routes)", () => {
         slug: "terms-group",
         termsAndConditions: "GROUP TERMS UNIQUE",
       });
-      await createTestEvent({ name: "Terms Event", groupId: group.id, maxAttendees: 50 });
+      await createTestEvent({
+        name: "Terms Event",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
 
-      const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+      const response = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
       const html = await response.text();
       expect(html).toContain("GROUP TERMS UNIQUE");
       expect(html).not.toContain("GLOBAL TERMS UNIQUE");
@@ -852,16 +921,29 @@ describe("server (public routes)", () => {
 
     test("group terms fall back to global when group terms are empty", async () => {
       await updateTermsAndConditions("GLOBAL FALLBACK UNIQUE");
-      const group = await createTestGroup({ name: "Fallback Group", slug: "fallback-group", termsAndConditions: "" });
-      await createTestEvent({ name: "Fallback Event", groupId: group.id, maxAttendees: 50 });
+      const group = await createTestGroup({
+        name: "Fallback Group",
+        slug: "fallback-group",
+        termsAndConditions: "",
+      });
+      await createTestEvent({
+        name: "Fallback Event",
+        groupId: group.id,
+        maxAttendees: 50,
+      });
 
-      const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+      const response = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
       const html = await response.text();
       expect(html).toContain("GLOBAL FALLBACK UNIQUE");
     });
 
     test("group page shows shared date selector for daily events", async () => {
-      const group = await createTestGroup({ name: "Daily Group", slug: "daily-group" });
+      const group = await createTestGroup({
+        name: "Daily Group",
+        slug: "daily-group",
+      });
       await createTestEvent({
         name: "Daily A",
         groupId: group.id,
@@ -881,11 +963,10 @@ describe("server (public routes)", () => {
         maximumDaysAfter: 14,
       });
 
-      const response = await handleRequest(mockRequest(`/ticket/${group.slug}`));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Select Date");
-      expect(html).toContain('name="date"');
+      const response = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
+      await expectHtmlResponse(response, 200, "Select Date", 'name="date"');
     });
   });
 
@@ -901,11 +982,26 @@ describe("server (public routes)", () => {
     });
 
     test("processes registration for group slug", async () => {
-      const group = await createTestGroup({ name: "Post Group", slug: "post-group" });
-      const event1 = await createTestEvent({ name: "Post Group Event 1", groupId: group.id, maxAttendees: 50, maxQuantity: 5 });
-      const event2 = await createTestEvent({ name: "Post Group Event 2", groupId: group.id, maxAttendees: 50, maxQuantity: 5 });
+      const group = await createTestGroup({
+        name: "Post Group",
+        slug: "post-group",
+      });
+      const event1 = await createTestEvent({
+        name: "Post Group Event 1",
+        groupId: group.id,
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
+      const event2 = await createTestEvent({
+        name: "Post Group Event 2",
+        groupId: group.id,
+        maxAttendees: 50,
+        maxQuantity: 5,
+      });
 
-      const getResponse = await handleRequest(mockRequest(`/ticket/${group.slug}`));
+      const getResponse = await handleRequest(
+        mockRequest(`/ticket/${group.slug}`),
+      );
       const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
@@ -960,9 +1056,7 @@ describe("server (public routes)", () => {
           email: "john@example.com",
         }),
       );
-      expect(response.status).toBe(403);
-      const html = await response.text();
-      expect(html).toContain("Invalid or expired form");
+      await expectHtmlResponse(response, 403, "Invalid or expired form");
     });
 
     test("validates required fields", async () => {
@@ -974,9 +1068,7 @@ describe("server (public routes)", () => {
         name: "",
         email: "",
       });
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Your Name is required");
+      await expectHtmlResponse(response, 400, "Your Name is required");
     });
 
     test("validates name is required", async () => {
@@ -1029,9 +1121,7 @@ describe("server (public routes)", () => {
         name: "Jane",
         email: "jane@example.com",
       });
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("not enough spots available");
+      await expectHtmlResponse(response, 400, "not enough spots available");
     });
 
     test("returns 404 for unsupported method on ticket route", async () => {
@@ -1066,12 +1156,14 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Reserve Tickets");
-      expect(html).toContain("Multi Event 1");
-      expect(html).toContain("Multi Event 2");
-      expect(html).toContain("Select Tickets");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Reserve Tickets",
+        "Multi Event 1",
+        "Multi Event 2",
+        "Select Tickets",
+      );
     });
 
     test("shows description beneath each event in multi-ticket page", async () => {
@@ -1088,10 +1180,12 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("First event info");
-      expect(html).toContain("Second event info");
+      await expectHtmlResponse(
+        response,
+        200,
+        "First event info",
+        "Second event info",
+      );
     });
 
     test("omits description div in multi-ticket when description is empty", async () => {
@@ -1106,9 +1200,7 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Multi No Desc");
+      const html = await expectHtmlResponse(response, 200, "Multi No Desc");
       expect(html).not.toContain("margin: 0.25rem 0 0.5rem");
     });
 
@@ -1122,14 +1214,17 @@ describe("server (public routes)", () => {
         maxAttendees: 1,
       });
       // Fill up event2
-      await createAttendeeAtomic({ eventId: event2.id, name: "John", email: "john@example.com", quantity: 1 });
+      await createAttendeeAtomic({
+        eventId: event2.id,
+        name: "John",
+        email: "john@example.com",
+        quantity: 1,
+      });
 
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Sold Out");
+      await expectHtmlResponse(response, 200, "Sold Out");
     });
 
     test("shows description for sold-out event in multi-ticket page", async () => {
@@ -1143,16 +1238,23 @@ describe("server (public routes)", () => {
         maxAttendees: 1,
         description: "Sold out desc",
       });
-      await createAttendeeAtomic({ eventId: event2.id, name: "Jane", email: "jane@example.com", quantity: 1 });
+      await createAttendeeAtomic({
+        eventId: event2.id,
+        name: "Jane",
+        email: "jane@example.com",
+        quantity: 1,
+      });
 
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Available desc");
-      expect(html).toContain("Sold out desc");
-      expect(html).toContain("Sold Out");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Available desc",
+        "Sold out desc",
+        "Sold Out",
+      );
     });
 
     test("filters out inactive events", async () => {
@@ -1212,7 +1314,9 @@ describe("server (public routes)", () => {
         mockRequest(`/ticket/${event1.slug}+${event2.slug}?iframe=true`),
       );
       const html = await response.text();
-      expect(html).toContain(`action="/ticket/${event1.slug}+${event2.slug}?iframe=true"`);
+      expect(html).toContain(
+        `action="/ticket/${event1.slug}+${event2.slug}?iframe=true"`,
+      );
     });
 
     test("multi-ticket GET returns signed CSRF token in form", async () => {
@@ -1294,9 +1398,7 @@ describe("server (public routes)", () => {
         email: "john@example.com",
         [`quantity_${event1.id}`]: "1",
       });
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("required");
+      await expectHtmlResponse(response, 400, "required");
     });
 
     test("requires at least one ticket selected", async () => {
@@ -1314,9 +1416,11 @@ describe("server (public routes)", () => {
         [`quantity_${event1.id}`]: "0",
         [`quantity_${event2.id}`]: "0",
       });
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Please select at least one ticket");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Please select at least one ticket",
+      );
     });
 
     test("creates attendees for selected free events", async () => {
@@ -1410,30 +1514,38 @@ describe("server (public routes)", () => {
   describe("GET /ticket/reserved", () => {
     test("shows reservation success page", async () => {
       const response = await handleRequest(mockRequest("/ticket/reserved"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("success");
+      const html = await expectHtmlResponse(response, 200, "success");
       expect(html).not.toContain("view your tickets");
     });
 
     test("shows ticket link when tokens are provided", async () => {
-      const response = await handleRequest(mockRequest("/ticket/reserved?tokens=abc123+def456"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('href="/t/abc123+def456"');
-      expect(html).toContain("Click here to view your tickets");
+      const response = await handleRequest(
+        mockRequest("/ticket/reserved?tokens=abc123+def456"),
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        'href="/t/abc123+def456"',
+        "Click here to view your tickets",
+      );
     });
 
     test("includes iframe-resizer child script when iframe=true", async () => {
-      const response = await handleRequest(mockRequest("/ticket/reserved?tokens=abc123&iframe=true"));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("iframe-resizer-child.js");
-      expect(html).toContain('class="iframe"');
+      const response = await handleRequest(
+        mockRequest("/ticket/reserved?tokens=abc123&iframe=true"),
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "iframe-resizer-child.js",
+        'class="iframe"',
+      );
     });
 
     test("excludes iframe-resizer child script without iframe param", async () => {
-      const response = await handleRequest(mockRequest("/ticket/reserved?tokens=abc123"));
+      const response = await handleRequest(
+        mockRequest("/ticket/reserved?tokens=abc123"),
+      );
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).not.toContain("iframe-resizer-child.js");
@@ -1470,7 +1582,12 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockFormRequest(
           `/ticket/${event.slug}?iframe=true`,
-          { name: "Jane Doe", email: "jane@example.com", quantity: "1", csrf_token: csrfToken! },
+          {
+            name: "Jane Doe",
+            email: "jane@example.com",
+            quantity: "1",
+            csrf_token: csrfToken!,
+          },
         ),
       );
       expect(response.status).toBe(302);
@@ -1563,9 +1680,11 @@ describe("server (public routes)", () => {
         ),
       );
 
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Please select at least one ticket");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Please select at least one ticket",
+      );
     });
   });
 
@@ -1592,13 +1711,18 @@ describe("server (public routes)", () => {
       const origCreate = attendeesApi.createAttendeeAtomic;
       let callCount = 0;
       const mockCreate = spyOn(attendeesApi, "createAttendeeAtomic");
-      mockCreate.mockImplementation((...args: Parameters<typeof origCreate>) => {
-        callCount++;
-        if (callCount === 2) {
-          return Promise.resolve({ success: false as const, reason: "capacity_exceeded" as const });
-        }
-        return origCreate(...args);
-      });
+      mockCreate.mockImplementation(
+        (...args: Parameters<typeof origCreate>) => {
+          callCount++;
+          if (callCount === 2) {
+            return Promise.resolve({
+              success: false as const,
+              reason: "capacity_exceeded" as const,
+            });
+          }
+          return origCreate(...args);
+        },
+      );
 
       try {
         const response = await handleRequest(
@@ -1615,9 +1739,7 @@ describe("server (public routes)", () => {
           ),
         );
 
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("no longer has enough spots");
+        await expectHtmlResponse(response, 400, "no longer has enough spots");
       } finally {
         mockCreate.mockRestore();
       }
@@ -1731,7 +1853,12 @@ describe("server (public routes)", () => {
       });
 
       // Fill up event1 to make it sold out
-      await createAttendeeAtomic({ eventId: event1.id, name: "First", email: "first@example.com", quantity: 1 });
+      await createAttendeeAtomic({
+        eventId: event1.id,
+        name: "First",
+        email: "first@example.com",
+        quantity: 1,
+      });
 
       // GET the multi-ticket page (sold-out event will show Sold Out label)
       const path = `/ticket/${event1.slug}+${event2.slug}`;
@@ -1818,7 +1945,12 @@ describe("server (public routes)", () => {
       });
 
       // Fill event1
-      await createAttendeeAtomic({ eventId: event1.id, name: "First", email: "first@example.com", paymentId: "pi_first" });
+      await createAttendeeAtomic({
+        eventId: event1.id,
+        name: "First",
+        email: "first@example.com",
+        paymentId: "pi_first",
+      });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
@@ -1874,9 +2006,7 @@ describe("server (public routes)", () => {
           email: "john@example.com",
         }),
       );
-      expect(response.status).toBe(403);
-      const html = await response.text();
-      expect(html).toContain("Invalid or expired form");
+      await expectHtmlResponse(response, 403, "Invalid or expired form");
     });
   });
 
@@ -1949,7 +2079,10 @@ describe("server (public routes)", () => {
       attendeesApi.createAttendeeAtomic = (input) => {
         callCount++;
         if (callCount === 2) {
-          return Promise.resolve({ success: false as const, reason: "capacity_exceeded" as const });
+          return Promise.resolve({
+            success: false as const,
+            reason: "capacity_exceeded" as const,
+          });
         }
         return originalFn(input);
       };
@@ -1964,9 +2097,7 @@ describe("server (public routes)", () => {
             csrf_token: csrfToken,
           }, `csrf_token=${csrfToken}`),
         );
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("no longer has enough spots");
+        await expectHtmlResponse(response, 400, "no longer has enough spots");
       } finally {
         attendeesApi.createAttendeeAtomic = originalFn;
       }
@@ -2033,7 +2164,10 @@ describe("server (public routes)", () => {
 
       // Mock createMultiCheckoutSession to return no URL
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockCreate = spyOn(stripePaymentProvider, "createMultiCheckoutSession");
+      const mockCreate = spyOn(
+        stripePaymentProvider,
+        "createMultiCheckoutSession",
+      );
       mockCreate.mockResolvedValue(null);
 
       try {
@@ -2046,9 +2180,11 @@ describe("server (public routes)", () => {
             csrf_token: csrfToken,
           }, `csrf_token=${csrfToken}`),
         );
-        expect(response.status).toBe(500);
-        const html = await response.text();
-        expect(html).toContain("Failed to create payment session");
+        await expectHtmlResponse(
+          response,
+          500,
+          "Failed to create payment session",
+        );
       } finally {
         mockCreate.mockRestore();
       }
@@ -2065,7 +2201,12 @@ describe("server (public routes)", () => {
       });
 
       // Fill event1 to capacity
-      await createAttendeeAtomic({ eventId: event1.id, name: "First", email: "first@example.com", quantity: 1 });
+      await createAttendeeAtomic({
+        eventId: event1.id,
+        name: "First",
+        email: "first@example.com",
+        quantity: 1,
+      });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
@@ -2105,10 +2246,12 @@ describe("server (public routes)", () => {
           name: "John Doe",
           email: "john@example.com",
         });
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("Registration failed");
-        expect(html).toContain("Please try again");
+        await expectHtmlResponse(
+          response,
+          400,
+          "Registration failed",
+          "Please try again",
+        );
       } finally {
         mockAtomic.mockRestore();
       }
@@ -2204,9 +2347,11 @@ describe("server (public routes)", () => {
           ),
         );
 
-        expect(response.status).toBe(400);
-        const html = await response.text();
-        expect(html).toContain("some tickets are no longer available");
+        await expectHtmlResponse(
+          response,
+          400,
+          "some tickets are no longer available",
+        );
       } finally {
         mockBatch.mockRestore();
       }
@@ -2234,16 +2379,22 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockFormRequest(
           path,
-          { name: "John Doe", email: "john@example.com", csrf_token: csrfToken },
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            csrf_token: csrfToken,
+          },
           `csrf_token=${csrfToken}`,
         ),
       );
 
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("data-checkout-popup");
-      expect(html).toContain("Pay Now");
-      expect(html).toContain('target="_blank"');
+      await expectHtmlResponse(
+        response,
+        200,
+        "data-checkout-popup",
+        "Pay Now",
+        'target="_blank"',
+      );
     });
 
     test("returns 302 redirect for single-ticket paid event without iframe", async () => {
@@ -2299,11 +2450,13 @@ describe("server (public routes)", () => {
         ),
       );
 
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("data-checkout-popup");
-      expect(html).toContain("Pay Now");
-      expect(html).toContain('target="_blank"');
+      await expectHtmlResponse(
+        response,
+        200,
+        "data-checkout-popup",
+        "Pay Now",
+        'target="_blank"',
+      );
     });
   });
 
@@ -2332,9 +2485,7 @@ describe("server (public routes)", () => {
           email: "john@example.com",
         });
 
-        expect(response.status).toBe(500);
-        const html = await response.text();
-        expect(html).toContain("Payments are not configured");
+        await expectHtmlResponse(response, 500, "Payments are not configured");
       } finally {
         mockConfigured.mockRestore();
       }
@@ -2388,9 +2539,7 @@ describe("server (public routes)", () => {
           ),
         );
 
-        expect(response.status).toBe(500);
-        const html = await response.text();
-        expect(html).toContain("Payments are not configured");
+        await expectHtmlResponse(response, 500, "Payments are not configured");
       } finally {
         mockConfigured.mockRestore();
       }
@@ -2405,14 +2554,19 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${event.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Registration closed.");
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Registration closed.",
+      );
       expect(html).not.toContain("Reserve Ticket");
     });
 
     test("shows form when closes_at is in the future", async () => {
-      const futureDate = new Date(Date.now() + 3600000).toISOString().slice(0, 16);
+      const futureDate = new Date(Date.now() + 3600000).toISOString().slice(
+        0,
+        16,
+      );
       const event = await createTestEvent({ closesAt: futureDate });
 
       const response = await handleRequest(
@@ -2438,7 +2592,10 @@ describe("server (public routes)", () => {
 
     test("shows 'registration closed while you were submitting' on POST when closes_at is past", async () => {
       // Create event with future closes_at so we can get CSRF token
-      const futureDate = new Date(Date.now() + 3600000).toISOString().slice(0, 16);
+      const futureDate = new Date(Date.now() + 3600000).toISOString().slice(
+        0,
+        16,
+      );
       const event = await createTestEvent({ closesAt: futureDate });
 
       // Get CSRF token from the ticket page
@@ -2464,9 +2621,11 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Sorry, registration closed while you were submitting.");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Sorry, registration closed while you were submitting.",
+      );
     });
   });
 
@@ -2479,9 +2638,7 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Registration closed.");
+      await expectHtmlResponse(response, 200, "Registration closed.");
     });
 
     test("shows 'Registration Closed' label for individual closed event in multi-ticket", async () => {
@@ -2492,15 +2649,20 @@ describe("server (public routes)", () => {
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Registration Closed");
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Registration Closed",
+      );
       expect(html).toContain(event2.name); // open event shows form
     });
 
     test("shows error on POST when event closes during submission", async () => {
       // Create two events, one will close during submission
-      const futureDate = new Date(Date.now() + 3600000).toISOString().slice(0, 16);
+      const futureDate = new Date(Date.now() + 3600000).toISOString().slice(
+        0,
+        16,
+      );
       const event1 = await createTestEvent({ closesAt: futureDate });
       const event2 = await createTestEvent();
 
@@ -2528,9 +2690,11 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Sorry, registration closed while you were submitting.");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Sorry, registration closed while you were submitting.",
+      );
     });
   });
 
@@ -2541,15 +2705,27 @@ describe("server (public routes)", () => {
     test("GET shows date selector for daily event", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
-      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Select Date");
-      expect(html).toContain('<select name="date"');
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Select Date",
+        '<select name="date"',
+      );
     });
 
     test("GET shows no-dates message when no dates available", async () => {
@@ -2561,16 +2737,28 @@ describe("server (public routes)", () => {
         minimumDaysBefore: 30,
         maximumDaysAfter: 7,
       });
-      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("No dates are currently available for booking");
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "No dates are currently available for booking",
+      );
     });
 
     test("POST succeeds for free daily event with valid date", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2585,7 +2773,15 @@ describe("server (public routes)", () => {
     test("POST rejects daily event with missing date", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2593,15 +2789,21 @@ describe("server (public routes)", () => {
         name: "Daily User",
         email: "daily@example.com",
       });
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Please select a valid date");
+      await expectHtmlResponse(response, 400, "Please select a valid date");
     });
 
     test("POST rejects daily event with invalid date", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2610,15 +2812,21 @@ describe("server (public routes)", () => {
         email: "daily@example.com",
         date: "2099-01-01",
       });
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Please select a valid date");
+      await expectHtmlResponse(response, 400, "Please select a valid date");
     });
 
     test("POST checks per-date capacity for daily events", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
         maxAttendees: 1,
@@ -2637,15 +2845,21 @@ describe("server (public routes)", () => {
         email: "second@example.com",
         date: validDate,
       });
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("not enough spots available");
+      await expectHtmlResponse(response, 400, "not enough spots available");
     });
 
     test("POST allows booking different dates at capacity", async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
         maxAttendees: 1,
@@ -2674,13 +2888,23 @@ describe("server (public routes)", () => {
 
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
         unitPrice: 500,
       });
 
-      const getResponse = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      const getResponse = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
       const csrfToken = getTicketCsrfToken(await getResponse.text());
       if (!csrfToken) throw new Error("Failed to get CSRF token");
 
@@ -2713,11 +2937,21 @@ describe("server (public routes)", () => {
 
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
-      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
       expect(response.status).toBe(200);
       const html = await response.text();
       // The holiday date should not appear as an option
@@ -2731,35 +2965,69 @@ describe("server (public routes)", () => {
     test("GET shows date selector for multi-ticket with daily events", async () => {
       const event1 = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
       const event2 = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Select Date");
-      expect(html).toContain('<select name="date"');
+      await expectHtmlResponse(
+        response,
+        200,
+        "Select Date",
+        '<select name="date"',
+      );
     });
 
     test("POST rejects multi-ticket daily event without date", async () => {
       const event1 = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
       const event2 = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2782,21 +3050,35 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Please select a valid date");
+      await expectHtmlResponse(response, 400, "Please select a valid date");
     });
 
     test("POST succeeds for free multi-ticket daily events with valid date", async () => {
       const event1 = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
       const event2 = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2828,14 +3110,30 @@ describe("server (public routes)", () => {
 
       const event1 = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
         unitPrice: 500,
       });
       const event2 = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
         unitPrice: 300,
@@ -2899,7 +3197,15 @@ describe("server (public routes)", () => {
       });
       const event2 = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -2919,17 +3225,23 @@ describe("server (public routes)", () => {
       await updateTermsAndConditions("I agree to the event rules.");
 
       const event = await createTestEvent({ maxAttendees: 50 });
-      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("agree_terms");
-      expect(html).toContain("I agree to the event rules.");
-      expect(html).toContain("I agree to the terms above");
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "agree_terms",
+        "I agree to the event rules.",
+        "I agree to the terms above",
+      );
     });
 
     test("does not show terms checkbox when no terms configured", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
-      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}`),
+      );
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).not.toContain("agree_terms");
@@ -2943,9 +3255,11 @@ describe("server (public routes)", () => {
         name: "John Doe",
         email: "john@example.com",
       });
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("You must agree to the terms and conditions");
+      await expectHtmlResponse(
+        response,
+        400,
+        "You must agree to the terms and conditions",
+      );
     });
 
     test("accepts submission when terms are agreed to", async () => {
@@ -2980,22 +3294,36 @@ describe("server (public routes)", () => {
     test("shows terms checkbox on multi-ticket page when configured", async () => {
       await updateTermsAndConditions("Multi-event terms apply.");
 
-      const event1 = await createTestEvent({ name: "TC Multi 1", maxAttendees: 50 });
-      const event2 = await createTestEvent({ name: "TC Multi 2", maxAttendees: 50 });
+      const event1 = await createTestEvent({
+        name: "TC Multi 1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        name: "TC Multi 2",
+        maxAttendees: 50,
+      });
       const response = await handleRequest(
         mockRequest(`/ticket/${event1.slug}+${event2.slug}`),
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("agree_terms");
-      expect(html).toContain("Multi-event terms apply.");
+      await expectHtmlResponse(
+        response,
+        200,
+        "agree_terms",
+        "Multi-event terms apply.",
+      );
     });
 
     test("rejects multi-ticket submission without agreeing to terms", async () => {
       await updateTermsAndConditions("Must agree to policy.");
 
-      const event1 = await createTestEvent({ name: "TC Multi Rej 1", maxAttendees: 50 });
-      const event2 = await createTestEvent({ name: "TC Multi Rej 2", maxAttendees: 50 });
+      const event1 = await createTestEvent({
+        name: "TC Multi Rej 1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        name: "TC Multi Rej 2",
+        maxAttendees: 50,
+      });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
@@ -3015,16 +3343,24 @@ describe("server (public routes)", () => {
           `csrf_token=${csrfToken}`,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("You must agree to the terms and conditions");
+      await expectHtmlResponse(
+        response,
+        400,
+        "You must agree to the terms and conditions",
+      );
     });
 
     test("accepts multi-ticket submission when terms are agreed to", async () => {
       await updateTermsAndConditions("Must agree to policy.");
 
-      const event1 = await createTestEvent({ name: "TC Multi Ok 1", maxAttendees: 50 });
-      const event2 = await createTestEvent({ name: "TC Multi Ok 2", maxAttendees: 50 });
+      const event1 = await createTestEvent({
+        name: "TC Multi Ok 1",
+        maxAttendees: 50,
+      });
+      const event2 = await createTestEvent({
+        name: "TC Multi Ok 2",
+        maxAttendees: 50,
+      });
 
       const path = `/ticket/${event1.slug}+${event2.slug}`;
       const getResponse = await handleRequest(mockRequest(path));
@@ -3048,5 +3384,4 @@ describe("server (public routes)", () => {
       expectReservedRedirectWithTokens(response);
     });
   });
-
 });

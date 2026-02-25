@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  spyOn,
+  test,
+} from "#test-compat";
 import { attendeesApi } from "#lib/db/attendees.ts";
 import { handleRequest } from "#routes";
 import {
@@ -9,6 +16,9 @@ import {
   createTestAttendee,
   createTestDbWithSetup,
   createTestEvent,
+  expectAdminRedirect,
+  expectHtmlResponse,
+  expectRedirect,
   getAttendeesRaw,
   loginAsAdmin,
   mockFormRequest,
@@ -16,8 +26,6 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
-  expectAdminRedirect,
-  expectRedirect,
   withMocks,
 } from "#test-utils";
 import { paymentsApi } from "#lib/payments.ts";
@@ -41,7 +49,12 @@ describe("server (admin attendees)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
 
       const response = await handleRequest(
         mockRequest(`/admin/event/${event.id}/attendee/${attendee.id}/delete`),
@@ -85,7 +98,12 @@ describe("server (admin attendees)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      const attendee = await createTestAttendee(event2.id, event2.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event2.id,
+        event2.slug,
+        "John Doe",
+        "john@example.com",
+      );
 
       const { cookie } = await loginAsAdmin();
 
@@ -99,23 +117,31 @@ describe("server (admin attendees)", () => {
 
     test("shows delete confirmation page when authenticated", async () => {
       const { response } = await adminEventPage(
-        ctx => `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete`,
+        (ctx) =>
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete`,
       )();
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Delete Attendee");
-      expect(html).toContain("John Doe");
-      expect(html).toContain("type their name");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Delete Attendee",
+        "John Doe",
+        "type their name",
+      );
     });
 
     test("includes return_url as hidden field when provided", async () => {
       const { response } = await adminEventPage(
-        ctx => `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete?return_url=${encodeURIComponent("/admin/calendar#attendees")}`,
+        (ctx) =>
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete?return_url=${
+            encodeURIComponent("/admin/calendar#attendees")
+          }`,
       )();
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('name="return_url"');
-      expect(html).toContain("/admin/calendar#attendees");
+      await expectHtmlResponse(
+        response,
+        200,
+        'name="return_url"',
+        "/admin/calendar#attendees",
+      );
     });
   });
 
@@ -125,12 +151,20 @@ describe("server (admin attendees)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
 
       const response = await handleRequest(
-        mockFormRequest(`/admin/event/${event.id}/attendee/${attendee.id}/delete`, {
-          confirm_name: "John Doe",
-        }),
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete`,
+          {
+            confirm_name: "John Doe",
+          },
+        ),
       );
       expectAdminRedirect(response);
     });
@@ -173,17 +207,16 @@ describe("server (admin attendees)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { response } = await deleteAction({ confirm_name: "John Doe", csrf_token: "invalid-token" })();
-      expect(response.status).toBe(403);
-      const html = await response.text();
-      expect(html).toContain("Invalid CSRF token");
+      const { response } = await deleteAction({
+        confirm_name: "John Doe",
+        csrf_token: "invalid-token",
+      })();
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects mismatched attendee name", async () => {
       const { response } = await deleteAction({ confirm_name: "Wrong Name" })();
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("does not match");
+      await expectHtmlResponse(response, 400, "does not match");
     });
 
     test("preserves return_url on mismatched attendee name", async () => {
@@ -192,14 +225,13 @@ describe("server (admin attendees)", () => {
         confirm_name: "Wrong Name",
         return_url: returnUrl,
       })();
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain('name="return_url"');
-      expect(html).toContain(returnUrl);
+      await expectHtmlResponse(response, 400, 'name="return_url"', returnUrl);
     });
 
     test("deletes attendee with matching name (case insensitive)", async () => {
-      const { response, event, attendee } = await deleteAction({ confirm_name: "john doe" })();
+      const { response, event, attendee } = await deleteAction({
+        confirm_name: "john doe",
+      })();
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
 
@@ -210,7 +242,9 @@ describe("server (admin attendees)", () => {
     });
 
     test("deletes attendee with whitespace-trimmed name", async () => {
-      const { response } = await deleteAction({ confirm_name: "  John Doe  " })();
+      const { response } = await deleteAction({
+        confirm_name: "  John Doe  ",
+      })();
       expectRedirect("/admin/event/1")(response);
     });
   });
@@ -221,7 +255,12 @@ describe("server (admin attendees)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -231,15 +270,18 @@ describe("server (admin attendees)", () => {
       }).toString();
 
       const response = await handleRequest(
-        new Request(`http://localhost/admin/event/${event.id}/attendee/${attendee.id}/delete`, {
-          method: "DELETE",
-          headers: {
-            host: "localhost",
-            cookie,
-            "content-type": "application/x-www-form-urlencoded",
+        new Request(
+          `http://localhost/admin/event/${event.id}/attendee/${attendee.id}/delete`,
+          {
+            method: "DELETE",
+            headers: {
+              host: "localhost",
+              cookie,
+              "content-type": "application/x-www-form-urlencoded",
+            },
+            body: formBody,
           },
-          body: formBody,
-        }),
+        ),
       );
       expectRedirect("/admin/event/1")(response);
 
@@ -255,9 +297,7 @@ describe("server (admin attendees)", () => {
       // Submit without confirm_name field at all
       const { response } = await deleteAction({})();
       // Empty string won't match "John Doe", so it returns 400
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("does not match");
+      await expectHtmlResponse(response, 400, "does not match");
     });
   });
 
@@ -270,12 +310,15 @@ describe("server (admin attendees)", () => {
       });
 
       const response = await handleRequest(
-        new Request(`http://localhost/admin/event/${event.id}/attendee/99999/delete`, {
-          headers: {
-            host: "localhost",
-            cookie,
+        new Request(
+          `http://localhost/admin/event/${event.id}/attendee/99999/delete`,
+          {
+            headers: {
+              host: "localhost",
+              cookie,
+            },
           },
-        }),
+        ),
       );
       expect(response.status).toBe(404);
     });
@@ -288,7 +331,12 @@ describe("server (admin attendees)", () => {
         name: "Parse Ids Test",
         maxAttendees: 50,
       });
-      const attendee = await createTestAttendee(event.id, event.slug, "Test User", "test@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Test User",
+        "test@example.com",
+      );
 
       // POST route exercises attendeeDeleteHandler which calls parseAttendeeIds.
       // The custom handler requires confirm_name to match the attendee name.
@@ -395,16 +443,26 @@ describe("server (admin attendees)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
 
       const response = await handleRequest(
-        mockFormRequest(`/admin/event/${event.id}/attendee/${attendee.id}/checkin`, {}),
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/checkin`,
+          {},
+        ),
       );
       expectAdminRedirect(response);
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { response } = await checkinAction({ csrf_token: "invalid-token" })();
+      const { response } = await checkinAction({
+        csrf_token: "invalid-token",
+      })();
       expect(response.status).toBe(403);
     });
 
@@ -450,7 +508,9 @@ describe("server (admin attendees)", () => {
     });
 
     test("redirects to filtered page when return_filter is set", async () => {
-      const { response, event } = await checkinAction({ return_filter: "in" })();
+      const { response, event } = await checkinAction({
+        return_filter: "in",
+      })();
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(location).toContain(`/admin/event/${event.id}/in?`);
@@ -475,7 +535,9 @@ describe("server (admin attendees)", () => {
     });
 
     test("redirects to unfiltered page when return_filter is all", async () => {
-      const { response, event } = await checkinAction({ return_filter: "all" })();
+      const { response, event } = await checkinAction({
+        return_filter: "all",
+      })();
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(location).toContain(`/admin/event/${event.id}?`);
@@ -484,9 +546,13 @@ describe("server (admin attendees)", () => {
     });
 
     test("redirects to return_url when provided", async () => {
-      const { response } = await checkinAction({ return_url: "/admin/calendar?date=2026-03-15#attendees" })();
+      const { response } = await checkinAction({
+        return_url: "/admin/calendar?date=2026-03-15#attendees",
+      })();
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/calendar?date=2026-03-15#attendees");
+      expect(response.headers.get("location")).toBe(
+        "/admin/calendar?date=2026-03-15#attendees",
+      );
     });
 
     test("checks out an already checked-in attendee", async () => {
@@ -507,36 +573,42 @@ describe("server (admin attendees)", () => {
     });
 
     test("event page shows Check in button for unchecked attendee", async () => {
-      const { response } = await adminEventPage(ctx => `/admin/event/${ctx.event.id}`)();
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Check in");
-      expect(html).toContain("/checkin");
+      const { response } = await adminEventPage((ctx) =>
+        `/admin/event/${ctx.event.id}`
+      )();
+      await expectHtmlResponse(response, 200, "Check in", "/checkin");
     });
 
     test("event page shows check-in success message when query params present", async () => {
       const { response } = await adminEventPage(
-        ctx => `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=in`,
+        (ctx) =>
+          `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=in`,
       )();
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Checked John Doe in");
-      expect(html).toContain('checkin-message-in');
+      await expectHtmlResponse(
+        response,
+        200,
+        "Checked John Doe in",
+        "checkin-message-in",
+      );
     });
 
     test("event page shows check-out message in red", async () => {
       const { response } = await adminEventPage(
-        ctx => `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=out`,
+        (ctx) =>
+          `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=out`,
       )();
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Checked John Doe out");
-      expect(html).toContain('checkin-message-out');
+      await expectHtmlResponse(
+        response,
+        200,
+        "Checked John Doe out",
+        "checkin-message-out",
+      );
     });
 
     test("event page ignores invalid checkin_status param", async () => {
       const { response } = await adminEventPage(
-        ctx => `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=invalid`,
+        (ctx) =>
+          `/admin/event/${ctx.event.id}?checkin_name=John%20Doe&checkin_status=invalid`,
       )();
       expect(response.status).toBe(200);
       const html = await response.text();
@@ -551,9 +623,7 @@ describe("server (admin attendees)", () => {
         `/admin/event/${event.id}`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Check out");
+      await expectHtmlResponse(response, 200, "Check out");
     });
   });
 
@@ -609,7 +679,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("adds attendee to email event", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, fields: "email" });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        fields: "email",
+      });
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -634,7 +707,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("adds attendee to phone event", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, fields: "phone" });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        fields: "phone",
+      });
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -657,7 +733,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("adds attendee to both event", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, fields: "email,phone" });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        fields: "email,phone",
+      });
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -705,7 +784,12 @@ describe("server (admin attendees)", () => {
 
     test("redirects with error when capacity exceeded", async () => {
       const event = await createTestEvent({ maxAttendees: 1 });
-      await createTestAttendee(event.id, event.slug, "First", "first@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "First",
+        "first@example.com",
+      );
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -732,10 +816,11 @@ describe("server (admin attendees)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await withMocks(
-        () => spyOn(attendeesApi, "createAttendeeAtomic").mockResolvedValue({
-          success: false,
-          reason: "encryption_error",
-        }),
+        () =>
+          spyOn(attendeesApi, "createAttendeeAtomic").mockResolvedValue({
+            success: false,
+            reason: "encryption_error",
+          }),
         async () => {
           const response = await handleRequest(
             mockFormRequest(
@@ -765,7 +850,15 @@ describe("server (admin attendees)", () => {
       const event = await createTestEvent({
         maxAttendees: 100,
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
       });
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -798,12 +891,14 @@ describe("server (admin attendees)", () => {
         `/admin/event/${event.id}`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Add Attendee");
-      expect(html).toContain(`/admin/event/${event.id}/attendee`);
-      expect(html).toContain("Your Name");
-      expect(html).toContain("Quantity");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Add Attendee",
+        `/admin/event/${event.id}/attendee`,
+        "Your Name",
+        "Quantity",
+      );
     });
 
     test("event page shows success message when ?added param present", async () => {
@@ -814,9 +909,7 @@ describe("server (admin attendees)", () => {
         `/admin/event/${event.id}?added=Jane%20Doe`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Added Jane Doe");
+      await expectHtmlResponse(response, 200, "Added Jane Doe");
     });
 
     test("event page shows error message when ?add_error param present", async () => {
@@ -827,16 +920,19 @@ describe("server (admin attendees)", () => {
         `/admin/event/${event.id}?add_error=Not%20enough%20spots`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Not enough spots");
+      await expectHtmlResponse(response, 200, "Not enough spots");
     });
   });
 
   describe("GET /admin/attendees/:attendeeId", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
 
       const response = await handleRequest(
         mockRequest(`/admin/attendees/${attendee.id}`),
@@ -875,67 +971,102 @@ describe("server (admin attendees)", () => {
         `/admin/attendees/${attendee.id}`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Edit Attendee");
-      expect(html).toContain("John Doe");
-      expect(html).toContain("john@example.com");
-      expect(html).toContain("555-1234");
-      expect(html).toContain("123 Main St");
-      expect(html).toContain("VIP guest");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Edit Attendee",
+        "John Doe",
+        "john@example.com",
+        "555-1234",
+        "123 Main St",
+        "VIP guest",
+      );
     });
 
     test("includes return_url as hidden field when provided", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}?return_url=${encodeURIComponent("/admin/calendar#attendees")}`,
+        `/admin/attendees/${attendee.id}?return_url=${
+          encodeURIComponent("/admin/calendar#attendees")
+        }`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('name="return_url"');
-      expect(html).toContain("/admin/calendar#attendees");
+      await expectHtmlResponse(
+        response,
+        200,
+        'name="return_url"',
+        "/admin/calendar#attendees",
+      );
     });
 
     test("shows event selector with current event selected", async () => {
-      const event = await createTestEvent({ name: "Current Event", maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const event = await createTestEvent({
+        name: "Current Event",
+        maxAttendees: 100,
+      });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Current Event");
-      expect(html).toContain(`<option value="${event.id}" selected>`);
+      await expectHtmlResponse(
+        response,
+        200,
+        "Current Event",
+        `<option value="${event.id}" selected>`,
+      );
     });
 
     test("includes active events in selector", async () => {
-      const event1 = await createTestEvent({ name: "Event 1", maxAttendees: 100 });
-      await createTestEvent({ name: "Event 2", maxAttendees: 100, active: true });
-      const attendee = await createTestAttendee(event1.id, event1.slug, "John Doe", "john@example.com");
+      const event1 = await createTestEvent({
+        name: "Event 1",
+        maxAttendees: 100,
+      });
+      await createTestEvent({
+        name: "Event 2",
+        maxAttendees: 100,
+        active: true,
+      });
+      const attendee = await createTestAttendee(
+        event1.id,
+        event1.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
         `/admin/attendees/${attendee.id}`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Event 1");
-      expect(html).toContain("Event 2");
+      await expectHtmlResponse(response, 200, "Event 1", "Event 2");
     });
   });
 
   describe("POST /admin/attendees/:attendeeId", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
 
       const response = await handleRequest(
         mockFormRequest(`/admin/attendees/${attendee.id}`, {
@@ -973,7 +1104,12 @@ describe("server (admin attendees)", () => {
 
     test("rejects invalid CSRF token", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -991,14 +1127,17 @@ describe("server (admin attendees)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const html = await response.text();
-      expect(html).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects empty name", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -1016,14 +1155,17 @@ describe("server (admin attendees)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Name is required");
+      await expectHtmlResponse(response, 400, "Name is required");
     });
 
     test("preserves return_url on edit validation error", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
       const returnUrl = "/admin/calendar#attendees";
 
@@ -1043,15 +1185,17 @@ describe("server (admin attendees)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain('name="return_url"');
-      expect(html).toContain(returnUrl);
+      await expectHtmlResponse(response, 400, 'name="return_url"', returnUrl);
     });
 
     test("rejects whitespace-only name", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -1069,14 +1213,17 @@ describe("server (admin attendees)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Name is required");
+      await expectHtmlResponse(response, 400, "Name is required");
     });
 
     test("rejects missing event_id", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -1094,14 +1241,17 @@ describe("server (admin attendees)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Event is required");
+      await expectHtmlResponse(response, 400, "Event is required");
     });
 
     test("updates attendee with new data", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -1120,7 +1270,9 @@ describe("server (admin attendees)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?edited=Jane%20Doe#attendees`);
+      expect(response.headers.get("location")).toBe(
+        `/admin/event/${event.id}?edited=Jane%20Doe#attendees`,
+      );
 
       // Verify the edit form shows the updated data
       const editResponse = await awaitTestRequest(
@@ -1137,9 +1289,20 @@ describe("server (admin attendees)", () => {
     });
 
     test("allows moving attendee to different event", async () => {
-      const event1 = await createTestEvent({ name: "Event 1", maxAttendees: 100 });
-      const event2 = await createTestEvent({ name: "Event 2", maxAttendees: 100 });
-      const attendee = await createTestAttendee(event1.id, event1.slug, "John Doe", "john@example.com");
+      const event1 = await createTestEvent({
+        name: "Event 1",
+        maxAttendees: 100,
+      });
+      const event2 = await createTestEvent({
+        name: "Event 2",
+        maxAttendees: 100,
+      });
+      const attendee = await createTestAttendee(
+        event1.id,
+        event1.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -1158,7 +1321,9 @@ describe("server (admin attendees)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/event/${event2.id}?edited=John%20Doe#attendees`);
+      expect(response.headers.get("location")).toBe(
+        `/admin/event/${event2.id}?edited=John%20Doe#attendees`,
+      );
 
       // Verify attendee was moved to event2 by checking the raw attendee data
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
@@ -1175,29 +1340,42 @@ describe("server (admin attendees)", () => {
         `/admin/event/${event.id}?edited=Jane%20Doe`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Updated Jane Doe");
+      await expectHtmlResponse(response, 200, "Updated Jane Doe");
     });
 
     test("attendee table shows edit link", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain(`/admin/attendees/${attendee.id}`);
-      expect(html).toContain("Edit");
+      await expectHtmlResponse(
+        response,
+        200,
+        `/admin/attendees/${attendee.id}`,
+        "Edit",
+      );
     });
 
     test("shows current event and active events in selector", async () => {
-      const event1 = await createTestEvent({ name: "Event 1", maxAttendees: 100, active: true });
-      await createTestEvent({ name: "Event 2", maxAttendees: 100, active: true });
+      const event1 = await createTestEvent({
+        name: "Event 1",
+        maxAttendees: 100,
+        active: true,
+      });
+      await createTestEvent({
+        name: "Event 2",
+        maxAttendees: 100,
+        active: true,
+      });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
         eventId: event1.id,
@@ -1214,11 +1392,13 @@ describe("server (admin attendees)", () => {
         `/admin/attendees/${attendee.id}`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Event 1");
-      expect(html).toContain("Event 2");
-      expect(html).toContain(`<option value="${event1.id}" selected>`);
+      await expectHtmlResponse(
+        response,
+        200,
+        "Event 1",
+        "Event 2",
+        `<option value="${event1.id}" selected>`,
+      );
     });
 
     test("shows edit form with empty email field", async () => {
@@ -1239,14 +1419,14 @@ describe("server (admin attendees)", () => {
         `/admin/attendees/${attendee.id}`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('type="email"');
-      expect(html).toContain('name="email"');
+      await expectHtmlResponse(response, 200, 'type="email"', 'name="email"');
     });
 
     test("shows inactive event label in selector", async () => {
-      const inactiveEvent = await createTestEvent({ name: "Inactive Event", maxAttendees: 100 });
+      const inactiveEvent = await createTestEvent({
+        name: "Inactive Event",
+        maxAttendees: 100,
+      });
 
       // Manually set event to inactive
       const { getDb } = await import("#lib/db/client.ts");
@@ -1271,10 +1451,7 @@ describe("server (admin attendees)", () => {
         `/admin/attendees/${attendee.id}`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Inactive Event");
-      expect(html).toContain("(inactive)");
+      await expectHtmlResponse(response, 200, "Inactive Event", "(inactive)");
     });
 
     test("updates attendee with empty email", async () => {
@@ -1342,17 +1519,26 @@ describe("server (admin attendees)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?edited=Jane%20Smith#attendees`);
+      expect(response.headers.get("location")).toBe(
+        `/admin/event/${event.id}?edited=Jane%20Smith#attendees`,
+      );
     });
   });
 
   describe("GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
 
       const response = await handleRequest(
-        mockRequest(`/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`),
+        mockRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`,
+        ),
       );
       expectAdminRedirect(response);
     });
@@ -1381,27 +1567,38 @@ describe("server (admin attendees)", () => {
 
     test("shows resend webhook confirmation page when authenticated", async () => {
       const { response } = await adminEventPage(
-        ctx => `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-webhook`,
+        (ctx) =>
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-webhook`,
       )();
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Re-send Webhook");
-      expect(html).toContain("John Doe");
-      expect(html).toContain("type their name");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Re-send Webhook",
+        "John Doe",
+        "type their name",
+      );
     });
 
     test("includes return_url as hidden field when provided", async () => {
       const { response } = await adminEventPage(
-        ctx => `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-webhook?return_url=${encodeURIComponent("/admin/calendar#attendees")}`,
+        (ctx) =>
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-webhook?return_url=${
+            encodeURIComponent("/admin/calendar#attendees")
+          }`,
       )();
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('name="return_url"');
-      expect(html).toContain("/admin/calendar#attendees");
+      await expectHtmlResponse(
+        response,
+        200,
+        'name="return_url"',
+        "/admin/calendar#attendees",
+      );
     });
 
     test("shows amount paid on resend webhook page for paid attendee", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        unitPrice: 1000,
+      });
 
       // Create attendee with price_paid using createAttendeeAtomic
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
@@ -1423,11 +1620,13 @@ describe("server (admin attendees)", () => {
         `/admin/event/${event.id}/attendee/${result.attendee.id}/resend-webhook`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Re-send Webhook");
-      expect(html).toContain("Jane Paid");
-      expect(html).toContain("Amount Paid");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Re-send Webhook",
+        "Jane Paid",
+        "Amount Paid",
+      );
     });
   });
 
@@ -1436,12 +1635,20 @@ describe("server (admin attendees)", () => {
 
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
 
       const response = await handleRequest(
-        mockFormRequest(`/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`, {
-          confirm_name: "John Doe",
-        }),
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`,
+          {
+            confirm_name: "John Doe",
+          },
+        ),
       );
       expectAdminRedirect(response);
     });
@@ -1481,24 +1688,27 @@ describe("server (admin attendees)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { response } = await resendWebhookAction({ confirm_name: "John Doe", csrf_token: "invalid-token" })();
-      expect(response.status).toBe(403);
-      const html = await response.text();
-      expect(html).toContain("Invalid CSRF token");
+      const { response } = await resendWebhookAction({
+        confirm_name: "John Doe",
+        csrf_token: "invalid-token",
+      })();
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects mismatched attendee name", async () => {
-      const { response } = await resendWebhookAction({ confirm_name: "Wrong Name" })();
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("does not match");
+      const { response } = await resendWebhookAction({
+        confirm_name: "Wrong Name",
+      })();
+      await expectHtmlResponse(response, 400, "does not match");
     });
 
     test("re-sends webhook with matching name", async () => {
       const webhookFetch = spyOn(globalThis, "fetch");
       webhookFetch.mockResolvedValue(new Response(null, { status: 200 }));
 
-      const { response, event } = await resendWebhookAction({ confirm_name: "John Doe" })({
+      const { response, event } = await resendWebhookAction({
+        confirm_name: "John Doe",
+      })({
         webhookUrl: "https://example.com/webhook",
       });
       expect(response.status).toBe(302);
@@ -1513,7 +1723,9 @@ describe("server (admin attendees)", () => {
       const webhookFetch = spyOn(globalThis, "fetch");
       webhookFetch.mockResolvedValue(new Response(null, { status: 200 }));
 
-      const { response, event } = await resendWebhookAction({ confirm_name: "John Doe" })({
+      const { response, event } = await resendWebhookAction({
+        confirm_name: "John Doe",
+      })({
         webhookUrl: "https://example.com/webhook",
       });
       expect(response.status).toBe(302);
@@ -1521,7 +1733,9 @@ describe("server (admin attendees)", () => {
       // Verify activity was logged
       const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
       const logs = await getEventActivityLog(event.id);
-      const resendLog = logs.find((l: { message: string }) => l.message.includes("Webhook re-sent"));
+      const resendLog = logs.find((l: { message: string }) =>
+        l.message.includes("Webhook re-sent")
+      );
       expect(resendLog).toBeDefined();
       expect(resendLog?.message).toContain("John Doe");
       webhookFetch.mockRestore();
@@ -1530,7 +1744,10 @@ describe("server (admin attendees)", () => {
 
   describe("payment details on edit page", () => {
     test("shows payment details for paid attendee", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        unitPrice: 1000,
+      });
       const { createAttendeeAtomic } = await import("#lib/db/attendees.ts");
       const result = await createAttendeeAtomic({
         eventId: event.id,
@@ -1542,18 +1759,28 @@ describe("server (admin attendees)", () => {
       });
       if (!result.success) throw new Error("Failed to create attendee");
       const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest(`/admin/attendees/${result.attendee.id}`, { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Payment Details");
-      expect(html).toContain("pi_test_123");
-      expect(html).toContain("Not refunded");
-      expect(html).toContain("Refresh payment status");
+      const response = await awaitTestRequest(
+        `/admin/attendees/${result.attendee.id}`,
+        { cookie },
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Payment Details",
+        "pi_test_123",
+        "Not refunded",
+        "Refresh payment status",
+      );
     });
 
     test("shows refunded status for refunded attendee", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
-      const { createAttendeeAtomic, markRefunded } = await import("#lib/db/attendees.ts");
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        unitPrice: 1000,
+      });
+      const { createAttendeeAtomic, markRefunded } = await import(
+        "#lib/db/attendees.ts"
+      );
       const result = await createAttendeeAtomic({
         eventId: event.id,
         name: "Refunded User",
@@ -1565,30 +1792,44 @@ describe("server (admin attendees)", () => {
       if (!result.success) throw new Error("Failed to create attendee");
       await markRefunded(result.attendee.id);
       const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest(`/admin/attendees/${result.attendee.id}`, { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Refunded");
+      const response = await awaitTestRequest(
+        `/admin/attendees/${result.attendee.id}`,
+        { cookie },
+      );
+      await expectHtmlResponse(response, 200, "Refunded");
     });
 
     test("shows success message when success query param is present", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}?success=${encodeURIComponent("Payment status is up to date")}`,
+        `/admin/attendees/${attendee.id}?success=${
+          encodeURIComponent("Payment status is up to date")
+        }`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Payment status is up to date");
+      await expectHtmlResponse(response, 200, "Payment status is up to date");
     });
 
     test("does not show payment details for free attendee", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "Free User", "free@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Free User",
+        "free@example.com",
+      );
       const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest(`/admin/attendees/${attendee.id}`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).not.toContain("Payment Details");
@@ -1598,7 +1839,12 @@ describe("server (admin attendees)", () => {
   describe("POST /admin/attendees/:attendeeId/refresh-payment", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const response = await handleRequest(
         mockFormRequest(`/admin/attendees/${attendee.id}/refresh-payment`, {}),
       );
@@ -1607,7 +1853,12 @@ describe("server (admin attendees)", () => {
 
     test("redirects to edit page when attendee has no payment", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
@@ -1617,7 +1868,9 @@ describe("server (admin attendees)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/attendees/${attendee.id}`);
+      expect(response.headers.get("location")).toBe(
+        `/admin/attendees/${attendee.id}`,
+      );
     });
 
     test("returns 404 for non-existent attendee", async () => {
@@ -1633,12 +1886,21 @@ describe("server (admin attendees)", () => {
     });
 
     test("returns error when no payment provider configured", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_no_provider");
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        unitPrice: 500,
+      });
+      const attendee = await createPaidTestAttendee(
+        event.id,
+        "John Doe",
+        "john@example.com",
+        "pi_no_provider",
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(null),
+        () =>
+          spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(null),
         async () => {
           const response = await handleRequest(
             mockFormRequest(
@@ -1647,23 +1909,35 @@ describe("server (admin attendees)", () => {
               cookie,
             ),
           );
-          expect(response.status).toBe(400);
-          const html = await response.text();
-          expect(html).toContain("payment provider");
+          await expectHtmlResponse(response, 400, "payment provider");
         },
       );
     });
 
     test("marks as refunded when Stripe reports refund", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_refresh_refund");
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        unitPrice: 500,
+      });
+      const attendee = await createPaidTestAttendee(
+        event.id,
+        "John Doe",
+        "john@example.com",
+        "pi_refresh_refund",
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
+        () =>
+          spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(
+            mockProviderType("stripe"),
+          ),
         async () => {
-          const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-          const mockRefunded = spyOn(stripePaymentProvider, "isPaymentRefunded").mockResolvedValue(true);
+          const { stripePaymentProvider } = await import(
+            "#lib/stripe-provider.ts"
+          );
+          const mockRefunded = spyOn(stripePaymentProvider, "isPaymentRefunded")
+            .mockResolvedValue(true);
           try {
             const response = await handleRequest(
               mockFormRequest(
@@ -1673,7 +1947,9 @@ describe("server (admin attendees)", () => {
               ),
             );
             expect(response.status).toBe(302);
-            expect(response.headers.get("location")).toContain(`/admin/attendees/${attendee.id}`);
+            expect(response.headers.get("location")).toContain(
+              `/admin/attendees/${attendee.id}`,
+            );
             expect(response.headers.get("location")).toContain("success=");
             expect(response.headers.get("location")).toContain("refunded");
             expect(mockRefunded).toHaveBeenCalledWith("pi_refresh_refund");
@@ -1685,15 +1961,29 @@ describe("server (admin attendees)", () => {
     });
 
     test("redirects without marking refunded when payment is not refunded", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 500 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "pi_refresh_ok");
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        unitPrice: 500,
+      });
+      const attendee = await createPaidTestAttendee(
+        event.id,
+        "John Doe",
+        "john@example.com",
+        "pi_refresh_ok",
+      );
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await withMocks(
-        () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
+        () =>
+          spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(
+            mockProviderType("stripe"),
+          ),
         async () => {
-          const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-          const mockRefunded = spyOn(stripePaymentProvider, "isPaymentRefunded").mockResolvedValue(false);
+          const { stripePaymentProvider } = await import(
+            "#lib/stripe-provider.ts"
+          );
+          const mockRefunded = spyOn(stripePaymentProvider, "isPaymentRefunded")
+            .mockResolvedValue(false);
           try {
             const response = await handleRequest(
               mockFormRequest(
@@ -1703,9 +1993,13 @@ describe("server (admin attendees)", () => {
               ),
             );
             expect(response.status).toBe(302);
-            expect(response.headers.get("location")).toContain(`/admin/attendees/${attendee.id}`);
+            expect(response.headers.get("location")).toContain(
+              `/admin/attendees/${attendee.id}`,
+            );
             expect(response.headers.get("location")).toContain("success=");
-            expect(response.headers.get("location")).toContain("up%20to%20date");
+            expect(response.headers.get("location")).toContain(
+              "up%20to%20date",
+            );
           } finally {
             mockRefunded.mockRestore?.();
           }
@@ -1713,5 +2007,4 @@ describe("server (admin attendees)", () => {
       );
     });
   });
-
 });

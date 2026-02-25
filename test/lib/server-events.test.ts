@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  spyOn,
+  test,
+} from "#test-compat";
 import type { InStatement } from "@libsql/client";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
@@ -15,15 +22,16 @@ import {
   createTestEvent,
   createTestGroup,
   deactivateTestEvent,
+  expectAdminRedirect,
+  expectHtmlResponse,
+  expectRedirect,
+  expectStatus,
+  loginAsAdmin,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
-  expectAdminRedirect,
-  expectRedirect,
-  expectStatus,
-  loginAsAdmin,
   submitTicketForm,
   updateTestEvent,
 } from "#test-utils";
@@ -48,10 +56,12 @@ describe("server (admin events)", () => {
 
     test("renders create event form when authenticated", async () => {
       const { response } = await adminGet("/admin/event/new");
-      expectStatus(200)(response);
-      const html = await response.text();
-      expect(html).toContain("Add Event");
-      expect(html).toContain('action="/admin/event"');
+      await expectHtmlResponse(
+        response,
+        200,
+        "Add Event",
+        'action="/admin/event"',
+      );
     });
   });
 
@@ -94,7 +104,10 @@ describe("server (admin events)", () => {
     });
 
     test("creates event with group_id when provided", async () => {
-      const group = await createTestGroup({ name: "Event Group", slug: "event-group" });
+      const group = await createTestGroup({
+        name: "Event Group",
+        slug: "event-group",
+      });
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -159,9 +172,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects missing CSRF token", async () => {
@@ -179,9 +190,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const text = await response.text();
-      expect(text).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("stays on form with error on validation failure", async () => {
@@ -199,9 +208,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectStatus(400)(response);
-      const html = await response.text();
-      expect(html).toContain("Add Event");
+      await expectHtmlResponse(response, 400, "Add Event");
     });
 
     test("rejects duplicate slug", async () => {
@@ -260,9 +267,7 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest("/admin/event/1", {
         cookie: cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain(event.name);
+      await expectHtmlResponse(response, 200, event.name);
     });
 
     test("shows Edit link on event page", async () => {
@@ -317,14 +322,16 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest("/admin/event/1/duplicate", {
         cookie: cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Duplicate Event");
-      expect(html).toContain("Original Event");
-      expect(html).toContain('value="75"');
-      expect(html).toContain('value="20.00"');
-      expect(html).toContain('value="https://example.com/thanks"');
-      expect(html).toContain('value="https://example.com/webhook"');
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Duplicate Event",
+        "Original Event",
+        'value="75"',
+        'value="20.00"',
+        'value="https://example.com/thanks"',
+        'value="https://example.com/webhook"',
+      );
       // Name field should be empty (not pre-filled)
       expect(html).not.toContain('value="Original Event"');
       // Form posts to create endpoint
@@ -376,8 +383,18 @@ describe("server (admin events)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      const checkedInAttendee = await createTestAttendee(event.id, event.slug, "Checked In User", "in@example.com");
-      await createTestAttendee(event.id, event.slug, "Not Checked User", "out@example.com");
+      const checkedInAttendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Checked In User",
+        "in@example.com",
+      );
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Not Checked User",
+        "out@example.com",
+      );
 
       // Check in the first attendee
       await handleRequest(
@@ -391,9 +408,7 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest(`/admin/event/${event.id}/in`, {
         cookie: cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Checked In User");
+      const html = await expectHtmlResponse(response, 200, "Checked In User");
       expect(html).not.toContain("Not Checked User");
       expect(html).toContain("<strong>Checked In</strong>");
     });
@@ -425,8 +440,18 @@ describe("server (admin events)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      const checkedInAttendee = await createTestAttendee(event.id, event.slug, "Checked In User", "in@example.com");
-      await createTestAttendee(event.id, event.slug, "Not Checked User", "out@example.com");
+      const checkedInAttendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Checked In User",
+        "in@example.com",
+      );
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Not Checked User",
+        "out@example.com",
+      );
 
       // Check in the first attendee
       await handleRequest(
@@ -497,14 +522,29 @@ describe("server (admin events)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-      await createTestAttendee(event.id, event.slug, "Jane Smith", "jane@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Jane Smith",
+        "jane@example.com",
+      );
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/export`, {
-        cookie: cookie,
-      });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/export`,
+        {
+          cookie: cookie,
+        },
+      );
       const csv = await response.text();
-      expect(csv).toContain("Name,Email,Phone,Address,Special Instructions,Quantity,Registered");
+      expect(csv).toContain(
+        "Name,Email,Phone,Address,Special Instructions,Quantity,Registered",
+      );
       expect(csv).toContain("John Doe");
       expect(csv).toContain("john@example.com");
       expect(csv).toContain("Jane Smith");
@@ -518,7 +558,12 @@ describe("server (admin events)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
 
       // Check in the attendee
       await handleRequest(
@@ -529,9 +574,12 @@ describe("server (admin events)", () => {
         ),
       );
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/export`, {
-        cookie: cookie,
-      });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/export`,
+        {
+          cookie: cookie,
+        },
+      );
       const csv = await response.text();
       expect(csv).toContain(",Checked In");
       // John Doe is checked in
@@ -589,15 +637,17 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest("/admin/event/1/edit", {
         cookie: cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Edit:");
-      expect(html).toContain('value="Test Event"');
-      expect(html).toContain('value="100"');
-      expect(html).toContain('value="15.00"');
-      expect(html).toContain('value="https://example.com/thanks"');
-      expect(html).toContain(`value="${event.slug}"`);
-      expect(html).toContain("Slug");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Edit:",
+        'value="Test Event"',
+        'value="100"',
+        'value="15.00"',
+        'value="https://example.com/thanks"',
+        `value="${event.slug}"`,
+        "Slug",
+      );
     });
   });
 
@@ -661,9 +711,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const html = await response.text();
-      expect(html).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("validates required fields", async () => {
@@ -688,9 +736,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Event Name is required");
+      await expectHtmlResponse(response, 400, "Event Name is required");
     });
 
     test("updates event when authenticated", async () => {
@@ -727,9 +773,19 @@ describe("server (admin events)", () => {
     });
 
     test("updates event group_id", async () => {
-      const group1 = await createTestGroup({ name: "Group One", slug: "group-one" });
-      const group2 = await createTestGroup({ name: "Group Two", slug: "group-two" });
-      const event = await createTestEvent({ name: "Group Switch Event", groupId: group1.id, maxAttendees: 50 });
+      const group1 = await createTestGroup({
+        name: "Group One",
+        slug: "group-one",
+      });
+      const group2 = await createTestGroup({
+        name: "Group Two",
+        slug: "group-two",
+      });
+      const event = await createTestEvent({
+        name: "Group Switch Event",
+        groupId: group1.id,
+        maxAttendees: 50,
+      });
 
       const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
@@ -754,7 +810,10 @@ describe("server (admin events)", () => {
     });
 
     test("rejects non-existent group_id on edit", async () => {
-      const event = await createTestEvent({ name: "Edit Bad Group", maxAttendees: 50 });
+      const event = await createTestEvent({
+        name: "Edit Bad Group",
+        maxAttendees: 50,
+      });
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -771,9 +830,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectStatus(400)(response);
-      const html = await response.text();
-      expect(html).toContain("Selected group does not exist");
+      await expectHtmlResponse(response, 400, "Selected group does not exist");
     });
 
     test("updates event slug", async () => {
@@ -855,9 +912,11 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Slug may only contain lowercase letters, numbers, and hyphens");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Slug may only contain lowercase letters, numbers, and hyphens",
+      );
     });
 
     test("rejects duplicate slug used by another event", async () => {
@@ -886,14 +945,22 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Slug is already in use by another event");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Slug is already in use by another event",
+      );
     });
 
     test("rejects slug used by a group", async () => {
-      const group = await createTestGroup({ name: "Slug Group", slug: "slug-group" });
-      const event = await createTestEvent({ name: "Event Slug Collision", maxAttendees: 50 });
+      const group = await createTestGroup({
+        name: "Slug Group",
+        slug: "slug-group",
+      });
+      const event = await createTestEvent({
+        name: "Event Slug Collision",
+        maxAttendees: 50,
+      });
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -909,9 +976,11 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Slug is already in use by another event");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Slug is already in use by another event",
+      );
     });
 
     test("allows keeping the same slug on update", async () => {
@@ -976,13 +1045,15 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest("/admin/event/1/deactivate", {
         cookie: cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Deactivate Event");
-      expect(html).toContain("Return a 404");
-      expect(html).toContain('name="confirm_identifier"');
-      expect(html).toContain("type its name");
-      expect(html).toContain(event.name);
+      await expectHtmlResponse(
+        response,
+        200,
+        "Deactivate Event",
+        "Return a 404",
+        'name="confirm_identifier"',
+        "type its name",
+        event.name,
+      );
     });
   });
 
@@ -1037,9 +1108,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Event name does not match");
+      await expectHtmlResponse(response, 400, "Event name does not match");
     });
   });
 
@@ -1068,12 +1137,14 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest("/admin/event/1/reactivate", {
         cookie: cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Reactivate Event");
-      expect(html).toContain("available for registrations");
-      expect(html).toContain('name="confirm_identifier"');
-      expect(html).toContain("type its name");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Reactivate Event",
+        "available for registrations",
+        'name="confirm_identifier"',
+        "type its name",
+      );
     });
   });
 
@@ -1121,9 +1192,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Event name does not match");
+      await expectHtmlResponse(response, 400, "Event name does not match");
     });
   });
 
@@ -1160,11 +1229,13 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest("/admin/event/1/delete", {
         cookie: cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Delete Event");
-      expect(html).toContain(event.name);
-      expect(html).toContain("type its name");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Delete Event",
+        event.name,
+        "type its name",
+      );
     });
   });
 
@@ -1218,9 +1289,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(403);
-      const html = await response.text();
-      expect(html).toContain("Invalid CSRF token");
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects mismatched event identifier", async () => {
@@ -1242,9 +1311,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("does not match");
+      await expectHtmlResponse(response, 400, "does not match");
     });
 
     test("deletes event with matching identifier (case insensitive)", async () => {
@@ -1304,8 +1371,18 @@ describe("server (admin events)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
-      await createTestAttendee(event.id, event.slug, "Jane Doe", "jane@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Jane Doe",
+        "jane@example.com",
+      );
 
       const response = await handleRequest(
         mockFormRequest(
@@ -1383,17 +1460,20 @@ describe("server (admin events)", () => {
 
       // Use DELETE method with verify_identifier=false
       const response = await handleRequest(
-        new Request("http://localhost/admin/event/1/delete?verify_identifier=false", {
-          method: "DELETE",
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            cookie: cookie,
-            host: "localhost",
+        new Request(
+          "http://localhost/admin/event/1/delete?verify_identifier=false",
+          {
+            method: "DELETE",
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              cookie: cookie,
+              host: "localhost",
+            },
+            body: new URLSearchParams({
+              csrf_token: csrfToken,
+            }).toString(),
           },
-          body: new URLSearchParams({
-            csrf_token: csrfToken,
-          }).toString(),
-        }),
+        ),
       );
       expect(response.status).toBe(302);
 
@@ -1442,9 +1522,7 @@ describe("server (admin events)", () => {
       });
 
       const response = await awaitTestRequest("/admin/log", { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Log");
+      await expectHtmlResponse(response, 200, "Log");
     });
 
     test("shows truncation message when more than 200 entries", async () => {
@@ -1490,10 +1568,7 @@ describe("server (admin events)", () => {
         `/admin/event/${event.id}/log`,
         { cookie },
       );
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Log");
-      expect(html).toContain(event.name);
+      await expectHtmlResponse(response, 200, "Log", event.name);
     });
   });
 
@@ -1536,7 +1611,12 @@ describe("server (admin events)", () => {
         maxAttendees: 100,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(event.id, event.slug, "Test User", "test@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Test User",
+        "test@example.com",
+      );
 
       // Delete event via API (skip verify)
       const response = await handleRequest(
@@ -1581,9 +1661,7 @@ describe("server (admin events)", () => {
         ),
       );
       // Should return 400 with error page (event exists -> eventErrorPage returns htmlResponse)
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Event Name is required");
+      await expectHtmlResponse(response, 400, "Event Name is required");
     });
   });
 
@@ -1605,9 +1683,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Event name does not match");
+      await expectHtmlResponse(response, 400, "Event name does not match");
     });
 
     test("reactivate event without confirm_identifier uses empty fallback", async () => {
@@ -1628,9 +1704,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Event name does not match");
+      await expectHtmlResponse(response, 400, "Event name does not match");
     });
 
     test("delete event without confirm_identifier uses empty fallback", async () => {
@@ -1650,9 +1724,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("does not match");
+      await expectHtmlResponse(response, 400, "does not match");
     });
   });
 
@@ -1692,9 +1764,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Event Name is required");
+      await expectHtmlResponse(response, 400, "Event Name is required");
     });
   });
 
@@ -1705,7 +1775,12 @@ describe("server (admin events)", () => {
         name: "Cascade Delete",
         maxAttendees: 50,
       });
-      await createTestAttendee(event.id, event.slug, "Test User", "test@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Test User",
+        "test@example.com",
+      );
 
       const response = await handleRequest(
         mockFormRequest(
@@ -1744,9 +1819,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Event Name is required");
+      await expectHtmlResponse(response, 400, "Event Name is required");
     });
 
     test("event delete cascades to attendees using custom onDelete", async () => {
@@ -1755,7 +1828,12 @@ describe("server (admin events)", () => {
         name: "Cascade Del Test",
         maxAttendees: 50,
       });
-      await createTestAttendee(event.id, event.slug, "Del User", "del@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Del User",
+        "del@example.com",
+      );
 
       const response = await handleRequest(
         mockFormRequest(
@@ -1791,7 +1869,10 @@ describe("server (admin events)", () => {
         if (row) {
           // Delete the event from DB so getEventWithCount returns null
           const { getDb } = await import("#lib/db/client.ts");
-          await getDb().execute({ sql: "DELETE FROM events WHERE id = ?", args: [id as number] });
+          await getDb().execute({
+            sql: "DELETE FROM events WHERE id = ?",
+            args: [id as number],
+          });
           invalidateEventsCache();
         }
         return row;
@@ -1823,7 +1904,10 @@ describe("server (admin events)", () => {
   describe("admin event onDelete handler", () => {
     test("deleting an event triggers the onDelete handler which calls deleteEvent", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
-      const event = await createTestEvent({ name: "Delete OnDelete Test", maxAttendees: 10 });
+      const event = await createTestEvent({
+        name: "Delete OnDelete Test",
+        maxAttendees: 10,
+      });
       // Add an attendee so delete covers more paths
       await createTestAttendee(event.id, event.slug, "User A", "a@test.com");
 
@@ -1849,8 +1933,16 @@ describe("server (admin events)", () => {
       spy.mockImplementation((query: InStatement) => {
         const sql = typeof query === "string" ? query : query.sql;
         // Intercept the isSlugTaken query
-        if (sql.includes("SELECT 1 WHERE EXISTS") && sql.includes("FROM events WHERE slug_index")) {
-          return Promise.resolve({ rows: [{ "1": 1 }], columns: ["1"], rowsAffected: 0, lastInsertRowid: 0n });
+        if (
+          sql.includes("SELECT 1 WHERE EXISTS") &&
+          sql.includes("FROM events WHERE slug_index")
+        ) {
+          return Promise.resolve({
+            rows: [{ "1": 1 }],
+            columns: ["1"],
+            rowsAffected: 0,
+            lastInsertRowid: 0n,
+          });
         }
         return originalExecute(query);
       });
@@ -1869,9 +1961,7 @@ describe("server (admin events)", () => {
             cookie,
           ),
         );
-        expect(response.status).toBe(503);
-        const text = await response.text();
-        expect(text).toContain("Temporary Error");
+        await expectHtmlResponse(response, 503, "Temporary Error");
       } finally {
         spy.mockRestore();
       }
@@ -1960,9 +2050,11 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Registration Closes");
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Registration Closes",
+      );
       expect(html).not.toContain("No deadline");
       expect(html).toContain("from now");
     });
@@ -1974,9 +2066,7 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("No deadline");
+      await expectHtmlResponse(response, 200, "No deadline");
     });
 
     test("admin event edit page shows closes_at in form", async () => {
@@ -1986,11 +2076,13 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('value="2099-06-15"');
-      expect(html).toContain('value="14:30"');
-      expect(html).toContain("Registration Closes At");
+      await expectHtmlResponse(
+        response,
+        200,
+        'value="2099-06-15"',
+        'value="14:30"',
+        "Registration Closes At",
+      );
     });
 
     test("admin event detail page shows 'closed' countdown for past closes_at", async () => {
@@ -2000,23 +2092,21 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("(closed)");
+      await expectHtmlResponse(response, 200, "(closed)");
     });
 
     test("admin event detail page shows days-only countdown", async () => {
       const { cookie } = await loginAsAdmin();
-      const future = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000);
+      const future = new Date(
+        Date.now() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000,
+      );
       const closesAt = future.toISOString().slice(0, 16);
       const event = await createTestEvent({ closesAt });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("days from now");
+      await expectHtmlResponse(response, 200, "days from now");
     });
 
     test("admin event detail page shows hours-only countdown", async () => {
@@ -2028,9 +2118,7 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("hours from now");
+      await expectHtmlResponse(response, 200, "hours from now");
     });
 
     test("admin event detail page shows minutes-only countdown", async () => {
@@ -2042,28 +2130,33 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("minute");
+      await expectHtmlResponse(response, 200, "minute");
     });
 
     test("formatCountdown shows days and hours", () => {
-      const future = new Date(nowMs() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000 + 30 * 60 * 1000).toISOString();
+      const future = new Date(
+        nowMs() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000 + 30 * 60 * 1000,
+      ).toISOString();
       expect(formatCountdown(future)).toBe("3 days and 5 hours from now");
     });
 
     test("formatCountdown shows only days when no remaining hours", () => {
-      const future = new Date(nowMs() + 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
+      const future = new Date(
+        nowMs() + 2 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000,
+      ).toISOString();
       expect(formatCountdown(future)).toBe("2 days from now");
     });
 
     test("formatCountdown shows only hours", () => {
-      const future = new Date(nowMs() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString();
+      const future = new Date(nowMs() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000)
+        .toISOString();
       expect(formatCountdown(future)).toBe("5 hours from now");
     });
 
     test("formatCountdown shows minutes when less than an hour", () => {
-      const result = formatCountdown(new Date(nowMs() + 30 * 60 * 1000).toISOString());
+      const result = formatCountdown(
+        new Date(nowMs() + 30 * 60 * 1000).toISOString(),
+      );
       expect(result).toContain("minute");
       expect(result).toContain("from now");
     });
@@ -2074,7 +2167,9 @@ describe("server (admin events)", () => {
 
     test("formatCountdown singular forms", () => {
       // Add 30s buffer so elapsed time between nowMs() calls doesn't push hours below boundary
-      const future = new Date(nowMs() + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000 + 30_000).toISOString();
+      const future = new Date(
+        nowMs() + 1 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000 + 30_000,
+      ).toISOString();
       expect(formatCountdown(future)).toBe("1 day and 1 hour from now");
     });
 
@@ -2097,9 +2192,11 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Please enter a valid date and time");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Please enter a valid date and time",
+      );
     });
   });
 
@@ -2141,19 +2238,25 @@ describe("server (admin events)", () => {
         date: "2026-06-15T14:00",
         location: "Village Hall",
       });
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Event Date");
-      expect(html).toContain("Monday 15 June 2026 at 14:00 UTC");
-      expect(html).toContain("<th>Location</th>");
-      expect(html).toContain("Village Hall");
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      await expectHtmlResponse(
+        response,
+        200,
+        "Event Date",
+        "Monday 15 June 2026 at 14:00 UTC",
+        "<th>Location</th>",
+        "Village Hall",
+      );
     });
 
     test("admin detail page hides Event Date and Location when empty", async () => {
       const { cookie } = await loginAsAdmin();
       const event = await createTestEvent();
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
       expect(response.status).toBe(200);
       const html = await response.text();
       expect(html).not.toContain("Event Date");
@@ -2163,20 +2266,24 @@ describe("server (admin events)", () => {
     test("admin edit page pre-fills date as split inputs", async () => {
       const { cookie } = await loginAsAdmin();
       const event = await createTestEvent({ date: "2026-06-15T14:00" });
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('value="2026-06-15"');
-      expect(html).toContain('value="14:00"');
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie,
+      });
+      await expectHtmlResponse(
+        response,
+        200,
+        'value="2026-06-15"',
+        'value="14:00"',
+      );
     });
 
     test("admin edit page pre-fills location", async () => {
       const { cookie } = await loginAsAdmin();
       const event = await createTestEvent({ location: "Village Hall" });
-      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('value="Village Hall"');
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie,
+      });
+      await expectHtmlResponse(response, 200, 'value="Village Hall"');
     });
 
     test("CSV export includes Event Date and Event Location columns", async () => {
@@ -2186,19 +2293,27 @@ describe("server (admin events)", () => {
         location: "Village Hall",
       });
       await createTestAttendee(event.id, event.slug, "Alice", "alice@test.com");
-      const response = await awaitTestRequest(`/admin/event/${event.id}/export`, { cookie });
-      expect(response.status).toBe(200);
-      const csv = await response.text();
-      expect(csv).toContain("Event Date");
-      expect(csv).toContain("Event Location");
-      expect(csv).toContain("Village Hall");
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/export`,
+        { cookie },
+      );
+      await expectHtmlResponse(
+        response,
+        200,
+        "Event Date",
+        "Event Location",
+        "Village Hall",
+      );
     });
 
     test("CSV export omits Event Date and Event Location when empty", async () => {
       const { cookie } = await loginAsAdmin();
       const event = await createTestEvent();
       await createTestAttendee(event.id, event.slug, "Bob", "bob@test.com");
-      const response = await awaitTestRequest(`/admin/event/${event.id}/export`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/export`,
+        { cookie },
+      );
       expect(response.status).toBe(200);
       const csv = await response.text();
       expect(csv).not.toContain("Event Date");
@@ -2223,9 +2338,11 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Please enter a valid date and time");
+      await expectHtmlResponse(
+        response,
+        400,
+        "Please enter a valid date and time",
+      );
     });
   });
 
@@ -2301,7 +2418,15 @@ describe("server (admin events)", () => {
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const saved = await getEventWithCount(event.id);
       expect(saved?.event_type).toBe("standard");
-      expect(saved?.bookable_days).toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
+      expect(saved?.bookable_days).toEqual([
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ]);
       expect(saved?.minimum_days_before).toBe(1);
       expect(saved?.maximum_days_after).toBe(90);
     });
@@ -2318,16 +2443,18 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Event Type");
-      expect(html).toContain("Daily");
-      expect(html).toContain("Bookable Days");
-      expect(html).toContain("Monday,Tuesday");
-      expect(html).toContain("Booking Window");
-      expect(html).toContain("3 to 60 days");
-      expect(html).toContain("Capacity of");
-      expect(html).toContain("applies per date");
+      await expectHtmlResponse(
+        response,
+        200,
+        "Event Type",
+        "Daily",
+        "Bookable Days",
+        "Monday,Tuesday",
+        "Booking Window",
+        "3 to 60 days",
+        "Capacity of",
+        "applies per date",
+      );
     });
 
     test("admin event detail page shows Standard type without daily config", async () => {
@@ -2337,10 +2464,12 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("Event Type");
-      expect(html).toContain("Standard");
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Event Type",
+        "Standard",
+      );
       expect(html).not.toContain("Bookable Days");
       expect(html).not.toContain("Booking Window");
     });
@@ -2357,10 +2486,12 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('value="Wednesday" checked');
-      expect(html).toContain('value="Friday" checked');
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        'value="Wednesday" checked',
+        'value="Friday" checked',
+      );
       expect(html).not.toContain('value="Monday" checked');
       expect(html).toContain('value="5"');
       expect(html).toContain('value="120"');
@@ -2409,10 +2540,12 @@ describe("server (admin events)", () => {
       const response = await awaitTestRequest("/admin/event/1/duplicate", {
         cookie,
       });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain('value="Tuesday" checked');
-      expect(html).toContain('value="Thursday" checked');
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        'value="Tuesday" checked',
+        'value="Thursday" checked',
+      );
       expect(html).not.toContain('value="Monday" checked');
       expect(html).toContain('value="2"');
       expect(html).toContain('value="45"');
@@ -2462,9 +2595,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expect(response.status).toBe(400);
-      const html = await response.text();
-      expect(html).toContain("Invalid day");
+      await expectHtmlResponse(response, 400, "Invalid day");
     });
   });
 
@@ -2493,7 +2624,9 @@ describe("server (admin events)", () => {
 
       const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
       const logs = await getEventActivityLog(event.id);
-      const updateLog = logs.find((l: { message: string }) => l.message.includes("updated"));
+      const updateLog = logs.find((l: { message: string }) =>
+        l.message.includes("updated")
+      );
       expect(updateLog).toBeDefined();
       expect(updateLog?.message).toContain(event.name);
     });
@@ -2506,14 +2639,34 @@ describe("server (admin events)", () => {
     const createDailyEventWithAttendees = async () => {
       const event = await createTestEvent({
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
       // Create attendees on two different dates via the public form
-      await submitTicketForm(event.slug, { name: "User A", email: "a@test.com", date: validDate1 });
-      await submitTicketForm(event.slug, { name: "User B", email: "b@test.com", date: validDate1 });
-      await submitTicketForm(event.slug, { name: "User C", email: "c@test.com", date: validDate2 });
+      await submitTicketForm(event.slug, {
+        name: "User A",
+        email: "a@test.com",
+        date: validDate1,
+      });
+      await submitTicketForm(event.slug, {
+        name: "User B",
+        email: "b@test.com",
+        date: validDate1,
+      });
+      await submitTicketForm(event.slug, {
+        name: "User C",
+        email: "c@test.com",
+        date: validDate2,
+      });
       return event;
     };
 
@@ -2521,20 +2674,26 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
       const event = await createDailyEventWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
-      expect(response.status).toBe(200);
-      const html = await response.text();
-      expect(html).toContain("<select");
-      expect(html).toContain("All dates");
-      expect(html).toContain(validDate1);
-      expect(html).toContain(validDate2);
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      await expectHtmlResponse(
+        response,
+        200,
+        "<select",
+        "All dates",
+        validDate1,
+        validDate2,
+      );
     });
 
     test("shows Date column header for daily events", async () => {
       const { cookie } = await loginAsAdmin();
       const event = await createDailyEventWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
       const html = await response.text();
       expect(html).toContain("<th>Date</th>");
     });
@@ -2543,7 +2702,9 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
       const event = await createTestEvent();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
       const html = await response.text();
       expect(html).not.toContain("<th>Date</th>");
     });
@@ -2553,7 +2714,10 @@ describe("server (admin events)", () => {
       const event = await createDailyEventWithAttendees();
 
       // Filter to date1 — should show 2 attendees (User A and User B)
-      const response = await awaitTestRequest(`/admin/event/${event.id}?date=${validDate1}`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?date=${validDate1}`,
+        { cookie },
+      );
       const html = await response.text();
       expect(html).toContain("User A");
       expect(html).toContain("User B");
@@ -2565,7 +2729,10 @@ describe("server (admin events)", () => {
       const event = await createDailyEventWithAttendees();
 
       // Filter to date2 — should show 1 attendee (User C)
-      const response = await awaitTestRequest(`/admin/event/${event.id}?date=${validDate2}`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?date=${validDate2}`,
+        { cookie },
+      );
       const html = await response.text();
       expect(html).toContain("User C");
       expect(html).not.toContain("User A");
@@ -2575,7 +2742,10 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
       const event = await createDailyEventWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}?date=${validDate1}`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?date=${validDate1}`,
+        { cookie },
+      );
       const html = await response.text();
       // Should show "2 / 100" for the 2 attendees on date1
       expect(html).toContain("2 / 100");
@@ -2586,7 +2756,9 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
       const event = await createDailyEventWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}`, { cookie });
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
       const html = await response.text();
       expect(html).toContain("(total)");
       expect(html).toContain("Capacity of");
@@ -2597,7 +2769,10 @@ describe("server (admin events)", () => {
       const event = await createDailyEventWithAttendees();
 
       // Filter to date1 + checked out — should show both since none are checked in
-      const response = await awaitTestRequest(`/admin/event/${event.id}/out?date=${validDate1}`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/out?date=${validDate1}`,
+        { cookie },
+      );
       const html = await response.text();
       expect(html).toContain("User A");
       expect(html).toContain("User B");
@@ -2607,10 +2782,18 @@ describe("server (admin events)", () => {
     test("ignores ?date= for standard events", async () => {
       const { cookie } = await loginAsAdmin();
       const event = await createTestEvent();
-      await createTestAttendee(event.id, event.slug, "Standard User", "std@test.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Standard User",
+        "std@test.com",
+      );
 
       // Even with ?date= param, standard events show all attendees
-      const response = await awaitTestRequest(`/admin/event/${event.id}?date=2026-03-15`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?date=2026-03-15`,
+        { cookie },
+      );
       const html = await response.text();
       expect(html).toContain("Standard User");
       expect(html).not.toContain("<th>Date</th>");
@@ -2620,18 +2803,27 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
       const event = await createDailyEventWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/export`, { cookie });
-      expect(response.status).toBe(200);
-      const csv = await response.text();
-      expect(csv).toContain("Date,Name,Email");
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/export`,
+        { cookie },
+      );
+      await expectHtmlResponse(response, 200, "Date,Name,Email");
     });
 
     test("CSV export excludes Date column for standard events", async () => {
       const { cookie } = await loginAsAdmin();
       const event = await createTestEvent();
-      await createTestAttendee(event.id, event.slug, "CSV User", "csv@test.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "CSV User",
+        "csv@test.com",
+      );
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/export`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/export`,
+        { cookie },
+      );
       const csv = await response.text();
       expect(csv.startsWith("Name,Email")).toBe(true);
     });
@@ -2640,7 +2832,10 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
       const event = await createDailyEventWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/export?date=${validDate2}`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/export?date=${validDate2}`,
+        { cookie },
+      );
       const csv = await response.text();
       expect(csv).toContain("User C");
       expect(csv).not.toContain("User A");
@@ -2650,7 +2845,10 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
       const event = await createDailyEventWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}/export?date=${validDate1}`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}/export?date=${validDate1}`,
+        { cookie },
+      );
       const disposition = response.headers.get("content-disposition") ?? "";
       expect(disposition).toContain(validDate1);
       expect(disposition).toContain("_attendees.csv");
@@ -2660,19 +2858,31 @@ describe("server (admin events)", () => {
       const { cookie } = await loginAsAdmin();
       const event = await createDailyEventWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}?date=${validDate1}`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?date=${validDate1}`,
+        { cookie },
+      );
       const html = await response.text();
-      expect(html).toContain(`/admin/event/${event.id}/export?date=${validDate1}`);
+      expect(html).toContain(
+        `/admin/event/${event.id}/export?date=${validDate1}`,
+      );
     });
 
     test("filter links preserve ?date= query parameter", async () => {
       const { cookie } = await loginAsAdmin();
       const event = await createDailyEventWithAttendees();
 
-      const response = await awaitTestRequest(`/admin/event/${event.id}?date=${validDate1}`, { cookie });
+      const response = await awaitTestRequest(
+        `/admin/event/${event.id}?date=${validDate1}`,
+        { cookie },
+      );
       const html = await response.text();
-      expect(html).toContain(`/admin/event/${event.id}/in?date=${validDate1}#attendees`);
-      expect(html).toContain(`/admin/event/${event.id}/out?date=${validDate1}#attendees`);
+      expect(html).toContain(
+        `/admin/event/${event.id}/in?date=${validDate1}#attendees`,
+      );
+      expect(html).toContain(
+        `/admin/event/${event.id}/out?date=${validDate1}#attendees`,
+      );
     });
   });
 
@@ -2688,7 +2898,8 @@ describe("server (admin events)", () => {
       // Insert a stale reservation (older than 5 minutes)
       const staleTime = new Date(Date.now() - 6 * 60 * 1000).toISOString();
       await getDb().execute({
-        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        sql:
+          "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
         args: ["cs_stale_admin_test", staleTime],
       });
 
@@ -2723,7 +2934,8 @@ describe("server (admin events)", () => {
 
       // Insert a fresh reservation (just now)
       await getDb().execute({
-        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        sql:
+          "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
         args: ["cs_fresh_admin_test", new Date().toISOString()],
       });
 
@@ -2741,5 +2953,4 @@ describe("server (admin events)", () => {
       expect(after.rows.length).toBe(1);
     });
   });
-
 });

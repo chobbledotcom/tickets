@@ -945,6 +945,23 @@ export const expectStatus =
     return response;
   };
 
+/**
+ * Assert status and check that the HTML body contains all given substrings.
+ * Returns the HTML string for further assertions.
+ */
+export const expectHtmlResponse = async (
+  response: Response,
+  status: number,
+  ...substrings: string[]
+): Promise<string> => {
+  expect(response.status).toBe(status);
+  const html = await response.text();
+  for (const s of substrings) {
+    expect(html).toContain(s);
+  }
+  return html;
+};
+
 /** Assert a Response is a redirect (302) to the given location. */
 export const expectRedirect =
   (location: string) =>
