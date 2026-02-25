@@ -445,6 +445,22 @@ describe("server (admin groups)", () => {
       expect(html).toContain("2 remain");
     });
 
+    test("shows dual checked-in rows when attendees have multi-quantity", async () => {
+      const group = await createTestGroup({ name: "Multi Qty Group", slug: "multi-qty-group" });
+      const event = await createTestEvent({ name: "Multi Qty Event", groupId: group.id, maxAttendees: 20, maxQuantity: 5 });
+      await createTestAttendee(event.id, event.slug, "Alice", "alice@multi.com", 3);
+      await createTestAttendee(event.id, event.slug, "Bob", "bob@multi.com");
+
+      const { response } = await adminGet(`/admin/group/${group.id}`);
+      expectStatus(200)(response);
+      const html = await response.text();
+      expect(html).toContain("Attendees Checked In");
+      expect(html).toContain("Tickets Checked In");
+      // 0 / 2 tickets checked in, 0 / 4 attendees checked in
+      expect(html).toContain("0 / 2");
+      expect(html).toContain("0 / 4");
+    });
+
     test("shows attendees table with event name column", async () => {
       const group = await createTestGroup({ name: "Table Group", slug: "table-group" });
       const event = await createTestEvent({ name: "Table Event", groupId: group.id, maxAttendees: 10 });

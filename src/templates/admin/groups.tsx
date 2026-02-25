@@ -11,7 +11,7 @@ import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.t
 import { groupCreateFields, groupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { EventRow } from "#templates/admin/dashboard.tsx";
-import { calculateTotalRevenue, countCheckedIn } from "#templates/admin/events.tsx";
+import { calculateTotalRevenue, countCheckedIn, countCheckedInRows, sumQuantity } from "#templates/admin/events.tsx";
 import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
 
@@ -190,8 +190,12 @@ export const adminGroupDetailPage = (
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
   const hasPaidEvent = events.some((e) => e.unit_price !== null);
-  const checkedIn = countCheckedIn(attendees);
-  const checkedInRemaining = attendees.length - checkedIn;
+  const attendeeQuantitySum = sumQuantity(attendees);
+  const hasMultiQuantity = attendeeQuantitySum !== attendees.length;
+  const ticketsCheckedIn = countCheckedIn(attendees);
+  const ticketsCheckedInRemaining = attendeeQuantitySum - ticketsCheckedIn;
+  const attendeesCheckedIn = countCheckedInRows(attendees);
+  const attendeesCheckedInRemaining = attendees.length - attendeesCheckedIn;
   const totalCount = totalAttendeeCount(events);
   const tableRows = buildAttendeeRows(attendees, events);
 
@@ -224,10 +228,23 @@ export const adminGroupDetailPage = (
                 <th>Attendees</th>
                 <td>{totalCount}</td>
               </tr>
-              <tr>
-                <th>Checked In</th>
-                <td>{checkedIn} / {attendees.length} &mdash; {checkedInRemaining} remain</td>
-              </tr>
+              {hasMultiQuantity ? (
+                <>
+                  <tr>
+                    <th>Tickets Checked In</th>
+                    <td>{attendeesCheckedIn} / {attendees.length} &mdash; {attendeesCheckedInRemaining} remain</td>
+                  </tr>
+                  <tr>
+                    <th>Attendees Checked In</th>
+                    <td>{ticketsCheckedIn} / {attendeeQuantitySum} &mdash; {ticketsCheckedInRemaining} remain</td>
+                  </tr>
+                </>
+              ) : (
+                <tr>
+                  <th>Checked In</th>
+                  <td>{ticketsCheckedIn} / {attendeeQuantitySum} &mdash; {ticketsCheckedInRemaining} remain</td>
+                </tr>
+              )}
               {hasPaidEvent && (
                 <tr>
                   <th>Total Revenue</th>
