@@ -264,6 +264,9 @@ describe("code quality", () => {
       // Reset cached theme between tests
       "lib/theme.ts:setThemeForTest",
       "lib/theme.ts:resetTheme",
+      // Reset cached header image between tests
+      "lib/header-image.ts:setHeaderImageForTest",
+      "lib/header-image.ts:resetHeaderImage",
       // Token format check used by CSRF tests (production verifies via verifySignedCsrfToken)
       "lib/csrf.ts:isSignedCsrfToken",
       // Response cookie helper used by auth tests (production sets cookies directly)

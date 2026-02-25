@@ -7,6 +7,7 @@ import { logActivity } from "#lib/db/activityLog.ts";
 import {
   clearPaymentProvider,
   getEmbedHostsFromDb,
+  getHeaderImageUrlFromDb,
   getPaymentProviderFromDb,
   getPhonePrefixFromDb,
   getShowPublicSiteFromDb,
@@ -21,6 +22,7 @@ import {
   setPaymentProvider,
   setStripeWebhookConfig,
   updateEmbedHosts,
+  updateHeaderImageUrl,
   updatePhonePrefix,
   updateShowPublicSite,
   updateSquareAccessToken,
@@ -45,6 +47,13 @@ import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
+import {
+  IMAGE_ERROR_MESSAGES,
+  isStorageEnabled,
+  tryDeleteImage,
+  uploadImage,
+  validateImage,
+} from "#lib/storage.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { defineRoutes } from "#routes/router.ts";
 import {
@@ -56,6 +65,7 @@ import {
   redirectWithSuccess,
   requireOwnerOr,
   withOwnerAuthForm,
+  withOwnerAuthMultipartForm,
 } from "#routes/utils.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import {
@@ -91,6 +101,8 @@ const getSettingsPageState = async () => {
   const theme = await getThemeFromDb();
   const showPublicSite = await getShowPublicSiteFromDb();
   const phonePrefix = await getPhonePrefixFromDb();
+  const headerImageUrl = await getHeaderImageUrlFromDb();
+  const storageEnabled = isStorageEnabled();
   return {
     stripeKeyConfigured,
     paymentProvider,
@@ -105,6 +117,8 @@ const getSettingsPageState = async () => {
     theme,
     showPublicSite,
     phonePrefix,
+    headerImageUrl,
+    storageEnabled,
   };
 };
 
@@ -132,6 +146,8 @@ const renderSettingsPage = async (
     state.theme,
     state.showPublicSite,
     state.phonePrefix,
+    state.headerImageUrl,
+    state.storageEnabled,
   );
 };
 
@@ -483,6 +499,52 @@ const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
 /** Handle POST /admin/settings/phone-prefix - owner only */
 const handlePhonePrefixPost = settingsRoute(processPhonePrefixForm);
 
+/** Handle POST /admin/settings/header-image - owner only (multipart) */
+const handleHeaderImagePost = (request: Request): Promise<Response> =>
+  withOwnerAuthMultipartForm(request, async (session, formData) => {
+    if (!isStorageEnabled()) {
+      const html = await renderSettingsPage(session, "Image storage is not configured", "");
+      return htmlResponse(html, 400);
+    }
+
+    const entry = formData.get("header_image");
+    if (!(entry instanceof File) || entry.size === 0) {
+      const html = await renderSettingsPage(session, "No image file provided", "");
+      return htmlResponse(html, 400);
+    }
+
+    const data = new Uint8Array(await entry.arrayBuffer());
+    const validation = validateImage(data, entry.type);
+    if (!validation.valid) {
+      const html = await renderSettingsPage(session, IMAGE_ERROR_MESSAGES[validation.error], "");
+      return htmlResponse(html, 400);
+    }
+
+    // Delete old header image if one exists
+    const existingUrl = await getHeaderImageUrlFromDb();
+    if (existingUrl) {
+      await tryDeleteImage(existingUrl, `header image: ${existingUrl}`);
+    }
+
+    const filename = await uploadImage(data, validation.detectedType);
+    await updateHeaderImageUrl(filename);
+    await logActivity("Header image uploaded");
+    return redirectWithSuccess("/admin/settings", "Header image uploaded");
+  });
+
+/** Handle POST /admin/settings/header-image/delete - owner only */
+const handleHeaderImageDeletePost = settingsRoute(async (_form, errorPage) => {
+  const existingUrl = await getHeaderImageUrlFromDb();
+  if (!existingUrl) {
+    return errorPage("No header image to remove", 400);
+  }
+
+  await tryDeleteImage(existingUrl, `header image: ${existingUrl}`);
+  await updateHeaderImageUrl("");
+  await logActivity("Header image removed");
+  return redirectWithSuccess("/admin/settings", "Header image removed");
+});
+
 /**
  * Expected confirmation phrase for database reset
  */
@@ -524,5 +586,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/theme": handleThemePost,
   "POST /admin/settings/show-public-site": handleShowPublicSitePost,
   "POST /admin/settings/phone-prefix": handlePhonePrefixPost,
+  "POST /admin/settings/header-image": handleHeaderImagePost,
+  "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

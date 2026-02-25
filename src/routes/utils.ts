@@ -517,6 +517,16 @@ export const withAuthMultipartForm = async (
   return handler(session, formData);
 };
 
+/** Handle multipart form request with owner auth + CSRF validation. */
+export const withOwnerAuthMultipartForm = (
+  request: Request,
+  handler: MultipartFormHandler,
+): Promise<Response> =>
+  withAuthMultipartForm(request, (session, formData) => {
+    if (session.adminLevel !== "owner") return htmlResponse("Forbidden", 403);
+    return handler(session, formData);
+  });
+
 /** Create JSON response */
 export const jsonResponse = (data: unknown, status = 200): Response =>
   new Response(encodeBody(JSON.stringify(data)), {

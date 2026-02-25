@@ -995,6 +995,13 @@ form:has(select[name="event_type"] option[value="daily"]:checked) > label:has([n
   margin-bottom: 0.5rem;
 }
 
+/* Header image */
+.header-image {
+  max-width: 100%;
+  display: block;
+  margin: 0 auto 3rem;
+}
+
 /* Secondary button */
 button.secondary {
   --color-secondary: #6c757d;

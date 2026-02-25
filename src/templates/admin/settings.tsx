@@ -4,6 +4,7 @@
 
 import { CsrfForm, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
+import { getImageProxyUrl } from "#lib/storage.ts";
 import type { AdminSession } from "#lib/types.ts";
 import {
   changePasswordFields,
@@ -34,6 +35,8 @@ export const adminSettingsPage = (
   theme?: string,
   showPublicSite?: boolean,
   phonePrefix?: string,
+  headerImageUrl?: string | null,
+  storageEnabled?: boolean,
 ): string =>
   String(
     <Layout title="Settings" theme={theme}>
@@ -53,6 +56,31 @@ export const adminSettingsPage = (
           </select>
           <button type="submit">Save Timezone</button>
         </CsrfForm>
+
+        {storageEnabled && (
+        <div>
+          <h2>Header Image</h2>
+          <p>An optional image displayed at the top of every page. JPEG, PNG, GIF, or WebP — max 256KB.</p>
+          {headerImageUrl && (
+            <div>
+              <img src={getImageProxyUrl(headerImageUrl)} alt="Header image" class="event-image-preview" />
+              <CsrfForm action="/admin/settings/header-image/delete">
+                <button type="submit">Remove Image</button>
+              </CsrfForm>
+            </div>
+          )}
+          <CsrfForm action="/admin/settings/header-image" enctype="multipart/form-data">
+            <label for="header_image">{headerImageUrl ? "Replace Image" : "Upload Image"}</label>
+            <input
+              type="file"
+              id="header_image"
+              name="header_image"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+            />
+            <button type="submit">Upload</button>
+          </CsrfForm>
+        </div>
+        )}
 
         <CsrfForm action="/admin/settings/phone-prefix">
             <h2>Phone Prefix</h2>
