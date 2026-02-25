@@ -46,6 +46,7 @@ import {
   testRequest,
   updateTestEvent,
   updateTestGroup,
+  urlFromFetchInput,
   wait,
 } from "#test-utils";
 
@@ -1222,6 +1223,24 @@ describe("test-compat", () => {
       expect(Date.now()).toBe(5000);
       jest.useRealTimers();
       expect(Date.now()).toBeGreaterThanOrEqual(realNow);
+    });
+  });
+
+  describe("urlFromFetchInput", () => {
+    test("returns string input unchanged", () => {
+      expect(urlFromFetchInput("https://example.com/path")).toBe(
+        "https://example.com/path",
+      );
+    });
+
+    test("converts URL object to string", () => {
+      const url = new URL("https://example.com/path");
+      expect(urlFromFetchInput(url)).toBe("https://example.com/path");
+    });
+
+    test("extracts url from Request object", () => {
+      const request = new Request("https://example.com/path");
+      expect(urlFromFetchInput(request)).toBe("https://example.com/path");
     });
   });
 });

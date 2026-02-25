@@ -13,7 +13,6 @@ import {
   resetTestSlugCounter,
   setupEventAndLogin,
   updateTestEvent,
-  urlFromFetchInput,
   withFetchMock,
 } from "#test-utils";
 import { encryptBytes } from "#lib/crypto.ts";
@@ -135,10 +134,10 @@ const submitImageDelete = (
   );
 
 /** Assert a 302 redirect whose location contains `image_error=` and a decoded substring */
-const expectImageErrorRedirect = async (
+const expectImageErrorRedirect = (
   response: Response,
   errorSubstring: string,
-): Promise<void> => {
+): void => {
   expect(response.status).toBe(302);
   const location = response.headers.get("location") ?? "";
   expect(location).toContain("image_error=");
