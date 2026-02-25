@@ -290,7 +290,7 @@ export const adminEventPage = ({
               {hasMultiQuantity ? (
                 <>
                   <tr>
-                    <th>Attendees Checked In{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
+                    <th>Tickets Checked In{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
                     <td>
                       <span>
                         {attendeesCheckedIn} / {completeAttendees.length} &mdash; {attendeesCheckedInRemaining} remain
@@ -298,7 +298,7 @@ export const adminEventPage = ({
                     </td>
                   </tr>
                   <tr>
-                    <th>Tickets Checked In{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
+                    <th>Attendees Checked In{isDaily ? dateFilter ? ` (${formatDateLabel(dateFilter)})` : " (total)" : ""}</th>
                     <td>
                       <span>
                         {ticketsCheckedIn} / {completeQuantitySum} &mdash; {ticketsCheckedInRemaining} remain
