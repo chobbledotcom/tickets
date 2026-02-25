@@ -3,6 +3,7 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
+import { bracket } from "#fp";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
@@ -340,6 +341,56 @@ export const mockMultipartRequest = (
 };
 
 /**
+ * Extract URL string from a fetch input parameter (Request, URL, or string).
+ * Useful in fetch mocks to inspect the requested URL regardless of input type.
+ */
+export const urlFromFetchInput = (input: string | URL | Request): string =>
+  typeof input === "string"
+    ? input
+    : input instanceof URL
+    ? input.toString()
+    : input.url;
+
+/**
+ * Swap globalThis.fetch for the duration of a callback, using bracket for safe restore.
+ * The original fetch is passed to the callback so it can be used as a fallback.
+ *
+ * @example
+ * await withFetchMock(async (originalFetch) => {
+ *   globalThis.fetch = () => Promise.resolve(new Response("mocked"));
+ *   const res = await handleRequest(mockRequest("/api"));
+ *   expect(res.status).toBe(200);
+ * });
+ */
+export const withFetchMock = bracket(
+  () => globalThis.fetch,
+  (original) => { globalThis.fetch = original; },
+);
+
+/**
+ * Install a URL-based fetch handler on globalThis.fetch.
+ * For each request, calls `handler(url, init)`. If the handler returns null,
+ * the call falls through to the provided `fallback` fetch.
+ *
+ * @example
+ * installUrlHandler(originalFetch, (url) =>
+ *   url.includes("cdn.example.com") ? Promise.resolve(new Response("ok")) : null,
+ * );
+ */
+export const installUrlHandler = (
+  fallback: typeof globalThis.fetch,
+  handler: (url: string, init?: RequestInit) => Promise<Response> | null,
+): void => {
+  globalThis.fetch = (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ): Promise<Response> => {
+    const url = urlFromFetchInput(input);
+    return handler(url, init) ?? fallback(input, init);
+  };
+};
+
+/**
  * Wait for a specified number of milliseconds
  */
 export const wait = (ms: number): Promise<void> =>
@@ -645,6 +696,22 @@ export const loginAsAdmin = async (): Promise<{
   const csrfToken = await signCsrfToken();
 
   return { cookie, csrfToken };
+};
+
+/**
+ * Create a test event and log in as admin in one call.
+ * Shorthand for the extremely common `createTestEvent()` + `loginAsAdmin()` combo.
+ */
+export const setupEventAndLogin = async (
+  overrides?: Parameters<typeof createTestEvent>[0],
+): Promise<{
+  event: Event;
+  cookie: string;
+  csrfToken: string;
+}> => {
+  const event = await createTestEvent(overrides);
+  const { cookie, csrfToken } = await loginAsAdmin();
+  return { event, cookie, csrfToken };
 };
 
 /** Get or create an authenticated session for test helpers (cached) */

@@ -1,17 +1,20 @@
 import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
 import { handleRequest } from "#routes";
-import { bracket } from "#fp";
 import {
   createTestDbWithSetup,
   createTestEvent,
   expectHtmlResponse,
+  installUrlHandler,
   loginAsAdmin,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  setupEventAndLogin,
   updateTestEvent,
+  urlFromFetchInput,
+  withFetchMock,
 } from "#test-utils";
 import { encryptBytes } from "#lib/crypto.ts";
 import { toMajorUnits } from "#lib/currency.ts";
@@ -26,45 +29,9 @@ const PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
 /** Reusable proxy route test path */
 const PROXY_PATH = "/image/abc123-def4-5678-9abc-def012345678";
 
-/** Extract URL string from a fetch input parameter */
-const urlFromInput = (input: string | URL | Request): string =>
-  typeof input === "string"
-    ? input
-    : input instanceof URL
-    ? input.toString()
-    : input.url;
-
 /** Standard CDN 201 success response */
 const cdnOkResponse = (): Response =>
   new Response(JSON.stringify({ HttpCode: 201, Message: "OK" }), { status: 201 });
-
-/**
- * Install a URL-based fetch handler. Calls `handler(url, init)` for each request;
- * if the handler returns null, the call falls through to `fallback`.
- */
-const installUrlHandler = (
-  fallback: typeof globalThis.fetch,
-  handler: (url: string, init?: RequestInit) => Promise<Response> | null,
-): void => {
-  globalThis.fetch = (
-    input: string | URL | Request,
-    init?: RequestInit,
-  ): Promise<Response> => {
-    const url = urlFromInput(input);
-    return handler(url, init) ?? fallback(input, init);
-  };
-};
-
-/** Swap globalThis.fetch for the duration of a callback, using bracket for safe restore */
-const withFetchMock = bracket(
-  () => {
-    const original = globalThis.fetch;
-    return original;
-  },
-  (original) => {
-    globalThis.fetch = original;
-  },
-);
 
 /** Mock fetch to intercept Bunny CDN API calls, forwarding others to real fetch */
 const withStorageMock = (
@@ -93,13 +60,6 @@ const withCdnProxy = (
     );
     await fn();
   });
-
-/** Create a test event and log in as admin — common setup for most tests */
-const setupEventAndLogin = async () => {
-  const event = await createTestEvent();
-  const { cookie, csrfToken } = await loginAsAdmin();
-  return { event, cookie, csrfToken };
-};
 
 /** Build form data for event edit with all required fields */
 const editFormData = async (
