@@ -4,16 +4,9 @@
  */
 
 import { Marked } from "marked";
-
-const escapeHtml = (str: string): string =>
-  str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+import { escapeHtml } from "#templates/layout.tsx";
 
 const md = new Marked({
-  breaks: true,
   renderer: {
     html({ raw }) {
       return escapeHtml(raw);
