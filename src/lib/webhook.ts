@@ -39,7 +39,7 @@ export type WebhookEvent = {
   id: number;
   name: string;
   slug: string;
-  webhook_url: string | null;
+  webhook_url: string;
   max_attendees: number;
   attendee_count: number;
   unit_price: number | null;

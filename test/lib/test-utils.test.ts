@@ -547,10 +547,10 @@ describe("test-utils", () => {
       });
       const updated = await updateTestEvent(event.id, {
         unitPrice: null,
-        webhookUrl: null,
+        webhookUrl: "",
       });
       expect(updated.unit_price).toBe(null);
-      expect(updated.webhook_url).toBe(null);
+      expect(updated.webhook_url).toBe("");
     });
   });
 
@@ -750,8 +750,8 @@ describe("test-utils", () => {
     test("creates event without thankYouUrl using ?? empty string fallback", async () => {
       const event = await createTestEvent({ thankYouUrl: undefined });
       expect(event.id).toBeGreaterThan(0);
-      // thankYouUrl: undefined triggers the ?? "" branch
-      expect(event.thank_you_url).toBe(null);
+      // thankYouUrl: undefined triggers the default empty string
+      expect(event.thank_you_url).toBe("");
     });
   });
 

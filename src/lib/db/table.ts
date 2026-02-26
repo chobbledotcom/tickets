@@ -376,7 +376,7 @@ export const col = {
     decrypt: AsyncTransform<T>,
   ): ColumnDef<T> => ({ write: encrypt, read: decrypt }),
 
-  /** Wrap an encrypted column to pass through null values */
+  /** Wrap an existing encrypted column def to pass through null values */
   encryptedNullable: <T>(def: ColumnDef<T>): ColumnDef<T | null> => ({
     write: wrapNullable(def.write as AsyncTransform<T>),
     read: wrapNullable(def.read as AsyncTransform<T>),

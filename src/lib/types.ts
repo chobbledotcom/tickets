@@ -49,10 +49,10 @@ export interface Event {
   group_id: number;
   created: string;
   max_attendees: number;
-  thank_you_url: string | null;
+  thank_you_url: string;
   unit_price: number | null;
   max_quantity: number;
-  webhook_url: string | null;
+  webhook_url: string;
   active: boolean;
   fields: EventFields;
   closes_at: string | null;

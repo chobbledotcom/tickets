@@ -848,12 +848,12 @@ const formatPrice = (
       ? priceFormValue(existing)
       : "";
 
-/** Format optional nullable string field for form submission */
+/** Format optional string field for form submission */
 const formatOptional = (
-  update: string | null | undefined,
-  existing: string | null,
+  update: string | undefined,
+  existing: string,
 ): string =>
-  update !== undefined ? update ?? "" : existing ?? "";
+  update ?? existing;
 
 /** Format bookable_days array to comma-separated string for form submission */
 const formatBookableDaysForForm = (days: string[]): string =>
@@ -1106,7 +1106,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   created: "2024-01-01T00:00:00Z",
   unit_price: null,
   max_quantity: 1,
-  webhook_url: null,
+  webhook_url: "",
   closes_at: null,
   active: true,
   fields: "email",

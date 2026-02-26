@@ -352,10 +352,10 @@ describe("webhook", () => {
       expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
 
-    test("skips entries with null webhook URLs", async () => {
+    test("skips entries with empty webhook URLs", async () => {
       const entries: RegistrationEntry[] = [
         {
-          event: makeEvent({ id: 1, webhook_url: null }),
+          event: makeEvent({ id: 1, webhook_url: "" }),
           attendee: makeAttendee(),
         },
         {
@@ -374,7 +374,7 @@ describe("webhook", () => {
     test("does nothing when all webhook URLs are null and WEBHOOK_URL is not set", async () => {
       const entries: RegistrationEntry[] = [
         {
-          event: makeEvent({ webhook_url: null }),
+          event: makeEvent({ webhook_url: "" }),
           attendee: makeAttendee(),
         },
       ];
@@ -407,7 +407,7 @@ describe("webhook", () => {
       Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
       const entries: RegistrationEntry[] = [
         {
-          event: makeEvent({ webhook_url: null }),
+          event: makeEvent({ webhook_url: "" }),
           attendee: makeAttendee(),
         },
       ];
@@ -472,7 +472,7 @@ describe("webhook", () => {
         id: dbEvent.id,
         name: dbEvent.name,
         slug: dbEvent.slug,
-        webhook_url: null,
+        webhook_url: "",
       });
       const attendee = makeAttendee();
 
@@ -490,7 +490,7 @@ describe("webhook", () => {
         id: dbEvent.id,
         name: dbEvent.name,
         slug: dbEvent.slug,
-        webhook_url: null,
+        webhook_url: "",
       });
       const attendee = makeAttendee();
 
@@ -553,11 +553,11 @@ describe("webhook", () => {
       const dbEventB = await createTestEvent();
       const entries: RegistrationEntry[] = [
         {
-          event: makeEvent({ id: dbEventA.id, webhook_url: null }),
+          event: makeEvent({ id: dbEventA.id, webhook_url: "" }),
           attendee: makeAttendee(),
         },
         {
-          event: makeEvent({ id: dbEventB.id, webhook_url: null }),
+          event: makeEvent({ id: dbEventB.id, webhook_url: "" }),
           attendee: makeAttendee(),
         },
       ];
@@ -575,11 +575,11 @@ describe("webhook", () => {
       const dbEventB = await createTestEvent();
       const entries: RegistrationEntry[] = [
         {
-          event: makeEvent({ id: dbEventA.id, webhook_url: null }),
+          event: makeEvent({ id: dbEventA.id, webhook_url: "" }),
           attendee: makeAttendee(),
         },
         {
-          event: makeEvent({ id: dbEventB.id, webhook_url: null }),
+          event: makeEvent({ id: dbEventB.id, webhook_url: "" }),
           attendee: makeAttendee(),
         },
       ];
