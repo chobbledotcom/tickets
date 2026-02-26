@@ -2,7 +2,7 @@
  * Admin attendee management routes
  */
 
-import { filter } from "#fp";
+import { compact, filter, uniqueBy } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
@@ -70,16 +70,23 @@ const loadAttendeeForEvent = async (
   return { attendee, event: result.event };
 };
 
+/** Load data or return 404 if not found */
+const withLoaded = async <T>(
+  load: Promise<T | null>,
+  handler: (data: T) => Response | Promise<Response>,
+): Promise<Response> => {
+  const data = await load;
+  return data ? handler(data) : notFoundResponse();
+};
+
 /** Load attendee with auth, returning 404 if not found */
-const withAttendee = async (
+const withAttendee = (
   session: AuthSession,
   eventId: number,
   attendeeId: number,
   handler: (data: AttendeeWithEvent) => Response | Promise<Response>,
-): Promise<Response> => {
-  const data = await loadAttendeeForEvent(session, eventId, attendeeId);
-  return data ? handler(data) : notFoundResponse();
-};
+): Promise<Response> =>
+  withLoaded(loadAttendeeForEvent(session, eventId, attendeeId), handler);
 
 /** Route params for event-scoped routes */
 type EventRouteParams = { id: number };
@@ -398,24 +405,7 @@ const getEventsForSelector = async (currentEventId: number): Promise<EventWithCo
   const allEvents = await getAllEvents();
   const currentEvent = allEvents.find((e) => e.id === currentEventId);
   const activeEvents = filter((e: EventWithCount) => e.active)(allEvents);
-
-  // Build unique list: current event + active events
-  const eventIds = new Set<number>();
-  const uniqueEvents: EventWithCount[] = [];
-
-  if (currentEvent) {
-    eventIds.add(currentEvent.id);
-    uniqueEvents.push(currentEvent);
-  }
-
-  for (const event of activeEvents) {
-    if (!eventIds.has(event.id)) {
-      eventIds.add(event.id);
-      uniqueEvents.push(event);
-    }
-  }
-
-  return uniqueEvents;
+  return uniqueBy((e: EventWithCount) => e.id)(compact([currentEvent, ...activeEvents]));
 };
 
 /** Load attendee with all events for edit page */
@@ -436,14 +426,12 @@ const loadAttendeeForEdit = async (
 type EditAttendeeData = NonNullable<Awaited<ReturnType<typeof loadAttendeeForEdit>>>;
 
 /** Load attendee for edit, returning 404 if not found */
-const withEditAttendee = async (
+const withEditAttendee = (
   session: AuthSession,
   attendeeId: number,
   handler: (data: EditAttendeeData) => Response | Promise<Response>,
-): Promise<Response> => {
-  const data = await loadAttendeeForEdit(session, attendeeId);
-  return data ? handler(data) : notFoundResponse();
-};
+): Promise<Response> =>
+  withLoaded(loadAttendeeForEdit(session, attendeeId), handler);
 
 /** Handle GET /admin/attendees/:attendeeId */
 const handleEditAttendeeGet = (
