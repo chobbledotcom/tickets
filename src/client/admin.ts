@@ -125,6 +125,19 @@ if (checkoutPopup) {
   });
 }
 
+/* Scroll-hide nav: hide sticky nav on scroll down, show on scroll up or at top */
+{
+  const nav = document.querySelector("nav");
+  if (nav) {
+    let lastY = 0;
+    document.addEventListener("scroll", () => {
+      const y = scrollY;
+      nav.classList.toggle("nav-hidden", y > 0 && y > lastY);
+      lastY = y;
+    }, { passive: true });
+  }
+}
+
 /* Payment result pages: notify opener iframe via postMessage when in a popup */
 const paymentResult = document.querySelector<HTMLElement>("[data-payment-result]");
 if (paymentResult && window.opener) {

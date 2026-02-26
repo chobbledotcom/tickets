@@ -240,6 +240,11 @@ nav ul li ul li a {
     padding: 0 2rem;
     border-radius: var(--border-radius);
     z-index: 10;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+  nav.nav-hidden {
+    transform: translateY(-150%);
+    opacity: 0;
   }
 }
 
