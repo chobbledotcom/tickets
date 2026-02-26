@@ -24,6 +24,10 @@ export type ContactInfo = {
   special_instructions: string;
 };
 
+/** Required name+email with optional phone/address/special_instructions from ContactInfo */
+export type ContactFields = Pick<ContactInfo, "name" | "email"> &
+  Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">>;
+
 /** Event type: standard (one-time) or daily (date-based booking) */
 export type EventType = "standard" | "daily";
 

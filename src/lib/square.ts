@@ -45,6 +45,10 @@ import type { Event } from "#lib/types.ts";
  */
 const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 
+/** Extract tender id and paymentId from raw tender data (handles both snake_case and camelCase) */
+// deno-lint-ignore no-explicit-any
+const mapTender = (t: any) => ({ id: t.id, paymentId: t.paymentId ?? t.payment_id });
+
 /** A single error entry from Square's API error response */
 type SquareApiErrorEntry = {
   category: string;
@@ -225,11 +229,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
           order: {
             id: o.id,
             metadata: o.metadata,
-            // deno-lint-ignore no-explicit-any
-            tenders: o.tenders?.map((t: any) => ({
-              id: t.id,
-              paymentId: t.payment_id ?? null,
-            })),
+            tenders: o.tenders?.map(mapTender),
             state: o.state,
             totalMoney: o.total_money
               ? {
@@ -552,11 +552,7 @@ export const squareApi: {
         return {
           id: order.id,
           metadata,
-          // deno-lint-ignore no-explicit-any
-          tenders: order.tenders?.map((t: any) => ({
-            id: t.id,
-            paymentId: t.paymentId ?? undefined,
-          })),
+          tenders: order.tenders?.map(mapTender),
           state: order.state,
           totalMoney: {
             amount: order.totalMoney!.amount!,

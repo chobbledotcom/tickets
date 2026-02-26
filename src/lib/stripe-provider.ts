@@ -30,27 +30,24 @@ import {
   verifyWebhookSignature,
 } from "#lib/stripe.ts";
 
+/** Convert a Stripe checkout session to a CheckoutResult */
+const stripeCheckoutResult = (session: { id?: string; url?: string | null } | null) =>
+  toCheckoutResult(session?.id, session?.url, "Stripe");
+
 /** Stripe payment provider implementation */
 export const stripePaymentProvider: PaymentProvider = {
   type: "stripe",
 
   checkoutCompletedEventType: "checkout.session.completed",
 
-  async createCheckoutSession(
-    event: Event,
-    intent: RegistrationIntent,
-    baseUrl: string,
-  ) {
+  async createCheckoutSession(event: Event, intent: RegistrationIntent, baseUrl: string) {
     const session = await createCheckoutSessionWithIntent(event, intent, baseUrl);
-    return toCheckoutResult(session?.id, session?.url, "Stripe");
+    return stripeCheckoutResult(session);
   },
 
-  async createMultiCheckoutSession(
-    intent: MultiRegistrationIntent,
-    baseUrl: string,
-  ) {
+  async createMultiCheckoutSession(intent: MultiRegistrationIntent, baseUrl: string) {
     const session = await createMultiCheckoutSession(intent, baseUrl);
-    return toCheckoutResult(session?.id, session?.url, "Stripe");
+    return stripeCheckoutResult(session);
   },
 
   async retrieveSession(

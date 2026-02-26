@@ -35,7 +35,6 @@ import type {
   RegistrationIntent,
   ValidatedPaymentSession,
   WebhookSetupResult,
-  WebhookVerifyResult,
 } from "#lib/payments.ts";
 
 /** Wrap a checkout operation, converting PaymentUserError to { error } result */
@@ -101,13 +100,8 @@ export const squarePaymentProvider: PaymentProvider = {
     };
   },
 
-  verifyWebhookSignature(
-    payload: string,
-    signature: string,
-    webhookUrl: string,
-    payloadBytes: Uint8Array,
-  ): Promise<WebhookVerifyResult> {
-    return verifyWebhookSignature(payload, signature, webhookUrl, payloadBytes);
+  verifyWebhookSignature(...args: Parameters<PaymentProvider["verifyWebhookSignature"]>) {
+    return verifyWebhookSignature(...args);
   },
 
   refundPayment(paymentReference: string): Promise<boolean> {
