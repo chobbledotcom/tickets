@@ -546,7 +546,7 @@ const processSessionAndRedirect = async (sessionId: string): Promise<Response> =
 
   // Already-processed session (no tokens available) - render directly
   const thankYouUrl =
-    data.type === "single" ? result.event.thank_you_url : null;
+    data.type === "single" ? result.event.thank_you_url : "";
   return htmlResponse(paymentSuccessPage(thankYouUrl, null));
 };
 
@@ -576,7 +576,7 @@ const renderSuccessFromTokens = async (tokensParam: string): Promise<Response> =
 
   // Only use thank_you_url for single-event purchases
   const uniqueEventIds = unique(eventIds);
-  let thankYouUrl: string | null = null;
+  let thankYouUrl = "";
   if (uniqueEventIds.length === 1) {
     const event = await getEvent(uniqueEventIds[0]!);
     if (event) thankYouUrl = event.thank_you_url;

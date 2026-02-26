@@ -3,9 +3,9 @@
  */
 
 import type { ResultSet } from "@libsql/client";
-import { filter as fpFilter, collectionCache } from "#fp";
-import { registerCache } from "#lib/cache-registry.ts";
+import { collectionCache, filter as fpFilter } from "#fp";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
+import { registerCache } from "#lib/cache-registry.ts";
 import { executeByField, getDb, inPlaceholders, queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
 import { encryptedNameSchema, idAndEncryptedSlugSchema } from "#lib/db/common-schema.ts";
 import { deleteProcessedPaymentsForEvent } from "#lib/db/processed-payments.ts";
@@ -29,10 +29,10 @@ export type EventInput = {
   slugIndex: string;
   groupId?: number;
   maxAttendees: number;
-  thankYouUrl?: string | null;
+  thankYouUrl?: string;
   unitPrice?: number | null;
   maxQuantity?: number;
-  webhookUrl?: string | null;
+  webhookUrl?: string;
   active?: boolean;
   fields?: EventFields;
   closesAt?: string;
@@ -118,10 +118,10 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
     group_id: col.withDefault(() => 0),
     created: col.withDefault(() => nowIso()),
     max_attendees: col.simple<number>(),
-    thank_you_url: col.encryptedNullable<string>(encrypt, decrypt),
+    thank_you_url: { default: () => "", write: encrypt, read: decrypt },
     unit_price: col.simple<number | null>(),
     max_quantity: col.withDefault(() => 1),
-    webhook_url: col.encryptedNullable<string>(encrypt, decrypt),
+    webhook_url: { default: () => "", write: encrypt, read: decrypt },
     active: col.converted<boolean>({
       default: () => true,
       write: (v) => v ? 1 : 0,
@@ -215,6 +215,17 @@ const decryptAndAttachCount = async (
 const extractEventRow = (result: ResultSet): Event | null =>
   resultRows<Event>(result)[0] ?? null;
 
+/** Extract event from batch result, decrypt and attach count. Returns null if event not found. */
+const withBatchEvent = async <T>(
+  eventResult: ResultSet,
+  getCount: () => number,
+  build: (event: EventWithCount) => T,
+): Promise<T | null> => {
+  const eventRow = extractEventRow(eventResult);
+  if (!eventRow) return null;
+  return build(await decryptAndAttachCount(eventRow, getCount()));
+};
+
 /** Query events with attendee counts, optionally filtered by a WHERE clause */
 const queryEventsWithCounts = async (
   whereClause = "",
@@ -286,12 +297,12 @@ export const getEventWithAttendeesRaw = async (
     { sql: "SELECT * FROM attendees WHERE event_id = ? ORDER BY created DESC", args: [id] },
   ]);
 
-  const eventRow = extractEventRow(eventResult!);
-  if (!eventRow) return null;
-
   const attendeesRaw = resultRows<Attendee>(attendeesResult!);
-  const count = attendeesRaw.reduce((sum, a) => sum + a.quantity, 0);
-  return { event: await decryptAndAttachCount(eventRow, count), attendeesRaw };
+  return withBatchEvent(
+    eventResult!,
+    () => attendeesRaw.reduce((sum, a) => sum + a.quantity, 0),
+    (event) => ({ event, attendeesRaw }),
+  );
 };
 
 /** Get cached events filtered by event_type */
@@ -376,14 +387,11 @@ export const getEventWithAttendeeRaw = async (
     { sql: "SELECT COALESCE(SUM(quantity), 0) as count FROM attendees WHERE event_id = ?", args: [eventId] },
   ]);
 
-  const eventRow = extractEventRow(eventResult!);
-  if (!eventRow) return null;
-
-  const count = resultRows<{ count: number }>(countResult!)[0]!.count;
-  return {
-    event: await decryptAndAttachCount(eventRow, count),
-    attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null,
-  };
+  return withBatchEvent(
+    eventResult!,
+    () => resultRows<{ count: number }>(countResult!)[0]!.count,
+    (event) => ({ event, attendeeRaw: resultRows<Attendee>(attendeeResult!)[0] ?? null }),
+  );
 };
 
 /**

@@ -13,7 +13,7 @@ import type {
   SessionMetadata,
   ValidatedPaymentSession,
 } from "#lib/payments.ts";
-import type { ContactInfo } from "#lib/types.ts";
+import type { ContactFields, ContactInfo } from "#lib/types.ts";
 
 /** Extract a human-readable message from an unknown caught value */
 export const errorMessage = (err: unknown): string =>
@@ -79,7 +79,7 @@ const optionalFields = (intent: Partial<Pick<ContactInfo, "phone" | "address" | 
 });
 
 /** Single-event checkout intent for metadata building */
-type SingleIntentMetadata = Pick<ContactInfo, "name" | "email"> & Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">> & {
+type SingleIntentMetadata = ContactFields & {
   quantity: number;
   date?: string | null;
 };

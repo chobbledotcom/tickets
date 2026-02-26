@@ -22,7 +22,7 @@ import { nowIso } from "#lib/now.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
 import { col, defineTable } from "#lib/db/table.ts";
 import { parseEventFields } from "#lib/event-fields.ts";
-import type { Attendee, ContactField, ContactInfo } from "#lib/types.ts";
+import type { Attendee, ContactField, ContactFields, ContactInfo } from "#lib/types.ts";
 
 /**
  * Minimal attendees table for deleteById operation
@@ -280,14 +280,13 @@ export type CreateAttendeeResult =
   | { success: false; reason: "capacity_exceeded" | "encryption_error" };
 
 /** Input for creating an attendee atomically */
-export type AttendeeInput = Pick<ContactInfo, "name" | "email"> &
-  Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">> & {
-    eventId: number;
-    paymentId?: string;
-    quantity?: number;
-    pricePaid?: number;
-    date?: string | null;
-  };
+export type AttendeeInput = ContactFields & {
+  eventId: number;
+  paymentId?: string;
+  quantity?: number;
+  pricePaid?: number;
+  date?: string | null;
+};
 
 /** Item for batch availability check */
 export type BatchAvailabilityItem = { eventId: number; quantity: number };

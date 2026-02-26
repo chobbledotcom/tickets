@@ -694,18 +694,18 @@ describe("html", () => {
     });
 
     test("includes data-payment-result attribute for popup postMessage", () => {
-      const html = paymentSuccessPage(null, null);
+      const html = paymentSuccessPage("", null);
       expect(html).toContain('data-payment-result="success"');
     });
 
-    test("renders without redirect when thankYouUrl is null", () => {
-      const html = paymentSuccessPage(null, null);
+    test("renders without redirect when thankYouUrl is empty", () => {
+      const html = paymentSuccessPage("", null);
       expect(html).not.toContain('http-equiv="refresh"');
       expect(html).not.toContain("redirected");
     });
 
     test("renders ticket link when ticketUrl is provided", () => {
-      const html = paymentSuccessPage(null, "/t/abc123+def456");
+      const html = paymentSuccessPage("", "/t/abc123+def456");
       expect(html).toContain('href="/t/abc123+def456"');
       expect(html).toContain('target="_blank"');
       expect(html).toContain("Click here to view your tickets");
@@ -720,7 +720,7 @@ describe("html", () => {
     });
 
     test("does not render ticket link when ticketUrl is null", () => {
-      const html = paymentSuccessPage(null, null);
+      const html = paymentSuccessPage("", null);
       expect(html).not.toContain("view your tickets");
     });
   });
@@ -1378,7 +1378,7 @@ describe("html", () => {
     });
 
     test("hides thank you URL row when no thank_you_url", () => {
-      const event = testEventWithCount({ thank_you_url: null, attendee_count: 0 });
+      const event = testEventWithCount({ thank_you_url: "", attendee_count: 0 });
       const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).not.toContain("Thank You URL");
     });

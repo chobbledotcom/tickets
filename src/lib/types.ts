@@ -24,6 +24,10 @@ export type ContactInfo = {
   special_instructions: string;
 };
 
+/** Required name+email with optional phone/address/special_instructions from ContactInfo */
+export type ContactFields = Pick<ContactInfo, "name" | "email"> &
+  Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">>;
+
 /** Event type: standard (one-time) or daily (date-based booking) */
 export type EventType = "standard" | "daily";
 
@@ -45,10 +49,10 @@ export interface Event {
   group_id: number;
   created: string;
   max_attendees: number;
-  thank_you_url: string | null;
+  thank_you_url: string;
   unit_price: number | null;
   max_quantity: number;
-  webhook_url: string | null;
+  webhook_url: string;
   active: boolean;
   fields: EventFields;
   closes_at: string | null;

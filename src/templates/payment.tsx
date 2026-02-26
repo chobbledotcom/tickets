@@ -32,7 +32,7 @@ export const paymentPage = (
 /**
  * Payment success page - with optional redirect and ticket link
  */
-export const paymentSuccessPage = (thankYouUrl: string | null, ticketUrl: string | null): string =>
+export const paymentSuccessPage = (thankYouUrl: string, ticketUrl: string | null): string =>
   String(
     <Layout title="Payment Successful" headExtra={thankYouUrl ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(thankYouUrl)}">` : undefined}>
         <div data-payment-result="success">

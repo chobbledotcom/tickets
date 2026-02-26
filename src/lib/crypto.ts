@@ -179,6 +179,36 @@ export const validateEncryptionKey = (): void => {
   getEncryptionKeyString();
 };
 
+/** AES-GCM encrypt raw data, returning IV and ciphertext bytes */
+const aesGcmEncryptRaw = async (
+  data: BufferSource,
+  key: CryptoKey,
+): Promise<{ iv: Uint8Array; ciphertext: Uint8Array }> => {
+  const iv = getRandomBytes(12);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    key,
+    data,
+  );
+  return { iv, ciphertext: new Uint8Array(ciphertext) };
+};
+
+/** AES-GCM decrypt raw data, returning the decrypted ArrayBuffer */
+const aesGcmDecryptRaw = (
+  iv: Uint8Array,
+  ciphertext: Uint8Array,
+  key: CryptoKey,
+): Promise<ArrayBuffer> =>
+  crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: iv as BufferSource },
+    key,
+    ciphertext as BufferSource,
+  );
+
+/** Format IV + ciphertext as a prefixed base64 string */
+const formatPrefixed = (prefix: string, ...parts: Uint8Array[]): string =>
+  `${prefix}${parts.map(toBase64).join(":")}`;
+
 /**
  * Encrypt plaintext with an AES-GCM key, returning prefixed format: enc:1:$base64iv:$base64ciphertext
  */
@@ -186,13 +216,8 @@ const symmetricEncrypt = async (
   plaintext: string,
   key: CryptoKey,
 ): Promise<string> => {
-  const iv = getRandomBytes(12);
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    key,
-    new TextEncoder().encode(plaintext),
-  );
-  return `${ENCRYPTION_PREFIX}${toBase64(iv)}:${toBase64(new Uint8Array(ciphertext))}`;
+  const { iv, ciphertext } = await aesGcmEncryptRaw(new TextEncoder().encode(plaintext), key);
+  return formatPrefixed(ENCRYPTION_PREFIX, iv, ciphertext);
 };
 
 /**
@@ -240,11 +265,7 @@ const symmetricDecrypt = async (
     ENCRYPTION_PREFIX,
     "encrypted data",
   );
-  const plaintext = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    key,
-    ciphertext as BufferSource,
-  );
+  const plaintext = await aesGcmDecryptRaw(iv, ciphertext, key);
   return new TextDecoder().decode(plaintext);
 };
 
@@ -492,14 +513,9 @@ const exportAndWrapKey = async (
   keyToWrap: CryptoKey,
   wrappingKey: CryptoKey,
 ): Promise<string> => {
-  const iv = getRandomBytes(12);
   const rawKey = await crypto.subtle.exportKey("raw", keyToWrap);
-  const wrapped = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    wrappingKey,
-    rawKey,
-  );
-  return `${WRAPPED_KEY_PREFIX}${toBase64(iv)}:${toBase64(new Uint8Array(wrapped))}`;
+  const { iv, ciphertext } = await aesGcmEncryptRaw(rawKey, wrappingKey);
+  return formatPrefixed(WRAPPED_KEY_PREFIX, iv, ciphertext);
 };
 
 /**
@@ -514,11 +530,7 @@ const unwrapAndImportKey = async (
     WRAPPED_KEY_PREFIX,
     "wrapped key",
   );
-  const rawKey = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    unwrappingKey,
-    ciphertext as BufferSource,
-  );
+  const rawKey = await aesGcmDecryptRaw(iv, ciphertext, unwrappingKey);
   return crypto.subtle.importKey(
     "raw",
     rawKey,
@@ -680,31 +692,15 @@ export const hybridEncrypt = async (
   plaintext: string,
   publicKey: CryptoKey,
 ): Promise<string> => {
-  // Generate random AES key for this encryption
-  const aesKey = await crypto.subtle.generateKey(
-    { name: "AES-GCM", length: 256 },
-    true,
-    ["encrypt"],
-  );
-
-  // Encrypt the data with AES
-  const iv = getRandomBytes(12);
-  const encoder = new TextEncoder();
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    aesKey,
-    encoder.encode(plaintext),
-  );
+  // Generate random AES key and encrypt the data
+  const aesKey = await generateDataKey();
+  const { iv, ciphertext } = await aesGcmEncryptRaw(new TextEncoder().encode(plaintext), aesKey);
 
   // Export and encrypt the AES key with RSA
   const rawAesKey = await crypto.subtle.exportKey("raw", aesKey);
-  const wrappedKey = await crypto.subtle.encrypt(
-    { name: "RSA-OAEP" },
-    publicKey,
-    rawAesKey,
-  );
+  const wrappedKey = new Uint8Array(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, rawAesKey));
 
-  return `${HYBRID_PREFIX}${toBase64(new Uint8Array(wrappedKey))}:${toBase64(iv)}:${toBase64(new Uint8Array(ciphertext))}`;
+  return formatPrefixed(HYBRID_PREFIX, wrappedKey, iv, ciphertext);
 };
 
 /**
@@ -743,19 +739,14 @@ export const hybridDecrypt = async (
     );
   }
 
-  const wrappedKeyB64 = parts[0]!;
-  const ivB64 = parts[1]!;
-  const ciphertextB64 = parts[2]!;
-
   // Decrypt the AES key with RSA
-  const wrappedKey = fromBase64(wrappedKeyB64);
   const rawAesKey = await crypto.subtle.decrypt(
     { name: "RSA-OAEP" },
     privateKey,
-    wrappedKey as BufferSource,
+    fromBase64(parts[0]!) as BufferSource,
   );
 
-  // Import the AES key
+  // Import the AES key and decrypt the data
   const aesKey = await crypto.subtle.importKey(
     "raw",
     rawAesKey,
@@ -763,17 +754,9 @@ export const hybridDecrypt = async (
     false,
     ["decrypt"],
   );
+  const plaintext = await aesGcmDecryptRaw(fromBase64(parts[1]!), fromBase64(parts[2]!), aesKey);
 
-  // Decrypt the data with AES
-  const iv = fromBase64(ivB64);
-  const ciphertext = fromBase64(ciphertextB64);
-  const decryptedBuf = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    aesKey,
-    ciphertext as BufferSource,
-  );
-
-  const result = new TextDecoder().decode(decryptedBuf);
+  const result = new TextDecoder().decode(plaintext);
   hybridDecryptCache.set(encrypted, result);
   return result;
 };

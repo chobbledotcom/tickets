@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add refunded to attendees";
+export const LATEST_UPDATE = "backfill null thank_you_url and webhook_url";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -448,6 +448,10 @@ export const initDb = async (): Promise<void> => {
   // Migration: add refunded column to attendees (hybrid encrypted, "true"/"false" like checked_in)
   await runMigration(`ALTER TABLE attendees ADD COLUMN refunded TEXT NOT NULL DEFAULT ''`);
   await backfillHybridEncryptedColumn("attendees", "refunded", `refunded = ''`);
+
+  // Migration: backfill NULL thank_you_url and webhook_url with encrypted empty strings
+  await backfillEncryptedColumn("events", "thank_you_url", `thank_you_url IS NULL`);
+  await backfillEncryptedColumn("events", "webhook_url", `webhook_url IS NULL`);
 
   // Update the version marker
   await getDb().execute({

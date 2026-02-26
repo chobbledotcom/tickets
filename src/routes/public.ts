@@ -243,6 +243,10 @@ const handlePaymentFlow = (
     (msg, status) => ticketResponse(event, ctx.inIframe, undefined, ctx.terms)(msg, status),
   );
 
+/** Validate ticket form fields and return typed values */
+const validateTicketFields = (form: URLSearchParams, fieldsSetting: EventFields) =>
+  validateForm<TicketFormValues>(form, getTicketFields(fieldsSetting));
+
 /** Extract contact details from validated form values */
 const extractContact = (values: TicketFormValues): ContactInfo => ({
   name: values.name,
@@ -340,8 +344,7 @@ const processTicketReservation = async (
         );
       }
 
-      const fields = getTicketFields(event.fields);
-      const validation = validateForm<TicketFormValues>(form, fields);
+      const validation = validateTicketFields(form, event.fields);
       if (!validation.valid) {
         return ticketResponse(event, inIframe, undefined, terms)(
           validation.error,
@@ -493,9 +496,7 @@ const submitMultiTicket = (
       const { inIframe, dates, terms } = ctx;
 
       // Validate fields based on merged event settings
-      const fieldsSetting = getMultiTicketFieldsSetting(ctx.events);
-      const fields = getTicketFields(fieldsSetting);
-      const validation = validateForm<TicketFormValues>(form, fields);
+      const validation = validateTicketFields(form, getMultiTicketFieldsSetting(ctx.events));
       if (!validation.valid) {
         return multiTicketFormErrorResponse(ctx)(validation.error);
       }
@@ -761,21 +762,23 @@ const slugRoute = (
     ? onMulti(request, parseMultiSlugs(slug))
     : onSingle(request, slug);
 
+/** Wrap a single-slug handler with group fallback on 404 */
+const withGroupFallback = (
+  fn: (request: Request, slug: string) => Promise<Response>,
+) => async (request: Request, slug: string): Promise<Response> => {
+  const response = await fn(request, slug);
+  return response.status === 404 ? handleGroupTicketBySlug(request, slug) : response;
+};
+
 /** Handle GET /ticket/:slug (event first, then group fallback) */
 const handleTicketGet = slugRoute(
-  async (request, slug) => {
-    const response = await handleSingleTicketGet(slug, request);
-    return response.status === 404 ? handleGroupTicketBySlug(request, slug) : response;
-  },
+  withGroupFallback((request, slug) => handleSingleTicketGet(slug, request)),
   handleMultiTicketBySlugs,
 );
 
 /** Handle POST /ticket/:slug (event first, then group fallback) */
 const handleTicketPost = slugRoute(
-  async (request, slug) => {
-    const response = await handleSingleTicketPost(request, slug);
-    return response.status === 404 ? handleGroupTicketBySlug(request, slug) : response;
-  },
+  withGroupFallback(handleSingleTicketPost),
   handleMultiTicketBySlugs,
 );
 

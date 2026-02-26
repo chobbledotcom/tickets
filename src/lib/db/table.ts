@@ -34,27 +34,21 @@ export type TableSchema<Row> = {
   [K in keyof Row]: ColumnDef<Row[K]>;
 };
 
+/** Derive column metadata: whether it's an input column and whether it has a default */
+type ColumnMeta<K, Row, Schema extends TableSchema<Row>> = K extends keyof Row
+  ? {
+      isInput: Schema[K]["generated"] extends true ? false : true;
+      hasDefault: Schema[K]["default"] extends () => Row[K] ? true : false;
+    }
+  : { isInput: false; hasDefault: false };
+
 /** Check if column is input-eligible (not generated) */
-type IsInputColumn<
-  K,
-  Row,
-  Schema extends TableSchema<Row>,
-> = K extends keyof Row
-  ? Schema[K]["generated"] extends true
-    ? false
-    : true
-  : false;
+type IsInputColumn<K, Row, Schema extends TableSchema<Row>> =
+  ColumnMeta<K, Row, Schema>["isInput"];
 
 /** Check if column has a default value */
-type ColumnHasDefault<
-  K,
-  Row,
-  Schema extends TableSchema<Row>,
-> = K extends keyof Row
-  ? Schema[K]["default"] extends () => Row[K]
-    ? true
-    : false
-  : false;
+type ColumnHasDefault<K, Row, Schema extends TableSchema<Row>> =
+  ColumnMeta<K, Row, Schema>["hasDefault"];
 
 /** Extract input keys based on whether they have defaults */
 type InputKeysWith<
@@ -382,13 +376,10 @@ export const col = {
     decrypt: AsyncTransform<T>,
   ): ColumnDef<T> => ({ write: encrypt, read: decrypt }),
 
-  /** Nullable encrypted column */
-  encryptedNullable: <T>(
-    encrypt: AsyncTransform<T>,
-    decrypt: AsyncTransform<T>,
-  ): ColumnDef<T | null> => ({
-    write: wrapNullable(encrypt),
-    read: wrapNullable(decrypt),
+  /** Wrap an existing encrypted column def to pass through null values */
+  encryptedNullable: <T>(def: ColumnDef<T>): ColumnDef<T | null> => ({
+    write: wrapNullable(def.write as AsyncTransform<T>),
+    read: wrapNullable(def.read as AsyncTransform<T>),
   }),
 
   /** Simple column with no special handling */
