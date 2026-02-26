@@ -27,83 +27,139 @@ import {
   uniqueBy,
 } from "#fp";
 
+// --- test helpers ---
+
+const double = (x: number) => x * 2;
+
+/** Curried fn returns [] for empty input */
+const expectEmptyPassthrough = (curriedFn: (arr: number[]) => unknown) => {
+  expect(curriedFn([])).toEqual([]);
+};
+
+/** Create a bracket that logs acquire/use/release to an array */
+const logBracket = (asPromise = false) => {
+  const log: string[] = [];
+  const withResource = bracket(
+    () => { log.push("acquire"); return asPromise ? Promise.resolve("resource") : "resource"; },
+    () => { log.push("release"); if (asPromise) return Promise.resolve(); },
+  );
+  return { log, withResource };
+};
+
+/** Run standard bracket use+assert cycle */
+const testBracketUse = async (asPromise = false) => {
+  const { log, withResource } = logBracket(asPromise);
+  const result = await withResource((r) => {
+    log.push(`use: ${r}`);
+    return asPromise ? Promise.resolve("done") : "done";
+  });
+  expect(result).toBe("done");
+  expect(log).toEqual(["acquire", "use: resource", "release"]);
+};
+
+/** Create a boundedLru seeded with {a:1, b:2} */
+const seededLru = (capacity: number) => {
+  const cache = boundedLru<string, number>(capacity);
+  cache.set("a", 1);
+  cache.set("b", 2);
+  return cache;
+};
+
+/** Create a ttlCache with controllable clock */
+const timedTtl = (ttl: number) => {
+  let time = 0;
+  const cache = ttlCache<string, number>(ttl, () => time);
+  return { cache, setTime: (t: number) => { time = t; } };
+};
+
+/** Create a collectionCache with call tracking and controllable clock */
+const trackedCollection = (fetchFn?: (n: number) => unknown[]) => {
+  let time = 0;
+  const calls: number[] = [];
+  const fetcher = () => {
+    calls.push(1);
+    const items = fetchFn ? fetchFn(calls.length) : [1, 2, 3];
+    return Promise.resolve(items);
+  };
+  const cache = collectionCache(fetcher, 100, () => time);
+  return { cache, calls, setTime: (t: number) => { time = t; } };
+};
+
+/** Create a dynamic tracked collection and do the initial fetch */
+const fetchedDynCollection = async () => {
+  const tc = trackedCollection((n) => [n]);
+  await tc.cache.getAll();
+  expect(tc.calls.length).toBe(1);
+  return tc;
+};
+
+/** Assert a refetch occurred producing the expected second-call result */
+const expectRefetched = async (tc: ReturnType<typeof trackedCollection>) => {
+  expect(await tc.cache.getAll()).toEqual([2]);
+  expect(tc.calls.length).toBe(2);
+};
+
 describe("fp", () => {
   describe("pipe", () => {
     test("composes functions left-to-right", () => {
       const addOne = (x: number) => x + 1;
-      const double = (x: number) => x * 2;
-      const result = pipe(addOne, double)(5);
-      expect(result).toBe(12); // (5 + 1) * 2
+      expect(pipe(addOne, double)(5)).toBe(12); // (5 + 1) * 2
     });
 
     test("works with single function", () => {
-      const addOne = (x: number) => x + 1;
-      const result = pipe(addOne)(5);
-      expect(result).toBe(6);
+      expect(pipe(double)(5)).toBe(10);
     });
 
     test("works with no functions", () => {
-      const result = pipe<number>()(5);
-      expect(result).toBe(5);
+      expect(pipe<number>()(5)).toBe(5);
     });
   });
 
   describe("filter", () => {
     test("filters array based on predicate", () => {
       const isEven = (x: number) => x % 2 === 0;
-      const result = filter(isEven)([1, 2, 3, 4, 5, 6]);
-      expect(result).toEqual([2, 4, 6]);
+      expect(filter(isEven)([1, 2, 3, 4, 5, 6])).toEqual([2, 4, 6]);
     });
 
     test("returns empty array when no matches", () => {
       const isNegative = (x: number) => x < 0;
-      const result = filter(isNegative)([1, 2, 3]);
-      expect(result).toEqual([]);
+      expect(filter(isNegative)([1, 2, 3])).toEqual([]);
     });
   });
 
   describe("map", () => {
     test("transforms array elements", () => {
-      const double = (x: number) => x * 2;
-      const result = map(double)([1, 2, 3]);
-      expect(result).toEqual([2, 4, 6]);
+      expect(map(double)([1, 2, 3])).toEqual([2, 4, 6]);
     });
 
     test("works with empty array", () => {
-      const double = (x: number) => x * 2;
-      const result = map(double)([]);
-      expect(result).toEqual([]);
+      expectEmptyPassthrough(map(double));
     });
   });
 
   describe("flatMap", () => {
     test("maps and flattens results", () => {
       const duplicate = (x: number) => [x, x];
-      const result = flatMap(duplicate)([1, 2, 3]);
-      expect(result).toEqual([1, 1, 2, 2, 3, 3]);
+      expect(flatMap(duplicate)([1, 2, 3])).toEqual([1, 1, 2, 2, 3, 3]);
     });
 
     test("works with empty array", () => {
-      const duplicate = (x: number) => [x, x];
-      const result = flatMap(duplicate)([]);
-      expect(result).toEqual([]);
+      expectEmptyPassthrough(flatMap((x: number) => [x, x]));
     });
   });
 
   describe("reduce", () => {
     test("reduces array to single value", () => {
       const sum = (acc: number, x: number) => acc + x;
-      const result = reduce(sum, 0)([1, 2, 3, 4]);
-      expect(result).toBe(10);
+      expect(reduce(sum, 0)([1, 2, 3, 4])).toBe(10);
     });
 
     test("works with mutation pattern", () => {
       const collect = (acc: number[], x: number) => {
-        acc.push(x * 2);
+        acc.push(x * 3);
         return acc;
       };
-      const result = reduce(collect, [] as number[])([1, 2, 3]);
-      expect(result).toEqual([2, 4, 6]);
+      expect(reduce(collect, [] as number[])([1, 2, 3])).toEqual([3, 6, 9]);
     });
   });
 
@@ -166,8 +222,7 @@ describe("fp", () => {
     });
 
     test("handles empty array", () => {
-      const result = unique([]);
-      expect(result).toEqual([]);
+      expectEmptyPassthrough(unique);
     });
   });
 
@@ -178,28 +233,24 @@ describe("fp", () => {
         { id: 2, name: "b" },
         { id: 1, name: "c" },
       ];
-      const result = uniqueBy((x: { id: number; name: string }) => x.id)(items);
-      expect(result).toEqual([
+      expect(uniqueBy((x: { id: number; name: string }) => x.id)(items)).toEqual([
         { id: 1, name: "a" },
         { id: 2, name: "b" },
       ]);
     });
 
     test("handles empty array", () => {
-      const result = uniqueBy((x: number) => x)([]);
-      expect(result).toEqual([]);
+      expectEmptyPassthrough(uniqueBy((x: number) => x));
     });
   });
 
   describe("compact", () => {
     test("removes falsy values", () => {
-      const result = compact([1, null, 2, undefined, 3, false, 0, "", 4]);
-      expect(result).toEqual([1, 2, 3, 4]);
+      expect(compact([1, null, 2, undefined, 3, false, 0, "", 4])).toEqual([1, 2, 3, 4]);
     });
 
     test("handles empty array", () => {
-      const result = compact([]);
-      expect(result).toEqual([]);
+      expectEmptyPassthrough(compact);
     });
 
     test("handles all falsy values", () => {
@@ -311,13 +362,11 @@ describe("fp", () => {
   describe("once", () => {
     test("computes value once and caches", () => {
       let callCount = 0;
-      const getValue = once(() => {
-        callCount++;
-        return "computed";
-      });
-
-      expect(getValue()).toBe("computed");
-      expect(getValue()).toBe("computed");
+      const getValue = once(() => { callCount++; return "computed"; });
+      const first = getValue();
+      const second = getValue();
+      expect(first).toBe("computed");
+      expect(second).toBe(first);
       expect(callCount).toBe(1);
     });
   });
@@ -331,10 +380,12 @@ describe("fp", () => {
       });
 
       expect(callCount).toBe(0);
-      expect(get()).toBe("computed");
+      const first = get();
       expect(callCount).toBe(1);
-      expect(get()).toBe("computed");
-      expect(callCount).toBe(1);
+      const second = get();
+      expect(callCount).toBe(1); // not recomputed
+      expect(first).toBe("computed");
+      expect(second).toBe("computed");
     });
 
     test("can be reset with set(null)", () => {
@@ -377,128 +428,62 @@ describe("fp", () => {
   });
 
   describe("bracket", () => {
-    test("acquires and releases resource", async () => {
-      const log: string[] = [];
-      const withResource = bracket(
-        () => {
-          log.push("acquire");
-          return "resource";
-        },
-        () => {
-          log.push("release");
-        },
-      );
-
-      const result = await withResource((r) => {
-        log.push(`use: ${r}`);
-        return "done";
-      });
-
-      expect(result).toBe("done");
-      expect(log).toEqual(["acquire", "use: resource", "release"]);
-    });
+    test("acquires and releases resource", () => testBracketUse());
 
     test("releases resource even on error", async () => {
-      const log: string[] = [];
-      const withResource = bracket(
-        () => {
-          log.push("acquire");
-          return "resource";
-        },
-        () => {
-          log.push("release");
-        },
-      );
-
+      const { log, withResource } = logBracket();
       await expect(
-        withResource(() => {
-          log.push("use");
-          throw new Error("boom");
-        }),
+        withResource(() => { log.push("use"); throw new Error("boom"); }),
       ).rejects.toThrow("boom");
-
       expect(log).toEqual(["acquire", "use", "release"]);
     });
 
-    test("works with async acquire and release", async () => {
-      const log: string[] = [];
-      const withResource = bracket(
-        () => {
-          log.push("acquire");
-          return Promise.resolve("resource");
-        },
-        () => {
-          log.push("release");
-          return Promise.resolve();
-        },
-      );
-
-      const result = await withResource((r) => {
-        log.push(`use: ${r}`);
-        return Promise.resolve("done");
-      });
-
-      expect(result).toBe("done");
-      expect(log).toEqual(["acquire", "use: resource", "release"]);
-    });
+    test("works with async acquire and release", () => testBracketUse(true));
   });
 
   describe("pipeAsync", () => {
+    const asyncAddOne = (x: number) => Promise.resolve(x + 1);
+    const asyncDouble = (x: number) => Promise.resolve(x * 2);
+
     test("composes async functions left-to-right", async () => {
-      const addOne = (x: number) => Promise.resolve(x + 1);
-      const double = (x: number) => Promise.resolve(x * 2);
-      const result = await pipeAsync(addOne, double)(5);
-      expect(result).toBe(12); // (5 + 1) * 2
+      expect(await pipeAsync(asyncAddOne, asyncDouble)(5)).toBe(12);
     });
 
     test("works with single async function", async () => {
-      const addOne = (x: number) => Promise.resolve(x + 1);
-      const result = await pipeAsync(addOne)(5);
-      expect(result).toBe(6);
+      expect(await pipeAsync(asyncAddOne)(5)).toBe(6);
     });
   });
 
   describe("mapAsync", () => {
+    const asyncDouble = (x: number) => Promise.resolve(x * 2);
+
     test("maps array with async function", async () => {
-      const double = (x: number) => Promise.resolve(x * 2);
-      const result = await mapAsync(double)([1, 2, 3]);
-      expect(result).toEqual([2, 4, 6]);
+      expect(await mapAsync(asyncDouble)([2, 3, 4])).toEqual([4, 6, 8]);
     });
 
     test("preserves order with async operations", async () => {
-      const delays = [30, 10, 20];
-      const wait = (ms: number) => {
-        return Promise.resolve(ms);
-      };
-      const result = await mapAsync(wait)(delays);
-      expect(result).toEqual([30, 10, 20]);
+      const wait = (ms: number) => Promise.resolve(ms);
+      expect(await mapAsync(wait)([30, 10, 20])).toEqual([30, 10, 20]);
     });
 
     test("handles empty array", async () => {
-      const double = (x: number) => Promise.resolve(x * 2);
-      const result = await mapAsync(double)([]);
-      expect(result).toEqual([]);
+      expect(await mapAsync(asyncDouble)([])).toEqual([]);
     });
   });
 
   describe("boundedLru", () => {
     test("stores and retrieves values", () => {
-      const cache = boundedLru<string, number>(3);
-      cache.set("a", 1);
-      cache.set("b", 2);
+      const cache = seededLru(3);
       expect(cache.get("a")).toBe(1);
       expect(cache.get("b")).toBe(2);
     });
 
     test("returns undefined for missing keys", () => {
-      const cache = boundedLru<string, number>(3);
-      expect(cache.get("missing")).toBe(undefined);
+      expect(boundedLru<string, number>(3).get("missing")).toBe(undefined);
     });
 
     test("evicts oldest entry when at capacity", () => {
-      const cache = boundedLru<string, number>(2);
-      cache.set("a", 1);
-      cache.set("b", 2);
+      const cache = seededLru(2);
       cache.set("c", 3); // evicts "a"
       expect(cache.get("a")).toBe(undefined);
       expect(cache.get("b")).toBe(2);
@@ -506,201 +491,122 @@ describe("fp", () => {
     });
 
     test("get promotes entry to most recent", () => {
-      const cache = boundedLru<string, number>(2);
-      cache.set("a", 1);
-      cache.set("b", 2);
+      const cache = seededLru(2);
       cache.get("a"); // promotes "a" to most recent
       cache.set("c", 3); // evicts "b" (now oldest)
-      expect(cache.get("a")).toBe(1);
-      expect(cache.get("b")).toBe(undefined);
+      expect(cache.get("b")).toBe(undefined); // evicted
       expect(cache.get("c")).toBe(3);
+      expect(cache.get("a")).toBe(1); // still present
     });
 
     test("set updates existing entry without eviction", () => {
-      const cache = boundedLru<string, number>(2);
-      cache.set("a", 1);
-      cache.set("b", 2);
+      const cache = seededLru(2);
       cache.set("a", 10); // update, not insert
       expect(cache.size()).toBe(2);
       expect(cache.get("a")).toBe(10);
     });
 
-    test("clear empties the cache", () => {
-      const cache = boundedLru<string, number>(3);
-      cache.set("a", 1);
-      cache.set("b", 2);
-      cache.clear();
-      expect(cache.size()).toBe(0);
-      expect(cache.get("a")).toBe(undefined);
-    });
-
-    test("size returns current entry count", () => {
+    test("size tracks entries and clear resets", () => {
       const cache = boundedLru<string, number>(5);
       expect(cache.size()).toBe(0);
       cache.set("a", 1);
       expect(cache.size()).toBe(1);
       cache.set("b", 2);
       expect(cache.size()).toBe(2);
+      cache.clear();
+      expect(cache.size()).toBe(0);
+      expect(cache.get("a")).toBe(undefined);
     });
   });
 
   describe("ttlCache", () => {
     test("stores and retrieves values within TTL", () => {
-      const cache = ttlCache<string, number>(1000);
+      const { cache } = timedTtl(1000);
       cache.set("a", 1);
       expect(cache.get("a")).toBe(1);
     });
 
     test("returns undefined for missing keys", () => {
-      const cache = ttlCache<string, number>(1000);
-      expect(cache.get("missing")).toBe(undefined);
+      expect(timedTtl(1000).cache.get("missing")).toBe(undefined);
     });
 
     test("expires entries after TTL", () => {
-      let time = 0;
-      const cache = ttlCache<string, number>(100, () => time);
+      const { cache, setTime } = timedTtl(100);
       cache.set("a", 1);
-      time = 50;
+      setTime(50);
       expect(cache.get("a")).toBe(1); // within TTL
-      time = 101;
+      setTime(101);
       expect(cache.get("a")).toBe(undefined); // expired
     });
 
     test("clear empties the cache", () => {
-      const cache = ttlCache<string, number>(1000);
-      cache.set("a", 1);
-      cache.set("b", 2);
+      const { cache } = timedTtl(1000);
+      cache.set("x", 10);
+      cache.set("y", 20);
       cache.clear();
-      expect(cache.get("a")).toBe(undefined);
-      expect(cache.get("b")).toBe(undefined);
+      expect(cache.get("x")).toBe(undefined);
+      expect(cache.get("y")).toBe(undefined);
     });
 
     test("each entry has independent TTL", () => {
-      let time = 0;
-      const cache = ttlCache<string, number>(100, () => time);
-      cache.set("a", 1);
-      time = 60;
-      cache.set("b", 2);
-      time = 101;
-      expect(cache.get("a")).toBe(undefined); // expired (set at 0, now 101)
-      expect(cache.get("b")).toBe(2); // still valid (set at 60, now 101)
+      const { cache, setTime } = timedTtl(100);
+      cache.set("early", 1);
+      setTime(60);
+      cache.set("late", 2);
+      setTime(101);
+      expect(cache.get("early")).toBe(undefined); // expired (set at 0, now 101)
+      expect(cache.get("late")).toBe(2); // still valid (set at 60, now 101)
     });
 
-    test("size returns number of entries", () => {
-      const cache = ttlCache<string, number>(1000);
+    test("size tracks entries and clear", () => {
+      const { cache } = timedTtl(1000);
       expect(cache.size()).toBe(0);
-      cache.set("a", 1);
-      cache.set("b", 2);
+      cache.set("p", 1);
+      expect(cache.size()).toBe(1);
+      cache.set("q", 2);
       expect(cache.size()).toBe(2);
-    });
-
-    test("size decreases after clear", () => {
-      const cache = ttlCache<string, number>(1000);
-      cache.set("a", 1);
+      expect(cache.get("q")).toBe(2); // entries still accessible
       cache.clear();
       expect(cache.size()).toBe(0);
     });
   });
 
   describe("collectionCache", () => {
-    test("fetches items on first call", async () => {
-      const calls: number[] = [];
-      const cache = collectionCache(
-        () => { calls.push(1); return Promise.resolve([1, 2, 3]); },
-        100,
-      );
-      const result = await cache.getAll();
-      expect(result).toEqual([1, 2, 3]);
+    test("fetches on first call and caches within TTL", async () => {
+      const { cache, calls, setTime } = trackedCollection();
+      const initial = await cache.getAll();
+      expect(initial).toEqual([1, 2, 3]);
       expect(calls.length).toBe(1);
-    });
-
-    test("returns cached items within TTL", async () => {
-      let time = 0;
-      const calls: number[] = [];
-      const cache = collectionCache(
-        () => { calls.push(1); return Promise.resolve([1, 2, 3]); },
-        100,
-        () => time,
-      );
-      await cache.getAll();
-      time = 50;
-      const result = await cache.getAll();
-      expect(result).toEqual([1, 2, 3]);
-      expect(calls.length).toBe(1);
+      setTime(50);
+      expect(await cache.getAll()).toBe(initial); // same reference = served from cache
     });
 
     test("refetches after TTL expires", async () => {
-      let time = 0;
-      const calls: number[] = [];
-      const cache = collectionCache(
-        () => { calls.push(1); return Promise.resolve([calls.length]); },
-        100,
-        () => time,
-      );
-      await cache.getAll();
-      expect(calls.length).toBe(1);
-      time = 101;
-      const result = await cache.getAll();
-      expect(result).toEqual([2]);
-      expect(calls.length).toBe(2);
+      const tc = await fetchedDynCollection();
+      tc.setTime(101);
+      await expectRefetched(tc);
     });
 
     test("refetches after invalidate", async () => {
-      const calls: number[] = [];
-      const cache = collectionCache(
-        () => { calls.push(1); return Promise.resolve([calls.length]); },
-        100,
-        () => 0,
-      );
-      await cache.getAll();
-      expect(calls.length).toBe(1);
-      cache.invalidate();
-      const result = await cache.getAll();
-      expect(result).toEqual([2]);
-      expect(calls.length).toBe(2);
+      const tc = await fetchedDynCollection();
+      tc.cache.invalidate();
+      await expectRefetched(tc);
     });
 
     test("invalidate resets TTL timer", async () => {
-      let time = 0;
-      const calls: number[] = [];
-      const cache = collectionCache(
-        () => { calls.push(1); return Promise.resolve([calls.length]); },
-        100,
-        () => time,
-      );
-      await cache.getAll();
-      time = 80;
-      cache.invalidate();
-      await cache.getAll();
-      time = 150; // 150 - 80 = 70, within TTL of the refetch
-      const result = await cache.getAll();
-      expect(result).toEqual([2]);
-      expect(calls.length).toBe(2);
+      const tc = await fetchedDynCollection();
+      tc.setTime(80);
+      tc.cache.invalidate();
+      await tc.cache.getAll();
+      tc.setTime(150); // 150 - 80 = 70, within TTL of the refetch
+      await expectRefetched(tc);
     });
 
-    test("size returns 0 before first load", () => {
-      const cache = collectionCache(
-        () => Promise.resolve([1, 2, 3]),
-        100,
-      );
+    test("size reflects load and invalidate lifecycle", async () => {
+      const { cache } = trackedCollection();
       expect(cache.size()).toBe(0);
-    });
-
-    test("size returns item count after load", async () => {
-      const cache = collectionCache(
-        () => Promise.resolve([1, 2, 3]),
-        100,
-      );
       await cache.getAll();
       expect(cache.size()).toBe(3);
-    });
-
-    test("size returns 0 after invalidate", async () => {
-      const cache = collectionCache(
-        () => Promise.resolve([1, 2, 3]),
-        100,
-      );
-      await cache.getAll();
       cache.invalidate();
       expect(cache.size()).toBe(0);
     });
