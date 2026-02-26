@@ -27,6 +27,7 @@ import {
   getSearchParam,
   htmlResponse,
   notFoundResponse,
+  orNotFound,
   redirect,
   requireSessionOr,
   withAuthForm,
@@ -70,15 +71,6 @@ const loadAttendeeForEvent = async (
   return { attendee, event: result.event };
 };
 
-/** Load data or return 404 if not found */
-const withLoaded = async <T>(
-  load: Promise<T | null>,
-  handler: (data: T) => Response | Promise<Response>,
-): Promise<Response> => {
-  const data = await load;
-  return data ? handler(data) : notFoundResponse();
-};
-
 /** Load attendee with auth, returning 404 if not found */
 const withAttendee = (
   session: AuthSession,
@@ -86,7 +78,7 @@ const withAttendee = (
   attendeeId: number,
   handler: (data: AttendeeWithEvent) => Response | Promise<Response>,
 ): Promise<Response> =>
-  withLoaded(loadAttendeeForEvent(session, eventId, attendeeId), handler);
+  orNotFound(loadAttendeeForEvent(session, eventId, attendeeId), handler);
 
 /** Route params for event-scoped routes */
 type EventRouteParams = { id: number };
@@ -431,7 +423,7 @@ const withEditAttendee = (
   attendeeId: number,
   handler: (data: EditAttendeeData) => Response | Promise<Response>,
 ): Promise<Response> =>
-  withLoaded(loadAttendeeForEdit(session, attendeeId), handler);
+  orNotFound(loadAttendeeForEdit(session, attendeeId), handler);
 
 /** Handle GET /admin/attendees/:attendeeId */
 const handleEditAttendeeGet = (

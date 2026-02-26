@@ -29,7 +29,7 @@ import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { htmlResponse, notFoundResponse, redirect, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
+import { htmlResponse, orNotFound, redirect, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -115,18 +115,15 @@ const crudCreate = createOwnerCrudHandlers({ ...crudConfig, resource: groupsCrea
 const crud = createOwnerCrudHandlers({ ...crudConfig, resource: groupsResource });
 
 /** Look up group by id, return 404 if not found */
-const withGroupOr404 = async (
+const withGroup = (
   id: number,
   handler: (group: Group) => Response | Promise<Response>,
-): Promise<Response> => {
-  const group = await groupsTable.findById(id);
-  return group ? handler(group) : notFoundResponse();
-};
+): Promise<Response> => orNotFound(groupsTable.findById(id), handler);
 
 /** Handle GET /admin/group/:id - group detail page */
 const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (request, { id }) =>
   requireOwnerOr(request, (session) =>
-    withGroupOr404(id, async (group) => {
+    withGroup(id, async (group) => {
       const [events, ungroupedEvents, holidays] = await Promise.all([
         getEventsByGroupId(id),
         getUngroupedEvents(),
@@ -154,7 +151,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (request, {
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
 const handleAddEventsToGroup: TypedRouteHandler<"POST /admin/group/:id/add-events"> = (request, { id }) =>
   withOwnerAuthForm(request, (_session, form) =>
-    withGroupOr404(id, async (group) => {
+    withGroup(id, async (group) => {
       const eventIds = form.getAll("event_ids").map(Number).filter((n) => n > 0);
       if (eventIds.length > 0) {
         await assignEventsToGroup(eventIds, id);
