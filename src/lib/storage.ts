@@ -107,8 +107,8 @@ export const IMAGE_ERROR_MESSAGES: Record<ImageValidationError, string> = {
 /** Try to delete an image from CDN storage, logging errors on failure */
 export const tryDeleteImage = async (
   filename: string,
+  eventId: number | undefined,
   detail: string,
-  eventId?: number,
 ): Promise<void> => {
   try {
     await deleteImage(filename);

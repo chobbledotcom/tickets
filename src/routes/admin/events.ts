@@ -53,16 +53,12 @@ import {
 import {
   IMAGE_ERROR_MESSAGES,
   isStorageEnabled,
-  tryDeleteImage as tryDeleteImageBase,
+  tryDeleteImage,
   uploadImage,
   validateImage,
 } from "#lib/storage.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
 import { eventFields, groupIdField, slugField } from "#templates/fields.ts";
-
-/** Try to delete an event image from CDN storage, logging errors with event ID */
-const tryDeleteImage = (filename: string, eventId: number, detail: string): Promise<void> =>
-  tryDeleteImageBase(filename, detail, eventId);
 
 /** Generate a unique event slug, retrying on collision */
 const generateUniqueEventSlug = (excludeEventId?: number) =>

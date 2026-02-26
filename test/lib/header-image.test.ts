@@ -10,15 +10,14 @@ import {
   updateHeaderImageUrl,
 } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
-import { encrypt, encryptBytes } from "#lib/crypto.ts";
-import { getDb } from "#lib/db/client.ts";
-import { createSession } from "#lib/db/sessions.ts";
-import { invalidateUsersCache } from "#lib/db/users.ts";
-import { getSessionCookieName } from "#lib/cookies.ts";
+import { encryptBytes } from "#lib/crypto.ts";
 import {
+  adminGet,
   createTestDbWithSetup,
+  createTestManagerSession,
   expectHtmlResponse,
   loginAsAdmin,
+  mockFormRequest,
   mockMultipartRequest,
   mockRequest,
   resetDb,
@@ -27,24 +26,6 @@ import {
 
 /** JPEG magic bytes for a valid test image */
 const JPEG_HEADER = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]);
-
-/** Create a form POST request with cookie */
-const formPostRequest = (
-  path: string,
-  data: Record<string, string>,
-  cookie: string,
-): Request => {
-  const body = new URLSearchParams(data).toString();
-  return new Request(`http://localhost${path}`, {
-    method: "POST",
-    body,
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      cookie,
-      host: "localhost",
-    },
-  });
-};
 
 /** Mock fetch to intercept Bunny CDN API calls */
 const withStorageMock = async (
@@ -187,38 +168,26 @@ describe("server (header image settings)", () => {
 
   describe("GET /admin/settings (header image section)", () => {
     test("shows header image section when storage is enabled", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockRequest("/admin/settings", { headers: { cookie } }),
-      );
+      const { response } = await adminGet("/admin/settings");
       await expectHtmlResponse(response, 200, "Header Image");
     });
 
     test("hides header image section when storage is disabled", async () => {
       Deno.env.delete("STORAGE_ZONE_NAME");
       Deno.env.delete("STORAGE_ZONE_KEY");
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockRequest("/admin/settings", { headers: { cookie } }),
-      );
+      const { response } = await adminGet("/admin/settings");
       const html = await response.text();
       expect(html).not.toContain("Header Image");
     });
 
     test("shows remove button when header image is set", async () => {
       await updateHeaderImageUrl("existing.jpg");
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockRequest("/admin/settings", { headers: { cookie } }),
-      );
+      const { response } = await adminGet("/admin/settings");
       await expectHtmlResponse(response, 200, "Remove Image", "/image/existing.jpg");
     });
 
     test("shows upload button when no header image exists", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockRequest("/admin/settings", { headers: { cookie } }),
-      );
+      const { response } = await adminGet("/admin/settings");
       await expectHtmlResponse(response, 200, "Upload Image");
     });
   });
@@ -295,36 +264,13 @@ describe("server (header image settings)", () => {
     });
 
     test("returns 403 for non-owner admin", async () => {
-      const { hmacHash } = await import("#lib/crypto.ts");
-      const managerIdx = await hmacHash("headerimgmgr");
-      await getDb().execute({
-        sql:
-          `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
-              VALUES (?, ?, ?, ?, ?)`,
-        args: [
-          await encrypt("headerimgmgr"),
-          managerIdx,
-          "",
-          null,
-          await encrypt("manager"),
-        ],
-      });
-      invalidateUsersCache();
-
-      await createSession(
-        "mgr-header-session",
-        "mgr-header-csrf",
-        Date.now() + 3600000,
-        null,
-        2,
-      );
-
+      const managerCookie = await createTestManagerSession("mgr-header-session", "headerimgmgr");
       const { signCsrfToken } = await import("#lib/csrf.ts");
       const signedCsrf = await signCsrfToken();
       const request = mockMultipartRequest(
         "/admin/settings/header-image",
         { csrf_token: signedCsrf },
-        `${getSessionCookieName()}=mgr-header-session`,
+        managerCookie,
         {
           fieldName: "header_image",
           name: "logo.jpg",
@@ -426,7 +372,7 @@ describe("server (header image settings)", () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await withStorageMock(async () => {
-        const request = formPostRequest(
+        const request = mockFormRequest(
           "/admin/settings/header-image/delete",
           { csrf_token: csrfToken },
           cookie,
@@ -443,7 +389,7 @@ describe("server (header image settings)", () => {
     test("returns error when no header image exists", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
-      const request = formPostRequest(
+      const request = mockFormRequest(
         "/admin/settings/header-image/delete",
         { csrf_token: csrfToken },
         cookie,
@@ -462,7 +408,7 @@ describe("server (header image settings)", () => {
       };
 
       try {
-        const request = formPostRequest(
+        const request = mockFormRequest(
           "/admin/settings/header-image/delete",
           { csrf_token: csrfToken },
           cookie,
@@ -482,19 +428,13 @@ describe("server (header image settings)", () => {
   describe("header image in layout", () => {
     test("renders header image in page when set", async () => {
       await updateHeaderImageUrl("my-header.jpg");
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockRequest("/admin/settings", { headers: { cookie } }),
-      );
+      const { response } = await adminGet("/admin/settings");
       await expectHtmlResponse(response, 200, 'class="header-image"', "/image/my-header.jpg");
     });
 
     test("does not render header image when not set", async () => {
       resetHeaderImage();
-      const { cookie } = await loginAsAdmin();
-      const response = await handleRequest(
-        mockRequest("/admin/settings", { headers: { cookie } }),
-      );
+      const { response } = await adminGet("/admin/settings");
       const html = await response.text();
       expect(html).not.toContain('class="header-image"');
     });
