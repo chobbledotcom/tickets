@@ -130,10 +130,16 @@ if (checkoutPopup) {
   const nav = document.querySelector("nav");
   if (nav) {
     let lastY = 0;
+    let ticking = false;
     document.addEventListener("scroll", () => {
-      const y = scrollY;
-      nav.classList.toggle("nav-hidden", y > 0 && y > lastY);
-      lastY = y;
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = scrollY;
+        nav.classList.toggle("nav-hidden", y > 0 && y > lastY);
+        lastY = y;
+        ticking = false;
+      });
     }, { passive: true });
   }
 }
