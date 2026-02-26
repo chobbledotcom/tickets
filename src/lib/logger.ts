@@ -189,7 +189,7 @@ export const createRequestTimer = (): (() => number) => {
 /**
  * Log categories for debug logging
  */
-export type LogCategory = "Setup" | "Webhook" | "Payment" | "Auth" | "Stripe" | "Square";
+export type LogCategory = "Setup" | "Webhook" | "Payment" | "Auth" | "Stripe" | "Square" | "Domain";
 
 /**
  * Log a debug message with category prefix
