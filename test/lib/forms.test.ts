@@ -83,6 +83,12 @@ describe("forms", () => {
       expect(html).toContain("<small");
     });
 
+    test("renders hintHtml as raw HTML", () => {
+      const html = rendered({ name: "desc", label: "Description", hintHtml: '<a href="/guide">Help</a>' });
+      expect(html).toContain('<a href="/guide">Help</a>');
+      expect(html).toContain("<small");
+    });
+
     test("renders min attribute for number", () => {
       const html = rendered({ name: "quantity", label: "Quantity", type: "number", min: 1 });
       expect(html).toContain('min="1"');

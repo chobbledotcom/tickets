@@ -3,7 +3,9 @@
  */
 
 import { CsrfForm } from "#lib/forms.tsx";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
+import { FORMATTING_HINT } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -50,7 +52,7 @@ export const adminSiteHomePage = (
         />
 
         <label for="homepage_text">Homepage Text</label>
-        <p><small>Text displayed on the public homepage (max 2048 characters). Line breaks will be preserved.</small></p>
+        <p><small>Text displayed on the public homepage (max 2048 characters). <Raw html={FORMATTING_HINT} /></small></p>
         <textarea
           id="homepage_text"
           name="homepage_text"
@@ -84,7 +86,7 @@ export const adminSiteContactPage = (
 
       <CsrfForm action="/admin/site/contact">
         <label for="contact_page_text">Contact Page Text</label>
-        <p><small>Text displayed on the public contact page (max 2048 characters). Line breaks will be preserved.</small></p>
+        <p><small>Text displayed on the public contact page (max 2048 characters). <Raw html={FORMATTING_HINT} /></small></p>
         <textarea
           id="contact_page_text"
           name="contact_page_text"

@@ -243,6 +243,30 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
+      <Section id="text-formatting" title="Text Formatting">
+        <Q q="Which fields support formatting?">
+          <p>
+            Event descriptions, terms and conditions, homepage text, and contact
+            page text all support{" "}
+            <a href="https://www.markdownguide.org/cheat-sheet/">Markdown</a>{" "}
+            formatting.
+          </p>
+        </Q>
+
+        <Q q="What formatting can I use?">
+          <p>
+            <strong>Bold</strong> with <code>**bold**</code>, <em>italic</em>{" "}
+            with <code>*italic*</code>, links with{" "}
+            <code>[text](https://...)</code>, and lists with <code>-</code> at
+            the start of a line. See the{" "}
+            <a href="https://www.markdownguide.org/cheat-sheet/">
+              Markdown cheat sheet
+            </a>{" "}
+            for more options.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Payments">
         <Q q="Which payment providers are supported?">
           <p>

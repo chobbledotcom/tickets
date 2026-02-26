@@ -230,6 +230,9 @@ export const validateBookableDays = (value: string): string | null => {
   return null;
 };
 
+/** Shared formatting hint linking to the admin guide */
+export const FORMATTING_HINT = '<a href="/admin/guide#text-formatting">Formatting help</a>';
+
 /** Max length for event description */
 const MAX_DESCRIPTION_LENGTH = 256;
 
@@ -271,7 +274,8 @@ export const eventFields: Field[] = [
     label: "Description (optional)",
     type: "text",
     placeholder: "A short description of the event",
-    hint: "Shown on the ticket page. HTML is allowed. Max 256 characters.",
+    hint: "Shown on the ticket page. Max 256 characters.",
+    hintHtml: FORMATTING_HINT,
     maxlength: MAX_DESCRIPTION_LENGTH,
     validate: validateDescription,
   },
@@ -448,6 +452,7 @@ export const groupCreateFields: Field[] = [
     label: "Terms and Conditions (optional)",
     type: "textarea",
     hint: "If set, overrides the global terms and conditions for this group ticket page",
+    hintHtml: FORMATTING_HINT,
   },
 ];
 

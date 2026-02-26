@@ -122,6 +122,15 @@ describe("server (admin guide)", () => {
       expect(html).toContain("Deactivate");
     });
 
+    test("contains text formatting section", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Text Formatting");
+      expect(html).toContain('id="text-formatting"');
+      expect(html).toContain("Markdown");
+      expect(html).toContain("markdownguide.org/cheat-sheet");
+    });
+
     test("contains admin navigation", async () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();

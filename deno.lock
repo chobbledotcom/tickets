@@ -16,6 +16,7 @@
     "npm:esbuild@0.20": "0.20.2",
     "npm:jscpd@*": "4.0.8",
     "npm:jsqr@^1.4.0": "1.4.0",
+    "npm:marked@15": "15.0.12",
     "npm:qrcode@^1.5.0": "1.5.4",
     "npm:stripe@17": "17.7.0"
   },
@@ -844,6 +845,10 @@
         "repeat-string"
       ]
     },
+    "marked@15.0.12": {
+      "integrity": "sha512-8dD6FusOQSrpv9Z1rdNMdlSgQOIP880DHqnohobOmYLElGEqAL/JvxvuxZO16r4HtjTlfPRDC1hbvxC9dPN2nA==",
+      "bin": true
+    },
     "math-intrinsics@1.1.0": {
       "integrity": "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g=="
     },
@@ -1286,6 +1291,7 @@
       "npm:auto-console-group@1",
       "npm:esbuild@0.20",
       "npm:jsqr@^1.4.0",
+      "npm:marked@15",
       "npm:qrcode@^1.5.0",
       "npm:stripe@17"
     ]

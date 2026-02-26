@@ -33,6 +33,7 @@ export interface Field {
   required?: boolean;
   placeholder?: string;
   hint?: string;
+  hintHtml?: string;
   min?: number;
   inputmode?: string;
   maxlength?: number;
@@ -162,6 +163,11 @@ export const renderField = (field: Field, value: string = ""): string =>
       {field.hint && (
         <small>
           {field.hint}
+        </small>
+      )}
+      {field.hintHtml && (
+        <small>
+          <Raw html={field.hintHtml} />
         </small>
       )}
     </label>

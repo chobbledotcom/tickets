@@ -309,12 +309,12 @@ describe("server (public routes)", () => {
 
     test("shows contact page when enabled", async () => {
       await updateShowPublicSite(true);
-      await updateContactPageText("Email us at hello@example.com");
+      await updateContactPageText("Get in touch with us");
       const response = await handleRequest(mockRequest("/contact"));
       await expectHtmlResponse(
         response,
         200,
-        "Email us at hello@example.com",
+        "Get in touch with us",
         "Contact",
       );
     });
@@ -334,12 +334,12 @@ describe("server (public routes)", () => {
 
     test("preserves line breaks in contact text", async () => {
       await updateShowPublicSite(true);
-      await updateContactPageText("Phone: 123\nEmail: test@test.com");
+      await updateContactPageText("Phone: 123\nAddress: 1 High Street");
       const response = await handleRequest(mockRequest("/contact"));
       await expectHtmlResponse(
         response,
         200,
-        "Phone: 123<br>Email: test@test.com",
+        "Phone: 123<br>Address: 1 High Street",
       );
     });
 
