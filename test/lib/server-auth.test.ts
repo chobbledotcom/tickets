@@ -56,6 +56,13 @@ describe("server (admin auth)", () => {
       // Login page contains a signed CSRF token in the form
       expect(html).toMatch(/name="csrf_token" value="s1\./);
     });
+
+    test("redirects to /admin when already authenticated", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/login", { cookie });
+      expectAdminRedirect(response);
+    });
   });
 
   describe("POST /admin/login", () => {

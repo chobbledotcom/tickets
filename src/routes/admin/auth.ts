@@ -19,6 +19,7 @@ import { defineRoutes } from "#routes/router.ts";
 import type { ServerContext } from "#routes/types.ts";
 import {
   generateSecureToken,
+  getAuthenticatedSession,
   getClientIp,
   parseFormData,
   redirect,
@@ -134,8 +135,12 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
     return redirect("/admin", clearSessionCookie());
   });
 
-/** Handle GET /admin/login */
-const handleLoginGet = (): Promise<Response> => loginResponse();
+/** Handle GET /admin/login - redirect to dashboard if already authenticated */
+const handleLoginGet = async (request: Request): Promise<Response> => {
+  const session = await getAuthenticatedSession(request);
+  if (session) return redirect("/admin");
+  return loginResponse();
+};
 
 /** Authentication routes */
 export const authRoutes = defineRoutes({
