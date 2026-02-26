@@ -2,7 +2,7 @@
 
 A self-hosted ticket reservation system. Runs on Bunny Edge Scripting with libsql (Turso). Encrypts all PII at rest. Handles free and paid events with Stripe or Square.
 
-Licensed under **AGPLv3**. Hosted instances available at [chobble.com](https://chobble.com) for £50/year, no tiers.
+Licensed under **AGPLv3**. Hosted instances available at [tix.chobble.com](https://tix.chobble.com/ticket/register) for £50/year, no tiers.
 
 ## Features
 
