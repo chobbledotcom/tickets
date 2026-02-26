@@ -441,10 +441,13 @@ type MultiTicketCtx = {
 const multiTicketFormErrorResponse = (ctx: MultiTicketCtx) =>
   errorResponse((error) => renderMultiTicketPage(ctx, error));
 
+/** Possibly-async response handler */
+type AsyncHandler<T extends unknown[]> = (...args: T) => Response | Promise<Response>;
+
 /** Load and validate active events for multi-ticket, return 404 if none */
 const withActiveMultiEvents = async (
   slugs: string[],
-  handler: (activeEvents: MultiTicketEvent[]) => Response | Promise<Response>,
+  handler: AsyncHandler<[MultiTicketEvent[]]>,
 ): Promise<Response> => {
   const [events, holidays] = await Promise.all([getEventsBySlugsBatch(slugs), getActiveHolidays()]);
   const active = compact(events).filter((e) => e.active);
@@ -727,7 +730,7 @@ const getGroupMultiTicketContext = (group: Group): MultiTicketContextProvider =>
 /** Load group by slug and its active events, return 404 if empty */
 const withActiveGroupEventsBySlug = async (
   slug: string,
-  handler: (group: Group, activeEvents: MultiTicketEvent[]) => Response | Promise<Response>,
+  handler: AsyncHandler<[Group, MultiTicketEvent[]]>,
 ): Promise<Response> => {
   const slugIndex = await computeGroupSlugIndex(slug);
   const group = await getGroupBySlugIndex(slugIndex);

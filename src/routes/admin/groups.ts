@@ -28,6 +28,7 @@ import type { Attendee, Group } from "#lib/types.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { htmlResponse, notFoundResponse, redirect, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
@@ -123,10 +124,7 @@ const withGroupOr404 = async (
 };
 
 /** Handle GET /admin/group/:id - group detail page */
-const handleGroupDetail = (
-  request: Request,
-  { id }: { id: number },
-): Promise<Response> =>
+const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (request, { id }) =>
   requireOwnerOr(request, (session) =>
     withGroupOr404(id, async (group) => {
       const [events, ungroupedEvents, holidays] = await Promise.all([
@@ -154,10 +152,7 @@ const handleGroupDetail = (
     }));
 
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
-const handleAddEventsToGroup = (
-  request: Request,
-  { id }: { id: number },
-): Promise<Response> =>
+const handleAddEventsToGroup: TypedRouteHandler<"POST /admin/group/:id/add-events"> = (request, { id }) =>
   withOwnerAuthForm(request, (_session, form) =>
     withGroupOr404(id, async (group) => {
       const eventIds = form.getAll("event_ids").map(Number).filter((n) => n > 0);

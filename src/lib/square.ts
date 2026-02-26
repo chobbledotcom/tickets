@@ -434,6 +434,20 @@ const normalizeCheckoutPhone = async (phone: string | undefined): Promise<string
   return normalizePhone(phone, prefix);
 };
 
+/** Build common payment link options from intent */
+const buildCheckoutOptions = async (
+  intent: { email: string; phone?: string },
+  metadata: Record<string, string>,
+  baseUrl: string,
+  label: string,
+) => ({
+  metadata,
+  baseUrl,
+  email: intent.email,
+  phone: await normalizeCheckoutPhone(intent.phone),
+  label,
+});
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  */
@@ -486,11 +500,7 @@ export const squareApi: {
           basePriceMoney: { amount: BigInt(event.unit_price!), currency: config.currency },
         },
       ],
-      metadata,
-      baseUrl,
-      email: intent.email,
-      phone: await normalizeCheckoutPhone(intent.phone),
-      label: "Payment link",
+      ...await buildCheckoutOptions(intent, metadata, baseUrl, "Payment link"),
     });
 
     logDebug("Square", result ? `Payment link created orderId=${result.orderId}` : "Payment link creation failed");
@@ -520,11 +530,7 @@ export const squareApi: {
     const result = await createPaymentLinkImpl({
       ...config,
       lineItems,
-      metadata,
-      baseUrl,
-      email: intent.email,
-      phone: await normalizeCheckoutPhone(intent.phone),
-      label: "Multi payment link",
+      ...await buildCheckoutOptions(intent, metadata, baseUrl, "Multi payment link"),
     });
 
     logDebug("Square", result ? `Multi payment link created orderId=${result.orderId}` : "Multi payment link creation failed");

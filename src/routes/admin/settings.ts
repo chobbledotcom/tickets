@@ -44,7 +44,7 @@ import { isValidTimezone } from "#lib/timezone.ts";
 import { validateEmbedHosts, parseEmbedHosts } from "#lib/embed-hosts.ts";
 import { resetDatabase } from "#lib/db/migrations/index.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
-import { validateForm } from "#lib/forms.tsx";
+import { type Field, validateForm } from "#lib/forms.tsx";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import {
@@ -55,7 +55,7 @@ import {
   validateImage,
 } from "#lib/storage.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
   getSearchParam,
@@ -167,10 +167,22 @@ const settingsRoute = (handler: SettingsFormHandler) =>
     withOwnerAuthForm(request, (session, form) =>
       handler(form, settingsPageWithError(session), session));
 
+/** Validate form and return values, or an error response */
+const validateSettingsForm = async <T>(
+  form: URLSearchParams,
+  fields: Field[],
+  errorPage: ErrorPageFn,
+): Promise<{ values: T } | { response: Response }> => {
+  const result = validateForm<T>(form, fields);
+  if (result.valid) return { values: result.values };
+  const response = await errorPage(result.error, 400);
+  return { response };
+};
+
 /**
  * Handle GET /admin/settings - owner only
  */
-const handleAdminSettingsGet = (request: Request): Promise<Response> =>
+const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const success = getSearchParam(request, "success");
     return htmlResponse(
@@ -271,12 +283,10 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/stripe - owner only
  */
 const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
-  const validation = validateForm<StripeKeyFormValues>(form, stripeKeyFields);
-  if (!validation.valid) {
-    return errorPage(validation.error, 400);
-  }
+  const validated = await validateSettingsForm<StripeKeyFormValues>(form, stripeKeyFields, errorPage);
+  if ("response" in validated) return validated.response;
 
-  const { stripe_secret_key: stripeSecretKey } = validation.values;
+  const { stripe_secret_key: stripeSecretKey } = validated.values;
 
   // Set up webhook endpoint automatically
   const webhookUrl = getWebhookUrl();
@@ -313,12 +323,10 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/square - owner only
  */
 const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
-  const validation = validateForm<SquareTokenFormValues>(form, squareAccessTokenFields);
-  if (!validation.valid) {
-    return errorPage(validation.error, 400);
-  }
+  const validated = await validateSettingsForm<SquareTokenFormValues>(form, squareAccessTokenFields, errorPage);
+  if ("response" in validated) return validated.response;
 
-  const { square_access_token: accessToken, square_location_id: locationId } = validation.values;
+  const { square_access_token: accessToken, square_location_id: locationId } = validated.values;
   const sandbox = form.get("square_sandbox") === "on";
 
   await updateSquareAccessToken(accessToken);
@@ -336,12 +344,10 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/square-webhook - owner only
  */
 const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
-  const validation = validateForm<SquareWebhookFormValues>(form, squareWebhookFields);
-  if (!validation.valid) {
-    return errorPage(validation.error, 400);
-  }
+  const validated = await validateSettingsForm<SquareWebhookFormValues>(form, squareWebhookFields, errorPage);
+  if ("response" in validated) return validated.response;
 
-  const { square_webhook_signature_key: signatureKey } = validation.values;
+  const { square_webhook_signature_key: signatureKey } = validated.values;
 
   await updateSquareWebhookSignatureKey(signatureKey);
 

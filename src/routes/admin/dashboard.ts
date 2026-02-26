@@ -8,7 +8,7 @@ import { decryptAttendees, getNewestAttendeesRaw } from "#lib/db/attendees.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { sortEvents } from "#lib/sort-events.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { htmlResponse, requireSessionOr, withSession } from "#routes/utils.ts";
 import { adminGlobalActivityLogPage } from "#templates/admin/activityLog.tsx";
@@ -51,7 +51,7 @@ const LOG_DISPLAY_LIMIT = 200;
 /**
  * Handle GET /admin/log
  */
-const handleAdminLog = (request: Request): Promise<Response> =>
+const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = (request) =>
   requireSessionOr(request, async (session) => {
     const entries = await getAllActivityLog(LOG_DISPLAY_LIMIT + 1);
     const truncated = entries.length > LOG_DISPLAY_LIMIT;
