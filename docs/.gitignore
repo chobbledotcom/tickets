@@ -1,0 +1,12 @@
+node_modules/
+.build/
+_site/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+.direnv
+.env
+.claude
+screenshots/
+.jscpd-report/

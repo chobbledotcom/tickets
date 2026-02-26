@@ -1,0 +1,15 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "chobble-client",
+      "devDependencies": {
+        "@chobble/js-toolkit": "file:./chobble-template/packages/js-toolkit",
+      },
+    },
+  },
+  "packages": {
+    "@chobble/js-toolkit": ["@chobble/js-toolkit@file:chobble-template/packages/js-toolkit", { "peerDependencies": { "bun": ">=1.0.0" }, "optionalPeers": ["bun"] }],
+  }
+}

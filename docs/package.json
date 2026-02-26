@@ -1,0 +1,31 @@
+{
+	"name": "chobble-client",
+	"version": "1.0.0",
+	"type": "module",
+	"packageManager": "bun@1.2.13",
+	"description": "Chobble.com client website",
+	"scripts": {
+		"preinstall": "node -e \"if(!process.env.npm_config_user_agent.startsWith('bun')){console.error('Use bun, not npm/yarn/pnpm');process.exit(1)}\"",
+		"serve": "bun scripts/serve.js",
+		"build": "bun scripts/build.js",
+		"prepare-dev": "bun scripts/prepare-dev.js",
+		"sync-files": "bun scripts/sync-files.js",
+		"watch": "bun scripts/watch.js",
+		"update-pages": "bun scripts/update-pages.js",
+		"fetch-google-reviews": "bun scripts/fetch-google-reviews.js",
+		"screenshot": "bun scripts/screenshot.js",
+		"clean": "rm -rf .build _site",
+		"test": "bun scripts/test.js",
+		"precommit": "bun scripts/precommit.js",
+		"lint": "bunx @biomejs/biome check --config-path=biome.json --error-on-warnings scripts/",
+		"lint:fix": "bunx @biomejs/biome check --config-path=biome.json --write scripts/",
+		"cpd": "bunx jscpd"
+	},
+	"imports": {
+		"#fp": "@chobble/js-toolkit/fp",
+		"#fp/*": "@chobble/js-toolkit/fp/*"
+	},
+	"devDependencies": {
+		"@chobble/js-toolkit": "file:./chobble-template/packages/js-toolkit"
+	}
+}

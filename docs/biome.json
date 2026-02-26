@@ -1,0 +1,71 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
+  "files": {
+    "includes": ["scripts/**/*.js"],
+    "ignoreUnknown": true
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "complexity": {
+        "noStaticOnlyClass": "error",
+        "noThisInStatic": "error",
+        "noUselessThisAlias": "error",
+        "useArrowFunction": "error",
+        "noForEach": "error",
+        "useFlatMap": "error",
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": {
+            "maxAllowedComplexity": 7
+          }
+        }
+      },
+      "style": {
+        "useConst": "error",
+        "useTemplate": "error",
+        "noUnusedTemplateLiteral": "error"
+      },
+      "suspicious": {
+        "noVar": "error",
+        "noDoubleEquals": "error",
+        "noConsole": "off",
+        "noSkippedTests": "error",
+        "noFocusedTests": "error"
+      },
+      "correctness": {
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error",
+        "noUnusedFunctionParameters": "error",
+        "noGlobalDirnameFilename": "error"
+      },
+      "performance": {
+        "noAccumulatingSpread": "error"
+      },
+      "nursery": {
+        "noUnnecessaryConditions": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["scripts/screenshot.js"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": {
+              "level": "error",
+              "options": {
+                "maxAllowedComplexity": 20
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

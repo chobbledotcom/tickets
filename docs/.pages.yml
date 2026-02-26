@@ -1,0 +1,292 @@
+media:
+  input: images
+  output: /images
+  path: images
+  categories: [image]
+content:
+
+  - name: pages
+    label: Pages
+    path: pages
+    type: collection
+    subfolders: false
+    view:
+      fields: [permalink, meta_title, header_text]
+      primary: header_text
+      sort: [header_text]
+    fields:
+      - { name: header_image, type: image, label: Header Image }
+      - { name: header_text, type: string, label: Header Text }
+      - { name: subtitle, type: string, label: Subtitle }
+      - { name: body, label: Body, type: code, options: { language: markdown } }
+      - { name: meta_description, type: string, label: Meta Description }
+      - { name: meta_title, type: string, label: Meta Title }
+      - name: eleventyNavigation
+        label: Navigation
+        type: object
+        fields:
+          - { name: key, type: string }
+          - { name: order, type: number }
+          - { name: url, type: string }
+      - { name: layout, type: string }
+      - { name: permalink, type: string }
+      
+  - name: news
+    label: News
+    path: news
+    type: collection
+    subfolders: false
+    fields:
+      - { name: title, type: string, label: Title }
+      - { name: header_image, type: image, label: Header Image }
+      - { name: date, label: Date, type: date }
+      - { name: subtitle, type: string, label: Subtitle }
+      - { name: body, label: Body, type: code, options: { language: markdown } }
+      - { name: header_text, type: string, label: Header Text }
+      - { name: meta_description, type: string, label: Meta Description }
+      - { name: meta_title, type: string, label: Meta Title }
+      
+  - name: products
+    label: Products
+    path: products
+    type: collection
+    subfolders: false
+    fields:
+      - { name: title, type: string, label: Title }
+      - { name: header_image, type: image, label: Header Image }
+      - name: categories
+        label: Categories
+        type: reference
+        options:
+          collection: categories
+          multiple: true
+          search: "title"
+          value: "{path}"
+          label: "{title}"
+      - { name: price, label: Price, type: string }
+      - { name: etsy_url, label: Etsy URL, type: string }
+      - { name: body, label: Body, type: code, options: { language: markdown } }
+      - { name: features, type: string, label: Features, list: true }
+      - name: gallery
+        type: image
+        label: Gallery
+        options: { multiple: true }
+      - { name: header_text, type: string, label: Header Text }
+      - { name: meta_description, type: string, label: Meta Description }
+      - { name: meta_title, type: string, label: Meta Title }
+      - { name: subtitle, type: string, label: Subtitle }
+      
+  - name: categories
+    label: Categories
+    path: categories
+    type: collection
+    subfolders: false
+    filename: "{primary}.md"
+    fields:
+      - { name: title, type: string, label: Title }
+      - { name: body, label: Body, type: code, options: { language: markdown } }
+      - { name: featured, label: Featured, type: boolean }
+      - { name: header_image, type: image, label: Header Image }
+      - { name: header_text, type: string, label: Header Text }
+      - { name: meta_description, type: string, label: Meta Description }
+      - { name: meta_title, type: string, label: Meta Title }
+      - { name: subtitle, type: string, label: Subtitle }
+      
+  - name: team
+    label: Team
+    path: team
+    type: collection
+    subfolders: false
+    filename: "{primary}.md"
+    fields:
+      - { name: title, type: string, label: Name }
+      - { name: snippet, type: string, label: Role }
+      - { name: image, type: image, label: Profile Image }
+      - { name: header_image, type: image, label: Header Image }
+      - {
+          name: body,
+          label: Biography,
+          type: code,
+          options: { language: markdown },
+        }
+        
+  - name: reviews
+    label: Reviews
+    path: reviews
+    type: collection
+    subfolders: false
+    fields:
+      - { name: name, type: string, label: Name }
+      - { name: url, type: string, label: URL }
+      - { name: body, label: Body, type: code, options: { language: markdown } }
+      - name: products
+        label: Products
+        type: reference
+        options:
+          collection: products
+          multiple: true
+          search: "title"
+          value: "{path}"
+          label: "{title}"
+        
+  - name: events
+    label: Events
+    path: events
+    type: collection
+    subfolders: false
+    filename: "{primary}.md"
+    view:
+      fields: [title, event_date, recurring_date, event_location]
+      primary: title
+      sort: [title]
+    fields:
+      - { name: header_image, type: image, label: Header Image }
+      - { name: title, type: string, label: Title }
+      - { name: subtitle, type: string, label: Subtitle }
+      - { name: event_date, label: Event Date, type: date, required: false }
+      - { name: recurring_date, type: string, label: Recurring Date (e.g. "Every Friday at 2 PM"), required: false }
+      - { name: event_location, type: string, label: Event Location }
+      - { name: body, label: Body, type: code, options: { language: markdown } }
+      - { name: header_text, type: string, label: Header Text }
+      - { name: meta_title, type: string, label: Meta Title }
+      - { name: meta_description, type: string, label: Meta Description }
+
+  - name: snippets
+    label: Snippets
+    path: snippets
+    type: collection
+    subfolders: false
+    filename: '{primary}.md'
+    fields:
+      - { name: name, type: string, label: Name }
+      - { name: body, label: Body, type: code, options: { language: markdown } }
+
+  - name: menus
+    label: Menus
+    path: menus
+    type: collection
+    subfolders: false
+    fields:
+      - { name: title, type: string, label: Title }
+      - { name: order, type: number, label: Order }
+      - { name: header_image, type: image, label: Header Image }
+      - { name: description, type: string, label: Description }
+      - { name: body, label: Body, type: code, options: { language: markdown } }
+      - { name: meta_title, type: string, label: Meta Title }
+      - { name: meta_description, type: string, label: Meta Description }
+
+  - name: menu-categories
+    label: Menu Categories
+    path: menu-categories
+    type: collection
+    subfolders: false
+    fields:
+      - { name: name, type: string, label: Name }
+      - { name: order, type: number, label: Order }
+      - name: menus
+        label: Menus
+        type: reference
+        options:
+          collection: menus
+          multiple: true
+          search: "title"
+          value: "{path}"
+          label: "{title}"
+      - { name: body, label: Body, type: code, options: { language: markdown } }
+
+  - name: menu-items
+    label: Menu Items
+    path: menu-items
+    type: collection
+    subfolders: false
+    fields:
+      - { name: name, type: string, label: Name }
+      - { name: price, type: string, label: Price }
+      - { name: is_vegan, type: boolean, label: Is Vegan }
+      - { name: is_gluten_free, type: boolean, label: Is Gluten Free }
+      - name: menu_categories
+        label: Menu Categories
+        type: reference
+        options:
+          collection: menu-categories
+          multiple: true
+          search: "name"
+          value: "{path}"
+          label: "{name}"
+      - { name: description, type: string, label: Description }
+      - { name: body, label: Body, type: code, options: { language: markdown } }
+  
+  - name: homepage
+    label: Homepage Settings
+    type: file
+    path: _data/homepage.json
+    fields:
+      - { name: show_products, type: boolean, label: Show Products Section, default: true }
+      - { name: show_menus, type: boolean, label: Show Menus Section, default: true }
+      - { name: show_news, type: boolean, label: Show News Section, default: true }
+      
+  - name: site
+    label: Site Configuration
+    type: file
+    path: _data/site.json
+    fields:
+      - { name: name, type: string, label: Site Name }
+      - { name: url, type: string, label: Site URL }
+      - name: opening_times
+        label: Opening Times
+        type: object
+        list: true
+        fields:
+          - { name: day, type: string, label: Day, required: true }
+          - { name: hours, type: string, label: Hours, required: true }
+      - name: socials
+        label: Social Media Links
+        type: object
+        fields:
+          - { name: Github, type: string, label: Github }
+          - { name: Forgejo, type: string, label: Forgejo }
+          - { name: Facebook, type: string, label: Facebook }
+          - { name: Instagram, type: string, label: Instagram }
+          - { name: TikTok, type: string, label: TikTok }
+          - { name: Google, type: string, label: Google }
+          - { name: WhatsApp, type: string, label: WhatsApp }
+          - { name: RSS, type: string, label: RSS }
+      - { name: map_embed_src, type: string, label: Map Embed URL }
+      
+  - name: meta
+    label: Meta Configuration
+    type: file
+    path: _data/meta.json
+    fields:
+      - { name: language, type: string, label: Language Code, default: "en-GB" }
+      - name: organization
+        label: Organization
+        type: object
+        fields:
+          - { name: description, type: string, label: Organization Description }
+          - { name: legalName, type: string, label: Legal Name }
+          - { name: foundingDate, type: string, label: Founding Date }
+          - name: founders
+            label: Founders
+            type: object
+            list: true
+            fields:
+              - { name: name, type: string, label: Name }
+          - name: address
+            label: Address
+            type: object
+            fields:
+              - { name: streetAddress, type: string, label: Street Address }
+              - { name: addressLocality, type: string, label: City }
+              - { name: addressRegion, type: string, label: Region/State }
+              - { name: postalCode, type: string, label: Postal Code }
+              - { name: addressCountry, type: string, label: Country Code }
+          - name: contactPoint
+            label: Contact Points
+            type: object
+            list: true
+            fields:
+              - { name: telephone, type: string, label: Telephone }
+              - { name: contactType, type: string, label: Contact Type }
+              - { name: areaServed, type: string, label: Area Served }
+              - { name: availableLanguage, type: string, label: Available Languages, list: true }

@@ -1,0 +1,20 @@
+# Bun configuration for chobble-client
+
+[test]
+# Test file patterns
+root = "./test"
+
+# Timeout for individual tests (30 seconds)
+timeout = 30000
+
+# Enable coverage reporting
+coverage = true
+
+# Coverage thresholds
+coverageThreshold = { lines = 1.0, functions = 1.0 }
+
+# Exclude scripts from coverage (they're build utilities, not library code)
+coveragePathIgnorePatterns = [
+  "scripts/**/*.js",
+  "test/**/*.js"
+]

@@ -1,0 +1,152 @@
+name: Build and Deploy
+
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    name: Merge Repos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Checkout Chobble Template
+        uses: actions/checkout@v4
+        with:
+          repository: chobble-mirror/chobble-template
+          ref: main
+          path: template
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            .eleventy.js
+            package.json
+            bun.lock
+            bunfig.toml
+            flake.nix
+            flake.lock
+            bin
+            scripts
+            packages
+            src
+
+      - name: Copy template files to combined dir
+        run: |
+          mkdir -p combined
+          rsync \
+            --recursive \
+            --verbose \
+            --delete \
+            --exclude=".git" \
+            --exclude="*.md" \
+            --exclude="images" \
+            --exclude="landing-pages/*.html" \
+            template/ \
+            combined/
+
+      - name: Overlay our repo files into combined src
+        run: |
+          rsync \
+            --recursive \
+            --verbose \
+            --exclude=".*" \
+            --exclude="README.md" \
+            --exclude="package.json" \
+            --exclude="bun.lock" \
+            source/ \
+            combined/src/
+
+      - name: Update site.json with secrets
+        run: |
+          sed -i \
+            's/"formspark_id": null/"formspark_id": "${{ secrets.FORMSPARK_ID }}"/g' \
+            "combined/src/_data/config.json"
+          sed -i \
+            's/"botpoison_public_key": null/"botpoison_public_key": "${{ secrets.BOTPOISON_PUBLIC_KEY }}"/g' \
+            "combined/src/_data/config.json"
+
+      - name: Upload combined directory
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-files
+          path: combined/
+          retention-days: 1
+          include-hidden-files: true
+
+  build:
+    name: Build Site
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download combined directory
+        uses: actions/download-artifact@v4
+        with:
+          name: combined-files
+          path: combined
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            combined/node_modules
+            combined/.image-cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('combined/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Build with Bun
+        run: |
+          cd combined
+          bun install --frozen-lockfile
+          bun scripts/eleventy-build.js
+          mkdir -p ../_site
+          mv _site/* ../_site/
+
+      - name: Set deployment environment
+        id: deployment_env
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "storage_zone_name=${{ secrets.BUNNY_PRODUCTION_STORAGE_ZONE_NAME }}" >> $GITHUB_OUTPUT
+            echo "storage_zone_password=${{ secrets.BUNNY_PRODUCTION_STORAGE_ZONE_PASSWORD }}" >> $GITHUB_OUTPUT
+            echo "pull_zone_id_deploy=${{ secrets.BUNNY_PRODUCTION_PULL_ZONE_ID }}" >> $GITHUB_OUTPUT
+          else
+            echo "storage_zone_name=${{ secrets.BUNNY_STAGING_STORAGE_ZONE_NAME }}" >> $GITHUB_OUTPUT
+            echo "storage_zone_password=${{ secrets.BUNNY_STAGING_STORAGE_ZONE_PASSWORD }}" >> $GITHUB_OUTPUT
+            echo "pull_zone_id_deploy=${{ secrets.BUNNY_STAGING_PULL_ZONE_ID }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to Bunny
+        uses: R-J-dev/bunny-deploy@v2.0.6
+        with:
+          access-key: ${{ secrets.BUNNY_ACCESS_KEY }}
+          directory-to-upload: _site
+          storage-endpoint: "https://storage.bunnycdn.com"
+          storage-zone-name: ${{ steps.deployment_env.outputs.storage_zone_name }}
+          storage-zone-password: ${{ steps.deployment_env.outputs.storage_zone_password }}
+          concurrency: "5"
+          enable-delete-action: true
+          enable-purge-pull-zone: true
+          pull-zone-id: ${{ steps.deployment_env.outputs.pull_zone_id_deploy }}
+          replication-timeout: "15000"
+
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [setup, build]
+    if: failure()
+    steps:
+      - name: Send failure notification
+        uses: NiNiyas/ntfy-action@master
+        with:
+          url: 'https://ntfy.sh'
+          topic: ${{ secrets.NTFY_TOPIC }}
