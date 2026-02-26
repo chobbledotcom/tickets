@@ -548,7 +548,7 @@ type JsonHandler = (session: AuthSession, body: Record<string, unknown>) => Resp
  * Mirrors withAuthForm but for JSON endpoints.
  * Content-type is already validated by middleware.
  */
-export const withAuthJson = async (request: Request, handler: JsonHandler): Promise<Response> => {
+export async function withAuthJson(request: Request, handler: JsonHandler): Promise<Response> {
   const session = await getAuthenticatedSession(request);
   if (!session) return jsonResponse({ status: "error", message: "Not authenticated" }, 401);
 
@@ -567,4 +567,4 @@ export const withAuthJson = async (request: Request, handler: JsonHandler): Prom
   }
 
   return handler(session, body);
-};
+}

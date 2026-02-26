@@ -448,10 +448,8 @@ export const attendeesApi = {
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const hasAvailableSpots = (
-  eventId: number,
-  quantity = 1,
-  date?: string | null,
-): Promise<boolean> => attendeesApi.hasAvailableSpots(eventId, quantity, date);
+  ...args: Parameters<typeof attendeesApi.hasAvailableSpots>
+): Promise<boolean> => attendeesApi.hasAvailableSpots(...args);
 
 /** Wrapper for test mocking - delegates to attendeesApi at runtime */
 export const createAttendeeAtomic = (

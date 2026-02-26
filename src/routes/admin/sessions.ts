@@ -4,7 +4,7 @@
 
 import { hashSessionToken } from "#lib/crypto.ts";
 import { deleteOtherSessions, getAllSessions } from "#lib/db/sessions.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   getSearchParam,
   htmlResponse,
@@ -17,7 +17,7 @@ import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 /**
  * Handle GET /admin/sessions
  */
-const handleAdminSessionsGet = (request: Request): Promise<Response> =>
+const handleAdminSessionsGet: TypedRouteHandler<"GET /admin/sessions"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const sessions = await getAllSessions();
     const tokenHash = await hashSessionToken(session.token);

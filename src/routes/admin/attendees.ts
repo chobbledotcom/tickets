@@ -121,6 +121,16 @@ const redirectOrReturn = (form: URLSearchParams, fallback: string): Response => 
   return redirect(returnUrl || fallback);
 };
 
+/** Log activity and redirect back to event page */
+const logAndRedirectToEvent = async (
+  message: string,
+  eventId: number,
+  form: URLSearchParams,
+): Promise<Response> => {
+  await logActivity(message, eventId);
+  return redirectOrReturn(form, `/admin/event/${eventId}`);
+};
+
 /** Verify confirm_name matches attendee name, returning error page on mismatch */
 const verifyAttendeeName = (
   data: AttendeeWithEvent,
@@ -165,8 +175,7 @@ const handleAttendeeDelete = attendeeFormAction(async (data, session, form, even
   if (error) return error;
 
   await deleteAttendee(attendeeId);
-  await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
-  return redirectOrReturn(form, `/admin/event/${eventId}`);
+  return logAndRedirectToEvent(`Attendee deleted from '${data.event.name}'`, eventId, form);
 });
 
 /**
@@ -249,8 +258,7 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
   }
 
   await markRefunded(data.attendee.id);
-  await logActivity(`Refund issued for attendee '${data.attendee.name}'`, eventId);
-  return redirectOrReturn(form, `/admin/event/${eventId}`);
+  return logAndRedirectToEvent(`Refund issued for attendee '${data.attendee.name}'`, eventId, form);
 });
 
 /** Filter attendees that have a payment_id and are not yet refunded */

@@ -184,11 +184,14 @@ export const validateUsername = (value: string): string | null => {
   return null;
 };
 
+/** Base username field shared across login and invite forms */
+const usernameFieldBase: Field = { name: "username", label: "Username", type: "text", required: true };
+
 /**
  * Login form field definitions
  */
 export const loginFields: Field[] = [
-  { name: "username", label: "Username", type: "text", required: true, autocomplete: "username" },
+  { ...usernameFieldBase, autocomplete: "username" },
   { name: "password", label: "Password", type: "password", required: true, autocomplete: "current-password" },
 ];
 
@@ -692,14 +695,7 @@ export const squareWebhookFields: Field[] = [
  * Invite user form field definitions
  */
 export const inviteUserFields: Field[] = [
-  {
-    name: "username",
-    label: "Username",
-    type: "text",
-    required: true,
-    hint: "Letters, numbers, hyphens, underscores (2-32 chars)",
-    validate: validateUsername,
-  },
+  { ...usernameFieldBase, hint: "Letters, numbers, hyphens, underscores (2-32 chars)", validate: validateUsername },
   {
     name: "admin_level",
     label: "Role",

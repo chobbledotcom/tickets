@@ -38,6 +38,9 @@ const loadStripe = once(async () => {
 
 type StripeCache = { client: Stripe; secretKey: string };
 
+/** Nullable checkout session result */
+type CheckoutResult = Stripe.Checkout.Session | null;
+
 /**
  * Extract a privacy-safe error detail from a caught error.
  * Stripe errors expose type/code/statusCode which are safe to log.
@@ -270,7 +273,7 @@ export const stripeApi: {
     event: Event,
     intent: RegistrationIntent,
     baseUrl: string,
-  ): Promise<Stripe.Checkout.Session | null> => {
+  ): Promise<CheckoutResult> => {
     logDebug("Stripe", `Creating checkout session for event=${event.id} qty=${intent.quantity}`);
     const config = await buildSessionParams({
       event,
@@ -297,7 +300,7 @@ export const stripeApi: {
   createMultiCheckoutSession: async (
     intent: MultiRegistrationIntent,
     baseUrl: string,
-  ): Promise<Stripe.Checkout.Session | null> => {
+  ): Promise<CheckoutResult> => {
     logDebug("Stripe", `Creating multi-checkout session for ${intent.items.length} events`);
     const currency = (await getCurrencyCode()).toLowerCase();
 
@@ -408,11 +411,8 @@ export type {
  * @param existingEndpointId - Optional existing endpoint ID to update
  */
 export const setupWebhookEndpoint = (
-  secretKey: string,
-  webhookUrl: string,
-  existingEndpointId?: string | null,
-): Promise<WebhookSetupResult> =>
-  stripeApi.setupWebhookEndpoint(secretKey, webhookUrl, existingEndpointId);
+  ...args: Parameters<typeof setupWebhookEndpointImpl>
+): Promise<WebhookSetupResult> => stripeApi.setupWebhookEndpoint(...args);
 
 // Wrapper functions that delegate to stripeApi at runtime (enables test mocking)
 export const getStripeClient = () => stripeApi.getStripeClient();

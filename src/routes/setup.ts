@@ -78,15 +78,14 @@ const validateSetupForm = (form: URLSearchParams): SetupValidation => {
   };
 };
 
+/** Setup completion check callback type */
+type SetupCheck = () => Promise<boolean>;
+
 /**
  * Handle GET /setup/
  */
-const handleSetupGet = async (
-  isSetupComplete: () => Promise<boolean>,
-): Promise<Response> => {
-  if (await isSetupComplete()) {
-    return redirect("/");
-  }
+const handleSetupGet = async (isSetupComplete: SetupCheck): Promise<Response> => {
+  if (await isSetupComplete()) return redirect("/");
   await signCsrfToken();
   return setupResponse();
 };
@@ -97,7 +96,7 @@ const handleSetupGet = async (
  */
 const handleSetupPost = async (
   request: Request,
-  isSetupComplete: () => Promise<boolean>,
+  isSetupComplete: SetupCheck,
 ): Promise<Response> => {
   logDebug("Setup", "POST request received");
 
@@ -153,9 +152,7 @@ const handleSetupPost = async (
 /**
  * Handle GET /setup/complete - setup success page
  */
-const handleSetupComplete = async (
-  isSetupComplete: () => Promise<boolean>,
-): Promise<Response> => {
+const handleSetupComplete = async (isSetupComplete: SetupCheck): Promise<Response> => {
   if (!(await isSetupComplete())) {
     return redirect("/setup/");
   }

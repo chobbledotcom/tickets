@@ -26,10 +26,11 @@ import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
 import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
 import { defineRoutes } from "#routes/router.ts";
-import type { RouteParamsFor, TypedRouteHandler } from "#routes/router.ts";
+import type { TypedRouteHandler } from "#routes/router.ts";
 import { csvResponse, type DecryptMode, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
 import {
   formDataToParams,
+  getSearchParam,
   htmlResponse,
   notFoundResponse,
   redirect,
@@ -164,7 +165,7 @@ const withEventAttendees = (
 /**
  * Handle GET /admin/event/new (show create event form)
  */
-const handleNewEventGet = (request: Request): Promise<Response> =>
+const handleNewEventGet: TypedRouteHandler<"GET /admin/event/new"> = (request) =>
   requireSessionOr(request, async (session) => {
     const groups = await getAllGroups();
     return htmlResponse(adminEventNewPage(groups, session));
@@ -173,7 +174,7 @@ const handleNewEventGet = (request: Request): Promise<Response> =>
 /**
  * Handle POST /admin/event (create event)
  */
-const handleCreateEvent = (request: Request): Promise<Response> =>
+const handleCreateEvent: TypedRouteHandler<"POST /admin/event"> = (request) =>
   withAuthMultipartForm(request, async (session, formData) => {
     const form = formDataToParams(formData);
     const result = await eventsResource.create(form);
@@ -225,14 +226,19 @@ const getUniqueDates = (attendees: Attendee[]): { value: string; label: string }
   return [...dates].sort().map((d) => ({ value: d, label: formatDateLabel(d) }));
 };
 
+/** Get date filter and filtered attendees for daily events */
+const applyDateFilter = (event: EventWithCount, attendees: Attendee[], request: Request) => {
+  const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
+  const availableDates = event.event_type === "daily" ? getUniqueDates(attendees) : [];
+  return { dateFilter, availableDates, filteredByDate: filterByDate(attendees, dateFilter) };
+};
+
 /** Render event page with attendee list and optional filter */
 const renderEventPage = async (request: Request, { id }: { id: number }, activeFilter: AttendeeFilter = "all") => {
   await deleteAllStaleReservations();
   return withEventAttendees(request, id, async ({ event, attendees, session }) => {
-    const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
-    const availableDates = event.event_type === "daily" ? getUniqueDates(attendees) : [];
-    const filteredByDate = filterByDate(attendees, dateFilter);
-    const imageError = new URL(request.url).searchParams.get("image_error");
+    const { dateFilter, availableDates, filteredByDate } = applyDateFilter(event, attendees, request);
+    const imageError = getSearchParam(request, "image_error");
     const phonePrefix = await getPhonePrefixFromDb();
     return htmlResponse(
       adminEventPage({
@@ -276,13 +282,11 @@ const getEventAndGroups = async (
   return event ? { event, groups } : null;
 };
 
-type AdminEventIdParams = RouteParamsFor<"GET /admin/event/:id">;
-
 const withEventAndGroupsPage =
   (
     renderPage: (event: EventWithCount, groups: Group[], session: AdminSession) => string,
-  ) =>
-  (request: Request, params: AdminEventIdParams): Promise<Response> =>
+  ): TypedRouteHandler<"GET /admin/event/:id"> =>
+  (request, params) =>
     requireSessionOr(request, async (session) => {
       const ctx = await getEventAndGroups(params.id);
       return ctx
@@ -300,10 +304,7 @@ const handleAdminEventEditGet: TypedRouteHandler<"GET /admin/event/:id/edit"> = 
 );
 
 /** Handle POST /admin/event/:id/edit */
-const handleAdminEventEditPost = (
-  request: Request,
-  { id }: { id: number },
-): Promise<Response> =>
+const handleAdminEventEditPost: TypedRouteHandler<"POST /admin/event/:id/edit"> = (request, { id }) =>
   withAuthMultipartForm(request, async (session, formData) => {
     const existing = await getEventWithCount(id);
     if (!existing) return notFoundResponse();
@@ -341,10 +342,9 @@ const handleAdminEventEditPost = (
 /**
  * Handle GET /admin/event/:id/export (CSV export)
  */
-const handleAdminEventExport = (request: Request, { id }: { id: number }) =>
+const handleAdminEventExport: TypedRouteHandler<"GET /admin/event/:id/export"> = (request, { id }) =>
   withEventAttendees(request, id, async ({ event, attendees }) => {
-    const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
-    const filteredByDate = filterByDate(attendees, dateFilter);
+    const { dateFilter, filteredByDate } = applyDateFilter(event, attendees, request);
     const isDaily = event.event_type === "daily";
     const csv = generateAttendeesCsv(filteredByDate, isDaily, {
       eventDate: event.date,
@@ -393,7 +393,7 @@ const eventToggleHandler = (
   renderPage: typeof adminDeactivateEventPage,
   active: boolean,
   verb: string,
-) => (request: Request, { id }: { id: number }): Promise<Response> =>
+): TypedRouteHandler<"POST /admin/event/:id/deactivate"> => (request, { id }) =>
   handleEventWithConfirmation(request, id, renderPage, CONFIRM_NAME_MSG, async (event) => {
     await eventsTable.update(id, { active });
     await logActivity(`Event '${event.name}' ${verb}`, id);
@@ -413,10 +413,7 @@ const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
  * Handle GET /admin/event/:id/log
  * Uses batched query to fetch event + activity log in a single DB round-trip.
  */
-const handleAdminEventLog = (
-  request: Request,
-  { id }: { id: number },
-): Promise<Response> =>
+const handleAdminEventLog: TypedRouteHandler<"GET /admin/event/:id/log"> = (request, { id }) =>
   requireSessionOr(request, async (session) => {
     const result = await getEventWithActivityLog(id);
     if (!result) {
@@ -424,10 +421,6 @@ const handleAdminEventLog = (
     }
     return htmlResponse(adminEventActivityLogPage(result.event, result.entries, session));
   });
-
-/** Check if identifier verification should be skipped (for API users) */
-const needsVerify = (req: Request): boolean =>
-  new URL(req.url).searchParams.get("verify_identifier") !== "false";
 
 /** Perform event deletion */
 const performDelete = async (event: EventWithCount): Promise<Response> => {
@@ -440,11 +433,8 @@ const performDelete = async (event: EventWithCount): Promise<Response> => {
 };
 
 /** Handle DELETE /admin/event/:id (delete event with logging) */
-const handleAdminEventDelete = (
-  request: Request,
-  { id }: { id: number },
-): Promise<Response> =>
-  needsVerify(request)
+const handleAdminEventDelete: TypedRouteHandler<"POST /admin/event/:id/delete"> = (request, { id }) =>
+  getSearchParam(request, "verify_identifier") !== "false"
     ? handleEventWithConfirmation(
         request, id, adminDeleteEventPage,
         "Event name does not match. Please type the exact name to confirm deletion.",
@@ -456,10 +446,7 @@ const handleAdminEventDelete = (
       });
 
 /** Handle POST /admin/event/:id/image/delete (delete event image) */
-const handleImageDelete = (
-  request: Request,
-  { id }: { id: number },
-): Promise<Response> =>
+const handleImageDelete: TypedRouteHandler<"POST /admin/event/:id/image/delete"> = (request, { id }) =>
   withAuthForm(request, async () => {
     const event = await getEventWithCount(id);
     if (!event) return notFoundResponse();
@@ -473,17 +460,18 @@ const handleImageDelete = (
     return redirect(`/admin/event/${id}`);
   });
 
+/** Create a handler that renders the event page with a specific attendee filter */
+const eventPageHandler = (activeFilter?: AttendeeFilter): TypedRouteHandler<"GET /admin/event/:id"> =>
+  (request, params) => renderEventPage(request, params, activeFilter);
+
 /** Handle GET /admin/event/:id */
-const handleAdminEventGet = (request: Request, params: { id: number }) =>
-  renderEventPage(request, params);
+const handleAdminEventGet = eventPageHandler();
 
 /** Handle GET /admin/event/:id/in (checked-in filter) */
-const handleAdminEventGetIn = (request: Request, params: { id: number }) =>
-  renderEventPage(request, params, "in");
+const handleAdminEventGetIn = eventPageHandler("in");
 
 /** Handle GET /admin/event/:id/out (not-checked-in filter) */
-const handleAdminEventGetOut = (request: Request, params: { id: number }) =>
-  renderEventPage(request, params, "out");
+const handleAdminEventGetOut = eventPageHandler("out");
 
 /** Event routes */
 export const eventsRoutes = defineRoutes({

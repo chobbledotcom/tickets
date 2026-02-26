@@ -17,7 +17,6 @@ import {
   type PaymentProvider,
   type RegistrationIntent,
   type ValidatedPaymentSession,
-  type WebhookSetupResult,
   type WebhookVerifyResult,
 } from "#lib/payments.ts";
 import {
@@ -105,12 +104,8 @@ export const stripePaymentProvider: PaymentProvider = {
     return false;
   },
 
-  setupWebhookEndpoint(
-    secretKey: string,
-    webhookUrl: string,
-    existingEndpointId?: string | null,
-  ): Promise<WebhookSetupResult> {
-    return setupWebhookEndpoint(secretKey, webhookUrl, existingEndpointId);
+  setupWebhookEndpoint(...args: Parameters<typeof setupWebhookEndpoint>) {
+    return setupWebhookEndpoint(...args);
   },
 
 };

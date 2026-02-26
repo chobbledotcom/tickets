@@ -19,7 +19,7 @@ import {
 import { validateForm } from "#lib/forms.tsx";
 import { getAllowedDomain } from "#lib/config.ts";
 import { nowMs } from "#lib/now.ts";
-import { defineRoutes } from "#routes/router.ts";
+import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
   generateSecureToken,
@@ -73,7 +73,7 @@ const renderUsersPage = async (
 /**
  * Handle GET /admin/users
  */
-const handleUsersGet = (request: Request): Promise<Response> =>
+const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const invite = getSearchParam(request, "invite");
     const success = getSearchParam(request, "success");
@@ -214,9 +214,8 @@ const handleUserDelete: UserActionHandler = async (user, session, errorPage) => 
 };
 
 /** Create a route handler that runs a user action by ID */
-const userActionRoute = (handler: UserActionHandler) =>
-  (request: Request, { id }: { id: number }): Promise<Response> =>
-    withUserAction(request, id, handler);
+const userActionRoute = (handler: UserActionHandler): TypedRouteHandler<"POST /admin/users/:id/activate"> =>
+  (request, { id }) => withUserAction(request, id, handler);
 
 /** Handle POST /admin/users/:id/activate */
 const handleUserActivatePost = userActionRoute(handleUserActivate);
