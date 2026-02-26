@@ -33,6 +33,7 @@ import {
   getSearchParam,
   htmlResponse,
   notFoundResponse,
+  orNotFound,
   redirect,
   requireSessionOr,
   withAuthForm,
@@ -287,12 +288,9 @@ const withEventAndGroupsPage =
     renderPage: (event: EventWithCount, groups: Group[], session: AdminSession) => string,
   ): TypedRouteHandler<"GET /admin/event/:id"> =>
   (request, params) =>
-    requireSessionOr(request, async (session) => {
-      const ctx = await getEventAndGroups(params.id);
-      return ctx
-        ? htmlResponse(renderPage(ctx.event, ctx.groups, session))
-        : notFoundResponse();
-    });
+    requireSessionOr(request, (session) =>
+      orNotFound(getEventAndGroups(params.id), (ctx) =>
+        htmlResponse(renderPage(ctx.event, ctx.groups, session))));
 
 const handleAdminEventDuplicateGet: TypedRouteHandler<"GET /admin/event/:id/duplicate"> = withEventAndGroupsPage(
   adminDuplicateEventPage,
@@ -372,19 +370,14 @@ const handleEventWithConfirmation = (
   errorMsg: string,
   action: (event: EventWithCount) => Promise<Response>,
 ): Promise<Response> =>
-  withAuthForm(request, async (session, form) => {
-    const event = await getEventWithCount(id);
-    if (!event) {
-      return notFoundResponse();
-    }
-
-    const confirmIdentifier = form.get("confirm_identifier") ?? "";
-    if (!verifyIdentifier(event.name, confirmIdentifier)) {
-      return eventErrorPage(event, renderPage, session, errorMsg);
-    }
-
-    return action(event);
-  });
+  withAuthForm(request, (session, form) =>
+    orNotFound(getEventWithCount(id), (event) => {
+      const confirmIdentifier = form.get("confirm_identifier") ?? "";
+      if (!verifyIdentifier(event.name, confirmIdentifier)) {
+        return eventErrorPage(event, renderPage, session, errorMsg);
+      }
+      return action(event);
+    }));
 
 const CONFIRM_NAME_MSG = "Event name does not match. Please type the exact name to confirm.";
 
@@ -414,13 +407,9 @@ const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
  * Uses batched query to fetch event + activity log in a single DB round-trip.
  */
 const handleAdminEventLog: TypedRouteHandler<"GET /admin/event/:id/log"> = (request, { id }) =>
-  requireSessionOr(request, async (session) => {
-    const result = await getEventWithActivityLog(id);
-    if (!result) {
-      return notFoundResponse();
-    }
-    return htmlResponse(adminEventActivityLogPage(result.event, result.entries, session));
-  });
+  requireSessionOr(request, (session) =>
+    orNotFound(getEventWithActivityLog(id), (result) =>
+      htmlResponse(adminEventActivityLogPage(result.event, result.entries, session))));
 
 /** Perform event deletion */
 const performDelete = async (event: EventWithCount): Promise<Response> => {
@@ -440,25 +429,20 @@ const handleAdminEventDelete: TypedRouteHandler<"POST /admin/event/:id/delete"> 
         "Event name does not match. Please type the exact name to confirm deletion.",
         performDelete,
       )
-    : withAuthForm(request, async () => {
-        const event = await getEventWithCount(id);
-        return event ? performDelete(event) : notFoundResponse();
-      });
+    : withAuthForm(request, () =>
+        orNotFound(getEventWithCount(id), performDelete));
 
 /** Handle POST /admin/event/:id/image/delete (delete event image) */
 const handleImageDelete: TypedRouteHandler<"POST /admin/event/:id/image/delete"> = (request, { id }) =>
-  withAuthForm(request, async () => {
-    const event = await getEventWithCount(id);
-    if (!event) return notFoundResponse();
-
-    if (event.image_url) {
-      await tryDeleteImage(event.image_url, event.id, "image removal");
-      await eventsTable.update(id, { imageUrl: "" });
-      await logActivity(`Image removed for '${event.name}'`, event);
-    }
-
-    return redirect(`/admin/event/${id}`);
-  });
+  withAuthForm(request, () =>
+    orNotFound(getEventWithCount(id), async (event) => {
+      if (event.image_url) {
+        await tryDeleteImage(event.image_url, event.id, "image removal");
+        await eventsTable.update(id, { imageUrl: "" });
+        await logActivity(`Image removed for '${event.name}'`, event);
+      }
+      return redirect(`/admin/event/${id}`);
+    }));
 
 /** Create a handler that renders the event page with a specific attendee filter */
 const eventPageHandler = (activeFilter?: AttendeeFilter): TypedRouteHandler<"GET /admin/event/:id"> =>

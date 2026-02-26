@@ -2,7 +2,7 @@
  * Shared utilities for route handlers
  */
 
-import { compact, err, map, ok, pipe, type Result, reduce } from "#fp";
+import { compact, map, pipe, reduce } from "#fp";
 import {
   generateSecureToken,
   getPrivateKeyFromSession,
@@ -257,35 +257,26 @@ export const withCookie = (response: Response, cookie: string): Response => {
   return response;
 };
 
-/** Handler function that takes a value and returns a Response */
-type EventHandler = (event: EventWithCount) => Response | Promise<Response>;
-
 /**
- * Unwrap Result with handler - returns error response or applies handler to value
+ * Resolve a nullable promise, calling handler if found or returning 404.
+ * Use for any route that loads a model and should 404 when missing.
  */
-const unwrapResult = (
-  result: Result<EventWithCount>,
-  handler: EventHandler,
-): Promise<Response> | Response =>
-  result.ok ? handler(result.value) : result.response;
-
-/**
- * Fetch event or return 404 response
- */
-export const fetchEventOr404 = async (
-  eventId: number,
-): Promise<Result<EventWithCount>> => {
-  const event = await getEventWithCount(eventId);
-  return event ? ok(event) : err(notFoundResponse());
+export const orNotFound = async <T>(
+  load: Promise<T | null>,
+  handler: (data: T) => Response | Promise<Response>,
+): Promise<Response> => {
+  const data = await load;
+  return data ? handler(data) : notFoundResponse();
 };
 
-/**
- * Handle event with Result - unwrap to Response
- */
-export const withEvent = async (
+/** Handler function that takes an event and returns a Response */
+type EventHandler = (event: EventWithCount) => Response | Promise<Response>;
+
+/** Load event by ID or return 404 */
+export const withEvent = (
   eventId: number,
   handler: EventHandler,
-): Promise<Response> => unwrapResult(await fetchEventOr404(eventId), handler);
+): Promise<Response> => orNotFound(getEventWithCount(eventId), handler);
 
 /**
  * Curried event page GET handler: renderPage -> (request, { id }) -> Response.
@@ -302,24 +293,11 @@ export const withEventPage =
       ),
     );
 
-/**
- * Fetch event by slug or return 404 response.
- */
-export const fetchEventBySlugOr404 = async (
-  slug: string,
-): Promise<Result<EventWithCount>> => {
-  const event = await getEventWithCountBySlug(slug);
-  return event ? ok(event) : err(notFoundResponse());
-};
-
-/**
- * Handle event by slug with Result - unwrap to Response
- */
-export const withEventBySlug = async (
+/** Load event by slug or return 404 */
+export const withEventBySlug = (
   slug: string,
   handler: EventHandler,
-): Promise<Response> =>
-  unwrapResult(await fetchEventBySlugOr404(slug), handler);
+): Promise<Response> => orNotFound(getEventWithCountBySlug(slug), handler);
 
 /** Check if event is active, return 404 if not */
 const requireActiveEvent =
