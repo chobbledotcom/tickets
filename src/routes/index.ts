@@ -9,12 +9,13 @@ import { loadCurrencyCode } from "#lib/currency.ts";
 import { loadHeaderImage } from "#lib/header-image.ts";
 import { loadTheme } from "#lib/theme.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
-import { createRequestTimer, ErrorCode, logError, logRequest, runWithRequestId } from "#lib/logger.ts";
+import { createRequestTimer, ErrorCode, logDebug, logError, logRequest, runWithRequestId } from "#lib/logger.ts";
 import { flushPendingWork } from "#lib/pending-work.ts";
 import {
   applySecurityHeaders,
+  buildDomainRedirectUrl,
   contentTypeRejectionResponse,
-  domainRejectionResponse,
+  domainRedirectResponse,
   getCleanUrl,
   getDomainRejectionReason,
   isEmbeddablePath,
@@ -228,10 +229,11 @@ export const handleRequest = (
     }
   }
 
-  // Domain validation: reject requests to unauthorized domains
+  // Domain validation: redirect requests from unauthorized domains to the allowed domain
   if (!isValidDomain(request)) {
-    logError({ code: ErrorCode.DOMAIN_REJECTED, detail: getDomainRejectionReason(request) });
-    return logAndReturn(domainRejectionResponse(), method, path, getElapsed);
+    const redirectUrl = buildDomainRedirectUrl(request);
+    logDebug("Domain", `Redirecting to ${redirectUrl} (${getDomainRejectionReason(request)})`);
+    return logAndReturn(domainRedirectResponse(redirectUrl), method, path, getElapsed);
   }
 
   const embeddable = isEmbeddablePath(path);

@@ -94,6 +94,16 @@ export const isValidDomain = (request: Request): boolean => {
 };
 
 /**
+ * Build a redirect URL to the allowed domain, preserving the original path and query.
+ */
+export const buildDomainRedirectUrl = (request: Request): string => {
+  const url = new URL(request.url);
+  const allowed = getAllowedDomain();
+  const scheme = allowed === "localhost" ? "http" : "https";
+  return `${scheme}://${allowed}${url.pathname}${url.search}`;
+};
+
+/**
  * Build a privacy-safe rejection reason for domain validation failures.
  * Includes the Host header and URL hostname so operators can diagnose
  * why a request was rejected (e.g. Facebook in-app browser sending
@@ -154,13 +164,13 @@ export const contentTypeRejectionResponse = (): Response =>
   });
 
 /**
- * Create domain rejection response
+ * Create domain redirect response (301 to allowed domain)
  */
-export const domainRejectionResponse = (): Response =>
-  new Response(encodeBody("Forbidden: Invalid domain"), {
-    status: 403,
+export const domainRedirectResponse = (redirectUrl: string): Response =>
+  new Response(null, {
+    status: 301,
     headers: {
-      "content-type": "text/plain",
+      location: redirectUrl,
       ...getSecurityHeaders(false),
     },
   });
