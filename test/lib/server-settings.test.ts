@@ -1114,6 +1114,7 @@ describe("server (admin settings)", () => {
         200,
         "Terms and Conditions",
         "terms_and_conditions",
+        "Formatting help",
       );
     });
 

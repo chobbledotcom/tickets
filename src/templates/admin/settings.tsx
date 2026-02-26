@@ -8,6 +8,7 @@ import { getImageProxyUrl } from "#lib/storage.ts";
 import type { AdminSession } from "#lib/types.ts";
 import {
   changePasswordFields,
+  FORMATTING_HINT,
   squareAccessTokenFields,
   squareWebhookFields,
   stripeKeyFields,
@@ -238,6 +239,7 @@ export const adminSettingsPage = (
             <h2>Terms and Conditions</h2>
           <p>If set, users must agree to these terms before reserving tickets.</p>
           <label for="terms_and_conditions">Terms and Conditions</label>
+          <p><small><Raw html={FORMATTING_HINT} /></small></p>
           <textarea
             id="terms_and_conditions"
             name="terms_and_conditions"

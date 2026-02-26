@@ -6,6 +6,7 @@ import { map, pipe } from "#fp";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
+import { renderMarkdown, renderMarkdownInline } from "#lib/markdown.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -27,10 +28,6 @@ const PublicNav = (): JSX.Element => (
 /** Public site page type */
 export type PublicPageType = "home" | "terms" | "contact";
 
-/** Render a plain-text content block with line breaks preserved */
-const renderPlainText = (text: string): string =>
-  escapeHtml(text).replace(/\r\n|\r|\n/g, "<br>");
-
 /**
  * Public site page - basic page with nav and content
  */
@@ -51,7 +48,7 @@ export const publicSitePage = (
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav />
       {content ? (
-        <p><Raw html={renderPlainText(content)} /></p>
+        <Raw html={renderMarkdown(content)} />
       ) : (
         <p><em>No content.</em></p>
       )}
@@ -70,7 +67,7 @@ const renderEventListing = (info: MultiTicketEvent): string => {
   if (event.date) details.push(`<li><em>${escapeHtml(formatDatetimeLabel(event.date))}</em></li>`);
   const detailsHtml = details.length > 0 ? `<ul>${details.join("")}</ul>` : "";
   const descriptionHtml = event.description
-    ? `<p>${escapeHtml(event.description)}</p>`
+    ? `<p>${renderMarkdownInline(event.description)}</p>`
     : "";
   const linkHtml = isSoldOut
     ? `<p><strong>Sold Out</strong></p>`
@@ -169,7 +166,7 @@ const quantityOptions = (max: number): string =>
 
 /** Render terms and conditions block with agreement checkbox */
 const renderTermsAndCheckbox = (terms: string): string =>
-  `<div class="terms"><p>${escapeHtml(terms).replace(/\r\n|\r|\n/g, "<br>")}</p></div>` +
+  `<div class="terms">${renderMarkdown(terms)}</div>` +
   `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1" required> I agree to the terms above</label>`;
 
 /**
@@ -200,7 +197,7 @@ export const ticketPage = (
           <h1>{event.name}</h1>
           {event.description && (
             <div class="description">
-              <Raw html={escapeHtml(event.description)} />
+              <Raw html={renderMarkdownInline(event.description)} />
             </div>
           )}
           {event.date && (
@@ -289,7 +286,7 @@ export const buildMultiTicketEvent = (
 /** Render description HTML for multi-ticket event row */
 const renderMultiEventDescription = (description: string): string =>
   description
-    ? `<div class="description-compact">${escapeHtml(description)}</div>`
+    ? `<div class="description-compact">${renderMarkdownInline(description)}</div>`
     : "";
 
 /** Render quantity selector for a single event in multi-ticket form */

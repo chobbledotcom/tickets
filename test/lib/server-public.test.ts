@@ -117,11 +117,13 @@ describe("server (public routes)", () => {
       expect(response.status).toBe(404);
     });
 
-    test("preserves line breaks in homepage text", async () => {
+    test("renders markdown paragraphs in homepage text", async () => {
       await updateShowPublicSite(true);
-      await updateHomepageText("Line one\nLine two");
+      await updateHomepageText("Line one\n\nLine two");
       const response = await handleRequest(mockRequest("/"));
-      await expectHtmlResponse(response, 200, "Line one<br>Line two");
+      const html = await expectHtmlResponse(response, 200, "Line one");
+      expect(html).toContain("<p>Line one</p>");
+      expect(html).toContain("<p>Line two</p>");
     });
   });
 
@@ -309,12 +311,12 @@ describe("server (public routes)", () => {
 
     test("shows contact page when enabled", async () => {
       await updateShowPublicSite(true);
-      await updateContactPageText("Email us at hello@example.com");
+      await updateContactPageText("Get in touch with us");
       const response = await handleRequest(mockRequest("/contact"));
       await expectHtmlResponse(
         response,
         200,
-        "Email us at hello@example.com",
+        "Get in touch with us",
         "Contact",
       );
     });
@@ -332,15 +334,13 @@ describe("server (public routes)", () => {
       await expectHtmlResponse(response, 200, "My Site");
     });
 
-    test("preserves line breaks in contact text", async () => {
+    test("renders markdown paragraphs in contact text", async () => {
       await updateShowPublicSite(true);
-      await updateContactPageText("Phone: 123\nEmail: test@test.com");
+      await updateContactPageText("Phone: 123\n\nAddress: 1 High Street");
       const response = await handleRequest(mockRequest("/contact"));
-      await expectHtmlResponse(
-        response,
-        200,
-        "Phone: 123<br>Email: test@test.com",
-      );
+      const html = await expectHtmlResponse(response, 200, "Phone: 123");
+      expect(html).toContain("<p>Phone: 123</p>");
+      expect(html).toContain("<p>Address: 1 High Street</p>");
     });
 
     test("returns 404 for non-GET requests to /contact", async () => {

@@ -539,14 +539,11 @@ describe("html", () => {
       expect(html).toContain('name="agree_terms"');
     });
 
-    test("preserves line breaks in terms and conditions", () => {
-      const html = ticketPage(event, undefined, false, false, undefined, "Line one\nLine two\nLine three");
-      expect(html).toContain("Line one<br>Line two<br>Line three");
-    });
-
-    test("preserves carriage return line feeds in terms and conditions", () => {
-      const html = ticketPage(event, undefined, false, false, undefined, "Line one\r\nLine two");
-      expect(html).toContain("Line one<br>Line two");
+    test("renders markdown paragraphs in terms and conditions", () => {
+      const html = ticketPage(event, undefined, false, false, undefined, "Line one\n\nLine two\n\nLine three");
+      expect(html).toContain("<p>Line one</p>");
+      expect(html).toContain("<p>Line two</p>");
+      expect(html).toContain("<p>Line three</p>");
     });
 
     test("does not render terms when not provided", () => {
@@ -1625,12 +1622,13 @@ describe("html", () => {
       expect(html).not.toContain("Reserve Tickets</button>");
     });
 
-    test("preserves line breaks in terms and conditions", () => {
+    test("renders markdown paragraphs in terms and conditions", () => {
       const events = [
         buildMultiTicketEvent(testEventWithCount({ id: 1, slug: "ab12c", name: "Event A", attendee_count: 0 })),
       ];
-      const html = multiTicketPage(events, ["ab12c"], undefined, undefined, "Rule one\nRule two");
-      expect(html).toContain("Rule one<br>Rule two");
+      const html = multiTicketPage(events, ["ab12c"], undefined, undefined, "Rule one\n\nRule two");
+      expect(html).toContain("<p>Rule one</p>");
+      expect(html).toContain("<p>Rule two</p>");
       expect(html).toContain('name="agree_terms"');
     });
 

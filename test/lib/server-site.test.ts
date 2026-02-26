@@ -48,6 +48,7 @@ describe("server (admin site)", () => {
         "Home Page",
         "website_title",
         "homepage_text",
+        "Formatting help",
       );
     });
 
@@ -198,6 +199,7 @@ describe("server (admin site)", () => {
         200,
         "Contact Page",
         "contact_page_text",
+        "Formatting help",
       );
     });
 
