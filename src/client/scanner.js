@@ -150,11 +150,11 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
 };
 
 /**
- * Non-blocking confirm using the <dialog> element.
+ * Non-blocking confirm overlay centered on the camera feed.
  * Returns a Promise<boolean> without freezing the camera feed.
  */
 const showConfirm = (message) => {
-  const dialog = document.getElementById("scanner-confirm");
+  const overlay = document.getElementById("scanner-confirm");
   const msgEl = document.getElementById("scanner-confirm-message");
   const yesBtn = document.getElementById("scanner-confirm-yes");
   const noBtn = document.getElementById("scanner-confirm-no");
@@ -167,20 +167,22 @@ const showConfirm = (message) => {
       yesBtn.removeEventListener("click", onYes);
       noBtn.removeEventListener("click", onNo);
       closeBtn.removeEventListener("click", onClose);
-      dialog.removeEventListener("cancel", onCancel);
-      dialog.close();
+      document.removeEventListener("keydown", onKeydown);
+      overlay.classList.add("hidden");
       resolve(value);
     };
     const onYes = () => cleanup(true);
     const onNo = () => cleanup(false);
     const onClose = () => cleanup(false);
-    const onCancel = () => cleanup(false);
+    const onKeydown = (e) => {
+      if (e.key === "Escape") cleanup(false);
+    };
 
     yesBtn.addEventListener("click", onYes);
     noBtn.addEventListener("click", onNo);
     closeBtn.addEventListener("click", onClose);
-    dialog.addEventListener("cancel", onCancel);
-    dialog.showModal();
+    document.addEventListener("keydown", onKeydown);
+    overlay.classList.remove("hidden");
   });
 };
 
