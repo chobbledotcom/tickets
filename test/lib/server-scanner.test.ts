@@ -137,6 +137,7 @@ describe("QR Scanner", () => {
         "scanner-start",
         `data-event-id="${event.id}"`,
         "scanner.js",
+        "scanner-confirm",
       );
     });
 

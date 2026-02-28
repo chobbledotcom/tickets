@@ -1178,6 +1178,52 @@ button.secondary:hover {
   }
 }
 
+/* Scanner confirm dialog - non-blocking replacement for confirm() */
+#scanner-confirm {
+  border: none;
+  border-radius: 8px;
+  padding: 1.5rem;
+  max-width: 90vw;
+  width: 320px;
+  text-align: center;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+#scanner-confirm::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+#scanner-confirm p {
+  margin: 0 0 1.25rem;
+  font-size: 1.1rem;
+}
+
+.scanner-confirm-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.scanner-confirm-actions button {
+  min-width: 80px;
+  padding: 0.6rem 1.25rem;
+  font-size: 1rem;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+
+#scanner-confirm-yes {
+  background: #155724;
+  color: #fff;
+  border-color: #155724;
+}
+
+#scanner-confirm-no {
+  background: #fff;
+  color: #333;
+}
+
 /* Stripe test result */
 .stripe-test-result {
   white-space: pre-wrap;

@@ -114,7 +114,7 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
     postScan(eventId, token, csrfToken)
       .then(async (result) => {
         if (result.status === "wrong_event") {
-          const ok = confirm(
+          const ok = await showConfirm(
             `${result.name} is registered for "${result.eventName}", not this event. Check in anyway?`,
           );
           if (ok) {
@@ -124,7 +124,7 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
             showStatus(statusEl, `Skipped ${result.name}`, "warning");
           }
         } else if (result.status === "verify_id") {
-          const ok = confirm(
+          const ok = await showConfirm(
             `Does their ID match "${result.name}"?`,
           );
           if (ok) {
@@ -147,6 +147,37 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
   };
 
   scan();
+};
+
+/**
+ * Non-blocking confirm using the <dialog> element.
+ * Returns a Promise<boolean> without freezing the camera feed.
+ */
+const showConfirm = (message) => {
+  const dialog = document.getElementById("scanner-confirm");
+  const msgEl = document.getElementById("scanner-confirm-message");
+  const yesBtn = document.getElementById("scanner-confirm-yes");
+  const noBtn = document.getElementById("scanner-confirm-no");
+
+  msgEl.textContent = message;
+
+  return new Promise((resolve) => {
+    const cleanup = (value) => {
+      yesBtn.removeEventListener("click", onYes);
+      noBtn.removeEventListener("click", onNo);
+      dialog.removeEventListener("cancel", onCancel);
+      dialog.close();
+      resolve(value);
+    };
+    const onYes = () => cleanup(true);
+    const onNo = () => cleanup(false);
+    const onCancel = () => cleanup(false);
+
+    yesBtn.addEventListener("click", onYes);
+    noBtn.addEventListener("click", onNo);
+    dialog.addEventListener("cancel", onCancel);
+    dialog.showModal();
+  });
 };
 
 /** Initialize scanner when DOM is ready */
