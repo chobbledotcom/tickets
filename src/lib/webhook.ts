@@ -143,7 +143,7 @@ export const sendRegistrationWebhooks = async (
 ): Promise<void> => {
   const envWebhookUrl = getEnv("WEBHOOK_URL");
   const webhookUrls = unique(compact([
-    ...entries.map((e) => e.event.webhook_url),
+    ...entries.map((e) => e.event.webhook_url || null),
     envWebhookUrl,
   ]));
   if (webhookUrls.length === 0) return;

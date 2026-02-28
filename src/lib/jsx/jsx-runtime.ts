@@ -126,6 +126,11 @@ const renderAttr = (key: string, value: unknown): string => {
 export const jsx = (tag: string | Component, props: Props | null): SafeHtml => {
   const { children, ...attrs } = props ?? {};
 
+  // Fragment fast-path: pass through single SafeHtml child without re-wrapping
+  if (tag === Fragment) {
+    return isSafeHtml(children) ? children : new SafeHtml(renderChild(children));
+  }
+
   // Component function - call it with props
   if (typeof tag === "function") {
     const result = tag({ ...attrs, children });
@@ -153,8 +158,8 @@ export { jsx as jsxs, jsx as jsxDEV };
 /**
  * Fragment - just renders children without wrapper
  */
-export const Fragment = ({ children }: Props): SafeHtml =>
-  new SafeHtml(renderChild(children));
+export const Fragment = ({ children }: Props): string =>
+  renderChild(children);
 
 /**
  * Raw HTML insertion (use sparingly, bypasses escaping)
