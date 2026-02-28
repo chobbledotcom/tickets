@@ -1151,6 +1151,11 @@ button.secondary:hover {
   max-width: 90%;
   box-sizing: border-box;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: opacity 0.5s ease;
+}
+
+.scanner-status-fade-out {
+  opacity: 0;
 }
 
 .scanner-status-success {

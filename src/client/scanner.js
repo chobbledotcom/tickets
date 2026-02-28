@@ -3,6 +3,7 @@ import jsQR from "jsqr";
 
 const COOLDOWN_MS = 2000;
 const SCAN_INTERVAL_MS = 150;
+const FADE_DELAY_MS = 5000;
 
 /** Extract ticket token from a checkin URL or raw token string */
 const extractToken = (data) => {
@@ -39,11 +40,20 @@ const formatTicketCount = (count) => {
   return `${safeCount} ticket${safeCount === 1 ? "" : "s"}`;
 };
 
+let fadeTimer = 0;
+
 /** Show a status message with color via CSS classes */
 const showStatus = (el, message, type) => {
+  clearTimeout(fadeTimer);
   el.textContent = message;
-  el.classList.remove("hidden", "scanner-status-success", "scanner-status-warning", "scanner-status-error");
+  el.classList.remove("hidden", "scanner-status-success", "scanner-status-warning", "scanner-status-error", "scanner-status-fade-out");
   el.classList.add("scanner-status", `scanner-status-${type}`);
+
+  if (type === "success" || type === "warning") {
+    fadeTimer = setTimeout(() => {
+      el.classList.add("scanner-status-fade-out");
+    }, FADE_DELAY_MS);
+  }
 };
 
 /** Handle a scan result and display status */
