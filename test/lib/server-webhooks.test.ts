@@ -273,8 +273,8 @@ describe("server (webhooks)", () => {
                 phone: "123456",
                 multi: "1",
                 items: JSON.stringify([
-                  { e: event1.id, q: 2 },
-                  { e: event2.id, q: 1 },
+                  { e: event1.id, q: 2, p: 1000 },
+                  { e: event2.id, q: 1, p: 1000 },
                 ]),
               }),
             },
@@ -710,7 +710,7 @@ describe("server (webhooks)", () => {
           name: "Concurrent",
           email: "concurrent@example.com",
           multi: "1",
-          items: JSON.stringify([{ e: event.id, q: 1 }]),
+          items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -782,7 +782,7 @@ describe("server (webhooks)", () => {
           name: "Price Test",
           email: "price@example.com",
           multi: "1",
-          items: JSON.stringify([{ e: event.id, q: 3 }]),
+          items: JSON.stringify([{ e: event.id, q: 3, p: 1500 }]),
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -915,7 +915,7 @@ describe("server (webhooks)", () => {
           name: "Enc Error",
           email: "enc@example.com",
           multi: "1",
-          items: JSON.stringify([{ e: event.id, q: 1 }]),
+          items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -1031,7 +1031,7 @@ describe("server (webhooks)", () => {
                 name: "Already Done",
                 email: "already@example.com",
                 multi: "1",
-                items: JSON.stringify([{ e: event.id, q: 1 }]),
+                items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
               }),
             },
           },
@@ -1085,8 +1085,8 @@ describe("server (webhooks)", () => {
                 email: "inactive@example.com",
                 multi: "1",
                 items: JSON.stringify([
-                  { e: event1.id, q: 1 },
-                  { e: event2.id, q: 1 },
+                  { e: event1.id, q: 1, p: 500 },
+                  { e: event2.id, q: 1, p: 500 },
                 ]),
               }),
             },
@@ -1157,8 +1157,8 @@ describe("server (webhooks)", () => {
                 email: "soldout@example.com",
                 multi: "1",
                 items: JSON.stringify([
-                  { e: event1.id, q: 1 },
-                  { e: event2.id, q: 1 },
+                  { e: event1.id, q: 1, p: 500 },
+                  { e: event2.id, q: 1, p: 500 },
                 ]),
               }),
             },
@@ -1261,8 +1261,8 @@ describe("server (webhooks)", () => {
                 email: "multi@example.com",
                 multi: "1",
                 items: JSON.stringify([
-                  { e: event1.id, q: 1 },
-                  { e: event2.id, q: 2 },
+                  { e: event1.id, q: 1, p: 500 },
+                  { e: event2.id, q: 2, p: 600 },
                 ]),
               }),
             },
@@ -1305,7 +1305,7 @@ describe("server (webhooks)", () => {
                 email: "notfound@example.com",
                 multi: "1",
                 items: JSON.stringify([
-                  { e: 99999, q: 1 },
+                  { e: 99999, q: 1, p: 1000 },
                 ]),
               }),
             },
@@ -1372,8 +1372,8 @@ describe("server (webhooks)", () => {
                 email: "cap@example.com",
                 multi: "1",
                 items: JSON.stringify([
-                  { e: event1.id, q: 1 },
-                  { e: event2.id, q: 1 },
+                  { e: event1.id, q: 1, p: 500 },
+                  { e: event2.id, q: 1, p: 300 },
                 ]),
               }),
             },
@@ -1669,8 +1669,8 @@ describe("server (webhooks)", () => {
                 email: "rollback@example.com",
                 multi: "1",
                 items: JSON.stringify([
-                  { e: event1.id, q: 1 },
-                  { e: 99999, q: 1 },
+                  { e: event1.id, q: 1, p: 500 },
+                  { e: 99999, q: 1, p: 0 },
                 ]),
               }),
             },
@@ -1721,7 +1721,7 @@ describe("server (webhooks)", () => {
           name: "Free Multi",
           email: "freemulti@example.com",
           multi: "1",
-          items: JSON.stringify([{ e: event.id, q: 2 }]),
+          items: JSON.stringify([{ e: event.id, q: 2, p: 0 }]),
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -1931,7 +1931,7 @@ describe("server (webhooks)", () => {
           name: "No Att",
           email: "noatt@example.com",
           multi: "1",
-          items: JSON.stringify([{ e: event.id, q: 1 }]),
+          items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -2150,8 +2150,8 @@ describe("server (webhooks)", () => {
                 email: "multimismatch@example.com",
                 multi: "1",
                 items: JSON.stringify([
-                  { e: event1.id, q: 1 },
-                  { e: event2.id, q: 2 },
+                  { e: event1.id, q: 1, p: 400 },
+                  { e: event2.id, q: 2, p: 600 },
                 ]),
               }),
             },
@@ -2373,8 +2373,8 @@ describe("server (webhooks)", () => {
                 email: "jane@example.com",
                 multi: "1",
                 items: JSON.stringify([
-                  { e: event1.id, q: 1 },
-                  { e: event2.id, q: 1 },
+                  { e: event1.id, q: 1, p: 1000 },
+                  { e: event2.id, q: 1, p: 500 },
                 ]),
               }),
             },
@@ -2451,8 +2451,8 @@ describe("server (webhooks)", () => {
                 multi: "1",
                 date: "2026-02-10",
                 items: JSON.stringify([
-                  { e: event1.id, q: 1 },
-                  { e: event2.id, q: 1 },
+                  { e: event1.id, q: 1, p: 500 },
+                  { e: event2.id, q: 1, p: 300 },
                 ]),
               }),
             },
@@ -2894,71 +2894,6 @@ describe("server (webhooks)", () => {
         expect(json.processed).toBe(true);
 
         // Verify both attendees were created
-        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
-        const attendees1 = await getAttendeesRaw(event1.id);
-        const attendees2 = await getAttendeesRaw(event2.id);
-        expect(attendees1.length).toBe(1);
-        expect(attendees2.length).toBe(1);
-      } finally {
-        mockVerify.mockRestore();
-      }
-    });
-
-    test("multi-ticket can_pay_more falls back to proportional distribution for old sessions without per-item prices", async () => {
-      await setupStripe();
-
-      const event1 = await createTestEvent({
-        name: "Legacy Pay More 1",
-        maxAttendees: 50,
-        unitPrice: 500,
-        canPayMore: true,
-      });
-      const event2 = await createTestEvent({
-        name: "Legacy Pay More 2",
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
-
-      // Old-format metadata without per-item prices (p field)
-      // Minimum total: 500 + 1000 = 1500, customer paid 3000
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
-        valid: true,
-        event: {
-          id: "evt_legacy_pay_more",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_legacy_pay_more",
-              payment_status: "paid",
-              payment_intent: "pi_legacy_pay_more",
-              amount_total: 3000,
-              metadata: webhookMeta({
-                multi: "1",
-                name: "Legacy Generous",
-                email: "legacy@example.com",
-                items: JSON.stringify([
-                  { e: event1.id, q: 1 },
-                  { e: event2.id, q: 1 },
-                ]),
-              }),
-            },
-          },
-        },
-      });
-
-      try {
-        const response = await handleRequest(
-          mockWebhookRequest(
-            {},
-            { "stripe-signature": "sig_valid" },
-          ),
-        );
-        expect(response.status).toBe(200);
-        const json = await response.json();
-        expect(json.processed).toBe(true);
-
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         const attendees2 = await getAttendeesRaw(event2.id);

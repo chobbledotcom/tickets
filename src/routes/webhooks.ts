@@ -14,7 +14,7 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { map, reduce, unique } from "#fp";
+import { map, unique } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
@@ -53,7 +53,7 @@ import {
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 
 /** Parsed multi-ticket item from metadata */
-type MultiItem = { e: number; q: number; p?: number };
+type MultiItem = { e: number; q: number; p: number };
 
 /** Check if session is a multi-ticket session */
 const isMultiSession = (metadata: SessionMetadata): boolean =>
@@ -269,22 +269,6 @@ const validateAndPrice = async (
 const hasPriceMismatch = (amountTotal: number, expectedPrice: number, canPayMore: boolean): boolean =>
   canPayMore ? amountTotal < expectedPrice : amountTotal !== expectedPrice;
 
-/** Distribute a total amount proportionally across shares, with the last item
- * absorbing rounding remainder so the sum equals total exactly. */
-const distributeProportionally = (shares: number[], total: number): number[] => {
-  const shareTotal = reduce((sum: number, s: number) => sum + s, 0)(shares);
-  const result = reduce((acc: { amounts: number[]; distributed: number }, share: number) => {
-    const isLast = acc.amounts.length === shares.length - 1;
-    const amount = isLast
-      ? total - acc.distributed
-      : Math.round((share / shareTotal) * total);
-    acc.amounts.push(amount);
-    acc.distributed += amount;
-    return acc;
-  }, { amounts: [] as number[], distributed: 0 })(shares);
-  return result.amounts;
-};
-
 /** Format error for post-payment attendee creation failure */
 const formatPostPaymentError = formatCreationError(
   "Sorry, this event sold out while you were completing payment.",
@@ -307,7 +291,7 @@ const isMultiItem = (v: unknown): v is MultiItem =>
   typeof v === "object" && v !== null &&
   typeof (v as Record<string, unknown>).e === "number" &&
   typeof (v as Record<string, unknown>).q === "number" &&
-  ((v as Record<string, unknown>).p === undefined || typeof (v as Record<string, unknown>).p === "number");
+  typeof (v as Record<string, unknown>).p === "number";
 
 /** Parse multi-ticket items from metadata */
 const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
@@ -403,23 +387,11 @@ const processMultiPaymentSession = async (
     );
   }
 
-  // Determine price_paid for each item:
-  // If per-item prices (p) are in metadata, use them directly — they reflect what the user entered.
-  // Otherwise fall back to proportional distribution (backwards compat for old sessions).
-  const hasItemPrices = intent.items.every((item) => item.p !== undefined);
-  const prices = hasItemPrices
-    ? intent.items.map((item) => item.p!)
-    : anyCanPayMore && expectedTotal > 0
-      ? distributeProportionally(validatedItems.map(({ expectedPrice }) => expectedPrice), session.amountTotal)
-      : validatedItems.map(({ expectedPrice }) => expectedPrice);
-
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   let failedEvent: EventWithCount | null = null;
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
-  for (let i = 0; i < validatedItems.length; i++) {
-    const { item, event } = validatedItems[i]!;
-    const pricePaid = prices[i]!;
+  for (const { item, event } of validatedItems) {
 
     const result = await createAttendeeAtomic({
       eventId: item.e,
@@ -430,7 +402,7 @@ const processMultiPaymentSession = async (
       phone: intent.phone,
       address: intent.address,
       special_instructions: intent.special_instructions,
-      pricePaid,
+      pricePaid: item.p,
       date: event.event_type === "daily" ? intent.date : null,
     });
 
