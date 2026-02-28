@@ -56,19 +56,15 @@ describe("server (admin settings)", () => {
       await expectHtmlResponse(response, 200, "Settings", "Change Password");
     });
 
-    test("displays success message from query param", async () => {
+    test("does not display success when form param is missing", async () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
         "/admin/settings?success=Test+success+message",
         { cookie },
       );
-      await expectHtmlResponse(
-        response,
-        200,
-        "Test success message",
-        'class="success"',
-      );
+      const html = await response.text();
+      expect(html).not.toContain('class="success"');
     });
 
     test("displays success message on the matching form when form param is provided", async () => {

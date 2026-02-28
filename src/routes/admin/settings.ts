@@ -127,7 +127,7 @@ const renderSettingsPage = async (
   session: AuthSession,
   error: string,
   success: string,
-  successFormId?: string,
+  successFormId: string,
 ) => {
   const state = await getSettingsPageState();
   return adminSettingsPage(
@@ -156,7 +156,7 @@ const renderSettingsPage = async (
 /** Render settings page with error at given status */
 const settingsPageWithError = (session: AuthSession) =>
   async (error: string, status: number): Promise<Response> => {
-    const html = await renderSettingsPage(session, error, "");
+    const html = await renderSettingsPage(session, error, "", "");
     return htmlResponse(html, status);
   };
 
@@ -189,7 +189,7 @@ const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (reques
     const success = getSearchParam(request, "success");
     const successFormId = getSearchParam(request, "form");
     return htmlResponse(
-      await renderSettingsPage(session, "", success, successFormId || undefined),
+      await renderSettingsPage(session, "", success, successFormId),
     );
   });
 
