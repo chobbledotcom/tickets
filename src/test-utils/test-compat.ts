@@ -1,10 +1,17 @@
 /**
  * Test compatibility layer — thin re-exports from Deno standard library
- * with custom mock/spy utilities.
+ * with Jest-style mock methods built on top of @std/expect/fn.
  *
- * BDD functions and expect come from Deno's standard library, giving us
- * proper sanitizeOps/sanitizeResources, working beforeAll/afterAll, and
- * correct assertion semantics (including not.toMatchObject).
+ * Why this file exists:
+ * - @std/testing/mock spies are NOT recognized by @std/expect matchers
+ *   (different symbol systems — they simply don't interoperate)
+ * - @std/expect/fn IS recognized but provides no Jest methods
+ *   (no mockImplementation, mockReturnValue, mockClear, .mock.calls)
+ * - Tests use expect(spy).toHaveBeenCalledWith() AND spy.mock.calls[0]
+ *   (~30 call sites), so we need both to work
+ *
+ * This file adds the Jest convenience methods on top of @std/expect/fn,
+ * which handles all call tracking and MOCK_SYMBOL registration natively.
  */
 
 import {
@@ -16,6 +23,7 @@ import {
   it,
 } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { fn as expectFn } from "@std/expect/fn";
 import { FakeTime } from "@std/testing/time";
 
 export {
@@ -31,18 +39,14 @@ export {
 export const test = it;
 
 // ---------------------------------------------------------------------------
-// Mock functions — @std/expect's fn() only tracks calls via a symbol with
-// no Jest methods (mockImplementation, mockReturnValue, mockClear, etc.)
-// and no .mock.calls property. Tests use both the Jest API and direct
-// .mock.calls access (~30 call sites), so we keep a custom fn/spyOn.
+// Mock functions — wraps @std/expect/fn with Jest-style convenience methods
 // ---------------------------------------------------------------------------
 
-/** Symbol @std/expect uses to identify mock functions */
 const MOCK_SYMBOL = Symbol.for("@MOCK");
 
-/**
- * Mock function type — compatible with @std/expect mock matchers
- */
+// deno-lint-ignore no-explicit-any
+type StdMockCall = { args: any[]; returned?: any; thrown?: any; returns: boolean; throws: boolean };
+
 interface MockFn {
   (...args: unknown[]): unknown;
   mock: {
@@ -59,78 +63,40 @@ interface MockFn {
   mockRejectedValue(value: unknown): MockFn;
 }
 
+// deno-lint-ignore no-explicit-any
+const stdCalls = (f: any): StdMockCall[] => f[MOCK_SYMBOL].calls;
+
 /**
- * Create a mock function
+ * Create a mock function backed by @std/expect/fn
  */
 // deno-lint-ignore no-explicit-any
 export const fn = (impl?: (...args: any[]) => any): MockFn => {
   let implementation = impl ?? (() => undefined);
 
-  const mock: MockFn["mock"] = {
-    calls: [],
-    results: [],
-  };
+  // @std/expect/fn handles call tracking and MOCK_SYMBOL registration
+  // deno-lint-ignore no-explicit-any
+  const mockFn = expectFn((...args: any[]) => implementation(...args)) as unknown as MockFn;
 
-  const mockFn = ((...args: unknown[]) => {
-    mock.calls.push(args);
-    try {
-      const result = implementation(...args);
-      mock.results.push({ type: "return", value: result });
-      return result;
-    } catch (e) {
-      mock.results.push({ type: "throw", value: e });
-      throw e;
-    }
-  }) as MockFn;
-
-  // @std/expect reads calls via this symbol. Derive from mock.calls/results
-  // on access so there's a single source of truth.
-  Object.defineProperty(mockFn, MOCK_SYMBOL, {
+  // .mock.calls / .mock.results — derived from @std/expect's call records
+  Object.defineProperty(mockFn, "mock", {
     get: () => ({
-      calls: mock.calls.map((args, i) => ({
-        args,
-        returned: mock.results[i]?.type === "return" ? mock.results[i].value : undefined,
-        thrown: mock.results[i]?.type === "throw" ? mock.results[i].value : undefined,
-        timestamp: 0,
-        returns: mock.results[i]?.type === "return",
-        throws: mock.results[i]?.type === "throw",
-      })),
+      get calls() { return stdCalls(mockFn).map((c) => c.args); },
+      get results() {
+        return stdCalls(mockFn).map((c) => ({
+          type: c.throws ? "throw" as const : "return" as const,
+          value: c.throws ? c.thrown : c.returned,
+        }));
+      },
     }),
     configurable: true,
   });
 
-  mockFn.mock = mock;
-
-  mockFn.mockClear = () => {
-    mock.calls = [];
-    mock.results = [];
-  };
-
-  mockFn.mockReset = () => {
-    mock.calls = [];
-    mock.results = [];
-    implementation = () => undefined;
-  };
-
-  mockFn.mockImplementation = (fn) => {
-    implementation = fn;
-    return mockFn;
-  };
-
-  mockFn.mockReturnValue = (value) => {
-    implementation = () => value;
-    return mockFn;
-  };
-
-  mockFn.mockResolvedValue = (value) => {
-    implementation = () => Promise.resolve(value);
-    return mockFn;
-  };
-
-  mockFn.mockRejectedValue = (value) => {
-    implementation = () => Promise.reject(value);
-    return mockFn;
-  };
+  mockFn.mockClear = () => { stdCalls(mockFn).length = 0; };
+  mockFn.mockReset = () => { stdCalls(mockFn).length = 0; implementation = () => undefined; };
+  mockFn.mockImplementation = (fn) => { implementation = fn; return mockFn; };
+  mockFn.mockReturnValue = (v) => { implementation = () => v; return mockFn; };
+  mockFn.mockResolvedValue = (v) => { implementation = () => Promise.resolve(v); return mockFn; };
+  mockFn.mockRejectedValue = (v) => { implementation = () => Promise.reject(v); return mockFn; };
 
   return mockFn;
 };
@@ -139,18 +105,10 @@ export const fn = (impl?: (...args: any[]) => any): MockFn => {
 // Spy
 // ---------------------------------------------------------------------------
 
-/**
- * Extended mock function with restore capability
- */
 interface SpyFn extends MockFn {
   mockRestore(): void;
 }
 
-/**
- * Spy on an object's method
- * Note: ES module exports cannot be mocked — use dependency injection or
- * integration tests with real implementations (e.g., stripe-mock) instead
- */
 // deno-lint-ignore no-explicit-any
 export const spyOn = <T extends Record<string, any>>(
   obj: T,
@@ -159,8 +117,6 @@ export const spyOn = <T extends Record<string, any>>(
   const original = obj[method] as (...args: unknown[]) => unknown;
   const mock = fn(original) as SpyFn;
 
-  // Try Object.defineProperty first (works for globalThis and some objects)
-  // then fall back to direct assignment for plain objects
   try {
     Object.defineProperty(obj, method, {
       value: mock,
@@ -175,7 +131,6 @@ export const spyOn = <T extends Record<string, any>>(
       });
     };
   } catch {
-    // Direct assignment for plain objects (will still fail for frozen objects)
     obj[method] = mock as T[keyof T];
     mock.mockRestore = () => {
       obj[method] = original as T[keyof T];
@@ -186,8 +141,7 @@ export const spyOn = <T extends Record<string, any>>(
 };
 
 // ---------------------------------------------------------------------------
-// Fake timers — backed by Deno's FakeTime which patches Date.now,
-// setTimeout, setInterval, and queueMicrotask
+// Fake timers — Deno's FakeTime patches Date, setTimeout, setInterval
 // ---------------------------------------------------------------------------
 
 let fakeTimeInstance: FakeTime | null = null;
@@ -210,16 +164,12 @@ export const setSystemTime = (time: number | Date): void => {
     if (delta >= 0) {
       fakeTimeInstance.tick(delta);
     } else {
-      // Going backwards — recreate FakeTime at the target
       fakeTimeInstance.restore();
       fakeTimeInstance = new FakeTime(target);
     }
   }
 };
 
-/**
- * Jest-like jest object
- */
 export const jest = {
   fn,
   useFakeTimers,
