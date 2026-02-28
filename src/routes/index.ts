@@ -36,16 +36,21 @@ const loadAdminRoutes = once(async () => {
   return routeAdmin;
 });
 
-/** Lazy-load public routes (ticket reservation) */
-const loadPublicRoutes = once(async () => {
+/** Lazy-load public page handlers (home, events, terms, contact) */
+const loadPublicPages = once(async () => {
   const {
     handleHome,
     handlePublicEvents,
     handlePublicTerms,
     handlePublicContact,
-    routeTicket,
   } = await import("#routes/public.ts");
-  return { handleHome, handlePublicEvents, handlePublicTerms, handlePublicContact, routeTicket };
+  return { handleHome, handlePublicEvents, handlePublicTerms, handlePublicContact };
+});
+
+/** Lazy-load ticket reservation router */
+const loadTicketRoutes = once(async () => {
+  const { routeTicket } = await import("#routes/public.ts");
+  return routeTicket;
 });
 
 /** Lazy-load setup routes */
@@ -114,27 +119,27 @@ const prefixHandlers: Record<string, RouterFn> = {
   // Exact-match public pages
   "": async (_request, path, method) => {
     if (path !== "/" || method !== "GET") return null;
-    const { handleHome } = await loadPublicRoutes();
+    const { handleHome } = await loadPublicPages();
     return handleHome();
   },
   events: async (_request, path, method) => {
     if (path !== "/events" || method !== "GET") return null;
-    const { handlePublicEvents } = await loadPublicRoutes();
+    const { handlePublicEvents } = await loadPublicPages();
     return handlePublicEvents();
   },
   terms: async (_request, path, method) => {
     if (path !== "/terms" || method !== "GET") return null;
-    const { handlePublicTerms } = await loadPublicRoutes();
+    const { handlePublicTerms } = await loadPublicPages();
     return handlePublicTerms();
   },
   contact: async (_request, path, method) => {
     if (path !== "/contact" || method !== "GET") return null;
-    const { handlePublicContact } = await loadPublicRoutes();
+    const { handlePublicContact } = await loadPublicPages();
     return handlePublicContact();
   },
   // Prefix-matched lazy-loaded route groups
   admin: lazyRoute(loadAdminRoutes),
-  ticket: lazyRoute(async () => (await loadPublicRoutes()).routeTicket),
+  ticket: lazyRoute(loadTicketRoutes),
   t: lazyRoute(loadTicketViewRoutes),
   checkin: lazyRoute(loadCheckinRoutes),
   image: lazyRoute(loadImageRoutes),
