@@ -401,10 +401,10 @@ export const col = {
     read: config.read as (v: App) => App,
   }),
 
-  /** Boolean column stored as INTEGER (0/1) in the database */
+  /** Boolean column stored as INTEGER 0/1 in the database */
   boolean: (defaultValue: boolean): ColumnDef<boolean> => ({
     default: () => defaultValue,
     write: ((v: boolean) => v ? 1 : 0) as unknown as (v: boolean) => boolean,
-    read: ((v: boolean) => v === (1 as unknown as boolean)) as (v: boolean) => boolean,
+    read: ((v: unknown) => v === 1) as unknown as (v: boolean) => boolean,
   }),
 };

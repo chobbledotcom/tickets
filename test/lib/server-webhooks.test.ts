@@ -2783,5 +2783,180 @@ describe("server (webhooks)", () => {
         mockRefund.restore();
       }
     });
+
+    test("single-ticket can_pay_more accepts amount above minimum price", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+        canPayMore: true,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_pay_more",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_pay_more",
+              payment_status: "paid",
+              payment_intent: "pi_pay_more",
+              amount_total: 2500,
+              metadata: webhookMeta({
+                event_id: String(event.id),
+                name: "Generous User",
+                email: "generous@example.com",
+                quantity: "1",
+              }),
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify attendee was created with the actual amount paid (2500), not the minimum (1000)
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+        expect(attendees[0]?.price_paid).not.toBeNull();
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("multi-ticket can_pay_more distributes extra amount proportionally", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Multi Pay More 1",
+        maxAttendees: 50,
+        unitPrice: 500,
+        canPayMore: true,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Pay More 2",
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      // Minimum total: 500*1 + 1000*1 = 1500
+      // Customer paid 3000 (double)
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_multi_pay_more",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_multi_pay_more",
+              payment_status: "paid",
+              payment_intent: "pi_multi_pay_more",
+              amount_total: 3000,
+              metadata: webhookMeta({
+                multi: "1",
+                name: "Multi Generous",
+                email: "generous@example.com",
+                items: JSON.stringify([
+                  { e: event1.id, q: 1 },
+                  { e: event2.id, q: 1 },
+                ]),
+              }),
+            },
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        // Verify both attendees were created
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        const attendees2 = await getAttendeesRaw(event2.id);
+        expect(attendees1.length).toBe(1);
+        expect(attendees2.length).toBe(1);
+      } finally {
+        mockVerify.mockRestore();
+      }
+    });
+
+    test("single-ticket can_pay_more rejects amount below minimum price", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+        canPayMore: true,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
+      mockVerify.mockResolvedValue({
+        valid: true,
+        event: {
+          id: "evt_pay_less",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_pay_less",
+              payment_status: "paid",
+              payment_intent: "pi_pay_less",
+              amount_total: 500,
+              metadata: webhookMeta({
+                event_id: String(event.id),
+                name: "Cheap User",
+                email: "cheap@example.com",
+                quantity: "1",
+              }),
+            },
+          },
+        },
+      });
+
+      const mockRefund = spyOn(stripeApi, "refundPayment");
+      mockRefund.mockResolvedValue({ id: "re_pay_less" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >);
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
+      } finally {
+        mockVerify.mockRestore();
+        mockRefund.mockRestore();
+      }
+    });
   });
 });

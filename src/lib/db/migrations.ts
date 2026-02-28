@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add non_transferable to events";
+export const LATEST_UPDATE = "add can_pay_more column to events";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -455,6 +455,9 @@ export const initDb = async (): Promise<void> => {
 
   // Migration: add non_transferable column to events (boolean, default false)
   await runMigration(`ALTER TABLE events ADD COLUMN non_transferable INTEGER NOT NULL DEFAULT 0`);
+
+  // Migration: add can_pay_more column to events (boolean, defaults to false/0)
+  await runMigration(`ALTER TABLE events ADD COLUMN can_pay_more INTEGER NOT NULL DEFAULT 0`);
 
   // Update the version marker
   await getDb().execute({

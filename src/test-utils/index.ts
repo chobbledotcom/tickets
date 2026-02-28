@@ -821,6 +821,7 @@ export const createTestEvent = (
       minimum_days_before: input.minimumDaysBefore != null ? String(input.minimumDaysBefore) : "",
       maximum_days_after: input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
       non_transferable: input.nonTransferable ? "1" : "",
+      can_pay_more: input.canPayMore ? "1" : "",
     },
     async () => {
       // Get the most recently created event (302 redirect guarantees creation succeeded)
@@ -1118,6 +1119,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   maximum_days_after: 0,
   image_url: "",
   non_transferable: false,
+  can_pay_more: false,
   ...overrides,
 });
 

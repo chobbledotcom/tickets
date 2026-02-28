@@ -175,6 +175,7 @@ describe("stripe", () => {
         maximum_days_after: 90,
         image_url: "",
         non_transferable: false,
+        can_pay_more: false,
       };
       const intent = {
         eventId: 1,
@@ -228,6 +229,7 @@ describe("stripe", () => {
         maximum_days_after: 90,
         image_url: "",
         non_transferable: false,
+        can_pay_more: false,
       };
 
       const intent = {
@@ -289,6 +291,7 @@ describe("stripe", () => {
         maximum_days_after: 90,
         image_url: "",
         non_transferable: false,
+        can_pay_more: false,
       };
       const intent = {
         eventId: 1,
@@ -333,6 +336,7 @@ describe("stripe", () => {
         maximum_days_after: 90,
         image_url: "",
         non_transferable: false,
+        can_pay_more: false,
       };
       const intent = {
         eventId: 1,

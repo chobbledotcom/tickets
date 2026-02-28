@@ -497,7 +497,7 @@ export const squareApi: {
           name: `Ticket: ${event.name}`,
           quantity: String(intent.quantity),
           note: intent.quantity > 1 ? `${intent.quantity} Tickets` : "Ticket",
-          basePriceMoney: { amount: BigInt(event.unit_price!), currency: config.currency },
+          basePriceMoney: { amount: BigInt(intent.customUnitPrice ?? event.unit_price!), currency: config.currency },
         },
       ],
       ...await buildCheckoutOptions(intent, metadata, baseUrl, "Payment link"),

@@ -264,9 +264,10 @@ const validateAndPrice = async (
   return { ok: true, event, expectedPrice };
 };
 
-/** Check if the amount charged matches the current event price */
-const hasPriceMismatch = (amountTotal: number, expectedPrice: number): boolean =>
-  amountTotal !== expectedPrice;
+/** Check if the amount charged matches the current event price.
+ * For pay-more events, the amount must be >= the expected minimum price. */
+const hasPriceMismatch = (amountTotal: number, expectedPrice: number, canPayMore: boolean): boolean =>
+  canPayMore ? amountTotal < expectedPrice : amountTotal !== expectedPrice;
 
 /** Format error for post-payment attendee creation failure */
 const formatPostPaymentError = formatCreationError(
@@ -370,7 +371,9 @@ const processMultiPaymentSession = async (
   }
 
   // Reject if event prices changed since checkout was created
-  if (hasPriceMismatch(session.amountTotal, expectedTotal)) {
+  // For pay-more events, allow amount charged >= minimum total
+  const anyCanPayMore = validatedItems.some(({ event }) => event.can_pay_more);
+  if (hasPriceMismatch(session.amountTotal, expectedTotal, anyCanPayMore)) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Multi-ticket price mismatch: provider charged ${session.amountTotal} but current event prices yield ${expectedTotal}`,
@@ -383,11 +386,18 @@ const processMultiPaymentSession = async (
     );
   }
 
+  // Distribute the total amount proportionally across events
+  // For pay-more events, the extra amount is distributed proportionally to each event's share
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   let failedEvent: EventWithCount | null = null;
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
   for (const { item, event, expectedPrice } of validatedItems) {
+    // For pay-more, compute proportional share of actual amount paid
+    const pricePaid = anyCanPayMore && expectedTotal > 0
+      ? Math.round((expectedPrice / expectedTotal) * session.amountTotal)
+      : expectedPrice;
+
     const result = await createAttendeeAtomic({
       eventId: item.e,
       name: intent.name,
@@ -397,7 +407,7 @@ const processMultiPaymentSession = async (
       phone: intent.phone,
       address: intent.address,
       special_instructions: intent.special_instructions,
-      pricePaid: expectedPrice,
+      pricePaid,
       date: event.event_type === "daily" ? intent.date : null,
     });
 
@@ -479,7 +489,8 @@ const processPaymentSession = async (
   const { event, expectedPrice } = vp;
 
   // Reject if event price changed since checkout was created
-  if (hasPriceMismatch(session.amountTotal, expectedPrice)) {
+  // For pay-more events, the amount charged may be >= the minimum price
+  if (hasPriceMismatch(session.amountTotal, expectedPrice, event.can_pay_more)) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       eventId: intent.eventId,
@@ -491,10 +502,13 @@ const processPaymentSession = async (
     );
   }
 
+  // Use the actual amount charged as price_paid (covers pay-more)
+  const pricePaid = event.can_pay_more ? session.amountTotal : expectedPrice;
+
   const result = await createAttendeeAtomic({
     ...intent,
     paymentId: session.paymentReference,
-    pricePaid: expectedPrice,
+    pricePaid,
   });
 
   if (!result.success) {

@@ -3,6 +3,7 @@
  */
 
 import { map, pipe } from "#fp";
+import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
@@ -164,6 +165,11 @@ const quantityOptions = (max: number): string =>
     .map((n) => `<option value="${n}">${n}</option>`)
     .join("");
 
+/** Render a price input for pay-more events */
+const renderPayMoreInput = (minPrice: number, fieldName = "custom_price"): string =>
+  `<label for="${fieldName}">Your Price (minimum ${formatCurrency(minPrice)})</label>` +
+  `<input type="text" inputmode="decimal" name="${fieldName}" id="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" required />`;
+
 /** Render terms and conditions block with agreement checkbox */
 const renderTermsAndCheckbox = (terms: string): string =>
   `<div class="terms">${renderMarkdown(terms)}</div>` +
@@ -188,6 +194,7 @@ export const ticketPage = (
   const fields: Field[] = getTicketFields(event.fields);
   const isDaily = event.event_type === "daily";
   const headExtra = baseUrl ? buildOgTags(event, baseUrl) : undefined;
+  const showPayMore = event.can_pay_more && event.unit_price !== null && event.unit_price > 0;
 
   return String(
     <Layout title={event.name} bodyClass={inIframe ? "iframe" : undefined} headExtra={headExtra}>
@@ -229,6 +236,9 @@ export const ticketPage = (
               </>
             ) : (
               <input type="hidden" name="quantity" value="1" />
+            )}
+            {showPayMore && (
+              <Raw html={renderPayMoreInput(event.unit_price!)} />
             )}
             {termsAndConditions && (
               <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
@@ -320,6 +330,9 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
     .map((n) => `<option value="${n}">${n}</option>`)
     .join("");
 
+  const showPayMore = event.can_pay_more && event.unit_price !== null && event.unit_price > 0;
+  const priceFieldName = `custom_price_${event.id}`;
+
   return `
     <div class="multi-ticket-row">
       ${imageHtml}
@@ -328,6 +341,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
       <select name="${fieldName}" id="${fieldName}">
         ${options}
       </select>
+      ${showPayMore ? renderPayMoreInput(event.unit_price!, priceFieldName) : ""}
     </div>
   `;
 };

@@ -4,6 +4,7 @@
 
 import { compact, filter, map, pipe, reduce } from "#fp";
 import { signCsrfToken } from "#lib/csrf.ts";
+import { toMinorUnits } from "#lib/currency.ts";
 import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
 import {
   getContactPageTextFromDb,
@@ -267,19 +268,24 @@ const parseQuantityValue = (raw: string, max: number, minDefault = 1): number =>
 const parseQuantity = (form: URLSearchParams, event: EventWithCount): number =>
   parseQuantityValue(form.get("quantity") || "1", event.max_quantity);
 
-/** Handle paid event registration - check availability, create Stripe session */
-const processPaidReservation = async (
-  request: Request,
-  { event, ...contact }: ReservationParams,
-  ctx: TicketContext,
-): Promise<Response> => {
-  const available = await hasAvailableSpots(event.id, contact.quantity, contact.date);
-  if (!available) {
-    return ticketResponse(event, ctx.inIframe, ctx.dates, ctx.terms)("Sorry, not enough spots available");
+/** Parse and validate a custom unit price from a form field.
+ * Returns the price in minor units, or an error string if invalid. */
+const parseCustomPrice = (
+  form: URLSearchParams,
+  fieldName: string,
+  minPrice: number,
+): { ok: true; price: number } | { ok: false; error: string } => {
+  const raw = (form.get(fieldName) || "").trim();
+  if (!raw) return { ok: false, error: "Please enter a price" };
+  const parsed = Number.parseFloat(raw);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    return { ok: false, error: "Please enter a valid price" };
   }
-
-  const intent: RegistrationIntent = { eventId: event.id, ...contact };
-  return handlePaymentFlow(request, event, intent, ctx);
+  const priceMinor = toMinorUnits(parsed);
+  if (priceMinor < minPrice) {
+    return { ok: false, error: "Price must be at least the minimum ticket price" };
+  }
+  return { ok: true, price: priceMinor };
 };
 
 /** Format error message for failed attendee creation */
@@ -373,6 +379,17 @@ const processTicketReservation = async (
 
       const quantity = parseQuantity(form, event);
       const contact = extractContact(validation.values);
+
+      // Parse custom price for pay-more events
+      let customUnitPrice: number | undefined;
+      if (event.can_pay_more && event.unit_price !== null && event.unit_price > 0) {
+        const priceResult = parseCustomPrice(form, "custom_price", event.unit_price);
+        if (!priceResult.ok) {
+          return ticketResponse(event, inIframe, dates, terms)(priceResult.error);
+        }
+        customUnitPrice = priceResult.price;
+      }
+
       const params: ReservationParams = {
         event,
         ...contact,
@@ -381,9 +398,15 @@ const processTicketReservation = async (
       };
 
       const ctx: TicketContext = { dates, terms, inIframe };
-      return await requiresPayment(event)
-        ? processPaidReservation(request, params, ctx)
-        : processFreeReservation(params, ctx);
+      if (await requiresPayment(event)) {
+        const intent: RegistrationIntent = { eventId: event.id, ...contact, quantity, date, customUnitPrice };
+        const available = await hasAvailableSpots(event.id, quantity, date);
+        if (!available) {
+          return ticketResponse(event, inIframe, dates, terms)("Sorry, not enough spots available");
+        }
+        return handlePaymentFlow(request, event, intent, ctx);
+      }
+      return processFreeReservation(params, ctx);
     },
   );
 };
@@ -544,8 +567,23 @@ const submitMultiTicket = (
         return multiTicketFormErrorResponse(ctx)("Please select at least one ticket");
       }
 
+      // Parse custom prices for pay-more events
+      const customPrices = new Map<number, number>();
+      for (const { event } of ctx.events) {
+        if (event.can_pay_more && event.unit_price !== null && event.unit_price > 0) {
+          const qty = quantities.get(event.id) ?? 0;
+          if (qty > 0) {
+            const priceResult = parseCustomPrice(form, `custom_price_${event.id}`, event.unit_price);
+            if (!priceResult.ok) {
+              return multiTicketFormErrorResponse(ctx)(`${event.name}: ${priceResult.error}`);
+            }
+            customPrices.set(event.id, priceResult.price);
+          }
+        }
+      }
+
       // Build registration items
-      const items = buildMultiRegistrationItems(ctx.events, quantities);
+      const items = buildMultiRegistrationItems(ctx.events, quantities, customPrices.size > 0 ? customPrices : undefined);
 
       // Check if payment required
       if (await anyRequiresPayment(items)) {
@@ -657,6 +695,7 @@ const checkMultiAvailability = (
 const buildMultiRegistrationItems = (
   events: MultiTicketEvent[],
   quantities: Map<number, number>,
+  customPrices?: Map<number, number>,
 ): MultiRegistrationItem[] => {
   const selected = filter(({ event }: MultiTicketEvent) => {
     const qty = quantities.get(event.id);
@@ -665,7 +704,7 @@ const buildMultiRegistrationItems = (
   return map(({ event }: MultiTicketEvent) => ({
     eventId: event.id,
     quantity: quantities.get(event.id)!,
-    unitPrice: event.unit_price ?? 0,
+    unitPrice: customPrices?.get(event.id) ?? event.unit_price ?? 0,
     slug: event.slug,
     name: event.name,
   }))(selected);

@@ -1435,6 +1435,82 @@ describe("server (admin events)", () => {
     });
   });
 
+  describe("POST /admin/event with can_pay_more", () => {
+    test("creates event with can_pay_more enabled", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        await mockMultipartRequest(
+          "/admin/event",
+          {
+            name: "Pay More Event",
+            max_attendees: "50",
+            max_quantity: "1",
+            unit_price: "10.00",
+            can_pay_more: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const event = await getEventWithCount(1);
+      expect(event?.can_pay_more).toBe(true);
+      expect(event?.unit_price).toBe(1000);
+    });
+
+    test("creates event with can_pay_more disabled by default", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        await mockMultipartRequest(
+          "/admin/event",
+          {
+            name: "Normal Event",
+            max_attendees: "50",
+            max_quantity: "1",
+            unit_price: "5.00",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const event = await getEventWithCount(1);
+      expect(event?.can_pay_more).toBe(false);
+    });
+
+    test("updates event can_pay_more via edit", async () => {
+      const event = await createTestEvent({ unitPrice: 1000 });
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        await mockMultipartRequest(
+          `/admin/event/${event.id}/edit`,
+          {
+            name: event.name,
+            slug: event.slug,
+            max_attendees: String(event.max_attendees),
+            max_quantity: String(event.max_quantity),
+            unit_price: "10.00",
+            can_pay_more: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.can_pay_more).toBe(true);
+    });
+  });
+
   describe("GET /admin/log", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/log"));

@@ -38,6 +38,7 @@ export type EventFormValues = {
   maximum_days_after: number | null;
   non_transferable: string;
   group_id: string;
+  can_pay_more: string;
 };
 
 /** Typed values from event edit form (includes slug) */
@@ -355,6 +356,13 @@ export const eventFields: Field[] = [
     inputmode: "decimal",
     placeholder: "e.g. 10.00",
     validate: validateNonNegativePrice,
+  },
+  {
+    name: "can_pay_more",
+    label: "Allow Pay More",
+    type: "checkbox-group",
+    hint: "Let attendees pay more than the ticket price (the price above becomes a minimum)",
+    options: [{ value: "1", label: "Allow attendees to set their own price" }],
   },
   {
     name: "closes_at",

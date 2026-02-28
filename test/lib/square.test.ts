@@ -183,6 +183,7 @@ describe("square", () => {
         maximum_days_after: 90,
         image_url: "",
         non_transferable: false,
+        can_pay_more: false,
       };
       const intent = {
         eventId: 1,
@@ -228,6 +229,7 @@ describe("square", () => {
         maximum_days_after: 90,
         image_url: "",
         non_transferable: false,
+        can_pay_more: false,
       };
       const intent = {
         eventId: 1,
@@ -273,6 +275,7 @@ describe("square", () => {
         maximum_days_after: 90,
         image_url: "",
         non_transferable: false,
+        can_pay_more: false,
       };
       const intent = {
         eventId: 1,
@@ -326,7 +329,8 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
-            non_transferable: false,
+        non_transferable: false,
+        can_pay_more: false,
           };
           const intent = {
             eventId: 7,
@@ -416,7 +420,8 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
-            non_transferable: false,
+        non_transferable: false,
+        can_pay_more: false,
           };
           const intent = {
             eventId: 1,
@@ -474,7 +479,8 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
-            non_transferable: false,
+        non_transferable: false,
+        can_pay_more: false,
           };
           const intent = {
             eventId: 1,
@@ -531,7 +537,8 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
-            non_transferable: false,
+        non_transferable: false,
+        can_pay_more: false,
           };
           const intent = {
             eventId: 1,
@@ -1823,7 +1830,8 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
-            non_transferable: false,
+        non_transferable: false,
+        can_pay_more: false,
           };
           const intent = {
             eventId: 1,

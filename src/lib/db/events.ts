@@ -41,6 +41,7 @@ export type EventInput = {
   maximumDaysAfter?: number;
   imageUrl?: string;
   nonTransferable?: boolean;
+  canPayMore?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -138,6 +139,7 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
     maximum_days_after: col.withDefault(() => 90),
     image_url: { default: () => "", write: encrypt, read: decrypt },
     non_transferable: col.boolean(false),
+    can_pay_more: col.boolean(false),
   });
 
 export const eventsTable: typeof rawEventsTable = {

@@ -62,6 +62,7 @@ export interface Event {
   maximum_days_after: number;
   image_url: string;
   non_transferable: boolean;
+  can_pay_more: boolean;
 }
 
 export interface Attendee extends ContactInfo {
