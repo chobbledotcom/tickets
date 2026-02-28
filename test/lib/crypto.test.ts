@@ -96,11 +96,11 @@ describe("generateSecureToken", () => {
 });
 
 describe("generateTicketToken", () => {
-  it("returns an uppercase hex string of 16 characters", () => {
-    // 8 bytes = 16 hex characters
+  it("returns an uppercase hex string of 10 characters", () => {
+    // 5 bytes = 10 hex characters
     const token = generateTicketToken();
     expect(token).toMatch(/^[0-9A-F]+$/);
-    expect(token.length).toBe(16);
+    expect(token.length).toBe(10);
   });
 
   it("contains no dashes or underscores", () => {

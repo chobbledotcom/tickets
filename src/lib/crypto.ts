@@ -91,9 +91,9 @@ const toUpperHex = (bytes: Uint8Array): string => {
 };
 
 /**
- * Generate an 8-byte uppercase hex ticket token for public ticket URLs
+ * Generate a 5-byte uppercase hex ticket token for public ticket URLs
  */
-export const generateTicketToken = (): string => toUpperHex(getRandomBytes(8));
+export const generateTicketToken = (): string => toUpperHex(getRandomBytes(5));
 
 /**
  * Encryption format version prefix
