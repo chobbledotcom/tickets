@@ -17,3 +17,4 @@ src/static/embed.js
 src/static/iframe-resizer-parent.js
 src/static/iframe-resizer-child.js
 .envrc
+.deno_cache/
