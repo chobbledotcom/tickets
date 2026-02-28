@@ -283,6 +283,15 @@ export const setFormSuccess = (formId: string, message: string): void => {
   _successStore.message = message;
 };
 
+/** Per-request error state, readable synchronously by CsrfForm */
+const _errorStore = { formId: "", message: "" };
+
+/** Set the error state for the current request (call before rendering) */
+export const setFormError = (formId: string, message: string): void => {
+  _errorStore.formId = formId;
+  _errorStore.message = message;
+};
+
 /**
  * Form component that always includes CSRF token.
  * Renders a POST form with a hidden csrf_token input.
@@ -290,7 +299,7 @@ export const setFormSuccess = (formId: string, message: string): void => {
  * which is always called before rendering begins.
  * Supports extra attributes like class and enctype for multipart forms.
  * When `id` is provided, the form gets an id attribute (also usable as an anchor).
- * Shows a success message when the form's id matches the current success state.
+ * Shows a success or error message when the form's id matches the current state.
  */
 export const CsrfForm = (
   { action, children, ...rest }: {
@@ -304,6 +313,7 @@ export const CsrfForm = (
   <form method="POST" action={action} {...rest}>
     <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
     {rest.id && rest.id === _successStore.formId && <Raw html={renderSuccess(_successStore.message)} />}
+    {rest.id && rest.id === _errorStore.formId && <Raw html={renderError(_errorStore.message)} />}
     {children}
   </form>
 );

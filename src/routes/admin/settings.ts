@@ -44,7 +44,7 @@ import { isValidTimezone } from "#lib/timezone.ts";
 import { validateEmbedHosts, parseEmbedHosts } from "#lib/embed-hosts.ts";
 import { resetDatabase } from "#lib/db/migrations/index.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
-import { type Field, setFormSuccess, validateForm } from "#lib/forms.tsx";
+import { type Field, setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import {
@@ -123,16 +123,12 @@ const getSettingsPageState = async () => {
 };
 
 /** Render the settings page with current state */
-const renderSettingsPage = async (
-  session: AuthSession,
-  error: string,
-) => {
+const renderSettingsPage = async (session: AuthSession) => {
   const state = await getSettingsPageState();
   return adminSettingsPage(
     session,
     state.stripeKeyConfigured,
     state.paymentProvider,
-    error,
     state.squareTokenConfigured,
     state.squareSandbox,
     state.squareWebhookConfigured,
@@ -149,14 +145,15 @@ const renderSettingsPage = async (
   );
 };
 
-/** Render settings page with error at given status */
+/** Render settings page with error on a specific form */
 const settingsPageWithError = (session: AuthSession) =>
-  async (error: string, status: number): Promise<Response> => {
-    const html = await renderSettingsPage(session, error);
+  async (error: string, status: number, formId: string): Promise<Response> => {
+    setFormError(formId, error);
+    const html = await renderSettingsPage(session);
     return htmlResponse(html, status);
   };
 
-type ErrorPageFn = (error: string, status: number) => Promise<Response>;
+type ErrorPageFn = (error: string, status: number, formId: string) => Promise<Response>;
 type SettingsFormHandler = (form: URLSearchParams, errorPage: ErrorPageFn, session: AuthSession) => Response | Promise<Response>;
 
 /** Owner auth form route that provides the errorPage helper and session */
@@ -170,10 +167,11 @@ const validateSettingsForm = async <T>(
   form: URLSearchParams,
   fields: Field[],
   errorPage: ErrorPageFn,
+  formId: string,
 ): Promise<{ values: T } | { response: Response }> => {
   const result = validateForm<T>(form, fields);
   if (result.valid) return { values: result.values };
-  const response = await errorPage(result.error, 400);
+  const response = await errorPage(result.error, 400, formId);
   return { response };
 };
 
@@ -184,7 +182,7 @@ const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (reques
   requireOwnerOr(request, async (session) => {
     setFormSuccess(getSearchParam(request, "form"), getSearchParam(request, "success"));
     return htmlResponse(
-      await renderSettingsPage(session, ""),
+      await renderSettingsPage(session),
     );
   });
 
@@ -224,7 +222,7 @@ const validateChangePasswordForm = (
 const handleAdminSettingsPost = settingsRoute(async (form, errorPage, session) => {
   const validation = validateChangePasswordForm(form);
   if (!validation.valid) {
-    return errorPage(validation.error, 400);
+    return errorPage(validation.error, 400, "settings-password");
   }
 
   // Load current user (guaranteed to exist since session was just validated)
@@ -232,7 +230,7 @@ const handleAdminSettingsPost = settingsRoute(async (form, errorPage, session) =
 
   const passwordHash = await verifyUserPassword(user, validation.currentPassword);
   if (!passwordHash) {
-    return errorPage("Current password is incorrect", 401);
+    return errorPage("Current password is incorrect", 401, "settings-password");
   }
 
   const success = await updateUserPassword(
@@ -242,7 +240,7 @@ const handleAdminSettingsPost = settingsRoute(async (form, errorPage, session) =
     validation.newPassword,
   );
   if (!success) {
-    return errorPage("Failed to update password", 500);
+    return errorPage("Failed to update password", 500, "settings-password");
   }
 
   await logActivity("Password changed");
@@ -268,7 +266,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
   }
 
   if (!VALID_PROVIDERS.has(provider)) {
-    return errorPage("Invalid payment provider", 400);
+    return errorPage("Invalid payment provider", 400, "settings-payment-provider");
   }
 
   await setPaymentProvider(provider);
@@ -281,7 +279,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/stripe - owner only
  */
 const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
-  const validated = await validateSettingsForm<StripeKeyFormValues>(form, stripeKeyFields, errorPage);
+  const validated = await validateSettingsForm<StripeKeyFormValues>(form, stripeKeyFields, errorPage, "settings-stripe");
   if ("response" in validated) return validated.response;
 
   const { stripe_secret_key: stripeSecretKey } = validated.values;
@@ -300,6 +298,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     return errorPage(
       `Failed to set up Stripe webhook: ${webhookResult.error}`,
       400,
+      "settings-stripe",
     );
   }
 
@@ -322,7 +321,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/square - owner only
  */
 const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
-  const validated = await validateSettingsForm<SquareTokenFormValues>(form, squareAccessTokenFields, errorPage);
+  const validated = await validateSettingsForm<SquareTokenFormValues>(form, squareAccessTokenFields, errorPage, "settings-square");
   if ("response" in validated) return validated.response;
 
   const { square_access_token: accessToken, square_location_id: locationId } = validated.values;
@@ -343,7 +342,7 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/square-webhook - owner only
  */
 const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
-  const validated = await validateSettingsForm<SquareWebhookFormValues>(form, squareWebhookFields, errorPage);
+  const validated = await validateSettingsForm<SquareWebhookFormValues>(form, squareWebhookFields, errorPage, "settings-square-webhook");
   if ("response" in validated) return validated.response;
 
   const { square_webhook_signature_key: signatureKey } = validated.values;
@@ -382,7 +381,7 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
 
   const error = validateEmbedHosts(trimmed);
   if (error) {
-    return errorPage(error, 400);
+    return errorPage(error, 400, "settings-embed-hosts");
   }
 
   // Normalize: trim, lowercase, rejoin
@@ -402,6 +401,7 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
     return errorPage(
       `Terms must be ${MAX_TERMS_LENGTH} characters or fewer (currently ${trimmed.length})`,
       400,
+      "settings-terms",
     );
   }
 
@@ -420,11 +420,11 @@ const processTimezoneForm: SettingsFormHandler = async (form, errorPage) => {
   const trimmed = (form.get("timezone") || "").trim();
 
   if (trimmed === "") {
-    return errorPage("Timezone is required", 400);
+    return errorPage("Timezone is required", 400, "settings-timezone");
   }
 
   if (!isValidTimezone(trimmed)) {
-    return errorPage(`Invalid timezone: ${trimmed}`, 400);
+    return errorPage(`Invalid timezone: ${trimmed}`, 400, "settings-timezone");
   }
 
   await updateTimezone(trimmed);
@@ -448,7 +448,7 @@ const processBusinessEmailForm: SettingsFormHandler = async (form, errorPage) =>
   }
 
   if (!isValidBusinessEmail(trimmed)) {
-    return errorPage("Invalid email format. Please use format: name@domain.com", 400);
+    return errorPage("Invalid email format. Please use format: name@domain.com", 400, "settings-business-email");
   }
 
   await updateBusinessEmail(trimmed);
@@ -464,7 +464,7 @@ const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
   const theme = form.get("theme") ?? "";
 
   if (theme !== "light" && theme !== "dark") {
-    return errorPage("Invalid theme selection", 400);
+    return errorPage("Invalid theme selection", 400, "settings-theme");
   }
 
   await updateTheme(theme);
@@ -495,7 +495,7 @@ const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
   const raw = (form.get("phone_prefix") ?? "").trim();
 
   if (raw === "" || !/^\d+$/.test(raw)) {
-    return errorPage("Phone prefix must be a number (digits only)", 400);
+    return errorPage("Phone prefix must be a number (digits only)", 400, "settings-phone-prefix");
   }
 
   await updatePhonePrefix(raw);
@@ -510,21 +510,20 @@ const handlePhonePrefixPost = settingsRoute(processPhonePrefixForm);
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
   withOwnerAuthMultipartForm(request, async (session, formData) => {
     if (!isStorageEnabled()) {
-      const html = await renderSettingsPage(session, "Image storage is not configured");
-      return htmlResponse(html, 400);
+      return htmlResponse("Image storage is not configured", 400);
     }
 
     const entry = formData.get("header_image");
     if (!(entry instanceof File) || entry.size === 0) {
-      const html = await renderSettingsPage(session, "No image file provided");
-      return htmlResponse(html, 400);
+      setFormError("settings-header-image", "No image file provided");
+      return htmlResponse(await renderSettingsPage(session), 400);
     }
 
     const data = new Uint8Array(await entry.arrayBuffer());
     const validation = validateImage(data, entry.type);
     if (!validation.valid) {
-      const html = await renderSettingsPage(session, IMAGE_ERROR_MESSAGES[validation.error]);
-      return htmlResponse(html, 400);
+      setFormError("settings-header-image", IMAGE_ERROR_MESSAGES[validation.error]);
+      return htmlResponse(await renderSettingsPage(session), 400);
     }
 
     // Delete old header image if one exists
@@ -540,10 +539,10 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
   });
 
 /** Handle POST /admin/settings/header-image/delete - owner only */
-const handleHeaderImageDeletePost = settingsRoute(async (_form, errorPage) => {
+const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
   const existingUrl = await getHeaderImageUrlFromDb();
   if (!existingUrl) {
-    return errorPage("No header image to remove", 400);
+    return htmlResponse("No header image to remove", 400);
   }
 
   await tryDeleteImage(existingUrl, undefined, `header image: ${existingUrl}`);
@@ -567,6 +566,7 @@ const handleResetDatabasePost = settingsRoute(async (form, errorPage) => {
     return errorPage(
       "Confirmation phrase does not match. Please type the exact phrase to confirm reset.",
       400,
+      "settings-reset-database",
     );
   }
 

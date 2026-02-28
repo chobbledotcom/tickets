@@ -7,6 +7,7 @@ import {
   renderField,
   renderFields,
   renderSuccess,
+  setFormError,
   setFormSuccess,
   validateForm,
 } from "#lib/forms.tsx";
@@ -1143,6 +1144,28 @@ describe("forms", () => {
       const html = String(CsrfForm({ action: "/submit" }));
       expect(html).not.toContain('class="success"');
       setFormSuccess("", "");
+    });
+
+    test("renders error message when id matches stored error state", () => {
+      setFormError("my-form", "Something went wrong");
+      const html = String(CsrfForm({ action: "/submit", id: "my-form" }));
+      expect(html).toContain("Something went wrong");
+      expect(html).toContain('class="error"');
+      setFormError("", "");
+    });
+
+    test("does not render error message when id does not match", () => {
+      setFormError("other-form", "Something went wrong");
+      const html = String(CsrfForm({ action: "/submit", id: "my-form" }));
+      expect(html).not.toContain('class="error"');
+      setFormError("", "");
+    });
+
+    test("does not render error message when no id", () => {
+      setFormError("my-form", "Something went wrong");
+      const html = String(CsrfForm({ action: "/submit" }));
+      expect(html).not.toContain('class="error"');
+      setFormError("", "");
     });
   });
 

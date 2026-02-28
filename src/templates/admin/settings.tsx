@@ -23,7 +23,6 @@ export const adminSettingsPage = (
   session: AdminSession,
   stripeKeyConfigured: boolean,
   paymentProvider: string | null,
-  error: string,
   squareTokenConfigured: boolean,
   squareSandbox: boolean,
   squareWebhookConfigured: boolean,
@@ -41,8 +40,6 @@ export const adminSettingsPage = (
   String(
     <Layout title="Settings" theme={theme}>
       <AdminNav session={session} active="/admin/settings" />
-
-      {error && <div class="error">{error}</div>}
 
         <CsrfForm action="/admin/settings/timezone" id="settings-timezone">
             <h2>Timezone</h2>

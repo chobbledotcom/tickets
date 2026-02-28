@@ -930,6 +930,7 @@ describe("server (admin settings)", () => {
       });
 
       try {
+        await setPaymentProvider("stripe");
         const { cookie, csrfToken } = await loginAsAdmin();
 
         const response = await handleRequest(
@@ -1275,6 +1276,26 @@ describe("server (admin settings)", () => {
         ),
       );
       await expectHtmlResponse(response, 400, "Invalid timezone");
+    });
+
+    test("shows error on the timezone form only", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/timezone",
+          { timezone: "", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      const html = await response.text();
+      const timezoneForm = html.match(/id="settings-timezone"[\s\S]*?<\/form>/);
+      expect(timezoneForm).toBeDefined();
+      expect(timezoneForm![0]).toContain("Timezone is required");
+      // Other forms should not have the error
+      const themeForm = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
+      expect(themeForm).toBeDefined();
+      expect(themeForm![0]).not.toContain("Timezone is required");
     });
   });
 
