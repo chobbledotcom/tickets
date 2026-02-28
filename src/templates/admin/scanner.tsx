@@ -39,6 +39,15 @@ export const adminScannerPage = (
         <button id="scanner-start" type="button">
           Start Camera
         </button>
+
+        <dialog id="scanner-confirm">
+          <button id="scanner-confirm-close" type="button" aria-label="Close">&times;</button>
+          <p id="scanner-confirm-message"></p>
+          <div class="scanner-confirm-actions">
+            <button id="scanner-confirm-yes" type="button">Yes</button>
+            <button id="scanner-confirm-no" type="button">No</button>
+          </div>
+        </dialog>
       </article>
     </Layout>
   );
