@@ -570,9 +570,7 @@ export const unwrapKey = (
 ): Promise<CryptoKey> => unwrapAndImportKey(wrapped, unwrappingKey);
 
 /**
- * Derive a wrapping/unwrapping key from a session token using HKDF.
- * HKDF is the correct primitive here: the session token is already
- * high-entropy, so password-stretching (PBKDF2) is unnecessary.
+ * Derive a wrapping/unwrapping key from a session token using PBKDF2.
  * Incorporates DB_ENCRYPTION_KEY in salt to ensure session tokens alone
  * cannot be used to wrap/unwrap keys without access to the encryption key.
  */
@@ -584,16 +582,16 @@ const deriveTokenKey = async (
   const tokenKey = await crypto.subtle.importKey(
     "raw",
     encoder.encode(sessionToken),
-    { name: "HKDF" },
+    { name: "PBKDF2" },
     false,
     ["deriveKey"],
   );
   const salt = encoder.encode(`session-key-wrap:${getEncryptionKeyString()}`);
   return crypto.subtle.deriveKey(
     {
-      name: "HKDF",
+      name: "PBKDF2",
       salt,
-      info: new Uint8Array(),
+      iterations: 1, // Fast - token is already high entropy
       hash: "SHA-256",
     },
     tokenKey,
@@ -804,7 +802,7 @@ export const encryptAttendeePII = async (
 
 /**
  * Private key cache with TTL (10 seconds, matching session cache)
- * Avoids re-running the full unwrap chain (HKDF + AES + RSA import) per request
+ * Avoids re-running the full unwrap chain (PBKDF2 + AES + RSA import) per request
  */
 const privateKeyCache = ttlCache<string, CryptoKey>(10_000);
 
