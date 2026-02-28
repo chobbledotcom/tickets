@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, jest, spyOn, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, FakeTime, spy, test } from "#test-compat";
 import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
 import {
   getAllActivityLog,
@@ -64,7 +64,6 @@ import {
   deleteSession,
   getAllSessions,
   getSession,
-  resetSessionCache,
 } from "#lib/db/sessions.ts";
 import {
   clearPaymentProvider,
@@ -1190,36 +1189,25 @@ describe("db", () => {
 
     test("getSession expires cached entry after TTL", async () => {
       // Use fake timers to control Date.now()
-      jest.useFakeTimers();
       const startTime = Date.now();
-      jest.setSystemTime(startTime);
+      const time = new FakeTime(startTime);
 
-      // Create and cache a session
-      await createSession("ttl-test", "csrf-ttl", startTime + 60000, null, 1);
-      const firstCall = await getSession("ttl-test");
-      expect(firstCall).not.toBeNull();
+      try {
+        // Create and cache a session
+        await createSession("ttl-test", "csrf-ttl", startTime + 60000, null, 1);
+        const firstCall = await getSession("ttl-test");
+        expect(firstCall).not.toBeNull();
 
-      // Advance time past the 10-second TTL
-      jest.setSystemTime(startTime + 11000);
+        // Advance time past the 10-second TTL — cache entry is now stale
+        time.now = startTime + 11000;
 
-      // Reset session cache to clear it, then re-cache with old timestamp
-      // by manipulating time backwards to simulate an old cache entry
-      resetSessionCache();
-
-      // Re-cache the session at the original time
-      jest.setSystemTime(startTime);
-      await getSession("ttl-test"); // This caches with startTime
-
-      // Now advance time past TTL again
-      jest.setSystemTime(startTime + 11000);
-
-      // This call should find the expired cache entry, delete it, and re-query DB
-      const afterTtl = await getSession("ttl-test");
-      expect(afterTtl).not.toBeNull();
-      expect(afterTtl?.csrf_token).toBe("csrf-ttl");
-
-      // Restore real timers
-      jest.useRealTimers();
+        // This call should find the expired cache entry, delete it, and re-query DB
+        const afterTtl = await getSession("ttl-test");
+        expect(afterTtl).not.toBeNull();
+        expect(afterTtl?.csrf_token).toBe("csrf-ttl");
+      } finally {
+        time.restore();
+      }
     });
   });
 
@@ -2771,13 +2759,13 @@ describe("db", () => {
     });
 
     test("returns empty string for invalid datetime", async () => {
-      const errorSpy = spyOn(console, "error");
+      const errorSpy = spy(console, "error");
       const { decrypt } = await import("#lib/crypto.ts");
       const result = await writeEventDate("not-a-dateZ");
       const decrypted = await decrypt(result);
       expect(decrypted).toBe("");
-      expect(errorSpy).toHaveBeenCalled();
-      errorSpy.mockRestore();
+      expect(errorSpy.calls.length).toBeGreaterThan(0);
+      errorSpy.restore();
     });
   });
 

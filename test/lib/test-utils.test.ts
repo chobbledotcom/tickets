@@ -5,10 +5,12 @@ import {
   beforeEach,
   describe,
   expect,
-  jest,
+  FakeTime,
+  fn,
+  spy,
+  stub,
   test,
 } from "#test-compat";
-import { spyOn } from "#test-compat";
 import {
   awaitTestRequest,
   createTestAttendee,
@@ -1001,122 +1003,66 @@ describe("test-compat", () => {
     });
   });
 
-  describe("toHaveBeenCalledWith with isNot", () => {
+  describe("fn() mock function", () => {
     test("not.toHaveBeenCalledWith asserts mock was not called with specific args", () => {
-      const mockFn = jest.fn();
+      const mockFn = fn();
       mockFn("a", "b");
       expect(mockFn).not.toHaveBeenCalledWith("x", "y");
     });
-  });
 
-  describe("jest.fn with implementation", () => {
-    test("creates mock with custom implementation", () => {
-      const mockFn = jest.fn((x: unknown) => (x as number) * 2);
+    test("creates mock with custom implementation via stubs", () => {
+      const mockFn = fn((x: unknown) => (x as number) * 2);
       const result = mockFn(5);
       expect(result).toBe(10);
-      expect(mockFn.mock.calls).toHaveLength(1);
+      expect(mockFn).toHaveBeenCalledTimes(1);
+    });
+
+    test("tracks calls and works with expect matchers", () => {
+      const mockFn = fn();
+      mockFn("hello", "world");
+      mockFn("second");
+      expect(mockFn).toHaveBeenCalledTimes(2);
+      expect(mockFn).toHaveBeenCalledWith("hello", "world");
     });
   });
 
-  describe("mock function throw path", () => {
-    test("records throw result when implementation throws", () => {
-      const mockFn = jest.fn(() => {
-        throw new Error("mock error");
-      });
-      let caught = false;
-      try {
-        mockFn();
-      } catch {
-        caught = true;
-      }
-      expect(caught).toBe(true);
-      expect(mockFn.mock.results).toHaveLength(1);
-      expect(mockFn.mock.results[0]!.type).toBe("throw");
-    });
-  });
-
-  describe("mockClear", () => {
-    test("clears calls and results but keeps implementation", () => {
-      const mockFn = jest.fn(() => 42);
-      mockFn();
-      mockFn();
-      expect(mockFn.mock.calls).toHaveLength(2);
-      mockFn.mockClear();
-      expect(mockFn.mock.calls).toHaveLength(0);
-      expect(mockFn.mock.results).toHaveLength(0);
-      // Implementation should still work
-      expect(mockFn()).toBe(42);
-    });
-  });
-
-  describe("mockReset", () => {
-    test("clears calls, results, and resets implementation to return undefined", () => {
-      const mockFn = jest.fn(() => 42);
-      mockFn();
-      expect(mockFn.mock.results[0]!.value).toBe(42);
-      mockFn.mockReset();
-      expect(mockFn.mock.calls).toHaveLength(0);
-      expect(mockFn.mock.results).toHaveLength(0);
-      // Implementation should be reset to return undefined
-      expect(mockFn()).toBe(undefined);
-    });
-  });
-
-  describe("mockReturnValue", () => {
-    test("sets a fixed return value for the mock", () => {
-      const mockFn = jest.fn();
-      mockFn.mockReturnValue("hello");
-      expect(mockFn()).toBe("hello");
-      expect(mockFn()).toBe("hello");
-    });
-  });
-
-  describe("jest timer functions", () => {
-    test("useFakeTimers, setSystemTime, and useRealTimers control Date.now", () => {
+  describe("FakeTime", () => {
+    test("controls Date.now", () => {
       const realNow = Date.now();
-      jest.useFakeTimers();
-      jest.setSystemTime(1000);
+      const time = new FakeTime(1000);
       expect(Date.now()).toBe(1000);
-      jest.useRealTimers();
+      time.restore();
       // After restoring, Date.now should return real time
       expect(Date.now()).toBeGreaterThanOrEqual(realNow);
     });
-  });
 
-  describe("setSystemTime with Date object", () => {
-    test("accepts a Date instance and converts to timestamp", () => {
-      jest.useFakeTimers();
+    test("accepts a Date instance", () => {
       const date = new Date("2025-06-15T00:00:00Z");
-      jest.setSystemTime(date);
+      const time = new FakeTime(date);
       expect(Date.now()).toBe(date.getTime());
-      jest.useRealTimers();
+      time.restore();
     });
   });
 
-  describe("spyOn", () => {
+  describe("spy", () => {
     test("spies on object method and can be restored", () => {
       const obj = { greet: (name: string) => `Hello, ${name}` };
-      const spy = spyOn(obj, "greet");
+      const greetSpy = spy(obj, "greet");
       obj.greet("world");
-      expect(spy).toHaveBeenCalledWith("world");
-      spy.mockRestore();
+      expect(greetSpy.calls[0]!.args).toEqual(["world"]);
+      greetSpy.restore();
       expect(obj.greet("test")).toBe("Hello, test");
     });
+  });
 
-    test("handles non-configurable properties by falling back to direct assignment", () => {
-      const obj: Record<string, unknown> = {};
-      Object.defineProperty(obj, "method", {
-        value: () => "original",
-        writable: true,
-        configurable: false,
-      });
-      // defineProperty will fail because configurable is false, but direct assignment works
-      const spy = spyOn(obj, "method");
-      (obj.method as (...args: unknown[]) => unknown)();
-      expect(spy).toHaveBeenCalled();
-      spy.mockRestore();
-      // After restore, the original function should be back
-      expect((obj.method as () => string)()).toBe("original");
+  describe("stub", () => {
+    test("replaces method with custom implementation", () => {
+      const obj = { greet: (name: string) => `Hello, ${name}` };
+      const greetStub = stub(obj, "greet", () => "stubbed");
+      expect(obj.greet("world")).toBe("stubbed");
+      expect(greetStub.calls[0]!.args).toEqual(["world"]);
+      greetStub.restore();
+      expect(obj.greet("test")).toBe("Hello, test");
     });
   });
 
@@ -1201,20 +1147,6 @@ describe("test-compat", () => {
       await deleteTestGroup(group.id);
       const { groupsTable } = await import("#lib/db/groups.ts");
       expect(await groupsTable.findById(group.id)).toBeNull();
-    });
-  });
-
-  describe("jest.fn timer stubs", () => {
-    test("jest object has timer stub functions that are callable", () => {
-      // The jest object's timer methods are initially stubs that get
-      // overwritten. Verify the overwritten versions are functional by
-      // calling them through the jest object.
-      const realNow = Date.now();
-      jest.useFakeTimers();
-      jest.setSystemTime(5000);
-      expect(Date.now()).toBe(5000);
-      jest.useRealTimers();
-      expect(Date.now()).toBeGreaterThanOrEqual(realNow);
     });
   });
 

@@ -3,7 +3,7 @@ import {
   beforeEach,
   describe,
   expect,
-  spyOn,
+  spy,
   test,
 } from "#test-compat";
 import {
@@ -417,29 +417,29 @@ describe("server (misc)", () => {
     });
 
     test("logs debug message with host details on domain redirect", async () => {
-      const debugSpy = spyOn(console, "debug");
+      const debugSpy = spy(console, "debug");
 
       await handleRequest(mockRequestWithHost("/", "evil.com"));
 
-      const calls = debugSpy.mock.calls.map((c) => c[0] as string);
+      const calls = debugSpy.calls.map((c) => c.args[0] as string);
       const domainLog = calls.find((c) => c.includes("[Domain]"));
       expect(domainLog).toBeDefined();
       expect(domainLog).toContain("host=evil.com");
       expect(domainLog).toContain("Redirecting to");
-      debugSpy.mockRestore();
+      debugSpy.restore();
     });
 
     test("logs missing host header in domain redirect debug message", async () => {
-      const debugSpy = spyOn(console, "debug");
+      const debugSpy = spy(console, "debug");
 
       await handleRequest(new Request("http://evil.com/", {}));
 
-      const calls = debugSpy.mock.calls.map((c) => c[0] as string);
+      const calls = debugSpy.calls.map((c) => c.args[0] as string);
       const domainLog = calls.find((c) => c.includes("[Domain]"));
       expect(domainLog).toBeDefined();
       expect(domainLog).toContain("host=missing");
       expect(domainLog).toContain("url=evil.com");
-      debugSpy.mockRestore();
+      debugSpy.restore();
     });
 
     test("preserves path and query string in domain redirect", async () => {

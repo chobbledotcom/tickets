@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, stub, test } from "#test-compat";
 import { squarePaymentProvider } from "#lib/square-provider.ts";
 import { squareApi } from "#lib/square.ts";
 import { PaymentUserError } from "#lib/payment-helpers.ts";
@@ -18,12 +18,12 @@ describe("square-provider", () => {
   describe("retrieveSession", () => {
     test("returns null when order metadata is missing required fields", async () => {
       await withMocks(
-        () => spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+        () => stub(squareApi, "retrieveOrder", () => Promise.resolve({
           id: "order_no_meta",
           metadata: {},
           state: "COMPLETED",
           totalMoney: { amount: BigInt(1000), currency: "USD" },
-        }),
+        })),
         async () => {
           const result = await squarePaymentProvider.retrieveSession("order_no_meta");
           expect(result).toBeNull();
@@ -34,24 +34,24 @@ describe("square-provider", () => {
     test("returns paid when payment status is COMPLETED", async () => {
       await withMocks(
         () => ({
-          order: spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+          order: stub(squareApi, "retrieveOrder", () => Promise.resolve({
             id: "order_completed",
             metadata: { name: "Alice", email: "alice@example.com", event_id: "1", quantity: "1" },
             tenders: [{ id: "tender_1", paymentId: "pay_1" }],
             state: "COMPLETED",
             totalMoney: { amount: BigInt(1000), currency: "USD" },
-          }),
-          payment: spyOn(squareApi, "retrievePayment").mockResolvedValue({
+          })),
+          payment: stub(squareApi, "retrievePayment", () => Promise.resolve({
             id: "pay_1",
             status: "COMPLETED",
-          }),
+          })),
         }),
         async (mocks) => {
           const result = await squarePaymentProvider.retrieveSession("order_completed");
           expect(result).not.toBeNull();
           expect(result!.paymentStatus).toBe("paid");
           expect(result!.paymentReference).toBe("pay_1");
-          expect(mocks.payment).toHaveBeenCalledWith("pay_1");
+          expect(mocks.payment.calls[0]!.args).toEqual(["pay_1"]);
         },
       );
     });
@@ -59,24 +59,24 @@ describe("square-provider", () => {
     test("returns paid when order state is OPEN but payment is COMPLETED", async () => {
       await withMocks(
         () => ({
-          order: spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+          order: stub(squareApi, "retrieveOrder", () => Promise.resolve({
             id: "order_open",
             metadata: { name: "Bob", email: "bob@example.com", event_id: "1", quantity: "1" },
             tenders: [{ id: "tender_1", paymentId: "pay_2" }],
             state: "OPEN",
             totalMoney: { amount: BigInt(1000), currency: "USD" },
-          }),
-          payment: spyOn(squareApi, "retrievePayment").mockResolvedValue({
+          })),
+          payment: stub(squareApi, "retrievePayment", () => Promise.resolve({
             id: "pay_2",
             status: "COMPLETED",
-          }),
+          })),
         }),
         async (mocks) => {
           const result = await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
           expect(result!.paymentStatus).toBe("paid");
           expect(result!.paymentReference).toBe("pay_2");
-          expect(mocks.payment).toHaveBeenCalledWith("pay_2");
+          expect(mocks.payment.calls[0]!.args).toEqual(["pay_2"]);
         },
       );
     });
@@ -84,17 +84,17 @@ describe("square-provider", () => {
     test("returns unpaid when order state is OPEN and payment is not COMPLETED", async () => {
       await withMocks(
         () => ({
-          order: spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+          order: stub(squareApi, "retrieveOrder", () => Promise.resolve({
             id: "order_open",
             metadata: { name: "Carol", email: "carol@example.com", event_id: "1", quantity: "1" },
             tenders: [{ id: "tender_1", paymentId: "pay_3" }],
             state: "OPEN",
             totalMoney: { amount: BigInt(1000), currency: "USD" },
-          }),
-          payment: spyOn(squareApi, "retrievePayment").mockResolvedValue({
+          })),
+          payment: stub(squareApi, "retrievePayment", () => Promise.resolve({
             id: "pay_3",
             status: "PENDING",
-          }),
+          })),
         }),
         async () => {
           const result = await squarePaymentProvider.retrieveSession("order_open");
@@ -106,12 +106,12 @@ describe("square-provider", () => {
 
     test("returns unpaid when order state is OPEN and no tenders exist", async () => {
       await withMocks(
-        () => spyOn(squareApi, "retrieveOrder").mockResolvedValue({
+        () => stub(squareApi, "retrieveOrder", () => Promise.resolve({
           id: "order_no_tenders",
           metadata: { name: "Dave", email: "dave@example.com", event_id: "1", quantity: "1" },
           state: "OPEN",
           totalMoney: { amount: BigInt(1000), currency: "USD" },
-        }),
+        })),
         async () => {
           const result = await squarePaymentProvider.retrieveSession("order_no_tenders");
           expect(result).not.toBeNull();
@@ -125,11 +125,11 @@ describe("square-provider", () => {
   describe("isPaymentRefunded", () => {
     test("returns true when payment has refundedMoney", async () => {
       await withMocks(
-        () => spyOn(squareApi, "retrievePayment").mockResolvedValue({
+        () => stub(squareApi, "retrievePayment", () => Promise.resolve({
           id: "pay_123",
           status: "COMPLETED",
           refundedMoney: { amount: BigInt(1000), currency: "USD" },
-        }),
+        })),
         async () => {
           const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
           expect(result).toBe(true);
@@ -139,11 +139,11 @@ describe("square-provider", () => {
 
     test("returns false when refundedMoney is zero", async () => {
       await withMocks(
-        () => spyOn(squareApi, "retrievePayment").mockResolvedValue({
+        () => stub(squareApi, "retrievePayment", () => Promise.resolve({
           id: "pay_123",
           status: "COMPLETED",
           refundedMoney: { amount: BigInt(0), currency: "USD" },
-        }),
+        })),
         async () => {
           const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
           expect(result).toBe(false);
@@ -153,7 +153,7 @@ describe("square-provider", () => {
 
     test("returns false when payment not found", async () => {
       await withMocks(
-        () => spyOn(squareApi, "retrievePayment").mockResolvedValue(null),
+        () => stub(squareApi, "retrievePayment", () => Promise.resolve(null)),
         async () => {
           const result = await squarePaymentProvider.isPaymentRefunded("pay_missing");
           expect(result).toBe(false);
@@ -163,10 +163,10 @@ describe("square-provider", () => {
 
     test("returns false when refundedMoney is missing", async () => {
       await withMocks(
-        () => spyOn(squareApi, "retrievePayment").mockResolvedValue({
+        () => stub(squareApi, "retrievePayment", () => Promise.resolve({
           id: "pay_123",
           status: "COMPLETED",
-        }),
+        })),
         async () => {
           const result = await squarePaymentProvider.isPaymentRefunded("pay_123");
           expect(result).toBe(false);
@@ -188,7 +188,7 @@ describe("square-provider", () => {
         quantity: 1,
       };
       await withMocks(
-        () => spyOn(squareApi, "createPaymentLink").mockImplementation(() => {
+        () => stub(squareApi, "createPaymentLink", () => {
           throw new PaymentUserError("Phone number is invalid");
         }),
         async () => {
@@ -212,7 +212,7 @@ describe("square-provider", () => {
         quantity: 1,
       };
       await withMocks(
-        () => spyOn(squareApi, "createPaymentLink").mockImplementation(() => {
+        () => stub(squareApi, "createPaymentLink", () => {
           throw new Error("Network failure");
         }),
         async () => {
@@ -234,7 +234,7 @@ describe("square-provider", () => {
         items: [{ eventId: 1, quantity: 1, unitPrice: 1000, slug: "evt", name: "Evt" }],
       };
       await withMocks(
-        () => spyOn(squareApi, "createMultiPaymentLink").mockImplementation(() => {
+        () => stub(squareApi, "createMultiPaymentLink", () => {
           throw new PaymentUserError("Email address is invalid");
         }),
         async () => {

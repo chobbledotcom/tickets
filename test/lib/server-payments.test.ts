@@ -3,7 +3,8 @@ import {
   beforeEach,
   describe,
   expect,
-  spyOn,
+  spy,
+  stub,
   test,
 } from "#test-compat";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
@@ -62,7 +63,7 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error when payment not verified", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -74,19 +75,20 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () =>
-          spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
-            id: "cs_test",
-            payment_status: "unpaid",
-            payment_intent: "pi_test",
-            metadata: {
-              event_id: String(event.id),
-              name: "John",
-              email: "john@example.com",
-              quantity: "1",
-            },
-          } as unknown as Awaited<
-            ReturnType<typeof stripeApi.retrieveCheckoutSession>
-          >),
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test",
+              payment_status: "unpaid",
+              payment_intent: "pi_test",
+              metadata: {
+                event_id: String(event.id),
+                name: "John",
+                email: "john@example.com",
+                quantity: "1",
+              },
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >)),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
@@ -102,20 +104,21 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error for invalid session metadata", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
       await withMocks(
         () =>
-          spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
-            id: "cs_test",
-            payment_status: "paid",
-            payment_intent: "pi_test",
-            metadata: {}, // Missing required fields
-          } as unknown as Awaited<
-            ReturnType<typeof stripeApi.retrieveCheckoutSession>
-          >),
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test",
+              payment_status: "paid",
+              payment_intent: "pi_test",
+              metadata: {}, // Missing required fields
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >)),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test"),
@@ -130,7 +133,7 @@ describe("server (payment flow)", () => {
     });
 
     test("rejects payment for inactive event and refunds", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -145,8 +148,8 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () => ({
-          mockRetrieve: spyOn(stripeApi, "retrieveCheckoutSession")
-            .mockResolvedValue({
+          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
               id: "cs_test",
               payment_status: "paid",
               payment_intent: "pi_test_123",
@@ -158,12 +161,13 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          mockRefund: spyOn(stripeApi, "refundPayment").mockResolvedValue(
-            { id: "re_test" } as unknown as Awaited<
-              ReturnType<typeof stripeApi.refundPayment>
-            >,
-          ),
+            >)),
+          mockRefund: stub(stripeApi, "refundPayment", () =>
+            Promise.resolve(
+              { id: "re_test" } as unknown as Awaited<
+                ReturnType<typeof stripeApi.refundPayment>
+              >,
+            )),
         }),
         async ({ mockRefund }) => {
           const response = await handleRequest(
@@ -176,14 +180,14 @@ describe("server (payment flow)", () => {
           );
 
           // Verify refund was called
-          expect(mockRefund).toHaveBeenCalledWith("pi_test_123");
+          expect(mockRefund.calls[0]!.args).toEqual(["pi_test_123"]);
         },
         resetStripeClient,
       );
     });
 
     test("refunds payment when event is sold out at confirmation time", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -204,8 +208,8 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () => ({
-          mockRetrieve: spyOn(stripeApi, "retrieveCheckoutSession")
-            .mockResolvedValue({
+          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
               id: "cs_test",
               payment_status: "paid",
               payment_intent: "pi_second",
@@ -218,12 +222,13 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          mockRefund: spyOn(stripeApi, "refundPayment").mockResolvedValue(
-            { id: "re_test" } as unknown as Awaited<
-              ReturnType<typeof stripeApi.refundPayment>
-            >,
-          ),
+            >)),
+          mockRefund: stub(stripeApi, "refundPayment", () =>
+            Promise.resolve(
+              { id: "re_test" } as unknown as Awaited<
+                ReturnType<typeof stripeApi.refundPayment>
+              >,
+            )),
         }),
         async ({ mockRefund }) => {
           const response = await handleRequest(
@@ -237,7 +242,7 @@ describe("server (payment flow)", () => {
           );
 
           // Verify refund was called
-          expect(mockRefund).toHaveBeenCalledWith("pi_second");
+          expect(mockRefund.calls[0]!.args).toEqual(["pi_second"]);
         },
         resetStripeClient,
       );
@@ -251,13 +256,14 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error when session not found", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
       await withMocks(
         () =>
-          spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue(null),
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve(null)),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_invalid"),
@@ -269,19 +275,20 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error for invalid session metadata", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
       await withMocks(
         () =>
-          spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
-            id: "cs_test_cancel",
-            payment_status: "unpaid",
-            metadata: {}, // Missing required fields
-          } as unknown as Awaited<
-            ReturnType<typeof stripeApi.retrieveCheckoutSession>
-          >),
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test_cancel",
+              payment_status: "unpaid",
+              metadata: {}, // Missing required fields
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >)),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_test_cancel"),
@@ -296,24 +303,25 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error when event not found", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
       await withMocks(
         () =>
-          spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
-            id: "cs_test_cancel",
-            payment_status: "unpaid",
-            metadata: {
-              event_id: "99999", // Non-existent event
-              name: "John",
-              email: "john@example.com",
-              quantity: "1",
-            },
-          } as unknown as Awaited<
-            ReturnType<typeof stripeApi.retrieveCheckoutSession>
-          >),
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test_cancel",
+              payment_status: "unpaid",
+              metadata: {
+                event_id: "99999", // Non-existent event
+                name: "John",
+                email: "john@example.com",
+                quantity: "1",
+              },
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >)),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_test_cancel"),
@@ -325,7 +333,7 @@ describe("server (payment flow)", () => {
     });
 
     test("shows cancel page with link back to ticket form", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -337,18 +345,19 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () =>
-          spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
-            id: "cs_test_cancel",
-            payment_status: "unpaid",
-            metadata: {
-              event_id: String(event.id),
-              name: "John",
-              email: "john@example.com",
-              quantity: "1",
-            },
-          } as unknown as Awaited<
-            ReturnType<typeof stripeApi.retrieveCheckoutSession>
-          >),
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test_cancel",
+              payment_status: "unpaid",
+              metadata: {
+                event_id: String(event.id),
+                name: "John",
+                email: "john@example.com",
+                quantity: "1",
+              },
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >)),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/cancel?session_id=cs_test_cancel"),
@@ -420,11 +429,11 @@ describe("server (payment flow)", () => {
 
       // Mock createCheckoutSession to return a validation error result
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockCreate = spyOn(stripePaymentProvider, "createCheckoutSession");
-      mockCreate.mockResolvedValue({
-        error:
-          "The payment processor rejected the phone number as invalid. Please correct it and try again.",
-      });
+      const mockCreate = stub(stripePaymentProvider, "createCheckoutSession", () =>
+        Promise.resolve({
+          error:
+            "The payment processor rejected the phone number as invalid. Please correct it and try again.",
+        }));
 
       try {
         const response = await submitTicketForm(event.slug, {
@@ -438,7 +447,7 @@ describe("server (payment flow)", () => {
           "payment processor rejected the phone number",
         );
       } finally {
-        mockCreate.mockRestore();
+        mockCreate.restore();
       }
     });
 
@@ -503,14 +512,14 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error when event not found in session metadata without refund", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { spy, stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
       await withMocks(
         () => ({
-          mockRetrieve: spyOn(stripeApi, "retrieveCheckoutSession")
-            .mockResolvedValue({
+          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
               id: "cs_test",
               payment_status: "paid",
               payment_intent: "pi_test",
@@ -522,8 +531,8 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          mockRefund: spyOn(stripeApi, "refundPayment"),
+            >)),
+          mockRefund: spy(stripeApi, "refundPayment"),
         }),
         async ({ mockRefund }) => {
           const response = await handleRequest(
@@ -531,14 +540,14 @@ describe("server (payment flow)", () => {
           );
           await expectHtmlResponse(response, 404, "Event not found");
           // Event not found should NOT trigger a refund (webhook may be for a different instance)
-          expect(mockRefund).not.toHaveBeenCalled();
+          expect(mockRefund.calls.length).toBe(0);
         },
         resetStripeClient,
       );
     });
 
     test("creates attendee and shows success when payment verified", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
 
       await setupStripe();
@@ -551,20 +560,21 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () =>
-          spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
-            id: "cs_test_paid",
-            payment_status: "paid",
-            payment_intent: "pi_test_123",
-            amount_total: 1000,
-            metadata: {
-              event_id: String(event.id),
-              name: "John",
-              email: "john@example.com",
-              quantity: "1",
-            },
-          } as unknown as Awaited<
-            ReturnType<typeof stripeApi.retrieveCheckoutSession>
-          >),
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test_paid",
+              payment_status: "paid",
+              payment_intent: "pi_test_123",
+              amount_total: 1000,
+              metadata: {
+                event_id: String(event.id),
+                name: "John",
+                email: "john@example.com",
+                quantity: "1",
+              },
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >)),
         async () => {
           const redirectResponse = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test_paid"),
@@ -599,7 +609,7 @@ describe("server (payment flow)", () => {
     });
 
     test("handles replay of same session (idempotent)", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
 
       await setupStripe();
@@ -620,20 +630,21 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () =>
-          spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
-            id: "cs_test_paid",
-            payment_status: "paid",
-            payment_intent: "pi_test_123",
-            amount_total: 1000,
-            metadata: {
-              event_id: String(event.id),
-              name: "John",
-              email: "john@example.com",
-              quantity: "1",
-            },
-          } as unknown as Awaited<
-            ReturnType<typeof stripeApi.retrieveCheckoutSession>
-          >),
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test_paid",
+              payment_status: "paid",
+              payment_intent: "pi_test_123",
+              amount_total: 1000,
+              metadata: {
+                event_id: String(event.id),
+                name: "John",
+                email: "john@example.com",
+                quantity: "1",
+              },
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >)),
         async () => {
           const response = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test_paid"),
@@ -650,7 +661,7 @@ describe("server (payment flow)", () => {
     });
 
     test("handles multiple quantity purchase", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
 
       await setupStripe();
@@ -664,20 +675,21 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () =>
-          spyOn(stripeApi, "retrieveCheckoutSession").mockResolvedValue({
-            id: "cs_test_paid",
-            payment_status: "paid",
-            payment_intent: "pi_test_123",
-            amount_total: 3000,
-            metadata: {
-              event_id: String(event.id),
-              name: "John",
-              email: "john@example.com",
-              quantity: "3",
-            },
-          } as unknown as Awaited<
-            ReturnType<typeof stripeApi.retrieveCheckoutSession>
-          >),
+          stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
+              id: "cs_test_paid",
+              payment_status: "paid",
+              payment_intent: "pi_test_123",
+              amount_total: 3000,
+              metadata: {
+                event_id: String(event.id),
+                name: "John",
+                email: "john@example.com",
+                quantity: "3",
+              },
+            } as unknown as Awaited<
+              ReturnType<typeof stripeApi.retrieveCheckoutSession>
+            >)),
         async () => {
           const redirectResponse = await handleRequest(
             mockRequest("/payment/success?session_id=cs_test_paid"),
@@ -727,7 +739,7 @@ describe("server (payment flow)", () => {
     });
 
     test("handles encryption error during payment confirmation", async () => {
-      const { spyOn } = await import("#test-compat");
+      const { stub } = await import("#test-compat");
       const { stripeApi } = await import("#lib/stripe.ts");
       const { attendeesApi } = await import("#lib/db/attendees.ts");
 
@@ -741,8 +753,8 @@ describe("server (payment flow)", () => {
 
       await withMocks(
         () => ({
-          mockRetrieve: spyOn(stripeApi, "retrieveCheckoutSession")
-            .mockResolvedValue({
+          mockRetrieve: stub(stripeApi, "retrieveCheckoutSession", () =>
+            Promise.resolve({
               id: "cs_test",
               payment_status: "paid",
               payment_intent: "pi_test_123",
@@ -755,17 +767,18 @@ describe("server (payment flow)", () => {
               },
             } as unknown as Awaited<
               ReturnType<typeof stripeApi.retrieveCheckoutSession>
-            >),
-          mockRefund: spyOn(stripeApi, "refundPayment").mockResolvedValue(
-            { id: "re_test" } as unknown as Awaited<
-              ReturnType<typeof stripeApi.refundPayment>
-            >,
-          ),
-          mockAtomic: spyOn(attendeesApi, "createAttendeeAtomic")
-            .mockResolvedValue({
+            >)),
+          mockRefund: stub(stripeApi, "refundPayment", () =>
+            Promise.resolve(
+              { id: "re_test" } as unknown as Awaited<
+                ReturnType<typeof stripeApi.refundPayment>
+              >,
+            )),
+          mockAtomic: stub(attendeesApi, "createAttendeeAtomic", () =>
+            Promise.resolve({
               success: false,
               reason: "encryption_error",
-            }),
+            })),
         }),
         async ({ mockRefund }) => {
           const response = await handleRequest(
@@ -780,7 +793,7 @@ describe("server (payment flow)", () => {
           );
 
           // Verify refund was called
-          expect(mockRefund).toHaveBeenCalledWith("pi_test_123");
+          expect(mockRefund.calls[0]!.args).toEqual(["pi_test_123"]);
         },
       );
     });
@@ -805,24 +818,24 @@ describe("server (payment flow)", () => {
         unitPrice: 1000,
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
-        id: "cs_multi_success",
-        payment_status: "paid",
-        payment_intent: "pi_multi_success",
-        amount_total: 2500,
-        metadata: {
-          name: "Multi Payer",
-          email: "multi@example.com",
-          multi: "1",
-          items: JSON.stringify([
-            { e: event1.id, q: 1 },
-            { e: event2.id, q: 2 },
-          ]),
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_multi_success",
+          payment_status: "paid",
+          payment_intent: "pi_multi_success",
+          amount_total: 2500,
+          metadata: {
+            name: "Multi Payer",
+            email: "multi@example.com",
+            multi: "1",
+            items: JSON.stringify([
+              { e: event1.id, q: 1 },
+              { e: event2.id, q: 2 },
+            ]),
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >));
 
       try {
         const redirectResponse = await handleRequest(
@@ -851,27 +864,27 @@ describe("server (payment flow)", () => {
         expect(attendees2.length).toBe(1);
         expect(attendees2[0]?.quantity).toBe(2);
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
     test("returns error for invalid multi-ticket metadata", async () => {
       await setupStripe();
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
-        id: "cs_bad_multi",
-        payment_status: "paid",
-        payment_intent: "pi_bad",
-        metadata: {
-          name: "Bad",
-          email: "bad@example.com",
-          multi: "1",
-          items: "not-an-array",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_bad_multi",
+          payment_status: "paid",
+          payment_intent: "pi_bad",
+          metadata: {
+            name: "Bad",
+            email: "bad@example.com",
+            multi: "1",
+            items: "not-an-array",
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >));
 
       try {
         const response = await handleRequest(
@@ -883,29 +896,29 @@ describe("server (payment flow)", () => {
           "Invalid multi-ticket session data",
         );
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
     test("skips refund for multi-ticket payment when event not found", async () => {
       await setupStripe();
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
-        id: "cs_multi_notfound",
-        payment_status: "paid",
-        payment_intent: "pi_multi_notfound",
-        metadata: {
-          name: "Missing Event",
-          email: "missing@example.com",
-          multi: "1",
-          items: JSON.stringify([{ e: 99999, q: 1 }]),
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_multi_notfound",
+          payment_status: "paid",
+          payment_intent: "pi_multi_notfound",
+          metadata: {
+            name: "Missing Event",
+            email: "missing@example.com",
+            multi: "1",
+            items: JSON.stringify([{ e: 99999, q: 1 }]),
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "refundPayment");
 
       try {
         const response = await handleRequest(
@@ -913,10 +926,10 @@ describe("server (payment flow)", () => {
         );
         await expectHtmlResponse(response, 404, "Event not found");
         // Event not found should NOT trigger a refund (webhook may be for a different instance)
-        expect(mockRefund).not.toHaveBeenCalled();
+        expect(mockRefund.calls.length).toBe(0);
       } finally {
-        mockRetrieve.mockRestore();
-        mockRefund.mockRestore();
+        mockRetrieve.restore();
+        mockRefund.restore();
       }
     });
 
@@ -930,25 +943,25 @@ describe("server (payment flow)", () => {
       });
       await deactivateTestEvent(event.id);
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
-        id: "cs_multi_inactive",
-        payment_status: "paid",
-        payment_intent: "pi_multi_inactive",
-        metadata: {
-          name: "Inactive Event",
-          email: "inactive@example.com",
-          multi: "1",
-          items: JSON.stringify([{ e: event.id, q: 1 }]),
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_multi_inactive",
+          payment_status: "paid",
+          payment_intent: "pi_multi_inactive",
+          metadata: {
+            name: "Inactive Event",
+            email: "inactive@example.com",
+            multi: "1",
+            items: JSON.stringify([{ e: event.id, q: 1 }]),
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >);
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_test" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >));
 
       try {
         const response = await handleRequest(
@@ -961,8 +974,8 @@ describe("server (payment flow)", () => {
           "refunded",
         );
       } finally {
-        mockRetrieve.mockRestore();
-        mockRefund.mockRestore();
+        mockRetrieve.restore();
+        mockRefund.restore();
       }
     });
 
@@ -982,25 +995,25 @@ describe("server (payment flow)", () => {
         paymentId: "pi_first",
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
-        id: "cs_refund_fail",
-        payment_status: "paid",
-        payment_intent: "pi_refund_fail",
-        amount_total: 1000,
-        metadata: {
-          event_id: String(event.id),
-          name: "Refund Fail",
-          email: "refund@example.com",
-          quantity: "1",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_refund_fail",
+          payment_status: "paid",
+          payment_intent: "pi_refund_fail",
+          amount_total: 1000,
+          metadata: {
+            event_id: String(event.id),
+            name: "Refund Fail",
+            email: "refund@example.com",
+            quantity: "1",
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >));
 
       // Mock refund to fail
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue(null);
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve(null));
 
       try {
         const response = await handleRequest(
@@ -1008,8 +1021,8 @@ describe("server (payment flow)", () => {
         );
         await expectHtmlResponse(response, 400, "sold out", "contact support");
       } finally {
-        mockRetrieve.mockRestore();
-        mockRefund.mockRestore();
+        mockRetrieve.restore();
+        mockRefund.restore();
       }
     });
 
@@ -1035,29 +1048,29 @@ describe("server (payment flow)", () => {
         paymentId: "pi_first",
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
-        id: "cs_multi_rollback",
-        payment_status: "paid",
-        payment_intent: "pi_multi_rollback",
-        amount_total: 1500,
-        metadata: {
-          name: "Rollback User",
-          email: "rollback@example.com",
-          multi: "1",
-          items: JSON.stringify([
-            { e: event1.id, q: 1 },
-            { e: event2.id, q: 1 },
-          ]),
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_multi_rollback",
+          payment_status: "paid",
+          payment_intent: "pi_multi_rollback",
+          amount_total: 1500,
+          metadata: {
+            name: "Rollback User",
+            email: "rollback@example.com",
+            multi: "1",
+            items: JSON.stringify([
+              { e: event1.id, q: 1 },
+              { e: event2.id, q: 1 },
+            ]),
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >);
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_test" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >));
 
       try {
         const response = await handleRequest(
@@ -1070,8 +1083,8 @@ describe("server (payment flow)", () => {
         const attendees1 = await getAttendeesRaw(event1.id);
         expect(attendees1.length).toBe(0);
       } finally {
-        mockRetrieve.mockRestore();
-        mockRefund.mockRestore();
+        mockRetrieve.restore();
+        mockRefund.restore();
       }
     });
 
@@ -1084,21 +1097,21 @@ describe("server (payment flow)", () => {
         thankYouUrl: "https://example.com/single-thanks",
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
-        id: "cs_single_thankyou",
-        payment_status: "paid",
-        payment_intent: "pi_single_thankyou",
-        amount_total: 500,
-        metadata: {
-          event_id: String(event.id),
-          name: "Single",
-          email: "single@example.com",
-          quantity: "1",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_single_thankyou",
+          payment_status: "paid",
+          payment_intent: "pi_single_thankyou",
+          amount_total: 500,
+          metadata: {
+            event_id: String(event.id),
+            name: "Single",
+            email: "single@example.com",
+            quantity: "1",
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >));
 
       try {
         const redirectResponse = await handleRequest(
@@ -1113,7 +1126,7 @@ describe("server (payment flow)", () => {
           "Click here to view your tickets",
         );
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -1126,21 +1139,21 @@ describe("server (payment flow)", () => {
         thankYouUrl: "https://example.com/replay-thanks",
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
-        id: "cs_dupe_session",
-        payment_status: "paid",
-        payment_intent: "pi_dupe",
-        amount_total: 1000,
-        metadata: {
-          event_id: String(event.id),
-          name: "Dupe",
-          email: "dupe@example.com",
-          quantity: "1",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_dupe_session",
+          payment_status: "paid",
+          payment_intent: "pi_dupe",
+          amount_total: 1000,
+          metadata: {
+            event_id: String(event.id),
+            name: "Dupe",
+            email: "dupe@example.com",
+            quantity: "1",
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >));
 
       try {
         // First request should redirect with tokens
@@ -1166,7 +1179,7 @@ describe("server (payment flow)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -1184,24 +1197,24 @@ describe("server (payment flow)", () => {
         unitPrice: 1000,
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
-        id: "cs_multi_dupe",
-        payment_status: "paid",
-        payment_intent: "pi_multi_dupe",
-        amount_total: 1500,
-        metadata: {
-          name: "Multi Replay",
-          email: "multireplay@example.com",
-          multi: "1",
-          items: JSON.stringify([
-            { e: event1.id, q: 1 },
-            { e: event2.id, q: 1 },
-          ]),
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_multi_dupe",
+          payment_status: "paid",
+          payment_intent: "pi_multi_dupe",
+          amount_total: 1500,
+          metadata: {
+            name: "Multi Replay",
+            email: "multireplay@example.com",
+            multi: "1",
+            items: JSON.stringify([
+              { e: event1.id, q: 1 },
+              { e: event2.id, q: 1 },
+            ]),
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >));
 
       try {
         // First request should redirect with tokens
@@ -1220,7 +1233,7 @@ describe("server (payment flow)", () => {
         // Multi-ticket already-processed has no thank_you_url redirect
         expect(html).not.toContain("redirected");
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
   });
@@ -1265,21 +1278,21 @@ describe("server (payment flow)", () => {
         thankYouUrl: "https://example.com/verified-thanks",
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
-        id: "cs_token_verify",
-        payment_status: "paid",
-        payment_intent: "pi_token_verify",
-        amount_total: 500,
-        metadata: {
-          event_id: String(event.id),
-          name: "Token Verify",
-          email: "verify@example.com",
-          quantity: "1",
-        },
-      } as unknown as Awaited<
-        ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
+        Promise.resolve({
+          id: "cs_token_verify",
+          payment_status: "paid",
+          payment_intent: "pi_token_verify",
+          amount_total: 500,
+          metadata: {
+            event_id: String(event.id),
+            name: "Token Verify",
+            email: "verify@example.com",
+            quantity: "1",
+          },
+        } as unknown as Awaited<
+          ReturnType<typeof stripeApi.retrieveCheckoutSession>
+        >));
 
       try {
         // Process payment to get redirect with token
@@ -1306,7 +1319,7 @@ describe("server (payment flow)", () => {
         const tokenFromUrl = decodeURIComponent(location.split("tokens=")[1]!);
         expect(html).toContain(`/t/${tokenFromUrl}`);
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
   });

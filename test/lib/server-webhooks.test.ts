@@ -3,7 +3,8 @@ import {
   beforeEach,
   describe,
   expect,
-  spyOn,
+  spy,
+  stub,
   test,
 } from "#test-compat";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
@@ -67,11 +68,10 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: false,
         error: "Invalid signature",
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -82,7 +82,7 @@ describe("server (webhooks)", () => {
         );
         await expectHtmlResponse(response, 400, "Invalid signature");
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -90,15 +90,14 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_test",
           type: "payment_intent.created",
           data: { object: {} },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -111,7 +110,7 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.received).toBe(true);
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -119,8 +118,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_test",
@@ -134,7 +132,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -145,7 +143,7 @@ describe("server (webhooks)", () => {
         );
         await expectHtmlResponse(response, 400, "Invalid session data");
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -158,8 +156,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_test",
@@ -179,7 +176,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -193,7 +190,7 @@ describe("server (webhooks)", () => {
         expect(json.received).toBe(true);
         expect(json.status).toBe("pending");
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -206,8 +203,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_test",
@@ -227,7 +223,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -247,7 +243,7 @@ describe("server (webhooks)", () => {
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.payment_id).not.toBeNull();
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -266,8 +262,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_multi",
@@ -291,7 +286,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -314,7 +309,7 @@ describe("server (webhooks)", () => {
         expect(attendees2.length).toBe(1);
         expect(attendees2[0]?.quantity).toBe(1);
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -322,8 +317,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_bad_multi",
@@ -343,7 +337,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -358,7 +352,7 @@ describe("server (webhooks)", () => {
           "Invalid multi-ticket session data",
         );
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -379,8 +373,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_soldout",
@@ -400,12 +393,11 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -421,8 +413,8 @@ describe("server (webhooks)", () => {
         expect(json.processed).toBe(false);
         expect(json.error).toContain("sold out");
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -455,8 +447,7 @@ describe("server (webhooks)", () => {
         unitPrice: 1000,
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_no_qty",
         payment_status: "paid",
         payment_intent: "pi_no_qty",
@@ -469,7 +460,7 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
       try {
         const redirectResponse = await handleRequest(
@@ -485,7 +476,7 @@ describe("server (webhooks)", () => {
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(1);
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -497,8 +488,7 @@ describe("server (webhooks)", () => {
         unitPrice: 1000,
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_square_order",
         payment_status: "paid",
         payment_intent: "pi_square_order",
@@ -511,7 +501,7 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
       try {
         // Square appends orderId as a query parameter (not session_id)
@@ -522,7 +512,7 @@ describe("server (webhooks)", () => {
         const response = await followRedirect(redirectResponse, handleRequest);
         expect(response.status).toBe(200);
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -535,8 +525,7 @@ describe("server (webhooks)", () => {
       });
       await deactivateTestEvent(event.id);
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_null_ref",
         payment_status: "paid",
         payment_intent: null, // No payment reference
@@ -548,7 +537,7 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -562,7 +551,7 @@ describe("server (webhooks)", () => {
         // Should show "contact support" since refund failed (no payment reference)
         expect(html).toContain("contact support");
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -575,8 +564,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_pi_extract",
@@ -596,7 +584,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -615,7 +603,7 @@ describe("server (webhooks)", () => {
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.payment_id).not.toBeNull();
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -623,8 +611,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_non_array",
@@ -644,7 +631,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -659,7 +646,7 @@ describe("server (webhooks)", () => {
           "Invalid multi-ticket session data",
         );
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -667,8 +654,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_no_items",
@@ -688,7 +674,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -703,7 +689,7 @@ describe("server (webhooks)", () => {
           "Invalid multi-ticket session data",
         );
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -722,8 +708,7 @@ describe("server (webhooks)", () => {
       );
       await reserveSessionFn("cs_multi_concurrent");
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_multi_concurrent",
         payment_status: "paid",
         payment_intent: "pi_multi_concurrent",
@@ -735,7 +720,7 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -743,7 +728,7 @@ describe("server (webhooks)", () => {
         );
         await expectHtmlResponse(response, 409, "being processed");
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -761,8 +746,7 @@ describe("server (webhooks)", () => {
       );
       await reserveSessionFn("cs_single_concurrent");
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_single_concurrent",
         payment_status: "paid",
         payment_intent: "pi_single_concurrent",
@@ -774,7 +758,7 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -782,7 +766,7 @@ describe("server (webhooks)", () => {
         );
         await expectHtmlResponse(response, 409, "being processed");
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -795,8 +779,7 @@ describe("server (webhooks)", () => {
         unitPrice: 500,
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_multi_price",
         payment_status: "paid",
         payment_intent: "pi_multi_price",
@@ -809,7 +792,7 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
       try {
         const redirectResponse = await handleRequest(
@@ -826,7 +809,7 @@ describe("server (webhooks)", () => {
         // price_paid is stored encrypted, verify it was set (not null)
         expect(attendees[0]?.price_paid).not.toBeNull();
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -839,8 +822,7 @@ describe("server (webhooks)", () => {
         maxQuantity: 5,
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_single_price",
         payment_status: "paid",
         payment_intent: "pi_single_price",
@@ -853,7 +835,7 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
       try {
         const redirectResponse = await handleRequest(
@@ -869,7 +851,7 @@ describe("server (webhooks)", () => {
         // price_paid is stored encrypted, verify it was set (not null)
         expect(attendees[0]?.price_paid).not.toBeNull();
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -878,8 +860,7 @@ describe("server (webhooks)", () => {
 
       // This tests the case where result.refunded is undefined
       // This happens when validatePaidSession fails (no refund attempt)
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_plain_error",
         payment_status: "unpaid",
         payment_intent: "pi_test",
@@ -891,7 +872,7 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -906,7 +887,7 @@ describe("server (webhooks)", () => {
         expect(html).not.toContain("refunded");
         expect(html).not.toContain("contact support for a refund");
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -931,8 +912,7 @@ describe("server (webhooks)", () => {
         unitPrice: 500,
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_multi_enc_err",
         payment_status: "paid",
         payment_intent: "pi_multi_enc_err",
@@ -945,20 +925,18 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       // Mock atomic create to return encryption error
       const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const mockAtomic = spyOn(attendeesApi, "createAttendeeAtomic");
-      mockAtomic.mockResolvedValue({
+      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () => Promise.resolve({
         success: false,
         reason: "encryption_error",
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -971,9 +949,9 @@ describe("server (webhooks)", () => {
           "refunded",
         );
       } finally {
-        mockRetrieve.mockRestore();
-        mockRefund.mockRestore();
-        mockAtomic.mockRestore();
+        mockRetrieve.restore();
+        mockRefund.restore();
+        mockAtomic.restore();
       }
     });
 
@@ -981,8 +959,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       // Mock empty items list (edge case where items parsed but empty after filtering)
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_multi_empty_items",
         payment_status: "paid",
         payment_intent: "pi_multi_empty",
@@ -994,12 +971,11 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -1008,8 +984,8 @@ describe("server (webhooks)", () => {
         // Empty items list returns "Invalid multi-ticket session data"
         expect(response.status).toBe(400);
       } finally {
-        mockRetrieve.mockRestore();
-        mockRefund.mockRestore();
+        mockRetrieve.restore();
+        mockRefund.restore();
       }
     });
   });
@@ -1046,8 +1022,7 @@ describe("server (webhooks)", () => {
       await finalizeSessionFn("cs_multi_already_done", attendee.id);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_already_done",
@@ -1067,7 +1042,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -1080,7 +1055,7 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.processed).toBe(true);
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -1100,8 +1075,7 @@ describe("server (webhooks)", () => {
       await deactivateTestEvent(event2.id);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_multi_inactive_wh",
@@ -1124,12 +1098,11 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -1147,8 +1120,8 @@ describe("server (webhooks)", () => {
         const attendees1 = await getAttendeesRaw(event1.id);
         expect(attendees1.length).toBe(0);
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -1174,8 +1147,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_multi_soldout_wh",
@@ -1198,12 +1170,11 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -1221,8 +1192,8 @@ describe("server (webhooks)", () => {
         const attendees1 = await getAttendeesRaw(event1.id);
         expect(attendees1.length).toBe(0);
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -1230,8 +1201,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_other_type",
@@ -1242,7 +1212,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -1256,7 +1226,7 @@ describe("server (webhooks)", () => {
         expect(json.received).toBe(true);
         expect(json.processed).toBeUndefined();
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
   });
@@ -1281,8 +1251,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_multi_ok",
@@ -1305,7 +1274,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -1318,7 +1287,7 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.processed).toBe(true);
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -1326,8 +1295,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_multi_notfound",
@@ -1349,9 +1317,9 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "refundPayment");
 
       try {
         const response = await handleRequest(
@@ -1364,10 +1332,10 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.error).toContain("Event not found");
         // Event not found should NOT trigger a refund (webhook may be for a different instance)
-        expect(mockRefund).not.toHaveBeenCalled();
+        expect(mockRefund.calls.length).toBe(0);
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -1394,8 +1362,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_multi_cap",
@@ -1418,10 +1385,11 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue(true);
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve(true as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >));
 
       try {
         const response = await handleRequest(
@@ -1434,8 +1402,8 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.error).toContain("sold out");
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -1466,9 +1434,8 @@ describe("server (webhooks)", () => {
       await finalizeSessionFn("cs_del_event_wh", attResult.attendee.id);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
       // Use a non-existent event_id in metadata to trigger "Event not found" in alreadyProcessedResult
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_del_event_wh",
@@ -1488,7 +1455,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -1501,7 +1468,7 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.error).toContain("Event not found");
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -1516,8 +1483,7 @@ describe("server (webhooks)", () => {
       await deactivateTestEvent(event.id);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_noref",
@@ -1536,7 +1502,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -1549,7 +1515,7 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.error).toContain("no longer accepting");
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
   });
@@ -1567,8 +1533,7 @@ describe("server (webhooks)", () => {
       // via provider.retrieveSession which we mock to return event_id undefined.
       // This triggers the ?? "0" fallback in extractIntent (line 52).
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_no_eid",
@@ -1581,26 +1546,26 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRetrieveSession = spyOn(
+      const mockRetrieveSession = stub(
         stripePaymentProvider,
         "retrieveSession",
-      );
-      mockRetrieveSession.mockResolvedValue({
-        id: "cs_no_event_id",
-        paymentStatus: "paid" as const,
-        paymentReference: "pi_no_event_id",
-        amountTotal: 0,
-        metadata: webhookMeta({
-          name: "No EventId",
-          email: "noeventid@example.com",
-          quantity: "1",
-          // event_id intentionally undefined -> triggers ?? "0"
+        () => Promise.resolve({
+          id: "cs_no_event_id",
+          paymentStatus: "paid" as const,
+          paymentReference: "pi_no_event_id",
+          amountTotal: 0,
+          metadata: webhookMeta({
+            name: "No EventId",
+            email: "noeventid@example.com",
+            quantity: "1",
+            // event_id intentionally undefined -> triggers ?? "0"
+          }),
         }),
-      });
+      );
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "refundPayment");
 
       try {
         const response = await handleRequest(
@@ -1614,11 +1579,11 @@ describe("server (webhooks)", () => {
         // eventId defaults to 0 (no event with id 0), so "Event not found" error
         expect(json.error).toContain("Event not found");
         // Event not found should NOT trigger a refund (webhook may be for a different instance)
-        expect(mockRefund).not.toHaveBeenCalled();
+        expect(mockRefund.calls.length).toBe(0);
       } finally {
-        mockVerify.mockRestore();
-        mockRetrieveSession.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRetrieveSession.restore();
+        mockRefund.restore();
       }
     });
 
@@ -1638,16 +1603,14 @@ describe("server (webhooks)", () => {
       const { paymentsApi } = await import("#lib/payments.ts");
       const origGetConfigured = paymentsApi.getConfiguredProvider;
       let callCount = 0;
-      const mockGetConfigured = spyOn(paymentsApi, "getConfiguredProvider");
-      mockGetConfigured.mockImplementation(() => {
+      const mockGetConfigured = stub(paymentsApi, "getConfiguredProvider", () => {
         callCount++;
         // First call: webhook handler needs provider; second call: tryRefund should get null
         return callCount <= 1 ? origGetConfigured() : Promise.resolve(null);
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_tryrefund_noprov",
@@ -1667,7 +1630,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -1680,8 +1643,8 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.error).toContain("no longer accepting");
       } finally {
-        mockVerify.mockRestore();
-        mockGetConfigured.mockRestore();
+        mockVerify.restore();
+        mockGetConfigured.restore();
       }
     });
 
@@ -1696,8 +1659,7 @@ describe("server (webhooks)", () => {
       // event2 does not exist (id 99999) — validation fails before any attendees are created
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_multi_rollback",
@@ -1720,9 +1682,9 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "refundPayment");
 
       try {
         const response = await handleRequest(
@@ -1736,15 +1698,15 @@ describe("server (webhooks)", () => {
         expect(json.error).toContain("Event not found");
 
         // Event not found should NOT trigger a refund (webhook may be for a different instance)
-        expect(mockRefund).not.toHaveBeenCalled();
+        expect(mockRefund.calls.length).toBe(0);
 
         // No attendees created (validation fails before creation pass)
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event1.id);
         expect(attendees.length).toBe(0);
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -1756,8 +1718,7 @@ describe("server (webhooks)", () => {
         maxAttendees: 50,
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_multi_free",
         payment_status: "paid",
         payment_intent: "pi_multi_free",
@@ -1770,7 +1731,7 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
       try {
         const redirectResponse = await handleRequest(
@@ -1787,7 +1748,7 @@ describe("server (webhooks)", () => {
         // price_paid is encrypted "0" (unit_price defaults to 0 for free events)
         expect(attendees[0]?.price_paid).not.toBeNull();
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -1799,8 +1760,7 @@ describe("server (webhooks)", () => {
         maxAttendees: 50,
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_single_free",
         payment_status: "paid",
         payment_intent: "pi_single_free",
@@ -1813,7 +1773,7 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
       try {
         const redirectResponse = await handleRequest(
@@ -1830,7 +1790,7 @@ describe("server (webhooks)", () => {
         // price_paid is encrypted "0" (always records actual amount from provider)
         expect(attendees[0]?.price_paid).not.toBeNull();
       } finally {
-        mockRetrieve.mockRestore();
+        mockRetrieve.restore();
       }
     });
 
@@ -1841,8 +1801,7 @@ describe("server (webhooks)", () => {
       // so extractSessionFromEvent returns null (covers lines 498-500)
       // and data object has no id/order_id so sessionId is null (covers lines 597-602)
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_no_extract",
@@ -1854,7 +1813,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -1867,7 +1826,7 @@ describe("server (webhooks)", () => {
         const text = await response.text();
         expect(text).toBe("Invalid session data");
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -1877,8 +1836,7 @@ describe("server (webhooks)", () => {
       // Event type matches but metadata is invalid so extractSessionFromEvent returns null
       // data object has id (for sessionId) and status "PENDING" (covers lines 605-607)
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_pending_square",
@@ -1891,7 +1849,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -1905,7 +1863,7 @@ describe("server (webhooks)", () => {
         expect(json.received).toBe(true);
         expect(json.status).toBe("pending");
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -1915,8 +1873,7 @@ describe("server (webhooks)", () => {
       // Event with order_id instead of id triggers the order_id branch
       // in extractSessionIdFromObject
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_order_id_test",
@@ -1929,13 +1886,13 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRetrieveSession = spyOn(
+      const mockRetrieveSession = stub(
         stripePaymentProvider,
         "retrieveSession",
+        () => Promise.resolve(null),
       );
-      mockRetrieveSession.mockResolvedValue(null);
 
       try {
         const response = await handleRequest(
@@ -1949,8 +1906,8 @@ describe("server (webhooks)", () => {
         const text = await response.text();
         expect(text).toBe("Invalid session data");
       } finally {
-        mockVerify.mockRestore();
-        mockRetrieveSession.mockRestore();
+        mockVerify.restore();
+        mockRetrieveSession.restore();
       }
     });
 
@@ -1966,14 +1923,12 @@ describe("server (webhooks)", () => {
       // Mock createAttendeeAtomic to always fail with capacity_exceeded on first try
       // so createdAttendees stays empty and we hit lines 309-310
       const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const mockAtomic = spyOn(attendeesApi, "createAttendeeAtomic");
-      mockAtomic.mockResolvedValue({
+      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic", () => Promise.resolve({
         success: false,
         reason: "capacity_exceeded",
-      });
+      }));
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_multi_no_att",
         payment_status: "paid",
         payment_intent: "pi_multi_no_att",
@@ -1986,12 +1941,11 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_no_att" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_no_att" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -1999,9 +1953,9 @@ describe("server (webhooks)", () => {
         );
         await expectHtmlResponse(response, 400, "sold out");
       } finally {
-        mockAtomic.mockRestore();
-        mockRetrieve.mockRestore();
-        mockRefund.mockRestore();
+        mockAtomic.restore();
+        mockRetrieve.restore();
+        mockRefund.restore();
       }
     });
 
@@ -2014,8 +1968,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_bad_status",
@@ -2035,7 +1988,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -2051,7 +2004,7 @@ describe("server (webhooks)", () => {
         expect(json.received).toBe(true);
         expect(json.status).toBe("pending");
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -2064,8 +2017,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_amount_total",
@@ -2085,7 +2037,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -2104,7 +2056,7 @@ describe("server (webhooks)", () => {
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.price_paid).not.toBeNull();
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
 
@@ -2119,8 +2071,7 @@ describe("server (webhooks)", () => {
       // amountTotal (1200) differs from expectedPrice (1000 * 1 = 1000)
       // Price changed after checkout was created — should refund
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_mismatch",
@@ -2140,12 +2091,11 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_mismatch" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_mismatch" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -2166,10 +2116,10 @@ describe("server (webhooks)", () => {
         expect(attendees.length).toBe(0);
 
         // Verify refund was attempted
-        expect(mockRefund).toHaveBeenCalledWith("pi_mismatch");
+        expect(mockRefund.calls[0]!.args).toEqual(["pi_mismatch"]);
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -2190,8 +2140,7 @@ describe("server (webhooks)", () => {
       // expectedTotal = 500*1 + 300*2 = 1100, but amountTotal = 1000
       // Price changed after checkout was created — should refund
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_multi_mismatch",
@@ -2214,14 +2163,13 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue(
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve(
         { id: "re_multi_mismatch" } as unknown as Awaited<
           ReturnType<typeof stripeApi.refundPayment>
         >,
-      );
+      ));
 
       try {
         const response = await handleRequest(
@@ -2244,10 +2192,10 @@ describe("server (webhooks)", () => {
         expect(attendees2.length).toBe(0);
 
         // Verify refund was attempted
-        expect(mockRefund).toHaveBeenCalledWith("pi_multi_mismatch");
+        expect(mockRefund.calls[0]!.args).toEqual(["pi_multi_mismatch"]);
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -2261,8 +2209,7 @@ describe("server (webhooks)", () => {
 
       // amountTotal (800) differs from expectedPrice (1000 * 1 = 1000)
       // Price decreased after checkout was created — should refund
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_redirect_mismatch",
         payment_status: "paid",
         payment_intent: "pi_redirect_mismatch",
@@ -2275,12 +2222,11 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_redirect" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_redirect" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -2294,10 +2240,10 @@ describe("server (webhooks)", () => {
         expect(attendees.length).toBe(0);
 
         // Verify refund was attempted
-        expect(mockRefund).toHaveBeenCalledWith("pi_redirect_mismatch");
+        expect(mockRefund.calls[0]!.args).toEqual(["pi_redirect_mismatch"]);
       } finally {
-        mockRetrieve.mockRestore();
-        mockRefund.mockRestore();
+        mockRetrieve.restore();
+        mockRefund.restore();
       }
     });
   });
@@ -2317,8 +2263,7 @@ describe("server (webhooks)", () => {
         closesAt: pastDate,
       });
 
-      const mockRetrieve = spyOn(stripeApi, "retrieveCheckoutSession");
-      mockRetrieve.mockResolvedValue({
+      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () => Promise.resolve({
         id: "cs_closed",
         payment_status: "paid",
         payment_intent: "pi_closed",
@@ -2330,12 +2275,11 @@ describe("server (webhooks)", () => {
         },
       } as unknown as Awaited<
         ReturnType<typeof stripeApi.retrieveCheckoutSession>
-      >);
+      >));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_test" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -2348,8 +2292,8 @@ describe("server (webhooks)", () => {
           "refunded",
         );
       } finally {
-        mockRetrieve.mockRestore();
-        mockRefund.mockRestore();
+        mockRetrieve.restore();
+        mockRefund.restore();
       }
     });
 
@@ -2364,8 +2308,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_closed",
@@ -2385,12 +2328,11 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_closed" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_closed" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -2400,8 +2342,8 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.error).toContain("registration closed");
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -2421,8 +2363,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_multi_closed",
@@ -2445,14 +2386,13 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue(
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve(
         { id: "re_multi_closed" } as unknown as Awaited<
           ReturnType<typeof stripeApi.refundPayment>
         >,
-      );
+      ));
 
       try {
         const response = await handleRequest(
@@ -2468,8 +2408,8 @@ describe("server (webhooks)", () => {
         const attendees1 = await getAttendeesRaw(event1.id);
         expect(attendees1.length).toBe(0);
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -2500,8 +2440,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_multi_daily",
@@ -2525,7 +2464,7 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
       try {
         const response = await handleRequest(
@@ -2549,7 +2488,7 @@ describe("server (webhooks)", () => {
         expect(attendees2.length).toBe(1);
         expect(attendees2[0]?.date).toBeNull();
       } finally {
-        mockVerify.mockRestore();
+        mockVerify.restore();
       }
     });
   });
@@ -2563,8 +2502,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_foreign",
@@ -2584,9 +2522,9 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "refundPayment");
 
       try {
         const response = await handleRequest(
@@ -2601,10 +2539,10 @@ describe("server (webhooks)", () => {
         expect(json.received).toBe(true);
         // Should not attempt to process or refund
         expect(json.processed).toBeUndefined();
-        expect(mockRefund).not.toHaveBeenCalled();
+        expect(mockRefund.calls.length).toBe(0);
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -2612,8 +2550,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_other_instance",
@@ -2634,9 +2571,9 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "refundPayment");
 
       try {
         const response = await handleRequest(
@@ -2649,10 +2586,10 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.received).toBe(true);
         expect(json.processed).toBeUndefined();
-        expect(mockRefund).not.toHaveBeenCalled();
+        expect(mockRefund.calls.length).toBe(0);
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -2660,8 +2597,7 @@ describe("server (webhooks)", () => {
       await setupStripe();
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_fallback_foreign",
@@ -2674,26 +2610,26 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRetrieveSession = spyOn(
+      const mockRetrieveSession = stub(
         stripePaymentProvider,
         "retrieveSession",
+        () => Promise.resolve({
+          id: "cs_fallback_foreign",
+          paymentStatus: "paid" as const,
+          paymentReference: "pi_fallback_foreign",
+          amountTotal: 100,
+          metadata: {
+            name: "Fallback Foreign",
+            email: "fallback@example.com",
+            quantity: "1",
+            // No _origin -> should be rejected as unrecognized
+          },
+        }),
       );
-      mockRetrieveSession.mockResolvedValue({
-        id: "cs_fallback_foreign",
-        paymentStatus: "paid" as const,
-        paymentReference: "pi_fallback_foreign",
-        amountTotal: 100,
-        metadata: {
-          name: "Fallback Foreign",
-          email: "fallback@example.com",
-          quantity: "1",
-          // No _origin -> should be rejected as unrecognized
-        },
-      });
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
+      const mockRefund = spy(stripeApi, "refundPayment");
 
       try {
         const response = await handleRequest(
@@ -2706,11 +2642,11 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.received).toBe(true);
         expect(json.processed).toBeUndefined();
-        expect(mockRefund).not.toHaveBeenCalled();
+        expect(mockRefund.calls.length).toBe(0);
       } finally {
-        mockVerify.mockRestore();
-        mockRetrieveSession.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRetrieveSession.restore();
+        mockRefund.restore();
       }
     });
   });
@@ -2730,8 +2666,7 @@ describe("server (webhooks)", () => {
       await deactivateTestEvent(event.id);
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_refund_log",
@@ -2751,12 +2686,11 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_log" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_log" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       const debugLogs: string[] = [];
       const origDebug = console.debug;
@@ -2772,7 +2706,7 @@ describe("server (webhooks)", () => {
           ),
         );
         expect(response.status).toBe(200);
-        expect(mockRefund).toHaveBeenCalledWith("pi_refund_log");
+        expect(mockRefund.calls[0]!.args).toEqual(["pi_refund_log"]);
 
         // Verify refund success was logged to console
         const refundLog = debugLogs.find((log) =>
@@ -2793,8 +2727,8 @@ describe("server (webhooks)", () => {
         );
       } finally {
         console.debug = origDebug;
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
 
@@ -2807,8 +2741,7 @@ describe("server (webhooks)", () => {
       });
 
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = spyOn(stripePaymentProvider, "verifyWebhookSignature");
-      mockVerify.mockResolvedValue({
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
         valid: true,
         event: {
           id: "evt_refund_activity",
@@ -2828,12 +2761,11 @@ describe("server (webhooks)", () => {
             },
           },
         },
-      });
+      }));
 
-      const mockRefund = spyOn(stripeApi, "refundPayment");
-      mockRefund.mockResolvedValue({ id: "re_activity" } as unknown as Awaited<
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_activity" } as unknown as Awaited<
         ReturnType<typeof stripeApi.refundPayment>
-      >);
+      >));
 
       try {
         const response = await handleRequest(
@@ -2853,8 +2785,8 @@ describe("server (webhooks)", () => {
         expect(refundEntry!.event_id).toBe(event.id);
         expect(refundEntry!.message).toContain("price");
       } finally {
-        mockVerify.mockRestore();
-        mockRefund.mockRestore();
+        mockVerify.restore();
+        mockRefund.restore();
       }
     });
   });

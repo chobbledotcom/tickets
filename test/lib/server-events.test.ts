@@ -3,10 +3,9 @@ import {
   beforeEach,
   describe,
   expect,
-  spyOn,
+  stub,
   test,
 } from "#test-compat";
-import type { InStatement } from "@libsql/client";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
 import { addDays } from "#lib/dates.ts";
@@ -1782,8 +1781,7 @@ describe("server (admin events)", () => {
       // Spy on eventsTable.findById: return the row on first call (so requireExists passes),
       // but also delete the event from DB so getEventWithCount (raw SQL) returns null.
       const originalFindById = eventsTable.findById.bind(eventsTable);
-      const spy = spyOn(eventsTable, "findById");
-      spy.mockImplementation(async (id: unknown) => {
+      const findByIdStub = stub(eventsTable, "findById", async (id: unknown) => {
         const row = await originalFindById(id as number);
         if (row) {
           // Delete the event from DB so getEventWithCount returns null
@@ -1815,7 +1813,7 @@ describe("server (admin events)", () => {
         // eventErrorPage calls getEventWithCount, but event was deleted, so returns 404.
         expect(response.status).toBe(404);
       } finally {
-        spy.mockRestore();
+        findByIdStub.restore();
       }
     });
   });
@@ -1847,22 +1845,25 @@ describe("server (admin events)", () => {
       // Spy on db.execute to make isSlugTaken always return true
       const db = getDb();
       const originalExecute = db.execute.bind(db);
-      const spy = spyOn(db, "execute");
-      spy.mockImplementation((query: InStatement) => {
-        const sql = typeof query === "string" ? query : query.sql;
+      const executeStub = stub(db, "execute", async (query: unknown) => {
+        const sql = typeof query === "string"
+          ? query
+          : (query as { sql: string }).sql;
         // Intercept the isSlugTaken query
         if (
           sql.includes("SELECT 1 WHERE EXISTS") &&
           sql.includes("FROM events WHERE slug_index")
         ) {
-          return Promise.resolve({
+          return {
             rows: [{ "1": 1 }],
             columns: ["1"],
             rowsAffected: 0,
             lastInsertRowid: 0n,
-          });
+          } as unknown as Awaited<ReturnType<typeof originalExecute>>;
         }
-        return originalExecute(query);
+        return await originalExecute(
+          query as Parameters<typeof originalExecute>[0],
+        );
       });
 
       try {
@@ -1881,7 +1882,7 @@ describe("server (admin events)", () => {
         );
         await expectHtmlResponse(response, 503, "Temporary Error");
       } finally {
-        spy.mockRestore();
+        executeStub.restore();
       }
     });
   });
@@ -1899,8 +1900,7 @@ describe("server (admin events)", () => {
       // We spy on findById to return null, simulating the event being deleted
       // between the initial check and the update.
       const { eventsTable: table } = await import("#lib/db/events.ts");
-      const spy = spyOn(table, "findById");
-      spy.mockImplementation(() => Promise.resolve(null));
+      const findByIdStub2 = stub(table, "findById", () => Promise.resolve(null));
 
       try {
         const response = await handleRequest(
@@ -1918,7 +1918,7 @@ describe("server (admin events)", () => {
         );
         expect(response.status).toBe(404);
       } finally {
-        spy.mockRestore();
+        findByIdStub2.restore();
       }
     });
   });

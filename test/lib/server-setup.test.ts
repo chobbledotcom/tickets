@@ -233,7 +233,7 @@ describe("server (setup)", () => {
       });
 
       test("POST /setup/ returns 503 when completeSetup fails", async () => {
-        const { spyOn } = await import("#test-compat");
+        const { stub } = await import("#test-compat");
         const { settingsApi } = await import("#lib/db/settings.ts");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
@@ -241,11 +241,10 @@ describe("server (setup)", () => {
 
         await withMocks(
           () => ({
-            mockCompleteSetup: spyOn(settingsApi, "completeSetup")
-              .mockRejectedValue(
-                new Error("Database error"),
-              ),
-            mockConsoleError: spyOn(console, "error").mockImplementation(
+            mockCompleteSetup: stub(settingsApi, "completeSetup",
+              () => Promise.reject(new Error("Database error")),
+            ),
+            mockConsoleError: stub(console, "error",
               () => {},
             ),
           }),

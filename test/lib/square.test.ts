@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, jest, test, spyOn } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, spy, stub, test } from "#test-compat";
 import {
   constructTestWebhookEvent,
   enforceMetadataLimits,
@@ -20,11 +20,22 @@ import {
 import { createTestDb, resetDb, testEvent, withMocks } from "#test-utils";
 
 /** Create a mock Square SDK client with spyable methods */
-const createMockClient = () => {
-  const checkoutCreate = jest.fn();
-  const ordersGet = jest.fn();
-  const paymentsGet = jest.fn();
-  const refundsRefundPayment = jest.fn();
+const createMockClient = (impls: {
+  // deno-lint-ignore no-explicit-any
+  checkoutCreate?: (...args: any[]) => any;
+  // deno-lint-ignore no-explicit-any
+  ordersGet?: (...args: any[]) => any;
+  // deno-lint-ignore no-explicit-any
+  paymentsGet?: (...args: any[]) => any;
+  // deno-lint-ignore no-explicit-any
+  refundsRefundPayment?: (...args: any[]) => any;
+} = {}) => {
+  // deno-lint-ignore no-explicit-any
+  const noop = () => undefined as any;
+  const checkoutCreate = spy(impls.checkoutCreate ?? noop);
+  const ordersGet = spy(impls.ordersGet ?? noop);
+  const paymentsGet = spy(impls.paymentsGet ?? noop);
+  const refundsRefundPayment = spy(impls.refundsRefundPayment ?? noop);
 
   return {
     client: {
@@ -278,13 +289,14 @@ describe("square", () => {
     test("constructs correct SDK call for single-event checkout", async () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_loc_456");
-      const { client, checkoutCreate } = createMockClient();
-      checkoutCreate.mockResolvedValue({
-        paymentLink: { orderId: "order_abc", url: "https://square.link/abc" },
+      const { client, checkoutCreate } = createMockClient({
+        checkoutCreate: () => Promise.resolve({
+          paymentLink: { orderId: "order_abc", url: "https://square.link/abc" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = {
             id: 7,
@@ -332,7 +344,7 @@ describe("square", () => {
 
           // Verify SDK was called with correctly constructed order
           // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.mock.calls[0]![0] as any;
+          const args = checkoutCreate.calls[0]!.args[0] as any;
           expect(args.order.locationId).toBe("L_loc_456");
           expect(args.order.lineItems).toHaveLength(1);
           expect(args.order.lineItems[0].name).toBe("Ticket: Concert");
@@ -366,13 +378,14 @@ describe("square", () => {
     test("omits phone from pre-populated data when empty", async () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_loc_456");
-      const { client, checkoutCreate } = createMockClient();
-      checkoutCreate.mockResolvedValue({
-        paymentLink: { orderId: "order_xyz", url: "https://square.link/xyz" },
+      const { client, checkoutCreate } = createMockClient({
+        checkoutCreate: () => Promise.resolve({
+          paymentLink: { orderId: "order_xyz", url: "https://square.link/xyz" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = {
             id: 1,
@@ -411,7 +424,7 @@ describe("square", () => {
           await squareApi.createPaymentLink(event, intent, "http://localhost");
 
           // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.mock.calls[0]![0] as any;
+          const args = checkoutCreate.calls[0]!.args[0] as any;
           expect(args.prePopulatedData.buyerPhoneNumber).toBeUndefined();
           expect(args.order.metadata.phone).toBeUndefined();
           expect(args.order.lineItems[0].note).toBe("Ticket");
@@ -422,13 +435,14 @@ describe("square", () => {
     test("returns null when SDK response missing orderId", async () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_loc_456");
-      const { client, checkoutCreate } = createMockClient();
-      checkoutCreate.mockResolvedValue({
-        paymentLink: { url: "https://square.link/abc" },
+      const { client } = createMockClient({
+        checkoutCreate: () => Promise.resolve({
+          paymentLink: { url: "https://square.link/abc" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = {
             id: 1,
@@ -477,13 +491,14 @@ describe("square", () => {
     test("returns null when name exceeds metadata limit but truncates gracefully", async () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_loc_456");
-      const { client, checkoutCreate } = createMockClient();
-      checkoutCreate.mockResolvedValue({
-        paymentLink: { orderId: "order_long_name", url: "https://square.link/long" },
+      const { client, checkoutCreate } = createMockClient({
+        checkoutCreate: () => Promise.resolve({
+          paymentLink: { orderId: "order_long_name", url: "https://square.link/long" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = {
             id: 1,
@@ -528,7 +543,7 @@ describe("square", () => {
 
           // Verify name was truncated in metadata
           // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.mock.calls[0]![0] as any;
+          const args = checkoutCreate.calls[0]!.args[0] as any;
           expect(args.order.metadata.name.length).toBe(255);
         },
       );
@@ -540,7 +555,7 @@ describe("square", () => {
       const { client } = createMockClient();
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = testEvent({
             unit_price: 1000,
@@ -609,13 +624,14 @@ describe("square", () => {
     test("returns null when SDK response missing orderId", async () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_multi_loc");
-      const { client, checkoutCreate } = createMockClient();
-      checkoutCreate.mockResolvedValue({
-        paymentLink: { url: "https://square.link/multi" },
+      const { client } = createMockClient({
+        checkoutCreate: () => Promise.resolve({
+          paymentLink: { url: "https://square.link/multi" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const intent = {
             name: "Bob Missing",
@@ -640,13 +656,14 @@ describe("square", () => {
     test("constructs correct SDK call with multiple line items", async () => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_multi_loc");
-      const { client, checkoutCreate } = createMockClient();
-      checkoutCreate.mockResolvedValue({
-        paymentLink: { orderId: "order_multi", url: "https://square.link/multi" },
+      const { client, checkoutCreate } = createMockClient({
+        checkoutCreate: () => Promise.resolve({
+          paymentLink: { orderId: "order_multi", url: "https://square.link/multi" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const intent = {
             name: "Alice Wonder",
@@ -670,7 +687,7 @@ describe("square", () => {
           expect(result!.url).toBe("https://square.link/multi");
 
           // deno-lint-ignore no-explicit-any
-          const args = checkoutCreate.mock.calls[0]![0] as any;
+          const args = checkoutCreate.calls[0]!.args[0] as any;
 
           // Verify multiple line items
           expect(args.order.lineItems).toHaveLength(2);
@@ -711,7 +728,7 @@ describe("square", () => {
       const { client, checkoutCreate } = createMockClient();
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           // Generate enough items to exceed 255-char serialized metadata
           const items = Array.from({ length: 30 }, (_, i) => ({
@@ -739,7 +756,7 @@ describe("square", () => {
           // Should return null because items JSON exceeds 255 chars
           expect(result).toBeNull();
           // SDK should never have been called
-          expect(checkoutCreate).not.toHaveBeenCalled();
+          expect(checkoutCreate.calls.length).toBe(0);
         },
       );
     });
@@ -760,8 +777,9 @@ describe("square", () => {
     const setupFailingCheckout = async (sdkError: Error) => {
       await updateSquareAccessToken("EAAAl_test_123");
       await updateSquareLocationId("L_loc_456");
-      const { client, checkoutCreate } = createMockClient();
-      checkoutCreate.mockRejectedValue(sdkError);
+      const { client } = createMockClient({
+        checkoutCreate: () => Promise.reject(sdkError),
+      });
       return client;
     };
 
@@ -774,7 +792,7 @@ describe("square", () => {
       );
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = testEvent({ unit_price: 1000, fields: "email" as const });
           try {
@@ -794,7 +812,7 @@ describe("square", () => {
       );
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = testEvent({ unit_price: 1000, fields: "email" as const });
           try {
@@ -814,7 +832,7 @@ describe("square", () => {
       );
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = testEvent({ unit_price: 1000, fields: "email" as const });
           const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
@@ -829,7 +847,7 @@ describe("square", () => {
       );
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = testEvent({ unit_price: 1000, fields: "email" as const });
           const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
@@ -842,7 +860,7 @@ describe("square", () => {
       const client = await setupFailingCheckout(new Error("Network timeout"));
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = testEvent({ unit_price: 1000, fields: "email" as const });
           const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
@@ -857,7 +875,7 @@ describe("square", () => {
       );
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const event = testEvent({ unit_price: 1000, fields: "email" as const });
           const result = await squareApi.createPaymentLink(event, validationIntent, "http://localhost");
@@ -875,36 +893,38 @@ describe("square", () => {
     });
 
     test("returns null when SDK returns no order", async () => {
-      const { client, ordersGet } = createMockClient();
-      ordersGet.mockResolvedValue({ order: null });
+      const { client, ordersGet } = createMockClient({
+        ordersGet: () => Promise.resolve({ order: null }),
+      });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrieveOrder("order_missing");
           expect(result).toBeNull();
-          expect(ordersGet.mock.calls[0]![0]).toEqual({ orderId: "order_missing" });
+          expect(ordersGet.calls[0]!.args[0]).toEqual({ orderId: "order_missing" });
         },
       );
     });
 
     test("maps tender paymentId correctly", async () => {
-      const { client, ordersGet } = createMockClient();
-      ordersGet.mockResolvedValue({
-        order: {
-          id: "order_tenders",
-          metadata: { event_id: "1", name: "John", email: "john@example.com" },
-          state: "COMPLETED",
-          tenders: [
-            { id: "tender_1", paymentId: "pay_abc" },
-            { id: "tender_2", paymentId: null },
-          ],
-          totalMoney: { amount: BigInt(2000), currency: "USD" },
-        },
+      const { client } = createMockClient({
+        ordersGet: () => Promise.resolve({
+          order: {
+            id: "order_tenders",
+            metadata: { event_id: "1", name: "John", email: "john@example.com" },
+            state: "COMPLETED",
+            tenders: [
+              { id: "tender_1", paymentId: "pay_abc" },
+              { id: "tender_2", paymentId: null },
+            ],
+            totalMoney: { amount: BigInt(2000), currency: "USD" },
+          },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrieveOrder("order_tenders");
           expect(result).not.toBeNull();
@@ -916,19 +936,20 @@ describe("square", () => {
     });
 
     test("returns correct shape with state and id", async () => {
-      const { client, ordersGet } = createMockClient();
-      ordersGet.mockResolvedValue({
-        order: {
-          id: "order_shape",
-          metadata: undefined,
-          state: "OPEN",
-          tenders: undefined,
-          totalMoney: { amount: BigInt(0), currency: "USD" },
-        },
+      const { client } = createMockClient({
+        ordersGet: () => Promise.resolve({
+          order: {
+            id: "order_shape",
+            metadata: undefined,
+            state: "OPEN",
+            tenders: undefined,
+            totalMoney: { amount: BigInt(0), currency: "USD" },
+          },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrieveOrder("order_shape");
           expect(result).not.toBeNull();
@@ -941,19 +962,20 @@ describe("square", () => {
     });
 
     test("maps totalMoney from order response", async () => {
-      const { client, ordersGet } = createMockClient();
-      ordersGet.mockResolvedValue({
-        order: {
-          id: "order_with_total",
-          metadata: { event_id: "1", name: "John", email: "john@example.com" },
-          state: "COMPLETED",
-          tenders: [{ id: "tender_1", paymentId: "pay_total" }],
-          totalMoney: { amount: BigInt(7500), currency: "GBP" },
-        },
+      const { client } = createMockClient({
+        ordersGet: () => Promise.resolve({
+          order: {
+            id: "order_with_total",
+            metadata: { event_id: "1", name: "John", email: "john@example.com" },
+            state: "COMPLETED",
+            tenders: [{ id: "tender_1", paymentId: "pay_total" }],
+            totalMoney: { amount: BigInt(7500), currency: "GBP" },
+          },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrieveOrder("order_with_total");
           expect(result).not.toBeNull();
@@ -972,39 +994,41 @@ describe("square", () => {
     });
 
     test("returns null when SDK returns no payment", async () => {
-      const { client, paymentsGet } = createMockClient();
-      paymentsGet.mockResolvedValue({ payment: null });
+      const { client, paymentsGet } = createMockClient({
+        paymentsGet: () => Promise.resolve({ payment: null }),
+      });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrievePayment("pay_missing");
           expect(result).toBeNull();
-          expect(paymentsGet.mock.calls[0]![0]).toEqual({ paymentId: "pay_missing" });
+          expect(paymentsGet.calls[0]!.args[0]).toEqual({ paymentId: "pay_missing" });
         },
       );
     });
 
     test("maps payment fields correctly from SDK response", async () => {
-      const { client, paymentsGet } = createMockClient();
-      paymentsGet.mockResolvedValue({
-        payment: {
-          id: "pay_full",
-          status: "COMPLETED",
-          orderId: "order_999",
-          amountMoney: {
-            amount: BigInt(5000),
-            currency: "GBP",
+      const { client } = createMockClient({
+        paymentsGet: () => Promise.resolve({
+          payment: {
+            id: "pay_full",
+            status: "COMPLETED",
+            orderId: "order_999",
+            amountMoney: {
+              amount: BigInt(5000),
+              currency: "GBP",
+            },
+            refundedMoney: {
+              amount: BigInt(5000),
+              currency: "GBP",
+            },
           },
-          refundedMoney: {
-            amount: BigInt(5000),
-            currency: "GBP",
-          },
-        },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.retrievePayment("pay_full");
           expect(result).not.toBeNull();
@@ -1023,24 +1047,25 @@ describe("square", () => {
 
   describe("retrievePayment wrapper export", () => {
     test("delegates to squareApi.retrievePayment", async () => {
-      const { client, paymentsGet } = createMockClient();
-      paymentsGet.mockResolvedValue({
-        payment: {
-          id: "pay_wrapper",
-          status: "COMPLETED",
-          orderId: "order_wrapper",
-          amountMoney: { amount: BigInt(1000), currency: "USD" },
-        },
+      const { client, paymentsGet } = createMockClient({
+        paymentsGet: () => Promise.resolve({
+          payment: {
+            id: "pay_wrapper",
+            status: "COMPLETED",
+            orderId: "order_wrapper",
+            amountMoney: { amount: BigInt(1000), currency: "USD" },
+          },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await retrievePayment("pay_wrapper");
           expect(result).not.toBeNull();
           expect(result!.id).toBe("pay_wrapper");
           expect(result!.status).toBe("COMPLETED");
-          expect(paymentsGet.mock.calls[0]![0]).toEqual({ paymentId: "pay_wrapper" });
+          expect(paymentsGet.calls[0]!.args[0]).toEqual({ paymentId: "pay_wrapper" });
         },
       );
     });
@@ -1055,8 +1080,7 @@ describe("square", () => {
     test("returns false when payment retrieval returns null", async () => {
       await withMocks(
         () =>
-          spyOn(squareApi, "retrievePayment")
-            .mockResolvedValue(null),
+          stub(squareApi, "retrievePayment", () => Promise.resolve(null)),
         async () => {
           const result = await squareApi.refundPayment("pay_123");
           expect(result).toBe(false);
@@ -1065,31 +1089,32 @@ describe("square", () => {
     });
 
     test("calls SDK refund with correct amount from payment", async () => {
-      const { client, paymentsGet, refundsRefundPayment } = createMockClient();
-      paymentsGet.mockResolvedValue({
-        payment: {
-          id: "pay_refund_me",
-          status: "COMPLETED",
-          orderId: "order_refund",
-          amountMoney: { amount: BigInt(4200), currency: "USD" },
-        },
-      });
-      refundsRefundPayment.mockResolvedValue({
-        refund: { id: "refund_123", status: "PENDING" },
+      const { client, paymentsGet, refundsRefundPayment } = createMockClient({
+        paymentsGet: () => Promise.resolve({
+          payment: {
+            id: "pay_refund_me",
+            status: "COMPLETED",
+            orderId: "order_refund",
+            amountMoney: { amount: BigInt(4200), currency: "USD" },
+          },
+        }),
+        refundsRefundPayment: () => Promise.resolve({
+          refund: { id: "refund_123", status: "PENDING" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.refundPayment("pay_refund_me");
           expect(result).toBe(true);
 
           // Verify payments.get was called to fetch amount
-          expect(paymentsGet.mock.calls[0]![0]).toEqual({ paymentId: "pay_refund_me" });
+          expect(paymentsGet.calls[0]!.args[0]).toEqual({ paymentId: "pay_refund_me" });
 
           // Verify refund was called with correct amount and payment ID
           // deno-lint-ignore no-explicit-any
-          const refundArgs = refundsRefundPayment.mock.calls[0]![0] as any;
+          const refundArgs = refundsRefundPayment.calls[0]!.args[0] as any;
           expect(refundArgs.paymentId).toBe("pay_refund_me");
           expect(refundArgs.amountMoney.amount).toBe(BigInt(4200));
           expect(refundArgs.amountMoney.currency).toBe("USD");
@@ -1100,19 +1125,20 @@ describe("square", () => {
     });
 
     test("returns false when refund SDK call throws", async () => {
-      const { client, paymentsGet, refundsRefundPayment } = createMockClient();
-      paymentsGet.mockResolvedValue({
-        payment: {
-          id: "pay_fail",
-          status: "COMPLETED",
-          orderId: "order_fail",
-          amountMoney: { amount: BigInt(1000), currency: "GBP" },
-        },
+      const { client } = createMockClient({
+        paymentsGet: () => Promise.resolve({
+          payment: {
+            id: "pay_fail",
+            status: "COMPLETED",
+            orderId: "order_fail",
+            amountMoney: { amount: BigInt(1000), currency: "GBP" },
+          },
+        }),
+        refundsRefundPayment: () => Promise.reject(new Error("Square API error")),
       });
-      refundsRefundPayment.mockRejectedValue(new Error("Square API error"));
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squareApi.refundPayment("pay_fail");
           expect(result).toBe(false);
@@ -1268,13 +1294,19 @@ describe("square", () => {
 
   describe("Square REST client transport", () => {
     let originalFetch: typeof globalThis.fetch;
-    let mockFetch: ReturnType<typeof jest.fn>;
+    // deno-lint-ignore no-explicit-any
+    let mockFetch: { calls: { args: any[] }[] };
+
+    /** Create a mock fetch with the given implementation and assign to globalThis */
+    // deno-lint-ignore no-explicit-any
+    const installMockFetch = (impl: (...args: any[]) => any) => {
+      mockFetch = spy(impl);
+      // deno-lint-ignore no-explicit-any
+      globalThis.fetch = mockFetch as any;
+    };
 
     beforeEach(async () => {
       originalFetch = globalThis.fetch;
-      mockFetch = jest.fn();
-      // deno-lint-ignore no-explicit-any
-      globalThis.fetch = mockFetch as any;
       await updateSquareAccessToken("EAAAl_rest_test");
       await updateSquareSandbox(true);
     });
@@ -1284,12 +1316,12 @@ describe("square", () => {
     });
 
     test("sends correct headers and snake_case body for payment link creation", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
           payment_link: { order_id: "ord_rest", url: "https://square.link/rest" },
         }),
-      });
+      }));
 
       const client = await getSquareClient();
       const result = await client!.checkout.paymentLinks.create({
@@ -1314,7 +1346,7 @@ describe("square", () => {
 
       // Request verification
       // deno-lint-ignore no-explicit-any
-      const [url, opts] = mockFetch.mock.calls[0] as any[];
+      const [url, opts] = mockFetch.calls[0]!.args as any[];
       expect(url).toBe("https://connect.squareupsandbox.com/v2/online-checkout/payment-links");
       expect(opts.method).toBe("POST");
       expect(opts.headers.Authorization).toBe("Bearer EAAAl_rest_test");
@@ -1332,12 +1364,12 @@ describe("square", () => {
     });
 
     test("omits buyer_phone_number from request when not provided", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
           payment_link: { order_id: "ord_2", url: "https://square.link/2" },
         }),
-      });
+      }));
 
       const client = await getSquareClient();
       await client!.checkout.paymentLinks.create({
@@ -1352,15 +1384,15 @@ describe("square", () => {
       });
 
       // deno-lint-ignore no-explicit-any
-      const body = JSON.parse((mockFetch.mock.calls[0] as any[])[1].body);
+      const body = JSON.parse((mockFetch.calls[0]!.args as any[])[1].body);
       expect(body.pre_populated_data.buyer_phone_number).toBeUndefined();
     });
 
     test("returns undefined paymentLink when API returns no payment_link", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({}),
-      });
+      }));
 
       const client = await getSquareClient();
       const result = await client!.checkout.paymentLinks.create({
@@ -1374,7 +1406,7 @@ describe("square", () => {
     });
 
     test("orders.get fetches correct URL and maps response to camelCase", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
           order: {
@@ -1388,13 +1420,13 @@ describe("square", () => {
             total_money: { amount: 5000, currency: "USD" },
           },
         }),
-      });
+      }));
 
       const client = await getSquareClient();
       const result = await client!.orders.get({ orderId: "ord_100" });
 
       // deno-lint-ignore no-explicit-any
-      expect((mockFetch.mock.calls[0] as any[])[0]).toBe(
+      expect((mockFetch.calls[0]!.args as any[])[0]).toBe(
         "https://connect.squareupsandbox.com/v2/orders/ord_100",
       );
       expect(result.order!.id).toBe("ord_100");
@@ -1407,12 +1439,12 @@ describe("square", () => {
     });
 
     test("orders.get handles missing total_money", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
           order: { id: "ord_no_total", metadata: {}, state: "OPEN" },
         }),
-      });
+      }));
 
       const client = await getSquareClient();
       const result = await client!.orders.get({ orderId: "ord_no_total" });
@@ -1421,10 +1453,10 @@ describe("square", () => {
     });
 
     test("orders.get returns null order when API returns none", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({}),
-      });
+      }));
 
       const client = await getSquareClient();
       const result = await client!.orders.get({ orderId: "missing" });
@@ -1432,7 +1464,7 @@ describe("square", () => {
     });
 
     test("payments.get maps response with BigInt amounts", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
           payment: {
@@ -1443,13 +1475,13 @@ describe("square", () => {
             refunded_money: { amount: 1000, currency: "GBP" },
           },
         }),
-      });
+      }));
 
       const client = await getSquareClient();
       const result = await client!.payments.get({ paymentId: "pay_1" });
 
       // deno-lint-ignore no-explicit-any
-      expect((mockFetch.mock.calls[0] as any[])[0]).toBe(
+      expect((mockFetch.calls[0]!.args as any[])[0]).toBe(
         "https://connect.squareupsandbox.com/v2/payments/pay_1",
       );
       expect(result.payment!.id).toBe("pay_1");
@@ -1459,12 +1491,12 @@ describe("square", () => {
     });
 
     test("payments.get handles missing amount_money", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
           payment: { id: "pay_no_amount", status: "PENDING", order_id: "ord_x" },
         }),
-      });
+      }));
 
       const client = await getSquareClient();
       const result = await client!.payments.get({ paymentId: "pay_no_amount" });
@@ -1473,7 +1505,7 @@ describe("square", () => {
     });
 
     test("payments.get handles missing refunded_money", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
           payment: {
@@ -1483,7 +1515,7 @@ describe("square", () => {
             amount_money: { amount: 2000, currency: "USD" },
           },
         }),
-      });
+      }));
 
       const client = await getSquareClient();
       const result = await client!.payments.get({ paymentId: "pay_2" });
@@ -1492,10 +1524,10 @@ describe("square", () => {
     });
 
     test("payments.get returns null payment when API returns none", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({}),
-      });
+      }));
 
       const client = await getSquareClient();
       const result = await client!.payments.get({ paymentId: "missing" });
@@ -1503,10 +1535,10 @@ describe("square", () => {
     });
 
     test("refunds.refundPayment sends correct snake_case body", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ refund: { id: "ref_1" } }),
-      });
+      }));
 
       const client = await getSquareClient();
       await client!.refunds.refundPayment({
@@ -1516,7 +1548,7 @@ describe("square", () => {
       });
 
       // deno-lint-ignore no-explicit-any
-      const [url, opts] = mockFetch.mock.calls[0] as any[];
+      const [url, opts] = mockFetch.calls[0]!.args as any[];
       expect(url).toBe("https://connect.squareupsandbox.com/v2/refunds");
       expect(opts.method).toBe("POST");
       const body = JSON.parse(opts.body);
@@ -1527,11 +1559,11 @@ describe("square", () => {
     });
 
     test("throws error with status code and body for HTTP errors", async () => {
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: false,
         status: 400,
         text: () => Promise.resolve('{"errors":[{"code":"BAD_REQUEST"}]}'),
-      });
+      }));
 
       const client = await getSquareClient();
       try {
@@ -1546,43 +1578,44 @@ describe("square", () => {
     test("uses production URL when sandbox is disabled", async () => {
       resetSquareClient();
       await updateSquareSandbox(false);
-      mockFetch.mockResolvedValue({
+      installMockFetch(() => Promise.resolve({
         ok: true,
         json: () => Promise.resolve({}),
-      });
+      }));
 
       const client = await getSquareClient();
       await client!.orders.get({ orderId: "test" });
 
       // deno-lint-ignore no-explicit-any
-      expect((mockFetch.mock.calls[0] as any[])[0]).toContain("connect.squareup.com");
+      expect((mockFetch.calls[0]!.args as any[])[0]).toContain("connect.squareup.com");
     });
   });
 
   describe("squarePaymentProvider integration", () => {
     test("retrieveSession maps COMPLETED order to paid status", async () => {
-      const { client, ordersGet, paymentsGet } = createMockClient();
-      ordersGet.mockResolvedValue({
-        order: {
-          id: "order_paid",
-          metadata: {
-            event_id: "1",
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "555-1234",
-            quantity: "2",
+      const { client } = createMockClient({
+        ordersGet: () => Promise.resolve({
+          order: {
+            id: "order_paid",
+            metadata: {
+              event_id: "1",
+              name: "John Doe",
+              email: "john@example.com",
+              phone: "555-1234",
+              quantity: "2",
+            },
+            tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
+            state: "COMPLETED",
+            totalMoney: { amount: BigInt(5000), currency: "USD" },
           },
-          tenders: [{ id: "tender_1", paymentId: "pay_abc" }],
-          state: "COMPLETED",
-          totalMoney: { amount: BigInt(5000), currency: "USD" },
-        },
-      });
-      paymentsGet.mockResolvedValue({
-        payment: { id: "pay_abc", status: "COMPLETED" },
+        }),
+        paymentsGet: () => Promise.resolve({
+          payment: { id: "pay_abc", status: "COMPLETED" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squarePaymentProvider.retrieveSession("order_paid");
           expect(result).not.toBeNull();
@@ -1599,22 +1632,23 @@ describe("square", () => {
     });
 
     test("retrieveSession maps OPEN order to unpaid status", async () => {
-      const { client, ordersGet } = createMockClient();
-      ordersGet.mockResolvedValue({
-        order: {
-          id: "order_open",
-          metadata: {
-            event_id: "1",
-            name: "John",
-            email: "john@example.com",
+      const { client } = createMockClient({
+        ordersGet: () => Promise.resolve({
+          order: {
+            id: "order_open",
+            metadata: {
+              event_id: "1",
+              name: "John",
+              email: "john@example.com",
+            },
+            state: "OPEN",
+            totalMoney: { amount: BigInt(1000), currency: "USD" },
           },
-          state: "OPEN",
-          totalMoney: { amount: BigInt(1000), currency: "USD" },
-        },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squarePaymentProvider.retrieveSession("order_open");
           expect(result).not.toBeNull();
@@ -1625,16 +1659,17 @@ describe("square", () => {
     });
 
     test("retrieveSession returns null for missing metadata", async () => {
-      const { client, ordersGet } = createMockClient();
-      ordersGet.mockResolvedValue({
-        order: {
-          id: "order_no_meta",
-          state: "COMPLETED",
-        },
+      const { client } = createMockClient({
+        ordersGet: () => Promise.resolve({
+          order: {
+            id: "order_no_meta",
+            state: "COMPLETED",
+          },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squarePaymentProvider.retrieveSession("order_no_meta");
           expect(result).toBeNull();
@@ -1643,17 +1678,18 @@ describe("square", () => {
     });
 
     test("retrieveSession returns null for incomplete metadata", async () => {
-      const { client, ordersGet } = createMockClient();
-      ordersGet.mockResolvedValue({
-        order: {
-          id: "order_bad_meta",
-          metadata: { email: "john@example.com" },
-          state: "COMPLETED",
-        },
+      const { client } = createMockClient({
+        ordersGet: () => Promise.resolve({
+          order: {
+            id: "order_bad_meta",
+            metadata: { email: "john@example.com" },
+            state: "COMPLETED",
+          },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squarePaymentProvider.retrieveSession("order_bad_meta");
           expect(result).toBeNull();
@@ -1662,11 +1698,12 @@ describe("square", () => {
     });
 
     test("retrieveSession returns null when order not found", async () => {
-      const { client, ordersGet } = createMockClient();
-      ordersGet.mockResolvedValue({ order: null });
+      const { client } = createMockClient({
+        ordersGet: () => Promise.resolve({ order: null }),
+      });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squarePaymentProvider.retrieveSession("order_gone");
           expect(result).toBeNull();
@@ -1675,27 +1712,28 @@ describe("square", () => {
     });
 
     test("retrieveSession returns amountTotal from order totalMoney", async () => {
-      const { client, ordersGet, paymentsGet } = createMockClient();
-      ordersGet.mockResolvedValue({
-        order: {
-          id: "order_with_amount",
-          metadata: {
-            event_id: "5",
-            name: "Total User",
-            email: "total@example.com",
-            quantity: "2",
+      const { client } = createMockClient({
+        ordersGet: () => Promise.resolve({
+          order: {
+            id: "order_with_amount",
+            metadata: {
+              event_id: "5",
+              name: "Total User",
+              email: "total@example.com",
+              quantity: "2",
+            },
+            tenders: [{ id: "tender_1", paymentId: "pay_total_123" }],
+            state: "COMPLETED",
+            totalMoney: { amount: BigInt(6000), currency: "GBP" },
           },
-          tenders: [{ id: "tender_1", paymentId: "pay_total_123" }],
-          state: "COMPLETED",
-          totalMoney: { amount: BigInt(6000), currency: "GBP" },
-        },
-      });
-      paymentsGet.mockResolvedValue({
-        payment: { id: "pay_total_123", status: "COMPLETED" },
+        }),
+        paymentsGet: () => Promise.resolve({
+          payment: { id: "pay_total_123", status: "COMPLETED" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squarePaymentProvider.retrieveSession("order_with_amount");
           expect(result).not.toBeNull();
@@ -1709,27 +1747,28 @@ describe("square", () => {
 
     test("retrieveSession handles multi-ticket order", async () => {
       const items = JSON.stringify([{ e: 1, q: 2 }, { e: 2, q: 1 }]);
-      const { client, ordersGet, paymentsGet } = createMockClient();
-      ordersGet.mockResolvedValue({
-        order: {
-          id: "order_multi",
-          metadata: {
-            multi: "1",
-            name: "John",
-            email: "john@example.com",
-            items,
+      const { client } = createMockClient({
+        ordersGet: () => Promise.resolve({
+          order: {
+            id: "order_multi",
+            metadata: {
+              multi: "1",
+              name: "John",
+              email: "john@example.com",
+              items,
+            },
+            tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
+            state: "COMPLETED",
+            totalMoney: { amount: BigInt(3000), currency: "USD" },
           },
-          tenders: [{ id: "tender_1", paymentId: "pay_multi" }],
-          state: "COMPLETED",
-          totalMoney: { amount: BigInt(3000), currency: "USD" },
-        },
-      });
-      paymentsGet.mockResolvedValue({
-        payment: { id: "pay_multi", status: "COMPLETED" },
+        }),
+        paymentsGet: () => Promise.resolve({
+          payment: { id: "pay_multi", status: "COMPLETED" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squarePaymentProvider.retrieveSession("order_multi");
           expect(result).not.toBeNull();
@@ -1741,13 +1780,14 @@ describe("square", () => {
     });
 
     test("createCheckoutSession passes through SDK results", async () => {
-      const { client, checkoutCreate } = createMockClient();
-      checkoutCreate.mockResolvedValue({
-        paymentLink: { orderId: "order_prov", url: "https://square.link/prov" },
+      const { client } = createMockClient({
+        checkoutCreate: () => Promise.resolve({
+          paymentLink: { orderId: "order_prov", url: "https://square.link/prov" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           await updateSquareAccessToken("EAAAl_test_123");
           await updateSquareLocationId("L_loc_prov");
@@ -1800,13 +1840,14 @@ describe("square", () => {
     });
 
     test("createMultiCheckoutSession passes through SDK results", async () => {
-      const { client, checkoutCreate } = createMockClient();
-      checkoutCreate.mockResolvedValue({
-        paymentLink: { orderId: "order_mprov", url: "https://square.link/mprov" },
+      const { client } = createMockClient({
+        checkoutCreate: () => Promise.resolve({
+          paymentLink: { orderId: "order_mprov", url: "https://square.link/mprov" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           await updateSquareAccessToken("EAAAl_test_123");
           await updateSquareLocationId("L_loc_prov");
@@ -1835,21 +1876,22 @@ describe("square", () => {
     });
 
     test("refundPayment delegates through SDK", async () => {
-      const { client, paymentsGet, refundsRefundPayment } = createMockClient();
-      paymentsGet.mockResolvedValue({
-        payment: {
-          id: "pay_prov_ref",
-          status: "COMPLETED",
-          orderId: "order_prov_ref",
-          amountMoney: { amount: BigInt(2000), currency: "GBP" },
-        },
-      });
-      refundsRefundPayment.mockResolvedValue({
-        refund: { id: "refund_prov", status: "PENDING" },
+      const { client } = createMockClient({
+        paymentsGet: () => Promise.resolve({
+          payment: {
+            id: "pay_prov_ref",
+            status: "COMPLETED",
+            orderId: "order_prov_ref",
+            amountMoney: { amount: BigInt(2000), currency: "GBP" },
+          },
+        }),
+        refundsRefundPayment: () => Promise.resolve({
+          refund: { id: "refund_prov", status: "PENDING" },
+        }),
       });
 
       await withMocks(
-        () => spyOn(squareApi, "getSquareClient").mockResolvedValue(client),
+        () => stub(squareApi, "getSquareClient", () => Promise.resolve(client)),
         async () => {
           const result = await squarePaymentProvider.refundPayment("pay_prov_ref");
           expect(result).toBe(true);

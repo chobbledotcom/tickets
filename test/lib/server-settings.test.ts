@@ -3,7 +3,7 @@ import {
   beforeEach,
   describe,
   expect,
-  spyOn,
+  stub,
   test,
 } from "#test-compat";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
@@ -324,11 +324,12 @@ describe("server (admin settings)", () => {
     test("updates Stripe key successfully", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
-            success: true,
-            endpointId: "we_test_123",
-            secret: "whsec_test_secret",
-          }),
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -371,11 +372,12 @@ describe("server (admin settings)", () => {
     test("settings page shows Stripe is configured after setting key", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
-            success: true,
-            endpointId: "we_test_123",
-            secret: "whsec_test_secret",
-          }),
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -427,11 +429,12 @@ describe("server (admin settings)", () => {
     test("returns JSON result when API key is not configured", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
-            ok: false,
-            apiKey: { valid: false, error: "No Stripe secret key configured" },
-            webhook: { configured: false },
-          }),
+          stub(stripeApi, "testStripeConnection", () =>
+            Promise.resolve({
+              ok: false,
+              apiKey: { valid: false, error: "No Stripe secret key configured" },
+              webhook: { configured: false },
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
@@ -456,17 +459,18 @@ describe("server (admin settings)", () => {
     test("returns success when API key and webhook are valid", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
-            ok: true,
-            apiKey: { valid: true, mode: "test" },
-            webhook: {
-              configured: true,
-              endpointId: "we_test_123",
-              url: "https://example.com/payment/webhook",
-              status: "enabled",
-              enabledEvents: ["checkout.session.completed"],
-            },
-          }),
+          stub(stripeApi, "testStripeConnection", () =>
+            Promise.resolve({
+              ok: true,
+              apiKey: { valid: true, mode: "test" },
+              webhook: {
+                configured: true,
+                endpointId: "we_test_123",
+                url: "https://example.com/payment/webhook",
+                status: "enabled",
+                enabledEvents: ["checkout.session.completed"],
+              },
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
@@ -492,14 +496,15 @@ describe("server (admin settings)", () => {
     test("returns partial failure when API key valid but webhook missing", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
-            ok: false,
-            apiKey: { valid: true, mode: "test" },
-            webhook: {
-              configured: false,
-              error: "No webhook endpoint ID stored",
-            },
-          }),
+          stub(stripeApi, "testStripeConnection", () =>
+            Promise.resolve({
+              ok: false,
+              apiKey: { valid: true, mode: "test" },
+              webhook: {
+                configured: false,
+                error: "No webhook endpoint ID stored",
+              },
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
@@ -923,11 +928,11 @@ describe("server (admin settings)", () => {
 
   describe("POST /admin/settings/stripe (webhook setup failure)", () => {
     test("shows error when webhook setup fails", async () => {
-      const mockSetupWebhook = spyOn(stripeApi, "setupWebhookEndpoint");
-      mockSetupWebhook.mockResolvedValue({
-        success: false,
-        error: "Connection refused",
-      });
+      const mockSetupWebhook = stub(stripeApi, "setupWebhookEndpoint", () =>
+        Promise.resolve({
+          success: false,
+          error: "Connection refused",
+        }));
 
       try {
         await setPaymentProvider("stripe");
@@ -950,7 +955,7 @@ describe("server (admin settings)", () => {
           "Connection refused",
         );
       } finally {
-        mockSetupWebhook.mockRestore();
+        mockSetupWebhook.restore();
       }
     });
   });
@@ -1455,11 +1460,12 @@ describe("server (admin settings)", () => {
     test("logs activity when Stripe key is configured", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
-            success: true,
-            endpointId: "we_test_123",
-            secret: "whsec_test_secret",
-          }),
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 

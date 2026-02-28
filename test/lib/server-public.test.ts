@@ -3,7 +3,7 @@ import {
   beforeEach,
   describe,
   expect,
-  spyOn,
+  stub,
   test,
 } from "#test-compat";
 import {
@@ -1710,8 +1710,7 @@ describe("server (public routes)", () => {
       const { attendeesApi } = await import("#lib/db/attendees.ts");
       const origCreate = attendeesApi.createAttendeeAtomic;
       let callCount = 0;
-      const mockCreate = spyOn(attendeesApi, "createAttendeeAtomic");
-      mockCreate.mockImplementation(
+      const mockCreate = stub(attendeesApi, "createAttendeeAtomic",
         (...args: Parameters<typeof origCreate>) => {
           callCount++;
           if (callCount === 2) {
@@ -1741,7 +1740,7 @@ describe("server (public routes)", () => {
 
         await expectHtmlResponse(response, 400, "no longer has enough spots");
       } finally {
-        mockCreate.mockRestore();
+        mockCreate.restore();
       }
     });
 
@@ -2164,11 +2163,11 @@ describe("server (public routes)", () => {
 
       // Mock createMultiCheckoutSession to return no URL
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockCreate = spyOn(
+      const mockCreate = stub(
         stripePaymentProvider,
         "createMultiCheckoutSession",
+        () => Promise.resolve(null),
       );
-      mockCreate.mockResolvedValue(null);
 
       try {
         const response = await handleRequest(
@@ -2186,7 +2185,7 @@ describe("server (public routes)", () => {
           "Failed to create payment session",
         );
       } finally {
-        mockCreate.mockRestore();
+        mockCreate.restore();
       }
     });
 
@@ -2235,11 +2234,12 @@ describe("server (public routes)", () => {
       });
 
       const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const mockAtomic = spyOn(attendeesApi, "createAttendeeAtomic");
-      mockAtomic.mockResolvedValue({
-        success: false,
-        reason: "encryption_error",
-      });
+      const mockAtomic = stub(attendeesApi, "createAttendeeAtomic",
+        () => Promise.resolve({
+          success: false,
+          reason: "encryption_error",
+        }),
+      );
 
       try {
         const response = await submitTicketForm(event.slug, {
@@ -2253,7 +2253,7 @@ describe("server (public routes)", () => {
           "Please try again",
         );
       } finally {
-        mockAtomic.mockRestore();
+        mockAtomic.restore();
       }
     });
   });
@@ -2329,8 +2329,9 @@ describe("server (public routes)", () => {
       // Mock checkBatchAvailability via attendeesApi to return false,
       // simulating a race condition where event sells out between page load and check
       const { attendeesApi } = await import("#lib/db/attendees.ts");
-      const mockBatch = spyOn(attendeesApi, "checkBatchAvailability");
-      mockBatch.mockImplementation(() => Promise.resolve(false));
+      const mockBatch = stub(attendeesApi, "checkBatchAvailability",
+        () => Promise.resolve(false),
+      );
 
       try {
         const response = await handleRequest(
@@ -2353,7 +2354,7 @@ describe("server (public routes)", () => {
           "some tickets are no longer available",
         );
       } finally {
-        mockBatch.mockRestore();
+        mockBatch.restore();
       }
     });
   });
@@ -2476,8 +2477,9 @@ describe("server (public routes)", () => {
       // Mock paymentsApi.getConfiguredProvider to return null so getActivePaymentProvider
       // returns null, while isPaymentsEnabled still returns true from the DB
       const { paymentsApi } = await import("#lib/payments.ts");
-      const mockConfigured = spyOn(paymentsApi, "getConfiguredProvider");
-      mockConfigured.mockResolvedValue(null);
+      const mockConfigured = stub(paymentsApi, "getConfiguredProvider",
+        () => Promise.resolve(null),
+      );
 
       try {
         const response = await submitTicketForm(event.slug, {
@@ -2487,7 +2489,7 @@ describe("server (public routes)", () => {
 
         await expectHtmlResponse(response, 500, "Payments are not configured");
       } finally {
-        mockConfigured.mockRestore();
+        mockConfigured.restore();
       }
     });
   });
@@ -2521,8 +2523,9 @@ describe("server (public routes)", () => {
       // Mock paymentsApi.getConfiguredProvider to return null so getActivePaymentProvider
       // returns null, while isPaymentsEnabled still returns true from the DB
       const { paymentsApi } = await import("#lib/payments.ts");
-      const mockConfigured = spyOn(paymentsApi, "getConfiguredProvider");
-      mockConfigured.mockResolvedValue(null);
+      const mockConfigured = stub(paymentsApi, "getConfiguredProvider",
+        () => Promise.resolve(null),
+      );
 
       try {
         const response = await handleRequest(
@@ -2541,7 +2544,7 @@ describe("server (public routes)", () => {
 
         await expectHtmlResponse(response, 500, "Payments are not configured");
       } finally {
-        mockConfigured.mockRestore();
+        mockConfigured.restore();
       }
     });
   });

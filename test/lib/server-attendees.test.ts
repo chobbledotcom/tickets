@@ -3,7 +3,7 @@ import {
   beforeEach,
   describe,
   expect,
-  spyOn,
+  stub,
   test,
 } from "#test-compat";
 import { attendeesApi } from "#lib/db/attendees.ts";
@@ -806,10 +806,12 @@ describe("server (admin attendees)", () => {
 
       await withMocks(
         () =>
-          spyOn(attendeesApi, "createAttendeeAtomic").mockResolvedValue({
-            success: false,
-            reason: "encryption_error",
-          }),
+          stub(attendeesApi, "createAttendeeAtomic", () =>
+            Promise.resolve({
+              success: false,
+              reason: "encryption_error",
+            }),
+          ),
         async () => {
           const response = await handleRequest(
             mockFormRequest(
@@ -1687,42 +1689,54 @@ describe("server (admin attendees)", () => {
     });
 
     test("re-sends webhook with matching name", async () => {
-      const webhookFetch = spyOn(globalThis, "fetch");
-      webhookFetch.mockResolvedValue(new Response(null, { status: 200 }));
+      const webhookFetch = stub(
+        globalThis,
+        "fetch",
+        () => Promise.resolve(new Response(null, { status: 200 })),
+      );
 
-      const { response, event } = await resendWebhookAction({
-        confirm_name: "John Doe",
-      })({
-        webhookUrl: "https://example.com/webhook",
-      });
-      expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
+      try {
+        const { response, event } = await resendWebhookAction({
+          confirm_name: "John Doe",
+        })({
+          webhookUrl: "https://example.com/webhook",
+        });
+        expect(response.status).toBe(302);
+        expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
 
-      // Verify webhook was sent
-      expect(webhookFetch).toHaveBeenCalled();
-      webhookFetch.mockRestore();
+        // Verify webhook was sent
+        expect(webhookFetch.calls.length).toBeGreaterThan(0);
+      } finally {
+        webhookFetch.restore();
+      }
     });
 
     test("logs activity when webhook is re-sent", async () => {
-      const webhookFetch = spyOn(globalThis, "fetch");
-      webhookFetch.mockResolvedValue(new Response(null, { status: 200 }));
-
-      const { response, event } = await resendWebhookAction({
-        confirm_name: "John Doe",
-      })({
-        webhookUrl: "https://example.com/webhook",
-      });
-      expect(response.status).toBe(302);
-
-      // Verify activity was logged
-      const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
-      const logs = await getEventActivityLog(event.id);
-      const resendLog = logs.find((l: { message: string }) =>
-        l.message.includes("Webhook re-sent")
+      const webhookFetch = stub(
+        globalThis,
+        "fetch",
+        () => Promise.resolve(new Response(null, { status: 200 })),
       );
-      expect(resendLog).toBeDefined();
-      expect(resendLog?.message).toContain("John Doe");
-      webhookFetch.mockRestore();
+
+      try {
+        const { response, event } = await resendWebhookAction({
+          confirm_name: "John Doe",
+        })({
+          webhookUrl: "https://example.com/webhook",
+        });
+        expect(response.status).toBe(302);
+
+        // Verify activity was logged
+        const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
+        const logs = await getEventActivityLog(event.id);
+        const resendLog = logs.find((l: { message: string }) =>
+          l.message.includes("Webhook re-sent")
+        );
+        expect(resendLog).toBeDefined();
+        expect(resendLog?.message).toContain("John Doe");
+      } finally {
+        webhookFetch.restore();
+      }
     });
   });
 
@@ -1884,7 +1898,9 @@ describe("server (admin attendees)", () => {
 
       await withMocks(
         () =>
-          spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(null),
+          stub(paymentsApi, "getConfiguredProvider", () =>
+            Promise.resolve(null),
+          ),
         async () => {
           const response = await handleRequest(
             mockFormRequest(
@@ -1913,15 +1929,18 @@ describe("server (admin attendees)", () => {
 
       await withMocks(
         () =>
-          spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(
-            mockProviderType("stripe"),
+          stub(paymentsApi, "getConfiguredProvider", () =>
+            Promise.resolve(mockProviderType("stripe")),
           ),
         async () => {
           const { stripePaymentProvider } = await import(
             "#lib/stripe-provider.ts"
           );
-          const mockRefunded = spyOn(stripePaymentProvider, "isPaymentRefunded")
-            .mockResolvedValue(true);
+          const mockRefunded = stub(
+            stripePaymentProvider,
+            "isPaymentRefunded",
+            () => Promise.resolve(true),
+          );
           try {
             const response = await handleRequest(
               mockFormRequest(
@@ -1936,9 +1955,9 @@ describe("server (admin attendees)", () => {
             );
             expect(response.headers.get("location")).toContain("success=");
             expect(response.headers.get("location")).toContain("refunded");
-            expect(mockRefunded).toHaveBeenCalledWith("pi_refresh_refund");
+            expect(mockRefunded.calls[0]!.args).toEqual(["pi_refresh_refund"]);
           } finally {
-            mockRefunded.mockRestore?.();
+            mockRefunded.restore();
           }
         },
       );
@@ -1959,15 +1978,18 @@ describe("server (admin attendees)", () => {
 
       await withMocks(
         () =>
-          spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(
-            mockProviderType("stripe"),
+          stub(paymentsApi, "getConfiguredProvider", () =>
+            Promise.resolve(mockProviderType("stripe")),
           ),
         async () => {
           const { stripePaymentProvider } = await import(
             "#lib/stripe-provider.ts"
           );
-          const mockRefunded = spyOn(stripePaymentProvider, "isPaymentRefunded")
-            .mockResolvedValue(false);
+          const mockRefunded = stub(
+            stripePaymentProvider,
+            "isPaymentRefunded",
+            () => Promise.resolve(false),
+          );
           try {
             const response = await handleRequest(
               mockFormRequest(
@@ -1985,7 +2007,7 @@ describe("server (admin attendees)", () => {
               "up%20to%20date",
             );
           } finally {
-            mockRefunded.mockRestore?.();
+            mockRefunded.restore();
           }
         },
       );

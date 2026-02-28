@@ -1,20 +1,16 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import { afterEach, beforeEach, describe, expect, spy, stub, test } from "#test-compat";
 import { sendNtfyError } from "#lib/ntfy.ts";
 import { ErrorCode } from "#lib/logger.ts";
 
 describe("ntfy", () => {
-  // deno-lint-ignore no-explicit-any
-  let fetchSpy: any;
-  let originalFetch: typeof fetch;
+  let fetchStub: ReturnType<typeof stub<typeof globalThis, "fetch">>;
 
   beforeEach(() => {
-    originalFetch = globalThis.fetch;
-    fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(new Response());
+    fetchStub = stub(globalThis, "fetch", () => Promise.resolve(new Response()));
   });
 
   afterEach(() => {
-    fetchSpy.mockRestore();
-    globalThis.fetch = originalFetch;
+    fetchStub.restore();
     Deno.env.delete("NTFY_URL");
   });
 
@@ -22,7 +18,7 @@ describe("ntfy", () => {
     test("does nothing when NTFY_URL is not set", () => {
       sendNtfyError(ErrorCode.DB_CONNECTION);
 
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(fetchStub.calls.length).toBe(0);
     });
 
     test("sends POST to ntfy URL with error code as body", () => {
@@ -30,8 +26,8 @@ describe("ntfy", () => {
 
       sendNtfyError(ErrorCode.DB_CONNECTION);
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      const [url, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(fetchStub.calls.length).toBe(1);
+      const [url, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       expect(url).toBe("https://ntfy.sh/my-topic");
       expect(options.method).toBe("POST");
       expect(options.body).toBe("E_DB_CONNECTION");
@@ -42,7 +38,7 @@ describe("ntfy", () => {
 
       sendNtfyError(ErrorCode.CAPACITY_EXCEEDED);
 
-      const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       const headers = options.headers as Record<string, string>;
       expect(headers["Title"]).toBe("localhost error");
     });
@@ -52,24 +48,25 @@ describe("ntfy", () => {
 
       sendNtfyError(ErrorCode.STRIPE_SIGNATURE);
 
-      const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      const [, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       const headers = options.headers as Record<string, string>;
       expect(headers["Tags"]).toBe("warning");
     });
 
     test("logs error when fetch fails", async () => {
       Deno.env.set("NTFY_URL", "https://ntfy.sh/my-topic");
-      fetchSpy.mockRejectedValue(new Error("Network error"));
-      const errorSpy = spyOn(console, "error");
+      fetchStub.restore();
+      fetchStub = stub(globalThis, "fetch", () => Promise.reject(new Error("Network error")));
+      const errorSpy = spy(console, "error");
 
       sendNtfyError(ErrorCode.WEBHOOK_SEND);
 
       // Wait for the rejected promise's .catch handler to run
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      expect(errorSpy).toHaveBeenCalledWith("[Error] E_NTFY_SEND");
-      errorSpy.mockRestore();
+      expect(fetchStub.calls.length).toBe(1);
+      expect(errorSpy.calls[0]!.args).toEqual(["[Error] E_NTFY_SEND"]);
+      errorSpy.restore();
     });
   });
 });
