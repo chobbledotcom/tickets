@@ -44,7 +44,7 @@ import { isValidTimezone } from "#lib/timezone.ts";
 import { validateEmbedHosts, parseEmbedHosts } from "#lib/embed-hosts.ts";
 import { resetDatabase } from "#lib/db/migrations/index.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
-import { type Field, validateForm } from "#lib/forms.tsx";
+import { type Field, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import {
@@ -126,8 +126,6 @@ const getSettingsPageState = async () => {
 const renderSettingsPage = async (
   session: AuthSession,
   error: string,
-  success: string,
-  successFormId: string,
 ) => {
   const state = await getSettingsPageState();
   return adminSettingsPage(
@@ -135,7 +133,6 @@ const renderSettingsPage = async (
     state.stripeKeyConfigured,
     state.paymentProvider,
     error,
-    success,
     state.squareTokenConfigured,
     state.squareSandbox,
     state.squareWebhookConfigured,
@@ -149,14 +146,13 @@ const renderSettingsPage = async (
     state.phonePrefix,
     state.headerImageUrl,
     state.storageEnabled,
-    successFormId,
   );
 };
 
 /** Render settings page with error at given status */
 const settingsPageWithError = (session: AuthSession) =>
   async (error: string, status: number): Promise<Response> => {
-    const html = await renderSettingsPage(session, error, "", "");
+    const html = await renderSettingsPage(session, error);
     return htmlResponse(html, status);
   };
 
@@ -186,10 +182,9 @@ const validateSettingsForm = async <T>(
  */
 const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (request) =>
   requireOwnerOr(request, async (session) => {
-    const success = getSearchParam(request, "success");
-    const successFormId = getSearchParam(request, "form");
+    setFormSuccess(getSearchParam(request, "form"), getSearchParam(request, "success"));
     return htmlResponse(
-      await renderSettingsPage(session, "", success, successFormId),
+      await renderSettingsPage(session, ""),
     );
   });
 
@@ -515,20 +510,20 @@ const handlePhonePrefixPost = settingsRoute(processPhonePrefixForm);
 const handleHeaderImagePost = (request: Request): Promise<Response> =>
   withOwnerAuthMultipartForm(request, async (session, formData) => {
     if (!isStorageEnabled()) {
-      const html = await renderSettingsPage(session, "Image storage is not configured", "");
+      const html = await renderSettingsPage(session, "Image storage is not configured");
       return htmlResponse(html, 400);
     }
 
     const entry = formData.get("header_image");
     if (!(entry instanceof File) || entry.size === 0) {
-      const html = await renderSettingsPage(session, "No image file provided", "");
+      const html = await renderSettingsPage(session, "No image file provided");
       return htmlResponse(html, 400);
     }
 
     const data = new Uint8Array(await entry.arrayBuffer());
     const validation = validateImage(data, entry.type);
     if (!validation.valid) {
-      const html = await renderSettingsPage(session, IMAGE_ERROR_MESSAGES[validation.error], "");
+      const html = await renderSettingsPage(session, IMAGE_ERROR_MESSAGES[validation.error]);
       return htmlResponse(html, 400);
     }
 

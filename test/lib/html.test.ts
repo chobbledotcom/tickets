@@ -1675,7 +1675,6 @@ describe("html", () => {
         false, // stripeKeyConfigured
         "square", // paymentProvider
         "", // error
-        "", // success
         true, // squareTokenConfigured
         false, // squareSandbox
         true, // squareWebhookConfigured
@@ -1691,7 +1690,6 @@ describe("html", () => {
         false,
         "square",
         "",
-        "",
         true,
         false, // squareSandbox
         false, // squareWebhookConfigured = false
@@ -1706,7 +1704,6 @@ describe("html", () => {
         TEST_SESSION,
         false,
         "square",
-        "",
         "",
         true,
         true, // squareSandbox

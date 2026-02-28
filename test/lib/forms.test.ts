@@ -7,6 +7,7 @@ import {
   renderField,
   renderFields,
   renderSuccess,
+  setFormSuccess,
   validateForm,
 } from "#lib/forms.tsx";
 import {
@@ -1122,20 +1123,26 @@ describe("forms", () => {
       expect(html).not.toContain("id=");
     });
 
-    test("renders success message when id matches successFormId", () => {
-      const html = String(CsrfForm({ action: "/submit", id: "my-form", successFormId: "my-form", successMessage: "Saved" }));
+    test("renders success message when id matches stored success state", () => {
+      setFormSuccess("my-form", "Saved");
+      const html = String(CsrfForm({ action: "/submit", id: "my-form" }));
       expect(html).toContain("Saved");
       expect(html).toContain('class="success"');
+      setFormSuccess("", "");
     });
 
-    test("does not render success message when id does not match successFormId", () => {
-      const html = String(CsrfForm({ action: "/submit", id: "my-form", successFormId: "other-form", successMessage: "Saved" }));
+    test("does not render success message when id does not match", () => {
+      setFormSuccess("other-form", "Saved");
+      const html = String(CsrfForm({ action: "/submit", id: "my-form" }));
       expect(html).not.toContain('class="success"');
+      setFormSuccess("", "");
     });
 
     test("does not render success message when no id", () => {
-      const html = String(CsrfForm({ action: "/submit", successFormId: "my-form", successMessage: "Saved" }));
+      setFormSuccess("my-form", "Saved");
+      const html = String(CsrfForm({ action: "/submit" }));
       expect(html).not.toContain('class="success"');
+      setFormSuccess("", "");
     });
   });
 
