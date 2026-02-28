@@ -236,27 +236,33 @@ const applyDateFilter = (event: EventWithCount, attendees: Attendee[], request: 
 
 /** Render event page with attendee list and optional filter */
 const renderEventPage = async (request: Request, { id }: { id: number }, activeFilter: AttendeeFilter = "all") => {
-  await deleteAllStaleReservations();
-  return withEventAttendees(request, id, async ({ event, attendees, session }) => {
-    const { dateFilter, availableDates, filteredByDate } = applyDateFilter(event, attendees, request);
-    const imageError = getSearchParam(request, "image_error");
-    const phonePrefix = await getPhonePrefixFromDb();
-    return htmlResponse(
-      adminEventPage({
-        event,
-        attendees: filteredByDate,
-        allowedDomain: getAllowedDomain(),
-        session,
-        checkinMessage: getCheckinMessage(request),
-        activeFilter,
-        dateFilter,
-        availableDates,
-        addAttendeeMessage: getAddAttendeeMessage(request),
-        imageError,
-        phonePrefix,
-      }),
-    );
-  }, "table");
+  // Run stale reservation cleanup concurrently with event data loading.
+  // These are independent: cleanup targets processed_payments with NULL attendee_id,
+  // which doesn't affect the attendees query. Saves 1 HTTP round-trip.
+  const [, response] = await Promise.all([
+    deleteAllStaleReservations(),
+    withEventAttendees(request, id, async ({ event, attendees, session }) => {
+      const { dateFilter, availableDates, filteredByDate } = applyDateFilter(event, attendees, request);
+      const imageError = getSearchParam(request, "image_error");
+      const phonePrefix = await getPhonePrefixFromDb();
+      return htmlResponse(
+        adminEventPage({
+          event,
+          attendees: filteredByDate,
+          allowedDomain: getAllowedDomain(),
+          session,
+          checkinMessage: getCheckinMessage(request),
+          activeFilter,
+          dateFilter,
+          availableDates,
+          addAttendeeMessage: getAddAttendeeMessage(request),
+          imageError,
+          phonePrefix,
+        }),
+      );
+    }, "table"),
+  ]);
+  return response;
 };
 
 /** Render event error page */

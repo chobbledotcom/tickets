@@ -6,7 +6,7 @@
  * call and record the SQL via the query-log module.
  */
 
-import { type Client, createClient, type InValue, type ResultSet } from "@libsql/client";
+import { type Client, createClient, type InValue, type ResultSet, type TransactionMode } from "@libsql/client";
 import { lazyRef } from "#fp";
 import { getEnv } from "#lib/env.ts";
 import { addQueryLogEntry, isQueryLogEnabled, trackQuery } from "#lib/db/query-log.ts";
@@ -70,20 +70,36 @@ export const executeByField = async (
   await trackQuery(sql, () => getDb().execute({ sql, args: [value] }));
 };
 
-/**
- * Execute multiple queries in a single round-trip using Turso batch API.
- * Significantly reduces latency for remote databases.
- */
-export const queryBatch = async (
+/** Execute a batch with optional query logging and timing */
+const trackedBatch = async (
   statements: Array<{ sql: string; args: InValue[] }>,
+  mode: TransactionMode,
 ): Promise<ResultSet[]> => {
-  if (!isQueryLogEnabled()) return getDb().batch(statements, "read");
+  if (!isQueryLogEnabled()) return getDb().batch(statements, mode);
   const start = performance.now();
-  const results = await getDb().batch(statements, "read");
+  const results = await getDb().batch(statements, mode);
   const elapsed = performance.now() - start;
   for (const stmt of statements) addQueryLogEntry(stmt.sql, elapsed);
   return results;
 };
+
+/**
+ * Execute multiple read queries in a single round-trip using Turso batch API.
+ * Significantly reduces latency for remote databases.
+ */
+export const queryBatch = (
+  statements: Array<{ sql: string; args: InValue[] }>,
+): Promise<ResultSet[]> => trackedBatch(statements, "read");
+
+/**
+ * Execute multiple write statements in a single round-trip using Turso batch API.
+ * Statements are executed in order within a single transaction, making this
+ * ideal for cascading deletes and multi-step writes.
+ * Reduces N sequential HTTP round-trips to 1.
+ */
+export const executeBatch = async (
+  statements: Array<{ sql: string; args: InValue[] }>,
+): Promise<void> => { await trackedBatch(statements, "write"); };
 
 /** Build SQL placeholders for an IN clause, e.g. "?, ?, ?" */
 export const inPlaceholders = (values: readonly unknown[]): string =>
