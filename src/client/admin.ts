@@ -125,9 +125,9 @@ if (checkoutPopup) {
   });
 }
 
-/* Scroll-hide nav: hide sticky nav on scroll down, show on scroll up or at top */
+/* Scroll-hide nav: hide sticky main nav on scroll down, show on scroll up or at top */
 {
-  const nav = document.querySelector("nav");
+  const nav = document.querySelector<HTMLElement>("#main-nav");
   if (nav) {
     if (location.hash) {
       nav.style.transition = "none";
