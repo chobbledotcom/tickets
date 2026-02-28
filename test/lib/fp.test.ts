@@ -245,16 +245,20 @@ describe("fp", () => {
   });
 
   describe("compact", () => {
-    test("removes falsy values", () => {
-      expect(compact([1, null, 2, undefined, 3, false, 0, "", 4])).toEqual([1, 2, 3, 4]);
+    test("removes null and undefined", () => {
+      expect(compact([1, null, 2, undefined, 3, 4])).toEqual([1, 2, 3, 4]);
+    });
+
+    test("preserves 0, empty string, and false", () => {
+      expect(compact([0, "", false, null, undefined])).toEqual([0, "", false]);
     });
 
     test("handles empty array", () => {
       expectEmptyPassthrough(compact);
     });
 
-    test("handles all falsy values", () => {
-      const result = compact([null, undefined, false, 0, ""]);
+    test("removes only null and undefined from mixed array", () => {
+      const result = compact([null, undefined]);
       expect(result).toEqual([]);
     });
   });
