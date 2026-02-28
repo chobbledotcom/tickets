@@ -276,7 +276,9 @@ const parseCustomPrice = (
   minPrice: number,
 ): { ok: true; price: number } | { ok: false; error: string } => {
   const raw = (form.get(fieldName) || "").trim();
-  if (!raw) return { ok: false, error: "Please enter a price" };
+  if (!raw) {
+    return minPrice === 0 ? { ok: true, price: 0 } : { ok: false, error: "Please enter a price" };
+  }
   const parsed = Number.parseFloat(raw);
   if (Number.isNaN(parsed) || parsed < 0) {
     return { ok: false, error: "Please enter a valid price" };
@@ -382,7 +384,7 @@ const processTicketReservation = async (
 
       // Parse custom price for pay-more events
       let customUnitPrice: number | undefined;
-      if (event.can_pay_more && event.unit_price !== null && event.unit_price > 0) {
+      if (event.can_pay_more && event.unit_price !== null) {
         const priceResult = parseCustomPrice(form, "custom_price", event.unit_price);
         if (!priceResult.ok) {
           return ticketResponse(event, inIframe, dates, terms)(priceResult.error);
@@ -398,7 +400,9 @@ const processTicketReservation = async (
       };
 
       const ctx: TicketContext = { dates, terms, inIframe };
-      if (await requiresPayment(event)) {
+      const needsPayment = await requiresPayment(event) ||
+        (customUnitPrice !== undefined && customUnitPrice > 0 && await isPaymentsEnabled());
+      if (needsPayment) {
         const intent: RegistrationIntent = { eventId: event.id, ...contact, quantity, date, customUnitPrice };
         const available = await hasAvailableSpots(event.id, quantity, date);
         if (!available) {
@@ -570,7 +574,7 @@ const submitMultiTicket = (
       // Parse custom prices for pay-more events
       const customPrices = new Map<number, number>();
       for (const { event } of ctx.events) {
-        if (event.can_pay_more && event.unit_price !== null && event.unit_price > 0) {
+        if (event.can_pay_more && event.unit_price !== null) {
           const qty = quantities.get(event.id) ?? 0;
           if (qty > 0) {
             const priceResult = parseCustomPrice(form, `custom_price_${event.id}`, event.unit_price);

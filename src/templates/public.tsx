@@ -167,8 +167,8 @@ const quantityOptions = (max: number): string =>
 
 /** Render a price input for pay-more events */
 const renderPayMoreInput = (minPrice: number, fieldName = "custom_price"): string =>
-  `<label for="${fieldName}">Your Price (minimum ${formatCurrency(minPrice)})</label>` +
-  `<input type="text" inputmode="decimal" name="${fieldName}" id="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" required />`;
+  `<label for="${fieldName}">${minPrice > 0 ? `Your Price (minimum ${formatCurrency(minPrice)})` : "Your Price (optional)"}</label>` +
+  `<input type="text" inputmode="decimal" name="${fieldName}" id="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}"${minPrice > 0 ? " required" : ""} />`;
 
 /** Render terms and conditions block with agreement checkbox */
 const renderTermsAndCheckbox = (terms: string): string =>
@@ -194,7 +194,7 @@ export const ticketPage = (
   const fields: Field[] = getTicketFields(event.fields);
   const isDaily = event.event_type === "daily";
   const headExtra = baseUrl ? buildOgTags(event, baseUrl) : undefined;
-  const showPayMore = event.can_pay_more && event.unit_price !== null && event.unit_price > 0;
+  const showPayMore = event.can_pay_more && event.unit_price !== null;
 
   return String(
     <Layout title={event.name} bodyClass={inIframe ? "iframe" : undefined} headExtra={headExtra}>
@@ -330,7 +330,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
     .map((n) => `<option value="${n}">${n}</option>`)
     .join("");
 
-  const showPayMore = event.can_pay_more && event.unit_price !== null && event.unit_price > 0;
+  const showPayMore = event.can_pay_more && event.unit_price !== null;
   const priceFieldName = `custom_price_${event.id}`;
 
   return `

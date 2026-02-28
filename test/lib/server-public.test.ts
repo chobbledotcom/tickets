@@ -3410,11 +3410,48 @@ describe("server (public routes)", () => {
       expect(html).not.toContain("custom_price");
     });
 
-    test("GET does not show price input for free can_pay_more events", async () => {
+    test("GET does not show price input for can_pay_more events with null unit_price", async () => {
       const event = await payMoreEvent({ unitPrice: undefined });
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
       expect(html).not.toContain("custom_price");
+    });
+
+    test("GET shows optional price input for free can_pay_more events", async () => {
+      const event = await payMoreEvent({ unitPrice: 0 });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      const html = await response.text();
+      expect(html).toContain("custom_price");
+      expect(html).toContain("optional");
+    });
+
+    test("POST free can_pay_more with custom price redirects to checkout", async () => {
+      await setupStripe();
+      const event = await payMoreEvent({ unitPrice: 0 });
+      const response = await submitTicketForm(event.slug, {
+        name: "Donor", email: "donor@example.com", quantity: "1",
+        custom_price: "5.00",
+      });
+      expectCheckoutRedirect(response);
+    });
+
+    test("POST free can_pay_more with empty price registers for free", async () => {
+      const event = await payMoreEvent({ unitPrice: 0 });
+      const response = await submitTicketForm(event.slug, {
+        name: "Freebie", email: "free@example.com", quantity: "1",
+        custom_price: "",
+      });
+      expect(response.status).toBe(302);
+    });
+
+    test("POST free can_pay_more with zero price registers for free", async () => {
+      const event = await payMoreEvent({ unitPrice: 0 });
+      const response = await submitTicketForm(event.slug, {
+        name: "Freebie", email: "free@example.com", quantity: "1",
+        custom_price: "0",
+      });
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).not.toContain("checkout");
     });
 
     test("POST rejects price below minimum", async () => {
@@ -3514,6 +3551,32 @@ describe("server (public routes)", () => {
       const response = await submitMultiTicketForm(slug, {
         name: "John Doe", email: "john@example.com",
         [`quantity_${event1.id}`]: "0", [`quantity_${event2.id}`]: "1",
+      });
+      expectCheckoutRedirect(response);
+    });
+
+    test("POST multi-ticket free can_pay_more with custom price redirects to checkout", async () => {
+      await setupStripe();
+      const event1 = await payMoreEvent({ name: "Free Donate", unitPrice: 0, maxQuantity: 5 });
+      const event2 = await createTestEvent({ name: "Normal Paid", unitPrice: 1000, maxAttendees: 50, maxQuantity: 5 });
+      const slug = `${event1.slug}+${event2.slug}`;
+      const response = await submitMultiTicketForm(slug, {
+        name: "John Doe", email: "john@example.com",
+        [`quantity_${event1.id}`]: "1", [`quantity_${event2.id}`]: "1",
+        [`custom_price_${event1.id}`]: "5.00",
+      });
+      expectCheckoutRedirect(response);
+    });
+
+    test("POST multi-ticket free can_pay_more with zero price still processes paid event", async () => {
+      await setupStripe();
+      const event1 = await payMoreEvent({ name: "Free No Donate", unitPrice: 0, maxQuantity: 5 });
+      const event2 = await createTestEvent({ name: "Normal Paid 2", unitPrice: 1000, maxAttendees: 50, maxQuantity: 5 });
+      const slug = `${event1.slug}+${event2.slug}`;
+      const response = await submitMultiTicketForm(slug, {
+        name: "John Doe", email: "john@example.com",
+        [`quantity_${event1.id}`]: "1", [`quantity_${event2.id}`]: "1",
+        [`custom_price_${event1.id}`]: "0",
       });
       expectCheckoutRedirect(response);
     });
