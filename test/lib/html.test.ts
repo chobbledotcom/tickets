@@ -2099,6 +2099,7 @@ describe("html", () => {
 
   describe("ticketViewPage event date and location", () => {
     const qrSvg = "<svg>test</svg>";
+    const token = "AABB0011CCDDEEFF";
 
     test("shows event date when entry has non-empty event date", () => {
       const cards = [
@@ -2108,6 +2109,7 @@ describe("html", () => {
             attendee: testAttendee(),
           },
           qrSvg,
+          token,
         },
       ];
       const html = ticketViewPage(cards);
@@ -2122,6 +2124,7 @@ describe("html", () => {
             attendee: testAttendee(),
           },
           qrSvg,
+          token,
         },
       ];
       const html = ticketViewPage(cards);
@@ -2136,6 +2139,7 @@ describe("html", () => {
             attendee: testAttendee(),
           },
           qrSvg,
+          token,
         },
       ];
       const html = ticketViewPage(cards);
@@ -2150,6 +2154,7 @@ describe("html", () => {
             attendee: testAttendee(),
           },
           qrSvg,
+          token,
         },
       ];
       const html = ticketViewPage(cards);
@@ -2164,6 +2169,7 @@ describe("html", () => {
             attendee: testAttendee(),
           },
           qrSvg,
+          token,
         },
       ];
       const html = ticketViewPage(cards);
@@ -2179,6 +2185,7 @@ describe("html", () => {
             attendee: testAttendee({ id: 1 }),
           },
           qrSvg: "<svg>qr1</svg>",
+          token: "AABB0011CCDDEEF1",
         },
         {
           entry: {
@@ -2186,6 +2193,7 @@ describe("html", () => {
             attendee: testAttendee({ id: 2 }),
           },
           qrSvg: "<svg>qr2</svg>",
+          token: "AABB0011CCDDEEF2",
         },
       ];
       const html = ticketViewPage(cards);
@@ -2285,6 +2293,7 @@ describe("html", () => {
 
     describe("ticketViewPage ticket count", () => {
       const qrSvg = '<svg class="qr"><rect/></svg>';
+      const token = "AABB0011CCDDEEFF";
 
       test("shows '1 Ticket' for single ticket", () => {
         setupStorage();
@@ -2295,6 +2304,7 @@ describe("html", () => {
               attendee: testAttendee({ id: 1 }),
             },
             qrSvg,
+            token,
           },
         ];
         const html = ticketViewPage(cards);
@@ -2311,6 +2321,7 @@ describe("html", () => {
               attendee: testAttendee({ id: 1 }),
             },
             qrSvg,
+            token: "AABB0011CCDDEEF1",
           },
           {
             entry: {
@@ -2318,6 +2329,7 @@ describe("html", () => {
               attendee: testAttendee({ id: 2 }),
             },
             qrSvg,
+            token: "AABB0011CCDDEEF2",
           },
         ];
         const html = ticketViewPage(cards);
@@ -2328,6 +2340,7 @@ describe("html", () => {
 
     describe("ticketViewPage with image", () => {
       const qrSvg = '<svg class="qr"><rect/></svg>';
+      const token = "AABB0011CCDDEEFF";
 
       test("shows image when event has image_url", () => {
         setupStorage();
@@ -2338,6 +2351,7 @@ describe("html", () => {
               attendee: testAttendee(),
             },
             qrSvg,
+            token,
           },
         ];
         const html = ticketViewPage(cards);
@@ -2355,6 +2369,7 @@ describe("html", () => {
               attendee: testAttendee(),
             },
             qrSvg,
+            token,
           },
         ];
         const html = ticketViewPage(cards);

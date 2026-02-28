@@ -17,6 +17,7 @@ export type { TokenEntry as TicketEntry };
 export type TicketCard = {
   entry: TokenEntry;
   qrSvg: string;
+  token: string;
 };
 
 /** Pluralize ticket count */
@@ -24,7 +25,7 @@ const ticketCount = (count: number): string =>
   count === 1 ? "1 Ticket" : `${count} Tickets`;
 
 /** Render a single ticket card */
-const renderTicketCard = ({ entry, qrSvg }: TicketCard): string => {
+const renderTicketCard = ({ entry, qrSvg, token }: TicketCard): string => {
   const { event, attendee } = entry;
   const imageHtml = renderEventImage(event, "ticket-card-image");
   const eventDateHtml = event.date
@@ -59,6 +60,7 @@ const renderTicketCard = ({ entry, qrSvg }: TicketCard): string => {
       <div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>
       ${priceHtml}
       <div class="ticket-card-qr">${qrSvg}</div>
+      <div class="ticket-card-token">${escapeHtml(token)}</div>
     </div>
   `;
 };

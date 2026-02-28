@@ -85,6 +85,7 @@ describe("webhook", () => {
       expect(payload.tickets[0]!.unit_price).toBeNull();
       expect(payload.tickets[0]!.quantity).toBe(1);
       expect(payload.tickets[0]!.date).toBeNull();
+      expect(payload.tickets[0]!.ticket_token).toBe("test-token-42");
       expect(payload.timestamp).toBeDefined();
       expect(payload.business_email).toBe("");
     });
@@ -131,9 +132,11 @@ describe("webhook", () => {
       expect(payload.tickets).toHaveLength(2);
       expect(payload.tickets[0]!.event_name).toBe("Event A");
       expect(payload.tickets[0]!.unit_price).toBe(300);
+      expect(payload.tickets[0]!.ticket_token).toBe("tok-a");
       expect(payload.tickets[1]!.event_name).toBe("Event B");
       expect(payload.tickets[1]!.unit_price).toBe(700);
       expect(payload.tickets[1]!.quantity).toBe(2);
+      expect(payload.tickets[1]!.ticket_token).toBe("tok-b");
     });
 
     test("includes date in ticket when attendee has a date", async () => {

@@ -80,9 +80,20 @@ export const generateSecureToken = (): string => {
 };
 
 /**
- * Generate an 8-byte base64url ticket token for public ticket URLs
+ * Convert bytes to uppercase hex string
  */
-export const generateTicketToken = (): string => toBase64Url(getRandomBytes(8));
+const toUpperHex = (bytes: Uint8Array): string => {
+  let hex = "";
+  for (const byte of bytes) {
+    hex += byte.toString(16).padStart(2, "0");
+  }
+  return hex.toUpperCase();
+};
+
+/**
+ * Generate an 8-byte uppercase hex ticket token for public ticket URLs
+ */
+export const generateTicketToken = (): string => toUpperHex(getRandomBytes(8));
 
 /**
  * Encryption format version prefix

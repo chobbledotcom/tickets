@@ -288,4 +288,13 @@ describe("ticket view (/t/:tokens)", () => {
     const body = await response.text();
     expect(body).not.toContain("ticket-card-price");
   });
+
+  test("displays ticket token on ticket page", async () => {
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    const body = await response.text();
+    expect(body).toContain("ticket-card-token");
+    expect(body).toContain(token);
+  });
 });
