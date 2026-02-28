@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { spy, stub } from "@std/testing/mock";
+import { Spy } from "@std/testing/mock";
 import {
   createRequestTimer,
   ErrorCode,
@@ -53,14 +56,14 @@ describe("logger", () => {
   });
 
   describe("logRequest", () => {
-    let debugSpy: ReturnType<typeof spyOn>;
+    let debugSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
 
     beforeEach(() => {
-      debugSpy = spyOn(console, "debug");
+      debugSpy = spy(console, "debug");
     });
 
     afterEach(() => {
-      debugSpy.mockRestore();
+      debugSpy.restore();
     });
 
     test("logs request with redacted path", () => {
@@ -71,9 +74,9 @@ describe("logger", () => {
         durationMs: 42,
       });
 
-      expect(debugSpy).toHaveBeenCalledWith(
+      expect(debugSpy.calls[0]!.args).toEqual([
         "[Request] GET /ticket/[redacted] 200 42ms",
-      );
+      ]);
     });
 
     test("logs POST request", () => {
@@ -84,9 +87,9 @@ describe("logger", () => {
         durationMs: 100,
       });
 
-      expect(debugSpy).toHaveBeenCalledWith(
+      expect(debugSpy.calls[0]!.args).toEqual([
         "[Request] POST /admin/events/[id] 201 100ms",
-      );
+      ]);
     });
 
     test("logs error status codes", () => {
@@ -97,47 +100,47 @@ describe("logger", () => {
         durationMs: 5,
       });
 
-      expect(debugSpy).toHaveBeenCalledWith("[Request] GET /admin 403 5ms");
+      expect(debugSpy.calls[0]!.args).toEqual(["[Request] GET /admin 403 5ms"]);
     });
   });
 
   describe("logError", () => {
-    let errorSpy: ReturnType<typeof spyOn>;
+    let errorSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
 
     beforeEach(() => {
-      errorSpy = spyOn(console, "error");
+      errorSpy = spy(console, "error");
     });
 
     afterEach(() => {
-      errorSpy.mockRestore();
+      errorSpy.restore();
     });
 
     test("logs error code only", () => {
       logError({ code: ErrorCode.DB_CONNECTION });
 
-      expect(errorSpy).toHaveBeenCalledWith("[Error] E_DB_CONNECTION");
+      expect(errorSpy.calls[0]!.args).toEqual(["[Error] E_DB_CONNECTION"]);
     });
 
     test("logs error with event ID", () => {
       logError({ code: ErrorCode.CAPACITY_EXCEEDED, eventId: 42 });
 
-      expect(errorSpy).toHaveBeenCalledWith(
+      expect(errorSpy.calls[0]!.args).toEqual([
         "[Error] E_CAPACITY_EXCEEDED event=42",
-      );
+      ]);
     });
 
     test("logs error with attendee ID", () => {
       logError({ code: ErrorCode.WEBHOOK_SEND, attendeeId: 99 });
 
-      expect(errorSpy).toHaveBeenCalledWith("[Error] E_WEBHOOK_SEND attendee=99");
+      expect(errorSpy.calls[0]!.args).toEqual(["[Error] E_WEBHOOK_SEND attendee=99"]);
     });
 
     test("logs error with detail", () => {
       logError({ code: ErrorCode.STRIPE_SIGNATURE, detail: "mismatch" });
 
-      expect(errorSpy).toHaveBeenCalledWith(
+      expect(errorSpy.calls[0]!.args).toEqual([
         '[Error] E_STRIPE_SIGNATURE detail="mismatch"',
-      );
+      ]);
     });
 
     test("logs error with all context", () => {
@@ -148,55 +151,54 @@ describe("logger", () => {
         detail: "inactive",
       });
 
-      expect(errorSpy).toHaveBeenCalledWith(
+      expect(errorSpy.calls[0]!.args).toEqual([
         '[Error] E_NOT_FOUND_EVENT event=1 attendee=2 detail="inactive"',
-      );
+      ]);
     });
 
     test("sends ntfy notification when NTFY_URL is configured", () => {
       Deno.env.set("NTFY_URL", "https://ntfy.sh/test-topic");
-      // deno-lint-ignore no-explicit-any
-      const fetchSpy: any = spyOn(globalThis, "fetch").mockResolvedValue(new Response());
+      const fetchStub = stub(globalThis, "fetch", () => Promise.resolve(new Response()));
 
       logError({ code: ErrorCode.DB_QUERY });
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      const [url, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(fetchStub.calls.length).toBe(1);
+      const [url, options] = fetchStub.calls[0]!.args as [string, RequestInit];
       expect(url).toBe("https://ntfy.sh/test-topic");
       expect(options.body).toBe("E_DB_QUERY");
 
-      fetchSpy.mockRestore();
+      fetchStub.restore();
       Deno.env.delete("NTFY_URL");
     });
   });
 
   describe("logDebug", () => {
-    let debugSpy: ReturnType<typeof spyOn>;
+    let debugSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
 
     beforeEach(() => {
-      debugSpy = spyOn(console, "debug");
+      debugSpy = spy(console, "debug");
     });
 
     afterEach(() => {
-      debugSpy.mockRestore();
+      debugSpy.restore();
     });
 
     test("logs with Setup category", () => {
       logDebug("Setup", "Validation passed");
 
-      expect(debugSpy).toHaveBeenCalledWith("[Setup] Validation passed");
+      expect(debugSpy.calls[0]!.args).toEqual(["[Setup] Validation passed"]);
     });
 
     test("logs with Webhook category", () => {
       logDebug("Webhook", "Sending notification");
 
-      expect(debugSpy).toHaveBeenCalledWith("[Webhook] Sending notification");
+      expect(debugSpy.calls[0]!.args).toEqual(["[Webhook] Sending notification"]);
     });
 
     test("logs with Stripe category", () => {
       logDebug("Stripe", "Creating checkout session");
 
-      expect(debugSpy).toHaveBeenCalledWith("[Stripe] Creating checkout session");
+      expect(debugSpy.calls[0]!.args).toEqual(["[Stripe] Creating checkout session"]);
     });
   });
 
@@ -234,71 +236,71 @@ describe("logger", () => {
 
   describe("runWithRequestId", () => {
     test("prefixes logRequest with 4-char hex ID", () => {
-      const debugSpy = spyOn(console, "debug");
+      const debugSpy = spy(console, "debug");
 
       runWithRequestId(() => {
         logRequest({ method: "GET", path: "/admin", status: 200, durationMs: 10 });
       });
 
-      const message = debugSpy.mock.calls[0]![0] as string;
+      const message = debugSpy.calls[0]!.args[0] as string;
       expect(message).toMatch(/^\[[0-9a-f]{4}\] \[Request\] GET \/admin 200 10ms$/);
-      debugSpy.mockRestore();
+      debugSpy.restore();
     });
 
     test("prefixes logError with same request ID", () => {
-      const debugSpy = spyOn(console, "debug");
-      const errorSpy = spyOn(console, "error");
+      const debugSpy = spy(console, "debug");
+      const errorSpy = spy(console, "error");
 
       runWithRequestId(() => {
         logRequest({ method: "GET", path: "/admin", status: 200, durationMs: 5 });
         logError({ code: ErrorCode.DB_CONNECTION });
       });
 
-      const requestMsg = debugSpy.mock.calls[0]![0] as string;
-      const errorMsg = errorSpy.mock.calls[0]![0] as string;
+      const requestMsg = debugSpy.calls[0]!.args[0] as string;
+      const errorMsg = errorSpy.calls[0]!.args[0] as string;
       const requestId = requestMsg.slice(1, 5);
       expect(errorMsg).toBe(`[${requestId}] [Error] E_DB_CONNECTION`);
 
-      debugSpy.mockRestore();
-      errorSpy.mockRestore();
+      debugSpy.restore();
+      errorSpy.restore();
     });
 
     test("prefixes logDebug with request ID", () => {
-      const debugSpy = spyOn(console, "debug");
+      const debugSpy = spy(console, "debug");
 
       runWithRequestId(() => {
         logDebug("Setup", "test message");
       });
 
-      const message = debugSpy.mock.calls[0]![0] as string;
+      const message = debugSpy.calls[0]!.args[0] as string;
       expect(message).toMatch(/^\[[0-9a-f]{4}\] \[Setup\] test message$/);
-      debugSpy.mockRestore();
+      debugSpy.restore();
     });
 
     test("different requests get different IDs", () => {
-      const debugSpy = spyOn(console, "debug");
+      const debugSpy = spy(console, "debug");
 
       const ids: string[] = [];
       for (let i = 0; i < 10; i++) {
         runWithRequestId(() => {
           logRequest({ method: "GET", path: "/", status: 200, durationMs: 0 });
         });
-        ids.push((debugSpy.mock.calls[i]![0] as string).slice(1, 5));
+        ids.push((debugSpy.calls[i]!.args[0] as string).slice(1, 5));
       }
 
       // With 65536 possible values, 10 samples should not all be identical
       const unique = new Set(ids);
       expect(unique.size).toBeGreaterThan(1);
-      debugSpy.mockRestore();
+      debugSpy.restore();
     });
 
     test("no prefix outside request context", () => {
-      const debugSpy = spyOn(console, "debug");
+      const debugSpy = spy(console, "debug");
 
       logRequest({ method: "GET", path: "/admin", status: 200, durationMs: 10 });
 
-      expect(debugSpy).toHaveBeenCalledWith("[Request] GET /admin 200 10ms");
-      debugSpy.mockRestore();
+      expect(debugSpy.calls[0]!.args).toEqual(["[Request] GET /admin 200 10ms"]);
+      debugSpy.restore();
     });
   });
 });

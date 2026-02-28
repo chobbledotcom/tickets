@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { stub } from "@std/testing/mock";
 import {
   deleteAllStaleReservations,
   deleteStaleReservation,
@@ -430,8 +432,7 @@ describe("processed-payments", () => {
       const origExecute = getDb().execute.bind(getDb());
 
       // Delete the record right after it causes a UNIQUE error but before isSessionProcessed runs
-      const executeSpy = spyOn(getDb(), "execute");
-      executeSpy.mockImplementation(async (stmt: unknown) => {
+      const executeSpy = stub(getDb(), "execute", async (stmt: unknown) => {
         const sql = typeof stmt === "string" ? stmt : (stmt as { sql: string }).sql;
 
         if (sql.includes("INSERT INTO processed_payments") && callCount === 0) {
@@ -454,7 +455,7 @@ describe("processed-payments", () => {
         // After retry, should succeed
         expect(result.reserved).toBe(true);
       } finally {
-        executeSpy.mockRestore();
+        executeSpy.restore();
       }
     });
   });

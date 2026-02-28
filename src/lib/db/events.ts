@@ -6,9 +6,8 @@ import type { ResultSet } from "@libsql/client";
 import { collectionCache, filter as fpFilter } from "#fp";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { registerCache } from "#lib/cache-registry.ts";
-import { executeByField, getDb, inPlaceholders, queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
+import { executeBatch, getDb, inPlaceholders, queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
 import { encryptedNameSchema, idAndEncryptedSlugSchema } from "#lib/db/common-schema.ts";
-import { deleteProcessedPaymentsForEvent } from "#lib/db/processed-payments.ts";
 import { defineIdTable } from "#lib/db/define-id-table.ts";
 import { col } from "#lib/db/table.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
@@ -192,14 +191,17 @@ export const isSlugTaken = async (
 };
 
 /**
- * Delete an event and all its attendees
+ * Delete an event and all its attendees in a single database round-trip.
+ * Uses write batch to cascade: processed_payments → attendees → event.
+ * Reduces 3 sequential HTTP round-trips to 1.
  */
 export const deleteEvent = async (eventId: number): Promise<void> => {
-  // Delete all attendees for this event first (cascade)
-  await deleteProcessedPaymentsForEvent(eventId);
-  await executeByField("attendees", "event_id", eventId);
-  // Delete the event
-  await eventsTable.deleteById(eventId);
+  await executeBatch([
+    { sql: "DELETE FROM processed_payments WHERE attendee_id IN (SELECT id FROM attendees WHERE event_id = ?)", args: [eventId] },
+    { sql: "DELETE FROM attendees WHERE event_id = ?", args: [eventId] },
+    { sql: "DELETE FROM events WHERE id = ?", args: [eventId] },
+  ]);
+  invalidateEventsCache();
 };
 
 /** Decrypt event fields and attach an attendee count */

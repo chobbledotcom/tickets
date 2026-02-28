@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { addDays, DAY_NAMES, eventDateToCalendarDate, formatDateLabel, formatDatetimeLabel, getAvailableDates, getNextBookableDate, normalizeDatetime } from "#lib/dates.ts";
 import { updateTimezone } from "#lib/db/settings.ts";
 import { todayInTz } from "#lib/timezone.ts";

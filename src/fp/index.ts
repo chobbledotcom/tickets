@@ -3,31 +3,39 @@
  * Curried functions for array operations and composition
  */
 
+// --- Pipe type helpers ---
+
+/** A single-arg function (used as a constraint for pipe/pipeAsync generics) */
+// deno-lint-ignore no-explicit-any
+type Fn = (arg: any) => any;
+
+/** Validates that each fn's return type is assignable to the next fn's parameter */
+type ValidChain<Fns extends Fn[]> = Fns extends [Fn]
+  ? true
+  : Fns extends
+    [infer A extends Fn, infer B extends Fn, ...infer Rest extends Fn[]]
+    ? ReturnType<A> extends Parameters<B>[0] ? ValidChain<[B, ...Rest]>
+      : false
+    : true;
+
+/** Extracts the return type of the last fn in a tuple */
+type LastReturn<Fns extends Fn[]> = Fns extends [...Fn[], infer L extends Fn]
+  ? ReturnType<L>
+  : never;
+
+/** Computes pipe's return type, returning a non-callable error type on mismatch */
+type PipeReturn<Fns extends [Fn, ...Fn[]]> = ValidChain<Fns> extends true
+  ? (arg: Parameters<Fns[0]>[0]) => LastReturn<Fns>
+  : (invalid: never) => never;
+
 /**
  * Compose functions left-to-right (pipe)
- * Supports type transformations through the chain
+ * Uses recursive conditional types for arbitrary-length type safety.
  */
 export function pipe<A>(): (a: A) => A;
-export function pipe<A, B>(fn1: (a: A) => B): (a: A) => B;
-export function pipe<A, B, C>(fn1: (a: A) => B, fn2: (b: B) => C): (a: A) => C;
-export function pipe<A, B, C, D>(
-  fn1: (a: A) => B,
-  fn2: (b: B) => C,
-  fn3: (c: C) => D,
-): (a: A) => D;
-export function pipe<A, B, C, D, E>(
-  fn1: (a: A) => B,
-  fn2: (b: B) => C,
-  fn3: (c: C) => D,
-  fn4: (d: D) => E,
-): (a: A) => E;
-export function pipe<A, B, C, D, E, F>(
-  fn1: (a: A) => B,
-  fn2: (b: B) => C,
-  fn3: (c: C) => D,
-  fn4: (d: D) => E,
-  fn5: (e: E) => F,
-): (a: A) => F;
+export function pipe<Fns extends [Fn, ...Fn[]]>(
+  ...fns: [...Fns]
+): PipeReturn<Fns>;
 export function pipe(
   ...fns: Array<(arg: unknown) => unknown>
 ): (value: unknown) => unknown {
@@ -118,11 +126,11 @@ export const uniqueBy =
   };
 
 /**
- * Remove falsy values from array
+ * Remove null and undefined values from array
  */
 export const compact = <T>(
-  array: (T | null | undefined | false | 0 | "")[],
-): T[] => array.filter(Boolean) as T[];
+  array: (T | null | undefined)[],
+): T[] => array.filter((x): x is T => x !== null && x !== undefined);
 
 /**
  * Group array items by a key function
@@ -270,28 +278,43 @@ export const bracket =
     }
   };
 
+// --- Async pipe type helpers ---
+
+/** A single-arg async function */
+// deno-lint-ignore no-explicit-any
+type AsyncFn = (arg: any) => Promise<any>;
+
+/** Validates that each async fn's Awaited return matches the next fn's parameter */
+type ValidAsyncChain<Fns extends AsyncFn[]> = Fns extends [AsyncFn]
+  ? true
+  : Fns extends
+    [infer A extends AsyncFn, infer B extends AsyncFn, ...infer Rest extends AsyncFn[]]
+    ? Awaited<ReturnType<A>> extends Parameters<B>[0]
+      ? ValidAsyncChain<[B, ...Rest]>
+      : false
+    : true;
+
+/** Extracts the Awaited return type of the last async fn */
+type LastAsyncReturn<Fns extends AsyncFn[]> = Fns extends [
+  ...AsyncFn[],
+  infer L extends AsyncFn,
+] ? Awaited<ReturnType<L>>
+  : never;
+
+/** Computes pipeAsync's return type, returning a non-callable error type on mismatch */
+type PipeAsyncReturn<Fns extends [AsyncFn, ...AsyncFn[]]> =
+  ValidAsyncChain<Fns> extends true
+    ? (arg: Parameters<Fns[0]>[0]) => Promise<LastAsyncReturn<Fns>>
+    : (invalid: never) => Promise<never>;
+
 /**
  * Async pipe - compose async functions left-to-right
- * Each function receives the result of the previous one
+ * Each function receives the awaited result of the previous one.
+ * Uses recursive conditional types for arbitrary-length type safety.
  */
-export function pipeAsync<A, B>(
-  fn1: (a: A) => Promise<B>,
-): (a: A) => Promise<B>;
-export function pipeAsync<A, B, C>(
-  fn1: (a: A) => Promise<B>,
-  fn2: (b: B) => Promise<C>,
-): (a: A) => Promise<C>;
-export function pipeAsync<A, B, C, D>(
-  fn1: (a: A) => Promise<B>,
-  fn2: (b: B) => Promise<C>,
-  fn3: (c: C) => Promise<D>,
-): (a: A) => Promise<D>;
-export function pipeAsync<A, B, C, D, E>(
-  fn1: (a: A) => Promise<B>,
-  fn2: (b: B) => Promise<C>,
-  fn3: (c: C) => Promise<D>,
-  fn4: (d: D) => Promise<E>,
-): (a: A) => Promise<E>;
+export function pipeAsync<Fns extends [AsyncFn, ...AsyncFn[]]>(
+  ...fns: [...Fns]
+): PipeAsyncReturn<Fns>;
 export function pipeAsync(
   ...fns: Array<(arg: unknown) => Promise<unknown>>
 ): (value: unknown) => Promise<unknown> {
@@ -305,9 +328,9 @@ export function pipeAsync(
 }
 
 /**
- * Map over a promise-returning function (async map)
+ * Map over a promise-returning function sequentially (one at a time)
  */
-export const mapAsync =
+export const mapSequential =
   <T, U>(fn: (item: T) => Promise<U>) =>
   async (array: T[]): Promise<U[]> => {
     const results: U[] = [];
@@ -316,6 +339,14 @@ export const mapAsync =
     }
     return results;
   };
+
+/**
+ * Map over a promise-returning function in parallel (Promise.all)
+ */
+export const mapParallel =
+  <T, U>(fn: (item: T) => Promise<U>) =>
+  (array: T[]): Promise<U[]> =>
+    Promise.all(array.map(fn));
 
 /** Bounded LRU cache returned by boundedLru() */
 export type BoundedLru<K, V> = {
@@ -327,33 +358,61 @@ export type BoundedLru<K, V> = {
 
 /**
  * Create a bounded LRU (Least Recently Used) cache.
- * Evicts the oldest entry when capacity is reached.
- * Uses Map insertion order for O(1) LRU tracking.
+ * Evicts the least-recently-used entry when capacity is reached.
+ * Uses a doubly-linked list for O(1) LRU tracking so that
+ * get() does not mutate the key-value index.
  */
 export const boundedLru = <K, V>(maxSize: number): BoundedLru<K, V> => {
-  const cache = new Map<K, V>();
+  type Node = { key: K; value: V; prev: Node; next: Node };
+  const index = new Map<K, Node>();
+  // Sentinel nodes eliminate null-checks in detach/append
+  const head = {} as Node;
+  const tail = {} as Node;
+  head.next = tail;
+  tail.prev = head;
+
+  const detach = (n: Node): void => {
+    n.prev.next = n.next;
+    n.next.prev = n.prev;
+  };
+  const append = (n: Node): void => {
+    n.prev = tail.prev;
+    n.next = tail;
+    tail.prev.next = n;
+    tail.prev = n;
+  };
+
   return {
     get: (key: K): V | undefined => {
-      const value = cache.get(key);
-      if (value !== undefined) {
-        // Move to end (most recently used)
-        cache.delete(key);
-        cache.set(key, value);
-      }
-      return value;
+      const node = index.get(key);
+      if (!node) return undefined;
+      detach(node);
+      append(node);
+      return node.value;
     },
     set: (key: K, value: V): void => {
-      if (cache.has(key)) {
-        cache.delete(key);
-      } else if (cache.size >= maxSize) {
-        cache.delete(cache.keys().next().value!);
+      const existing = index.get(key);
+      if (existing) {
+        detach(existing);
+        existing.value = value;
+        append(existing);
+      } else {
+        if (index.size >= maxSize) {
+          const oldest = head.next;
+          detach(oldest);
+          index.delete(oldest.key);
+        }
+        const node = { key, value } as Node;
+        append(node);
+        index.set(key, node);
       }
-      cache.set(key, value);
     },
     clear: (): void => {
-      cache.clear();
+      index.clear();
+      head.next = tail;
+      tail.prev = head;
     },
-    size: (): number => cache.size,
+    size: (): number => index.size,
   };
 };
 

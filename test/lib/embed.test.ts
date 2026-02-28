@@ -1,4 +1,5 @@
-import { describe, expect, test } from "#test-compat";
+import { describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 
 describe("embed", () => {

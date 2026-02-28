@@ -231,7 +231,7 @@ nav ul li ul li a {
 
 /* Nav for Desktop */
 @media (min-width: 769px) {
-  nav {
+  nav#main-nav {
     margin: 0 auto 7rem;
     position: sticky;
     top: 1rem;
@@ -242,7 +242,7 @@ nav ul li ul li a {
     z-index: 10;
     transition: transform 0.25s ease, opacity 0.25s ease;
   }
-  nav.nav-hidden {
+  nav#main-nav.nav-hidden {
     transform: translateY(-150%);
     opacity: 0;
   }

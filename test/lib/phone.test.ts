@@ -1,4 +1,5 @@
-import { describe, expect, test } from "#test-compat";
+import { describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { normalizePhone } from "#lib/phone.ts";
 
 describe("normalizePhone", () => {

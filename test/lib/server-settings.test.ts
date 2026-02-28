@@ -1,11 +1,6 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  spyOn,
-  test,
-} from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { stub } from "@std/testing/mock";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import {
   getEmbedHostsFromDb,
@@ -56,19 +51,62 @@ describe("server (admin settings)", () => {
       await expectHtmlResponse(response, 200, "Settings", "Change Password");
     });
 
-    test("displays success message from query param", async () => {
+    test("does not display success when form param is missing", async () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
         "/admin/settings?success=Test+success+message",
         { cookie },
       );
-      await expectHtmlResponse(
-        response,
-        200,
-        "Test success message",
-        'class="success"',
+      const html = await response.text();
+      expect(html).not.toContain('class="success"');
+    });
+
+    test("displays success message on the matching form when form param is provided", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        "/admin/settings?success=Timezone+updated&form=settings-timezone",
+        { cookie },
       );
+      const html = await response.text();
+      expect(html).toContain('id="settings-timezone"');
+      expect(html).toContain("Timezone updated");
+      // The success message should be inside the timezone form, not as a global banner
+      const timezoneFormMatch = html.match(/id="settings-timezone"[\s\S]*?<\/form>/);
+      expect(timezoneFormMatch).toBeDefined();
+      expect(timezoneFormMatch![0]).toContain("Timezone updated");
+    });
+
+    test("does not show success on non-matching forms", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        "/admin/settings?success=Timezone+updated&form=settings-timezone",
+        { cookie },
+      );
+      const html = await response.text();
+      // The theme form should not contain the success message
+      const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
+      expect(themeFormMatch).toBeDefined();
+      expect(themeFormMatch![0]).not.toContain("Timezone updated");
+    });
+
+    test("each settings form has an id attribute", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain('id="settings-timezone"');
+      expect(html).toContain('id="settings-phone-prefix"');
+      expect(html).toContain('id="settings-business-email"');
+      expect(html).toContain('id="settings-payment-provider"');
+      expect(html).toContain('id="settings-embed-hosts"');
+      expect(html).toContain('id="settings-terms"');
+      expect(html).toContain('id="settings-password"');
+      expect(html).toContain('id="settings-show-public-site"');
+      expect(html).toContain('id="settings-theme"');
+      expect(html).toContain('id="settings-reset-database"');
     });
   });
 
@@ -281,11 +319,12 @@ describe("server (admin settings)", () => {
     test("updates Stripe key successfully", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
-            success: true,
-            endpointId: "we_test_123",
-            secret: "whsec_test_secret",
-          }),
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -328,11 +367,12 @@ describe("server (admin settings)", () => {
     test("settings page shows Stripe is configured after setting key", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
-            success: true,
-            endpointId: "we_test_123",
-            secret: "whsec_test_secret",
-          }),
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -384,11 +424,12 @@ describe("server (admin settings)", () => {
     test("returns JSON result when API key is not configured", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
-            ok: false,
-            apiKey: { valid: false, error: "No Stripe secret key configured" },
-            webhook: { configured: false },
-          }),
+          stub(stripeApi, "testStripeConnection", () =>
+            Promise.resolve({
+              ok: false,
+              apiKey: { valid: false, error: "No Stripe secret key configured" },
+              webhook: { configured: false },
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
@@ -413,17 +454,18 @@ describe("server (admin settings)", () => {
     test("returns success when API key and webhook are valid", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
-            ok: true,
-            apiKey: { valid: true, mode: "test" },
-            webhook: {
-              configured: true,
-              endpointId: "we_test_123",
-              url: "https://example.com/payment/webhook",
-              status: "enabled",
-              enabledEvents: ["checkout.session.completed"],
-            },
-          }),
+          stub(stripeApi, "testStripeConnection", () =>
+            Promise.resolve({
+              ok: true,
+              apiKey: { valid: true, mode: "test" },
+              webhook: {
+                configured: true,
+                endpointId: "we_test_123",
+                url: "https://example.com/payment/webhook",
+                status: "enabled",
+                enabledEvents: ["checkout.session.completed"],
+              },
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
@@ -449,14 +491,15 @@ describe("server (admin settings)", () => {
     test("returns partial failure when API key valid but webhook missing", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "testStripeConnection").mockResolvedValue({
-            ok: false,
-            apiKey: { valid: true, mode: "test" },
-            webhook: {
-              configured: false,
-              error: "No webhook endpoint ID stored",
-            },
-          }),
+          stub(stripeApi, "testStripeConnection", () =>
+            Promise.resolve({
+              ok: false,
+              apiKey: { valid: true, mode: "test" },
+              webhook: {
+                configured: false,
+                error: "No webhook endpoint ID stored",
+              },
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
@@ -880,13 +923,14 @@ describe("server (admin settings)", () => {
 
   describe("POST /admin/settings/stripe (webhook setup failure)", () => {
     test("shows error when webhook setup fails", async () => {
-      const mockSetupWebhook = spyOn(stripeApi, "setupWebhookEndpoint");
-      mockSetupWebhook.mockResolvedValue({
-        success: false,
-        error: "Connection refused",
-      });
+      const mockSetupWebhook = stub(stripeApi, "setupWebhookEndpoint", () =>
+        Promise.resolve({
+          success: false,
+          error: "Connection refused",
+        }));
 
       try {
+        await setPaymentProvider("stripe");
         const { cookie, csrfToken } = await loginAsAdmin();
 
         const response = await handleRequest(
@@ -906,7 +950,7 @@ describe("server (admin settings)", () => {
           "Connection refused",
         );
       } finally {
-        mockSetupWebhook.mockRestore();
+        mockSetupWebhook.restore();
       }
     });
   });
@@ -1200,7 +1244,10 @@ describe("server (admin settings)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("/admin/settings");
+      const location = response.headers.get("location")!;
+      expect(location).toContain("/admin/settings");
+      expect(location).toContain("form=settings-timezone");
+      expect(location).toContain("#settings-timezone");
       const saved = await getTimezoneFromDb();
       expect(saved).toBe("America/New_York");
     });
@@ -1229,6 +1276,26 @@ describe("server (admin settings)", () => {
         ),
       );
       await expectHtmlResponse(response, 400, "Invalid timezone");
+    });
+
+    test("shows error on the timezone form only", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/timezone",
+          { timezone: "", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      const html = await response.text();
+      const timezoneForm = html.match(/id="settings-timezone"[\s\S]*?<\/form>/);
+      expect(timezoneForm).toBeDefined();
+      expect(timezoneForm![0]).toContain("Timezone is required");
+      // Other forms should not have the error
+      const themeForm = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
+      expect(themeForm).toBeDefined();
+      expect(themeForm![0]).not.toContain("Timezone is required");
     });
   });
 
@@ -1388,11 +1455,12 @@ describe("server (admin settings)", () => {
     test("logs activity when Stripe key is configured", async () => {
       await withMocks(
         () =>
-          spyOn(stripeApi, "setupWebhookEndpoint").mockResolvedValue({
-            success: true,
-            endpointId: "we_test_123",
-            secret: "whsec_test_secret",
-          }),
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            })),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 

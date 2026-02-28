@@ -1,4 +1,5 @@
-import { describe, expect, test } from "#test-compat";
+import { describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
 
 describe("event-fields", () => {

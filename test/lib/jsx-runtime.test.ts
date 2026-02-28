@@ -1,4 +1,5 @@
-import { describe, expect, test } from "#test-compat";
+import { describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { Fragment, jsx, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
 
 describe("jsx-runtime", () => {
@@ -108,6 +109,13 @@ describe("jsx-runtime", () => {
     test("escapes text in fragment", () => {
       const result = Fragment({ children: "<script>" });
       expect(result.toString()).toBe("&lt;script&gt;");
+    });
+
+    test("passes through single SafeHtml child without re-wrapping", () => {
+      const inner = new SafeHtml("<b>bold</b>");
+      const result = jsx(Fragment, { children: inner });
+      expect(result).toBe(inner);
+      expect(result.toString()).toBe("<b>bold</b>");
     });
   });
 

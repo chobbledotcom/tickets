@@ -579,43 +579,43 @@ export const awaitTestRequest = async (
   return handleRequest(testRequest(path, tokenOrOptions));
 };
 
-/** Restorable mock — any object with a mockRestore method */
+/** Restorable mock — any object with a restore method (Deno @std/testing/mock) */
 interface Restorable {
-  mockRestore?: (() => void) | undefined;
+  restore?: (() => void) | undefined;
 }
 
 /**
- * Run a test body with mocks that are automatically restored afterward.
- * Replaces the try/finally pattern for spy cleanup.
+ * Run a test body with stubs that are automatically restored afterward.
+ * Replaces the try/finally pattern for stub cleanup.
  *
- * @param setup - Returns a record of spies (or a single spy)
- * @param body - Test body receiving the spies
+ * @param setup - Returns a record of stubs (or a single stub)
+ * @param body - Test body receiving the stubs
  * @param cleanup - Optional extra cleanup (e.g. resetStripeClient)
  *
  * @example
- * // Single spy
+ * // Single stub
  * await withMocks(
- *   () => spyOn(api, "method").mockResolvedValue("ok"),
+ *   () => stub(api, "method", () => Promise.resolve("ok")),
  *   async (mock) => {
  *     const result = await doThing();
- *     expect(mock).toHaveBeenCalled();
+ *     expect(mock.calls.length).toBeGreaterThan(0);
  *   },
  * );
  *
- * // Multiple spies
+ * // Multiple stubs
  * await withMocks(
  *   () => ({
- *     retrieve: spyOn(api, "retrieve").mockResolvedValue(session),
- *     refund: spyOn(api, "refund").mockResolvedValue({ id: "re_1" }),
+ *     retrieve: stub(api, "retrieve", () => Promise.resolve(session)),
+ *     refund: stub(api, "refund", () => Promise.resolve({ id: "re_1" })),
  *   }),
- *   async ({ retrieve, refund }) => {
- *     expect(refund).toHaveBeenCalledWith("pi_123");
+ *   async ({ refund }) => {
+ *     expect(refund.calls[0].args).toEqual(["pi_123"]);
  *   },
  * );
  *
  * // With extra cleanup
  * await withMocks(
- *   () => spyOn(api, "method").mockResolvedValue("ok"),
+ *   () => stub(api, "method", () => Promise.resolve("ok")),
  *   async (mock) => { ... },
  *   resetStripeClient,
  * );
@@ -629,11 +629,11 @@ export const withMocks = async <T extends Restorable | Record<string, Restorable
   try {
     await body(mocks);
   } finally {
-    if (typeof (mocks as Restorable).mockRestore === "function") {
-      (mocks as Restorable).mockRestore!();
+    if (typeof (mocks as Restorable).restore === "function") {
+      (mocks as Restorable).restore!();
     } else {
       for (const mock of Object.values(mocks as Record<string, Restorable>)) {
-        mock.mockRestore?.();
+        mock.restore?.();
       }
     }
     await cleanup?.();
@@ -1002,7 +1002,7 @@ export { getAttendeesRaw };
 // Import `expect` lazily so the module can be loaded outside test contexts.
 // ---------------------------------------------------------------------------
 
-import { expect } from "#test-compat";
+import { expect } from "@std/expect";
 
 /** Assert a Response has the given status code. Returns the response for chaining. */
 export const expectStatus =

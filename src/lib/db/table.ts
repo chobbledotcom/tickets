@@ -9,7 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { compact, filter, mapAsync, reduce } from "#fp";
+import { compact, filter, mapParallel, reduce } from "#fp";
 import { getDb, queryAll, queryOne } from "#lib/db/client.ts";
 
 /**
@@ -173,14 +173,14 @@ const buildInsertSql = (name: string, columns: string[]): string => {
   return `INSERT INTO ${name} (${columns.join(", ")}) VALUES (${placeholders})`;
 };
 
-/** Build UPDATE SQL */
+/** Build UPDATE SQL with RETURNING to get updated row in one round trip */
 const buildUpdateSql = (
   name: string,
   columns: string[],
   primaryKey: string,
 ): string => {
   const setClauses = columns.map((col) => `${col} = ?`).join(", ");
-  return `UPDATE ${name} SET ${setClauses} WHERE ${primaryKey} = ?`;
+  return `UPDATE ${name} SET ${setClauses} WHERE ${primaryKey} = ? RETURNING *`;
 };
 
 /**
@@ -207,7 +207,7 @@ export const defineTable = <Row, Input = Row>(config: {
 
   // Transform a row from DB (apply read transforms)
   const fromDb = async (row: Row): Promise<Row> => {
-    const entries = await mapAsync(async (col: keyof Row & string) => {
+    const entries = await mapParallel(async (col: keyof Row & string) => {
       const def = schema[col];
       const value = row[col];
       if (def.read && value !== null) {
@@ -237,7 +237,7 @@ export const defineTable = <Row, Input = Row>(config: {
   const toDbValues = async (
     input: Input | Partial<Input>,
   ): Promise<Record<string, InValue>> => {
-    const entries = await mapAsync((col: string) => processColumn(col, input))(inputColumns);
+    const entries = await mapParallel((col: string) => processColumn(col, input))(inputColumns);
     return Object.fromEntries(compact(entries));
   };
 
@@ -284,7 +284,7 @@ export const defineTable = <Row, Input = Row>(config: {
       (inputKeyMap[col] as string) in (input as object),
     )(inputColumns);
 
-  // Update implementation
+  // Update implementation - uses RETURNING * to avoid a second round trip
   const update = async (
     id: InValue,
     input: Partial<Input>,
@@ -302,13 +302,12 @@ export const defineTable = <Row, Input = Row>(config: {
       id,
     ];
 
-    const result = await getDb().execute({
-      sql: buildUpdateSql(name, providedColumns, primaryKey),
+    const row = await queryOne<Row>(
+      buildUpdateSql(name, providedColumns, primaryKey),
       args,
-    });
+    );
 
-    if (result.rowsAffected === 0) return null;
-    return findById(id);
+    return row ? fromDb(row) : null;
   };
 
   // Find by ID implementation
@@ -331,7 +330,7 @@ export const defineTable = <Row, Input = Row>(config: {
   // Find all implementation
   const findAll = async (): Promise<Row[]> => {
     const rows = await queryAll<Row>(`SELECT * FROM ${name}`);
-    return mapAsync(fromDb)(rows);
+    return mapParallel(fromDb)(rows);
   };
 
   return {

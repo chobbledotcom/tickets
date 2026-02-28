@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
-import { spyOn } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -85,19 +86,19 @@ const markAsRefunded = async (attendeeId: number) => {
 
 const withRefundMock = async (
   refundBehavior: boolean | (() => Promise<boolean>),
-  fn: (mockRefund: unknown) => Promise<void>,
+  fn: (mockRefund: Stub) => Promise<void>,
 ) => {
   await withMocks(
-    () => spyOn(paymentsApi, "getConfiguredProvider").mockResolvedValue(mockProviderType("stripe")),
+    () => stub(paymentsApi, "getConfiguredProvider", () => Promise.resolve(mockProviderType("stripe"))),
     async () => {
       const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       const mockRefund = typeof refundBehavior === "function"
-        ? spyOn(stripePaymentProvider, "refundPayment").mockImplementation(refundBehavior)
-        : spyOn(stripePaymentProvider, "refundPayment").mockResolvedValue(refundBehavior);
+        ? stub(stripePaymentProvider, "refundPayment", refundBehavior)
+        : stub(stripePaymentProvider, "refundPayment", () => Promise.resolve(refundBehavior));
       try {
         await fn(mockRefund);
       } finally {
-        mockRefund.mockRestore?.();
+        mockRefund.restore();
       }
     },
   );
@@ -220,7 +221,7 @@ describe("server (admin refunds)", () => {
         const response = await submitRefund(ctx);
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe(`/admin/event/${ctx.event.id}`);
-        expect(mockRefund).toHaveBeenCalled();
+        expect(mockRefund.calls.length).toBeGreaterThan(0);
       });
     });
 
@@ -339,7 +340,7 @@ describe("server (admin refunds)", () => {
         );
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
-        expect(mockRefund).toHaveBeenCalledTimes(2);
+        expect(mockRefund.calls.length).toBe(2);
       });
     });
 

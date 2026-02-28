@@ -36,16 +36,21 @@ const loadAdminRoutes = once(async () => {
   return routeAdmin;
 });
 
-/** Lazy-load public routes (ticket reservation) */
-const loadPublicRoutes = once(async () => {
+/** Lazy-load public page handlers (home, events, terms, contact) */
+const loadPublicPages = once(async () => {
   const {
     handleHome,
     handlePublicEvents,
     handlePublicTerms,
     handlePublicContact,
-    routeTicket,
   } = await import("#routes/public.ts");
-  return { handleHome, handlePublicEvents, handlePublicTerms, handlePublicContact, routeTicket };
+  return { handleHome, handlePublicEvents, handlePublicTerms, handlePublicContact };
+});
+
+/** Lazy-load ticket reservation router */
+const loadTicketRoutes = once(async () => {
+  const { routeTicket } = await import("#routes/public.ts");
+  return routeTicket;
 });
 
 /** Lazy-load setup routes */
@@ -97,71 +102,60 @@ export {
 // Re-export types
 export type { ServerContext } from "#routes/types.ts";
 
-/** Check if path matches a route prefix (paths are normalized to strip trailing slashes) */
-const matchesPrefix = (path: string, prefix: string): boolean =>
-  path === prefix || path.startsWith(`${prefix}/`);
-
-/** Create a lazy-loaded route handler for a path prefix */
-const createLazyRoute =
-  (prefix: string, loadRoute: () => Promise<RouterFn>): RouterFn =>
-  async (request, path, method, server) => {
-    if (!matchesPrefix(path, prefix)) return null;
-    const route = await loadRoute();
-    return route(request, path, method, server);
-  };
-
-/** Route home page requests */
-const routeHome: RouterFn = async (_request, path, method) => {
-  if (path !== "/" || method !== "GET") return null;
-  const { handleHome } = await loadPublicRoutes();
-  return handleHome();
+/** Extract first path segment for O(1) prefix dispatch */
+const getPrefix = (path: string): string => {
+  const i = path.indexOf("/", 1);
+  return i === -1 ? path.slice(1) : path.slice(1, i);
 };
 
-/** Route public site pages (/events, /terms, /contact) */
-const routePublicPages: RouterFn = async (_request, path, method) => {
-  if (path === "/events") {
-    const { handlePublicEvents } = await loadPublicRoutes();
-    if (method === "GET") return handlePublicEvents();
-    return null;
-  }
-  if (path === "/terms" && method === "GET") {
-    const { handlePublicTerms } = await loadPublicRoutes();
+/** Create a lazy-loaded route handler (prefix already matched by dispatch map) */
+const lazyRoute =
+  (load: () => Promise<RouterFn>): RouterFn =>
+  async (request, path, method, server) =>
+    (await load())(request, path, method, server);
+
+/** Prefix dispatch table — O(1) lookup replaces the sequential ?? chain */
+const prefixHandlers: Record<string, RouterFn> = {
+  // Exact-match public pages
+  "": async (_request, path, method) => {
+    if (path !== "/" || method !== "GET") return null;
+    const { handleHome } = await loadPublicPages();
+    return handleHome();
+  },
+  events: async (_request, path, method) => {
+    if (path !== "/events" || method !== "GET") return null;
+    const { handlePublicEvents } = await loadPublicPages();
+    return handlePublicEvents();
+  },
+  terms: async (_request, path, method) => {
+    if (path !== "/terms" || method !== "GET") return null;
+    const { handlePublicTerms } = await loadPublicPages();
     return handlePublicTerms();
-  }
-  if (path === "/contact" && method === "GET") {
-    const { handlePublicContact } = await loadPublicRoutes();
+  },
+  contact: async (_request, path, method) => {
+    if (path !== "/contact" || method !== "GET") return null;
+    const { handlePublicContact } = await loadPublicPages();
     return handlePublicContact();
-  }
-  return null;
+  },
+  // Prefix-matched lazy-loaded route groups
+  admin: lazyRoute(loadAdminRoutes),
+  ticket: lazyRoute(loadTicketRoutes),
+  t: lazyRoute(loadTicketViewRoutes),
+  checkin: lazyRoute(loadCheckinRoutes),
+  image: lazyRoute(loadImageRoutes),
+  payment: lazyRoute(loadPaymentRoutes),
+  join: lazyRoute(loadJoinRoutes),
 };
-
-/** Lazy-loaded route handlers */
-const routeAdminPath = createLazyRoute("/admin", loadAdminRoutes);
-const routeTicketPath = createLazyRoute(
-  "/ticket",
-  async () => (await loadPublicRoutes()).routeTicket,
-);
-const routePaymentPath = createLazyRoute("/payment", loadPaymentRoutes);
-const routeJoinPath = createLazyRoute("/join", loadJoinRoutes);
-const routeTicketViewPath = createLazyRoute("/t", loadTicketViewRoutes);
-const routeCheckinPath = createLazyRoute("/checkin", loadCheckinRoutes);
-const routeImagePath = createLazyRoute("/image", loadImageRoutes);
 
 /**
  * Route main application requests (after setup is complete)
- * Routes are loaded lazily based on path prefix
+ * Uses prefix dispatch for O(1) route group lookup instead of sequential matching
  */
-const routeMainApp: RouterFn = async (request, path, method, server) =>
-  (await routeHome(request, path, method, server)) ??
-  (await routePublicPages(request, path, method, server)) ??
-  (await routeAdminPath(request, path, method, server)) ??
-  (await routeTicketPath(request, path, method, server)) ??
-  (await routeTicketViewPath(request, path, method, server)) ??
-  (await routeCheckinPath(request, path, method, server)) ??
-  (await routeImagePath(request, path, method, server)) ??
-  (await routePaymentPath(request, path, method, server)) ??
-  (await routeJoinPath(request, path, method, server)) ??
-  notFoundResponse();
+const routeMainApp: RouterFn = async (request, path, method, server) => {
+  const prefix = getPrefix(path);
+  if (!Object.hasOwn(prefixHandlers, prefix)) return notFoundResponse();
+  return (await prefixHandlers[prefix]!(request, path, method, server)) ?? notFoundResponse();
+};
 
 /**
  * Handle incoming requests (internal, without security headers)

@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { spy, stub } from "@std/testing/mock";
 import {
   buildWebhookPayload,
   type RegistrationEntry,
@@ -48,11 +50,11 @@ describe("webhook", () => {
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
-    fetchSpy = spyOn(globalThis, "fetch").mockResolvedValue(new Response());
+    fetchSpy = stub(globalThis, "fetch", () => Promise.resolve(new Response()));
   });
 
   afterEach(() => {
-    fetchSpy.mockRestore();
+    fetchSpy.restore();
     globalThis.fetch = originalFetch;
   });
 
@@ -216,8 +218,8 @@ describe("webhook", () => {
 
       await sendWebhook("https://example.com/webhook", payload);
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      const [url, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(fetchSpy.calls.length).toBe(1);
+      const [url, options] = fetchSpy.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://example.com/webhook");
       expect(options.method).toBe("POST");
       expect(options.headers).toEqual({ "Content-Type": "application/json" });
@@ -229,7 +231,8 @@ describe("webhook", () => {
     });
 
     test("does not throw on fetch error", async () => {
-      fetchSpy.mockRejectedValue(new Error("Network error"));
+      fetchSpy.restore();
+      fetchSpy = stub(globalThis, "fetch", () => Promise.reject(new Error("Network error")));
 
       const payload = await buildWebhookPayload(
         [{ event: makeEvent(), attendee: makeAttendee() }],
@@ -239,12 +242,13 @@ describe("webhook", () => {
       // Should not throw
       await sendWebhook("https://example.com/webhook", payload);
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy.calls.length).toBe(1);
     });
 
     test("logs error message on fetch error", async () => {
-      const errorSpy = spyOn(console, "error");
-      fetchSpy.mockRejectedValue(new Error("Connection refused"));
+      const errorSpy = spy(console, "error");
+      fetchSpy.restore();
+      fetchSpy = stub(globalThis, "fetch", () => Promise.reject(new Error("Connection refused")));
 
       const payload = await buildWebhookPayload(
         [{ event: makeEvent(), attendee: makeAttendee() }],
@@ -253,15 +257,16 @@ describe("webhook", () => {
 
       await sendWebhook("https://example.com/webhook", payload);
 
-      const calls = errorSpy.mock.calls.map((c) => c[0] as string);
+      const calls = errorSpy.calls.map((c) => c.args[0] as string);
       expect(calls.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("Connection refused"))).toBe(true);
 
-      errorSpy.mockRestore();
+      errorSpy.restore();
     });
 
     test("logs non-Error thrown values as strings", async () => {
-      const errorSpy = spyOn(console, "error");
-      fetchSpy.mockRejectedValue("socket hang up");
+      const errorSpy = spy(console, "error");
+      fetchSpy.restore();
+      fetchSpy = stub(globalThis, "fetch", () => Promise.reject("socket hang up"));
 
       const payload = await buildWebhookPayload(
         [{ event: makeEvent(), attendee: makeAttendee() }],
@@ -270,15 +275,16 @@ describe("webhook", () => {
 
       await sendWebhook("https://example.com/webhook", payload);
 
-      const calls = errorSpy.mock.calls.map((c) => c[0] as string);
+      const calls = errorSpy.calls.map((c) => c.args[0] as string);
       expect(calls.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("socket hang up"))).toBe(true);
 
-      errorSpy.mockRestore();
+      errorSpy.restore();
     });
 
     test("logs status on non-2xx response", async () => {
-      const errorSpy = spyOn(console, "error");
-      fetchSpy.mockResolvedValue(new Response("Not Found", { status: 404 }));
+      const errorSpy = spy(console, "error");
+      fetchSpy.restore();
+      fetchSpy = stub(globalThis, "fetch", () => Promise.resolve(new Response("Not Found", { status: 404 })));
 
       const payload = await buildWebhookPayload(
         [{ event: makeEvent(), attendee: makeAttendee() }],
@@ -287,15 +293,16 @@ describe("webhook", () => {
 
       await sendWebhook("https://example.com/webhook", payload);
 
-      const calls = errorSpy.mock.calls.map((c) => c[0] as string);
+      const calls = errorSpy.calls.map((c) => c.args[0] as string);
       expect(calls.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("status=404"))).toBe(true);
 
-      errorSpy.mockRestore();
+      errorSpy.restore();
     });
 
     test("does not log error on successful 2xx response", async () => {
-      const errorSpy = spyOn(console, "error");
-      fetchSpy.mockResolvedValue(new Response("OK", { status: 200 }));
+      const errorSpy = spy(console, "error");
+      fetchSpy.restore();
+      fetchSpy = stub(globalThis, "fetch", () => Promise.resolve(new Response("OK", { status: 200 })));
 
       const payload = await buildWebhookPayload(
         [{ event: makeEvent(), attendee: makeAttendee() }],
@@ -304,10 +311,10 @@ describe("webhook", () => {
 
       await sendWebhook("https://example.com/webhook", payload);
 
-      const calls = errorSpy.mock.calls.map((c) => c[0] as string);
+      const calls = errorSpy.calls.map((c) => c.args[0] as string);
       expect(calls.some((c) => c.includes("E_WEBHOOK_SEND"))).toBe(false);
 
-      errorSpy.mockRestore();
+      errorSpy.restore();
     });
   });
 
@@ -330,9 +337,9 @@ describe("webhook", () => {
 
       await sendRegistrationWebhooks(entries, "GBP");
 
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
-      const urls = fetchSpy.mock.calls.map(
-        (call: [string, RequestInit]) => call[0],
+      expect(fetchSpy.calls.length).toBe(2);
+      const urls = fetchSpy.calls.map(
+        (call: { args: unknown[] }) => call.args[0] as string,
       );
       expect(urls).toContain("https://hook-a.com");
       expect(urls).toContain("https://hook-b.com");
@@ -352,7 +359,7 @@ describe("webhook", () => {
 
       await sendRegistrationWebhooks(entries, "GBP");
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy.calls.length).toBe(1);
     });
 
     test("skips entries with empty webhook URLs", async () => {
@@ -369,8 +376,8 @@ describe("webhook", () => {
 
       await sendRegistrationWebhooks(entries, "GBP");
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(fetchSpy.calls.length).toBe(1);
+      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://hook.com");
     });
 
@@ -384,7 +391,7 @@ describe("webhook", () => {
 
       await sendRegistrationWebhooks(entries, "GBP");
 
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(fetchSpy.calls.length).toBe(0);
     });
 
     test("sends to WEBHOOK_URL env var in addition to event webhook URLs", async () => {
@@ -398,9 +405,9 @@ describe("webhook", () => {
 
       await sendRegistrationWebhooks(entries, "GBP");
 
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
-      const urls = fetchSpy.mock.calls.map(
-        (call: [string, RequestInit]) => call[0],
+      expect(fetchSpy.calls.length).toBe(2);
+      const urls = fetchSpy.calls.map(
+        (call: { args: unknown[] }) => call.args[0] as string,
       );
       expect(urls).toContain("https://event-hook.com");
       expect(urls).toContain("https://global-hook.com");
@@ -417,8 +424,8 @@ describe("webhook", () => {
 
       await sendRegistrationWebhooks(entries, "GBP");
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(fetchSpy.calls.length).toBe(1);
+      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://global-hook.com");
     });
 
@@ -433,7 +440,7 @@ describe("webhook", () => {
 
       await sendRegistrationWebhooks(entries, "GBP");
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy.calls.length).toBe(1);
     });
   });
 
@@ -460,8 +467,8 @@ describe("webhook", () => {
       await logAndNotifyRegistration(event, attendee, "GBP");
       await flushAsync();
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      const [url, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(fetchSpy.calls.length).toBe(1);
+      const [url, options] = fetchSpy.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://example.com/hook");
       const body = JSON.parse(options.body as string) as WebhookPayload;
       expect(body.event_type).toBe("registration.completed");
@@ -482,7 +489,7 @@ describe("webhook", () => {
       await logAndNotifyRegistration(event, attendee, "GBP");
       await flushAsync();
 
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(fetchSpy.calls.length).toBe(0);
     });
 
     test("sends to WEBHOOK_URL env var when event has no webhook_url", async () => {
@@ -500,8 +507,8 @@ describe("webhook", () => {
       await logAndNotifyRegistration(event, attendee, "GBP");
       await flushAsync();
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(fetchSpy.calls.length).toBe(1);
+      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://global-hook.com");
       Deno.env.delete("WEBHOOK_URL");
     });
@@ -544,8 +551,8 @@ describe("webhook", () => {
       await logAndNotifyMultiRegistration(entries, "GBP");
       await flushAsync();
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(fetchSpy.calls.length).toBe(1);
+      const [, options] = fetchSpy.calls[0].args as [string, RequestInit];
       const body = JSON.parse(options.body as string) as WebhookPayload;
       expect(body.tickets).toHaveLength(2);
     });
@@ -568,7 +575,7 @@ describe("webhook", () => {
       await logAndNotifyMultiRegistration(entries, "USD");
       await flushAsync();
 
-      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(fetchSpy.calls.length).toBe(0);
     });
 
     test("sends to WEBHOOK_URL env var for multi-event registration", async () => {
@@ -590,8 +597,8 @@ describe("webhook", () => {
       await logAndNotifyMultiRegistration(entries, "USD");
       await flushAsync();
 
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-      const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(fetchSpy.calls.length).toBe(1);
+      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://global-hook.com");
       Deno.env.delete("WEBHOOK_URL");
     });

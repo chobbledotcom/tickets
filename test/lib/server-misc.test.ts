@@ -1,18 +1,13 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  spyOn,
-  test,
-} from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { spy } from "@std/testing/mock";
 import {
   getCleanUrl,
   handleRequest,
   isValidContentType,
   normalizeHostname,
 } from "#routes";
-import { temporaryErrorResponse } from "#routes/utils.ts";
+import { redirectWithSuccess, temporaryErrorResponse } from "#routes/utils.ts";
 import {
   createTestDb,
   createTestDbWithSetup,
@@ -270,6 +265,29 @@ describe("server (misc)", () => {
     });
   });
 
+  describe("routes/utils.ts (redirectWithSuccess)", () => {
+    test("creates redirect without form ID", () => {
+      const response = redirectWithSuccess("/admin/settings", "Saved");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/settings?success=Saved");
+    });
+
+    test("creates redirect with form ID and anchor", () => {
+      const response = redirectWithSuccess("/admin/settings", "Timezone updated", "settings-timezone");
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toBe("/admin/settings?success=Timezone%20updated&form=settings-timezone#settings-timezone");
+    });
+
+    test("encodes special characters in message and form ID", () => {
+      const response = redirectWithSuccess("/admin/settings", "A & B", "form&id");
+      const location = response.headers.get("location")!;
+      expect(location).toContain("success=A%20%26%20B");
+      expect(location).toContain("form=form%26id");
+      expect(location).toContain("#form&id");
+    });
+  });
+
   describe("routes/admin/utils.ts (requirePrivateKey)", () => {
     test("throws when private key is unavailable", async () => {
       const { requirePrivateKey } = await import("#routes/admin/utils.ts");
@@ -394,29 +412,29 @@ describe("server (misc)", () => {
     });
 
     test("logs debug message with host details on domain redirect", async () => {
-      const debugSpy = spyOn(console, "debug");
+      const debugSpy = spy(console, "debug");
 
       await handleRequest(mockRequestWithHost("/", "evil.com"));
 
-      const calls = debugSpy.mock.calls.map((c) => c[0] as string);
+      const calls = debugSpy.calls.map((c) => c.args[0] as string);
       const domainLog = calls.find((c) => c.includes("[Domain]"));
       expect(domainLog).toBeDefined();
       expect(domainLog).toContain("host=evil.com");
       expect(domainLog).toContain("Redirecting to");
-      debugSpy.mockRestore();
+      debugSpy.restore();
     });
 
     test("logs missing host header in domain redirect debug message", async () => {
-      const debugSpy = spyOn(console, "debug");
+      const debugSpy = spy(console, "debug");
 
       await handleRequest(new Request("http://evil.com/", {}));
 
-      const calls = debugSpy.mock.calls.map((c) => c[0] as string);
+      const calls = debugSpy.calls.map((c) => c.args[0] as string);
       const domainLog = calls.find((c) => c.includes("[Domain]"));
       expect(domainLog).toBeDefined();
       expect(domainLog).toContain("host=missing");
       expect(domainLog).toContain("url=evil.com");
-      debugSpy.mockRestore();
+      debugSpy.restore();
     });
 
     test("preserves path and query string in domain redirect", async () => {

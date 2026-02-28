@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { handleRequest } from "#routes";
 import {
@@ -233,7 +234,7 @@ describe("server (setup)", () => {
       });
 
       test("POST /setup/ returns 503 when completeSetup fails", async () => {
-        const { spyOn } = await import("#test-compat");
+        const { stub } = await import("@std/testing/mock");
         const { settingsApi } = await import("#lib/db/settings.ts");
 
         const getResponse = await handleRequest(mockRequest("/setup/"));
@@ -241,11 +242,10 @@ describe("server (setup)", () => {
 
         await withMocks(
           () => ({
-            mockCompleteSetup: spyOn(settingsApi, "completeSetup")
-              .mockRejectedValue(
-                new Error("Database error"),
-              ),
-            mockConsoleError: spyOn(console, "error").mockImplementation(
+            mockCompleteSetup: stub(settingsApi, "completeSetup",
+              () => Promise.reject(new Error("Database error")),
+            ),
+            mockConsoleError: stub(console, "error",
               () => {},
             ),
           }),

@@ -68,8 +68,8 @@ export const parseCookies = (request: Request): Map<string, string> => {
 
   return pipe(
     map(toPair),
-    compact,
-    reduce((acc, [key, value]) => {
+    (pairs: (CookiePair | null)[]) => compact(pairs),
+    reduce((acc: Map<string, string>, [key, value]: CookiePair) => {
       acc.set(key, value);
       return acc;
     }, new Map<string, string>()),
@@ -184,10 +184,14 @@ export const redirect = (url: string, cookie?: string): Response => {
 };
 
 /**
- * Create redirect response with a success message as query parameter (PRG pattern)
+ * Create redirect response with a success message as query parameter (PRG pattern).
+ * When formId is provided, adds a `form` param and `#formId` anchor so the
+ * browser scrolls to the form that was just submitted.
  */
-export const redirectWithSuccess = (basePath: string, message: string): Response =>
-  redirect(`${basePath}?success=${encodeURIComponent(message)}`);
+export const redirectWithSuccess = (basePath: string, message: string, formId?: string): Response =>
+  formId
+    ? redirect(`${basePath}?success=${encodeURIComponent(message)}&form=${encodeURIComponent(formId)}#${formId}`)
+    : redirect(`${basePath}?success=${encodeURIComponent(message)}`);
 
 /**
  * Parse form data from request
