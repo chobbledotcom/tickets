@@ -3,7 +3,7 @@
  * Curried functions for array operations and composition
  */
 
-// --- Pipe type helpers (used by the 6+ catch-all overload) ---
+// --- Pipe type helpers ---
 
 /** A single-arg function (used as a constraint for pipe/pipeAsync generics) */
 // deno-lint-ignore no-explicit-any
@@ -30,34 +30,10 @@ type PipeReturn<Fns extends [Fn, ...Fn[]]> = ValidChain<Fns> extends true
 
 /**
  * Compose functions left-to-right (pipe)
- * Overloads 1-5 use bidirectional inference for optimal generic resolution.
- * The recursive catch-all handles 6+ functions with full type safety.
+ * Uses recursive conditional types for arbitrary-length type safety.
  */
 export function pipe<A>(): (a: A) => A;
-export function pipe<A, B>(fn1: (a: A) => B): (a: A) => B;
-export function pipe<A, B, C>(
-  fn1: (a: A) => B,
-  fn2: (b: B) => C,
-): (a: A) => C;
-export function pipe<A, B, C, D>(
-  fn1: (a: A) => B,
-  fn2: (b: B) => C,
-  fn3: (c: C) => D,
-): (a: A) => D;
-export function pipe<A, B, C, D, E>(
-  fn1: (a: A) => B,
-  fn2: (b: B) => C,
-  fn3: (c: C) => D,
-  fn4: (d: D) => E,
-): (a: A) => E;
-export function pipe<A, B, C, D, E, F>(
-  fn1: (a: A) => B,
-  fn2: (b: B) => C,
-  fn3: (c: C) => D,
-  fn4: (d: D) => E,
-  fn5: (e: E) => F,
-): (a: A) => F;
-export function pipe<Fns extends [Fn, Fn, Fn, Fn, Fn, Fn, ...Fn[]]>(
+export function pipe<Fns extends [Fn, ...Fn[]]>(
   ...fns: [...Fns]
 ): PipeReturn<Fns>;
 export function pipe(
@@ -302,7 +278,7 @@ export const bracket =
     }
   };
 
-// --- Async pipe type helpers (used by the 5+ catch-all overload) ---
+// --- Async pipe type helpers ---
 
 /** A single-arg async function */
 // deno-lint-ignore no-explicit-any
@@ -334,27 +310,9 @@ type PipeAsyncReturn<Fns extends [AsyncFn, ...AsyncFn[]]> =
 /**
  * Async pipe - compose async functions left-to-right
  * Each function receives the awaited result of the previous one.
- * Overloads 1-4 use bidirectional inference; recursive catch-all handles 5+.
+ * Uses recursive conditional types for arbitrary-length type safety.
  */
-export function pipeAsync<A, B>(
-  fn1: (a: A) => Promise<B>,
-): (a: A) => Promise<B>;
-export function pipeAsync<A, B, C>(
-  fn1: (a: A) => Promise<B>,
-  fn2: (b: B) => Promise<C>,
-): (a: A) => Promise<C>;
-export function pipeAsync<A, B, C, D>(
-  fn1: (a: A) => Promise<B>,
-  fn2: (b: B) => Promise<C>,
-  fn3: (c: C) => Promise<D>,
-): (a: A) => Promise<D>;
-export function pipeAsync<A, B, C, D, E>(
-  fn1: (a: A) => Promise<B>,
-  fn2: (b: B) => Promise<C>,
-  fn3: (c: C) => Promise<D>,
-  fn4: (d: D) => Promise<E>,
-): (a: A) => Promise<E>;
-export function pipeAsync<Fns extends [AsyncFn, AsyncFn, AsyncFn, AsyncFn, AsyncFn, ...AsyncFn[]]>(
+export function pipeAsync<Fns extends [AsyncFn, ...AsyncFn[]]>(
   ...fns: [...Fns]
 ): PipeAsyncReturn<Fns>;
 export function pipeAsync(
