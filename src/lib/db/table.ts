@@ -173,14 +173,14 @@ const buildInsertSql = (name: string, columns: string[]): string => {
   return `INSERT INTO ${name} (${columns.join(", ")}) VALUES (${placeholders})`;
 };
 
-/** Build UPDATE SQL */
+/** Build UPDATE SQL with RETURNING to get updated row in one round trip */
 const buildUpdateSql = (
   name: string,
   columns: string[],
   primaryKey: string,
 ): string => {
   const setClauses = columns.map((col) => `${col} = ?`).join(", ");
-  return `UPDATE ${name} SET ${setClauses} WHERE ${primaryKey} = ?`;
+  return `UPDATE ${name} SET ${setClauses} WHERE ${primaryKey} = ? RETURNING *`;
 };
 
 /**
@@ -284,7 +284,7 @@ export const defineTable = <Row, Input = Row>(config: {
       (inputKeyMap[col] as string) in (input as object),
     )(inputColumns);
 
-  // Update implementation
+  // Update implementation - uses RETURNING * to avoid a second round trip
   const update = async (
     id: InValue,
     input: Partial<Input>,
@@ -302,13 +302,12 @@ export const defineTable = <Row, Input = Row>(config: {
       id,
     ];
 
-    const result = await getDb().execute({
-      sql: buildUpdateSql(name, providedColumns, primaryKey),
+    const row = await queryOne<Row>(
+      buildUpdateSql(name, providedColumns, primaryKey),
       args,
-    });
+    );
 
-    if (result.rowsAffected === 0) return null;
-    return findById(id);
+    return row ? fromDb(row) : null;
   };
 
   // Find by ID implementation
