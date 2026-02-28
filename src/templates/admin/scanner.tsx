@@ -41,6 +41,7 @@ export const adminScannerPage = (
         </button>
 
         <dialog id="scanner-confirm">
+          <button id="scanner-confirm-close" type="button" aria-label="Close">&times;</button>
           <p id="scanner-confirm-message"></p>
           <div class="scanner-confirm-actions">
             <button id="scanner-confirm-yes" type="button">Yes</button>

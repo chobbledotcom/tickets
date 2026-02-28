@@ -158,6 +158,7 @@ const showConfirm = (message) => {
   const msgEl = document.getElementById("scanner-confirm-message");
   const yesBtn = document.getElementById("scanner-confirm-yes");
   const noBtn = document.getElementById("scanner-confirm-no");
+  const closeBtn = document.getElementById("scanner-confirm-close");
 
   msgEl.textContent = message;
 
@@ -165,16 +166,19 @@ const showConfirm = (message) => {
     const cleanup = (value) => {
       yesBtn.removeEventListener("click", onYes);
       noBtn.removeEventListener("click", onNo);
+      closeBtn.removeEventListener("click", onClose);
       dialog.removeEventListener("cancel", onCancel);
       dialog.close();
       resolve(value);
     };
     const onYes = () => cleanup(true);
     const onNo = () => cleanup(false);
+    const onClose = () => cleanup(false);
     const onCancel = () => cleanup(false);
 
     yesBtn.addEventListener("click", onYes);
     noBtn.addEventListener("click", onNo);
+    closeBtn.addEventListener("click", onClose);
     dialog.addEventListener("cancel", onCancel);
     dialog.showModal();
   });

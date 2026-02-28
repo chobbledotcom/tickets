@@ -1180,6 +1180,7 @@ button.secondary:hover {
 
 /* Scanner confirm dialog - non-blocking replacement for confirm() */
 #scanner-confirm {
+  position: relative;
   border: none;
   border-radius: 8px;
   padding: 1.5rem;
@@ -1187,6 +1188,19 @@ button.secondary:hover {
   width: 320px;
   text-align: center;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+#scanner-confirm-close {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  color: #666;
 }
 
 #scanner-confirm::backdrop {
