@@ -90,6 +90,7 @@ const extractCommonFields = (values: EventFormValues) => {
     bookableDays: parseBookableDays(values.bookable_days),
     minimumDaysBefore: values.minimum_days_before ?? 1,
     maximumDaysAfter: values.maximum_days_after ?? 90,
+    nonTransferable: values.non_transferable === "1",
   };
 };
 

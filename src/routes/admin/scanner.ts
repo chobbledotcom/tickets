@@ -57,6 +57,7 @@ const handleScanPost = (request: Request, { id }: { id: number }): Promise<Respo
 
     const token = body.token;
     const force = body.force === true;
+    const idVerified = body.id_verified === true;
 
     const privateKey = await getPrivateKey(session);
     if (!privateKey) {
@@ -96,9 +97,19 @@ const handleScanPost = (request: Request, { id }: { id: number }): Promise<Respo
       });
     }
 
+    // Non-transferable event - require ID verification before check-in
+    const event = await getEventWithCount(force ? attendee.event_id : id);
+    if (event?.non_transferable && !idVerified) {
+      return jsonResponse({
+        status: "verify_id",
+        name: attendee.name,
+        quantity: attendee.quantity,
+      });
+    }
+
     // Check them in
     await updateCheckedIn(attendee.id, true);
-    const eventName = await getEventName(attendee.event_id);
+    const eventName = event?.name ?? await getEventName(attendee.event_id);
     await logActivity(`Attendee checked in via scanner for '${eventName}'`, attendee.event_id);
 
     return jsonResponse({

@@ -2472,6 +2472,65 @@ describe("server (admin events)", () => {
       expectStatus(400)(response);
     });
 
+    test("creates event with non_transferable flag", async () => {
+      const event = await createTestEvent({ nonTransferable: true });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.non_transferable).toBe(true);
+    });
+
+    test("creates event without non_transferable by default", async () => {
+      const event = await createTestEvent();
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.non_transferable).toBe(false);
+    });
+
+    test("admin event detail page shows non-transferable row when enabled", async () => {
+      const { event, cookie } = await setupEventAndLogin({ nonTransferable: true });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      await expectHtmlResponse(
+        response,
+        200,
+        "Non-Transferable",
+        "ID verification required at entry",
+      );
+    });
+
+    test("admin event detail page does not show non-transferable row when disabled", async () => {
+      const { event, cookie } = await setupEventAndLogin();
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).not.toContain("Non-Transferable");
+    });
+
+    test("admin event edit page pre-fills non-transferable select", async () => {
+      const { event, cookie } = await setupEventAndLogin({ nonTransferable: true });
+
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie,
+      });
+      const html = await expectHtmlResponse(response, 200, "Non-Transferable Tickets");
+      expect(html).toContain('value="1" selected');
+    });
+
+    test("updates event to enable non_transferable", async () => {
+      const event = await createTestEvent();
+      await updateTestEvent(event.id, { nonTransferable: true });
+
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.non_transferable).toBe(true);
+    });
+
     test("rejects invalid bookable_days value", async () => {
       const { cookie, csrfToken } = await setupEventAndLogin({ name: "Edit Target" });
 

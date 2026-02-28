@@ -423,6 +423,97 @@ describe("QR Scanner", () => {
       expect(result.message).toBe("Decryption unavailable");
     });
 
+    test("returns verify_id for non-transferable event without id_verified", async () => {
+      const { event, token, session } = await setupScanTest(
+        "Alice",
+        "alice@test.com",
+        { nonTransferable: true },
+      );
+      const response = await handleRequest(
+        mockScanRequest(event.id, { token }, session.cookie, session.csrfToken),
+      );
+
+      expect(response.status).toBe(200);
+      const result = await response.json();
+      expect(result.status).toBe("verify_id");
+      expect(result.name).toBe("Alice");
+      expect(result.quantity).toBe(1);
+    });
+
+    test("checks in non-transferable attendee with id_verified flag", async () => {
+      const { event, token, session } = await setupScanTest(
+        "Bob",
+        "bob@test.com",
+        { nonTransferable: true },
+      );
+      const response = await handleRequest(
+        mockScanRequest(
+          event.id,
+          { token, id_verified: true },
+          session.cookie,
+          session.csrfToken,
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      const result = await response.json();
+      expect(result.status).toBe("checked_in");
+      expect(result.name).toBe("Bob");
+    });
+
+    test("checks in transferable event without id_verified", async () => {
+      const { event, token, session } = await setupScanTest(
+        "Carol",
+        "carol@test.com",
+      );
+      const response = await handleRequest(
+        mockScanRequest(event.id, { token }, session.cookie, session.csrfToken),
+      );
+
+      expect(response.status).toBe(200);
+      const result = await response.json();
+      expect(result.status).toBe("checked_in");
+      expect(result.name).toBe("Carol");
+    });
+
+    test("force check-in with deleted event falls back to getEventName", async () => {
+      const { getDb } = await import("#lib/db/client.ts");
+      const { computeTicketTokenIndex } = await import("#lib/crypto.ts");
+      const { token } = await createTestAttendeeWithToken(
+        "Eve",
+        "eve@test.com",
+      );
+      const eventB = await createTestEvent({ maxAttendees: 10 });
+      const session = await loginAsAdmin();
+
+      // Point attendee at a non-existent event to simulate orphan
+      // Keep foreign keys off for the full request since logActivity also references event_id
+      const tokenIndex = await computeTicketTokenIndex(token);
+      await getDb().execute({ sql: "PRAGMA foreign_keys = OFF", args: [] });
+      await getDb().execute({
+        sql: "UPDATE attendees SET event_id = 99999 WHERE ticket_token_index = ?",
+        args: [tokenIndex],
+      });
+
+      // Force check-in from event B — event 99999 doesn't exist, so event is null
+      // and eventName falls back to getEventName which returns "Unknown event"
+      const response = await handleRequest(
+        mockScanRequest(
+          eventB.id,
+          { token, force: true },
+          session.cookie,
+          session.csrfToken,
+        ),
+      );
+
+      await getDb().execute({ sql: "PRAGMA foreign_keys = ON", args: [] });
+
+      expect(response.status).toBe(200);
+      const result = await response.json();
+      expect(result.status).toBe("checked_in");
+      expect(result.name).toBe("Eve");
+    });
+
     test("logs activity when checking in via scanner", async () => {
       const { event, token, session } = await setupScanTest(
         "Eve",

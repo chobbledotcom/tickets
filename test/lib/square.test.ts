@@ -169,6 +169,7 @@ describe("square", () => {
         minimum_days_before: 1,
         maximum_days_after: 90,
         image_url: "",
+        non_transferable: false,
       };
       const intent = {
         eventId: 1,
@@ -213,6 +214,7 @@ describe("square", () => {
         minimum_days_before: 1,
         maximum_days_after: 90,
         image_url: "",
+        non_transferable: false,
       };
       const intent = {
         eventId: 1,
@@ -257,6 +259,7 @@ describe("square", () => {
         minimum_days_before: 1,
         maximum_days_after: 90,
         image_url: "",
+        non_transferable: false,
       };
       const intent = {
         eventId: 1,
@@ -309,6 +312,7 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
+            non_transferable: false,
           };
           const intent = {
             eventId: 7,
@@ -397,6 +401,7 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
+            non_transferable: false,
           };
           const intent = {
             eventId: 1,
@@ -453,6 +458,7 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
+            non_transferable: false,
           };
           const intent = {
             eventId: 1,
@@ -508,6 +514,7 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
+            non_transferable: false,
           };
           const intent = {
             eventId: 1,
@@ -1774,6 +1781,7 @@ describe("square", () => {
             minimum_days_before: 1,
             maximum_days_after: 90,
             image_url: "",
+            non_transferable: false,
           };
           const intent = {
             eventId: 1,

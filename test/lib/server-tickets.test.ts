@@ -297,4 +297,32 @@ describe("ticket view (/t/:tokens)", () => {
     expect(body).toContain("ticket-card-token");
     expect(body).toContain(token);
   });
+
+  test("shows non-transferable notice for non-transferable event", async () => {
+    const { token } = await createTestAttendeeWithToken(
+      "Alice Smith",
+      "alice@test.com",
+      { nonTransferable: true },
+    );
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("ticket-card-notice");
+    expect(body).toContain("Non-transferable");
+    expect(body).toContain("ID required at entry");
+  });
+
+  test("does not show non-transferable notice for transferable event", async () => {
+    const { token } = await createTestAttendeeWithToken(
+      "Bob Jones",
+      "bob@test.com",
+    );
+
+    const response = await awaitTestRequest(`/t/${token}`);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).not.toContain("ticket-card-notice");
+    expect(body).not.toContain("Non-transferable");
+  });
 });

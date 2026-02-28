@@ -17,9 +17,10 @@ const extractToken = (data) => {
 };
 
 /** POST to scan API */
-const postScan = async (eventId, token, csrfToken, force) => {
+const postScan = async (eventId, token, csrfToken, { force, idVerified } = {}) => {
   const body = { token };
   if (force) body.force = true;
+  if (idVerified) body.id_verified = true;
 
   const res = await fetch(`/admin/event/${eventId}/scan`, {
     method: "POST",
@@ -117,10 +118,20 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
             `${result.name} is registered for "${result.eventName}", not this event. Check in anyway?`,
           );
           if (ok) {
-            const forced = await postScan(eventId, token, csrfToken, true);
+            const forced = await postScan(eventId, token, csrfToken, { force: true });
             handleResult(statusEl, forced);
           } else {
             showStatus(statusEl, `Skipped ${result.name}`, "warning");
+          }
+        } else if (result.status === "verify_id") {
+          const ok = confirm(
+            `Does their ID match "${result.name}"?`,
+          );
+          if (ok) {
+            const verified = await postScan(eventId, token, csrfToken, { idVerified: true });
+            handleResult(statusEl, verified);
+          } else {
+            showStatus(statusEl, `ID does not match ${result.name}`, "error");
           }
         } else {
           handleResult(statusEl, result);

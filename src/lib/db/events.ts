@@ -40,6 +40,7 @@ export type EventInput = {
   minimumDaysBefore?: number;
   maximumDaysAfter?: number;
   imageUrl?: string;
+  nonTransferable?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -121,11 +122,7 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
     unit_price: col.simple<number | null>(),
     max_quantity: col.withDefault(() => 1),
     webhook_url: { default: () => "", write: encrypt, read: decrypt },
-    active: col.converted<boolean>({
-      default: () => true,
-      write: (v) => v ? 1 : 0,
-      read: (v) => v === 1,
-    }),
+    active: col.boolean(true),
     fields: col.withDefault<EventFields>(() => "email"),
     closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
     event_type: col.withDefault<EventType>(() => "standard"),
@@ -140,6 +137,7 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
     minimum_days_before: col.withDefault(() => 1),
     maximum_days_after: col.withDefault(() => 90),
     image_url: { default: () => "", write: encrypt, read: decrypt },
+    non_transferable: col.boolean(false),
   });
 
 export const eventsTable: typeof rawEventsTable = {
