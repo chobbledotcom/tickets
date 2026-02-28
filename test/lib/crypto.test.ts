@@ -96,12 +96,17 @@ describe("generateSecureToken", () => {
 });
 
 describe("generateTicketToken", () => {
-  it("returns a base64url string of 11 characters", () => {
-    // 8 bytes = 64 bits, base64url encodes 6 bits per char
-    // ceil(64/6) = 11 chars (without padding)
+  it("returns an uppercase hex string of 10 characters", () => {
+    // 5 bytes = 10 hex characters
     const token = generateTicketToken();
-    expect(token).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(token.length).toBe(11);
+    expect(token).toMatch(/^[0-9A-F]+$/);
+    expect(token.length).toBe(10);
+  });
+
+  it("contains no dashes or underscores", () => {
+    const token = generateTicketToken();
+    expect(token).not.toContain("-");
+    expect(token).not.toContain("_");
   });
 
   it("generates unique tokens", () => {

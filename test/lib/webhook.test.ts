@@ -33,7 +33,7 @@ const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee
   special_instructions: "",
   payment_id: "",
   price_paid: "0",
-  ticket_token: "test-token-42",
+  ticket_token: "AABB001122",
   date: null,
   ...overrides,
 });
@@ -78,13 +78,14 @@ describe("webhook", () => {
       expect(payload.price_paid).toBeNull();
       expect(payload.currency).toBe("GBP");
       expect(payload.payment_id).toBeNull();
-      expect(payload.ticket_url).toBe("https://localhost/t/test-token-42");
+      expect(payload.ticket_url).toBe("https://localhost/t/AABB001122");
       expect(payload.tickets).toHaveLength(1);
       expect(payload.tickets[0]!.event_name).toBe("Test Event");
       expect(payload.tickets[0]!.event_slug).toBe("test-event");
       expect(payload.tickets[0]!.unit_price).toBeNull();
       expect(payload.tickets[0]!.quantity).toBe(1);
       expect(payload.tickets[0]!.date).toBeNull();
+      expect(payload.tickets[0]!.ticket_token).toBe("AABB001122");
       expect(payload.timestamp).toBeDefined();
       expect(payload.business_email).toBe("");
     });
@@ -114,11 +115,11 @@ describe("webhook", () => {
       const entries: RegistrationEntry[] = [
         {
           event: makeEvent({ id: 1, name: "Event A", slug: "event-a", unit_price: 300 }),
-          attendee: makeAttendee({ ticket_token: "tok-a", price_paid: "300", payment_id: "pi_multi" }),
+          attendee: makeAttendee({ ticket_token: "AA00BB11CC", price_paid: "300", payment_id: "pi_multi" }),
         },
         {
           event: makeEvent({ id: 2, name: "Event B", slug: "event-b", unit_price: 700 }),
-          attendee: makeAttendee({ ticket_token: "tok-b", quantity: 2, price_paid: "1400", payment_id: "pi_multi" }),
+          attendee: makeAttendee({ ticket_token: "DD22EE33FF", quantity: 2, price_paid: "1400", payment_id: "pi_multi" }),
         },
       ];
 
@@ -127,13 +128,15 @@ describe("webhook", () => {
       expect(payload.name).toBe("Jane Doe");
       expect(payload.price_paid).toBe(1700);
       expect(payload.payment_id).toBe("pi_multi");
-      expect(payload.ticket_url).toBe("https://localhost/t/tok-a+tok-b");
+      expect(payload.ticket_url).toBe("https://localhost/t/AA00BB11CC+DD22EE33FF");
       expect(payload.tickets).toHaveLength(2);
       expect(payload.tickets[0]!.event_name).toBe("Event A");
       expect(payload.tickets[0]!.unit_price).toBe(300);
+      expect(payload.tickets[0]!.ticket_token).toBe("AA00BB11CC");
       expect(payload.tickets[1]!.event_name).toBe("Event B");
       expect(payload.tickets[1]!.unit_price).toBe(700);
       expect(payload.tickets[1]!.quantity).toBe(2);
+      expect(payload.tickets[1]!.ticket_token).toBe("DD22EE33FF");
     });
 
     test("includes date in ticket when attendee has a date", async () => {
@@ -153,11 +156,11 @@ describe("webhook", () => {
       const entries: RegistrationEntry[] = [
         {
           event: makeEvent({ id: 1, name: "Daily Event", slug: "daily-event" }),
-          attendee: makeAttendee({ ticket_token: "tok-a", date: "2025-07-15" }),
+          attendee: makeAttendee({ ticket_token: "AA00BB11CC", date: "2025-07-15" }),
         },
         {
           event: makeEvent({ id: 2, name: "Standard Event", slug: "standard-event" }),
-          attendee: makeAttendee({ ticket_token: "tok-b", date: null }),
+          attendee: makeAttendee({ ticket_token: "DD22EE33FF", date: null }),
         },
       ];
 

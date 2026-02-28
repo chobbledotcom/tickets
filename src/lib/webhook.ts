@@ -20,6 +20,7 @@ export type WebhookTicket = {
   unit_price: number | null;
   quantity: number;
   date: string | null;
+  ticket_token: string;
 };
 
 /** Consolidated payload sent to webhook endpoints */
@@ -98,6 +99,7 @@ export const buildWebhookPayload = async (
       unit_price: event.unit_price,
       quantity: attendee.quantity,
       date: attendee.date,
+      ticket_token: attendee.ticket_token,
     })),
     timestamp: nowIso(),
     business_email: businessEmail,

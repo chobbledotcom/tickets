@@ -19,6 +19,7 @@ const buildCheckinUrl = (token: string): string =>
 const buildTicketCard = async (entry: TokenEntry, token: string): Promise<TicketCard> => ({
   entry,
   qrSvg: await generateQrSvg(buildCheckinUrl(token)),
+  token,
 });
 
 /** Handle GET /t/:tokens */
