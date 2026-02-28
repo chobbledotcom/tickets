@@ -123,6 +123,21 @@ describe("server (admin guide)", () => {
       expect(html).toContain("Deactivate");
     });
 
+    test("contains non-transferable tickets info", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("non-transferable");
+      expect(html).toContain("ID required at entry");
+      expect(html).toContain("ticket touting");
+    });
+
+    test("contains attendee editing info", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("edit an attendee");
+      expect(html).toContain("reassign");
+    });
+
     test("contains text formatting section", async () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();

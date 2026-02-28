@@ -189,6 +189,28 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
+        <Q q="What are non-transferable tickets?">
+          <p>
+            When you enable <strong>Non-Transferable</strong> on an event,
+            attendees see a notice on their ticket saying "Non-transferable
+            — ID required at entry". At check-in, the QR scanner prompts
+            door staff to verify the attendee's ID matches the name on the
+            ticket before completing check-in. This helps prevent ticket
+            touting.
+          </p>
+        </Q>
+
+        <Q q="How do I edit an attendee?">
+          <p>
+            Open the event's attendee list, find the attendee, and click{" "}
+            <strong>Edit</strong>. You can update their name, email, phone,
+            address, special instructions, and quantity. You can also reassign
+            them to a different event using the event dropdown. Quantity changes
+            are validated against the event's capacity and maximum tickets per
+            purchase.
+          </p>
+        </Q>
+
         <Q q="How do I add terms and conditions?">
           <p>
             In <strong>Settings</strong>, enter your terms in the "Terms and
@@ -632,8 +654,9 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             Open an event and click <strong>Scanner</strong>. Tap{" "}
             <strong>Start Camera</strong> to begin (grants camera permission on
             first use). Point the camera at an attendee's QR code and check-in
-            happens automatically. A 2-second cooldown prevents duplicate scans.
-            The scanner works best with the rear camera on mobile devices.
+            happens automatically. Duplicate scans of the same ticket are
+            suppressed while the success message is visible. The scanner works
+            best with the rear camera on mobile devices.
           </p>
         </Q>
 
@@ -659,10 +682,16 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             <strong>Checked in</strong> &mdash; shows the attendee's name and
             ticket count (e.g. "Jo checked in (2 tickets)").{" "}
             <strong>Already checked in</strong> &mdash; they were already
-            marked as arrived. <strong>Ticket not found</strong> &mdash; the QR
+            marked as arrived.{" "}
+            <strong>Refunded</strong> &mdash; the attendee has been refunded
+            and cannot be checked in.{" "}
+            <strong>Ticket not found</strong> &mdash; the QR
             code doesn't match any registration.{" "}
             <strong>Different event</strong> &mdash; a confirmation dialogue
-            asks whether to check them in anyway.
+            asks whether to check them in anyway.{" "}
+            <strong>ID verification</strong> &mdash; for non-transferable
+            events, staff are asked to confirm the attendee's ID matches
+            the ticket name before check-in proceeds.
           </p>
         </Q>
       </Section>
