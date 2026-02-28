@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test, spyOn } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { spy, stub } from "@std/testing/mock";
 import {
   constructTestWebhookEvent,
   createCheckoutSessionWithIntent,
@@ -98,8 +100,6 @@ describe("stripe", () => {
     });
 
     test("returns null when Stripe API throws error", async () => {
-      // spyOn already imported from #test-compat
-
       // Enable Stripe with mock
       await updateStripeKey("sk_test_mock");
       const client = await getStripeClient();
@@ -107,14 +107,15 @@ describe("stripe", () => {
 
       // Spy on the checkout.sessions.retrieve method and make it throw
       await withMocks(
-        () => spyOn(
+        () => stub(
           client.checkout.sessions,
           "retrieve",
-        ).mockRejectedValue(new Error("Network error")),
+          () => Promise.reject(new Error("Network error")),
+        ),
         async (retrieveSpy) => {
           const result = await retrieveCheckoutSession("cs_test_123");
           expect(result).toBeNull();
-          expect(retrieveSpy).toHaveBeenCalledWith("cs_test_123");
+          expect(retrieveSpy.calls[0]!.args).toEqual(["cs_test_123"]);
         },
       );
     });
@@ -359,11 +360,11 @@ describe("stripe", () => {
       if (!client) throw new Error("Expected client to be defined");
 
       await withMocks(
-        () => spyOn(client.refunds, "create").mockRejectedValue(new Error("Network error")),
+        () => stub(client.refunds, "create", () => Promise.reject(new Error("Network error"))),
         async (refundSpy) => {
           const result = await refundPayment("pi_test_123");
           expect(result).toBeNull();
-          expect(refundSpy).toHaveBeenCalled();
+          expect(refundSpy.calls.length).toBeGreaterThan(0);
         },
       );
     });
@@ -589,7 +590,7 @@ describe("stripe", () => {
       if (!client) throw new Error("Expected client to be defined");
 
       await withMocks(
-        () => spyOn(client.balance, "retrieve").mockRejectedValue(new Error("Invalid API Key provided")),
+        () => stub(client.balance, "retrieve", () => Promise.reject(new Error("Invalid API Key provided"))),
         async () => {
           const result = await testStripeConnection();
           expect(result.ok).toBe(false);
@@ -605,7 +606,7 @@ describe("stripe", () => {
       if (!client) throw new Error("Expected client to be defined");
 
       await withMocks(
-        () => spyOn(client.balance, "retrieve").mockResolvedValue({ livemode: false, available: [], pending: [], object: "balance" } as never),
+        () => stub(client.balance, "retrieve", () => Promise.resolve({ livemode: false, available: [], pending: [], object: "balance" } as never)),
         async () => {
           const result = await testStripeConnection();
           expect(result.ok).toBe(false);
@@ -623,7 +624,7 @@ describe("stripe", () => {
       if (!client) throw new Error("Expected client to be defined");
 
       await withMocks(
-        () => spyOn(client.balance, "retrieve").mockResolvedValue({ livemode: true, available: [], pending: [], object: "balance" } as never),
+        () => stub(client.balance, "retrieve", () => Promise.resolve({ livemode: true, available: [], pending: [], object: "balance" } as never)),
         async () => {
           const result = await testStripeConnection();
           expect(result.apiKey.valid).toBe(true);
@@ -640,8 +641,8 @@ describe("stripe", () => {
 
       await withMocks(
         () => ({
-          balanceSpy: spyOn(client.balance, "retrieve").mockResolvedValue({ livemode: false, available: [], pending: [], object: "balance" } as never),
-          webhookSpy: spyOn(client.webhookEndpoints, "retrieve").mockRejectedValue(new Error("No such webhook endpoint: we_test_missing")),
+          balanceSpy: stub(client.balance, "retrieve", () => Promise.resolve({ livemode: false, available: [], pending: [], object: "balance" } as never)),
+          webhookSpy: stub(client.webhookEndpoints, "retrieve", () => Promise.reject(new Error("No such webhook endpoint: we_test_missing"))),
         }),
         async () => {
           const result = await testStripeConnection();
@@ -661,14 +662,14 @@ describe("stripe", () => {
 
       await withMocks(
         () => ({
-          balanceSpy: spyOn(client.balance, "retrieve").mockResolvedValue({ livemode: false, available: [], pending: [], object: "balance" } as never),
-          webhookSpy: spyOn(client.webhookEndpoints, "retrieve").mockResolvedValue({
+          balanceSpy: stub(client.balance, "retrieve", () => Promise.resolve({ livemode: false, available: [], pending: [], object: "balance" } as never)),
+          webhookSpy: stub(client.webhookEndpoints, "retrieve", () => Promise.resolve({
             id: "we_test_valid",
             url: "https://example.com/payment/webhook",
             status: "enabled",
             enabled_events: ["checkout.session.completed"],
             object: "webhook_endpoint",
-          } as never),
+          } as never)),
         }),
         async () => {
           const result = await testStripeConnection();
@@ -911,15 +912,14 @@ describe("stripe", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client to be defined");
 
-      const refundSpy = spyOn(client.refunds, "create");
       // Throw a non-Error value (string) to exercise the sanitizeErrorDetail "unknown" path
-      refundSpy.mockRejectedValue("network failure string");
+      const refundSpy = stub(client.refunds, "create", () => Promise.reject("network failure string"));
 
       try {
         const result = await refundPayment("pi_test_123");
         expect(result).toBeNull();
       } finally {
-        refundSpy.mockRestore();
+        refundSpy.restore();
       }
     });
   });
@@ -930,8 +930,7 @@ describe("stripe", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client to be defined");
 
-      const balanceSpy = spyOn(client.balance, "retrieve");
-      balanceSpy.mockRejectedValue("string error");
+      const balanceSpy = stub(client.balance, "retrieve", () => Promise.reject("string error"));
 
       try {
         const result = await testStripeConnection();
@@ -939,7 +938,7 @@ describe("stripe", () => {
         expect(result.apiKey.valid).toBe(false);
         expect(result.apiKey.error).toBe("Unknown error");
       } finally {
-        balanceSpy.mockRestore();
+        balanceSpy.restore();
       }
     });
 
@@ -949,16 +948,14 @@ describe("stripe", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client to be defined");
 
-      const balanceSpy = spyOn(client.balance, "retrieve");
-      balanceSpy.mockResolvedValue({
+      const balanceSpy = stub(client.balance, "retrieve", () => Promise.resolve({
         livemode: false,
         available: [],
         pending: [],
         object: "balance",
-      } as never);
+      } as never));
 
-      const webhookSpy = spyOn(client.webhookEndpoints, "retrieve");
-      webhookSpy.mockRejectedValue("webhook string error");
+      const webhookSpy = stub(client.webhookEndpoints, "retrieve", () => Promise.reject("webhook string error"));
 
       try {
         const result = await testStripeConnection();
@@ -966,8 +963,8 @@ describe("stripe", () => {
         expect(result.webhook.configured).toBe(false);
         expect(result.webhook.error).toBe("Unknown error");
       } finally {
-        balanceSpy.mockRestore();
-        webhookSpy.mockRestore();
+        balanceSpy.restore();
+        webhookSpy.restore();
       }
     });
   });
@@ -1286,40 +1283,40 @@ describe("stripe", () => {
     });
 
     test("logs 'missing timestamp' when header has signature but no timestamp", async () => {
-      const errorSpy = spyOn(console, "error");
+      const errorSpy = spy(console, "error");
       try {
         await verifyWebhookSignature('{"test": true}', "v1=abc123");
-        const callArg = errorSpy.mock.calls[0]![0] as string;
+        const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain('detail="invalid header: missing timestamp"');
       } finally {
-        errorSpy.mockRestore();
+        errorSpy.restore();
       }
     });
 
     test("logs 'missing signature' when header has timestamp but no v1", async () => {
-      const errorSpy = spyOn(console, "error");
+      const errorSpy = spy(console, "error");
       try {
         await verifyWebhookSignature('{"test": true}', "t=1234");
-        const callArg = errorSpy.mock.calls[0]![0] as string;
+        const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain('detail="invalid header: missing signature"');
       } finally {
-        errorSpy.mockRestore();
+        errorSpy.restore();
       }
     });
 
     test("logs 'missing timestamp and signature' for completely invalid header", async () => {
-      const errorSpy = spyOn(console, "error");
+      const errorSpy = spy(console, "error");
       try {
         await verifyWebhookSignature('{"test": true}', "invalid-header");
-        const callArg = errorSpy.mock.calls[0]![0] as string;
+        const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain('detail="invalid header: missing timestamp and signature"');
       } finally {
-        errorSpy.mockRestore();
+        errorSpy.restore();
       }
     });
 
     test("logs timestamp delta and tolerance when out of tolerance", async () => {
-      const errorSpy = spyOn(console, "error");
+      const errorSpy = spy(console, "error");
       const oldTimestamp = Math.floor(Date.now() / 1000) - 400;
       const payload = '{"test": true}';
       const signedPayload = `${oldTimestamp}.${payload}`;
@@ -1343,16 +1340,16 @@ describe("stripe", () => {
 
       try {
         await verifyWebhookSignature(payload, `t=${oldTimestamp},v1=${sigHex}`);
-        const callArg = errorSpy.mock.calls[0]![0] as string;
+        const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain("timestamp out of tolerance delta=");
         expect(callArg).toContain("tolerance=300s");
       } finally {
-        errorSpy.mockRestore();
+        errorSpy.restore();
       }
     });
 
     test("logs JSON parse error message for invalid payload", async () => {
-      const errorSpy = spyOn(console, "error");
+      const errorSpy = spy(console, "error");
       const payload = "not valid json {{{";
       const timestamp = Math.floor(Date.now() / 1000);
       const signedPayload = `${timestamp}.${payload}`;
@@ -1376,10 +1373,10 @@ describe("stripe", () => {
 
       try {
         await verifyWebhookSignature(payload, `t=${timestamp},v1=${sigHex}`);
-        const callArg = errorSpy.mock.calls[0]![0] as string;
+        const callArg = errorSpy.calls[0]!.args[0] as string;
         expect(callArg).toContain('detail="invalid JSON:');
       } finally {
-        errorSpy.mockRestore();
+        errorSpy.restore();
       }
     });
   });
@@ -1418,12 +1415,11 @@ describe("stripe-provider", () => {
       if (!client) throw new Error("Expected client");
 
       // Spy on stripe.checkout.sessions.create to return session without URL
-      const createSpy = spyOn(client.checkout.sessions, "create");
-      createSpy.mockResolvedValue({
+      const createSpy = stub(client.checkout.sessions, "create", () => Promise.resolve({
         id: "cs_no_url",
         url: null,
         object: "checkout.session",
-      } as never);
+      } as never));
 
       try {
         const event = testEvent({ unit_price: 1000 });
@@ -1446,7 +1442,7 @@ describe("stripe-provider", () => {
 
         expect(result).toBeNull();
       } finally {
-        createSpy.mockRestore();
+        createSpy.restore();
       }
     });
 
@@ -1455,8 +1451,7 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const createSpy = spyOn(client.checkout.sessions, "create");
-      createSpy.mockRejectedValue(new Error("API error"));
+      const createSpy = stub(client.checkout.sessions, "create", () => Promise.reject(new Error("API error")));
 
       try {
         const event = testEvent({ unit_price: 1000 });
@@ -1478,7 +1473,7 @@ describe("stripe-provider", () => {
 
         expect(result).toBeNull();
       } finally {
-        createSpy.mockRestore();
+        createSpy.restore();
       }
     });
   });
@@ -1489,8 +1484,7 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
-      retrieveSpy.mockResolvedValue({
+      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () => Promise.resolve({
         id: "cs_no_event",
         payment_status: "paid",
         payment_intent: "pi_test_123",
@@ -1499,13 +1493,13 @@ describe("stripe-provider", () => {
           email: "test@example.com",
           // No event_id, and not a multi session
         },
-      } as never);
+      } as never));
 
       try {
         const result = await stripePaymentProvider.retrieveSession("cs_no_event");
         expect(result).toBeNull();
       } finally {
-        retrieveSpy.mockRestore();
+        retrieveSpy.restore();
       }
     });
 
@@ -1514,14 +1508,13 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
-      retrieveSpy.mockRejectedValue(new Error("Not found"));
+      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () => Promise.reject(new Error("Not found")));
 
       try {
         const result = await stripePaymentProvider.retrieveSession("cs_notfound");
         expect(result).toBeNull();
       } finally {
-        retrieveSpy.mockRestore();
+        retrieveSpy.restore();
       }
     });
 
@@ -1530,21 +1523,20 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
-      retrieveSpy.mockResolvedValue({
+      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () => Promise.resolve({
         id: "cs_no_meta",
         payment_status: "paid",
         metadata: {
           event_id: "1",
           // Missing name and email
         },
-      } as never);
+      } as never));
 
       try {
         const result = await stripePaymentProvider.retrieveSession("cs_no_meta");
         expect(result).toBeNull();
       } finally {
-        retrieveSpy.mockRestore();
+        retrieveSpy.restore();
       }
     });
 
@@ -1553,8 +1545,7 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
-      retrieveSpy.mockResolvedValue({
+      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () => Promise.resolve({
         id: "cs_multi",
         payment_status: "paid",
         payment_intent: "pi_multi_123",
@@ -1565,7 +1556,7 @@ describe("stripe-provider", () => {
           multi: "1",
           items: '[{"e":1,"q":2}]',
         },
-      } as never);
+      } as never));
 
       try {
         const result = await stripePaymentProvider.retrieveSession("cs_multi");
@@ -1575,7 +1566,7 @@ describe("stripe-provider", () => {
         expect(result?.metadata.items).toBe('[{"e":1,"q":2}]');
         expect(result?.metadata.phone).toBe("+44 7700 900000");
       } finally {
-        retrieveSpy.mockRestore();
+        retrieveSpy.restore();
       }
     });
 
@@ -1584,8 +1575,7 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
-      retrieveSpy.mockResolvedValue({
+      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () => Promise.resolve({
         id: "cs_single",
         payment_status: "paid",
         payment_intent: "pi_single_123",
@@ -1595,7 +1585,7 @@ describe("stripe-provider", () => {
           event_id: "42",
           quantity: "2",
         },
-      } as never);
+      } as never));
 
       try {
         const result = await stripePaymentProvider.retrieveSession("cs_single");
@@ -1606,7 +1596,7 @@ describe("stripe-provider", () => {
         expect(result?.metadata.event_id).toBe("42");
         expect(result?.metadata.quantity).toBe("2");
       } finally {
-        retrieveSpy.mockRestore();
+        retrieveSpy.restore();
       }
     });
 
@@ -1615,8 +1605,7 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
-      retrieveSpy.mockResolvedValue({
+      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () => Promise.resolve({
         id: "cs_with_amount",
         payment_status: "paid",
         payment_intent: "pi_amount_123",
@@ -1627,7 +1616,7 @@ describe("stripe-provider", () => {
           event_id: "10",
           quantity: "3",
         },
-      } as never);
+      } as never));
 
       try {
         const result = await stripePaymentProvider.retrieveSession("cs_with_amount");
@@ -1635,7 +1624,7 @@ describe("stripe-provider", () => {
         expect(result?.amountTotal).toBe(4500);
         expect(result?.paymentReference).toBe("pi_amount_123");
       } finally {
-        retrieveSpy.mockRestore();
+        retrieveSpy.restore();
       }
     });
 
@@ -1644,8 +1633,7 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
-      retrieveSpy.mockResolvedValue({
+      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () => Promise.resolve({
         id: "cs_null_amount",
         payment_status: "paid",
         payment_intent: "pi_null_amount",
@@ -1656,13 +1644,13 @@ describe("stripe-provider", () => {
           event_id: "1",
           quantity: "1",
         },
-      } as never);
+      } as never));
 
       try {
         const result = await stripePaymentProvider.retrieveSession("cs_null_amount");
         expect(result).toBeNull();
       } finally {
-        retrieveSpy.mockRestore();
+        retrieveSpy.restore();
       }
     });
 
@@ -1671,8 +1659,7 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
-      retrieveSpy.mockResolvedValue({
+      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () => Promise.resolve({
         id: "cs_bad_status",
         payment_status: "completed",
         payment_intent: "pi_bad_status",
@@ -1683,14 +1670,14 @@ describe("stripe-provider", () => {
           event_id: "1",
           quantity: "1",
         },
-      } as never);
+      } as never));
 
       try {
         const result = await stripePaymentProvider.retrieveSession("cs_bad_status");
         expect(result).not.toBeNull();
         expect(result?.paymentStatus).toBe("unpaid");
       } finally {
-        retrieveSpy.mockRestore();
+        retrieveSpy.restore();
       }
     });
 
@@ -1699,8 +1686,7 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const retrieveSpy = spyOn(client.checkout.sessions, "retrieve");
-      retrieveSpy.mockResolvedValue({
+      const retrieveSpy = stub(client.checkout.sessions, "retrieve", () => Promise.resolve({
         id: "cs_amount_cast",
         payment_status: "paid",
         payment_intent: "pi_amount_cast",
@@ -1711,14 +1697,14 @@ describe("stripe-provider", () => {
           event_id: "11",
           quantity: "1",
         },
-      } as never);
+      } as never));
 
       try {
         const result = await stripePaymentProvider.retrieveSession("cs_amount_cast");
         expect(result).not.toBeNull();
         expect(result?.amountTotal).toBe(7500);
       } finally {
-        retrieveSpy.mockRestore();
+        retrieveSpy.restore();
       }
     });
   });
@@ -1807,14 +1793,13 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const refundSpy = spyOn(client.refunds, "create");
-      refundSpy.mockRejectedValue(new Error("Refund failed"));
+      const refundSpy = stub(client.refunds, "create", () => Promise.reject(new Error("Refund failed")));
 
       try {
         const result = await stripePaymentProvider.refundPayment("pi_fail");
         expect(result).toBe(false);
       } finally {
-        refundSpy.mockRestore();
+        refundSpy.restore();
       }
     });
   });
@@ -1855,14 +1840,15 @@ describe("stripe-provider", () => {
       if (!client) throw new Error("Expected client to be defined");
 
       await withMocks(
-        () => spyOn(
+        () => stub(
           client.paymentIntents,
           "retrieve",
-        ).mockRejectedValue(new Error("Network error")),
+          () => Promise.reject(new Error("Network error")),
+        ),
         async (retrieveSpy) => {
           const result = await retrievePaymentIntent("pi_test_123");
           expect(result).toBeNull();
-          expect(retrieveSpy).toHaveBeenCalled();
+          expect(retrieveSpy.calls.length).toBeGreaterThan(0);
         },
       );
     });
@@ -1875,10 +1861,10 @@ describe("stripe-provider", () => {
       if (!client) throw new Error("Expected client");
 
       await withMocks(
-        () => spyOn(client.paymentIntents, "retrieve").mockResolvedValue({
+        () => stub(client.paymentIntents, "retrieve", () => Promise.resolve({
           id: "pi_refunded",
           latest_charge: { id: "ch_1", refunded: true },
-        } as never),
+        } as never)),
         async () => {
           const result = await stripePaymentProvider.isPaymentRefunded("pi_refunded");
           expect(result).toBe(true);
@@ -1892,10 +1878,10 @@ describe("stripe-provider", () => {
       if (!client) throw new Error("Expected client");
 
       await withMocks(
-        () => spyOn(client.paymentIntents, "retrieve").mockResolvedValue({
+        () => stub(client.paymentIntents, "retrieve", () => Promise.resolve({
           id: "pi_not_refunded",
           latest_charge: { id: "ch_2", refunded: false },
-        } as never),
+        } as never)),
         async () => {
           const result = await stripePaymentProvider.isPaymentRefunded("pi_not_refunded");
           expect(result).toBe(false);
@@ -1909,7 +1895,7 @@ describe("stripe-provider", () => {
       if (!client) throw new Error("Expected client");
 
       await withMocks(
-        () => spyOn(client.paymentIntents, "retrieve").mockRejectedValue(new Error("Not found")),
+        () => stub(client.paymentIntents, "retrieve", () => Promise.reject(new Error("Not found"))),
         async () => {
           const result = await stripePaymentProvider.isPaymentRefunded("pi_missing");
           expect(result).toBe(false);
@@ -1923,10 +1909,10 @@ describe("stripe-provider", () => {
       if (!client) throw new Error("Expected client");
 
       await withMocks(
-        () => spyOn(client.paymentIntents, "retrieve").mockResolvedValue({
+        () => stub(client.paymentIntents, "retrieve", () => Promise.resolve({
           id: "pi_string_charge",
           latest_charge: "ch_string_id",
-        } as never),
+        } as never)),
         async () => {
           const result = await stripePaymentProvider.isPaymentRefunded("pi_string_charge");
           expect(result).toBe(false);
@@ -1941,12 +1927,11 @@ describe("stripe-provider", () => {
       const client = await getStripeClient();
       if (!client) throw new Error("Expected client");
 
-      const createSpy = spyOn(client.checkout.sessions, "create");
-      createSpy.mockResolvedValue({
+      const createSpy = stub(client.checkout.sessions, "create", () => Promise.resolve({
         id: "cs_multi_nourl",
         url: null,
         object: "checkout.session",
-      } as never);
+      } as never));
 
       try {
         const intent = {
@@ -1963,7 +1948,7 @@ describe("stripe-provider", () => {
         );
         expect(result).toBeNull();
       } finally {
-        createSpy.mockRestore();
+        createSpy.restore();
       }
     });
   });

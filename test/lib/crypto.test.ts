@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from "#test-compat";
+import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import {
   clearEncryptionKeyCache,
   constantTimeEqual,

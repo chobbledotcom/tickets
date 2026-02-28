@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, jest, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { FakeTime } from "@std/testing/time";
 import {
   CONFIG_KEYS,
   getContactPageTextFromDb,
@@ -23,12 +25,15 @@ import {
 } from "#test-utils";
 
 describe("page content cache", () => {
+  let fakeTime: FakeTime | null = null;
+
   beforeEach(async () => {
     await createTestDbWithSetup();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    fakeTime?.restore();
+    fakeTime = null;
     resetDb();
   });
 
@@ -120,9 +125,8 @@ describe("page content cache", () => {
 
   describe("TTL expiry", () => {
     test("serves stale cached value when DB changes within TTL", async () => {
-      jest.useFakeTimers();
       const startTime = Date.now();
-      jest.setSystemTime(startTime);
+      fakeTime = new FakeTime(startTime);
 
       await updateTermsAndConditions("Original");
       expect(await getTermsAndConditionsFromDb()).toBe("Original");
@@ -134,14 +138,13 @@ describe("page content cache", () => {
       });
 
       // Advance to just before TTL boundary — cache still valid
-      jest.setSystemTime(startTime + PAGE_CACHE_TTL_MS - 1);
+      fakeTime.now = startTime + PAGE_CACHE_TTL_MS - 1;
       expect(await getTermsAndConditionsFromDb()).toBe("Original");
     });
 
     test("re-fetches from DB after TTL expires", async () => {
-      jest.useFakeTimers();
       const startTime = Date.now();
-      jest.setSystemTime(startTime);
+      fakeTime = new FakeTime(startTime);
 
       await updateTermsAndConditions("Original");
       expect(await getTermsAndConditionsFromDb()).toBe("Original");
@@ -153,15 +156,14 @@ describe("page content cache", () => {
       });
 
       // Advance past TTL
-      jest.setSystemTime(startTime + PAGE_CACHE_TTL_MS + 1);
+      fakeTime.now = startTime + PAGE_CACHE_TTL_MS + 1;
       // Cache expired — re-fetches from DB and picks up new value
       expect(await getTermsAndConditionsFromDb()).toBe("Changed");
     });
 
     test("serves stale cached encrypted value when DB changes within TTL", async () => {
-      jest.useFakeTimers();
       const startTime = Date.now();
-      jest.setSystemTime(startTime);
+      fakeTime = new FakeTime(startTime);
 
       await updateWebsiteTitle("Original Title");
       expect(await getWebsiteTitleFromDb()).toBe("Original Title");
@@ -174,7 +176,7 @@ describe("page content cache", () => {
       });
 
       // Within TTL — cache still serves decrypted "Original Title"
-      jest.setSystemTime(startTime + PAGE_CACHE_TTL_MS - 1);
+      fakeTime.now = startTime + PAGE_CACHE_TTL_MS - 1;
       expect(await getWebsiteTitleFromDb()).toBe("Original Title");
     });
   });

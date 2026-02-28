@@ -1,4 +1,5 @@
-import { describe, expect, test } from "#test-compat";
+import { describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { Fragment, jsx, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
 
 describe("jsx-runtime", () => {

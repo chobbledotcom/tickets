@@ -1,11 +1,6 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  spyOn,
-  test,
-} from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { stub } from "@std/testing/mock";
 
 import { signCsrfToken } from "#lib/csrf.ts";
 
@@ -317,8 +312,7 @@ describe("server (admin groups)", () => {
       const { groupsTable } = await import("#lib/db/groups.ts");
       const original = groupsTable.findById.bind(groupsTable);
       let calls = 0;
-      const spy = spyOn(groupsTable, "findById");
-      spy.mockImplementation((...args: Parameters<typeof original>) => {
+      const findByIdStub = stub(groupsTable, "findById", (...args: Parameters<typeof original>) => {
         calls++;
         return calls === 1 ? original(...args) : Promise.resolve(null);
       });
@@ -333,7 +327,7 @@ describe("server (admin groups)", () => {
         );
         expectStatus(404)(response);
       } finally {
-        spy.mockRestore();
+        findByIdStub.restore();
       }
     });
   });

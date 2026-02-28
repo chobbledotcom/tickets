@@ -1,7 +1,13 @@
-import { describe, expect, test } from "#test-compat";
+import { afterAll, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import * as esbuild from "esbuild";
 import { minifyCss } from "../../scripts/css-minify.ts";
 
 describe("build-edge", () => {
+  afterAll(async () => {
+    await esbuild.stop();
+  });
+
   describe("minifyCss", () => {
     test("removes whitespace and newlines", async () => {
       const input = `
