@@ -305,9 +305,9 @@ export function pipeAsync(
 }
 
 /**
- * Map over a promise-returning function (async map)
+ * Map over a promise-returning function sequentially (one at a time)
  */
-export const mapAsync =
+export const mapSequential =
   <T, U>(fn: (item: T) => Promise<U>) =>
   async (array: T[]): Promise<U[]> => {
     const results: U[] = [];

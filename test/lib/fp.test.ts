@@ -12,7 +12,7 @@ import {
   isDefined,
   lazyRef,
   map,
-  mapAsync,
+  mapSequential,
   memoize,
   ok,
   once,
@@ -454,20 +454,20 @@ describe("fp", () => {
     });
   });
 
-  describe("mapAsync", () => {
+  describe("mapSequential", () => {
     const asyncDouble = (x: number) => Promise.resolve(x * 2);
 
     test("maps array with async function", async () => {
-      expect(await mapAsync(asyncDouble)([2, 3, 4])).toEqual([4, 6, 8]);
+      expect(await mapSequential(asyncDouble)([2, 3, 4])).toEqual([4, 6, 8]);
     });
 
     test("preserves order with async operations", async () => {
       const wait = (ms: number) => Promise.resolve(ms);
-      expect(await mapAsync(wait)([30, 10, 20])).toEqual([30, 10, 20]);
+      expect(await mapSequential(wait)([30, 10, 20])).toEqual([30, 10, 20]);
     });
 
     test("handles empty array", async () => {
-      expect(await mapAsync(asyncDouble)([])).toEqual([]);
+      expect(await mapSequential(asyncDouble)([])).toEqual([]);
     });
   });
 
