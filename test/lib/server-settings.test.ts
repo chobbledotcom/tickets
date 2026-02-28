@@ -56,19 +56,62 @@ describe("server (admin settings)", () => {
       await expectHtmlResponse(response, 200, "Settings", "Change Password");
     });
 
-    test("displays success message from query param", async () => {
+    test("does not display success when form param is missing", async () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
         "/admin/settings?success=Test+success+message",
         { cookie },
       );
-      await expectHtmlResponse(
-        response,
-        200,
-        "Test success message",
-        'class="success"',
+      const html = await response.text();
+      expect(html).not.toContain('class="success"');
+    });
+
+    test("displays success message on the matching form when form param is provided", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        "/admin/settings?success=Timezone+updated&form=settings-timezone",
+        { cookie },
       );
+      const html = await response.text();
+      expect(html).toContain('id="settings-timezone"');
+      expect(html).toContain("Timezone updated");
+      // The success message should be inside the timezone form, not as a global banner
+      const timezoneFormMatch = html.match(/id="settings-timezone"[\s\S]*?<\/form>/);
+      expect(timezoneFormMatch).toBeDefined();
+      expect(timezoneFormMatch![0]).toContain("Timezone updated");
+    });
+
+    test("does not show success on non-matching forms", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        "/admin/settings?success=Timezone+updated&form=settings-timezone",
+        { cookie },
+      );
+      const html = await response.text();
+      // The theme form should not contain the success message
+      const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
+      expect(themeFormMatch).toBeDefined();
+      expect(themeFormMatch![0]).not.toContain("Timezone updated");
+    });
+
+    test("each settings form has an id attribute", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain('id="settings-timezone"');
+      expect(html).toContain('id="settings-phone-prefix"');
+      expect(html).toContain('id="settings-business-email"');
+      expect(html).toContain('id="settings-payment-provider"');
+      expect(html).toContain('id="settings-embed-hosts"');
+      expect(html).toContain('id="settings-terms"');
+      expect(html).toContain('id="settings-password"');
+      expect(html).toContain('id="settings-show-public-site"');
+      expect(html).toContain('id="settings-theme"');
+      expect(html).toContain('id="settings-reset-database"');
     });
   });
 
@@ -887,6 +930,7 @@ describe("server (admin settings)", () => {
       });
 
       try {
+        await setPaymentProvider("stripe");
         const { cookie, csrfToken } = await loginAsAdmin();
 
         const response = await handleRequest(
@@ -1200,7 +1244,10 @@ describe("server (admin settings)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("/admin/settings");
+      const location = response.headers.get("location")!;
+      expect(location).toContain("/admin/settings");
+      expect(location).toContain("form=settings-timezone");
+      expect(location).toContain("#settings-timezone");
       const saved = await getTimezoneFromDb();
       expect(saved).toBe("America/New_York");
     });
@@ -1229,6 +1276,26 @@ describe("server (admin settings)", () => {
         ),
       );
       await expectHtmlResponse(response, 400, "Invalid timezone");
+    });
+
+    test("shows error on the timezone form only", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/timezone",
+          { timezone: "", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      const html = await response.text();
+      const timezoneForm = html.match(/id="settings-timezone"[\s\S]*?<\/form>/);
+      expect(timezoneForm).toBeDefined();
+      expect(timezoneForm![0]).toContain("Timezone is required");
+      // Other forms should not have the error
+      const themeForm = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
+      expect(themeForm).toBeDefined();
+      expect(themeForm![0]).not.toContain("Timezone is required");
     });
   });
 

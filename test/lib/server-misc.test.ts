@@ -12,7 +12,7 @@ import {
   isValidContentType,
   normalizeHostname,
 } from "#routes";
-import { temporaryErrorResponse } from "#routes/utils.ts";
+import { redirectWithSuccess, temporaryErrorResponse } from "#routes/utils.ts";
 import {
   createTestDb,
   createTestDbWithSetup,
@@ -267,6 +267,29 @@ describe("server (misc)", () => {
         wrappedDataKey: "corrupt-key-data",
       });
       expect(result).toBeNull();
+    });
+  });
+
+  describe("routes/utils.ts (redirectWithSuccess)", () => {
+    test("creates redirect without form ID", () => {
+      const response = redirectWithSuccess("/admin/settings", "Saved");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/settings?success=Saved");
+    });
+
+    test("creates redirect with form ID and anchor", () => {
+      const response = redirectWithSuccess("/admin/settings", "Timezone updated", "settings-timezone");
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toBe("/admin/settings?success=Timezone%20updated&form=settings-timezone#settings-timezone");
+    });
+
+    test("encodes special characters in message and form ID", () => {
+      const response = redirectWithSuccess("/admin/settings", "A & B", "form&id");
+      const location = response.headers.get("location")!;
+      expect(location).toContain("success=A%20%26%20B");
+      expect(location).toContain("form=form%26id");
+      expect(location).toContain("#form&id");
     });
   });
 
