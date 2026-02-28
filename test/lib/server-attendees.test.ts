@@ -1246,6 +1246,7 @@ describe("server (admin attendees)", () => {
             address: "456 Oak Ave",
             special_instructions: "Wheelchair access",
             event_id: String(event.id),
+            quantity: "1",
             csrf_token: csrfToken,
           },
           cookie,
@@ -1503,6 +1504,246 @@ describe("server (admin attendees)", () => {
       expect(response.headers.get("location")).toBe(
         `/admin/event/${event.id}?edited=Jane%20Smith#attendees`,
       );
+    });
+
+    test("updates attendee quantity", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "3",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const updated = await getAttendeeRaw(attendee.id);
+      expect(updated!.quantity).toBe(3);
+    });
+
+    test("shows quantity field on edit form", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        `/admin/attendees/${attendee.id}`,
+        { cookie },
+      );
+      await expectHtmlResponse(response, 200, 'name="quantity"', 'max="5"');
+    });
+
+    test("clamps quantity to event max_quantity", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 3 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "10",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const updated = await getAttendeeRaw(attendee.id);
+      expect(updated!.quantity).toBe(3);
+    });
+
+    test("rejects quantity increase when not enough spots", async () => {
+      const event = await createTestEvent({ maxAttendees: 2, maxQuantity: 5 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "3",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      await expectHtmlResponse(response, 400, "Not enough spots available");
+    });
+
+    test("allows decreasing quantity without capacity check", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+        3,
+      );
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "1",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const updated = await getAttendeeRaw(attendee.id);
+      expect(updated!.quantity).toBe(1);
+    });
+
+    test("rejects non-existent event_id on quantity update", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: "9999",
+            quantity: "2",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      await expectHtmlResponse(response, 400, "Event not found");
+    });
+
+    test("treats invalid quantity as 1", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "abc",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const updated = await getAttendeeRaw(attendee.id);
+      expect(updated!.quantity).toBe(1);
+    });
+
+    test("defaults missing quantity to 1", async () => {
+      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const updated = await getAttendeeRaw(attendee.id);
+      expect(updated!.quantity).toBe(1);
     });
   });
 

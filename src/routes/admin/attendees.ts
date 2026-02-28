@@ -8,6 +8,7 @@ import {
   createAttendeeAtomic,
   decryptAttendeeOrNull,
   deleteAttendee,
+  hasAvailableSpots,
   markRefunded,
   updateAttendee,
   updateCheckedIn,
@@ -448,6 +449,11 @@ const editAttendeePost = (
     withAuthForm(request, (session, form) =>
       withEditAttendee(session, attendeeId, (data) => handler(session, form, data, attendeeId)));
 
+/** Parse a quantity value from a form field, clamping to [1, max] */
+function parseQuantity(value: string, max: number): number {
+  return Math.max(1, Math.min(max, Math.floor(Number(value) || 1)));
+}
+
 /** Handle POST /admin/attendees/:attendeeId */
 async function editAttendeeHandler(
   session: AuthSession, form: URLSearchParams, data: EditAttendeeData, attendeeId: number,
@@ -468,7 +474,26 @@ async function editAttendeeHandler(
     return htmlResponse(adminEditAttendeePage(data, session, "Event is required", returnUrl), 400);
   }
 
-  await updateAttendee(attendeeId, { name, email, phone, address, special_instructions, event_id });
+  const targetEvent = event_id === data.event.id ? data.event : await getEventWithCount(event_id);
+  if (!targetEvent) {
+    return htmlResponse(adminEditAttendeePage(data, session, "Event not found", returnUrl), 400);
+  }
+
+  const quantity = parseQuantity(form.get("quantity") || "1", targetEvent.max_quantity);
+
+  // Check capacity when quantity increases or event changes
+  const quantityDelta = quantity - data.attendee.quantity;
+  const eventChanged = event_id !== data.attendee.event_id;
+  if (quantityDelta > 0 || eventChanged) {
+    // For event change, check full quantity against new event; for same event, check only the delta
+    const spotsNeeded = eventChanged ? quantity : quantityDelta;
+    const available = await hasAvailableSpots(event_id, spotsNeeded, data.attendee.date);
+    if (!available) {
+      return htmlResponse(adminEditAttendeePage(data, session, "Not enough spots available", returnUrl), 400);
+    }
+  }
+
+  await updateAttendee(attendeeId, { name, email, phone, address, special_instructions, event_id, quantity });
   await logActivity(`Attendee '${name}' updated`, event_id);
 
   return redirectOrReturn(form, `/admin/event/${event_id}?edited=${encodeURIComponent(name)}#attendees`);

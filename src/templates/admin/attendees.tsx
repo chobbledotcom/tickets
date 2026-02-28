@@ -273,6 +273,19 @@ export const adminEditAttendeePage = (
             >{attendee.special_instructions || ""}</textarea>
           </label>
 
+          <label for="quantity">
+            Quantity
+            <input
+              type="number"
+              id="quantity"
+              name="quantity"
+              value={String(attendee.quantity)}
+              min="1"
+              max={String(event.max_quantity)}
+              required
+            />
+          </label>
+
           <Raw html={renderEventSelector(event.id, allEvents)} />
 
           <button type="submit">Save Changes</button>
