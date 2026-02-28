@@ -50,7 +50,7 @@ export interface Event {
   created: string;
   max_attendees: number;
   thank_you_url: string;
-  unit_price: number | null;
+  unit_price: number;
   max_quantity: number;
   webhook_url: string;
   active: boolean;

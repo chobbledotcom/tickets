@@ -3410,11 +3410,12 @@ describe("server (public routes)", () => {
       expect(html).not.toContain("custom_price");
     });
 
-    test("GET does not show price input for can_pay_more events with null unit_price", async () => {
+    test("GET shows price input for can_pay_more events with zero unit_price", async () => {
       const event = await payMoreEvent({ unitPrice: undefined });
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
-      expect(html).not.toContain("custom_price");
+      expect(html).toContain("custom_price");
+      expect(html).toContain("optional");
     });
 
     test("GET shows optional price input for free can_pay_more events", async () => {

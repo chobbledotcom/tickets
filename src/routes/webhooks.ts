@@ -260,7 +260,7 @@ const validateAndPrice = async (
   const validation = await validateEventForPayment(input.eventId, includeEventName);
   if (!validation.ok) return validation;
   const { event } = validation;
-  const expectedPrice = (event.unit_price ?? 0) * input.quantity;
+  const expectedPrice = event.unit_price * input.quantity;
   return { ok: true, event, expectedPrice };
 };
 

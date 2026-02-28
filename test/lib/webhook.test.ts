@@ -21,7 +21,7 @@ const makeEvent = (overrides: Partial<WebhookEvent> = {}): WebhookEvent => ({
   webhook_url: "https://example.com/webhook",
   max_attendees: 100,
   attendee_count: 10,
-  unit_price: null,
+  unit_price: 0,
   ...overrides,
 });
 
@@ -125,7 +125,7 @@ describe("webhook", () => {
       expect(payload.tickets).toHaveLength(1);
       expect(payload.tickets[0]!.event_name).toBe("Test Event");
       expect(payload.tickets[0]!.event_slug).toBe("test-event");
-      expect(payload.tickets[0]!.unit_price).toBeNull();
+      expect(payload.tickets[0]!.unit_price).toBe(0);
       expect(payload.tickets[0]!.quantity).toBe(1);
       expect(payload.tickets[0]!.date).toBeNull();
       expect(payload.tickets[0]!.ticket_token).toBe("AABB001122");

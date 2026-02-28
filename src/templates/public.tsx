@@ -194,7 +194,7 @@ export const ticketPage = (
   const fields: Field[] = getTicketFields(event.fields);
   const isDaily = event.event_type === "daily";
   const headExtra = baseUrl ? buildOgTags(event, baseUrl) : undefined;
-  const showPayMore = event.can_pay_more && event.unit_price !== null;
+  const showPayMore = event.can_pay_more;
 
   return String(
     <Layout title={event.name} bodyClass={inIframe ? "iframe" : undefined} headExtra={headExtra}>
@@ -238,7 +238,7 @@ export const ticketPage = (
               <input type="hidden" name="quantity" value="1" />
             )}
             {showPayMore && (
-              <Raw html={renderPayMoreInput(event.unit_price!)} />
+              <Raw html={renderPayMoreInput(event.unit_price)} />
             )}
             {termsAndConditions && (
               <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
@@ -330,7 +330,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
     .map((n) => `<option value="${n}">${n}</option>`)
     .join("");
 
-  const showPayMore = event.can_pay_more && event.unit_price !== null;
+  const showPayMore = event.can_pay_more;
   const priceFieldName = `custom_price_${event.id}`;
 
   return `
@@ -341,7 +341,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
       <select name="${fieldName}" id="${fieldName}">
         ${options}
       </select>
-      ${showPayMore ? renderPayMoreInput(event.unit_price!, priceFieldName) : ""}
+      ${showPayMore ? renderPayMoreInput(event.unit_price, priceFieldName) : ""}
     </div>
   `;
 };

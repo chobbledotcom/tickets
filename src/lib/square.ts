@@ -448,6 +448,22 @@ const buildCheckoutOptions = async (
   label,
 });
 
+/** Shared setup for payment link creation: validates config and metadata */
+const preparePaymentLink = async (
+  rawMetadata: Record<string, string>,
+  label: string,
+): Promise<{ config: NonNullable<Awaited<ReturnType<typeof getPaymentLinkConfig>>>; metadata: Record<string, string> } | null> => {
+  const config = await getPaymentLinkConfig();
+  if (!config) return null;
+
+  logDebug("Square", `Creating ${label}`);
+
+  const metadata = enforceMetadataLimits(rawMetadata);
+  if (!metadata) return null;
+
+  return { config, metadata };
+};
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  */
@@ -477,30 +493,23 @@ export const squareApi: {
     intent: RegistrationIntent,
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
-    if (event.unit_price === null) {
-      logDebug("Square", `No unit_price for event=${event.id}`);
-      return null;
-    }
-
-    const config = await getPaymentLinkConfig();
-    if (!config) return null;
-
-    logDebug("Square", `Creating payment link for event=${event.id} qty=${intent.quantity}`);
-
-    const metadata = enforceMetadataLimits(buildSingleIntentMetadata(event.id, intent));
-    if (!metadata) return null;
+    const prep = await preparePaymentLink(
+      buildSingleIntentMetadata(event.id, intent),
+      `payment link for event=${event.id} qty=${intent.quantity}`,
+    );
+    if (!prep) return null;
 
     const result = await createPaymentLinkImpl({
-      ...config,
+      ...prep.config,
       lineItems: [
         {
           name: `Ticket: ${event.name}`,
           quantity: String(intent.quantity),
           note: intent.quantity > 1 ? `${intent.quantity} Tickets` : "Ticket",
-          basePriceMoney: { amount: BigInt(intent.customUnitPrice ?? event.unit_price!), currency: config.currency },
+          basePriceMoney: { amount: BigInt(intent.customUnitPrice ?? event.unit_price), currency: prep.config.currency },
         },
       ],
-      ...await buildCheckoutOptions(intent, metadata, baseUrl, "Payment link"),
+      ...await buildCheckoutOptions(intent, prep.metadata, baseUrl, "Payment link"),
     });
 
     logDebug("Square", result ? `Payment link created orderId=${result.orderId}` : "Payment link creation failed");
@@ -512,25 +521,23 @@ export const squareApi: {
     intent: MultiRegistrationIntent,
     baseUrl: string,
   ): Promise<PaymentLinkResult> => {
-    const config = await getPaymentLinkConfig();
-    if (!config) return null;
-
-    logDebug("Square", `Creating multi payment link for ${intent.items.length} events`);
-
-    const metadata = enforceMetadataLimits(buildMultiIntentMetadata(intent));
-    if (!metadata) return null;
+    const prep = await preparePaymentLink(
+      buildMultiIntentMetadata(intent),
+      `multi payment link for ${intent.items.length} events`,
+    );
+    if (!prep) return null;
 
     const lineItems = map((item: MultiRegistrationIntent["items"][number]) => ({
       name: `Ticket: ${item.name}`,
       quantity: String(item.quantity),
       note: item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
-      basePriceMoney: { amount: BigInt(item.unitPrice), currency: config.currency },
+      basePriceMoney: { amount: BigInt(item.unitPrice), currency: prep.config.currency },
     }))(intent.items);
 
     const result = await createPaymentLinkImpl({
-      ...config,
+      ...prep.config,
       lineItems,
-      ...await buildCheckoutOptions(intent, metadata, baseUrl, "Multi payment link"),
+      ...await buildCheckoutOptions(intent, prep.metadata, baseUrl, "Multi payment link"),
     });
 
     logDebug("Square", result ? `Multi payment link created orderId=${result.orderId}` : "Multi payment link creation failed");

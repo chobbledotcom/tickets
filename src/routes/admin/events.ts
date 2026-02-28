@@ -82,7 +82,7 @@ const extractCommonFields = (values: EventFormValues) => {
     groupId: Number(values.group_id) || 0,
     maxAttendees: values.max_attendees,
     thankYouUrl: values.thank_you_url || "",
-    unitPrice: values.unit_price ? toMinorUnits(Number.parseFloat(values.unit_price)) : null,
+    unitPrice: values.unit_price ? toMinorUnits(Number.parseFloat(values.unit_price)) : 0,
     maxQuantity: values.max_quantity,
     webhookUrl: values.webhook_url || "",
     fields: values.fields || "email",

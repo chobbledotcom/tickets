@@ -1353,7 +1353,7 @@ describe("html", () => {
     });
 
     test("does not show total revenue for free events", () => {
-      const event = testEventWithCount({ unit_price: null, attendee_count: 1 });
+      const event = testEventWithCount({ unit_price: 0, attendee_count: 1 });
       const attendees = [testAttendee()];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).not.toContain("Total Revenue");
@@ -1457,7 +1457,7 @@ describe("html", () => {
     });
 
     test("hides Failed Payments section for free events", () => {
-      const event = testEventWithCount({ unit_price: null, attendee_count: 1 });
+      const event = testEventWithCount({ unit_price: 0, attendee_count: 1 });
       const attendees = [testAttendee({ id: 1, price_paid: "0" })];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).not.toContain("Failed Payments");

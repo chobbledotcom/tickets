@@ -68,7 +68,7 @@ export const withDecryptedAttendees = async (
   const result = await getEventWithAttendeesRaw(eventId);
   if (!result) return notFoundResponse();
   const attendees = mode === "table"
-    ? await decryptAttendeesForTable(result.attendeesRaw, pk, result.event.fields, result.event.unit_price !== null)
+    ? await decryptAttendeesForTable(result.attendeesRaw, pk, result.event.fields, result.event.unit_price > 0)
     : await decryptAttendees(result.attendeesRaw, pk);
   return handler(result.event, attendees, session);
 };

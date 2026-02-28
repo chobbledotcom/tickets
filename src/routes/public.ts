@@ -154,11 +154,10 @@ const handleSingleTicketGet = (slug: string, request: Request): Promise<Response
  * Check if payment is required for an event
  */
 const requiresPayment = async (
-  event: { unit_price: number | null },
+  event: { unit_price: number },
 ): Promise<boolean> => {
   return (
     (await isPaymentsEnabled()) &&
-    event.unit_price !== null &&
     event.unit_price > 0
   );
 };
@@ -384,7 +383,7 @@ const processTicketReservation = async (
 
       // Parse custom price for pay-more events
       let customUnitPrice: number | undefined;
-      if (event.can_pay_more && event.unit_price !== null) {
+      if (event.can_pay_more) {
         const priceResult = parseCustomPrice(form, "custom_price", event.unit_price);
         if (!priceResult.ok) {
           return ticketResponse(event, inIframe, dates, terms)(priceResult.error);
@@ -574,7 +573,7 @@ const submitMultiTicket = (
       // Parse custom prices for pay-more events
       const customPrices = new Map<number, number>();
       for (const { event } of ctx.events) {
-        if (event.can_pay_more && event.unit_price !== null) {
+        if (event.can_pay_more) {
           const qty = quantities.get(event.id) ?? 0;
           if (qty > 0) {
             const priceResult = parseCustomPrice(form, `custom_price_${event.id}`, event.unit_price);
@@ -587,7 +586,7 @@ const submitMultiTicket = (
       }
 
       // Build registration items
-      const items = buildMultiRegistrationItems(ctx.events, quantities, customPrices.size > 0 ? customPrices : undefined);
+      const items = buildMultiRegistrationItems(ctx.events, quantities, customPrices);
 
       // Check if payment required
       if (await anyRequiresPayment(items)) {
@@ -699,7 +698,7 @@ const checkMultiAvailability = (
 const buildMultiRegistrationItems = (
   events: MultiTicketEvent[],
   quantities: Map<number, number>,
-  customPrices?: Map<number, number>,
+  customPrices: Map<number, number>,
 ): MultiRegistrationItem[] => {
   const selected = filter(({ event }: MultiTicketEvent) => {
     const qty = quantities.get(event.id);
@@ -708,7 +707,7 @@ const buildMultiRegistrationItems = (
   return map(({ event }: MultiTicketEvent) => ({
     eventId: event.id,
     quantity: quantities.get(event.id)!,
-    unitPrice: customPrices?.get(event.id) ?? event.unit_price ?? 0,
+    unitPrice: customPrices.get(event.id) ?? event.unit_price,
     slug: event.slug,
     name: event.name,
   }))(selected);

@@ -106,7 +106,7 @@ const buildCalendarAttendees = (
       eventDate: event.date,
       eventLocation: event.location,
       eventId: event.id,
-      hasPaidEvent: event.unit_price !== null,
+      hasPaidEvent: event.unit_price > 0,
     };
   })(attendees);
 };
@@ -141,7 +141,7 @@ const loadStandardEventAttendees = async (
   if (standardEvents) {
     const matchingEvents = standardEvents.filter((e) => matchingEventIds.includes(e.id));
     const fields = mergeEventFields(matchingEvents.map((e) => e.fields));
-    const hasPaidEvent = matchingEvents.some((e) => e.unit_price !== null);
+    const hasPaidEvent = matchingEvents.some((e) => e.unit_price > 0);
     return decryptAttendeesForTable(rawStandardAttendees, privateKey, fields, hasPaidEvent);
   }
   return decryptAttendees(rawStandardAttendees, privateKey);
@@ -168,7 +168,7 @@ const handleAdminCalendarGet = (request: Request) =>
         getDailyEventAttendeesByDate(dateFilter),
         loadStandardEventAttendees(dateFilter, standardCtx.standardEventDateMap, privateKey, standardCtx.standardEvents),
       ]);
-      const hasPaidDailyEvent = dailyEvents.some((e) => e.unit_price !== null);
+      const hasPaidDailyEvent = dailyEvents.some((e) => e.unit_price > 0);
       const dailyAttendees = await decryptAttendeesForTable(rawDailyAttendees, privateKey, dailyFields, hasPaidDailyEvent);
       const sortedAttendees = sortAttendeesByCreatedDesc([...dailyAttendees, ...standardAttendees]);
       attendees = buildCalendarAttendees(allEvents, sortedAttendees);

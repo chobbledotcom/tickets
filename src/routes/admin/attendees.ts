@@ -184,7 +184,7 @@ const handleAttendeeDelete = attendeeFormAction(async (data, session, form, even
  * Verifies the attendee is actually incomplete before deleting.
  */
 const handleDeleteIncomplete = attendeeFormAction(async (data, _session, _form, eventId, attendeeId) => {
-  const hasPaidEvent = data.event.unit_price !== null;
+  const hasPaidEvent = data.event.unit_price > 0;
   const isIncomplete = hasPaidEvent && !data.attendee.payment_id &&
     Number.parseInt(data.attendee.price_paid, 10) > 0;
 

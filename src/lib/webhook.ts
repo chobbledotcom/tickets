@@ -17,7 +17,7 @@ import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 export type WebhookTicket = {
   event_name: string;
   event_slug: string;
-  unit_price: number | null;
+  unit_price: number;
   quantity: number;
   date: string | null;
   ticket_token: string;
@@ -43,7 +43,7 @@ export type WebhookEvent = {
   webhook_url: string;
   max_attendees: number;
   attendee_count: number;
-  unit_price: number | null;
+  unit_price: number;
 };
 
 /** Attendee data needed for webhook notifications */
@@ -79,7 +79,7 @@ export const buildWebhookPayload = async (
   const totalPricePaid = entries.reduce((sum, { attendee }) =>
     sum + Number.parseInt(attendee.price_paid, 10), 0);
 
-  const hasPaidEvent = entries.some(({ event }) => event.unit_price !== null);
+  const hasPaidEvent = entries.some(({ event }) => event.unit_price > 0);
   const businessEmail = await getBusinessEmailFromDb();
 
   return {

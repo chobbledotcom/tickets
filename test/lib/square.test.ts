@@ -202,52 +202,6 @@ describe("square", () => {
       expect(result).toBeNull();
     });
 
-    test("returns null when unit_price is null", async () => {
-      await updateSquareAccessToken("EAAAl_test_123");
-      await updateSquareLocationId("L_test_123");
-      const event = {
-        id: 1,
-        group_id: 0,
-        slug: "test-event",
-        slug_index: "test-event-index",
-        name: "Test",
-        description: "Desc",
-        date: "",
-        location: "",
-        created: new Date().toISOString(),
-        max_attendees: 50,
-        thank_you_url: "https://example.com",
-        unit_price: null,
-        max_quantity: 1,
-        webhook_url: "",
-        active: true,
-        fields: "email" as const,
-        closes_at: null,
-        event_type: "standard" as const,
-        bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-        minimum_days_before: 1,
-        maximum_days_after: 90,
-        image_url: "",
-        non_transferable: false,
-        can_pay_more: false,
-      };
-      const intent = {
-        eventId: 1,
-        name: "John",
-        email: "john@example.com",
-        phone: "",
-        address: "",
-        special_instructions: "",
-        quantity: 1,
-      };
-      const result = await squareApi.createPaymentLink(
-        event,
-        intent,
-        "http://localhost",
-      );
-      expect(result).toBeNull();
-    });
-
     test("returns null when location ID not configured", async () => {
       await updateSquareAccessToken("EAAAl_test_123");
       // No location ID set

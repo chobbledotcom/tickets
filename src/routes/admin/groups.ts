@@ -136,7 +136,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (request, {
       if (eventIds.length > 0) {
         const privateKey = await requirePrivateKey(session);
         const fields = mergeEventFields(map((e: { fields: string }) => e.fields)(sortedEvents));
-        const hasPaidEvent = sortedEvents.some((e) => e.unit_price !== null);
+        const hasPaidEvent = sortedEvents.some((e) => e.unit_price > 0);
         const [rawAttendees, prefix] = await Promise.all([
           getAttendeesByEventIds(eventIds),
           getPhonePrefixFromDb(),

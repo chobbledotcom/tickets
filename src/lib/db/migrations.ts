@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add can_pay_more column to events";
+export const LATEST_UPDATE = "make unit_price NOT NULL DEFAULT 0";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -458,6 +458,9 @@ export const initDb = async (): Promise<void> => {
 
   // Migration: add can_pay_more column to events (boolean, defaults to false/0)
   await runMigration(`ALTER TABLE events ADD COLUMN can_pay_more INTEGER NOT NULL DEFAULT 0`);
+
+  // Migration: make unit_price NOT NULL DEFAULT 0 (was nullable)
+  await runMigration(`UPDATE events SET unit_price = 0 WHERE unit_price IS NULL`);
 
   // Update the version marker
   await getDb().execute({

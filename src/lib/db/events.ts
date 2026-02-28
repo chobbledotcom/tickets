@@ -29,7 +29,7 @@ export type EventInput = {
   groupId?: number;
   maxAttendees: number;
   thankYouUrl?: string;
-  unitPrice?: number | null;
+  unitPrice?: number;
   maxQuantity?: number;
   webhookUrl?: string;
   active?: boolean;
@@ -120,7 +120,7 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
     created: col.withDefault(() => nowIso()),
     max_attendees: col.simple<number>(),
     thank_you_url: { default: () => "", write: encrypt, read: decrypt },
-    unit_price: col.simple<number | null>(),
+    unit_price: col.withDefault(() => 0),
     max_quantity: col.withDefault(() => 1),
     webhook_url: { default: () => "", write: encrypt, read: decrypt },
     active: col.boolean(true),

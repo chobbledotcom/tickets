@@ -79,7 +79,7 @@ const editFormData = async (
     max_quantity: String(event.max_quantity),
     fields: event.fields || "email",
     thank_you_url: event.thank_you_url ?? "",
-    unit_price: event.unit_price != null ? toMajorUnits(event.unit_price) : "",
+    unit_price: event.unit_price > 0 ? toMajorUnits(event.unit_price) : "",
     webhook_url: event.webhook_url ?? "",
     closes_at_date: "",
     closes_at_time: "",

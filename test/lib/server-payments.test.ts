@@ -452,7 +452,7 @@ describe("server (payment flow)", () => {
       const event = await createTestEvent({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
-        unitPrice: null, // free
+        unitPrice: 0, // free
       });
 
       const response = await submitTicketForm(event.slug, {

@@ -810,7 +810,7 @@ export const createTestEvent = (
       max_quantity: String(input.maxQuantity ?? 1),
       fields: input.fields ?? "email",
       thank_you_url: input.thankYouUrl ?? "",
-      unit_price: input.unitPrice != null ? priceFormValue(input.unitPrice) : "",
+      unit_price: input.unitPrice !== undefined ? priceFormValue(input.unitPrice) : "",
       webhook_url: input.webhookUrl ?? "",
       closes_at_date: closesAtParts.date,
       closes_at_time: closesAtParts.time,
@@ -839,16 +839,12 @@ export const priceFormValue = (minorUnits: number): string =>
 
 /** Format optional price field for form submission (converts minor → major units) */
 const formatPrice = (
-  update: number | null | undefined,
-  existing: number | null,
+  update: number | undefined,
+  existing: number,
 ): string =>
   update !== undefined
-    ? update != null
-      ? priceFormValue(update)
-      : ""
-    : existing != null
-      ? priceFormValue(existing)
-      : "";
+    ? priceFormValue(update)
+    : priceFormValue(existing);
 
 /** Format optional string field for form submission */
 const formatOptional = (
@@ -1115,7 +1111,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   max_attendees: 100,
   thank_you_url: "https://example.com/thanks",
   created: "2024-01-01T00:00:00Z",
-  unit_price: null,
+  unit_price: 0,
   max_quantity: 1,
   webhook_url: "",
   closes_at: null,
