@@ -127,6 +127,7 @@ const renderSettingsPage = async (
   session: AuthSession,
   error: string,
   success: string,
+  successFormId?: string,
 ) => {
   const state = await getSettingsPageState();
   return adminSettingsPage(
@@ -148,6 +149,7 @@ const renderSettingsPage = async (
     state.phonePrefix,
     state.headerImageUrl,
     state.storageEnabled,
+    successFormId,
   );
 };
 
@@ -185,8 +187,9 @@ const validateSettingsForm = async <T>(
 const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (request) =>
   requireOwnerOr(request, async (session) => {
     const success = getSearchParam(request, "success");
+    const successFormId = getSearchParam(request, "form");
     return htmlResponse(
-      await renderSettingsPage(session, "", success),
+      await renderSettingsPage(session, "", success, successFormId || undefined),
     );
   });
 
@@ -266,7 +269,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
   if (provider === "none") {
     await clearPaymentProvider();
     await logActivity("Payment provider disabled");
-    return redirectWithSuccess("/admin/settings", "Payment provider disabled");
+    return redirectWithSuccess("/admin/settings", "Payment provider disabled", "settings-payment-provider");
   }
 
   if (!VALID_PROVIDERS.has(provider)) {
@@ -276,7 +279,7 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
   await setPaymentProvider(provider);
   await logActivity(`Payment provider set to ${provider}`);
 
-  return redirectWithSuccess("/admin/settings", `Payment provider set to ${provider}`);
+  return redirectWithSuccess("/admin/settings", `Payment provider set to ${provider}`, "settings-payment-provider");
 });
 
 /**
@@ -316,6 +319,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   return redirectWithSuccess(
     "/admin/settings",
     "Stripe key updated and webhook configured successfully",
+    "settings-stripe",
   );
 });
 
@@ -337,7 +341,7 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   await setPaymentProvider("square");
 
   await logActivity("Square credentials configured");
-  return redirectWithSuccess("/admin/settings", "Square credentials updated successfully");
+  return redirectWithSuccess("/admin/settings", "Square credentials updated successfully", "settings-square");
 });
 
 /**
@@ -355,6 +359,7 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
   return redirectWithSuccess(
     "/admin/settings",
     "Square webhook signature key updated successfully",
+    "settings-square-webhook",
   );
 });
 
@@ -377,7 +382,7 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
   // Empty = clear restriction
   if (trimmed === "") {
     await updateEmbedHosts("");
-    return redirectWithSuccess("/admin/settings", "Embed host restrictions removed");
+    return redirectWithSuccess("/admin/settings", "Embed host restrictions removed", "settings-embed-hosts");
   }
 
   const error = validateEmbedHosts(trimmed);
@@ -388,7 +393,7 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
   // Normalize: trim, lowercase, rejoin
   const normalized = parseEmbedHosts(trimmed).join(", ");
   await updateEmbedHosts(normalized);
-  return redirectWithSuccess("/admin/settings", "Allowed embed hosts updated");
+  return redirectWithSuccess("/admin/settings", "Allowed embed hosts updated", "settings-embed-hosts");
 });
 
 /**
@@ -409,10 +414,10 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
 
   if (trimmed === "") {
     await logActivity("Terms and conditions removed");
-    return redirectWithSuccess("/admin/settings", "Terms and conditions removed");
+    return redirectWithSuccess("/admin/settings", "Terms and conditions removed", "settings-terms");
   }
   await logActivity("Terms and conditions updated");
-  return redirectWithSuccess("/admin/settings", "Terms and conditions updated");
+  return redirectWithSuccess("/admin/settings", "Terms and conditions updated", "settings-terms");
 });
 
 /** Validate and save timezone from form submission */
@@ -429,7 +434,7 @@ const processTimezoneForm: SettingsFormHandler = async (form, errorPage) => {
 
   await updateTimezone(trimmed);
   await logActivity(`Timezone set to ${trimmed}`);
-  return redirectWithSuccess("/admin/settings", "Timezone updated");
+  return redirectWithSuccess("/admin/settings", "Timezone updated", "settings-timezone");
 };
 
 /** Handle POST /admin/settings/timezone - owner only */
@@ -444,7 +449,7 @@ const processBusinessEmailForm: SettingsFormHandler = async (form, errorPage) =>
   if (trimmed === "") {
     await updateBusinessEmail("");
     await logActivity("Business email cleared");
-    return redirectWithSuccess("/admin/settings", "Business email cleared");
+    return redirectWithSuccess("/admin/settings", "Business email cleared", "settings-business-email");
   }
 
   if (!isValidBusinessEmail(trimmed)) {
@@ -453,7 +458,7 @@ const processBusinessEmailForm: SettingsFormHandler = async (form, errorPage) =>
 
   await updateBusinessEmail(trimmed);
   await logActivity("Business email updated");
-  return redirectWithSuccess("/admin/settings", "Business email updated");
+  return redirectWithSuccess("/admin/settings", "Business email updated", "settings-business-email");
 };
 
 /** Handle POST /admin/settings/business-email - owner only */
@@ -469,7 +474,7 @@ const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
 
   await updateTheme(theme);
   await logActivity(`Theme set to ${theme}`);
-  return redirectWithSuccess("/admin/settings", `Theme updated to ${theme}`);
+  return redirectWithSuccess("/admin/settings", `Theme updated to ${theme}`, "settings-theme");
 };
 
 /** Handle POST /admin/settings/theme - owner only */
@@ -483,6 +488,7 @@ const processShowPublicSiteForm: SettingsFormHandler = async (form) => {
   return redirectWithSuccess(
     "/admin/settings",
     value ? "Public site enabled" : "Public site disabled",
+    "settings-show-public-site",
   );
 };
 
@@ -499,7 +505,7 @@ const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
 
   await updatePhonePrefix(raw);
   await logActivity(`Phone prefix set to ${raw}`);
-  return redirectWithSuccess("/admin/settings", `Phone prefix updated to ${raw}`);
+  return redirectWithSuccess("/admin/settings", `Phone prefix updated to ${raw}`, "settings-phone-prefix");
 };
 
 /** Handle POST /admin/settings/phone-prefix - owner only */
@@ -535,7 +541,7 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
     const filename = await uploadImage(data, validation.detectedType);
     await updateHeaderImageUrl(filename);
     await logActivity("Header image uploaded");
-    return redirectWithSuccess("/admin/settings", "Header image uploaded");
+    return redirectWithSuccess("/admin/settings", "Header image uploaded", "settings-header-image");
   });
 
 /** Handle POST /admin/settings/header-image/delete - owner only */
@@ -548,7 +554,7 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, errorPage) => {
   await tryDeleteImage(existingUrl, undefined, `header image: ${existingUrl}`);
   await updateHeaderImageUrl("");
   await logActivity("Header image removed");
-  return redirectWithSuccess("/admin/settings", "Header image removed");
+  return redirectWithSuccess("/admin/settings", "Header image removed", "settings-header-image-delete");
 });
 
 /**

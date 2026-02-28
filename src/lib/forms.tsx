@@ -269,22 +269,33 @@ export const renderError = (error?: string): string =>
   error ? String(<div class="error">{error}</div>) : "";
 
 /**
+ * Render success message if present
+ */
+export const renderSuccess = (message?: string): string =>
+  message ? String(<div class="success">{message}</div>) : "";
+
+/**
  * Form component that always includes CSRF token.
  * Renders a POST form with a hidden csrf_token input.
  * Reads the token from the module-scoped store set by signCsrfToken(),
  * which is always called before rendering begins.
  * Supports extra attributes like class and enctype for multipart forms.
+ * When `id` is provided, the form gets an id attribute (also usable as an anchor).
+ * When `success` is provided, a success message is rendered inside the form.
  */
 export const CsrfForm = (
-  { action, children, ...rest }: {
+  { action, children, success, ...rest }: {
     action: string;
     children?: Child;
+    id?: string;
     class?: string;
     enctype?: string;
+    success?: string;
   },
 ): JSX.Element => (
   <form method="POST" action={action} {...rest}>
     <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
+    {success && <Raw html={renderSuccess(success)} />}
     {children}
   </form>
 );

@@ -70,6 +70,53 @@ describe("server (admin settings)", () => {
         'class="success"',
       );
     });
+
+    test("displays success message on the matching form when form param is provided", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        "/admin/settings?success=Timezone+updated&form=settings-timezone",
+        { cookie },
+      );
+      const html = await response.text();
+      expect(html).toContain('id="settings-timezone"');
+      expect(html).toContain("Timezone updated");
+      // The success message should be inside the timezone form, not as a global banner
+      const timezoneFormMatch = html.match(/id="settings-timezone"[\s\S]*?<\/form>/);
+      expect(timezoneFormMatch).toBeDefined();
+      expect(timezoneFormMatch![0]).toContain("Timezone updated");
+    });
+
+    test("does not show success on non-matching forms", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest(
+        "/admin/settings?success=Timezone+updated&form=settings-timezone",
+        { cookie },
+      );
+      const html = await response.text();
+      // The theme form should not contain the success message
+      const themeFormMatch = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
+      expect(themeFormMatch).toBeDefined();
+      expect(themeFormMatch![0]).not.toContain("Timezone updated");
+    });
+
+    test("each settings form has an id attribute", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain('id="settings-timezone"');
+      expect(html).toContain('id="settings-phone-prefix"');
+      expect(html).toContain('id="settings-business-email"');
+      expect(html).toContain('id="settings-payment-provider"');
+      expect(html).toContain('id="settings-embed-hosts"');
+      expect(html).toContain('id="settings-terms"');
+      expect(html).toContain('id="settings-password"');
+      expect(html).toContain('id="settings-show-public-site"');
+      expect(html).toContain('id="settings-theme"');
+      expect(html).toContain('id="settings-reset-database"');
+    });
   });
 
   describe("POST /admin/settings", () => {
@@ -1200,7 +1247,10 @@ describe("server (admin settings)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("/admin/settings");
+      const location = response.headers.get("location")!;
+      expect(location).toContain("/admin/settings");
+      expect(location).toContain("form=settings-timezone");
+      expect(location).toContain("#settings-timezone");
       const saved = await getTimezoneFromDb();
       expect(saved).toBe("America/New_York");
     });

@@ -6,6 +6,7 @@ import {
   renderError,
   renderField,
   renderFields,
+  renderSuccess,
   validateForm,
 } from "#lib/forms.tsx";
 import {
@@ -1109,6 +1110,53 @@ describe("forms", () => {
       const html = String(CsrfForm({ action: "/submit", children: "Submit here" }));
       expect(html).toContain("Submit here");
       expect(html).toContain("</form>");
+    });
+
+    test("renders id attribute when provided", () => {
+      const html = String(CsrfForm({ action: "/submit", id: "settings-timezone" }));
+      expect(html).toContain('id="settings-timezone"');
+    });
+
+    test("does not render id attribute when not provided", () => {
+      const html = String(CsrfForm({ action: "/submit" }));
+      expect(html).not.toContain("id=");
+    });
+
+    test("renders success message when provided", () => {
+      const html = String(CsrfForm({ action: "/submit", success: "Saved successfully" }));
+      expect(html).toContain("Saved successfully");
+      expect(html).toContain('class="success"');
+    });
+
+    test("does not render success message when not provided", () => {
+      const html = String(CsrfForm({ action: "/submit" }));
+      expect(html).not.toContain('class="success"');
+    });
+
+    test("renders both id and success together", () => {
+      const html = String(CsrfForm({ action: "/submit", id: "my-form", success: "Done!" }));
+      expect(html).toContain('id="my-form"');
+      expect(html).toContain("Done!");
+      expect(html).toContain('class="success"');
+    });
+  });
+
+  describe("renderSuccess", () => {
+    test("returns empty string when no message", () => {
+      expect(renderSuccess()).toBe("");
+      expect(renderSuccess(undefined)).toBe("");
+    });
+
+    test("renders success message", () => {
+      const html = renderSuccess("Changes saved");
+      expect(html).toContain("Changes saved");
+      expect(html).toContain('class="success"');
+    });
+
+    test("escapes HTML in success message", () => {
+      const html = renderSuccess("<script>alert(1)</script>");
+      expect(html).toContain("&lt;script&gt;");
+      expect(html).not.toContain("<script>");
     });
   });
 });
