@@ -86,6 +86,8 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
   const ctx = canvas.getContext("2d");
   let lastScanTime = 0;
   let processing = false;
+  let lastToken = null;
+  let lastTokenTimer = 0;
 
   const scan = () => {
     if (video.readyState < video.HAVE_ENOUGH_DATA) {
@@ -118,8 +120,16 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
       return;
     }
 
+    if (token === lastToken) {
+      setTimeout(scan, SCAN_INTERVAL_MS);
+      return;
+    }
+
     processing = true;
     lastScanTime = Date.now();
+    clearTimeout(lastTokenTimer);
+    lastToken = token;
+    lastTokenTimer = setTimeout(() => { lastToken = null; }, FADE_DELAY_MS);
 
     postScan(eventId, token, csrfToken)
       .then(async (result) => {
