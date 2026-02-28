@@ -14,7 +14,7 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { map, unique } from "#fp";
+import { map, reduce, unique } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
@@ -269,6 +269,22 @@ const validateAndPrice = async (
 const hasPriceMismatch = (amountTotal: number, expectedPrice: number, canPayMore: boolean): boolean =>
   canPayMore ? amountTotal < expectedPrice : amountTotal !== expectedPrice;
 
+/** Distribute a total amount proportionally across shares, with the last item
+ * absorbing rounding remainder so the sum equals total exactly. */
+const distributeProportionally = (shares: number[], total: number): number[] => {
+  const shareTotal = reduce((sum: number, s: number) => sum + s, 0)(shares);
+  const result = reduce((acc: { amounts: number[]; distributed: number }, share: number) => {
+    const isLast = acc.amounts.length === shares.length - 1;
+    const amount = isLast
+      ? total - acc.distributed
+      : Math.round((share / shareTotal) * total);
+    acc.amounts.push(amount);
+    acc.distributed += amount;
+    return acc;
+  }, { amounts: [] as number[], distributed: 0 })(shares);
+  return result.amounts;
+};
+
 /** Format error for post-payment attendee creation failure */
 const formatPostPaymentError = formatCreationError(
   "Sorry, this event sold out while you were completing payment.",
@@ -388,15 +404,18 @@ const processMultiPaymentSession = async (
 
   // Distribute the total amount proportionally across events
   // For pay-more events, the extra amount is distributed proportionally to each event's share
+  // The last item absorbs rounding remainder so the sum equals session.amountTotal exactly
+  const prices = anyCanPayMore && expectedTotal > 0
+    ? distributeProportionally(validatedItems.map(({ expectedPrice }) => expectedPrice), session.amountTotal)
+    : validatedItems.map(({ expectedPrice }) => expectedPrice);
+
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   let failedEvent: EventWithCount | null = null;
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
-  for (const { item, event, expectedPrice } of validatedItems) {
-    // For pay-more, compute proportional share of actual amount paid
-    const pricePaid = anyCanPayMore && expectedTotal > 0
-      ? Math.round((expectedPrice / expectedTotal) * session.amountTotal)
-      : expectedPrice;
+  for (let i = 0; i < validatedItems.length; i++) {
+    const { item, event } = validatedItems[i]!;
+    const pricePaid = prices[i]!;
 
     const result = await createAttendeeAtomic({
       eventId: item.e,
