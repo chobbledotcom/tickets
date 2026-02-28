@@ -49,6 +49,8 @@
     "marked": "npm:marked@^15",
     "auto-console-group": "npm:auto-console-group@^1",
     "@std/assert": "jsr:@std/assert@1",
+    "@std/expect": "jsr:@std/expect@1",
+    "@std/testing": "jsr:@std/testing@1",
     "@std/path": "jsr:@std/path@1"
   },
   "compilerOptions": {
