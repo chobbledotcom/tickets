@@ -2,7 +2,7 @@
  * Groups table operations
  */
 
-import { collectionCache, mapAsync } from "#fp";
+import { collectionCache, mapParallel } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
@@ -139,7 +139,7 @@ const queryGroupEvents = async (
     [groupId],
   );
 
-  return mapAsync(decryptEventWithCount)(rows);
+  return mapParallel(decryptEventWithCount)(rows);
 };
 
 /**
@@ -167,7 +167,7 @@ export const getUngroupedEvents = async (): Promise<EventWithCount[]> => {
      ORDER BY e.created DESC, e.id DESC`,
   );
 
-  return mapAsync(decryptEventWithCount)(rows);
+  return mapParallel(decryptEventWithCount)(rows);
 };
 
 /**
