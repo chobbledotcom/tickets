@@ -150,24 +150,6 @@ export const groupBy =
   };
 
 /**
- * Memoize a function (cache results)
- */
-export const memoize = <T extends (...args: Parameters<T>) => ReturnType<T>>(
-  fn: T,
-): T => {
-  const cache = new Map<string, ReturnType<T>>();
-  return ((...args: Parameters<T>): ReturnType<T> => {
-    const key = JSON.stringify(args);
-    if (cache.has(key)) {
-      return cache.get(key)!;
-    }
-    const result = fn(...args);
-    cache.set(key, result);
-    return result;
-  }) as T;
-};
-
-/**
  * Lazy evaluation - compute once on first call, cache forever.
  * Use instead of `let x = null; const getX = () => x ??= compute();`
  */

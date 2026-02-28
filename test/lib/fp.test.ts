@@ -15,7 +15,7 @@ import {
   map,
   mapParallel,
   mapSequential,
-  memoize,
+
   ok,
   once,
   pick,
@@ -300,33 +300,6 @@ describe("fp", () => {
     test("handles empty array", () => {
       const result = groupBy((x: { type: string }) => x.type)([]);
       expect(result).toEqual({});
-    });
-  });
-
-  describe("memoize", () => {
-    test("caches function results", () => {
-      let callCount = 0;
-      const expensive = (x: number) => {
-        callCount++;
-        return x * 2;
-      };
-      const memoized = memoize(expensive);
-
-      expect(memoized(5)).toBe(10);
-      expect(memoized(5)).toBe(10);
-      expect(callCount).toBe(1); // Only called once
-
-      expect(memoized(3)).toBe(6);
-      expect(callCount).toBe(2);
-    });
-
-    test("handles multiple arguments", () => {
-      const add = (a: number, b: number) => a + b;
-      const memoized = memoize(add);
-
-      expect(memoized(1, 2)).toBe(3);
-      expect(memoized(1, 2)).toBe(3);
-      expect(memoized(2, 1)).toBe(3);
     });
   });
 
