@@ -118,11 +118,11 @@ export const uniqueBy =
   };
 
 /**
- * Remove falsy values from array
+ * Remove null and undefined values from array
  */
 export const compact = <T>(
-  array: (T | null | undefined | false | 0 | "")[],
-): T[] => array.filter(Boolean) as T[];
+  array: (T | null | undefined)[],
+): T[] => array.filter((x): x is T => x !== null && x !== undefined);
 
 /**
  * Group array items by a key function
