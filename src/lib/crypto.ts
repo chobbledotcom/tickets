@@ -3,26 +3,24 @@
  * Works in both Deno and browser/edge environments
  */
 
-import { boundedLru, lazyRef, ttlCache } from "#fp";
+import { lazyRef, ttlCache } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
 import { getEnv } from "#lib/env.ts";
 
 /**
  * Constant-time string comparison to prevent timing attacks
- * Uses XOR-based comparison to avoid timing leaks
+ * Always iterates over the longer string and XORs the lengths
+ * so that different-length inputs don't leak via an early return.
  */
 export const constantTimeEqual = (a: string, b: string): boolean => {
-  if (a.length !== b.length) {
-    return false;
-  }
-
   const encoder = new TextEncoder();
   const bufA = encoder.encode(a);
   const bufB = encoder.encode(b);
 
-  let result = 0;
-  for (let i = 0; i < bufA.length; i++) {
-    result |= bufA[i]! ^ bufB[i]!;
+  const len = Math.max(bufA.length, bufB.length);
+  let result = bufA.length ^ bufB.length;
+  for (let i = 0; i < len; i++) {
+    result |= (bufA[i] ?? 0) ^ (bufB[i] ?? 0);
   }
   return result === 0;
 };
@@ -715,15 +713,16 @@ export const hybridEncrypt = async (
 };
 
 /**
- * Bounded LRU cache for hybrid decrypt results.
+ * TTL cache for hybrid decrypt results (60-second expiry).
  * Ciphertext is unique per encryption (random AES key + IV), making it a safe cache key.
+ * TTL ensures decrypted PII doesn't linger in memory beyond a short request window.
  */
-const hybridDecryptCache = boundedLru<string, string>(10_000);
+const HYBRID_DECRYPT_TTL_MS = 60_000;
+const hybridDecryptCache = ttlCache<string, string>(HYBRID_DECRYPT_TTL_MS);
 
 registerCache(() => ({
   name: "decrypt",
   entries: hybridDecryptCache.size(),
-  capacity: 10_000,
 }));
 
 /**

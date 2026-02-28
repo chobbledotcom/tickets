@@ -2,6 +2,8 @@
 
 _Imagining this repo was posted to Hacker News. These are the nitpicky comments it would receive._
 
+_Resolution notes in **[RESOLVED]** / **[WONTFIX]** / **[ALREADY FIXED]** blocks._
+
 ---
 
 **dang_appreciates_this** 3 hours ago
@@ -26,9 +28,15 @@ if (a.length !== b.length) {
 
 An attacker can distinguish "wrong length" from "wrong content" by timing this branch. For CSRF tokens and session tokens where lengths are fixed, this is fine. But the function name promises constant-time and it doesn't fully deliver.
 
+> **[RESOLVED]** Fixed. `constantTimeEqual` now XORs the lengths and iterates to `Math.max(bufA.length, bufB.length)`, matching the approach already used in `secureCompare` in `payment-crypto.ts`.
+
 And `deriveTokenKey` uses PBKDF2 with **1 iteration** (line 596). Yes, the session token is high-entropy, but at that point why use PBKDF2 at all? Just use HKDF. You're paying the conceptual overhead of PBKDF2 without any of its stretching benefit. This reads like someone who learned "always use PBKDF2 for key derivation" without understanding when it's the wrong tool.
 
+> **[WONTFIX]** HKDF is not available in the Bunny Edge Scripting runtime. PBKDF2 with 1 iteration is the pragmatic choice given the platform constraint. The session token is already 256 bits of cryptographic randomness, so stretching isn't needed — this is purely a key derivation step.
+
 **edit:** The hybrid decrypt cache (`boundedLru<string, string>(10_000)` at line 721) caches *plaintext PII in memory* with no TTL. Your private key cache has a 10-second TTL, but the decrypted names and email addresses? Cached forever until evicted by LRU pressure. If you're going to build this elaborate encryption scheme, punching a 10,000-entry hole in it is... a choice.
+
+> **[RESOLVED]** Replaced with a `ttlCache` with 60-second expiry. Decrypted PII now expires shortly after the request that needed it.
 
 ---
 
@@ -38,13 +46,23 @@ The FP module is a cute reimplementation of things that already exist in every F
 
 `memoize` (fp/index.ts:147) uses `JSON.stringify` for cache keys. This means `memoize(fn)({a: 1, b: 2})` and `memoize(fn)({b: 2, a: 1})` produce *different cache keys* because `JSON.stringify` is not order-independent. It also blows up on circular references with no error handling. And there's no cache eviction - this is an unbounded memory leak wearing a trenchcoat.
 
+> **[RESOLVED]** Removed. `memoize` had zero production usages — it was dead code. Deleted along with its tests.
+
 `mapAsync` (line 310) runs sequentially, not in parallel. Fine if you're respecting DB connection limits, but the function name doesn't communicate this at all. Anyone reading `mapAsync(fetchUser)(userIds)` would reasonably expect `Promise.all` semantics. Call it `mapSerial` or `mapSequential`.
+
+> **[ALREADY FIXED]** Renamed to `mapSequential` and `mapParallel` was added alongside it.
 
 Your `boundedLru` (line 333) uses Map insertion order for LRU tracking. This is clever but *wrong*. When you `get` a key, you delete and re-insert it to move it to the end. This means `get()` is a *mutation*. A read operation that mutates state. In a module called `fp`. You see the irony.
 
+> **[ALREADY FIXED]** Rewritten to use a proper doubly-linked list with sentinel nodes for O(1) LRU tracking without Map mutation on reads. (Reads still mutate the linked list, but that's inherent to LRU — the irony of a mutable cache in an FP module is just the reality of caching.)
+
 The `pipe` function has 5 overloads plus a fallback (lines 10-35). TypeScript's type system can express arbitrary-length pipe with recursive conditional types. This approach silently loses type safety past 5 compositions.
 
+> **[ALREADY FIXED]** Uses recursive conditional types (`ValidChain`, `LastReturn`, `PipeReturn`) for arbitrary-length type safety.
+
 Also, you have `compact` that removes falsy values including `0` and `""`. This will silently destroy valid data like `price: 0` or `note: ""`. This is the lodash footgun all over again.
+
+> **[ALREADY FIXED]** `compact` now only removes `null` and `undefined`, preserving `0`, `""`, and `false`.
 
 ---
 
@@ -53,6 +71,8 @@ Also, you have `compact` that removes falsy values including `0` and `""`. This 
 Your JSX runtime doesn't escape single quotes in attributes (jsx-runtime.ts:78-83). You escape `&`, `<`, `>`, `"` but not `'`. Any attribute rendered with single-quote delimiters (which your runtime doesn't use, but still) or any inline event handler that contains a single quote could be an XSS vector if the content is ever recontextualized.
 
 More concerning: `[elemName: string]: HtmlAttributes` (line 69-71) means `<script>`, `<iframe>`, `<object>`, and `<embed>` are all valid JSX elements that TypeScript will happily accept. Your `Raw` component on line 163 bypasses all escaping. One careless `<Raw html={userInput} />` and your whole security model is gone. You've carefully built AES-256-GCM hybrid encryption, and then provided a convenient escape hatch called `Raw`.
+
+> **[WONTFIX]** The admin is building their own site. `Raw` exists for rendering admin-authored markdown and form HTML. There is no path where untrusted user input reaches `Raw` — it's only used with admin-controlled content and pre-rendered form fields.
 
 The `Fragment` component (line 156) creates a new `SafeHtml` by calling `renderChild(children)`. But `renderChild` already returns a string. So you're allocating a `SafeHtml` wrapper just to... hold a string. For deeply nested component trees, this creates a lot of intermediate `SafeHtml` objects that exist only to be `.toString()`'d immediately.
 
@@ -70,6 +90,8 @@ You wrote 617 lines of Jest compatibility layer (test-compat.ts) instead of just
 
 4. `useFakeTimers()` (line 593) saves `realSetTimeout` but never uses it. You patch `Date.now` but not `setTimeout`/`setInterval`/`queueMicrotask`. Any code using `setTimeout` will still use real timers.
 
+> **[ALREADY FIXED]** The entire custom test-compat.ts layer has been deleted. Tests now use `@std/testing/bdd` and `@std/expect` directly — Deno's native APIs.
+
 ---
 
 **database_person** 2 hours ago
@@ -85,6 +107,8 @@ const buildInsertSql = (name: string, columns: string[]): string => {
 Yes, `name` comes from your own code, not user input. But this is a SQL injection waiting to happen if anyone ever refactors carelessly. The column names are also interpolated. Parameterized queries for values but string interpolation for identifiers — this is the "we control it so it's fine" school of security.
 
 Also, `findAll` (table.ts:332) does `SELECT *` with no pagination. For a table with 10,000 encrypted attendees, this will decrypt *all of them* sequentially via `mapAsync(fromDb)`. Each row hits `hybridDecrypt` which does RSA + AES. Hope your edge function has a generous timeout.
+
+> **[WONTFIX]** This is a single-tenant ticket system. Events with 10,000 attendees are outside the target use case. Adding pagination complexity for a scenario that doesn't arise in practice isn't worth the tradeoff.
 
 `update` (table.ts:288) does a write, then immediately does a `findById` read (line 311) to return the updated row. That's two round trips to a potentially-remote Turso database for every update. In the admin panel, editing an event name costs you a write + a full decrypt of every column.
 
@@ -145,6 +169,8 @@ Also "Hosted instances available at tix.chobble.com for £50/year, no tiers" —
 **55k_lines_guy** 30 minutes ago
 
 56,621 lines of TypeScript across 194 files for a ticket booking system. That's roughly the size of a small compiler. The crypto module alone is 847 lines. The test compatibility layer is 617 lines. The FP utilities are 435 lines. The build script is 275 lines.
+
+> **[ALREADY FIXED]** The 617-line test compatibility layer has been deleted. Tests use Deno's standard library directly now.
 
 You've written more infrastructure code than application code. The custom JSX runtime, the Jest compat layer, the FP library, the router, the table abstraction, the build pipeline, the encryption stack — these are all "build the tools to build the thing" rather than "build the thing."
 

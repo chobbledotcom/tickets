@@ -60,9 +60,9 @@ const result = reduce((acc, item) => {
 | `sortBy(key)` | Sort by property/getter |
 | `unique(arr)` | Remove duplicates |
 | `uniqueBy(fn)` | Dedupe by key |
-| `compact(arr)` | Remove falsy values |
+| `compact(arr)` | Remove null/undefined |
 | `pick(keys)` | Extract object keys |
-| `memoize(fn)` | Cache function results |
+
 | `groupBy(fn)` | Group array items |
 
 ## Scripts
