@@ -154,6 +154,10 @@ export const eventsTable: typeof rawEventsTable = {
     invalidateEventsCache();
     return result;
   },
+  deleteById: async (id) => {
+    await rawEventsTable.deleteById(id);
+    invalidateEventsCache();
+  },
 };
 
 

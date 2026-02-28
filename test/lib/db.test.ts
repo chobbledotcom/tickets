@@ -676,6 +676,22 @@ describe("db", () => {
       expect(fetched).toBeNull();
     });
 
+    test("eventsTable.deleteById invalidates cache", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      // Populate cache
+      const before = await getEvent(event.id);
+      expect(before).not.toBeNull();
+
+      await eventsTable.deleteById(event.id);
+
+      const after = await getEvent(event.id);
+      expect(after).toBeNull();
+    });
+
     test("isSlugTaken with excludeEventId excludes that event", async () => {
       const event = await createTestEvent({
         name: "Slug Taken Test",
