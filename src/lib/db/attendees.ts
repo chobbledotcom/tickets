@@ -521,6 +521,7 @@ export type UpdateAttendeeInput = {
   address: string;
   special_instructions: string;
   event_id: number;
+  quantity: number;
 };
 
 /**
@@ -545,7 +546,7 @@ export const updateAttendee = async (
     publicKeyJwk,
   );
   await getDb().execute({
-    sql: "UPDATE attendees SET name = ?, email = ?, phone = ?, address = ?, special_instructions = ?, event_id = ? WHERE id = ?",
+    sql: "UPDATE attendees SET name = ?, email = ?, phone = ?, address = ?, special_instructions = ?, event_id = ?, quantity = ? WHERE id = ?",
     args: [
       encryptedName,
       encryptedEmail,
@@ -553,7 +554,9 @@ export const updateAttendee = async (
       encryptedAddress,
       encryptedSpecialInstructions,
       input.event_id,
+      input.quantity,
       attendeeId,
     ],
   });
+  invalidateEventsCache();
 };
