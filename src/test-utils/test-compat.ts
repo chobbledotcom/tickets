@@ -31,28 +31,14 @@ export {
 export const test = it;
 
 // ---------------------------------------------------------------------------
-// Mock functions
+// Mock functions — @std/expect's fn() only tracks calls via a symbol with
+// no Jest methods (mockImplementation, mockReturnValue, mockClear, etc.)
+// and no .mock.calls property. Tests use both the Jest API and direct
+// .mock.calls access (~30 call sites), so we keep a custom fn/spyOn.
 // ---------------------------------------------------------------------------
 
-/**
- * Symbol used by @std/expect to identify mock/spy functions.
- * Our mock functions attach call metadata under this symbol so that
- * expect(mockFn).toHaveBeenCalled() and friends work correctly.
- */
+/** Symbol @std/expect uses to identify mock functions */
 const MOCK_SYMBOL = Symbol.for("@MOCK");
-
-/** Call record shape expected by @std/expect */
-interface MockCall {
-  // deno-lint-ignore no-explicit-any
-  args: any[];
-  // deno-lint-ignore no-explicit-any
-  returned?: any;
-  // deno-lint-ignore no-explicit-any
-  thrown?: any;
-  timestamp: number;
-  returns: boolean;
-  throws: boolean;
-}
 
 /**
  * Mock function type — compatible with @std/expect mock matchers
@@ -80,9 +66,6 @@ interface MockFn {
 export const fn = (impl?: (...args: any[]) => any): MockFn => {
   let implementation = impl ?? (() => undefined);
 
-  // @std/expect reads calls from this array via MOCK_SYMBOL
-  const stdCalls: MockCall[] = [];
-
   const mock: MockFn["mock"] = {
     calls: [],
     results: [],
@@ -93,19 +76,26 @@ export const fn = (impl?: (...args: any[]) => any): MockFn => {
     try {
       const result = implementation(...args);
       mock.results.push({ type: "return", value: result });
-      stdCalls.push({ args: [...args], returned: result, timestamp: Date.now(), returns: true, throws: false });
       return result;
     } catch (e) {
       mock.results.push({ type: "throw", value: e });
-      stdCalls.push({ args: [...args], thrown: e, timestamp: Date.now(), returns: false, throws: true });
       throw e;
     }
   }) as MockFn;
 
-  // Attach @std/expect-compatible mock metadata
+  // @std/expect reads calls via this symbol. Derive from mock.calls/results
+  // on access so there's a single source of truth.
   Object.defineProperty(mockFn, MOCK_SYMBOL, {
-    value: { calls: stdCalls },
-    writable: true,
+    get: () => ({
+      calls: mock.calls.map((args, i) => ({
+        args,
+        returned: mock.results[i]?.type === "return" ? mock.results[i].value : undefined,
+        thrown: mock.results[i]?.type === "throw" ? mock.results[i].value : undefined,
+        timestamp: 0,
+        returns: mock.results[i]?.type === "return",
+        throws: mock.results[i]?.type === "throw",
+      })),
+    }),
     configurable: true,
   });
 
@@ -114,13 +104,11 @@ export const fn = (impl?: (...args: any[]) => any): MockFn => {
   mockFn.mockClear = () => {
     mock.calls = [];
     mock.results = [];
-    stdCalls.length = 0;
   };
 
   mockFn.mockReset = () => {
     mock.calls = [];
     mock.results = [];
-    stdCalls.length = 0;
     implementation = () => undefined;
   };
 
