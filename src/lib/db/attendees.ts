@@ -15,25 +15,12 @@ import {
   encryptAttendeePII,
   generateTicketToken,
 } from "#lib/crypto.ts";
-import { getDb, inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
+import { executeBatch, getDb, inPlaceholders, queryAll, queryOne } from "#lib/db/client.ts";
 import { getEventWithCount, invalidateEventsCache } from "#lib/db/events.ts";
-import { deleteProcessedPaymentsForAttendee } from "#lib/db/processed-payments.ts";
 import { nowIso } from "#lib/now.ts";
 import { getPublicKey } from "#lib/db/settings.ts";
-import { col, defineTable } from "#lib/db/table.ts";
 import { parseEventFields } from "#lib/event-fields.ts";
 import type { Attendee, ContactField, ContactFields, ContactInfo } from "#lib/types.ts";
-
-/**
- * Minimal attendees table for deleteById operation
- */
-const attendeesTable = defineTable<Pick<Attendee, "id">, object>({
-  name: "attendees",
-  primaryKey: "id",
-  schema: {
-    id: col.generated<number>(),
-  },
-});
 
 /** Decrypt a boolean-like field, returning "false" for empty/null values */
 const decryptBoolField = (value: string, privateKey: CryptoKey): Promise<string> =>
@@ -266,11 +253,15 @@ export const getAttendee = async (
 };
 
 /**
- * Delete an attendee (for cleanup on payment failure)
+ * Delete an attendee and its processed payments in a single database round-trip.
+ * Uses write batch to cascade: processed_payments → attendee.
+ * Reduces 2 sequential HTTP round-trips to 1.
  */
 export const deleteAttendee = async (attendeeId: number): Promise<void> => {
-  await deleteProcessedPaymentsForAttendee(attendeeId);
-  await attendeesTable.deleteById(attendeeId);
+  await executeBatch([
+    { sql: "DELETE FROM processed_payments WHERE attendee_id = ?", args: [attendeeId] },
+    { sql: "DELETE FROM attendees WHERE id = ?", args: [attendeeId] },
+  ]);
   invalidateEventsCache();
 };
 

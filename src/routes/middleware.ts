@@ -2,7 +2,6 @@
  * Middleware functions for request processing
  */
 
-import { compact } from "#fp";
 import { getAllowedDomain, getEmbedHosts } from "#lib/config.ts";
 import { buildFrameAncestors } from "#lib/embed-hosts.ts";
 import { SCAN_API_PATTERN } from "#routes/admin/scanner.ts";
@@ -23,15 +22,19 @@ const BASE_SECURITY_HEADERS: Record<string, string> = {
  * Embeddable pages omit frame-ancestors here; it's added by applySecurityHeaders
  * if embed host restrictions are configured.
  */
-const buildCspHeader = (embeddable: boolean): string =>
-  compact([
-    !embeddable && "frame-ancestors 'none'",
+const buildCspHeader = (embeddable: boolean): string => {
+  const directives = [
     "default-src 'self'",
     "style-src 'self'",
     "script-src 'self' https://*.squarecdn.com https://js.squareup.com https://js.squareupsandbox.com",
     "connect-src 'self' https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com",
     "form-action 'self' https://checkout.stripe.com",
-  ]).join("; ");
+  ];
+  if (!embeddable) {
+    directives.unshift("frame-ancestors 'none'");
+  }
+  return directives.join("; ");
+};
 
 /**
  * Get security headers for a response

@@ -68,8 +68,8 @@ export const parseCookies = (request: Request): Map<string, string> => {
 
   return pipe(
     map(toPair),
-    compact,
-    reduce((acc, [key, value]) => {
+    (pairs: (CookiePair | null)[]) => compact(pairs),
+    reduce((acc: Map<string, string>, [key, value]: CookiePair) => {
       acc.set(key, value);
       return acc;
     }, new Map<string, string>()),

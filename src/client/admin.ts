@@ -125,11 +125,16 @@ if (checkoutPopup) {
   });
 }
 
-/* Scroll-hide nav: hide sticky nav on scroll down, show on scroll up or at top */
+/* Scroll-hide nav: hide sticky main nav on scroll down, show on scroll up or at top */
 {
-  const nav = document.querySelector("nav");
+  const nav = document.querySelector<HTMLElement>("#main-nav");
   if (nav) {
-    let lastY = 0;
+    if (location.hash) {
+      nav.style.transition = "none";
+      nav.classList.add("nav-hidden");
+      requestAnimationFrame(() => { nav.style.transition = ""; });
+    }
+    let lastY = scrollY;
     let ticking = false;
     document.addEventListener("scroll", () => {
       if (ticking) return;

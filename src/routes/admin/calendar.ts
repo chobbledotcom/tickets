@@ -57,7 +57,7 @@ const compileDateOptions = (
 ): CalendarDateOption[] => {
   const availableDates = pipe(
     flatMap((event: EventWithCount) => getAvailableDates(event, holidays)),
-    unique,
+    (dates: string[]) => unique(dates),
   )(dailyEvents);
 
   const standardDates = Array.from(standardEventDateMap.keys());

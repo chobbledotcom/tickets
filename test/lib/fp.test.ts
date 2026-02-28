@@ -13,7 +13,8 @@ import {
   isDefined,
   lazyRef,
   map,
-  mapAsync,
+  mapParallel,
+  mapSequential,
   memoize,
   ok,
   once,
@@ -113,6 +114,19 @@ describe("fp", () => {
 
     test("works with no functions", () => {
       expect(pipe<number>()(5)).toBe(5);
+    });
+
+    test("works with 6+ functions (recursive type catch-all)", () => {
+      const addOne = (x: number) => x + 1;
+      const result = pipe(
+        addOne,
+        double,
+        addOne,
+        double,
+        addOne,
+        double,
+      )(0); // (((((0+1)*2)+1)*2)+1)*2 = ((((1*2)+1)*2)+1)*2 = (((2+1)*2)+1)*2 = ((3*2)+1)*2 = (6+1)*2 = 14
+      expect(result).toBe(14);
     });
   });
 
@@ -246,16 +260,20 @@ describe("fp", () => {
   });
 
   describe("compact", () => {
-    test("removes falsy values", () => {
-      expect(compact([1, null, 2, undefined, 3, false, 0, "", 4])).toEqual([1, 2, 3, 4]);
+    test("removes null and undefined", () => {
+      expect(compact([1, null, 2, undefined, 3, 4])).toEqual([1, 2, 3, 4]);
+    });
+
+    test("preserves 0, empty string, and false", () => {
+      expect(compact([0, "", false, null, undefined])).toEqual([0, "", false]);
     });
 
     test("handles empty array", () => {
       expectEmptyPassthrough(compact);
     });
 
-    test("handles all falsy values", () => {
-      const result = compact([null, undefined, false, 0, ""]);
+    test("removes only null and undefined from mixed array", () => {
+      const result = compact([null, undefined]);
       expect(result).toEqual([]);
     });
   });
@@ -455,20 +473,52 @@ describe("fp", () => {
     });
   });
 
-  describe("mapAsync", () => {
+  describe("mapSequential", () => {
     const asyncDouble = (x: number) => Promise.resolve(x * 2);
 
     test("maps array with async function", async () => {
-      expect(await mapAsync(asyncDouble)([2, 3, 4])).toEqual([4, 6, 8]);
+      expect(await mapSequential(asyncDouble)([2, 3, 4])).toEqual([4, 6, 8]);
     });
 
     test("preserves order with async operations", async () => {
       const wait = (ms: number) => Promise.resolve(ms);
-      expect(await mapAsync(wait)([30, 10, 20])).toEqual([30, 10, 20]);
+      expect(await mapSequential(wait)([30, 10, 20])).toEqual([30, 10, 20]);
     });
 
     test("handles empty array", async () => {
-      expect(await mapAsync(asyncDouble)([])).toEqual([]);
+      expect(await mapSequential(asyncDouble)([])).toEqual([]);
+    });
+  });
+
+  describe("mapParallel", () => {
+    const asyncDouble = (x: number) => Promise.resolve(x * 2);
+
+    test("maps array with async function", async () => {
+      expect(await mapParallel(asyncDouble)([2, 3, 4])).toEqual([4, 6, 8]);
+    });
+
+    test("preserves result order regardless of completion order", async () => {
+      const delayed = (ms: number) =>
+        new Promise<number>((resolve) => setTimeout(() => resolve(ms), ms));
+      expect(await mapParallel(delayed)([30, 10, 20])).toEqual([30, 10, 20]);
+    });
+
+    test("handles empty array", async () => {
+      expect(await mapParallel(asyncDouble)([])).toEqual([]);
+    });
+
+    test("runs operations concurrently", async () => {
+      let concurrent = 0;
+      let maxConcurrent = 0;
+      const track = async (x: number) => {
+        concurrent++;
+        maxConcurrent = Math.max(maxConcurrent, concurrent);
+        await new Promise((r) => setTimeout(r, 10));
+        concurrent--;
+        return x;
+      };
+      await mapParallel(track)([1, 2, 3]);
+      expect(maxConcurrent).toBe(3);
     });
   });
 

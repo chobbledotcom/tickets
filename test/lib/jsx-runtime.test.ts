@@ -110,6 +110,13 @@ describe("jsx-runtime", () => {
       const result = Fragment({ children: "<script>" });
       expect(result.toString()).toBe("&lt;script&gt;");
     });
+
+    test("passes through single SafeHtml child without re-wrapping", () => {
+      const inner = new SafeHtml("<b>bold</b>");
+      const result = jsx(Fragment, { children: inner });
+      expect(result).toBe(inner);
+      expect(result.toString()).toBe("<b>bold</b>");
+    });
   });
 
   describe("Raw", () => {

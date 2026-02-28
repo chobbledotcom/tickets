@@ -20,7 +20,7 @@ const navLink = (href: string, label: string, active: string): JSX.Element => (
  * Users, Settings, and Sessions links only shown to owners
  */
 export const AdminNav = ({ session, active }: AdminNavProps): JSX.Element => (
-  <nav>
+  <nav id="main-nav">
     <ul>
       {navLink("/admin/", "Events", active)}
       {navLink("/admin/calendar", "Calendar", active)}
