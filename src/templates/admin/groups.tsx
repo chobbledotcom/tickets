@@ -159,7 +159,7 @@ const buildAttendeeRows = (
         attendee: a,
         eventId: event.id,
         eventName: event.name,
-        hasPaidEvent: event.unit_price > 0,
+        hasPaidEvent: event.unit_price > 0 || event.can_pay_more,
       };
     }),
   )(attendees);
@@ -190,7 +190,7 @@ export const adminGroupDetailPage = (
 
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
-  const hasPaidEvent = events.some((e) => e.unit_price > 0);
+  const hasPaidEvent = events.some((e) => e.unit_price > 0 || e.can_pay_more);
   const attendeeQuantitySum = sumQuantity(attendees);
   const hasMultiQuantity = attendeeQuantitySum !== attendees.length;
   const ticketsCheckedIn = countCheckedIn(attendees);

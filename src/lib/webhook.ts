@@ -44,6 +44,7 @@ export type WebhookEvent = {
   max_attendees: number;
   attendee_count: number;
   unit_price: number;
+  can_pay_more: boolean;
 };
 
 /** Attendee data needed for webhook notifications */
@@ -79,7 +80,7 @@ export const buildWebhookPayload = async (
   const totalPricePaid = entries.reduce((sum, { attendee }) =>
     sum + Number.parseInt(attendee.price_paid, 10), 0);
 
-  const hasPaidEvent = entries.some(({ event }) => event.unit_price > 0);
+  const hasPaidEvent = entries.some(({ event }) => event.unit_price > 0 || event.can_pay_more);
   const businessEmail = await getBusinessEmailFromDb();
 
   return {

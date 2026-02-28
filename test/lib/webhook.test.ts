@@ -22,6 +22,7 @@ const makeEvent = (overrides: Partial<WebhookEvent> = {}): WebhookEvent => ({
   max_attendees: 100,
   attendee_count: 10,
   unit_price: 0,
+  can_pay_more: false,
   ...overrides,
 });
 
@@ -176,6 +177,20 @@ describe("webhook", () => {
       expect(payload.tickets[1]!.unit_price).toBe(700);
       expect(payload.tickets[1]!.quantity).toBe(2);
       expect(payload.tickets[1]!.ticket_token).toBe("DD22EE33FF");
+    });
+
+    test("includes price_paid for free can_pay_more event where attendee paid", async () => {
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ unit_price: 0, can_pay_more: true }),
+          attendee: makeAttendee({ price_paid: "500", payment_id: "pi_donate" }),
+        },
+      ];
+
+      const payload = await buildWebhookPayload(entries, "GBP");
+
+      expect(payload.price_paid).toBe(500);
+      expect(payload.payment_id).toBe("pi_donate");
     });
 
     test("includes date in ticket when attendee has a date", async () => {

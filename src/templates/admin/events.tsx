@@ -170,7 +170,7 @@ export const adminEventPage = ({
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
   const isDaily = event.event_type === "daily";
-  const hasPaidEvent = event.unit_price > 0;
+  const hasPaidEvent = event.unit_price > 0 || event.can_pay_more;
 
   // Separate attendees with incomplete/failed payments from the main list
   const incompleteAttendees = hasPaidEvent
