@@ -113,6 +113,19 @@ describe("fp", () => {
     test("works with no functions", () => {
       expect(pipe<number>()(5)).toBe(5);
     });
+
+    test("works with 6+ functions (recursive type catch-all)", () => {
+      const addOne = (x: number) => x + 1;
+      const result = pipe(
+        addOne,
+        double,
+        addOne,
+        double,
+        addOne,
+        double,
+      )(0); // (((((0+1)*2)+1)*2)+1)*2 = ((((1*2)+1)*2)+1)*2 = (((2+1)*2)+1)*2 = ((3*2)+1)*2 = (6+1)*2 = 14
+      expect(result).toBe(14);
+    });
   });
 
   describe("filter", () => {
