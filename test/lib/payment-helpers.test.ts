@@ -131,10 +131,10 @@ describe("payment-helpers", () => {
   });
 
   describe("serializeMultiItems", () => {
-    test("serializes single item to compact JSON", () => {
+    test("serializes single item with total price to compact JSON", () => {
       const items = [{ eventId: 1, quantity: 2, unitPrice: 1000, slug: "evt", name: "Evt" }];
       const result = serializeMultiItems(items);
-      expect(result).toBe(JSON.stringify([{ e: 1, q: 2 }]));
+      expect(result).toBe(JSON.stringify([{ e: 1, q: 2, p: 2000 }]));
     });
 
     test("serializes multiple items preserving order", () => {
@@ -145,8 +145,8 @@ describe("payment-helpers", () => {
       const result = serializeMultiItems(items);
       const parsed = JSON.parse(result);
       expect(parsed).toEqual([
-        { e: 10, q: 1 },
-        { e: 20, q: 3 },
+        { e: 10, q: 1, p: 500 },
+        { e: 20, q: 3, p: 2100 },
       ]);
     });
 
@@ -155,14 +155,14 @@ describe("payment-helpers", () => {
       expect(result).toBe("[]");
     });
 
-    test("omits unitPrice and slug from serialized output", () => {
+    test("omits slug from serialized output but includes total price", () => {
       const items = [
         { eventId: 5, quantity: 1, unitPrice: 9999, slug: "secret-slug", name: "Secret Event" },
       ];
       const result = serializeMultiItems(items);
       expect(result).not.toContain("unitPrice");
       expect(result).not.toContain("slug");
-      expect(result).not.toContain("9999");
+      expect(result).toContain("9999");
       expect(result).not.toContain("secret-slug");
     });
   });
@@ -319,8 +319,8 @@ describe("payment-helpers", () => {
       expect(result.email).toBe("alice@example.com");
       const parsedItems = JSON.parse(result.items!);
       expect(parsedItems).toEqual([
-        { e: 1, q: 2 },
-        { e: 2, q: 1 },
+        { e: 1, q: 2, p: 2000 },
+        { e: 2, q: 1, p: 500 },
       ]);
     });
 

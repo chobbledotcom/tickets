@@ -67,6 +67,7 @@ export const serializeMultiItems = (
     map((i: MultiRegistrationIntent["items"][number]) => ({
       e: i.eventId,
       q: i.quantity,
+      p: i.unitPrice * i.quantity,
     }))(items),
   );
 

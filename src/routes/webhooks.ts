@@ -53,7 +53,7 @@ import {
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 
 /** Parsed multi-ticket item from metadata */
-type MultiItem = { e: number; q: number };
+type MultiItem = { e: number; q: number; p?: number };
 
 /** Check if session is a multi-ticket session */
 const isMultiSession = (metadata: SessionMetadata): boolean =>
@@ -306,7 +306,8 @@ const alreadyProcessedResult = async (
 const isMultiItem = (v: unknown): v is MultiItem =>
   typeof v === "object" && v !== null &&
   typeof (v as Record<string, unknown>).e === "number" &&
-  typeof (v as Record<string, unknown>).q === "number";
+  typeof (v as Record<string, unknown>).q === "number" &&
+  ((v as Record<string, unknown>).p === undefined || typeof (v as Record<string, unknown>).p === "number");
 
 /** Parse multi-ticket items from metadata */
 const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
@@ -402,12 +403,15 @@ const processMultiPaymentSession = async (
     );
   }
 
-  // Distribute the total amount proportionally across events
-  // For pay-more events, the extra amount is distributed proportionally to each event's share
-  // The last item absorbs rounding remainder so the sum equals session.amountTotal exactly
-  const prices = anyCanPayMore && expectedTotal > 0
-    ? distributeProportionally(validatedItems.map(({ expectedPrice }) => expectedPrice), session.amountTotal)
-    : validatedItems.map(({ expectedPrice }) => expectedPrice);
+  // Determine price_paid for each item:
+  // If per-item prices (p) are in metadata, use them directly — they reflect what the user entered.
+  // Otherwise fall back to proportional distribution (backwards compat for old sessions).
+  const hasItemPrices = intent.items.every((item) => item.p !== undefined);
+  const prices = hasItemPrices
+    ? intent.items.map((item) => item.p!)
+    : anyCanPayMore && expectedTotal > 0
+      ? distributeProportionally(validatedItems.map(({ expectedPrice }) => expectedPrice), session.amountTotal)
+      : validatedItems.map(({ expectedPrice }) => expectedPrice);
 
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   let failedEvent: EventWithCount | null = null;
