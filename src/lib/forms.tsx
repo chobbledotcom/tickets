@@ -281,21 +281,22 @@ export const renderSuccess = (message?: string): string =>
  * which is always called before rendering begins.
  * Supports extra attributes like class and enctype for multipart forms.
  * When `id` is provided, the form gets an id attribute (also usable as an anchor).
- * When `success` is provided, a success message is rendered inside the form.
+ * When `successFormId` matches `id`, a success message is rendered inside the form.
  */
 export const CsrfForm = (
-  { action, children, success, ...rest }: {
+  { action, children, id, successFormId, successMessage, ...rest }: {
     action: string;
     children?: Child;
     id?: string;
     class?: string;
     enctype?: string;
-    success?: string;
+    successFormId?: string;
+    successMessage?: string;
   },
 ): JSX.Element => (
-  <form method="POST" action={action} {...rest}>
+  <form method="POST" action={action} id={id} {...rest}>
     <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
-    {success && <Raw html={renderSuccess(success)} />}
+    {id && id === successFormId && successMessage && <Raw html={renderSuccess(successMessage)} />}
     {children}
   </form>
 );

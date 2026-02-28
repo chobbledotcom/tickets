@@ -16,10 +16,6 @@ import {
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
-/** Get the success message for a form, or undefined if it doesn't match */
-const successFor = (formId: string, successFormId: string, successMessage: string): string | undefined =>
-  formId === successFormId ? successMessage : undefined;
-
 /**
  * Admin settings page
  */
@@ -50,7 +46,7 @@ export const adminSettingsPage = (
 
       {error && <div class="error">{error}</div>}
 
-        <CsrfForm action="/admin/settings/timezone" id="settings-timezone" success={successFor("settings-timezone", successFormId, successMessage)}>
+        <CsrfForm action="/admin/settings/timezone" id="settings-timezone" successFormId={successFormId} successMessage={successMessage}>
             <h2>Timezone</h2>
           <p>All dates and times will be interpreted and displayed in this timezone.</p>
           <label for="timezone">IANA Timezone</label>
@@ -69,12 +65,12 @@ export const adminSettingsPage = (
           {headerImageUrl && (
             <div>
               <img src={getImageProxyUrl(headerImageUrl)} alt="Header image" class="event-image-preview" />
-              <CsrfForm action="/admin/settings/header-image/delete" id="settings-header-image-delete" success={successFor("settings-header-image-delete", successFormId, successMessage)}>
+              <CsrfForm action="/admin/settings/header-image/delete" id="settings-header-image-delete" successFormId={successFormId} successMessage={successMessage}>
                 <button type="submit">Remove Image</button>
               </CsrfForm>
             </div>
           )}
-          <CsrfForm action="/admin/settings/header-image" enctype="multipart/form-data" id="settings-header-image" success={successFor("settings-header-image", successFormId, successMessage)}>
+          <CsrfForm action="/admin/settings/header-image" enctype="multipart/form-data" id="settings-header-image" successFormId={successFormId} successMessage={successMessage}>
             <label for="header_image">{headerImageUrl ? "Replace Image" : "Upload Image"}</label>
             <input
               type="file"
@@ -87,7 +83,7 @@ export const adminSettingsPage = (
         </div>
         )}
 
-        <CsrfForm action="/admin/settings/phone-prefix" id="settings-phone-prefix" success={successFor("settings-phone-prefix", successFormId, successMessage)}>
+        <CsrfForm action="/admin/settings/phone-prefix" id="settings-phone-prefix" successFormId={successFormId} successMessage={successMessage}>
             <h2>Phone Prefix</h2>
           <p>Country calling code used when normalizing phone numbers that start with 0 (e.g. 44 for UK, 1 for US).</p>
           <label for="phone_prefix">Phone Prefix</label>
@@ -103,7 +99,7 @@ export const adminSettingsPage = (
           <button type="submit">Save Phone Prefix</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/business-email" id="settings-business-email" success={successFor("settings-business-email", successFormId, successMessage)}>
+        <CsrfForm action="/admin/settings/business-email" id="settings-business-email" successFormId={successFormId} successMessage={successMessage}>
             <h2>Business Email</h2>
           <p>This email will be included in webhook notifications to identify your business.</p>
           <label for="business_email">Business Email</label>
@@ -118,7 +114,7 @@ export const adminSettingsPage = (
           <button type="submit">Save Business Email</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/payment-provider" id="settings-payment-provider" success={successFor("settings-payment-provider", successFormId, successMessage)}>
+        <CsrfForm action="/admin/settings/payment-provider" id="settings-payment-provider" successFormId={successFormId} successMessage={successMessage}>
             <h2>Payment Provider</h2>
           <p>Choose which payment provider to use for paid events.</p>
           <fieldset>
@@ -154,7 +150,7 @@ export const adminSettingsPage = (
         </CsrfForm>
 
         {paymentProvider === "stripe" && (
-        <CsrfForm action="/admin/settings/stripe" id="settings-stripe" success={successFor("settings-stripe", successFormId, successMessage)}>
+        <CsrfForm action="/admin/settings/stripe" id="settings-stripe" successFormId={successFormId} successMessage={successMessage}>
             <h2>Stripe Settings</h2>
           <p>
             {stripeKeyConfigured
@@ -172,7 +168,7 @@ export const adminSettingsPage = (
         )}
 
         {paymentProvider === "square" && (
-        <CsrfForm action="/admin/settings/square" id="settings-square" success={successFor("settings-square", successFormId, successMessage)}>
+        <CsrfForm action="/admin/settings/square" id="settings-square" successFormId={successFormId} successMessage={successMessage}>
             <h2>Square Settings</h2>
           <p>
             {squareTokenConfigured
@@ -194,7 +190,7 @@ export const adminSettingsPage = (
         )}
 
         {paymentProvider === "square" && squareTokenConfigured && (
-        <CsrfForm action="/admin/settings/square-webhook" id="settings-square-webhook" success={successFor("settings-square-webhook", successFormId, successMessage)}>
+        <CsrfForm action="/admin/settings/square-webhook" id="settings-square-webhook" successFormId={successFormId} successMessage={successMessage}>
             <h2>Square Webhook</h2>
           <p>
             <a href="/admin/guide#payment-setup">See the full setup guide</a>
@@ -223,7 +219,7 @@ export const adminSettingsPage = (
         </CsrfForm>
         )}
 
-        <CsrfForm action="/admin/settings/embed-hosts" id="settings-embed-hosts" success={successFor("settings-embed-hosts", successFormId, successMessage)}>
+        <CsrfForm action="/admin/settings/embed-hosts" id="settings-embed-hosts" successFormId={successFormId} successMessage={successMessage}>
             <h2>Only allow embedding on these hosts</h2>
           <p>Restrict which websites can embed your booking forms in an iframe. Leave blank to allow embedding from any site.</p>
           <label for="embed_hosts">Hosts (comma-separated)</label>
@@ -239,7 +235,7 @@ export const adminSettingsPage = (
           <button type="submit">Save Embed Hosts</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/terms" id="settings-terms" success={successFor("settings-terms", successFormId, successMessage)}>
+        <CsrfForm action="/admin/settings/terms" id="settings-terms" successFormId={successFormId} successMessage={successMessage}>
             <h2>Terms and Conditions</h2>
           <p>If set, users must agree to these terms before reserving tickets.</p>
           <label for="terms_and_conditions">Terms and Conditions</label>
@@ -260,7 +256,7 @@ export const adminSettingsPage = (
           <button type="submit">Change Password</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/show-public-site" id="settings-show-public-site" success={successFor("settings-show-public-site", successFormId, successMessage)}>
+        <CsrfForm action="/admin/settings/show-public-site" id="settings-show-public-site" successFormId={successFormId} successMessage={successMessage}>
             <h2>Show public site?</h2>
           <p>When enabled, the homepage will show a public website with navigation for Home, Events, T&amp;Cs and Contact pages.</p>
           <fieldset>
@@ -286,7 +282,7 @@ export const adminSettingsPage = (
           <button type="submit">Save</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/theme" id="settings-theme" success={successFor("settings-theme", successFormId, successMessage)}>
+        <CsrfForm action="/admin/settings/theme" id="settings-theme" successFormId={successFormId} successMessage={successMessage}>
             <h2>Site Theme</h2>
           <p>Choose between light and dark themes for the site interface.</p>
           <fieldset>

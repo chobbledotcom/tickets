@@ -1122,22 +1122,20 @@ describe("forms", () => {
       expect(html).not.toContain("id=");
     });
 
-    test("renders success message when provided", () => {
-      const html = String(CsrfForm({ action: "/submit", success: "Saved successfully" }));
-      expect(html).toContain("Saved successfully");
+    test("renders success message when id matches successFormId", () => {
+      const html = String(CsrfForm({ action: "/submit", id: "my-form", successFormId: "my-form", successMessage: "Saved" }));
+      expect(html).toContain("Saved");
       expect(html).toContain('class="success"');
     });
 
-    test("does not render success message when not provided", () => {
-      const html = String(CsrfForm({ action: "/submit" }));
+    test("does not render success message when id does not match successFormId", () => {
+      const html = String(CsrfForm({ action: "/submit", id: "my-form", successFormId: "other-form", successMessage: "Saved" }));
       expect(html).not.toContain('class="success"');
     });
 
-    test("renders both id and success together", () => {
-      const html = String(CsrfForm({ action: "/submit", id: "my-form", success: "Done!" }));
-      expect(html).toContain('id="my-form"');
-      expect(html).toContain("Done!");
-      expect(html).toContain('class="success"');
+    test("does not render success message when no id", () => {
+      const html = String(CsrfForm({ action: "/submit", successFormId: "my-form", successMessage: "Saved" }));
+      expect(html).not.toContain('class="success"');
     });
   });
 
