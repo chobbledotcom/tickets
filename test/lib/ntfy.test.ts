@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, spy, stub, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { spy, stub } from "@std/testing/mock";
 import { sendNtfyError } from "#lib/ntfy.ts";
 import { ErrorCode } from "#lib/logger.ts";
 

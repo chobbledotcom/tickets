@@ -1,5 +1,6 @@
-import { beforeAll } from "#test-compat";
-import { describe, expect, test } from "#test-compat";
+import { beforeAll } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
 import { AttendeeTable, type AttendeeTableOptions, type AttendeeTableRow, formatAddressInline, sortAttendeeRows } from "#templates/attendee-table.tsx";
 import { setupTestEncryptionKey, testAttendee } from "#test-utils";

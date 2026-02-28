@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, FakeTime, spy, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { spy } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
 import {
   getAllActivityLog,

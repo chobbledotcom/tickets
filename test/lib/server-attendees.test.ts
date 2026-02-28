@@ -1,11 +1,6 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  stub,
-  test,
-} from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#lib/db/attendees.ts";
 import { handleRequest } from "#routes";
 import {

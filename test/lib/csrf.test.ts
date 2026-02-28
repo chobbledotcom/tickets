@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { clearTestEncryptionKey, setupTestEncryptionKey } from "#test-utils";
 import { isSignedCsrfToken, signCsrfToken, verifySignedCsrfToken } from "#lib/csrf.ts";
 

@@ -4,7 +4,8 @@
  * POST /admin/event/:id/scan - JSON check-in API
  */
 
-import { afterEach, beforeEach, describe, expect, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { handleRequest } from "#routes";
 import {
   adminGet,

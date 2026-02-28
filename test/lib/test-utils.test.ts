@@ -1,16 +1,9 @@
 import { getSessionCookieName } from "#lib/cookies.ts";
-import {
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  FakeTime,
-  fn,
-  spy,
-  stub,
-  test,
-} from "#test-compat";
+import { afterEach, beforeAll, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { fn } from "@std/expect/fn";
+import { spy, stub } from "@std/testing/mock";
+import { FakeTime } from "@std/testing/time";
 import {
   awaitTestRequest,
   createTestAttendee,

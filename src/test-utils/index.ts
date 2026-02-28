@@ -1002,7 +1002,7 @@ export { getAttendeesRaw };
 // Import `expect` lazily so the module can be loaded outside test contexts.
 // ---------------------------------------------------------------------------
 
-import { expect } from "#test-compat";
+import { expect } from "@std/expect";
 
 /** Assert a Response has the given status code. Returns the response for chaining. */
 export const expectStatus =

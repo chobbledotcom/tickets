@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test, stub } from "#test-compat";
-import type { Stub } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { type Stub, stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,

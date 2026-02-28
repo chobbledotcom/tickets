@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, test, spy, stub } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { spy, stub } from "@std/testing/mock";
 import {
   constructTestWebhookEvent,
   createCheckoutSessionWithIntent,

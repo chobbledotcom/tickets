@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, stub, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { stub } from "@std/testing/mock";
 import { squarePaymentProvider } from "#lib/square-provider.ts";
 import { squareApi } from "#lib/square.ts";
 import { PaymentUserError } from "#lib/payment-helpers.ts";

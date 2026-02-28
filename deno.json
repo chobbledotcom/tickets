@@ -21,7 +21,6 @@
     "#fp/": "./src/fp/",
     "#test-utils": "./src/test-utils/index.ts",
     "#test-utils/": "./src/test-utils/",
-    "#test-compat": "./src/test-utils/test-compat.ts",
     "#jsx/jsx-runtime": "./src/lib/jsx/jsx-runtime.ts",
     "#jsx/jsx-dev-runtime": "./src/lib/jsx/jsx-runtime.ts",
     "#jsx/": "./src/lib/jsx/",

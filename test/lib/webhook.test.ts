@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, spy, stub, test } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { spy, stub } from "@std/testing/mock";
 import {
   buildWebhookPayload,
   type RegistrationEntry,
@@ -337,7 +339,7 @@ describe("webhook", () => {
 
       expect(fetchSpy.calls.length).toBe(2);
       const urls = fetchSpy.calls.map(
-        (call) => call.args[0] as string,
+        (call: { args: unknown[] }) => call.args[0] as string,
       );
       expect(urls).toContain("https://hook-a.com");
       expect(urls).toContain("https://hook-b.com");
@@ -405,7 +407,7 @@ describe("webhook", () => {
 
       expect(fetchSpy.calls.length).toBe(2);
       const urls = fetchSpy.calls.map(
-        (call) => call.args[0] as string,
+        (call: { args: unknown[] }) => call.args[0] as string,
       );
       expect(urls).toContain("https://event-hook.com");
       expect(urls).toContain("https://global-hook.com");

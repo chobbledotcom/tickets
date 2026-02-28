@@ -1,5 +1,7 @@
-import { afterEach, beforeEach, describe, expect, spy, stub, test } from "#test-compat";
-import type { Spy } from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { spy, stub } from "@std/testing/mock";
+import { Spy } from "@std/testing/mock";
 import {
   createRequestTimer,
   ErrorCode,

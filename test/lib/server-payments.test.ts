@@ -1,12 +1,6 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  spy,
-  stub,
-  test,
-} from "#test-compat";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
+import { spy, stub } from "@std/testing/mock";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -63,7 +57,7 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error when payment not verified", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -104,7 +98,7 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error for invalid session metadata", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -133,7 +127,7 @@ describe("server (payment flow)", () => {
     });
 
     test("rejects payment for inactive event and refunds", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -187,7 +181,7 @@ describe("server (payment flow)", () => {
     });
 
     test("refunds payment when event is sold out at confirmation time", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -256,7 +250,7 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error when session not found", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -275,7 +269,7 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error for invalid session metadata", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -303,7 +297,7 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error when event not found", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -333,7 +327,7 @@ describe("server (payment flow)", () => {
     });
 
     test("shows cancel page with link back to ticket form", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -512,7 +506,7 @@ describe("server (payment flow)", () => {
     });
 
     test("returns error when event not found in session metadata without refund", async () => {
-      const { spy, stub } = await import("#test-compat");
+      const { spy, stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       await setupStripe();
 
@@ -547,7 +541,7 @@ describe("server (payment flow)", () => {
     });
 
     test("creates attendee and shows success when payment verified", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
 
       await setupStripe();
@@ -609,7 +603,7 @@ describe("server (payment flow)", () => {
     });
 
     test("handles replay of same session (idempotent)", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
 
       await setupStripe();
@@ -661,7 +655,7 @@ describe("server (payment flow)", () => {
     });
 
     test("handles multiple quantity purchase", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
 
       await setupStripe();
@@ -739,7 +733,7 @@ describe("server (payment flow)", () => {
     });
 
     test("handles encryption error during payment confirmation", async () => {
-      const { stub } = await import("#test-compat");
+      const { stub } = await import("@std/testing/mock");
       const { stripeApi } = await import("#lib/stripe.ts");
       const { attendeesApi } = await import("#lib/db/attendees.ts");
 

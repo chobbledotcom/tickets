@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, test } from "#test-compat";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
 import {
   CsrfForm,

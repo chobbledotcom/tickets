@@ -112,11 +112,12 @@ The project uses `deno.json` for configuration:
 
 ## Test Framework
 
-Tests use a custom compatibility layer (`#test-compat`) that provides Jest-like APIs:
-- `describe`, `test`, `it` for test organization
-- `expect()` for assertions
-- `beforeEach`, `afterEach` for setup/teardown
-- `jest.fn()`, `spyOn()` for mocking
+Tests use Deno standard library packages directly:
+- `@std/testing/bdd` — `describe`, `it` (aliased as `test`), `beforeEach`, `afterEach`
+- `@std/expect` — `expect()` assertions
+- `@std/testing/mock` — `spy()`, `stub()` for mocking
+- `@std/expect/fn` — `fn()` for mock functions
+- `@std/testing/time` — `FakeTime` for timer tests
 
 ## Test Quality Standards
 
