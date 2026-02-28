@@ -327,33 +327,61 @@ export type BoundedLru<K, V> = {
 
 /**
  * Create a bounded LRU (Least Recently Used) cache.
- * Evicts the oldest entry when capacity is reached.
- * Uses Map insertion order for O(1) LRU tracking.
+ * Evicts the least-recently-used entry when capacity is reached.
+ * Uses a doubly-linked list for O(1) LRU tracking so that
+ * get() does not mutate the key-value index.
  */
 export const boundedLru = <K, V>(maxSize: number): BoundedLru<K, V> => {
-  const cache = new Map<K, V>();
+  type Node = { key: K; value: V; prev: Node; next: Node };
+  const index = new Map<K, Node>();
+  // Sentinel nodes eliminate null-checks in detach/append
+  const head = {} as Node;
+  const tail = {} as Node;
+  head.next = tail;
+  tail.prev = head;
+
+  const detach = (n: Node): void => {
+    n.prev.next = n.next;
+    n.next.prev = n.prev;
+  };
+  const append = (n: Node): void => {
+    n.prev = tail.prev;
+    n.next = tail;
+    tail.prev.next = n;
+    tail.prev = n;
+  };
+
   return {
     get: (key: K): V | undefined => {
-      const value = cache.get(key);
-      if (value !== undefined) {
-        // Move to end (most recently used)
-        cache.delete(key);
-        cache.set(key, value);
-      }
-      return value;
+      const node = index.get(key);
+      if (!node) return undefined;
+      detach(node);
+      append(node);
+      return node.value;
     },
     set: (key: K, value: V): void => {
-      if (cache.has(key)) {
-        cache.delete(key);
-      } else if (cache.size >= maxSize) {
-        cache.delete(cache.keys().next().value!);
+      const existing = index.get(key);
+      if (existing) {
+        detach(existing);
+        existing.value = value;
+        append(existing);
+      } else {
+        if (index.size >= maxSize) {
+          const oldest = head.next;
+          detach(oldest);
+          index.delete(oldest.key);
+        }
+        const node = { key, value } as Node;
+        append(node);
+        index.set(key, node);
       }
-      cache.set(key, value);
     },
     clear: (): void => {
-      cache.clear();
+      index.clear();
+      head.next = tail;
+      tail.prev = head;
     },
-    size: (): number => cache.size,
+    size: (): number => index.size,
   };
 };
 
