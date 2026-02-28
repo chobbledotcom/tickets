@@ -85,31 +85,17 @@ const getWebhookUrl = (): string => {
   return `https://${domain}/payment/webhook`;
 };
 
-/** Gather all state needed to render the settings page */
+/** Gather all state needed to render the settings page.
+ * All calls are independent, so we fetch them concurrently with Promise.all
+ * to reduce sequential await overhead (especially for calls that decrypt).
+ */
 const getSettingsPageState = async () => {
-  const stripeKeyConfigured = await hasStripeKey();
-  const paymentProvider = await getPaymentProviderFromDb();
-  const squareTokenConfigured = await hasSquareToken();
-  const squareSandbox = await getSquareSandboxFromDb();
-  const squareWebhookKey = await getSquareWebhookSignatureKey();
-  const squareWebhookConfigured = squareWebhookKey !== null;
-  const webhookUrl = getWebhookUrl();
-  const embedHosts = await getEmbedHostsFromDb();
-  const termsAndConditions = await getTermsAndConditionsFromDb();
-  const timezone = await getTimezoneFromDb();
-  const businessEmail = await getBusinessEmailFromDb();
-  const theme = await getThemeFromDb();
-  const showPublicSite = await getShowPublicSiteFromDb();
-  const phonePrefix = await getPhonePrefixFromDb();
-  const headerImageUrl = await getHeaderImageUrlFromDb();
-  const storageEnabled = isStorageEnabled();
-  return {
+  const [
     stripeKeyConfigured,
     paymentProvider,
     squareTokenConfigured,
     squareSandbox,
-    squareWebhookConfigured,
-    webhookUrl,
+    squareWebhookKey,
     embedHosts,
     termsAndConditions,
     timezone,
@@ -118,7 +104,37 @@ const getSettingsPageState = async () => {
     showPublicSite,
     phonePrefix,
     headerImageUrl,
-    storageEnabled,
+  ] = await Promise.all([
+    hasStripeKey(),
+    getPaymentProviderFromDb(),
+    hasSquareToken(),
+    getSquareSandboxFromDb(),
+    getSquareWebhookSignatureKey(),
+    getEmbedHostsFromDb(),
+    getTermsAndConditionsFromDb(),
+    getTimezoneFromDb(),
+    getBusinessEmailFromDb(),
+    getThemeFromDb(),
+    getShowPublicSiteFromDb(),
+    getPhonePrefixFromDb(),
+    getHeaderImageUrlFromDb(),
+  ]);
+  return {
+    stripeKeyConfigured,
+    paymentProvider,
+    squareTokenConfigured,
+    squareSandbox,
+    squareWebhookConfigured: squareWebhookKey !== null,
+    webhookUrl: getWebhookUrl(),
+    embedHosts,
+    termsAndConditions,
+    timezone,
+    businessEmail,
+    theme,
+    showPublicSite,
+    phonePrefix,
+    headerImageUrl,
+    storageEnabled: isStorageEnabled(),
   };
 };
 
