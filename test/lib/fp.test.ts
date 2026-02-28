@@ -12,6 +12,7 @@ import {
   isDefined,
   lazyRef,
   map,
+  mapParallel,
   mapSequential,
   memoize,
   ok,
@@ -468,6 +469,38 @@ describe("fp", () => {
 
     test("handles empty array", async () => {
       expect(await mapSequential(asyncDouble)([])).toEqual([]);
+    });
+  });
+
+  describe("mapParallel", () => {
+    const asyncDouble = (x: number) => Promise.resolve(x * 2);
+
+    test("maps array with async function", async () => {
+      expect(await mapParallel(asyncDouble)([2, 3, 4])).toEqual([4, 6, 8]);
+    });
+
+    test("preserves result order regardless of completion order", async () => {
+      const delayed = (ms: number) =>
+        new Promise<number>((resolve) => setTimeout(() => resolve(ms), ms));
+      expect(await mapParallel(delayed)([30, 10, 20])).toEqual([30, 10, 20]);
+    });
+
+    test("handles empty array", async () => {
+      expect(await mapParallel(asyncDouble)([])).toEqual([]);
+    });
+
+    test("runs operations concurrently", async () => {
+      let concurrent = 0;
+      let maxConcurrent = 0;
+      const track = async (x: number) => {
+        concurrent++;
+        maxConcurrent = Math.max(maxConcurrent, concurrent);
+        await new Promise((r) => setTimeout(r, 10));
+        concurrent--;
+        return x;
+      };
+      await mapParallel(track)([1, 2, 3]);
+      expect(maxConcurrent).toBe(3);
     });
   });
 

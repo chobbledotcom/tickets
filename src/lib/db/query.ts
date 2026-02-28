@@ -1,4 +1,4 @@
-import { mapSequential } from "#fp";
+import { mapParallel } from "#fp";
 import { getDb, resultRows } from "#lib/db/client.ts";
 import { trackQuery } from "#lib/db/query-log.ts";
 
@@ -12,5 +12,5 @@ export const queryAndMap = <Row, Out>(
 ) =>
 async (sql: string): Promise<Out[]> => {
   const result = await trackQuery(sql, () => getDb().execute(sql));
-  return mapSequential(toOut)(resultRows<Row>(result));
+  return mapParallel(toOut)(resultRows<Row>(result));
 };

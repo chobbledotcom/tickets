@@ -9,7 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { compact, filter, mapSequential, reduce } from "#fp";
+import { compact, filter, mapParallel, reduce } from "#fp";
 import { getDb, queryAll, queryOne } from "#lib/db/client.ts";
 
 /**
@@ -207,7 +207,7 @@ export const defineTable = <Row, Input = Row>(config: {
 
   // Transform a row from DB (apply read transforms)
   const fromDb = async (row: Row): Promise<Row> => {
-    const entries = await mapSequential(async (col: keyof Row & string) => {
+    const entries = await mapParallel(async (col: keyof Row & string) => {
       const def = schema[col];
       const value = row[col];
       if (def.read && value !== null) {
@@ -237,7 +237,7 @@ export const defineTable = <Row, Input = Row>(config: {
   const toDbValues = async (
     input: Input | Partial<Input>,
   ): Promise<Record<string, InValue>> => {
-    const entries = await mapSequential((col: string) => processColumn(col, input))(inputColumns);
+    const entries = await mapParallel((col: string) => processColumn(col, input))(inputColumns);
     return Object.fromEntries(compact(entries));
   };
 
@@ -331,7 +331,7 @@ export const defineTable = <Row, Input = Row>(config: {
   // Find all implementation
   const findAll = async (): Promise<Row[]> => {
     const rows = await queryAll<Row>(`SELECT * FROM ${name}`);
-    return mapSequential(fromDb)(rows);
+    return mapParallel(fromDb)(rows);
   };
 
   return {

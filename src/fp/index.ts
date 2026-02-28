@@ -317,6 +317,14 @@ export const mapSequential =
     return results;
   };
 
+/**
+ * Map over a promise-returning function in parallel (Promise.all)
+ */
+export const mapParallel =
+  <T, U>(fn: (item: T) => Promise<U>) =>
+  (array: T[]): Promise<U[]> =>
+    Promise.all(array.map(fn));
+
 /** Bounded LRU cache returned by boundedLru() */
 export type BoundedLru<K, V> = {
   get: (key: K) => V | undefined;
