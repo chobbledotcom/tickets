@@ -1196,6 +1196,10 @@ button.secondary:hover {
   justify-content: center;
 }
 
+#scanner-confirm.hidden {
+  display: none;
+}
+
 #scanner-confirm-backdrop {
   position: absolute;
   top: 0;
@@ -1215,7 +1219,8 @@ button.secondary:hover {
   width: 320px;
   text-align: center;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-  background: #fff;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 #scanner-confirm-close {
@@ -1228,7 +1233,7 @@ button.secondary:hover {
   line-height: 1;
   padding: 0.25rem 0.5rem;
   cursor: pointer;
-  color: #666;
+  color: var(--color-text-secondary);
 }
 
 #scanner-confirm p {
@@ -1258,8 +1263,8 @@ button.secondary:hover {
 }
 
 #scanner-confirm-no {
-  background: #fff;
-  color: #333;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 /* Stripe test result */
