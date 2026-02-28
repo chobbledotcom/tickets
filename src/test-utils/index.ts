@@ -820,6 +820,7 @@ export const createTestEvent = (
         : "",
       minimum_days_before: input.minimumDaysBefore != null ? String(input.minimumDaysBefore) : "",
       maximum_days_after: input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
+      non_transferable: input.nonTransferable ? "1" : "",
     },
     async () => {
       // Get the most recently created event (302 redirect guarantees creation succeeded)
@@ -909,6 +910,7 @@ export const updateTestEvent = async (
         : formatBookableDaysForForm(existing.bookable_days),
       minimum_days_before: String(updates.minimumDaysBefore ?? existing.minimum_days_before),
       maximum_days_after: String(updates.maximumDaysAfter ?? existing.maximum_days_after),
+      non_transferable: (updates.nonTransferable ?? existing.non_transferable) ? "1" : "",
     },
     async () =>
       (await getEventWithCount(eventId)) as EventWithCount,
@@ -1115,6 +1117,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   minimum_days_before: 0,
   maximum_days_after: 0,
   image_url: "",
+  non_transferable: false,
   ...overrides,
 });
 

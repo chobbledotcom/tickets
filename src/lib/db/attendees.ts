@@ -544,7 +544,6 @@ export const updateAttendee = async (
     input.special_instructions,
     publicKeyJwk,
   );
-
   await getDb().execute({
     sql: "UPDATE attendees SET name = ?, email = ?, phone = ?, address = ?, special_instructions = ?, event_id = ? WHERE id = ?",
     args: [

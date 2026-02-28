@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "backfill null thank_you_url and webhook_url";
+export const LATEST_UPDATE = "add non_transferable to events";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -452,6 +452,9 @@ export const initDb = async (): Promise<void> => {
   // Migration: backfill NULL thank_you_url and webhook_url with encrypted empty strings
   await backfillEncryptedColumn("events", "thank_you_url", `thank_you_url IS NULL`);
   await backfillEncryptedColumn("events", "webhook_url", `webhook_url IS NULL`);
+
+  // Migration: add non_transferable column to events (boolean, default false)
+  await runMigration(`ALTER TABLE events ADD COLUMN non_transferable INTEGER NOT NULL DEFAULT 0`);
 
   // Update the version marker
   await getDb().execute({

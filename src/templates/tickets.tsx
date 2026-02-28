@@ -49,6 +49,10 @@ const renderTicketCard = ({ entry, qrSvg, token }: TicketCard): string => {
     ? `<div class="ticket-card-price">Price: ${escapeHtml(formatCurrency(pricePaid))}</div>`
     : "";
 
+  const nonTransferableHtml = event.non_transferable
+    ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
+    : "";
+
   return `
     <div class="ticket-card">
       ${imageHtml}
@@ -56,6 +60,7 @@ const renderTicketCard = ({ entry, qrSvg, token }: TicketCard): string => {
       ${eventDateHtml}
       ${locationHtml}
       ${descriptionHtml}
+      ${nonTransferableHtml}
       ${attendeeDateHtml}
       <div class="ticket-card-quantity">Quantity: ${attendee.quantity}</div>
       ${priceHtml}

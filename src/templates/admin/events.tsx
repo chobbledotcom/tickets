@@ -258,6 +258,12 @@ export const adminEventPage = ({
                 <th>Event Type</th>
                 <td>{event.event_type === "daily" ? "Daily" : "Standard"}</td>
               </tr>
+              {event.non_transferable && (
+                <tr>
+                  <th>Non-Transferable</th>
+                  <td>Yes &mdash; ID verification required at entry</td>
+                </tr>
+              )}
               {event.event_type === "daily" && (
                 <tr>
                   <th>Bookable Days</th>
@@ -489,6 +495,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   closes_at: formatDatetimeLocal(event.closes_at),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
+  non_transferable: event.non_transferable ? "1" : "",
 });
 
 /** Event fields with autofocus on the name field */

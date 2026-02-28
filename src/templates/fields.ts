@@ -36,6 +36,7 @@ export type EventFormValues = {
   bookable_days: string;
   minimum_days_before: number | null;
   maximum_days_after: number | null;
+  non_transferable: string;
   group_id: string;
 };
 
@@ -377,6 +378,16 @@ export const eventFields: Field[] = [
     placeholder: "https://example.com/webhook",
     hint: "Receives POST with attendee name, email, and phone on registration",
     validate: validateSafeUrl,
+  },
+  {
+    name: "non_transferable",
+    label: "Non-Transferable Tickets",
+    type: "select",
+    hint: "Requires attendees to show ID matching the ticket name at entry",
+    options: [
+      { value: "", label: "No" },
+      { value: "1", label: "Yes" },
+    ],
   },
 ];
 
