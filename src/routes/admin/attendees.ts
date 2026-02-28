@@ -18,7 +18,7 @@ import { getAllEvents, getEventWithAttendeeRaw, getEventWithCount } from "#lib/d
 import { validateForm } from "#lib/forms.tsx";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { getActivePaymentProvider } from "#lib/payments.ts";
-import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
+import { isPaidEvent, type AdminSession, type Attendee, type EventWithCount } from "#lib/types.ts";
 import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { getCurrencyCode } from "#lib/config.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -184,7 +184,7 @@ const handleAttendeeDelete = attendeeFormAction(async (data, session, form, even
  * Verifies the attendee is actually incomplete before deleting.
  */
 const handleDeleteIncomplete = attendeeFormAction(async (data, _session, _form, eventId, attendeeId) => {
-  const hasPaidEvent = data.event.unit_price > 0 || data.event.can_pay_more;
+  const hasPaidEvent = isPaidEvent(data.event);
   const isIncomplete = hasPaidEvent && !data.attendee.payment_id &&
     Number.parseInt(data.attendee.price_paid, 10) > 0;
 

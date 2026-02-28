@@ -98,7 +98,6 @@ const newestAttendeesSection = (
           attendee: a,
           eventId: event.id,
           eventName: event.name,
-          hasPaidEvent: event.unit_price > 0 || event.can_pay_more,
         });
       }
       return acc;

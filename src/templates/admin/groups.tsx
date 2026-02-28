@@ -7,7 +7,7 @@ import { formatCurrency } from "#lib/currency.ts";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import { CsrfForm, renderError, renderFields, renderSuccess } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
+import { isPaidEvent, type AdminSession, type Attendee, type EventWithCount, type Group } from "#lib/types.ts";
 import { groupCreateFields, groupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
 import { EventRow } from "#templates/admin/dashboard.tsx";
@@ -159,7 +159,6 @@ const buildAttendeeRows = (
         attendee: a,
         eventId: event.id,
         eventName: event.name,
-        hasPaidEvent: event.unit_price > 0 || event.can_pay_more,
       };
     }),
   )(attendees);
@@ -190,7 +189,7 @@ export const adminGroupDetailPage = (
 
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
-  const hasPaidEvent = events.some((e) => e.unit_price > 0 || e.can_pay_more);
+  const hasPaidEvent = events.some(isPaidEvent);
   const attendeeQuantitySum = sumQuantity(attendees);
   const hasMultiQuantity = attendeeQuantitySum !== attendees.length;
   const ticketsCheckedIn = countCheckedIn(attendees);

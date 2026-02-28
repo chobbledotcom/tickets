@@ -9,7 +9,7 @@ import { logActivity } from "#lib/db/activityLog.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { addPendingWork } from "#lib/pending-work.ts";
-import type { ContactInfo } from "#lib/types.ts";
+import { isPaidEvent, type ContactInfo } from "#lib/types.ts";
 import { nowIso } from "#lib/now.ts";
 import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 
@@ -80,7 +80,7 @@ export const buildWebhookPayload = async (
   const totalPricePaid = entries.reduce((sum, { attendee }) =>
     sum + Number.parseInt(attendee.price_paid, 10), 0);
 
-  const hasPaidEvent = entries.some(({ event }) => event.unit_price > 0 || event.can_pay_more);
+  const hasPaidEvent = entries.some(({ event }) => isPaidEvent(event));
   const businessEmail = await getBusinessEmailFromDb();
 
   return {

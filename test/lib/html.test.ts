@@ -1740,7 +1740,6 @@ describe("html", () => {
       eventDate: "",
       eventLocation: "",
       eventId: 1,
-      hasPaidEvent: false,
       date: "2026-03-15",
       ...overrides,
     });
@@ -1848,7 +1847,6 @@ describe("html", () => {
       eventDate: "",
       eventLocation: "",
       eventId: 1,
-      hasPaidEvent: false,
       date: "2026-03-15",
       ...overrides,
     });

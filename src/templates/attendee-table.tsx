@@ -17,7 +17,6 @@ export type AttendeeTableRow = {
   attendee: Attendee;
   eventId: number;
   eventName: string;
-  hasPaidEvent: boolean;
 };
 
 /** Options for the unified AttendeeTable component */

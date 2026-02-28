@@ -4,7 +4,7 @@
 
 import { decryptAttendees, decryptAttendeesForTable } from "#lib/db/attendees.ts";
 import { getEventWithAttendeesRaw } from "#lib/db/events.ts";
-import type { Attendee, EventWithCount } from "#lib/types.ts";
+import { isPaidEvent, type Attendee, type EventWithCount } from "#lib/types.ts";
 import type { validateForm } from "#lib/forms.tsx";
 import { type AuthSession, encodeBody, getPrivateKey, notFoundResponse, requireSessionOr, SessionKeyError } from "#routes/utils.ts";
 
@@ -68,7 +68,7 @@ export const withDecryptedAttendees = async (
   const result = await getEventWithAttendeesRaw(eventId);
   if (!result) return notFoundResponse();
   const attendees = mode === "table"
-    ? await decryptAttendeesForTable(result.attendeesRaw, pk, result.event.fields, result.event.unit_price > 0)
+    ? await decryptAttendeesForTable(result.attendeesRaw, pk, result.event.fields, isPaidEvent(result.event))
     : await decryptAttendees(result.attendeesRaw, pk);
   return handler(result.event, attendees, session);
 };
