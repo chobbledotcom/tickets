@@ -16,6 +16,7 @@ Licensed under **AGPLv3**. Hosted instances available at [tix.chobble.com](https
 - Multi-booking link builder on the dashboard for generating combined-event URLs
 - Embeddable via iframe with configurable CSP frame-ancestors
 - Custom thank-you URL or default confirmation page
+- Non-transferable tickets — per-event toggle requiring ID verification at check-in
 - Manual attendee creation from the admin event page (walk-ins, comps)
 
 ### Payments
@@ -29,12 +30,14 @@ Licensed under **AGPLv3**. Hosted instances available at [tix.chobble.com](https
 - Each ticket gets a unique URL (`/t/:token`) with a QR code
 - Staff scan QR to reach check-in page, toggle check-in/out
 - Built-in QR scanner — open from an event page, uses device camera, check-in-only (no accidental check-outs)
+- ID verification prompt for non-transferable events before completing check-in
 - Cross-event detection: scanner warns if a ticket belongs to a different event
 - Multi-ticket view for multi-event bookings (`/t/token1+token2`)
 
 ### Admin
 - Event CRUD, duplicate, deactivate/reactivate, delete (requires typing event name)
 - Attendee list with date filtering (daily events), check-in status filtering
+- Attendee editing — update name, contact details, quantity, or reassign to a different event
 - CSV export (respects filters)
 - Per-event activity log (creation, updates, check-ins, exports, deletions)
 - Holiday/blackout date management for daily events
@@ -123,7 +126,7 @@ deno task test:coverage  # Tests with coverage report
 deno task lint           # Lint
 deno task fmt            # Format
 deno task typecheck      # Type check
-deno task precommit      # All checks (typecheck, lint, cpd, test:coverage)
+deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:coverage)
 ```
 
 ## Tech Stack
