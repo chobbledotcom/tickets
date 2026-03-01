@@ -1,8 +1,8 @@
 # Chobble Tickets
 
-A self-hosted ticket reservation system. Runs on Bunny Edge Scripting with libsql (Turso). Encrypts all PII at rest. Handles free and paid events with Stripe or Square.
+A self-hosted ticket reservation system built by [Chobble CIC](https://chobble.com), a community interest company. Runs on any Deno environment (or Bunny Edge Scripting) with libsql (Turso). Encrypts all PII at rest. Handles free and paid events with Stripe or Square.
 
-Licensed under **AGPLv3**. Hosted instances available at [tix.chobble.com](https://tix.chobble.com/ticket/register) for £50/year, no tiers.
+This is not "open core" — every feature is available under **AGPLv3** with no proprietary add-ons. Hosted instances available at [tix.chobble.com](https://tix.chobble.com/ticket/register) for £50/year, no tiers.
 
 ## Features
 
@@ -51,14 +51,14 @@ Licensed under **AGPLv3**. Hosted instances available at [tix.chobble.com](https
 - **Hybrid RSA-OAEP + AES-256-GCM** for attendee PII (name, email, phone, postal address)
   - Public key encrypts on submission (no auth needed)
   - Private key only available to authenticated admin sessions
-  - Database breach alone does not expose PII
+  - A database dump alone is not sufficient to recover PII — an attacker would also need the encryption key from the environment
 - **AES-256-GCM** for payment IDs, prices, check-in status, API keys, holiday names, usernames
 - **PBKDF2** (600k iterations, SHA-256) for password hashing
 - Three-layer key hierarchy: env var root key → RSA key pair → per-user wrapped data keys
 - Lost password = permanently unreadable data. No backdoor.
 
 ### Concurrency
-- Atomic capacity check + insert in a single SQL statement — no overbooking under any load
+- Capacity check + insert in a single SQL statement to reduce the window for overbooking
 - Payment webhook idempotency via two-phase locking on `processed_payments` table
 - Stale reservation auto-cleanup after 5 minutes
 
@@ -68,6 +68,8 @@ Licensed under **AGPLv3**. Hosted instances available at [tix.chobble.com](https
 - Constant-time password comparison with random delay
 - Session tokens hashed before database storage, 24-hour expiry, HttpOnly cookies
 - Content-Type validation on all POST endpoints
+
+These measures aim to raise the cost of common attacks. They do not guarantee security against all scenarios — proper operational practices (key management, access control, monitoring) are equally important.
 
 ### Webhooks
 - Outbound POST on every registration (free or paid) to per-event and/or global webhook URLs
@@ -107,6 +109,22 @@ On first launch, visit `/setup/` to set admin credentials and currency. Payment 
 
 ## Deployment
 
+### Docker
+
+```bash
+docker build -t chobble-tickets .
+docker run -p 3000:3000 \
+  -v tickets-data:/data \
+  -e DB_URL="file:/data/tickets.db" \
+  -e DB_ENCRYPTION_KEY="your-base64-key" \
+  -e ALLOWED_DOMAIN="your-domain.com" \
+  chobble-tickets
+```
+
+The Dockerfile uses a local SQLite file by default. Set `DB_URL` and `DB_TOKEN` to point at a remote Turso database instead if preferred.
+
+### Bunny Edge Scripting
+
 Builds to a single JavaScript file for Bunny Edge Scripting:
 
 ```bash
@@ -131,8 +149,8 @@ deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:co
 
 ## Tech Stack
 
-- **Runtime**: Deno (dev) / Bunny Edge Scripting (prod, Deno-based)
-- **Database**: libsql on Turso
+- **Runtime**: Deno — runs standalone, via Docker, or on Bunny Edge Scripting
+- **Database**: libsql (local SQLite or remote Turso)
 - **Payments**: Stripe, Square
 - **Build**: esbuild, single-file output
 - **Templates**: Server-rendered JSX
@@ -140,4 +158,4 @@ deno task precommit      # All checks (typecheck, lint, cpd, build:edge, test:co
 
 ## License
 
-AGPLv3
+AGPLv3 — developed by [Chobble CIC](https://chobble.com), a community interest company.
