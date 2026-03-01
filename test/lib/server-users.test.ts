@@ -8,13 +8,11 @@ import {
   createInvitedUser,
   decryptAdminLevel,
   decryptUsername,
-  flagExpiredInvite,
-  flagExpiredInvites,
   getAllUsers,
-  getUserById,
   getUserByUsername,
   hasPassword,
   invalidateUsersCache,
+  isInviteExpired,
   isInviteValid,
   verifyUserPassword,
 } from "#lib/db/users.ts";
@@ -143,42 +141,24 @@ describe("server (multi-user admin)", () => {
     });
   });
 
-  describe("flagging expired invites", () => {
-    test("flagExpiredInvite sets invite_expired to 1", async () => {
+  describe("isInviteExpired", () => {
+    test("returns true for expired invite", async () => {
       const expiry = new Date(Date.now() - 1000).toISOString();
-      const user = await createInvitedUser("flag-test", "manager", "somehash", expiry);
-      expect(user.invite_expired).toBe(0);
+      const user = await createInvitedUser("expired-check", "manager", "somehash", expiry);
 
-      await flagExpiredInvite(user.id);
-
-      const updated = await getUserById(user.id);
-      expect(updated!.invite_expired).toBe(1);
+      expect(await isInviteExpired(user)).toBe(true);
     });
 
-    test("flagExpiredInvites flags all expired invites", async () => {
-      const expired = new Date(Date.now() - 1000).toISOString();
-      const valid = new Date(Date.now() + 86400000).toISOString();
-      await createInvitedUser("expired-bulk", "manager", "hash1", expired);
-      await createInvitedUser("valid-bulk", "manager", "hash2", valid);
+    test("returns false for valid invite", async () => {
+      const expiry = new Date(Date.now() + 86400000).toISOString();
+      const user = await createInvitedUser("valid-check", "manager", "somehash", expiry);
 
-      await flagExpiredInvites();
-
-      const expiredUser = await getUserByUsername("expired-bulk");
-      expect(expiredUser!.invite_expired).toBe(1);
-      const validUser = await getUserByUsername("valid-bulk");
-      expect(validUser!.invite_expired).toBe(0);
+      expect(await isInviteExpired(user)).toBe(false);
     });
 
-    test("flagExpiredInvites skips already flagged users", async () => {
-      const expired = new Date(Date.now() - 1000).toISOString();
-      const user = await createInvitedUser("already-flagged", "manager", "hash3", expired);
-      await flagExpiredInvite(user.id);
-
-      // Should not error when running again
-      await flagExpiredInvites();
-
-      const updated = await getUserById(user.id);
-      expect(updated!.invite_expired).toBe(1);
+    test("returns false for user without invite code", async () => {
+      const owner = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(await isInviteExpired(owner!)).toBe(false);
     });
   });
 
@@ -736,19 +716,6 @@ describe("server (multi-user admin)", () => {
       await expectHtmlResponse(response, 410, "expired");
     });
 
-    test("GET /join/:code flags expired invite on users table", async () => {
-      const expiry = new Date(Date.now() - 1000).toISOString();
-      const { hashInviteCode } = await import("#lib/db/users.ts");
-      const codeHash = await hashInviteCode("expired-flag-123");
-      const user = await createInvitedUser("expired-flag-user", "manager", codeHash, expiry);
-      expect(user.invite_expired).toBe(0);
-
-      await handleRequest(mockRequest("/join/expired-flag-123"));
-
-      const updated = await getUserById(user.id);
-      expect(updated!.invite_expired).toBe(1);
-    });
-
     test("POST /join/:code returns 410 for expired invite", async () => {
       const expiry = new Date(Date.now() - 1000).toISOString();
       const { hashInviteCode } = await import("#lib/db/users.ts");
@@ -856,7 +823,7 @@ describe("server (multi-user admin)", () => {
 
     test("shows Invite Expired status for expired invite", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
-      // Create an invited user then manually expire it
+      // Create an invited user then manually set expiry to the past
       await handleRequest(
         mockFormRequest(
           "/admin/users",
@@ -869,7 +836,6 @@ describe("server (multi-user admin)", () => {
         ),
       );
 
-      // Set invite_expiry to past and let flagExpiredInvites detect it
       const expiredExpiry = await encrypt(new Date(Date.now() - 1000).toISOString());
       await getDb().execute({
         sql: "UPDATE users SET invite_expiry = ? WHERE id = 2",

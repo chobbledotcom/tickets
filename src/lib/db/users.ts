@@ -26,7 +26,7 @@ import { isAdminLevel, type AdminLevel, type User } from "#lib/types.ts";
 export const USERS_CACHE_TTL_MS = 60_000;
 
 const USER_SELECT =
-  "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, invite_expired FROM users ORDER BY id ASC";
+  "SELECT id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry FROM users ORDER BY id ASC";
 
 const usersCache = collectionCache(
   () => queryAll<User>(USER_SELECT),
@@ -59,8 +59,8 @@ const insertUser = async (opts: {
   const encryptedInviteExpiry = opts.inviteExpiry ? await encrypt(opts.inviteExpiry) : null;
 
   const result = await getDb().execute({
-    sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, invite_expired)
-          VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+    sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
     args: [
       encryptedUsername,
       usernameIndex,
@@ -83,7 +83,6 @@ const insertUser = async (opts: {
     admin_level: encryptedAdminLevel,
     invite_code_hash: encryptedInviteCode,
     invite_expiry: encryptedInviteExpiry,
-    invite_expired: 0,
   };
 };
 
@@ -267,30 +266,11 @@ export const isInviteValid = async (user: User): Promise<boolean> => {
 };
 
 /**
- * Flag a user's invite as expired in the database
+ * Check if a user's invite has expired (has invite code but is no longer valid)
  */
-export const flagExpiredInvite = async (userId: number): Promise<void> => {
-  await getDb().execute({
-    sql: "UPDATE users SET invite_expired = 1 WHERE id = ?",
-    args: [userId],
-  });
-  invalidateUsersCache();
-};
-
-/**
- * Check all invited users and flag any whose invites have expired.
- * An invited user is one with a non-empty invite_code_hash and no password set.
- */
-export const flagExpiredInvites = async (): Promise<void> => {
-  const users = await loadAllUsers();
-  for (const user of users) {
-    if (user.invite_expired) continue;
-    if (!user.invite_code_hash) continue;
-    const valid = await isInviteValid(user);
-    if (!valid) {
-      await flagExpiredInvite(user.id);
-    }
-  }
+export const isInviteExpired = async (user: User): Promise<boolean> => {
+  if (!user.invite_code_hash) return false;
+  return !(await isInviteValid(user));
 };
 
 /**
@@ -321,8 +301,7 @@ export const usersApi = {
   getUserByInviteCode,
   hashInviteCode,
   isInviteValid,
+  isInviteExpired,
   hasPassword,
-  flagExpiredInvite,
-  flagExpiredInvites,
   invalidateUsersCache,
 };
