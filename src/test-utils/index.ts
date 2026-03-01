@@ -5,6 +5,7 @@
 import { type Client, createClient } from "@libsql/client";
 import { bracket } from "#fp";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
+import { resetDemoMode } from "#lib/demo.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { resetCurrencyCode, setCurrencyCodeForTest, toMajorUnits } from "#lib/currency.ts";
@@ -242,6 +243,7 @@ export const resetDb = (): void => {
   resetSessionCache();
   resetTestSession();
   resetCurrencyCode();
+  resetDemoMode();
 };
 
 /**

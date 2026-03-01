@@ -4,6 +4,7 @@
 
 import { map } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
+import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
 import { decryptAttendeesForTable } from "#lib/db/attendees.ts";
 import { getAllowedDomain } from "#lib/config.ts";
 import { getAttendeesByEventIds } from "#lib/db/events.ts";
@@ -111,8 +112,8 @@ const groupsResource = defineNamedResource({
   onDelete: deleteGroup,
 });
 
-const crudCreate = createOwnerCrudHandlers({ ...crudConfig, resource: groupsCreateResource });
-const crud = createOwnerCrudHandlers({ ...crudConfig, resource: groupsResource });
+const crudCreate = createOwnerCrudHandlers({ ...crudConfig, resource: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS) });
+const crud = createOwnerCrudHandlers({ ...crudConfig, resource: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS) });
 
 /** Look up group by id, return 404 if not found */
 const withGroup = (

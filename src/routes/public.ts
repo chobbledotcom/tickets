@@ -5,6 +5,7 @@
 import { compact, filter, map, pipe, reduce } from "#fp";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
+import { applyDemoOverrides, ATTENDEE_DEMO_FIELDS } from "#lib/demo.ts";
 import {
   getContactPageTextFromDb,
   getHomepageTextFromDb,
@@ -344,6 +345,7 @@ const processTicketReservation = async (
         );
       }
 
+      applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       const validation = validateTicketFields(form, event.fields);
       if (!validation.valid) {
         return ticketResponse(event, inIframe, undefined, terms)(
@@ -497,6 +499,8 @@ const submitMultiTicket = (
       multiTicketResponse(ctx)(message, status),
     async (form) => {
       const { inIframe, dates, terms } = ctx;
+
+      applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
 
       // Validate fields based on merged event settings
       const validation = validateTicketFields(form, getMultiTicketFieldsSetting(ctx.events));
