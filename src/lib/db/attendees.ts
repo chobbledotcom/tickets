@@ -22,19 +22,15 @@ import { getPublicKey } from "#lib/db/settings.ts";
 import { parseEventFields } from "#lib/event-fields.ts";
 import type { Attendee, ContactField, ContactFields, ContactInfo } from "#lib/types.ts";
 
-/** Keys of ContactInfo in stable order, used for parallel encryption */
-const CONTACT_INFO_KEYS: readonly (keyof ContactInfo)[] = [
-  "name", "email", "phone", "address", "special_instructions",
-];
-
 /** Encrypt all contact fields in parallel, returning a keyed record */
 const encryptContactFields = async (
   info: ContactInfo,
   publicKeyJwk: string,
 ): Promise<ContactInfo> => {
+  const encrypt = (field: keyof ContactInfo) => encryptAttendeePII(info[field], publicKeyJwk);
   const [name, email, phone, address, special_instructions] = await Promise.all(
-    CONTACT_INFO_KEYS.map((field) => encryptAttendeePII(info[field], publicKeyJwk)),
-  ) as [string, string, string, string, string];
+    [encrypt("name"), encrypt("email"), encrypt("phone"), encrypt("address"), encrypt("special_instructions")],
+  );
   return { name, email, phone, address, special_instructions };
 };
 
