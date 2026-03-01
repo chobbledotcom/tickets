@@ -6,7 +6,7 @@
  * - Decryption requires the private key (only available to authenticated sessions)
  */
 
-import { map, mapParallel, reduce } from "#fp";
+import { map } from "#fp";
 import {
   computeTicketTokenIndex,
   decrypt,
@@ -27,29 +27,15 @@ const CONTACT_INFO_KEYS: readonly (keyof ContactInfo)[] = [
   "name", "email", "phone", "address", "special_instructions",
 ];
 
-/** All ContactInfo fields encrypted to strings */
-type EncryptedContactInfo = Record<keyof ContactInfo, string>;
-
-/** A [field, encryptedValue] pair */
-type ContactFieldPair = readonly [keyof ContactInfo, string];
-
 /** Encrypt all contact fields in parallel, returning a keyed record */
 const encryptContactFields = async (
   info: ContactInfo,
   publicKeyJwk: string,
-): Promise<EncryptedContactInfo> => {
-  const encryptField = async (field: keyof ContactInfo): Promise<ContactFieldPair> => {
-    const encrypted = await encryptAttendeePII(info[field], publicKeyJwk);
-    return [field, encrypted];
-  };
-  const pairs = await mapParallel(encryptField)([...CONTACT_INFO_KEYS]);
-  return reduce(
-    (acc: EncryptedContactInfo, [key, val]: ContactFieldPair) => {
-      acc[key] = val;
-      return acc;
-    },
-    {} as EncryptedContactInfo,
-  )(pairs);
+): Promise<ContactInfo> => {
+  const [name, email, phone, address, special_instructions] = await Promise.all(
+    CONTACT_INFO_KEYS.map((field) => encryptAttendeePII(info[field], publicKeyJwk)),
+  ) as [string, string, string, string, string];
+  return { name, email, phone, address, special_instructions };
 };
 
 /** Decrypt a boolean-like field, returning "false" for empty/null values */
