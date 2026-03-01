@@ -22,6 +22,18 @@ import { getPublicKey } from "#lib/db/settings.ts";
 import { parseEventFields } from "#lib/event-fields.ts";
 import type { Attendee, ContactField, ContactFields, ContactInfo } from "#lib/types.ts";
 
+/** Encrypt all contact fields in parallel, returning a keyed record */
+const encryptContactFields = async (
+  info: ContactInfo,
+  publicKeyJwk: string,
+): Promise<ContactInfo> => {
+  const encrypt = (field: keyof ContactInfo) => encryptAttendeePII(info[field], publicKeyJwk);
+  const [name, email, phone, address, special_instructions] = await Promise.all(
+    [encrypt("name"), encrypt("email"), encrypt("phone"), encrypt("address"), encrypt("special_instructions")],
+  );
+  return { name, email, phone, address, special_instructions };
+};
+
 /** Decrypt a boolean-like field, returning "false" for empty/null values */
 const decryptBoolField = (value: string, privateKey: CryptoKey): Promise<string> =>
   value ? decryptAttendeePII(value, privateKey) : Promise.resolve("false");
@@ -177,24 +189,32 @@ const encryptAttendeeFields = async (
   if (!publicKeyJwk) return null;
 
   const ticketToken = generateTicketToken();
+  const contact = await encryptContactFields(input, publicKeyJwk);
+
+  const [encryptedPaymentId, encryptedPricePaid, encryptedCheckedIn, encryptedRefunded, encryptedTicketToken, ticketTokenIndex] =
+    await Promise.all([
+      encryptAttendeePII(input.paymentId, publicKeyJwk),
+      encrypt(String(input.pricePaid)),
+      encryptAttendeePII("false", publicKeyJwk),
+      encryptAttendeePII("false", publicKeyJwk),
+      encryptAttendeePII(ticketToken, publicKeyJwk),
+      computeTicketTokenIndex(ticketToken),
+    ]);
 
   return {
     created: nowIso(),
-    encryptedName: await encryptAttendeePII(input.name, publicKeyJwk),
-    encryptedEmail: await encryptAttendeePII(input.email, publicKeyJwk),
-    encryptedPhone: await encryptAttendeePII(input.phone, publicKeyJwk),
-    encryptedAddress: await encryptAttendeePII(input.address, publicKeyJwk),
-    encryptedSpecialInstructions: await encryptAttendeePII(
-      input.special_instructions,
-      publicKeyJwk,
-    ),
-    encryptedPaymentId: await encryptAttendeePII(input.paymentId, publicKeyJwk),
-    encryptedPricePaid: await encrypt(String(input.pricePaid)),
-    encryptedCheckedIn: await encryptAttendeePII("false", publicKeyJwk),
-    encryptedRefunded: await encryptAttendeePII("false", publicKeyJwk),
+    encryptedName: contact.name,
+    encryptedEmail: contact.email,
+    encryptedPhone: contact.phone,
+    encryptedAddress: contact.address,
+    encryptedSpecialInstructions: contact.special_instructions,
+    encryptedPaymentId,
+    encryptedPricePaid,
+    encryptedCheckedIn,
+    encryptedRefunded,
     ticketToken,
-    encryptedTicketToken: await encryptAttendeePII(ticketToken, publicKeyJwk),
-    ticketTokenIndex: await computeTicketTokenIndex(ticketToken),
+    encryptedTicketToken,
+    ticketTokenIndex,
   };
 };
 
@@ -479,39 +499,37 @@ export const getAttendeesByTokens = async (
   return map((idx: string) => byTokenIndex.get(idx) ?? null)(tokenIndexes);
 };
 
+/** Update a single encrypted PII field on an attendee */
+const updateEncryptedField = (field: string) => async (
+  attendeeId: number,
+  value: string,
+): Promise<void> => {
+  const publicKeyJwk = (await getPublicKey())!;
+  const encrypted = await encryptAttendeePII(value, publicKeyJwk);
+  await getDb().execute({
+    sql: `UPDATE attendees SET ${field} = ? WHERE id = ?`,
+    args: [encrypted, attendeeId],
+  });
+};
+
+const setRefunded = updateEncryptedField("refunded");
+const setCheckedIn = updateEncryptedField("checked_in");
+
 /**
  * Mark an attendee as refunded (set refunded to encrypted "true").
  * Keeps payment_id intact so payment details can still be viewed.
  */
-export const markRefunded = async (attendeeId: number): Promise<void> => {
-  const publicKeyJwk = (await getPublicKey())!;
-  const encryptedTrue = await encryptAttendeePII("true", publicKeyJwk);
-  await getDb().execute({
-    sql: "UPDATE attendees SET refunded = ? WHERE id = ?",
-    args: [encryptedTrue, attendeeId],
-  });
-};
+export const markRefunded = (attendeeId: number): Promise<void> =>
+  setRefunded(attendeeId, "true");
 
 /**
  * Update an attendee's checked_in status (encrypted)
  * Caller must be authenticated admin (public key always exists after setup)
  */
-export const updateCheckedIn = async (
+export const updateCheckedIn = (
   attendeeId: number,
   checkedIn: boolean,
-): Promise<void> => {
-  const publicKeyJwk = (await getPublicKey())!;
-
-  const encryptedValue = await encryptAttendeePII(
-    checkedIn ? "true" : "false",
-    publicKeyJwk,
-  );
-
-  await getDb().execute({
-    sql: "UPDATE attendees SET checked_in = ? WHERE id = ?",
-    args: [encryptedValue, attendeeId],
-  });
-};
+): Promise<void> => setCheckedIn(attendeeId, checkedIn ? "true" : "false");
 
 /** Input for updating an attendee */
 export type UpdateAttendeeInput = {
@@ -533,26 +551,15 @@ export const updateAttendee = async (
   input: UpdateAttendeeInput,
 ): Promise<void> => {
   const publicKeyJwk = (await getPublicKey())!;
-
-  const encryptedName = await encryptAttendeePII(input.name, publicKeyJwk);
-  const encryptedEmail = await encryptAttendeePII(input.email, publicKeyJwk);
-  const encryptedPhone = await encryptAttendeePII(input.phone, publicKeyJwk);
-  const encryptedAddress = await encryptAttendeePII(
-    input.address,
-    publicKeyJwk,
-  );
-  const encryptedSpecialInstructions = await encryptAttendeePII(
-    input.special_instructions,
-    publicKeyJwk,
-  );
+  const enc = await encryptContactFields(input, publicKeyJwk);
   await getDb().execute({
     sql: "UPDATE attendees SET name = ?, email = ?, phone = ?, address = ?, special_instructions = ?, event_id = ?, quantity = ? WHERE id = ?",
     args: [
-      encryptedName,
-      encryptedEmail,
-      encryptedPhone,
-      encryptedAddress,
-      encryptedSpecialInstructions,
+      enc.name,
+      enc.email,
+      enc.phone,
+      enc.address,
+      enc.special_instructions,
       input.event_id,
       input.quantity,
       attendeeId,
