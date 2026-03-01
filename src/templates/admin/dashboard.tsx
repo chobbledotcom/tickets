@@ -4,6 +4,7 @@
 
 import { filter, map, pipe, reduce } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
+import { renderSuccess } from "#lib/forms.tsx";
 import type { AdminSession, Attendee, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { Layout } from "#templates/layout.tsx";
@@ -134,6 +135,7 @@ export const adminDashboardPage = (
   session: AdminSession,
   imageError?: string | null,
   newestAttendees: Attendee[] = [],
+  successMessage?: string | null,
 ): string => {
   const eventRows =
     events.length > 0
@@ -145,6 +147,8 @@ export const adminDashboardPage = (
   return String(
     <Layout title="Events">
       <AdminNav session={session} active="/admin/" />
+
+      <Raw html={renderSuccess(successMessage ?? undefined)} />
 
       {imageError && (
         <p class="error">Event created but image was not saved: {imageError}</p>
