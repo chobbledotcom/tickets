@@ -109,7 +109,7 @@ On first launch, visit `/setup/` to set admin credentials and currency. Payment 
 
 ## Deployment
 
-### Docker (any Deno environment)
+### Docker
 
 ```bash
 docker build -t chobble-tickets .
