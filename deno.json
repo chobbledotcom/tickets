@@ -17,8 +17,7 @@
     "precommit": "deno task typecheck && deno task lint && deno task cpd && deno task build:edge && deno task test:coverage"
   },
   "imports": {
-    "#fp": "./src/fp/index.ts",
-    "#fp/": "./src/fp/",
+    "#fp": "./src/fp.ts",
     "#test-utils": "./src/test-utils/index.ts",
     "#test-utils/": "./src/test-utils/",
     "#jsx/jsx-runtime": "./src/lib/jsx/jsx-runtime.ts",

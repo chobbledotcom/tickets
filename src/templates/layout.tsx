@@ -3,7 +3,7 @@
  */
 
 import { type Child, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
-import { CSS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
+import { CSS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, JS_PATH } from "#lib/asset-paths.ts";
 import { getHeaderImageUrl } from "#lib/header-image.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import { getTheme } from "#lib/theme.ts";

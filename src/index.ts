@@ -3,7 +3,7 @@
  */
 
 import { validateEncryptionKey } from "#lib/crypto.ts";
-import { initDb } from "#lib/db/migrations/index.ts";
+import { initDb } from "#lib/db/migrations.ts";
 import { handleRequest } from "#routes/index.ts";
 
 const startServer = async (port = 3000): Promise<void> => {

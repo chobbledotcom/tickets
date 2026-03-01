@@ -88,13 +88,13 @@ const main = async () => {
 
   // 4. Measure initDb (first run - creates tables)
   await measure("4. initDb (cold - creates tables)", async () => {
-    const { initDb } = await import("#lib/db/migrations/index.ts");
+    const { initDb } = await import("#lib/db/migrations.ts");
     await initDb();
   });
 
   // 5. Measure initDb (warm - bails early)
   await measure("5. initDb (warm - version check only)", async () => {
-    const { initDb } = await import("#lib/db/migrations/index.ts");
+    const { initDb } = await import("#lib/db/migrations.ts");
     await initDb();
   });
 
