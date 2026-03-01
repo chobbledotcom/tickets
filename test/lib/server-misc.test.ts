@@ -289,15 +289,14 @@ describe("server (misc)", () => {
   });
 
   describe("routes/admin/utils.ts (requirePrivateKey)", () => {
-    test("throws when private key is unavailable", async () => {
+    test("throws SessionKeyError when private key is unavailable", async () => {
       const { requirePrivateKey } = await import("#routes/admin/utils.ts");
+      const { SessionKeyError } = await import("#routes/utils.ts");
       const session = {
         token: "any-token",
         wrappedDataKey: null,
       } as Parameters<typeof requirePrivateKey>[0];
-      await expect(requirePrivateKey(session)).rejects.toThrow(
-        "Private key unavailable",
-      );
+      await expect(requirePrivateKey(session)).rejects.toThrow(SessionKeyError);
     });
   });
 
@@ -643,6 +642,30 @@ describe("server (misc)", () => {
       expect(response.headers.get("content-type")).toBe(
         "text/html; charset=utf-8",
       );
+    });
+
+    test("SessionKeyError clears cookie and redirects to /admin", async () => {
+      const { cookie } = await loginAsAdmin();
+      const { getDb: getDbFn } = await import("#lib/db/client.ts");
+      const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
+
+      // Remove wrapped_private_key so requirePrivateKey throws SessionKeyError
+      await getDbFn().execute({
+        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+        args: [],
+      });
+      invalidateSettingsCache();
+
+      // Hit admin dashboard (GET /admin with session) which calls requirePrivateKey
+      const response = await handleRequest(
+        mockRequest("/admin", { headers: { cookie } }),
+      );
+
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin");
+      const setCookie = response.headers.get("set-cookie")!;
+      expect(setCookie).toContain("session=");
+      expect(setCookie).toContain("Max-Age=0");
     });
   });
 });

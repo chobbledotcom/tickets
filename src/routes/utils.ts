@@ -23,6 +23,13 @@ import { notFoundPage, temporaryErrorPage } from "#templates/public.tsx";
 // Re-export for use by other route modules
 export { generateSecureToken };
 
+/** Thrown when a session's private key cannot be derived (e.g. wrappedDataKey missing or unwrap failure) */
+export class SessionKeyError extends Error {
+  constructor() {
+    super("Private key unavailable for session");
+  }
+}
+
 /**
  * Shared TextEncoder for pre-encoding string response bodies to Uint8Array.
  * Bunny Edge's runtime intermittently fails to decode JS string bodies

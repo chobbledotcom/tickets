@@ -6,7 +6,7 @@ import { decryptAttendees, decryptAttendeesForTable } from "#lib/db/attendees.ts
 import { getEventWithAttendeesRaw } from "#lib/db/events.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import type { validateForm } from "#lib/forms.tsx";
-import { type AuthSession, encodeBody, getPrivateKey, notFoundResponse, requireSessionOr } from "#routes/utils.ts";
+import { type AuthSession, encodeBody, getPrivateKey, notFoundResponse, requireSessionOr, SessionKeyError } from "#routes/utils.ts";
 
 /** Form field definition type */
 export type FormFields = Parameters<typeof validateForm>[1];
@@ -43,7 +43,7 @@ export const csvResponse = (csv: string, filename: string): Response =>
 /** Get the admin private key from session, throwing if unavailable */
 export const requirePrivateKey = async (session: AuthSession): Promise<CryptoKey> => {
   const key = await getPrivateKey(session);
-  if (!key) throw new Error("Private key unavailable for session");
+  if (!key) throw new SessionKeyError();
   return key;
 };
 
