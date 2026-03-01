@@ -27,23 +27,29 @@ const CONTACT_INFO_KEYS: readonly (keyof ContactInfo)[] = [
   "name", "email", "phone", "address", "special_instructions",
 ];
 
+/** All ContactInfo fields encrypted to strings */
+type EncryptedContactInfo = Record<keyof ContactInfo, string>;
+
+/** A [field, encryptedValue] pair */
+type ContactFieldPair = readonly [keyof ContactInfo, string];
+
 /** Encrypt all contact fields in parallel, returning a keyed record */
 const encryptContactFields = async (
   info: ContactInfo,
   publicKeyJwk: string,
-): Promise<Record<keyof ContactInfo, string>> => {
-  const encryptField = async (field: keyof ContactInfo): Promise<readonly [keyof ContactInfo, string]> => {
+): Promise<EncryptedContactInfo> => {
+  const encryptField = async (field: keyof ContactInfo): Promise<ContactFieldPair> => {
     const encrypted = await encryptAttendeePII(info[field], publicKeyJwk);
-    return [field, encrypted] as const;
+    return [field, encrypted];
   };
   const pairs = await mapParallel(encryptField)([...CONTACT_INFO_KEYS]);
   return reduce(
-    (acc: Record<string, string>, [key, val]: readonly [keyof ContactInfo, string]) => {
+    (acc: EncryptedContactInfo, [key, val]: ContactFieldPair) => {
       acc[key] = val;
       return acc;
     },
-    {} as Record<string, string>,
-  )(pairs) as Record<keyof ContactInfo, string>;
+    {} as EncryptedContactInfo,
+  )(pairs);
 };
 
 /** Decrypt a boolean-like field, returning "false" for empty/null values */
