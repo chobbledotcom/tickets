@@ -2,6 +2,7 @@
  * Admin holiday management routes - owner only
  */
 
+import { HOLIDAY_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
 import { getAllHolidays, type HolidayInput, holidaysTable } from "#lib/db/holidays.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
@@ -44,7 +45,7 @@ const crud = createOwnerCrudHandlers({
   singular: "Holiday",
   listPath: "/admin/holidays",
   getAll: getAllHolidays,
-  resource: holidaysResource,
+  resource: wrapResourceForDemo(holidaysResource, HOLIDAY_DEMO_FIELDS),
   renderList: adminHolidaysPage,
   renderNew: adminHolidayNewPage,
   renderEdit: adminHolidayEditPage,

@@ -3,6 +3,7 @@
  * Owner-only access enforced via requireOwnerOr / withOwnerAuthForm
  */
 
+import { applyDemoOverrides, BUSINESS_EMAIL_DEMO_FIELDS, TERMS_DEMO_FIELDS } from "#lib/demo.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   clearPaymentProvider,
@@ -410,6 +411,7 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/terms - owner only
  */
 const handleTermsPost = settingsRoute(async (form, errorPage) => {
+  applyDemoOverrides(form, TERMS_DEMO_FIELDS);
   const raw = form.get("terms_and_conditions") ?? "";
   const trimmed = raw.trim();
 
@@ -453,6 +455,7 @@ const handleTimezonePost = settingsRoute(processTimezoneForm);
 
 /** Validate and save business email from form submission */
 const processBusinessEmailForm: SettingsFormHandler = async (form, errorPage) => {
+  applyDemoOverrides(form, BUSINESS_EMAIL_DEMO_FIELDS);
   const raw = form.get("business_email") || "";
   const trimmed = raw.trim();
 
