@@ -188,7 +188,7 @@ const main = async (): Promise<void> => {
 
     // Files excluded from coverage enforcement
     const coverageExclusions = [
-      "src/lib/db/migrations/index.ts",
+      "src/lib/db/migrations.ts",
     ];
 
     for (const record of records) {

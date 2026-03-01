@@ -210,10 +210,10 @@ describe("code quality", () => {
 
     /** Library/infrastructure modules - okay to have unused exports */
     const LIBRARY_PATHS = [
-      "fp/index.ts", // FP utility library
+      "fp.ts", // FP utility library
       "lib/jsx/jsx-runtime.ts", // JSX compiler runtime
       "lib/jsx/jsx-dev-runtime.ts", // JSX dev runtime
-      "config/asset-paths.ts", // Build-time config consumed by .tsx templates
+      "lib/asset-paths.ts", // Build-time config consumed by .tsx templates
     ];
 
     /** Index modules that only re-export from sub-modules */
@@ -242,7 +242,7 @@ describe("code quality", () => {
       // Reset cached sessions between tests
       "lib/db/sessions.ts:resetSessionCache",
       // DB version constant used in production but test pattern doesn't detect constant comparison
-      "lib/db/migrations/index.ts:LATEST_UPDATE",
+      "lib/db/migrations.ts:LATEST_UPDATE",
       // Client-side Stripe publishable key (for future payment form templates)
       "lib/config.ts:getStripePublishableKey",
       // Test helper for creating signed webhook payloads

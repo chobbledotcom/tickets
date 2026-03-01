@@ -42,7 +42,7 @@ import {
 } from "#lib/config.ts";
 import { isValidTimezone } from "#lib/timezone.ts";
 import { validateEmbedHosts, parseEmbedHosts } from "#lib/embed-hosts.ts";
-import { resetDatabase } from "#lib/db/migrations/index.ts";
+import { resetDatabase } from "#lib/db/migrations.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
 import { type Field, setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";

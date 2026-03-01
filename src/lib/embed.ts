@@ -2,7 +2,7 @@
  * Embed code generation - shared by single-event and multi-booking views
  */
 
-import { EMBED_JS_PATH } from "#src/config/asset-paths.ts";
+import { EMBED_JS_PATH } from "#lib/asset-paths.ts";
 
 const DEFAULT_IFRAME_HEIGHT = "600px";
 

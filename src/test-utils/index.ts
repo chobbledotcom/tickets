@@ -15,7 +15,7 @@ import {
   invalidateEventsCache,
   type EventInput,
 } from "#lib/db/events.ts";
-import { initDb, LATEST_UPDATE } from "#lib/db/migrations/index.ts";
+import { initDb, LATEST_UPDATE } from "#lib/db/migrations.ts";
 import { invalidateHolidaysCache } from "#lib/db/holidays.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
 import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, updateTimezone } from "#lib/db/settings.ts";

@@ -88,7 +88,7 @@ const inlineAssetsPlugin: Plugin = {
   name: "inline-assets",
   setup(build) {
     // Replace asset paths module with cache-busted version
-    build.onResolve({ filter: /config\/asset-paths\.ts$/ }, (args) => ({
+    build.onResolve({ filter: /lib\/asset-paths\.ts$/ }, (args) => ({
       path: args.path,
       namespace: "inline-asset-paths",
     }));
@@ -241,7 +241,7 @@ globalThis.global ??= globalThis;
 `;
 
 await esbuild.build({
-  entryPoints: ["./src/edge/bunny-script.ts"],
+  entryPoints: ["./src/edge.ts"],
   outdir: "./dist",
   platform: "browser",
   format: "esm",
@@ -254,7 +254,7 @@ await esbuild.build({
 });
 
 // esbuild.build() throws on failure, so if we reach here the output file exists
-const content = await Deno.readTextFile("./dist/bunny-script.js");
+const content = await Deno.readTextFile("./dist/edge.js");
 
 // Bunny Edge Scripting has a 10MB script size limit
 const BUNNY_MAX_SCRIPT_SIZE = 10_000_000;

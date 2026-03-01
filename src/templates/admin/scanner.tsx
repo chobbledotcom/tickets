@@ -4,7 +4,7 @@
 
 import { getCurrentCsrfToken } from "#lib/csrf.ts";
 import type { AdminSession, EventWithCount } from "#lib/types.ts";
-import { SCANNER_JS_PATH } from "#src/config/asset-paths.ts";
+import { SCANNER_JS_PATH } from "#lib/asset-paths.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
