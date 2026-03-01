@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { spy, stub } from "@std/testing/mock";
+import { decrypt } from "#lib/crypto.ts";
 import { resetStripeClient, stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -800,8 +801,7 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(3);
-        // price_paid is stored encrypted, verify it was set (not null)
-        expect(attendees[0]?.price_paid).not.toBeNull();
+        expect(await decrypt(attendees[0]!.price_paid)).toBe("1500");
       } finally {
         mockRetrieve.restore();
       }
@@ -842,8 +842,7 @@ describe("server (webhooks)", () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        // price_paid is stored encrypted, verify it was set (not null)
-        expect(attendees[0]?.price_paid).not.toBeNull();
+        expect(await decrypt(attendees[0]!.price_paid)).toBe("2000");
       } finally {
         mockRetrieve.restore();
       }
@@ -1739,8 +1738,7 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        // price_paid is encrypted "0" (unit_price defaults to 0 for free events)
-        expect(attendees[0]?.price_paid).not.toBeNull();
+        expect(await decrypt(attendees[0]!.price_paid)).toBe("0");
       } finally {
         mockRetrieve.restore();
       }
@@ -1781,8 +1779,7 @@ describe("server (webhooks)", () => {
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
         expect(attendees[0]?.quantity).toBe(2);
-        // price_paid is encrypted "0" (always records actual amount from provider)
-        expect(attendees[0]?.price_paid).not.toBeNull();
+        expect(await decrypt(attendees[0]!.price_paid)).toBe("0");
       } finally {
         mockRetrieve.restore();
       }
@@ -2044,11 +2041,10 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.processed).toBe(true);
 
-        // Verify attendee was created with price_paid set (encrypted)
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(attendees[0]?.price_paid).not.toBeNull();
+        expect(await decrypt(attendees[0]!.price_paid)).toBe("2500");
       } finally {
         mockVerify.restore();
       }
@@ -2831,7 +2827,7 @@ describe("server (webhooks)", () => {
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees = await getAttendeesRaw(event.id);
         expect(attendees.length).toBe(1);
-        expect(attendees[0]?.price_paid).not.toBeNull();
+        expect(await decrypt(attendees[0]!.price_paid)).toBe("2500");
       } finally {
         mockVerify.restore();
       }
@@ -2891,12 +2887,14 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.processed).toBe(true);
 
-        // Verify both attendees were created
+        // Verify both attendees were created with correct per-item prices
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         const attendees2 = await getAttendeesRaw(event2.id);
         expect(attendees1.length).toBe(1);
+        expect(await decrypt(attendees1[0]!.price_paid)).toBe("2000");
         expect(attendees2.length).toBe(1);
+        expect(await decrypt(attendees2[0]!.price_paid)).toBe("1000");
       } finally {
         mockVerify.restore();
       }
@@ -2945,6 +2943,232 @@ describe("server (webhooks)", () => {
             {},
             { "stripe-signature": "sig_valid" },
           ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
+      }
+    });
+
+    test("multi-ticket rejects metadata with non-integer p", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
+        valid: true,
+        event: {
+          id: "evt_bad_p",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_bad_p",
+              payment_status: "paid",
+              payment_intent: "pi_bad_p",
+              amount_total: 1000,
+              metadata: webhookMeta({
+                multi: "1",
+                name: "Bad Metadata",
+                email: "bad@example.com",
+                items: JSON.stringify([{ e: event.id, q: 1, p: 10.5 }]),
+              }),
+            },
+          },
+        },
+      }));
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(400);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("multi-ticket rejects metadata with non-object item", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
+        valid: true,
+        event: {
+          id: "evt_bad_item",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_bad_item",
+              payment_status: "paid",
+              payment_intent: "pi_bad_item",
+              amount_total: 1000,
+              metadata: webhookMeta({
+                multi: "1",
+                name: "Bad Item",
+                email: "bad@example.com",
+                items: JSON.stringify([42, { e: event.id, q: 1, p: 1000 }]),
+              }),
+            },
+          },
+        },
+      }));
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(400);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("multi-ticket rejects metadata with q < 1", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
+        valid: true,
+        event: {
+          id: "evt_bad_q",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_bad_q",
+              payment_status: "paid",
+              payment_intent: "pi_bad_q",
+              amount_total: 0,
+              metadata: webhookMeta({
+                multi: "1",
+                name: "Bad Q",
+                email: "badq@example.com",
+                items: JSON.stringify([{ e: event.id, q: 0, p: 0 }]),
+              }),
+            },
+          },
+        },
+      }));
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(400);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("multi-ticket rejects when per-item p does not match unit_price * q for non-pay-more event", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      // p=500 but event costs 1000*1=1000, and event is not can_pay_more
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
+        valid: true,
+        event: {
+          id: "evt_item_mismatch",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_item_mismatch",
+              payment_status: "paid",
+              payment_intent: "pi_item_mismatch",
+              amount_total: 500,
+              metadata: webhookMeta({
+                multi: "1",
+                name: "Mismatch User",
+                email: "mismatch@example.com",
+                items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+              }),
+            },
+          },
+        },
+      }));
+
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_mismatch" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >));
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
+      }
+    });
+
+    test("multi-ticket rejects when sum(p) does not equal amountTotal", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+        canPayMore: true,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      // p=2000 is valid for can_pay_more (>= 1000), but amountTotal=1500 != sum(p)=2000
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
+        valid: true,
+        event: {
+          id: "evt_total_mismatch",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_total_mismatch",
+              payment_status: "paid",
+              payment_intent: "pi_total_mismatch",
+              amount_total: 1500,
+              metadata: webhookMeta({
+                multi: "1",
+                name: "Total Mismatch",
+                email: "total@example.com",
+                items: JSON.stringify([{ e: event.id, q: 1, p: 2000 }]),
+              }),
+            },
+          },
+        },
+      }));
+
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_total" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >));
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest({}, { "stripe-signature": "sig_valid" }),
         );
         expect(response.status).toBe(200);
         const json = await response.json();

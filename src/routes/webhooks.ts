@@ -286,12 +286,14 @@ const alreadyProcessedResult = async (
   return { success: true, attendee: { id: attendeeId }, event, ticketTokens: [] };
 };
 
-/** Validate that a parsed value has the shape of a MultiItem */
-const isMultiItem = (v: unknown): v is MultiItem =>
-  typeof v === "object" && v !== null &&
-  typeof (v as Record<string, unknown>).e === "number" &&
-  typeof (v as Record<string, unknown>).q === "number" &&
-  typeof (v as Record<string, unknown>).p === "number";
+/** Validate that a parsed value has the shape of a valid MultiItem */
+const isMultiItem = (v: unknown): v is MultiItem => {
+  if (typeof v !== "object" || v === null) return false;
+  const { e, q, p } = v as Record<string, unknown>;
+  return typeof e === "number" && Number.isInteger(e) && e > 0 &&
+    typeof q === "number" && Number.isInteger(q) && q >= 1 &&
+    typeof p === "number" && Number.isInteger(p) && p >= 0;
+};
 
 /** Parse multi-ticket items from metadata */
 const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
@@ -371,13 +373,31 @@ const processMultiPaymentSession = async (
     expectedTotal += vp.expectedPrice;
   }
 
-  // Reject if event prices changed since checkout was created
-  // For pay-more events, allow amount charged >= minimum total
-  const anyCanPayMore = validatedItems.some(({ event }) => event.can_pay_more);
-  if (hasPriceMismatch(session.amountTotal, expectedTotal, anyCanPayMore)) {
+  // Per-item price validation: each item's p must match its event's rules
+  for (const { item, event, expectedPrice } of validatedItems) {
+    const itemMismatch = event.can_pay_more
+      ? item.p < expectedPrice   // pay-more: p must be >= minimum (unit_price * q)
+      : item.p !== expectedPrice; // fixed: p must equal unit_price * q exactly
+    if (itemMismatch) {
+      logError({
+        code: ErrorCode.PAYMENT_SESSION,
+        detail: `Multi-ticket per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
+      });
+      return refundAndFail(
+        session,
+        "The price for one or more events changed while you were completing payment.",
+        undefined,
+        event.id,
+      );
+    }
+  }
+
+  // Cart total must equal the sum of per-item prices
+  const metadataTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
+  if (session.amountTotal !== metadataTotal) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `Multi-ticket price mismatch: provider charged ${session.amountTotal} but current event prices yield ${expectedTotal}`,
+      detail: `Multi-ticket total mismatch: provider charged ${session.amountTotal} but sum(p) = ${metadataTotal}`,
     });
     return refundAndFail(
       session,
