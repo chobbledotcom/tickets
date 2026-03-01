@@ -32,6 +32,7 @@ export interface UsersPageOpts {
   inviteLink: string;
   success: string;
   error: string;
+  currentUserId: number;
 }
 
 export const adminUsersPage = (
@@ -84,10 +85,8 @@ export const adminUsersPage = (
                   )}
                 </td>
                 <td>
-                  {user.adminLevel !== "owner" && (
-                    <CsrfForm class="inline" action={`/admin/users/${user.id}/delete`}>
-                      <button type="submit">Delete</button>
-                    </CsrfForm>
+                  {user.id !== opts.currentUserId && (
+                    <a href={`/admin/users/${user.id}/delete`}>Delete</a>
                   )}
                 </td>
               </tr>
@@ -96,6 +95,46 @@ export const adminUsersPage = (
         </table>
       </div>
     </Layout>
+  );
+
+/**
+ * Admin delete user confirmation page
+ */
+export const adminUserDeletePage = (
+  user: DisplayUser,
+  session: AdminSession,
+  error?: string,
+): string =>
+  String(
+    <Layout title={`Delete User: ${user.username}`}>
+      <AdminNav session={session} active="/admin/users" />
+      <Breadcrumb href="/admin/users" label="Users" />
+      <h1>Delete User</h1>
+      <Raw html={renderError(error)} />
+
+      <article>
+        <aside>
+          <p><strong>Warning:</strong> This will permanently delete the user <strong>{user.username}</strong> ({user.adminLevel}) and all their sessions.</p>
+        </aside>
+      </article>
+
+      <p>To delete this user, type their username &quot;{user.username}&quot; into the box below:</p>
+
+      <CsrfForm action={`/admin/users/${user.id}/delete`}>
+        <label for="confirm_identifier">Username</label>
+        <input
+          type="text"
+          id="confirm_identifier"
+          name="confirm_identifier"
+          placeholder={user.username}
+          autocomplete="off"
+          required
+        />
+        <button type="submit" class="danger">
+          Delete User
+        </button>
+      </CsrfForm>
+    </Layout>,
   );
 
 /**
