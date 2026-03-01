@@ -25,7 +25,8 @@ import {
 import type { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { notFoundResponse, parseRequest, redirect, temporaryErrorResponse } from "#routes/utils.ts";
+import { notFoundResponse, parseRequest, redirect, SessionKeyError, temporaryErrorResponse } from "#routes/utils.ts";
+import { clearSessionCookie } from "#lib/cookies.ts";
 
 /** Router function type - reuse from router.ts */
 type RouterFn = ReturnType<typeof createRouter>;
@@ -243,6 +244,9 @@ export const handleRequest = (
     return logAndReturn(await applySecurityHeaders(response, embeddable), method, path, getElapsed);
   } catch (error) {
     logError({ code: ErrorCode.CDN_REQUEST, detail: String(error) });
+    if (error instanceof SessionKeyError) {
+      return logAndReturn(redirect("/admin", clearSessionCookie()), method, path, getElapsed);
+    }
     return logAndReturn(temporaryErrorResponse(), method, path, getElapsed);
   }
   } finally {
