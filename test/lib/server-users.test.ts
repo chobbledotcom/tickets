@@ -346,8 +346,42 @@ describe("server (multi-user admin)", () => {
     });
   });
 
+  describe("GET /admin/users/:id/delete", () => {
+    test("shows delete confirmation page", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Create a user to delete
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users",
+          {
+            username: "todelete",
+            admin_level: "manager",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      const response = await awaitTestRequest("/admin/users/2/delete", { cookie });
+      await expectHtmlResponse(response, 200, "Delete User", "todelete", "confirm_identifier");
+    });
+
+    test("returns 404 for nonexistent user", async () => {
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/admin/users/999/delete", { cookie });
+      expect(response.status).toBe(404);
+    });
+
+    test("rejects deleting self", async () => {
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/admin/users/1/delete", { cookie });
+      await expectHtmlResponse(response, 400, "Cannot delete your own account");
+    });
+  });
+
   describe("POST /admin/users/:id/delete", () => {
-    test("deletes a user", async () => {
+    test("deletes a user with correct confirmation", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       // Create an invited user first
@@ -366,11 +400,11 @@ describe("server (multi-user admin)", () => {
       const usersBefore = await getAllUsers();
       expect(usersBefore.length).toBe(2);
 
-      // Delete user with id 2
+      // Delete user with id 2 with correct confirmation
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/2/delete",
-          { csrf_token: csrfToken },
+          { csrf_token: csrfToken, confirm_identifier: "deleteme" },
           cookie,
         ),
       );
@@ -382,16 +416,104 @@ describe("server (multi-user admin)", () => {
       expect(usersAfter.length).toBe(1);
     });
 
+    test("rejects deletion with wrong confirmation", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users",
+          {
+            username: "keepme",
+            admin_level: "manager",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/users/2/delete",
+          { csrf_token: csrfToken, confirm_identifier: "wrongname" },
+          cookie,
+        ),
+      );
+      await expectHtmlResponse(response, 400, "Username does not match");
+
+      const usersAfter = await getAllUsers();
+      expect(usersAfter.length).toBe(2);
+    });
+
+    test("rejects deletion without confirmation", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users",
+          {
+            username: "keepme2",
+            admin_level: "manager",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/users/2/delete",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      await expectHtmlResponse(response, 400, "Username does not match");
+    });
+
     test("prevents deleting self", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/users/1/delete",
-          { csrf_token: csrfToken },
+          { csrf_token: csrfToken, confirm_identifier: TEST_ADMIN_USERNAME },
           cookie,
         ),
       );
       await expectHtmlResponse(response, 400, "Cannot delete your own account");
+    });
+
+    test("deletes another owner with correct confirmation", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Create another owner user
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users",
+          {
+            username: "otheradmin",
+            admin_level: "owner",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      const usersBefore = await getAllUsers();
+      expect(usersBefore.length).toBe(2);
+
+      // Delete the other owner with correct confirmation
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/users/2/delete",
+          { csrf_token: csrfToken, confirm_identifier: "otheradmin" },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("deleted");
+
+      const usersAfter = await getAllUsers();
+      expect(usersAfter.length).toBe(1);
     });
   });
 
@@ -1155,7 +1277,7 @@ describe("server (multi-user admin)", () => {
       await handleRequest(
         mockFormRequest(
           "/admin/users/2/delete",
-          { csrf_token: csrfToken },
+          { csrf_token: csrfToken, confirm_identifier: "auditdelete" },
           cookie,
         ),
       );
