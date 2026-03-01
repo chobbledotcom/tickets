@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: chobble-tickets
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DB_URL
+        sync: false
+      - key: DB_TOKEN
+        sync: false
+      - key: DB_ENCRYPTION_KEY
+        sync: false
+      - key: ALLOWED_DOMAIN
+        sync: false
+      - key: PORT
+        value: "3000"
