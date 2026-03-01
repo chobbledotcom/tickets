@@ -654,9 +654,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             Open an event and click <strong>Scanner</strong>. Tap{" "}
             <strong>Start Camera</strong> to begin (grants camera permission on
             first use). Point the camera at an attendee's QR code and check-in
-            happens automatically. Duplicate scans of the same ticket are
-            suppressed while the success message is visible. The scanner works
-            best with the rear camera on mobile devices.
+            happens automatically. The scanner works best with the rear camera
+            on mobile devices.
           </p>
         </Q>
 
