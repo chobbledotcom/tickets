@@ -2,7 +2,7 @@
  * Admin holiday management page templates
  */
 
-import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, renderError, renderFields, renderSuccess } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#lib/types.ts";
 import { holidayFields } from "#templates/fields.ts";
@@ -15,13 +15,13 @@ import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 export const adminHolidaysPage = (
   holidays: Holiday[],
   session: AdminSession,
-  error?: string,
+  successMessage?: string,
 ): string =>
   String(
     <Layout title="Holidays">
       <AdminNav session={session} active="/admin/holidays" />
       <h1>Holidays</h1>
-      <Raw html={renderError(error)} />
+      <Raw html={renderSuccess(successMessage)} />
       <p><a href="/admin/holiday/new">Add Holiday</a></p>
       {holidays.length === 0
         ? <p>No holidays configured.</p>

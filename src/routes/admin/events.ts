@@ -35,6 +35,7 @@ import {
   notFoundResponse,
   orNotFound,
   redirect,
+  redirectWithSuccess,
   requireSessionOr,
   withAuthForm,
   withAuthMultipartForm,
@@ -189,7 +190,7 @@ const handleCreateEvent: TypedRouteHandler<"POST /admin/event"> = (request) =>
     if (imageError) {
       return redirect(`/admin?image_error=${encodeURIComponent(imageError)}`);
     }
-    return redirect("/admin");
+    return redirectWithSuccess("/admin", "Event created");
   });
 
 /** Extract check-in message params from request URL */
@@ -245,6 +246,7 @@ const renderEventPage = async (request: Request, { id }: { id: number }, activeF
     withEventAttendees(request, id, async ({ event, attendees, session }) => {
       const { dateFilter, availableDates, filteredByDate } = applyDateFilter(event, attendees, request);
       const imageError = getSearchParam(request, "image_error");
+      const successMessage = getSearchParam(request, "success");
       const phonePrefix = await getPhonePrefixFromDb();
       return htmlResponse(
         adminEventPage({
@@ -259,6 +261,7 @@ const renderEventPage = async (request: Request, { id }: { id: number }, activeF
           addAttendeeMessage: getAddAttendeeMessage(request),
           imageError,
           phonePrefix,
+          successMessage,
         }),
       );
     }, "table"),
@@ -333,8 +336,10 @@ const handleAdminEventEditPost: TypedRouteHandler<"POST /admin/event/:id/edit"> 
     if (result.ok) {
       await logActivity(`Event '${result.row.name}' updated`, result.row);
       const imageError = await processFormImage(formData, id, existing.image_url);
-      const imageErrorParam = imageError ? `?image_error=${encodeURIComponent(imageError)}` : "";
-      return redirect(`/admin/event/${result.row.id}${imageErrorParam}`);
+      if (imageError) {
+        return redirect(`/admin/event/${result.row.id}?image_error=${encodeURIComponent(imageError)}`);
+      }
+      return redirectWithSuccess(`/admin/event/${result.row.id}`, "Event updated");
     }
     if ("notFound" in result) return notFoundResponse();
 
@@ -397,7 +402,7 @@ const eventToggleHandler = (
   handleEventWithConfirmation(request, id, renderPage, CONFIRM_NAME_MSG, async (event) => {
     await eventsTable.update(id, { active });
     await logActivity(`Event '${event.name}' ${verb}`, id);
-    return redirect(`/admin/event/${id}`);
+    return redirectWithSuccess(`/admin/event/${id}`, `Event ${verb}`);
   });
 
 /** Handle POST /admin/event/:id/deactivate */
@@ -425,7 +430,7 @@ const performDelete = async (event: EventWithCount): Promise<Response> => {
   await logActivity(
     `Event '${event.name}' deleted (${attendeeCount} attendee(s) removed)`,
   );
-  return redirect("/admin");
+  return redirectWithSuccess("/admin", "Event deleted");
 };
 
 /** Handle DELETE /admin/event/:id (delete event with logging) */
@@ -448,7 +453,7 @@ const handleImageDelete: TypedRouteHandler<"POST /admin/event/:id/image/delete">
         await eventsTable.update(id, { imageUrl: "" });
         await logActivity(`Image removed for '${event.name}'`, event);
       }
-      return redirect(`/admin/event/${id}`);
+      return redirectWithSuccess(`/admin/event/${id}`, "Image removed");
     }));
 
 /** Create a handler that renders the event page with a specific attendee filter */

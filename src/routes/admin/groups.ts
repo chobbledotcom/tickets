@@ -29,7 +29,7 @@ import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { htmlResponse, orNotFound, redirect, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
+import { getSearchParam, htmlResponse, orNotFound, redirectWithSuccess, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -145,7 +145,8 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (request, {
         phonePrefix = prefix;
       }
       const allowedDomain = getAllowedDomain();
-      return htmlResponse(adminGroupDetailPage(group, sortedEvents, sortEvents(ungroupedEvents, holidays), attendees, session, allowedDomain, phonePrefix));
+      const successMessage = getSearchParam(request, "success") || undefined;
+      return htmlResponse(adminGroupDetailPage(group, sortedEvents, sortEvents(ungroupedEvents, holidays), attendees, session, allowedDomain, phonePrefix, successMessage));
     }));
 
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
@@ -157,7 +158,7 @@ const handleAddEventsToGroup: TypedRouteHandler<"POST /admin/group/:id/add-event
         await assignEventsToGroup(eventIds, id);
         await logActivity(`${eventIds.length} event(s) added to group '${group.name}'`);
       }
-      return redirect(`/admin/group/${id}`);
+      return redirectWithSuccess(`/admin/group/${id}`, "Events added to group");
     }));
 
 /** Group routes */
