@@ -266,9 +266,11 @@ export const isInviteValid = async (user: User): Promise<boolean> => {
 };
 
 /**
- * Check if a user's invite has expired (has invite code but is no longer valid)
+ * Check if a user's invite has expired (has invite code but is no longer valid).
+ * Returns false for users who have already set a password (accepted invite).
  */
 export const isInviteExpired = async (user: User): Promise<boolean> => {
+  if (await hasPassword(user)) return false;
   if (!user.invite_code_hash) return false;
   return !(await isInviteValid(user));
 };

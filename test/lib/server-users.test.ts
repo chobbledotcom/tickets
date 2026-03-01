@@ -160,6 +160,18 @@ describe("server (multi-user admin)", () => {
       const owner = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(await isInviteExpired(owner!)).toBe(false);
     });
+
+    test("returns false for user who accepted invite", async () => {
+      const { setUserPassword } = await import("#lib/db/users.ts");
+      const expiry = new Date(Date.now() - 1000).toISOString();
+      const user = await createInvitedUser("accepted-user", "manager", "somehash", expiry);
+
+      await setUserPassword(user.id, "newpassword123");
+      invalidateUsersCache();
+
+      const updated = await getUserByUsername("accepted-user");
+      expect(await isInviteExpired(updated!)).toBe(false);
+    });
   });
 
   describe("role enforcement", () => {

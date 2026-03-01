@@ -51,14 +51,17 @@ const VALID_ADMIN_LEVELS = ["owner", "manager"] as const;
  */
 const toDisplayUser = async (
   user: User,
-): Promise<DisplayUser> => ({
-  id: user.id,
-  username: await decryptUsername(user),
-  adminLevel: await decryptAdminLevel(user),
-  hasPassword: await hasPassword(user),
-  hasDataKey: user.wrapped_data_key !== null,
-  inviteExpired: await isInviteExpired(user),
-});
+): Promise<DisplayUser> => {
+  const userHasPassword = await hasPassword(user);
+  return {
+    id: user.id,
+    username: await decryptUsername(user),
+    adminLevel: await decryptAdminLevel(user),
+    hasPassword: userHasPassword,
+    hasDataKey: user.wrapped_data_key !== null,
+    inviteExpired: userHasPassword ? false : await isInviteExpired(user),
+  };
+};
 
 /**
  * Render users page with current state
