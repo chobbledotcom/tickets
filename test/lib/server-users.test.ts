@@ -8,7 +8,10 @@ import {
   createInvitedUser,
   decryptAdminLevel,
   decryptUsername,
+  flagExpiredInvite,
+  flagExpiredInvites,
   getAllUsers,
+  getUserById,
   getUserByUsername,
   hasPassword,
   invalidateUsersCache,
@@ -137,6 +140,45 @@ describe("server (multi-user admin)", () => {
 
       const valid = await isInviteValid(user);
       expect(valid).toBe(false);
+    });
+  });
+
+  describe("flagging expired invites", () => {
+    test("flagExpiredInvite sets invite_expired to 1", async () => {
+      const expiry = new Date(Date.now() - 1000).toISOString();
+      const user = await createInvitedUser("flag-test", "manager", "somehash", expiry);
+      expect(user.invite_expired).toBe(0);
+
+      await flagExpiredInvite(user.id);
+
+      const updated = await getUserById(user.id);
+      expect(updated!.invite_expired).toBe(1);
+    });
+
+    test("flagExpiredInvites flags all expired invites", async () => {
+      const expired = new Date(Date.now() - 1000).toISOString();
+      const valid = new Date(Date.now() + 86400000).toISOString();
+      await createInvitedUser("expired-bulk", "manager", "hash1", expired);
+      await createInvitedUser("valid-bulk", "manager", "hash2", valid);
+
+      await flagExpiredInvites();
+
+      const expiredUser = await getUserByUsername("expired-bulk");
+      expect(expiredUser!.invite_expired).toBe(1);
+      const validUser = await getUserByUsername("valid-bulk");
+      expect(validUser!.invite_expired).toBe(0);
+    });
+
+    test("flagExpiredInvites skips already flagged users", async () => {
+      const expired = new Date(Date.now() - 1000).toISOString();
+      const user = await createInvitedUser("already-flagged", "manager", "hash3", expired);
+      await flagExpiredInvite(user.id);
+
+      // Should not error when running again
+      await flagExpiredInvites();
+
+      const updated = await getUserById(user.id);
+      expect(updated!.invite_expired).toBe(1);
     });
   });
 
@@ -694,6 +736,19 @@ describe("server (multi-user admin)", () => {
       await expectHtmlResponse(response, 410, "expired");
     });
 
+    test("GET /join/:code flags expired invite on users table", async () => {
+      const expiry = new Date(Date.now() - 1000).toISOString();
+      const { hashInviteCode } = await import("#lib/db/users.ts");
+      const codeHash = await hashInviteCode("expired-flag-123");
+      const user = await createInvitedUser("expired-flag-user", "manager", codeHash, expiry);
+      expect(user.invite_expired).toBe(0);
+
+      await handleRequest(mockRequest("/join/expired-flag-123"));
+
+      const updated = await getUserById(user.id);
+      expect(updated!.invite_expired).toBe(1);
+    });
+
     test("POST /join/:code returns 410 for expired invite", async () => {
       const expiry = new Date(Date.now() - 1000).toISOString();
       const { hashInviteCode } = await import("#lib/db/users.ts");
@@ -797,6 +852,34 @@ describe("server (multi-user admin)", () => {
       const response = await awaitTestRequest("/admin/users", { cookie });
       const html = await response.text();
       expect(html).toContain("Invited");
+    });
+
+    test("shows Invite Expired status for expired invite", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      // Create an invited user then manually expire it
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users",
+          {
+            username: "expired-display",
+            admin_level: "manager",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      // Set invite_expiry to past and let flagExpiredInvites detect it
+      const expiredExpiry = await encrypt(new Date(Date.now() - 1000).toISOString());
+      await getDb().execute({
+        sql: "UPDATE users SET invite_expiry = ? WHERE id = 2",
+        args: [expiredExpiry],
+      });
+      invalidateUsersCache();
+
+      const response = await awaitTestRequest("/admin/users", { cookie });
+      const html = await response.text();
+      expect(html).toContain("Invite Expired");
     });
 
     test("shows Pending Activation status and Activate button for user with password but no data key", async () => {

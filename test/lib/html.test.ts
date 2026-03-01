@@ -1583,9 +1583,9 @@ describe("html", () => {
   describe("adminUsersPage", () => {
     test("renders statuses and actions for different user states", () => {
       const users: DisplayUser[] = [
-        { id: 1, username: "owner", adminLevel: "owner", hasPassword: true, hasDataKey: true },
-        { id: 2, username: "pending", adminLevel: "manager", hasPassword: true, hasDataKey: false },
-        { id: 3, username: "invited", adminLevel: "manager", hasPassword: false, hasDataKey: false },
+        { id: 1, username: "owner", adminLevel: "owner", hasPassword: true, hasDataKey: true, inviteExpired: false },
+        { id: 2, username: "pending", adminLevel: "manager", hasPassword: true, hasDataKey: false, inviteExpired: false },
+        { id: 3, username: "invited", adminLevel: "manager", hasPassword: false, hasDataKey: false, inviteExpired: false },
       ];
       const html = adminUsersPage(users, TEST_SESSION, { inviteLink: "", success: "", error: "" });
       expect(html).toContain("Active");
@@ -1596,9 +1596,18 @@ describe("html", () => {
       expect(html).not.toContain('action="/admin/users/1/delete"');
     });
 
+    test("renders Invite Expired status for expired invite", () => {
+      const users: DisplayUser[] = [
+        { id: 1, username: "owner", adminLevel: "owner", hasPassword: true, hasDataKey: true, inviteExpired: false },
+        { id: 2, username: "expired-user", adminLevel: "manager", hasPassword: false, hasDataKey: false, inviteExpired: true },
+      ];
+      const html = adminUsersPage(users, TEST_SESSION, { inviteLink: "", success: "", error: "" });
+      expect(html).toContain("Invite Expired");
+    });
+
     test("renders invite, success, and error messages when provided", () => {
       const users: DisplayUser[] = [
-        { id: 1, username: "owner", adminLevel: "owner", hasPassword: true, hasDataKey: true },
+        { id: 1, username: "owner", adminLevel: "owner", hasPassword: true, hasDataKey: true, inviteExpired: false },
       ];
       const html = adminUsersPage(users, TEST_SESSION, {
         inviteLink: "https://example.com/join/abc123",

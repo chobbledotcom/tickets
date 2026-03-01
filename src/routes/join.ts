@@ -6,6 +6,7 @@ import { signCsrfToken } from "#lib/csrf.ts";
 import type { User } from "#lib/types.ts";
 import {
   decryptUsername,
+  flagExpiredInvite,
   getUserByInviteCode,
   isInviteValid,
   setUserPassword,
@@ -38,6 +39,7 @@ const validateInvite = async (code: string): Promise<
 
   const valid = await isInviteValid(user);
   if (!valid) {
+    await flagExpiredInvite(user.id);
     return htmlResponse(
       joinErrorPage("This invite link has expired."),
       410,

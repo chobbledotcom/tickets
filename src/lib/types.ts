@@ -112,6 +112,7 @@ export interface User {
   admin_level: string; // encrypted "owner" or "manager"
   invite_code_hash: string | null; // encrypted SHA-256 of invite token, null after password set
   invite_expiry: string | null; // encrypted ISO 8601, null after password set
+  invite_expired: number; // 1 if invite has expired, 0 otherwise
 }
 
 export interface Holiday {

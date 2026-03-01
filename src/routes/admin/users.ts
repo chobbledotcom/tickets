@@ -10,6 +10,7 @@ import {
   decryptAdminLevel,
   decryptUsername,
   deleteUser,
+  flagExpiredInvites,
   getAllUsers,
   getUserById,
   hashInviteCode,
@@ -56,6 +57,7 @@ const toDisplayUser = async (
   adminLevel: await decryptAdminLevel(user),
   hasPassword: await hasPassword(user),
   hasDataKey: user.wrapped_data_key !== null,
+  inviteExpired: user.invite_expired === 1,
 });
 
 /**
@@ -65,6 +67,7 @@ const renderUsersPage = async (
   session: AuthSession,
   opts: UsersPageOpts,
 ): Promise<string> => {
+  await flagExpiredInvites();
   const users = await getAllUsers();
   const displayUsers = await Promise.all(users.map(toDisplayUser));
   return adminUsersPage(displayUsers, session, opts);
