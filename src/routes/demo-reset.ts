@@ -1,6 +1,6 @@
 /**
  * Demo reset routes - allows unauthenticated users to reset the database in demo mode.
- * Access is restricted to demo mode (DEMO_MODE=true) or authenticated admin users.
+ * Access is strictly restricted to demo mode (DEMO_MODE=true).
  */
 
 import { isDemoMode } from "#lib/demo.ts";
@@ -9,7 +9,6 @@ import { resetDatabase } from "#lib/db/migrations.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
-  getAuthenticatedSession,
   htmlResponse,
   notFoundResponse,
   redirect,
@@ -21,15 +20,11 @@ import {
   RESET_PHRASE_MISMATCH_ERROR,
 } from "#templates/demo-reset.tsx";
 
-/** Guard: require demo mode or authenticated admin, else 404 */
-const withDemoResetAccess = async (
-  request: Request,
+/** Guard: require demo mode, else 404 */
+const withDemoResetAccess = (
   handler: () => Response | Promise<Response>,
-): Promise<Response> => {
-  if (isDemoMode()) return handler();
-  const session = await getAuthenticatedSession(request);
-  return session ? handler() : notFoundResponse();
-};
+): Response | Promise<Response> =>
+  isDemoMode() ? handler() : notFoundResponse();
 
 /** Render demo reset page with an error */
 const resetPageError = (message: string, status: number): Response =>
@@ -47,15 +42,15 @@ export const validateResetPhrase = (form: URLSearchParams): string | null => {
 };
 
 /** Handle GET /demo/reset - show reset confirmation page */
-const handleDemoResetGet = (request: Request): Promise<Response> =>
-  withDemoResetAccess(request, async () => {
+const handleDemoResetGet = (): Response | Promise<Response> =>
+  withDemoResetAccess(async () => {
     await signCsrfToken();
     return htmlResponse(demoResetPage());
   });
 
 /** Handle POST /demo/reset - reset the database */
-const handleDemoResetPost = (request: Request): Promise<Response> =>
-  withDemoResetAccess(request, () =>
+const handleDemoResetPost = (request: Request): Response | Promise<Response> =>
+  withDemoResetAccess(() =>
     withCsrfForm(request, resetPageError, async (form) => {
       const phraseError = validateResetPhrase(form);
       if (phraseError) return resetPageError(phraseError, 400);

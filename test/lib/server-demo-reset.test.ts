@@ -33,8 +33,14 @@ describe("server (demo reset)", () => {
   });
 
   describe("GET /demo/reset", () => {
-    test("returns 404 when demo mode is off and not authenticated", async () => {
+    test("returns 404 when demo mode is off", async () => {
       const response = await handleRequest(mockRequest("/demo/reset"));
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 when demo mode is off even for authenticated admin", async () => {
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/demo/reset", { cookie });
       expect(response.status).toBe(404);
     });
 
@@ -47,13 +53,6 @@ describe("server (demo reset)", () => {
       expect(html).toContain(RESET_DATABASE_PHRASE);
     });
 
-    test("shows reset page when authenticated as admin", async () => {
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/demo/reset", { cookie });
-      const html = await expectHtmlResponse(response, 200, "Reset Database");
-      expect(html).toContain("confirm_phrase");
-    });
-
     test("contains back to login link", async () => {
       Deno.env.set("DEMO_MODE", "true");
       resetDemoMode();
@@ -64,11 +63,23 @@ describe("server (demo reset)", () => {
   });
 
   describe("POST /demo/reset", () => {
-    test("returns 404 when demo mode is off and not authenticated", async () => {
+    test("returns 404 when demo mode is off", async () => {
       const response = await handleRequest(
         mockFormRequest("/demo/reset", {
           confirm_phrase: RESET_DATABASE_PHRASE,
         }),
+      );
+      expect(response.status).toBe(404);
+    });
+
+    test("returns 404 when demo mode is off even for authenticated admin", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockFormRequest(
+          "/demo/reset",
+          { confirm_phrase: RESET_DATABASE_PHRASE, csrf_token: csrfToken },
+          cookie,
+        ),
       );
       expect(response.status).toBe(404);
     });
@@ -151,24 +162,6 @@ describe("server (demo reset)", () => {
       invalidateTestDbCache();
     });
 
-    test("resets database when authenticated as admin", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/demo/reset",
-          {
-            confirm_phrase: RESET_DATABASE_PHRASE,
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-
-      expectRedirect("/setup/")(response);
-      expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
-      invalidateTestDbCache();
-    });
   });
 
   describe("login page demo reset link", () => {
