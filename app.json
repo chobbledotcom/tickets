@@ -1,0 +1,25 @@
+{
+  "name": "chobble-tickets",
+  "description": "A self-hosted ticket reservation system with encryption, Stripe/Square payments, and QR check-in.",
+  "repository": "https://github.com/chobbledotcom/tickets",
+  "logo": "https://tix.chobble.com/favicon.ico",
+  "stack": "container",
+  "env": {
+    "DB_URL": {
+      "description": "libsql database URL (e.g. libsql://your-db.turso.io or file:/data/tickets.db)",
+      "required": true
+    },
+    "DB_TOKEN": {
+      "description": "Database auth token (required for remote databases)",
+      "required": false
+    },
+    "DB_ENCRYPTION_KEY": {
+      "description": "32-byte base64-encoded AES-256 encryption key",
+      "required": true
+    },
+    "ALLOWED_DOMAIN": {
+      "description": "Domain for security validation (e.g. your-app.herokuapp.com)",
+      "required": true
+    }
+  }
+}
