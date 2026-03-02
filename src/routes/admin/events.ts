@@ -100,7 +100,7 @@ const extractCommonFields = (values: EventFormValues) => {
   const date = rawDate ? normalizeDatetime(rawDate, "date") : rawDate;
   const unitPrice = values.unit_price
     ? toMinorUnits(Number.parseFloat(values.unit_price))
-    : null;
+    : undefined;
   const closesAt = values.closes_at
     ? normalizeDatetime(values.closes_at, "closes_at")
     : values.closes_at;
