@@ -3,6 +3,7 @@
  * Owner-only access enforced via requireOwnerOr / withOwnerAuthForm
  */
 
+import { applyDemoOverrides, TERMS_DEMO_FIELDS } from "#lib/demo.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   clearPaymentProvider,
@@ -410,6 +411,7 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/terms - owner only
  */
 const handleTermsPost = settingsRoute(async (form, errorPage) => {
+  applyDemoOverrides(form, TERMS_DEMO_FIELDS);
   const raw = form.get("terms_and_conditions") ?? "";
   const trimmed = raw.trim();
 

@@ -3,6 +3,7 @@
  * Owner-only access
  */
 
+import { applyDemoOverrides, SITE_CONTACT_DEMO_FIELDS, SITE_HOME_DEMO_FIELDS } from "#lib/demo.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   getContactPageTextFromDb,
@@ -66,6 +67,7 @@ const renderContactPage: PageRenderer = async (session, error, success) => {
 
 /** Handle POST /admin/site - save homepage */
 const handleSiteHomePost = sitePostRoute(async (session, form) => {
+  applyDemoOverrides(form, SITE_HOME_DEMO_FIELDS);
   const showError = errorPageFor(session, renderHomePage);
 
   const titleRaw = (form.get("website_title") ?? "").trim();
@@ -92,6 +94,7 @@ const handleSiteHomePost = sitePostRoute(async (session, form) => {
 
 /** Handle POST /admin/site/contact - save contact page */
 const handleSiteContactPost = sitePostRoute(async (session, form) => {
+  applyDemoOverrides(form, SITE_CONTACT_DEMO_FIELDS);
   const textRaw = (form.get("contact_page_text") ?? "").trim();
   if (textRaw.length > MAX_PAGE_TEXT_LENGTH) {
     return errorPageFor(session, renderContactPage)(

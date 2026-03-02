@@ -4,6 +4,7 @@
 
 import { filter } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
+import { applyDemoOverrides, EVENT_DEMO_FIELDS } from "#lib/demo.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
@@ -180,6 +181,7 @@ const handleNewEventGet: TypedRouteHandler<"GET /admin/event/new"> = (request) =
 const handleCreateEvent: TypedRouteHandler<"POST /admin/event"> = (request) =>
   withAuthMultipartForm(request, async (session, formData) => {
     const form = formDataToParams(formData);
+    applyDemoOverrides(form, EVENT_DEMO_FIELDS);
     const result = await eventsResource.create(form);
     if (!result.ok) {
       const groups = await getAllGroups();
@@ -318,6 +320,7 @@ const handleAdminEventEditPost: TypedRouteHandler<"POST /admin/event/:id/edit"> 
     if (!existing) return notFoundResponse();
 
     const form = formDataToParams(formData);
+    applyDemoOverrides(form, EVENT_DEMO_FIELDS);
 
     // Build a resource that includes the slug field and validates uniqueness
     const updateResource = defineResource({
