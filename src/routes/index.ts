@@ -91,6 +91,12 @@ const loadImageRoutes = once(async () => {
   return routeImage;
 });
 
+/** Lazy-load demo reset routes */
+const loadDemoResetRoutes = once(async () => {
+  const { routeDatabaseReset } = await import("#routes/admin/database-reset.ts");
+  return routeDatabaseReset;
+});
+
 // Re-export middleware functions for testing
 export {
   getCleanUrl,
@@ -147,6 +153,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   image: lazyRoute(loadImageRoutes),
   payment: lazyRoute(loadPaymentRoutes),
   join: lazyRoute(loadJoinRoutes),
+  demo: lazyRoute(loadDemoResetRoutes),
 };
 
 /**

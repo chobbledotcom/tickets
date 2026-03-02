@@ -44,6 +44,7 @@ import {
 import { isValidTimezone } from "#lib/timezone.ts";
 import { validateEmbedHosts, parseEmbedHosts } from "#lib/embed-hosts.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
+import { validateResetPhrase } from "#routes/admin/database-reset.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
 import { type Field, setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
@@ -570,23 +571,11 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
 });
 
 /**
- * Expected confirmation phrase for database reset
- */
-const RESET_DATABASE_PHRASE =
-  "The site will be fully reset and all data will be lost.";
-
-/**
  * Handle POST /admin/settings/reset-database - owner only
  */
 const handleResetDatabasePost = settingsRoute(async (form, errorPage) => {
-  const confirmPhrase = form.get("confirm_phrase") ?? "";
-  if (confirmPhrase.trim() !== RESET_DATABASE_PHRASE) {
-    return errorPage(
-      "Confirmation phrase does not match. Please type the exact phrase to confirm reset.",
-      400,
-      "settings-reset-database",
-    );
-  }
+  const phraseError = validateResetPhrase(form);
+  if (phraseError) return errorPage(phraseError, 400, "settings-reset-database");
 
   await logActivity("Database reset initiated");
   await resetDatabase();
