@@ -245,4 +245,4 @@ export const wrapResourceForDemo = <R, I, V extends FieldValues = FieldValues>(
 
 /** Demo mode banner HTML */
 export const DEMO_BANNER =
-  '<div class="demo-banner">Demo Mode \u2014 entered text is replaced with sample data</div>';
+  '<div class="demo-banner">Demo Mode &mdash; entered text is replaced with sample data</div>';

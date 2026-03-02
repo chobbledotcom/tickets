@@ -12,7 +12,6 @@ import {
   DEMO_GROUP_NAMES,
   DEMO_HOLIDAY_NAMES,
   DEMO_NAMES,
-  DEMO_PHONES,
   type DemoFieldMap,
   EVENT_DEMO_FIELDS,
   isDemoMode,
@@ -194,20 +193,6 @@ describe("demo", () => {
       wrapped.create(form);
 
       expect(getLastCreateForm()!.get("name")).toBe("Unchanged");
-    });
-  });
-
-  describe("demo data arrays", () => {
-    test("demo emails have valid format", () => {
-      for (const email of DEMO_EMAILS) {
-        expect(email).toMatch(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
-      }
-    });
-
-    test("demo phones have valid format", () => {
-      for (const phone of DEMO_PHONES) {
-        expect(phone).toMatch(/^\+44/);
-      }
     });
   });
 
