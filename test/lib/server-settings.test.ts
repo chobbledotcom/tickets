@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import {
@@ -8,9 +8,10 @@ import {
   setPaymentProvider,
   updateTermsAndConditions,
 } from "#lib/db/settings.ts";
+import { invalidateUsersCache } from "#lib/db/users.ts";
+import { resetDemoMode } from "#lib/demo.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
-import { invalidateUsersCache } from "#lib/db/users.ts";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
@@ -35,6 +36,8 @@ describe("server (admin settings)", () => {
   });
 
   afterEach(() => {
+    Deno.env.delete("DEMO_MODE");
+    resetDemoMode();
     resetDb();
   });
 
@@ -73,7 +76,9 @@ describe("server (admin settings)", () => {
       expect(html).toContain('id="settings-timezone"');
       expect(html).toContain("Timezone updated");
       // The success message should be inside the timezone form, not as a global banner
-      const timezoneFormMatch = html.match(/id="settings-timezone"[\s\S]*?<\/form>/);
+      const timezoneFormMatch = html.match(
+        /id="settings-timezone"[\s\S]*?<\/form>/,
+      );
       expect(timezoneFormMatch).toBeDefined();
       expect(timezoneFormMatch![0]).toContain("Timezone updated");
     });
@@ -324,7 +329,8 @@ describe("server (admin settings)", () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -372,7 +378,8 @@ describe("server (admin settings)", () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -427,15 +434,23 @@ describe("server (admin settings)", () => {
           stub(stripeApi, "testStripeConnection", () =>
             Promise.resolve({
               ok: false,
-              apiKey: { valid: false, error: "No Stripe secret key configured" },
+              apiKey: {
+                valid: false,
+                error: "No Stripe secret key configured",
+              },
               webhook: { configured: false },
-            })),
+            }),
+          ),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
-            mockFormRequest("/admin/settings/stripe/test", {
-              csrf_token: csrfToken,
-            }, cookie),
+            mockFormRequest(
+              "/admin/settings/stripe/test",
+              {
+                csrf_token: csrfToken,
+              },
+              cookie,
+            ),
           );
           expect(response.status).toBe(200);
           expect(response.headers.get("content-type")).toBe(
@@ -465,13 +480,18 @@ describe("server (admin settings)", () => {
                 status: "enabled",
                 enabledEvents: ["checkout.session.completed"],
               },
-            })),
+            }),
+          ),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
-            mockFormRequest("/admin/settings/stripe/test", {
-              csrf_token: csrfToken,
-            }, cookie),
+            mockFormRequest(
+              "/admin/settings/stripe/test",
+              {
+                csrf_token: csrfToken,
+              },
+              cookie,
+            ),
           );
           expect(response.status).toBe(200);
           const json = await response.json();
@@ -499,13 +519,18 @@ describe("server (admin settings)", () => {
                 configured: false,
                 error: "No webhook endpoint ID stored",
               },
-            })),
+            }),
+          ),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
           const response = await handleRequest(
-            mockFormRequest("/admin/settings/stripe/test", {
-              csrf_token: csrfToken,
-            }, cookie),
+            mockFormRequest(
+              "/admin/settings/stripe/test",
+              {
+                csrf_token: csrfToken,
+              },
+              cookie,
+            ),
           );
           expect(response.status).toBe(200);
           const json = await response.json();
@@ -927,7 +952,8 @@ describe("server (admin settings)", () => {
         Promise.resolve({
           success: false,
           error: "Connection refused",
-        }));
+        }),
+      );
 
       try {
         await setPaymentProvider("stripe");
@@ -1448,8 +1474,9 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Payment provider disabled")))
-        .toBe(true);
+      expect(
+        logs.some((l) => l.message.includes("Payment provider disabled")),
+      ).toBe(true);
     });
 
     test("logs activity when Stripe key is configured", async () => {
@@ -1460,7 +1487,8 @@ describe("server (admin settings)", () => {
               success: true,
               endpointId: "we_test_123",
               secret: "whsec_test_secret",
-            })),
+            }),
+          ),
         async () => {
           const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -1473,8 +1501,9 @@ describe("server (admin settings)", () => {
           );
 
           const logs = await getAllActivityLog();
-          expect(logs.some((l) => l.message.includes("Stripe key configured")))
-            .toBe(true);
+          expect(
+            logs.some((l) => l.message.includes("Stripe key configured")),
+          ).toBe(true);
         },
       );
     });
@@ -1517,7 +1546,7 @@ describe("server (admin settings)", () => {
       const logs = await getAllActivityLog();
       expect(
         logs.some((l) =>
-          l.message.includes("Square webhook signature key configured")
+          l.message.includes("Square webhook signature key configured"),
         ),
       ).toBe(true);
     });
@@ -1570,7 +1599,7 @@ describe("server (admin settings)", () => {
       const logs = await getAllActivityLog();
       expect(
         logs.some((l) =>
-          l.message.includes("Timezone set to America/New_York")
+          l.message.includes("Timezone set to America/New_York"),
         ),
       ).toBe(true);
     });
@@ -1587,8 +1616,9 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Business email updated")))
-        .toBe(true);
+      expect(
+        logs.some((l) => l.message.includes("Business email updated")),
+      ).toBe(true);
     });
 
     test("logs activity when business email is cleared", async () => {
@@ -1603,8 +1633,9 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Business email cleared")))
-        .toBe(true);
+      expect(
+        logs.some((l) => l.message.includes("Business email cleared")),
+      ).toBe(true);
     });
 
     test("logs activity when database reset is initiated", async () => {
@@ -2003,8 +2034,64 @@ describe("server (admin settings)", () => {
       );
 
       const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Phone prefix set to 33")))
-        .toBe(true);
+      expect(
+        logs.some((l) => l.message.includes("Phone prefix set to 33")),
+      ).toBe(true);
+    });
+  });
+
+  describe("demo mode restrictions", () => {
+    beforeEach(() => {
+      Deno.env.set("DEMO_MODE", "true");
+      resetDemoMode();
+    });
+
+    afterEach(() => {
+      Deno.env.delete("DEMO_MODE");
+      resetDemoMode();
+    });
+
+    test("rejects Stripe key configuration", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          {
+            stripe_secret_key: "sk_test_new_key_123",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      await expectHtmlResponse(
+        response,
+        400,
+        "Cannot configure Stripe in demo mode",
+      );
+    });
+
+    test("rejects Square credentials configuration", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square",
+          {
+            square_access_token: "EAAAl_test_new",
+            square_location_id: "L_test_456",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      await expectHtmlResponse(
+        response,
+        400,
+        "Cannot configure Square in demo mode",
+      );
     });
   });
 });

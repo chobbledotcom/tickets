@@ -1,7 +1,6 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { spy, stub } from "@std/testing/mock";
-import { Spy } from "@std/testing/mock";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { type Spy, spy, stub } from "@std/testing/mock";
 import {
   createRequestTimer,
   ErrorCode,
@@ -59,6 +58,7 @@ describe("logger", () => {
     let debugSpy: Spy<Console, [message?: unknown, ...args: unknown[]], void>;
 
     beforeEach(() => {
+      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
       debugSpy = spy(console, "debug");
     });
 
@@ -102,6 +102,37 @@ describe("logger", () => {
 
       expect(debugSpy.calls[0]!.args).toEqual(["[Request] GET /admin 403 5ms"]);
     });
+
+    test("suppresses logs when TEST_SUPPRESS_REQUEST_LOGS is set", () => {
+      Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1");
+
+      logRequest({
+        method: "POST",
+        path: "/admin/login",
+        status: 302,
+        durationMs: 1,
+      });
+
+      expect(debugSpy.calls.length).toBe(0);
+
+      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
+    });
+
+    test("logs normally when TEST_SUPPRESS_REQUEST_LOGS is not set", () => {
+      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
+
+      logRequest({
+        method: "POST",
+        path: "/admin/login",
+        status: 302,
+        durationMs: 1,
+      });
+
+      expect(debugSpy.calls.length).toBe(1);
+      expect(debugSpy.calls[0]!.args).toEqual([
+        "[Request] POST /admin/login 302 1ms",
+      ]);
+    });
   });
 
   describe("logError", () => {
@@ -132,7 +163,9 @@ describe("logger", () => {
     test("logs error with attendee ID", () => {
       logError({ code: ErrorCode.WEBHOOK_SEND, attendeeId: 99 });
 
-      expect(errorSpy.calls[0]!.args).toEqual(["[Error] E_WEBHOOK_SEND attendee=99"]);
+      expect(errorSpy.calls[0]!.args).toEqual([
+        "[Error] E_WEBHOOK_SEND attendee=99",
+      ]);
     });
 
     test("logs error with detail", () => {
@@ -158,7 +191,9 @@ describe("logger", () => {
 
     test("sends ntfy notification when NTFY_URL is configured", () => {
       Deno.env.set("NTFY_URL", "https://ntfy.sh/test-topic");
-      const fetchStub = stub(globalThis, "fetch", () => Promise.resolve(new Response()));
+      const fetchStub = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response()),
+      );
 
       logError({ code: ErrorCode.DB_QUERY });
 
@@ -192,13 +227,17 @@ describe("logger", () => {
     test("logs with Webhook category", () => {
       logDebug("Webhook", "Sending notification");
 
-      expect(debugSpy.calls[0]!.args).toEqual(["[Webhook] Sending notification"]);
+      expect(debugSpy.calls[0]!.args).toEqual([
+        "[Webhook] Sending notification",
+      ]);
     });
 
     test("logs with Stripe category", () => {
       logDebug("Stripe", "Creating checkout session");
 
-      expect(debugSpy.calls[0]!.args).toEqual(["[Stripe] Creating checkout session"]);
+      expect(debugSpy.calls[0]!.args).toEqual([
+        "[Stripe] Creating checkout session",
+      ]);
     });
   });
 
@@ -235,15 +274,26 @@ describe("logger", () => {
   });
 
   describe("runWithRequestId", () => {
+    beforeEach(() => {
+      Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
+    });
+
     test("prefixes logRequest with 4-char hex ID", () => {
       const debugSpy = spy(console, "debug");
 
       runWithRequestId(() => {
-        logRequest({ method: "GET", path: "/admin", status: 200, durationMs: 10 });
+        logRequest({
+          method: "GET",
+          path: "/admin",
+          status: 200,
+          durationMs: 10,
+        });
       });
 
       const message = debugSpy.calls[0]!.args[0] as string;
-      expect(message).toMatch(/^\[[0-9a-f]{4}\] \[Request\] GET \/admin 200 10ms$/);
+      expect(message).toMatch(
+        /^\[[0-9a-f]{4}\] \[Request\] GET \/admin 200 10ms$/,
+      );
       debugSpy.restore();
     });
 
@@ -252,7 +302,12 @@ describe("logger", () => {
       const errorSpy = spy(console, "error");
 
       runWithRequestId(() => {
-        logRequest({ method: "GET", path: "/admin", status: 200, durationMs: 5 });
+        logRequest({
+          method: "GET",
+          path: "/admin",
+          status: 200,
+          durationMs: 5,
+        });
         logError({ code: ErrorCode.DB_CONNECTION });
       });
 
@@ -297,9 +352,16 @@ describe("logger", () => {
     test("no prefix outside request context", () => {
       const debugSpy = spy(console, "debug");
 
-      logRequest({ method: "GET", path: "/admin", status: 200, durationMs: 10 });
+      logRequest({
+        method: "GET",
+        path: "/admin",
+        status: 200,
+        durationMs: 10,
+      });
 
-      expect(debugSpy.calls[0]!.args).toEqual(["[Request] GET /admin 200 10ms"]);
+      expect(debugSpy.calls[0]!.args).toEqual([
+        "[Request] GET /admin 200 10ms",
+      ]);
       debugSpy.restore();
     });
   });

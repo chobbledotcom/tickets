@@ -4,23 +4,32 @@
 
 import { type Client, createClient } from "@libsql/client";
 import { bracket } from "#fp";
-import { clearEncryptionKeyCache } from "#lib/crypto.ts";
-import { resetDemoMode } from "#lib/demo.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
+import { clearEncryptionKeyCache } from "#lib/crypto.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
-import { resetCurrencyCode, setCurrencyCodeForTest, toMajorUnits } from "#lib/currency.ts";
-import { setDb } from "#lib/db/client.ts";
-import { invalidateGroupsCache, type GroupInput } from "#lib/db/groups.ts";
 import {
+  resetCurrencyCode,
+  setCurrencyCodeForTest,
+  toMajorUnits,
+} from "#lib/currency.ts";
+import { setDb } from "#lib/db/client.ts";
+import {
+  type EventInput,
   getEventWithCount,
   invalidateEventsCache,
-  type EventInput,
 } from "#lib/db/events.ts";
-import { initDb, LATEST_UPDATE } from "#lib/db/migrations.ts";
+import { type GroupInput, invalidateGroupsCache } from "#lib/db/groups.ts";
 import { invalidateHolidaysCache } from "#lib/db/holidays.ts";
+import { initDb, LATEST_UPDATE } from "#lib/db/migrations.ts";
 import { getSession, resetSessionCache } from "#lib/db/sessions.ts";
-import { clearSetupCompleteCache, completeSetup, invalidateSettingsCache, updateTimezone } from "#lib/db/settings.ts";
+import {
+  clearSetupCompleteCache,
+  completeSetup,
+  invalidateSettingsCache,
+  updateTimezone,
+} from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
+import { resetDemoMode } from "#lib/demo.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
 /**
@@ -49,6 +58,7 @@ export const setupTestEncryptionKey = (): void => {
   Deno.env.set("TEST_PBKDF2_ITERATIONS", "1"); // Enable fast password hashing for tests
   Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1"); // Skip timing-attack delay in tests
   Deno.env.set("TEST_RSA_KEY_SIZE", "1024"); // Use smaller RSA keys for faster test setup
+  Deno.env.set("TEST_SUPPRESS_REQUEST_LOGS", "1"); // Reduce test output noise
   clearEncryptionKeyCache();
 };
 
@@ -60,6 +70,7 @@ export const clearTestEncryptionKey = (): void => {
   Deno.env.delete("TEST_PBKDF2_ITERATIONS");
   Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
   Deno.env.delete("TEST_RSA_KEY_SIZE");
+  Deno.env.delete("TEST_SUPPRESS_REQUEST_LOGS");
   clearEncryptionKeyCache();
 };
 
@@ -82,13 +93,17 @@ let cachedSetupUsers: Array<Record<string, any>> | null = null;
 /** Cached admin session (avoids re-doing login + key wrapping per test) */
 let cachedAdminSession: {
   cookie: string;
-  sessionRow: { token: string; csrf_token: string; expires: number; wrapped_data_key: string | null; user_id: number | null };
+  sessionRow: {
+    token: string;
+    csrf_token: string;
+    expires: number;
+    wrapped_data_key: string | null;
+    user_id: number | null;
+  };
 } | null = null;
 
 /** Clear all data tables and reset autoincrement counters */
-const clearDataTables = async (
-  client: Client,
-): Promise<void> => {
+const clearDataTables = async (client: Client): Promise<void> => {
   // Disable FK checks so deletion order doesn't matter
   await client.execute("PRAGMA foreign_keys = OFF");
   // Discover all user tables dynamically (handles custom test tables like test_items)
@@ -126,7 +141,7 @@ const prepareTestClient = async (): Promise<{ reused: boolean }> => {
   invalidateHolidaysCache();
   invalidateGroupsCache();
 
-  if (cachedClient && await isSchemaIntact(cachedClient)) {
+  if (cachedClient && (await isSchemaIntact(cachedClient))) {
     setDb(cachedClient);
     await clearDataTables(cachedClient);
     return { reused: true };
@@ -182,7 +197,16 @@ export const createTestDbWithSetup = async (
       for (const row of cachedSetupUsers) {
         await cachedClient!.execute({
           sql: "INSERT INTO users (id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          args: [row.id, row.username_hash, row.username_index, row.password_hash, row.wrapped_data_key, row.admin_level, row.invite_code_hash, row.invite_expiry],
+          args: [
+            row.id,
+            row.username_hash,
+            row.username_index,
+            row.password_hash,
+            row.wrapped_data_key,
+            row.admin_level,
+            row.invite_code_hash,
+            row.invite_expiry,
+          ],
         });
       }
     }
@@ -299,7 +323,6 @@ export const mockFormRequest = (
   });
 };
 
-
 /**
  * Create a mock admin login POST request with signed CSRF token
  */
@@ -307,11 +330,8 @@ export const mockAdminLoginRequest = async (
   data: Record<string, string>,
   csrfToken?: string,
 ): Promise<Request> => {
-  const token = csrfToken ?? await signCsrfToken();
-  return mockFormRequest(
-    "/admin/login",
-    { ...data, csrf_token: token },
-  );
+  const token = csrfToken ?? (await signCsrfToken());
+  return mockFormRequest("/admin/login", { ...data, csrf_token: token });
 };
 
 /**
@@ -322,7 +342,12 @@ export const mockMultipartRequest = (
   path: string,
   data: Record<string, string>,
   cookie?: string,
-  file?: { name: string; fieldName: string; data: Uint8Array; contentType: string },
+  file?: {
+    name: string;
+    fieldName: string;
+    data: Uint8Array;
+    contentType: string;
+  },
 ): Request => {
   const formData = new FormData();
   for (const [key, value] of Object.entries(data)) {
@@ -350,8 +375,8 @@ export const urlFromFetchInput = (input: string | URL | Request): string =>
   typeof input === "string"
     ? input
     : input instanceof URL
-    ? input.toString()
-    : input.url;
+      ? input.toString()
+      : input.url;
 
 /**
  * Swap globalThis.fetch for the duration of a callback, using bracket for safe restore.
@@ -366,7 +391,9 @@ export const urlFromFetchInput = (input: string | URL | Request): string =>
  */
 export const withFetchMock = bracket(
   () => globalThis.fetch,
-  (original) => { globalThis.fetch = original; },
+  (original) => {
+    globalThis.fetch = original;
+  },
 );
 
 /**
@@ -417,7 +444,9 @@ export const randomString = (length: number): string => {
 export const getCsrfTokenFromCookie = async (
   cookie: string,
 ): Promise<string | null> => {
-  const sessionMatch = cookie.match(new RegExp(`${getSessionCookieName()}=([^;]+)`));
+  const sessionMatch = cookie.match(
+    new RegExp(`${getSessionCookieName()}=([^;]+)`),
+  );
   if (!sessionMatch?.[1]) return null;
 
   const sessionToken = sessionMatch[1];
@@ -469,10 +498,11 @@ export const mockSetupFormRequest = (
   data: Record<string, string>,
   csrfToken: string,
 ): Request => {
-  return mockFormRequest(
-    "/setup",
-    { accept_agreement: "yes", ...data, csrf_token: csrfToken },
-  );
+  return mockFormRequest("/setup", {
+    accept_agreement: "yes",
+    ...data,
+    csrf_token: csrfToken,
+  });
 };
 
 /**
@@ -489,10 +519,7 @@ export const mockTicketFormRequest = (
   data: Record<string, string>,
   csrfToken: string,
 ): Request => {
-  return mockFormRequest(
-    `/ticket/${slug}`,
-    { ...data, csrf_token: csrfToken },
-  );
+  return mockFormRequest(`/ticket/${slug}`, { ...data, csrf_token: csrfToken });
 };
 
 /**
@@ -622,7 +649,9 @@ interface Restorable {
  *   resetStripeClient,
  * );
  */
-export const withMocks = async <T extends Restorable | Record<string, Restorable>>(
+export const withMocks = async <
+  T extends Restorable | Record<string, Restorable>,
+>(
   setup: () => T,
   body: (mocks: T) => void | Promise<void>,
   cleanup?: () => void | Promise<void>,
@@ -729,7 +758,13 @@ const getTestSession = async (): Promise<{
     const { sessionRow } = cachedAdminSession;
     await getDb().execute({
       sql: "INSERT INTO sessions (token, csrf_token, expires, wrapped_data_key, user_id) VALUES (?, ?, ?, ?, ?)",
-      args: [sessionRow.token, sessionRow.csrf_token, sessionRow.expires, sessionRow.wrapped_data_key, sessionRow.user_id],
+      args: [
+        sessionRow.token,
+        sessionRow.csrf_token,
+        sessionRow.expires,
+        sessionRow.wrapped_data_key,
+        sessionRow.user_id,
+      ],
     });
     const csrfToken = await signCsrfToken();
     testSession = { cookie: cachedAdminSession.cookie, csrfToken };
@@ -750,7 +785,11 @@ export const resetTestSession = (): void => {
  * Handles session management, CSRF tokens, and status validation.
  */
 const authenticatedRequest = async <T>(
-  buildRequest: (path: string, data: Record<string, string>, cookie: string) => Request,
+  buildRequest: (
+    path: string,
+    data: Record<string, string>,
+    cookie: string,
+  ) => Request,
   path: string,
   formData: Record<string, string>,
   onSuccess: () => Promise<T>,
@@ -760,7 +799,11 @@ const authenticatedRequest = async <T>(
   const { handleRequest } = await import("#routes");
 
   const response = await handleRequest(
-    buildRequest(path, { ...formData, csrf_token: session.csrfToken }, session.cookie),
+    buildRequest(
+      path,
+      { ...formData, csrf_token: session.csrfToken },
+      session.cookie,
+    ),
   );
 
   if (response.status !== 302) {
@@ -776,7 +819,14 @@ const authenticatedFormRequest = <T>(
   formData: Record<string, string>,
   onSuccess: () => Promise<T>,
   errorContext: string,
-): Promise<T> => authenticatedRequest(mockFormRequest, path, formData, onSuccess, errorContext);
+): Promise<T> =>
+  authenticatedRequest(
+    mockFormRequest,
+    path,
+    formData,
+    onSuccess,
+    errorContext,
+  );
 
 /** Authenticated multipart form request (event create/edit with file uploads) */
 const authenticatedMultipartFormRequest = <T>(
@@ -784,7 +834,14 @@ const authenticatedMultipartFormRequest = <T>(
   formData: Record<string, string>,
   onSuccess: () => Promise<T>,
   errorContext: string,
-): Promise<T> => authenticatedRequest(mockMultipartRequest, path, formData, onSuccess, errorContext);
+): Promise<T> =>
+  authenticatedRequest(
+    mockMultipartRequest,
+    path,
+    formData,
+    onSuccess,
+    errorContext,
+  );
 
 /**
  * Create an event via the REST API
@@ -812,7 +869,8 @@ export const createTestEvent = (
       max_quantity: String(input.maxQuantity ?? 1),
       fields: input.fields ?? "email",
       thank_you_url: input.thankYouUrl ?? "",
-      unit_price: input.unitPrice != null ? priceFormValue(input.unitPrice) : "",
+      unit_price:
+        input.unitPrice != null ? priceFormValue(input.unitPrice) : "",
       webhook_url: input.webhookUrl ?? "",
       closes_at_date: closesAtParts.date,
       closes_at_time: closesAtParts.time,
@@ -820,8 +878,10 @@ export const createTestEvent = (
       bookable_days: input.bookableDays
         ? formatBookableDaysForForm(input.bookableDays)
         : "",
-      minimum_days_before: input.minimumDaysBefore != null ? String(input.minimumDaysBefore) : "",
-      maximum_days_after: input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
+      minimum_days_before:
+        input.minimumDaysBefore != null ? String(input.minimumDaysBefore) : "",
+      maximum_days_after:
+        input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
       non_transferable: input.nonTransferable ? "1" : "",
     },
     async () => {
@@ -852,15 +912,11 @@ const formatPrice = (
       : "";
 
 /** Format optional string field for form submission */
-const formatOptional = (
-  update: string | undefined,
-  existing: string,
-): string =>
+const formatOptional = (update: string | undefined, existing: string): string =>
   update ?? existing;
 
 /** Format bookable_days array to comma-separated string for form submission */
-const formatBookableDaysForForm = (days: string[]): string =>
-  days.join(",");
+const formatBookableDaysForForm = (days: string[]): string => days.join(",");
 
 /** Split a closes_at value into date and time parts for form submission */
 const splitClosesAt = (
@@ -901,7 +957,10 @@ export const updateTestEvent = async (
       max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
       max_quantity: String(updates.maxQuantity ?? existing.max_quantity),
       fields: updates.fields ?? existing.fields,
-      thank_you_url: formatOptional(updates.thankYouUrl, existing.thank_you_url),
+      thank_you_url: formatOptional(
+        updates.thankYouUrl,
+        existing.thank_you_url,
+      ),
       unit_price: formatPrice(updates.unitPrice, existing.unit_price),
       webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
       closes_at_date: closesAtParts.date,
@@ -910,12 +969,16 @@ export const updateTestEvent = async (
       bookable_days: updates.bookableDays
         ? formatBookableDaysForForm(updates.bookableDays)
         : formatBookableDaysForForm(existing.bookable_days),
-      minimum_days_before: String(updates.minimumDaysBefore ?? existing.minimum_days_before),
-      maximum_days_after: String(updates.maximumDaysAfter ?? existing.maximum_days_after),
-      non_transferable: (updates.nonTransferable ?? existing.non_transferable) ? "1" : "",
+      minimum_days_before: String(
+        updates.minimumDaysBefore ?? existing.minimum_days_before,
+      ),
+      maximum_days_after: String(
+        updates.maximumDaysAfter ?? existing.maximum_days_after,
+      ),
+      non_transferable:
+        (updates.nonTransferable ?? existing.non_transferable) ? "1" : "",
     },
-    async () =>
-      (await getEventWithCount(eventId)) as EventWithCount,
+    async () => (await getEventWithCount(eventId)) as EventWithCount,
     "update event",
   );
 };
@@ -973,11 +1036,15 @@ export const createTestAttendee = async (
   const pageHtml = await pageResponse.text();
   // Fall back to a signed token when the page doesn't show a form
   // (e.g. event at capacity / sold out / deactivated)
-  const csrfToken = extractCsrfToken(pageHtml) ?? await signCsrfToken();
+  const csrfToken = extractCsrfToken(pageHtml) ?? (await signCsrfToken());
 
   // Submit the ticket form
   const response = await handleRequest(
-    mockTicketFormRequest(eventSlug, { name, email, phone, quantity: String(quantity) }, csrfToken),
+    mockTicketFormRequest(
+      eventSlug,
+      { name, email, phone, quantity: String(quantity) },
+      csrfToken,
+    ),
   );
 
   // Free events redirect to thank you page (302)
@@ -1115,7 +1182,15 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   active: true,
   fields: "email",
   event_type: "standard",
-  bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+  bookable_days: [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ],
   minimum_days_before: 0,
   maximum_days_after: 0,
   image_url: "",
@@ -1217,7 +1292,9 @@ export const submitJoinForm = async (
   data: { password: string; password_confirm: string },
 ): Promise<Response> => {
   const { handleRequest } = await import("#routes");
-  const joinGetResponse = await handleRequest(mockRequest(`/join/${inviteCode}`));
+  const joinGetResponse = await handleRequest(
+    mockRequest(`/join/${inviteCode}`),
+  );
   const joinHtml = await joinGetResponse.text();
   const joinCsrf = requireJoinCsrfToken(joinHtml);
   return handleRequest(
@@ -1247,7 +1324,9 @@ export const createTestInvite = async (
   const inviteLink = url.searchParams.get("invite") ?? "";
   const codeMatch = inviteLink.match(/\/join\/([A-Za-z0-9_-]+)/);
   if (!codeMatch?.[1]) {
-    throw new Error(`Failed to create invite for ${username}: ${inviteResponse.status} ${location}`);
+    throw new Error(
+      `Failed to create invite for ${username}: ${inviteResponse.status} ${location}`,
+    );
   }
   return { inviteCode: codeMatch[1], cookie, csrfToken };
 };
@@ -1265,7 +1344,7 @@ export const submitTicketForm = async (
   const html = await getResponse.text();
   // Extract from form HTML, or fall back to a signed token when the page
   // doesn't show a form (e.g. event at capacity / sold out)
-  const csrfToken = extractCsrfToken(html) ?? await signCsrfToken();
+  const csrfToken = extractCsrfToken(html) ?? (await signCsrfToken());
   return handleRequest(mockTicketFormRequest(slug, data, csrfToken));
 };
 
@@ -1378,7 +1457,8 @@ export const updateTestGroup = async (
     {
       name: updates.name ?? existing.name,
       slug: updates.slug ?? existing.slug,
-      terms_and_conditions: updates.termsAndConditions ?? existing.terms_and_conditions,
+      terms_and_conditions:
+        updates.termsAndConditions ?? existing.terms_and_conditions,
     },
     async () => {
       const updated = await groupsTable.findById(groupId);
@@ -1391,9 +1471,7 @@ export const updateTestGroup = async (
 /**
  * Delete a group via the REST API
  */
-export const deleteTestGroup = async (
-  groupId: number,
-): Promise<void> => {
+export const deleteTestGroup = async (groupId: number): Promise<void> => {
   const { groupsTable } = await import("#lib/db/groups.ts");
   const existing = (await groupsTable.findById(groupId)) as Group;
 
@@ -1405,8 +1483,8 @@ export const deleteTestGroup = async (
   );
 };
 
-import type { Holiday } from "#lib/types.ts";
 import type { HolidayInput } from "#lib/db/holidays.ts";
+import type { Holiday } from "#lib/types.ts";
 
 /** Create a test Holiday with sensible defaults. Override any field via `overrides`. */
 export const testHoliday = (overrides: Partial<Holiday> = {}): Holiday => ({
@@ -1473,9 +1551,7 @@ export const updateTestHoliday = async (
 /**
  * Delete a holiday via the REST API
  */
-export const deleteTestHoliday = async (
-  holidayId: number,
-): Promise<void> => {
+export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
   const { holidaysTable } = await import("#lib/db/holidays.ts");
   const existing = (await holidaysTable.findById(holidayId)) as Holiday;
 
@@ -1540,7 +1616,13 @@ export const createTestAttendeeWithToken = async (
   phone = "",
 ): Promise<{ event: Event; attendee: Attendee; token: string }> => {
   const event = await createTestEvent({ maxAttendees: 10, ...eventOverrides });
-  const { attendee, token } = await createTestAttendeeDirect(event.id, name, email, quantity, phone);
+  const { attendee, token } = await createTestAttendeeDirect(
+    event.id,
+    name,
+    email,
+    quantity,
+    phone,
+  );
   return { event, attendee, token };
 };
 
@@ -1572,7 +1654,15 @@ export const adminGet = async (
   return { response, cookie, csrfToken };
 };
 
-const allDays: string[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const allDays: string[] = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 
 /**
  * Create a daily event with all days bookable. Reduces boilerplate in calendar tests.
@@ -1616,7 +1706,9 @@ export const createPaidTestAttendee = async (
 import type { PaymentProviderType } from "#lib/payments.ts";
 
 /** Mock return type for getConfiguredProvider */
-export const mockProviderType = (type: PaymentProviderType): PaymentProviderType | null => type;
+export const mockProviderType = (
+  type: PaymentProviderType,
+): PaymentProviderType | null => type;
 
 // ---------------------------------------------------------------------------
 // Admin test context helpers
@@ -1643,7 +1735,12 @@ export const setupAdminTest = async (
     thankYouUrl: "https://example.com",
     ...eventOverrides,
   });
-  const attendee = await createTestAttendee(event.id, event.slug, "John Doe", "john@example.com");
+  const attendee = await createTestAttendee(
+    event.id,
+    event.slug,
+    "John Doe",
+    "john@example.com",
+  );
   const { cookie, csrfToken } = await loginAsAdmin();
   return { event, attendee, cookie, csrfToken };
 };
@@ -1688,7 +1785,9 @@ export const adminEventPage =
     eventOverrides: Partial<Omit<EventInput, "slug" | "slugIndex">> = {},
   ): Promise<AdminTestContext & { response: Response }> => {
     const ctx = await setupAdminTest(eventOverrides);
-    const response = await awaitTestRequest(pathFn(ctx), { cookie: ctx.cookie });
+    const response = await awaitTestRequest(pathFn(ctx), {
+      cookie: ctx.cookie,
+    });
     return { ...ctx, response };
   };
 
@@ -1701,10 +1800,20 @@ export const createTestManagerSession = async (
   token = "mgr-session",
   username = "testmanager",
 ): Promise<string> => {
-  const { deriveKEK, encrypt: enc, hmacHash, unwrapKey, wrapKeyWithToken } = await import("#lib/crypto.ts");
+  const {
+    deriveKEK,
+    encrypt: enc,
+    hmacHash,
+    unwrapKey,
+    wrapKeyWithToken,
+  } = await import("#lib/crypto.ts");
   const { getDb } = await import("#lib/db/client.ts");
   const { createSession } = await import("#lib/db/sessions.ts");
-  const { getUserByUsername, verifyUserPassword, invalidateUsersCache: invalidateUsers } = await import("#lib/db/users.ts");
+  const {
+    getUserByUsername,
+    verifyUserPassword,
+    invalidateUsersCache: invalidateUsers,
+  } = await import("#lib/db/users.ts");
 
   // Get the system DATA_KEY via the admin user (always exists after createTestDbWithSetup)
   const user = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
@@ -1714,21 +1823,38 @@ export const createTestManagerSession = async (
 
   // Create manager user with a properly wrapped data key
   const managerIdx = await hmacHash(username);
-  const managerWrappedKey = await wrapKeyWithToken(dataKey, "user-key-placeholder");
+  const managerWrappedKey = await wrapKeyWithToken(
+    dataKey,
+    "user-key-placeholder",
+  );
   await getDb().execute({
     sql: `INSERT INTO users (username_hash, username_index, password_hash, wrapped_data_key, admin_level)
           VALUES (?, ?, ?, ?, ?)`,
-    args: [await enc(username), managerIdx, "", managerWrappedKey, await enc("manager")],
+    args: [
+      await enc(username),
+      managerIdx,
+      "",
+      managerWrappedKey,
+      await enc("manager"),
+    ],
   });
   invalidateUsers();
 
   // Find the manager user ID
-  const result = await getDb().execute("SELECT id FROM users ORDER BY id DESC LIMIT 1");
+  const result = await getDb().execute(
+    "SELECT id FROM users ORDER BY id DESC LIMIT 1",
+  );
   const userId = result.rows[0]!.id as number;
 
   // Create session with properly wrapped data key
   const wrappedDataKey = await wrapKeyWithToken(dataKey, token);
-  await createSession(token, "mgr-csrf", Date.now() + 60_000, wrappedDataKey, userId);
+  await createSession(
+    token,
+    "mgr-csrf",
+    Date.now() + 60_000,
+    wrappedDataKey,
+    userId,
+  );
 
   return `${getSessionCookieName()}=${token}`;
 };
