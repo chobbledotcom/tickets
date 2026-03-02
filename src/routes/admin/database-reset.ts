@@ -18,7 +18,7 @@ import {
   demoResetPage,
   RESET_DATABASE_PHRASE,
   RESET_PHRASE_MISMATCH_ERROR,
-} from "#templates/demo-reset.tsx";
+} from "#templates/admin/database-reset.tsx";
 
 /** Guard: require demo mode, else 404 */
 const withDemoResetAccess = (
@@ -66,4 +66,4 @@ export const demoResetRoutes = defineRoutes({
   "POST /demo/reset": handleDemoResetPost,
 });
 
-export const routeDemoReset = createRouter(demoResetRoutes);
+export const routeDatabaseReset = createRouter(demoResetRoutes);
