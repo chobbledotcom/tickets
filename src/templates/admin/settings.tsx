@@ -6,6 +6,7 @@ import { CsrfForm, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import type { AdminSession } from "#lib/types.ts";
+import { ResetDatabaseForm } from "#templates/demo-reset.tsx";
 import {
   changePasswordFields,
   FORMATTING_HINT,
@@ -303,26 +304,6 @@ export const adminSettingsPage = (
           <button type="submit">Save Theme</button>
         </CsrfForm>
 
-        <CsrfForm action="/admin/settings/reset-database" id="settings-reset-database">
-            <h2>Reset Database</h2>
-          <article>
-            <aside>
-              <p><strong>Warning:</strong> This will permanently delete all events, attendees, settings, and other data. This action cannot be undone.</p>
-            </aside>
-          </article>
-          <p>To reset the database, type the following phrase into the box below:</p>
-          <p><strong>"The site will be fully reset and all data will be lost."</strong></p>
-          <label for="confirm_phrase">Confirmation phrase</label>
-          <input
-            type="text"
-            id="confirm_phrase"
-            name="confirm_phrase"
-            autocomplete="off"
-            required
-          />
-          <button type="submit" class="danger">
-            Reset Database
-          </button>
-        </CsrfForm>
+        <ResetDatabaseForm action="/admin/settings/reset-database" id="settings-reset-database" />
     </Layout>
   );
