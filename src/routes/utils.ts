@@ -14,6 +14,7 @@ import { deleteSession, getSession } from "#lib/db/sessions.ts";
 import { getWrappedPrivateKey } from "#lib/db/settings.ts";
 import { decryptAdminLevel, getUserById } from "#lib/db/users.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
+import { getCachedSession, setCachedSession } from "#lib/session-context.ts";
 import { nowMs } from "#lib/now.ts";
 import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
@@ -95,15 +96,25 @@ export const parseCookies = (request: Request): Map<string, string> => {
 export const getAuthenticatedSession = async (
   request: Request,
 ): Promise<AuthSession | null> => {
+  const cached = getCachedSession();
+  if (cached !== undefined) return cached;
+
   const cookies = parseCookies(request);
   const token = cookies.get(getSessionCookieName());
-  if (!token) return null;
+  if (!token) {
+    setCachedSession(null);
+    return null;
+  }
 
   const session = await getSession(token);
-  if (!session) return null;
+  if (!session) {
+    setCachedSession(null);
+    return null;
+  }
 
   if (session.expires < nowMs()) {
     await deleteSession(token);
+    setCachedSession(null);
     return null;
   }
 
@@ -115,18 +126,21 @@ export const getAuthenticatedSession = async (
       detail: "Session references non-existent user, invalidating",
     });
     await deleteSession(token);
+    setCachedSession(null);
     return null;
   }
 
   const adminLevel = await decryptAdminLevel(user);
   await signCsrfToken();
 
-  return {
+  const result: AuthSession = {
     token,
     wrappedDataKey: session.wrapped_data_key,
     userId: session.user_id,
     adminLevel,
   };
+  setCachedSession(result);
+  return result;
 };
 
 /**
