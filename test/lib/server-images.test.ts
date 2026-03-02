@@ -277,7 +277,7 @@ describe("server (event images)", () => {
         const response = await submitEditJpeg(event.id, cookie, csrfToken, "photo.jpg");
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe(
-          `/admin/event/${event.id}`,
+          `/admin/event/${event.id}?success=Event%20updated`,
         );
 
         const updated = await getEventWithCount(event.id);
@@ -421,7 +421,7 @@ describe("server (event images)", () => {
         const response = await submitImageDelete(event.id, cookie, csrfToken);
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe(
-          `/admin/event/${event.id}`,
+          `/admin/event/${event.id}?success=Image%20removed`,
         );
 
         const updated = await getEventWithCount(event.id);
@@ -434,7 +434,7 @@ describe("server (event images)", () => {
 
       const response = await submitImageDelete(event.id, cookie, csrfToken);
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
+      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?success=Image%20removed`);
     });
 
     test("returns 404 for non-existent event", async () => {

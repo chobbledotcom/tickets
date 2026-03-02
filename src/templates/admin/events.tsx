@@ -6,7 +6,7 @@ import { filter, map, pipe, reduce } from "#fp";
 import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
-import { CsrfForm, type FieldValues, renderError, renderField, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, type FieldValues, renderError, renderField, renderFields, renderSuccess } from "#lib/forms.tsx";
 import { buildEmbedSnippets } from "#lib/embed.ts";
 import { getTz } from "#lib/config.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
@@ -150,6 +150,7 @@ export type AdminEventPageOptions = {
   addAttendeeMessage?: AddAttendeeMessage;
   imageError?: string | null;
   phonePrefix?: string;
+  successMessage?: string | null;
 };
 
 export const adminEventPage = ({
@@ -164,6 +165,7 @@ export const adminEventPage = ({
   addAttendeeMessage = null,
   imageError = null,
   phonePrefix,
+  successMessage = null,
 }: AdminEventPageOptions): string => {
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
@@ -226,6 +228,8 @@ export const adminEventPage = ({
             <li><a href={`/admin/event/${event.id}/delete`} class="danger">Delete</a></li>
           </ul>
         </nav>
+
+        <Raw html={renderSuccess(successMessage ?? undefined)} />
 
         {!event.active && (
           <div class="error">This event is deactivated and cannot be booked</div>

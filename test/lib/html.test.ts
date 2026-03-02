@@ -1,6 +1,6 @@
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { CSS_PATH, EMBED_JS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, IFRAME_RESIZER_PARENT_JS_PATH, JS_PATH } from "#src/config/asset-paths.ts";
+import { CSS_PATH, EMBED_JS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, IFRAME_RESIZER_PARENT_JS_PATH, JS_PATH } from "#lib/asset-paths.ts";
 import { adminDashboardPage } from "#templates/admin/dashboard.tsx";
 import { adminDuplicateEventPage, adminEventEditPage, adminEventNewPage, adminEventPage, calculateTotalRevenue, countCheckedIn, countCheckedInRows, formatAddressInline, isIncompletePayment, nearCapacity } from "#templates/admin/events.tsx";
 import { adminLoginPage } from "#templates/admin/login.tsx";
@@ -8,7 +8,7 @@ import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#template
 import { Breadcrumb } from "#templates/admin/nav.tsx";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
-import { adminUsersPage, type DisplayUser } from "#templates/admin/users.tsx";
+import { adminUserDeletePage, adminUsersPage, type DisplayUser } from "#templates/admin/users.tsx";
 import { type CsvEventInfo, generateAttendeesCsv, generateCalendarCsv } from "#templates/csv.ts";
 import { adminCalendarPage, type CalendarAttendeeRow } from "#templates/admin/calendar.tsx";
 import {
@@ -1587,13 +1587,14 @@ describe("html", () => {
         { id: 2, username: "pending", adminLevel: "manager", hasPassword: true, hasDataKey: false, inviteExpired: false },
         { id: 3, username: "invited", adminLevel: "manager", hasPassword: false, hasDataKey: false, inviteExpired: false },
       ];
-      const html = adminUsersPage(users, TEST_SESSION, { inviteLink: "", success: "", error: "" });
+      const html = adminUsersPage(users, TEST_SESSION, { inviteLink: "", success: "", error: "", currentUserId: 1 });
       expect(html).toContain("Active");
       expect(html).toContain("Pending Activation");
       expect(html).toContain("Invited");
       expect(html).toContain('action="/admin/users/2/activate"');
-      expect(html).toContain('action="/admin/users/2/delete"');
-      expect(html).not.toContain('action="/admin/users/1/delete"');
+      expect(html).toContain('href="/admin/users/2/delete"');
+      expect(html).toContain('href="/admin/users/3/delete"');
+      expect(html).not.toContain('href="/admin/users/1/delete"');
     });
 
     test("renders Invite Expired status for expired invite", () => {
@@ -1613,11 +1614,30 @@ describe("html", () => {
         inviteLink: "https://example.com/join/abc123",
         success: "Invite created",
         error: "Something went wrong",
+        currentUserId: 1,
       });
       expect(html).toContain("Invite link (share this with the new user)");
       expect(html).toContain("https://example.com/join/abc123");
       expect(html).toContain("Invite created");
       expect(html).toContain("Something went wrong");
+    });
+  });
+
+  describe("adminUserDeletePage", () => {
+    test("renders delete confirmation form with username", () => {
+      const user: DisplayUser = { id: 5, username: "targetuser", adminLevel: "manager", hasPassword: true, hasDataKey: true };
+      const html = adminUserDeletePage(user, TEST_SESSION);
+      expect(html).toContain("Delete User");
+      expect(html).toContain("targetuser");
+      expect(html).toContain('name="confirm_identifier"');
+      expect(html).toContain('action="/admin/users/5/delete"');
+      expect(html).toContain("permanently delete");
+    });
+
+    test("renders error message when provided", () => {
+      const user: DisplayUser = { id: 5, username: "targetuser", adminLevel: "owner", hasPassword: true, hasDataKey: true };
+      const html = adminUserDeletePage(user, TEST_SESSION, "Username does not match");
+      expect(html).toContain("Username does not match");
     });
   });
 

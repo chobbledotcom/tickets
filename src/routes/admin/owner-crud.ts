@@ -1,7 +1,7 @@
 import { logActivity } from "#lib/db/activityLog.ts";
 import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { htmlResponse, notFoundResponse, orNotFound, redirect, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
+import { getSearchParam, htmlResponse, notFoundResponse, orNotFound, redirectWithSuccess, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
 
 type OwnerCrudConfig<Row, Input> = {
   singular: string;
@@ -10,7 +10,7 @@ type OwnerCrudConfig<Row, Input> = {
   getRowPath?: (row: Row) => string;
   getAll: () => Promise<Row[]>;
   resource: NamedResource<Row, Input>;
-  renderList: (rows: Row[], session: AdminSession) => string;
+  renderList: (rows: Row[], session: AdminSession, successMessage?: string) => string;
   renderNew: (session: AdminSession, error?: string) => string;
   renderEdit: (row: Row, session: AdminSession, error?: string) => string;
   renderDelete: (row: Row, session: AdminSession, error?: string) => string;
@@ -45,13 +45,15 @@ export const createOwnerCrudHandlers = <Row, Input>(cfg: OwnerCrudConfig<Row, In
 
   const logAndRedirect = async (verb: string, name: string, path?: string): Promise<Response> => {
     await logActivity(`${cfg.singular} '${name}' ${verb}`);
-    return redirect(path ?? cfg.listPath);
+    return redirectWithSuccess(path ?? cfg.listPath, `${cfg.singular} ${verb}`);
   };
 
-  const listGet = ownerHtml(async (session) => {
-    const rows = await cfg.getAll();
-    return cfg.renderList(rows, session);
-  });
+  const listGet = (request: Request): Promise<Response> =>
+    requireOwnerOr(request, async (session) => {
+      const rows = await cfg.getAll();
+      const success = getSearchParam(request, "success") || undefined;
+      return htmlResponse(cfg.renderList(rows, session, success));
+    });
 
   const newGet = ownerHtml(cfg.renderNew);
 
@@ -101,7 +103,7 @@ export const createOwnerCrudHandlers = <Row, Input>(cfg: OwnerCrudConfig<Row, In
       const result = await cfg.resource.delete(id);
       if ("notFound" in result) return notFoundResponse();
       await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
-      return redirect(cfg.listPath);
+      return redirectWithSuccess(cfg.listPath, `${cfg.singular} deleted`);
     });
 
   const deletePost = ownerFormForId(deleteHandler);

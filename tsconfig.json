@@ -17,8 +17,7 @@
     "jsx": "react-jsx",
     "jsxImportSource": "#jsx",
     "paths": {
-      "#fp": ["./src/fp/index.ts"],
-      "#fp/*": ["./src/fp/*"],
+      "#fp": ["./src/fp.ts"],
       "#test-utils": ["./src/test-utils/index.ts"],
       "#test-utils/*": ["./src/test-utils/*"],
       "#src/*": ["./src/*"],

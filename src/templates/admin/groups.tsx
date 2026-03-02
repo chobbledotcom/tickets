@@ -5,7 +5,7 @@
 import { map, pipe, reduce } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
 import { buildEmbedSnippets } from "#lib/embed.ts";
-import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
+import { CsrfForm, renderError, renderFields, renderSuccess } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
 import { groupCreateFields, groupFields } from "#templates/fields.ts";
@@ -23,13 +23,13 @@ const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 export const adminGroupsPage = (
   groups: Group[],
   session: AdminSession,
-  error?: string,
+  successMessage?: string,
 ): string =>
   String(
     <Layout title="Groups">
       <AdminNav session={session} active="/admin/groups" />
       <h1>Groups</h1>
-      <Raw html={renderError(error)} />
+      <Raw html={renderSuccess(successMessage)} />
       <p><a href="/admin/group/new">Add Group</a></p>
       {groups.length === 0
         ? <p>No groups configured.</p>
@@ -181,6 +181,7 @@ export const adminGroupDetailPage = (
   session: AdminSession,
   allowedDomain: string,
   phonePrefix?: string,
+  successMessage?: string,
 ): string => {
   const eventRows =
     events.length > 0
@@ -204,6 +205,7 @@ export const adminGroupDetailPage = (
       <AdminNav session={session} active="/admin/groups" />
       <Breadcrumb href="/admin/groups" label="Groups" />
       <h1>{group.name}</h1>
+      <Raw html={renderSuccess(successMessage)} />
       {group.terms_and_conditions && (
         <p>Terms and Conditions: {group.terms_and_conditions}</p>
       )}

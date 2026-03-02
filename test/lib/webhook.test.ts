@@ -11,6 +11,7 @@ import {
   type WebhookPayload,
 } from "#lib/webhook.ts";
 import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
+import { bracket, map } from "#fp";
 
 /** Helper to build a WebhookEvent with sensible defaults */
 const makeEvent = (overrides: Partial<WebhookEvent> = {}): WebhookEvent => ({
@@ -40,6 +41,33 @@ const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee
   ...overrides,
 });
 
+/** Build a RegistrationEntry from event/attendee overrides */
+const makeEntry = (
+  eventOverrides?: Partial<WebhookEvent>,
+  attendeeOverrides?: Partial<WebhookAttendee>,
+): RegistrationEntry => ({
+  event: makeEvent(eventOverrides),
+  attendee: makeAttendee(attendeeOverrides),
+});
+
+/** Default single-entry registration (free event, default attendee) */
+const defaultEntries = (): RegistrationEntry[] => [makeEntry()];
+
+/** Extract first arg (as string) from each spy call */
+const spyFirstArgs = map((c: { args: unknown[] }) => c.args[0] as string);
+
+/** Bracket-managed console.error spy — auto-restores on completion */
+const withErrorSpy = bracket(
+  () => spy(console, "error"),
+  (s: { restore: () => void }) => s.restore(),
+);
+
+/** Convert a db event + webhook_url into makeEvent overrides */
+const eventFromDb = (
+  { id, name, slug }: { id: number; name: string; slug: string },
+  webhook_url: string,
+): Partial<WebhookEvent> => ({ id, name, slug, webhook_url });
+
 /** Flush pending async operations (fire-and-forget webhooks) */
 const flushAsync = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -58,6 +86,23 @@ describe("webhook", () => {
     globalThis.fetch = originalFetch;
   });
 
+  /** Restore current fetch stub and replace with a custom implementation */
+  const restubFetch = (impl: () => Promise<Response>): void => {
+    fetchSpy.restore();
+    fetchSpy = stub(globalThis, "fetch", impl);
+  };
+
+  /** Restub fetch, send a webhook with default payload, return collected error logs */
+  const sendAndCollectErrors = (
+    fetchImpl: () => Promise<Response>,
+  ): Promise<string[]> =>
+    withErrorSpy(async (errorSpy) => {
+      restubFetch(fetchImpl);
+      const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+      await sendWebhook("https://example.com/webhook", payload);
+      return spyFirstArgs(errorSpy.calls);
+    });
+
   describe("buildWebhookPayload", () => {
     beforeEach(async () => {
       const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
@@ -67,11 +112,7 @@ describe("webhook", () => {
     });
 
     test("builds payload for a single free event", async () => {
-      const entries: RegistrationEntry[] = [
-        { event: makeEvent(), attendee: makeAttendee() },
-      ];
-
-      const payload = await buildWebhookPayload(entries, "GBP");
+      const payload = await buildWebhookPayload(defaultEntries(), "GBP");
 
       expect(payload.event_type).toBe("registration.completed");
       expect(payload.name).toBe("Jane Doe");
@@ -93,15 +134,11 @@ describe("webhook", () => {
     });
 
     test("builds payload for a single paid event with price_paid on attendee", async () => {
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ unit_price: 500 }),
-          attendee: makeAttendee({
-            quantity: 2,
-            price_paid: "1000",
-            payment_id: "pi_abc123",
-          }),
-        },
+      const entries = [
+        makeEntry(
+          { unit_price: 500 },
+          { quantity: 2, price_paid: "1000", payment_id: "pi_abc123" },
+        ),
       ];
 
       const payload = await buildWebhookPayload(entries, "USD");
@@ -114,15 +151,15 @@ describe("webhook", () => {
     });
 
     test("builds payload for multi-event entries", async () => {
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ id: 1, name: "Event A", slug: "event-a", unit_price: 300 }),
-          attendee: makeAttendee({ ticket_token: "AA00BB11CC", price_paid: "300", payment_id: "pi_multi" }),
-        },
-        {
-          event: makeEvent({ id: 2, name: "Event B", slug: "event-b", unit_price: 700 }),
-          attendee: makeAttendee({ ticket_token: "DD22EE33FF", quantity: 2, price_paid: "1400", payment_id: "pi_multi" }),
-        },
+      const entries = [
+        makeEntry(
+          { id: 1, name: "Event A", slug: "event-a", unit_price: 300 },
+          { ticket_token: "AA00BB11CC", price_paid: "300", payment_id: "pi_multi" },
+        ),
+        makeEntry(
+          { id: 2, name: "Event B", slug: "event-b", unit_price: 700 },
+          { ticket_token: "DD22EE33FF", quantity: 2, price_paid: "1400", payment_id: "pi_multi" },
+        ),
       ];
 
       const payload = await buildWebhookPayload(entries, "EUR");
@@ -142,28 +179,24 @@ describe("webhook", () => {
     });
 
     test("includes date in ticket when attendee has a date", async () => {
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent(),
-          attendee: makeAttendee({ date: "2025-07-15" }),
-        },
-      ];
-
-      const payload = await buildWebhookPayload(entries, "GBP");
+      const payload = await buildWebhookPayload(
+        [makeEntry({}, { date: "2025-07-15" })],
+        "GBP",
+      );
 
       expect(payload.tickets[0]!.date).toBe("2025-07-15");
     });
 
     test("includes mixed dates for multi-event with daily and standard events", async () => {
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ id: 1, name: "Daily Event", slug: "daily-event" }),
-          attendee: makeAttendee({ ticket_token: "AA00BB11CC", date: "2025-07-15" }),
-        },
-        {
-          event: makeEvent({ id: 2, name: "Standard Event", slug: "standard-event" }),
-          attendee: makeAttendee({ ticket_token: "DD22EE33FF", date: null }),
-        },
+      const entries = [
+        makeEntry(
+          { id: 1, name: "Daily Event", slug: "daily-event" },
+          { ticket_token: "AA00BB11CC", date: "2025-07-15" },
+        ),
+        makeEntry(
+          { id: 2, name: "Standard Event", slug: "standard-event" },
+          { ticket_token: "DD22EE33FF", date: null },
+        ),
       ];
 
       const payload = await buildWebhookPayload(entries, "GBP");
@@ -173,14 +206,10 @@ describe("webhook", () => {
     });
 
     test("returns 0 price_paid when attendee has no price_paid on paid event", async () => {
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ unit_price: 500 }),
-          attendee: makeAttendee({ quantity: 3 }),
-        },
-      ];
-
-      const payload = await buildWebhookPayload(entries, "GBP");
+      const payload = await buildWebhookPayload(
+        [makeEntry({ unit_price: 500 }, { quantity: 3 })],
+        "GBP",
+      );
 
       expect(payload.price_paid).toBe(0);
     });
@@ -189,21 +218,13 @@ describe("webhook", () => {
       const { updateBusinessEmail } = await import("#lib/business-email.ts");
       await updateBusinessEmail("contact@example.com");
 
-      const entries: RegistrationEntry[] = [
-        { event: makeEvent(), attendee: makeAttendee() },
-      ];
-
-      const payload = await buildWebhookPayload(entries, "GBP");
+      const payload = await buildWebhookPayload(defaultEntries(), "GBP");
 
       expect(payload.business_email).toBe("contact@example.com");
     });
 
     test("includes empty business_email when not set", async () => {
-      const entries: RegistrationEntry[] = [
-        { event: makeEvent(), attendee: makeAttendee() },
-      ];
-
-      const payload = await buildWebhookPayload(entries, "GBP");
+      const payload = await buildWebhookPayload(defaultEntries(), "GBP");
 
       expect(payload.business_email).toBe("");
     });
@@ -211,10 +232,7 @@ describe("webhook", () => {
 
   describe("sendWebhook", () => {
     test("sends POST request with correct payload", async () => {
-      const payload: WebhookPayload = await buildWebhookPayload(
-        [{ event: makeEvent(), attendee: makeAttendee() }],
-        "GBP",
-      );
+      const payload: WebhookPayload = await buildWebhookPayload(defaultEntries(), "GBP");
 
       await sendWebhook("https://example.com/webhook", payload);
 
@@ -231,13 +249,9 @@ describe("webhook", () => {
     });
 
     test("does not throw on fetch error", async () => {
-      fetchSpy.restore();
-      fetchSpy = stub(globalThis, "fetch", () => Promise.reject(new Error("Network error")));
+      restubFetch(() => Promise.reject(new Error("Network error")));
 
-      const payload = await buildWebhookPayload(
-        [{ event: makeEvent(), attendee: makeAttendee() }],
-        "GBP",
-      );
+      const payload = await buildWebhookPayload(defaultEntries(), "GBP");
 
       // Should not throw
       await sendWebhook("https://example.com/webhook", payload);
@@ -246,75 +260,31 @@ describe("webhook", () => {
     });
 
     test("logs error message on fetch error", async () => {
-      const errorSpy = spy(console, "error");
-      fetchSpy.restore();
-      fetchSpy = stub(globalThis, "fetch", () => Promise.reject(new Error("Connection refused")));
-
-      const payload = await buildWebhookPayload(
-        [{ event: makeEvent(), attendee: makeAttendee() }],
-        "GBP",
+      const logs = await sendAndCollectErrors(
+        () => Promise.reject(new Error("Connection refused")),
       );
-
-      await sendWebhook("https://example.com/webhook", payload);
-
-      const calls = errorSpy.calls.map((c) => c.args[0] as string);
-      expect(calls.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("Connection refused"))).toBe(true);
-
-      errorSpy.restore();
+      expect(logs.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("Connection refused"))).toBe(true);
     });
 
     test("logs non-Error thrown values as strings", async () => {
-      const errorSpy = spy(console, "error");
-      fetchSpy.restore();
-      fetchSpy = stub(globalThis, "fetch", () => Promise.reject("socket hang up"));
-
-      const payload = await buildWebhookPayload(
-        [{ event: makeEvent(), attendee: makeAttendee() }],
-        "GBP",
+      const logs = await sendAndCollectErrors(
+        () => Promise.reject("socket hang up"),
       );
-
-      await sendWebhook("https://example.com/webhook", payload);
-
-      const calls = errorSpy.calls.map((c) => c.args[0] as string);
-      expect(calls.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("socket hang up"))).toBe(true);
-
-      errorSpy.restore();
+      expect(logs.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("socket hang up"))).toBe(true);
     });
 
     test("logs status on non-2xx response", async () => {
-      const errorSpy = spy(console, "error");
-      fetchSpy.restore();
-      fetchSpy = stub(globalThis, "fetch", () => Promise.resolve(new Response("Not Found", { status: 404 })));
-
-      const payload = await buildWebhookPayload(
-        [{ event: makeEvent(), attendee: makeAttendee() }],
-        "GBP",
+      const logs = await sendAndCollectErrors(
+        () => Promise.resolve(new Response("Not Found", { status: 404 })),
       );
-
-      await sendWebhook("https://example.com/webhook", payload);
-
-      const calls = errorSpy.calls.map((c) => c.args[0] as string);
-      expect(calls.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("status=404"))).toBe(true);
-
-      errorSpy.restore();
+      expect(logs.some((c) => c.includes("E_WEBHOOK_SEND") && c.includes("status=404"))).toBe(true);
     });
 
     test("does not log error on successful 2xx response", async () => {
-      const errorSpy = spy(console, "error");
-      fetchSpy.restore();
-      fetchSpy = stub(globalThis, "fetch", () => Promise.resolve(new Response("OK", { status: 200 })));
-
-      const payload = await buildWebhookPayload(
-        [{ event: makeEvent(), attendee: makeAttendee() }],
-        "GBP",
+      const logs = await sendAndCollectErrors(
+        () => Promise.resolve(new Response("OK", { status: 200 })),
       );
-
-      await sendWebhook("https://example.com/webhook", payload);
-
-      const calls = errorSpy.calls.map((c) => c.args[0] as string);
-      expect(calls.some((c) => c.includes("E_WEBHOOK_SEND"))).toBe(false);
-
-      errorSpy.restore();
+      expect(logs.some((c) => c.includes("E_WEBHOOK_SEND"))).toBe(false);
     });
   });
 
@@ -324,37 +294,23 @@ describe("webhook", () => {
     });
 
     test("sends to all unique webhook URLs", async () => {
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ id: 1, webhook_url: "https://hook-a.com" }),
-          attendee: makeAttendee(),
-        },
-        {
-          event: makeEvent({ id: 2, webhook_url: "https://hook-b.com" }),
-          attendee: makeAttendee(),
-        },
+      const entries = [
+        makeEntry({ id: 1, webhook_url: "https://hook-a.com" }),
+        makeEntry({ id: 2, webhook_url: "https://hook-b.com" }),
       ];
 
       await sendRegistrationWebhooks(entries, "GBP");
 
       expect(fetchSpy.calls.length).toBe(2);
-      const urls = fetchSpy.calls.map(
-        (call: { args: unknown[] }) => call.args[0] as string,
-      );
+      const urls = spyFirstArgs(fetchSpy.calls);
       expect(urls).toContain("https://hook-a.com");
       expect(urls).toContain("https://hook-b.com");
     });
 
     test("deduplicates identical webhook URLs", async () => {
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ id: 1, webhook_url: "https://same-hook.com" }),
-          attendee: makeAttendee(),
-        },
-        {
-          event: makeEvent({ id: 2, webhook_url: "https://same-hook.com" }),
-          attendee: makeAttendee(),
-        },
+      const entries = [
+        makeEntry({ id: 1, webhook_url: "https://same-hook.com" }),
+        makeEntry({ id: 2, webhook_url: "https://same-hook.com" }),
       ];
 
       await sendRegistrationWebhooks(entries, "GBP");
@@ -363,15 +319,9 @@ describe("webhook", () => {
     });
 
     test("skips entries with empty webhook URLs", async () => {
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ id: 1, webhook_url: "" }),
-          attendee: makeAttendee(),
-        },
-        {
-          event: makeEvent({ id: 2, webhook_url: "https://hook.com" }),
-          attendee: makeAttendee(),
-        },
+      const entries = [
+        makeEntry({ id: 1, webhook_url: "" }),
+        makeEntry({ id: 2, webhook_url: "https://hook.com" }),
       ];
 
       await sendRegistrationWebhooks(entries, "GBP");
@@ -382,47 +332,29 @@ describe("webhook", () => {
     });
 
     test("does nothing when all webhook URLs are null and WEBHOOK_URL is not set", async () => {
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ webhook_url: "" }),
-          attendee: makeAttendee(),
-        },
-      ];
-
-      await sendRegistrationWebhooks(entries, "GBP");
+      await sendRegistrationWebhooks([makeEntry({ webhook_url: "" })], "GBP");
 
       expect(fetchSpy.calls.length).toBe(0);
     });
 
     test("sends to WEBHOOK_URL env var in addition to event webhook URLs", async () => {
       Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ webhook_url: "https://event-hook.com" }),
-          attendee: makeAttendee(),
-        },
-      ];
 
-      await sendRegistrationWebhooks(entries, "GBP");
+      await sendRegistrationWebhooks(
+        [makeEntry({ webhook_url: "https://event-hook.com" })],
+        "GBP",
+      );
 
       expect(fetchSpy.calls.length).toBe(2);
-      const urls = fetchSpy.calls.map(
-        (call: { args: unknown[] }) => call.args[0] as string,
-      );
+      const urls = spyFirstArgs(fetchSpy.calls);
       expect(urls).toContain("https://event-hook.com");
       expect(urls).toContain("https://global-hook.com");
     });
 
     test("sends to WEBHOOK_URL even when no events have webhook URLs", async () => {
       Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ webhook_url: "" }),
-          attendee: makeAttendee(),
-        },
-      ];
 
-      await sendRegistrationWebhooks(entries, "GBP");
+      await sendRegistrationWebhooks([makeEntry({ webhook_url: "" })], "GBP");
 
       expect(fetchSpy.calls.length).toBe(1);
       const [url] = fetchSpy.calls[0].args as [string, RequestInit];
@@ -431,14 +363,11 @@ describe("webhook", () => {
 
     test("deduplicates WEBHOOK_URL when it matches an event webhook URL", async () => {
       Deno.env.set("WEBHOOK_URL", "https://same-hook.com");
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ webhook_url: "https://same-hook.com" }),
-          attendee: makeAttendee(),
-        },
-      ];
 
-      await sendRegistrationWebhooks(entries, "GBP");
+      await sendRegistrationWebhooks(
+        [makeEntry({ webhook_url: "https://same-hook.com" })],
+        "GBP",
+      );
 
       expect(fetchSpy.calls.length).toBe(1);
     });
@@ -456,15 +385,9 @@ describe("webhook", () => {
     test("sends webhook when event has webhook_url", async () => {
       const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
       const dbEvent = await createTestEvent({ webhookUrl: "https://example.com/hook" });
-      const event = makeEvent({
-        id: dbEvent.id,
-        name: dbEvent.name,
-        slug: dbEvent.slug,
-        webhook_url: "https://example.com/hook",
-      });
-      const attendee = makeAttendee();
+      const event = makeEvent(eventFromDb(dbEvent, "https://example.com/hook"));
 
-      await logAndNotifyRegistration(event, attendee, "GBP");
+      await logAndNotifyRegistration(event, makeAttendee(), "GBP");
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(1);
@@ -478,15 +401,9 @@ describe("webhook", () => {
     test("does not send webhook when event has no webhook_url", async () => {
       const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
       const dbEvent = await createTestEvent();
-      const event = makeEvent({
-        id: dbEvent.id,
-        name: dbEvent.name,
-        slug: dbEvent.slug,
-        webhook_url: "",
-      });
-      const attendee = makeAttendee();
+      const event = makeEvent(eventFromDb(dbEvent, ""));
 
-      await logAndNotifyRegistration(event, attendee, "GBP");
+      await logAndNotifyRegistration(event, makeAttendee(), "GBP");
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(0);
@@ -496,15 +413,9 @@ describe("webhook", () => {
       Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
       const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
       const dbEvent = await createTestEvent();
-      const event = makeEvent({
-        id: dbEvent.id,
-        name: dbEvent.name,
-        slug: dbEvent.slug,
-        webhook_url: "",
-      });
-      const attendee = makeAttendee();
+      const event = makeEvent(eventFromDb(dbEvent, ""));
 
-      await logAndNotifyRegistration(event, attendee, "GBP");
+      await logAndNotifyRegistration(event, makeAttendee(), "GBP");
       await flushAsync();
 
       expect(fetchSpy.calls.length).toBe(1);
@@ -527,25 +438,9 @@ describe("webhook", () => {
       const { logAndNotifyMultiRegistration } = await import("#lib/webhook.ts");
       const dbEventA = await createTestEvent({ webhookUrl: "https://hook.com" });
       const dbEventB = await createTestEvent({ webhookUrl: "https://hook.com" });
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({
-            id: dbEventA.id,
-            name: dbEventA.name,
-            slug: dbEventA.slug,
-            webhook_url: "https://hook.com",
-          }),
-          attendee: makeAttendee(),
-        },
-        {
-          event: makeEvent({
-            id: dbEventB.id,
-            name: dbEventB.name,
-            slug: dbEventB.slug,
-            webhook_url: "https://hook.com",
-          }),
-          attendee: makeAttendee(),
-        },
+      const entries = [
+        makeEntry(eventFromDb(dbEventA, "https://hook.com")),
+        makeEntry(eventFromDb(dbEventB, "https://hook.com")),
       ];
 
       await logAndNotifyMultiRegistration(entries, "GBP");
@@ -561,15 +456,9 @@ describe("webhook", () => {
       const { logAndNotifyMultiRegistration } = await import("#lib/webhook.ts");
       const dbEventA = await createTestEvent();
       const dbEventB = await createTestEvent();
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ id: dbEventA.id, webhook_url: "" }),
-          attendee: makeAttendee(),
-        },
-        {
-          event: makeEvent({ id: dbEventB.id, webhook_url: "" }),
-          attendee: makeAttendee(),
-        },
+      const entries = [
+        makeEntry(eventFromDb(dbEventA, "")),
+        makeEntry(eventFromDb(dbEventB, "")),
       ];
 
       await logAndNotifyMultiRegistration(entries, "USD");
@@ -583,15 +472,9 @@ describe("webhook", () => {
       const { logAndNotifyMultiRegistration } = await import("#lib/webhook.ts");
       const dbEventA = await createTestEvent();
       const dbEventB = await createTestEvent();
-      const entries: RegistrationEntry[] = [
-        {
-          event: makeEvent({ id: dbEventA.id, webhook_url: "" }),
-          attendee: makeAttendee(),
-        },
-        {
-          event: makeEvent({ id: dbEventB.id, webhook_url: "" }),
-          attendee: makeAttendee(),
-        },
+      const entries = [
+        makeEntry(eventFromDb(dbEventA, "")),
+        makeEntry(eventFromDb(dbEventB, "")),
       ];
 
       await logAndNotifyMultiRegistration(entries, "USD");

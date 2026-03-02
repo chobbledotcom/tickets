@@ -31,7 +31,9 @@ const handleAdminGet = (request: Request): Promise<Response> =>
   withSession(
     request,
     async (session) => {
-      const imageError = new URL(request.url).searchParams.get("image_error");
+      const url = new URL(request.url);
+      const imageError = url.searchParams.get("image_error");
+      const successMessage = url.searchParams.get("success");
       const [events, holidays, newestRaw, privateKey] = await Promise.all([
         getAllEvents(),
         getActiveHolidays(),
@@ -40,7 +42,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
       ]);
       const newestAttendees = await decryptAttendees(newestRaw, privateKey);
       const sortedEvents = sortEvents(events, holidays);
-      return htmlResponse(adminDashboardPage(sortedEvents, session, imageError, newestAttendees));
+      return htmlResponse(adminDashboardPage(sortedEvents, session, imageError, newestAttendees, successMessage));
     },
     () => loginResponse(),
   );
