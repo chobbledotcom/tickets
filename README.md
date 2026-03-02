@@ -6,10 +6,7 @@ This is not "open core" — every feature is available under **AGPLv3** with no 
 
 ## Deploy
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/chobbledotcom/tickets)
-[![Deploy to Heroku](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/chobbledotcom/tickets/tree/main)
-[![Deploy to DO](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/chobbledotcom/tickets/tree/main)
-[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=git&repository=github.com/chobbledotcom/tickets&branch=main&name=chobble-tickets&builder=dockerfile&ports=3000;http;/)
+Deploy to: **[Render](https://render.com/deploy?repo=https://github.com/chobbledotcom/tickets)**, **[Heroku](https://heroku.com/deploy?template=https://github.com/chobbledotcom/tickets/tree/main)**, **[DigitalOcean](https://cloud.digitalocean.com/apps/new?repo=https://github.com/chobbledotcom/tickets/tree/main)**, **[Koyeb](https://app.koyeb.com/deploy?type=git&repository=github.com/chobbledotcom/tickets&branch=main&name=chobble-tickets&builder=dockerfile&ports=3000;http;/)**
 
 Also deployable with [Fly.io](https://fly.io) (`fly launch`) or any Docker host.
 
