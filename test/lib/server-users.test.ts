@@ -12,6 +12,7 @@ import {
   getUserByUsername,
   hasPassword,
   invalidateUsersCache,
+  isInviteExpired,
   isInviteValid,
   verifyUserPassword,
 } from "#lib/db/users.ts";
@@ -137,6 +138,27 @@ describe("server (multi-user admin)", () => {
 
       const valid = await isInviteValid(user);
       expect(valid).toBe(false);
+    });
+  });
+
+  describe("isInviteExpired", () => {
+    test("returns true for expired invite", async () => {
+      const expiry = new Date(Date.now() - 1000).toISOString();
+      const user = await createInvitedUser("expired-check", "manager", "somehash", expiry);
+
+      expect(await isInviteExpired(user)).toBe(true);
+    });
+
+    test("returns false for valid invite", async () => {
+      const expiry = new Date(Date.now() + 86400000).toISOString();
+      const user = await createInvitedUser("valid-check", "manager", "somehash", expiry);
+
+      expect(await isInviteExpired(user)).toBe(false);
+    });
+
+    test("returns false for user without invite code", async () => {
+      const owner = await getUserByUsername(TEST_ADMIN_USERNAME);
+      expect(await isInviteExpired(owner!)).toBe(false);
     });
   });
 
@@ -919,6 +941,33 @@ describe("server (multi-user admin)", () => {
       const response = await awaitTestRequest("/admin/users", { cookie });
       const html = await response.text();
       expect(html).toContain("Invited");
+    });
+
+    test("shows Invite Expired status for expired invite", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      // Create an invited user then manually set expiry to the past
+      await handleRequest(
+        mockFormRequest(
+          "/admin/users",
+          {
+            username: "expired-display",
+            admin_level: "manager",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      const expiredExpiry = await encrypt(new Date(Date.now() - 1000).toISOString());
+      await getDb().execute({
+        sql: "UPDATE users SET invite_expiry = ? WHERE id = 2",
+        args: [expiredExpiry],
+      });
+      invalidateUsersCache();
+
+      const response = await awaitTestRequest("/admin/users", { cookie });
+      const html = await response.text();
+      expect(html).toContain("Invite Expired");
     });
 
     test("shows Pending Activation status and Activate button for user with password but no data key", async () => {
