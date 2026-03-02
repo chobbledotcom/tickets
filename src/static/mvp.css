@@ -1267,6 +1267,15 @@ button.secondary:hover {
   color: var(--color-text);
 }
 
+/* Demo mode banner */
+.demo-banner {
+  background: #f59e0b;
+  color: #000;
+  text-align: center;
+  padding: 8px;
+  font-weight: bold;
+}
+
 /* Stripe test result */
 .stripe-test-result {
   white-space: pre-wrap;

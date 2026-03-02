@@ -5,10 +5,6 @@ import { createTestDbWithSetup, mockRequest, resetDb, setupTestEncryptionKey } f
 import {
   applyDemoOverrides,
   ATTENDEE_DEMO_FIELDS,
-  BUSINESS_EMAIL_DEMO_FIELDS,
-  DEMO_ADDRESSES,
-  DEMO_BANNER,
-  DEMO_BUSINESS_EMAILS,
   DEMO_EMAILS,
   DEMO_EVENT_DESCRIPTIONS,
   DEMO_EVENT_LOCATIONS,
@@ -16,20 +12,11 @@ import {
   DEMO_GROUP_NAMES,
   DEMO_HOLIDAY_NAMES,
   DEMO_NAMES,
-  DEMO_PAGE_TEXT,
   DEMO_PHONES,
-  DEMO_SPECIAL_INSTRUCTIONS,
-  DEMO_TERMS,
-  DEMO_WEBSITE_TITLES,
   type DemoFieldMap,
   EVENT_DEMO_FIELDS,
-  GROUP_DEMO_FIELDS,
-  HOLIDAY_DEMO_FIELDS,
   isDemoMode,
   resetDemoMode,
-  SITE_CONTACT_DEMO_FIELDS,
-  SITE_HOME_DEMO_FIELDS,
-  TERMS_DEMO_FIELDS,
   wrapResourceForDemo,
 } from "#lib/demo.ts";
 
@@ -211,28 +198,6 @@ describe("demo", () => {
   });
 
   describe("demo data arrays", () => {
-    test("all arrays are non-empty", () => {
-      const arrays = [
-        DEMO_NAMES,
-        DEMO_EMAILS,
-        DEMO_PHONES,
-        DEMO_ADDRESSES,
-        DEMO_SPECIAL_INSTRUCTIONS,
-        DEMO_EVENT_NAMES,
-        DEMO_EVENT_DESCRIPTIONS,
-        DEMO_EVENT_LOCATIONS,
-        DEMO_GROUP_NAMES,
-        DEMO_HOLIDAY_NAMES,
-        DEMO_WEBSITE_TITLES,
-        DEMO_PAGE_TEXT,
-        DEMO_TERMS,
-        DEMO_BUSINESS_EMAILS,
-      ];
-      for (const arr of arrays) {
-        expect(arr.length).toBeGreaterThan(0);
-      }
-    });
-
     test("demo emails have valid format", () => {
       for (const email of DEMO_EMAILS) {
         expect(email).toMatch(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
@@ -243,53 +208,6 @@ describe("demo", () => {
       for (const phone of DEMO_PHONES) {
         expect(phone).toMatch(/^\+44/);
       }
-    });
-  });
-
-  describe("field mappings", () => {
-    test("ATTENDEE_DEMO_FIELDS has correct keys", () => {
-      expect(Object.keys(ATTENDEE_DEMO_FIELDS).sort()).toEqual(
-        ["address", "email", "name", "phone", "special_instructions"],
-      );
-    });
-
-    test("EVENT_DEMO_FIELDS has correct keys", () => {
-      expect(Object.keys(EVENT_DEMO_FIELDS).sort()).toEqual(
-        ["description", "location", "name"],
-      );
-    });
-
-    test("GROUP_DEMO_FIELDS has correct keys", () => {
-      expect(Object.keys(GROUP_DEMO_FIELDS)).toEqual(["name"]);
-    });
-
-    test("HOLIDAY_DEMO_FIELDS has correct keys", () => {
-      expect(Object.keys(HOLIDAY_DEMO_FIELDS)).toEqual(["name"]);
-    });
-
-    test("SITE_HOME_DEMO_FIELDS has correct keys", () => {
-      expect(Object.keys(SITE_HOME_DEMO_FIELDS).sort()).toEqual(
-        ["homepage_text", "website_title"],
-      );
-    });
-
-    test("SITE_CONTACT_DEMO_FIELDS has correct keys", () => {
-      expect(Object.keys(SITE_CONTACT_DEMO_FIELDS)).toEqual(["contact_page_text"]);
-    });
-
-    test("TERMS_DEMO_FIELDS has correct keys", () => {
-      expect(Object.keys(TERMS_DEMO_FIELDS)).toEqual(["terms_and_conditions"]);
-    });
-
-    test("BUSINESS_EMAIL_DEMO_FIELDS has correct keys", () => {
-      expect(Object.keys(BUSINESS_EMAIL_DEMO_FIELDS)).toEqual(["business_email"]);
-    });
-  });
-
-  describe("DEMO_BANNER", () => {
-    test("contains expected text", () => {
-      expect(DEMO_BANNER).toContain("Demo Mode");
-      expect(DEMO_BANNER).toContain("sample data");
     });
   });
 

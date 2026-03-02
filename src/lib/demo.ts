@@ -158,14 +158,6 @@ export const DEMO_TERMS = [
   "All attendees must follow the venue code of conduct. Photography may take place at this event.",
 ] as const;
 
-/** Demo business emails */
-export const DEMO_BUSINESS_EMAILS = [
-  "info@example.com",
-  "events@example.com",
-  "bookings@example.com",
-  "hello@example.com",
-] as const;
-
 // ---------------------------------------------------------------------------
 // Field mapping type and pre-built mappings
 // ---------------------------------------------------------------------------
@@ -215,11 +207,6 @@ export const TERMS_DEMO_FIELDS: DemoFieldMap = {
   terms_and_conditions: DEMO_TERMS,
 };
 
-/** Business email field */
-export const BUSINESS_EMAIL_DEMO_FIELDS: DemoFieldMap = {
-  business_email: DEMO_BUSINESS_EMAILS,
-};
-
 // ---------------------------------------------------------------------------
 // Override logic
 // ---------------------------------------------------------------------------
@@ -258,4 +245,4 @@ export const wrapResourceForDemo = <R, I, V extends FieldValues = FieldValues>(
 
 /** Demo mode banner HTML */
 export const DEMO_BANNER =
-  '<div style="background:#f59e0b;color:#000;text-align:center;padding:8px;font-weight:bold">Demo Mode \u2014 entered text is replaced with sample data</div>';
+  '<div class="demo-banner">Demo Mode \u2014 entered text is replaced with sample data</div>';
