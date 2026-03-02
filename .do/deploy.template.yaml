@@ -1,0 +1,27 @@
+spec:
+  name: chobble-tickets
+  services:
+    - name: web
+      github:
+        repo: chobbledotcom/tickets
+        branch: main
+        deploy_on_push: true
+      dockerfile_path: Dockerfile
+      http_port: 3000
+      instance_count: 1
+      instance_size_slug: basic-xxs
+      routes:
+        - path: /
+      envs:
+        - key: DB_URL
+          scope: RUN_TIME
+          type: SECRET
+        - key: DB_TOKEN
+          scope: RUN_TIME
+          type: SECRET
+        - key: DB_ENCRYPTION_KEY
+          scope: RUN_TIME
+          type: SECRET
+        - key: ALLOWED_DOMAIN
+          scope: RUN_TIME
+          type: GENERAL

@@ -3,7 +3,15 @@
  * Owner-only access enforced via requireOwnerOr / withOwnerAuthForm
  */
 
+import {
+  getBusinessEmailFromDb,
+  isValidBusinessEmail,
+  updateBusinessEmail,
+} from "#lib/business-email.ts";
+import { getAllowedDomain, getSquareWebhookSignatureKey } from "#lib/config.ts";
+import { clearSessionCookie } from "#lib/cookies.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
+import { resetDatabase } from "#lib/db/migrations.ts";
 import {
   clearPaymentProvider,
   getEmbedHostsFromDb,
@@ -16,9 +24,9 @@ import {
   getTermsAndConditionsFromDb,
   getThemeFromDb,
   getTimezoneFromDb,
-  MAX_TERMS_LENGTH,
   hasSquareToken,
   hasStripeKey,
+  MAX_TERMS_LENGTH,
   setPaymentProvider,
   setStripeWebhookConfig,
   updateEmbedHosts,
@@ -35,17 +43,19 @@ import {
   updateTimezone,
   updateUserPassword,
 } from "#lib/db/settings.ts";
-import { getBusinessEmailFromDb, updateBusinessEmail, isValidBusinessEmail } from "#lib/business-email.ts";
-import {
-  getSquareWebhookSignatureKey,
-  getAllowedDomain,
-} from "#lib/config.ts";
-import { isValidTimezone } from "#lib/timezone.ts";
-import { validateEmbedHosts, parseEmbedHosts } from "#lib/embed-hosts.ts";
-import { resetDatabase } from "#lib/db/migrations.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
-import { type Field, setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
-import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
+import {
+  applyDemoOverrides,
+  isDemoMode,
+  TERMS_DEMO_FIELDS,
+} from "#lib/demo.ts";
+import { parseEmbedHosts, validateEmbedHosts } from "#lib/embed-hosts.ts";
+import {
+  type Field,
+  setFormError,
+  setFormSuccess,
+  validateForm,
+} from "#lib/forms.tsx";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import {
   IMAGE_ERROR_MESSAGES,
@@ -54,7 +64,9 @@ import {
   uploadImage,
   validateImage,
 } from "#lib/storage.ts";
-import { clearSessionCookie } from "#lib/cookies.ts";
+import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
+import { isValidTimezone } from "#lib/timezone.ts";
+import { validateResetPhrase } from "#routes/admin/database-reset.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
@@ -69,14 +81,14 @@ import {
 } from "#routes/utils.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import {
-  changePasswordFields,
   type ChangePasswordFormValues,
-  squareAccessTokenFields,
+  changePasswordFields,
   type SquareTokenFormValues,
-  squareWebhookFields,
   type SquareWebhookFormValues,
-  stripeKeyFields,
   type StripeKeyFormValues,
+  squareAccessTokenFields,
+  squareWebhookFields,
+  stripeKeyFields,
 } from "#templates/fields.ts";
 
 /** Build the webhook URL from the configured domain */
@@ -162,21 +174,32 @@ const renderSettingsPage = async (session: AuthSession) => {
 };
 
 /** Render settings page with error on a specific form */
-const settingsPageWithError = (session: AuthSession) =>
+const settingsPageWithError =
+  (session: AuthSession) =>
   async (error: string, status: number, formId: string): Promise<Response> => {
     setFormError(formId, error);
     const html = await renderSettingsPage(session);
     return htmlResponse(html, status);
   };
 
-type ErrorPageFn = (error: string, status: number, formId: string) => Promise<Response>;
-type SettingsFormHandler = (form: URLSearchParams, errorPage: ErrorPageFn, session: AuthSession) => Response | Promise<Response>;
+type ErrorPageFn = (
+  error: string,
+  status: number,
+  formId: string,
+) => Promise<Response>;
+type SettingsFormHandler = (
+  form: URLSearchParams,
+  errorPage: ErrorPageFn,
+  session: AuthSession,
+) => Response | Promise<Response>;
 
 /** Owner auth form route that provides the errorPage helper and session */
-const settingsRoute = (handler: SettingsFormHandler) =>
+const settingsRoute =
+  (handler: SettingsFormHandler) =>
   (request: Request): Promise<Response> =>
     withOwnerAuthForm(request, (session, form) =>
-      handler(form, settingsPageWithError(session), session));
+      handler(form, settingsPageWithError(session), session),
+    );
 
 /** Validate form and return values, or an error response */
 const validateSettingsForm = async <T>(
@@ -194,12 +217,15 @@ const validateSettingsForm = async <T>(
 /**
  * Handle GET /admin/settings - owner only
  */
-const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (request) =>
+const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (
+  request,
+) =>
   requireOwnerOr(request, async (session) => {
-    setFormSuccess(getSearchParam(request, "form"), getSearchParam(request, "success"));
-    return htmlResponse(
-      await renderSettingsPage(session),
+    setFormSuccess(
+      getSearchParam(request, "form"),
+      getSearchParam(request, "success"),
     );
+    return htmlResponse(await renderSettingsPage(session));
   });
 
 /**
@@ -212,12 +238,16 @@ type ChangePasswordValidation =
 const validateChangePasswordForm = (
   form: URLSearchParams,
 ): ChangePasswordValidation => {
-  const validation = validateForm<ChangePasswordFormValues>(form, changePasswordFields);
+  const validation = validateForm<ChangePasswordFormValues>(
+    form,
+    changePasswordFields,
+  );
   if (!validation.valid) {
     return validation;
   }
 
-  const { current_password, new_password, new_password_confirm } = validation.values;
+  const { current_password, new_password, new_password_confirm } =
+    validation.values;
 
   if (new_password.length < 8) {
     return {
@@ -229,39 +259,52 @@ const validateChangePasswordForm = (
     return { valid: false, error: "New passwords do not match" };
   }
 
-  return { valid: true, currentPassword: current_password, newPassword: new_password };
+  return {
+    valid: true,
+    currentPassword: current_password,
+    newPassword: new_password,
+  };
 };
 
 /**
  * Handle POST /admin/settings - change password (owner only)
  */
-const handleAdminSettingsPost = settingsRoute(async (form, errorPage, session) => {
-  const validation = validateChangePasswordForm(form);
-  if (!validation.valid) {
-    return errorPage(validation.error, 400, "settings-password");
-  }
+const handleAdminSettingsPost = settingsRoute(
+  async (form, errorPage, session) => {
+    const validation = validateChangePasswordForm(form);
+    if (!validation.valid) {
+      return errorPage(validation.error, 400, "settings-password");
+    }
 
-  // Load current user (guaranteed to exist since session was just validated)
-  const user = (await getUserById(session.userId))!;
+    // Load current user (guaranteed to exist since session was just validated)
+    const user = (await getUserById(session.userId))!;
 
-  const passwordHash = await verifyUserPassword(user, validation.currentPassword);
-  if (!passwordHash) {
-    return errorPage("Current password is incorrect", 401, "settings-password");
-  }
+    const passwordHash = await verifyUserPassword(
+      user,
+      validation.currentPassword,
+    );
+    if (!passwordHash) {
+      return errorPage(
+        "Current password is incorrect",
+        401,
+        "settings-password",
+      );
+    }
 
-  const success = await updateUserPassword(
-    session.userId,
-    passwordHash,
-    user.wrapped_data_key!,
-    validation.newPassword,
-  );
-  if (!success) {
-    return errorPage("Failed to update password", 500, "settings-password");
-  }
+    const success = await updateUserPassword(
+      session.userId,
+      passwordHash,
+      user.wrapped_data_key!,
+      validation.newPassword,
+    );
+    if (!success) {
+      return errorPage("Failed to update password", 500, "settings-password");
+    }
 
-  await logActivity("Password changed");
-  return redirect("/admin", clearSessionCookie());
-});
+    await logActivity("Password changed");
+    return redirect("/admin", clearSessionCookie());
+  },
+);
 
 /** Valid payment provider values from the form */
 const VALID_PROVIDERS: ReadonlySet<string> = new Set<PaymentProviderType>([
@@ -278,24 +321,49 @@ const handlePaymentProviderPost = settingsRoute(async (form, errorPage) => {
   if (provider === "none") {
     await clearPaymentProvider();
     await logActivity("Payment provider disabled");
-    return redirectWithSuccess("/admin/settings", "Payment provider disabled", "settings-payment-provider");
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Payment provider disabled",
+      "settings-payment-provider",
+    );
   }
 
   if (!VALID_PROVIDERS.has(provider)) {
-    return errorPage("Invalid payment provider", 400, "settings-payment-provider");
+    return errorPage(
+      "Invalid payment provider",
+      400,
+      "settings-payment-provider",
+    );
   }
 
   await setPaymentProvider(provider);
   await logActivity(`Payment provider set to ${provider}`);
 
-  return redirectWithSuccess("/admin/settings", `Payment provider set to ${provider}`, "settings-payment-provider");
+  return redirectWithSuccess(
+    "/admin/settings",
+    `Payment provider set to ${provider}`,
+    "settings-payment-provider",
+  );
 });
 
 /**
  * Handle POST /admin/settings/stripe - owner only
  */
 const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
-  const validated = await validateSettingsForm<StripeKeyFormValues>(form, stripeKeyFields, errorPage, "settings-stripe");
+  if (isDemoMode()) {
+    return errorPage(
+      "Cannot configure Stripe in demo mode",
+      400,
+      "settings-stripe",
+    );
+  }
+
+  const validated = await validateSettingsForm<StripeKeyFormValues>(
+    form,
+    stripeKeyFields,
+    errorPage,
+    "settings-stripe",
+  );
   if ("response" in validated) return validated.response;
 
   const { stripe_secret_key: stripeSecretKey } = validated.values;
@@ -337,10 +405,24 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/square - owner only
  */
 const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
-  const validated = await validateSettingsForm<SquareTokenFormValues>(form, squareAccessTokenFields, errorPage, "settings-square");
+  if (isDemoMode()) {
+    return errorPage(
+      "Cannot configure Square in demo mode",
+      400,
+      "settings-square",
+    );
+  }
+
+  const validated = await validateSettingsForm<SquareTokenFormValues>(
+    form,
+    squareAccessTokenFields,
+    errorPage,
+    "settings-square",
+  );
   if ("response" in validated) return validated.response;
 
-  const { square_access_token: accessToken, square_location_id: locationId } = validated.values;
+  const { square_access_token: accessToken, square_location_id: locationId } =
+    validated.values;
   const sandbox = form.get("square_sandbox") === "on";
 
   await updateSquareAccessToken(accessToken);
@@ -351,14 +433,23 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   await setPaymentProvider("square");
 
   await logActivity("Square credentials configured");
-  return redirectWithSuccess("/admin/settings", "Square credentials updated successfully", "settings-square");
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Square credentials updated successfully",
+    "settings-square",
+  );
 });
 
 /**
  * Handle POST /admin/settings/square-webhook - owner only
  */
 const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
-  const validated = await validateSettingsForm<SquareWebhookFormValues>(form, squareWebhookFields, errorPage, "settings-square-webhook");
+  const validated = await validateSettingsForm<SquareWebhookFormValues>(
+    form,
+    squareWebhookFields,
+    errorPage,
+    "settings-square-webhook",
+  );
   if ("response" in validated) return validated.response;
 
   const { square_webhook_signature_key: signatureKey } = validated.values;
@@ -392,7 +483,11 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
   // Empty = clear restriction
   if (trimmed === "") {
     await updateEmbedHosts("");
-    return redirectWithSuccess("/admin/settings", "Embed host restrictions removed", "settings-embed-hosts");
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Embed host restrictions removed",
+      "settings-embed-hosts",
+    );
   }
 
   const error = validateEmbedHosts(trimmed);
@@ -403,13 +498,18 @@ const handleEmbedHostsPost = settingsRoute(async (form, errorPage) => {
   // Normalize: trim, lowercase, rejoin
   const normalized = parseEmbedHosts(trimmed).join(", ");
   await updateEmbedHosts(normalized);
-  return redirectWithSuccess("/admin/settings", "Allowed embed hosts updated", "settings-embed-hosts");
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Allowed embed hosts updated",
+    "settings-embed-hosts",
+  );
 });
 
 /**
  * Handle POST /admin/settings/terms - owner only
  */
 const handleTermsPost = settingsRoute(async (form, errorPage) => {
+  applyDemoOverrides(form, TERMS_DEMO_FIELDS);
   const raw = form.get("terms_and_conditions") ?? "";
   const trimmed = raw.trim();
 
@@ -425,10 +525,18 @@ const handleTermsPost = settingsRoute(async (form, errorPage) => {
 
   if (trimmed === "") {
     await logActivity("Terms and conditions removed");
-    return redirectWithSuccess("/admin/settings", "Terms and conditions removed", "settings-terms");
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Terms and conditions removed",
+      "settings-terms",
+    );
   }
   await logActivity("Terms and conditions updated");
-  return redirectWithSuccess("/admin/settings", "Terms and conditions updated", "settings-terms");
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Terms and conditions updated",
+    "settings-terms",
+  );
 });
 
 /** Validate and save timezone from form submission */
@@ -445,14 +553,21 @@ const processTimezoneForm: SettingsFormHandler = async (form, errorPage) => {
 
   await updateTimezone(trimmed);
   await logActivity(`Timezone set to ${trimmed}`);
-  return redirectWithSuccess("/admin/settings", "Timezone updated", "settings-timezone");
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Timezone updated",
+    "settings-timezone",
+  );
 };
 
 /** Handle POST /admin/settings/timezone - owner only */
 const handleTimezonePost = settingsRoute(processTimezoneForm);
 
 /** Validate and save business email from form submission */
-const processBusinessEmailForm: SettingsFormHandler = async (form, errorPage) => {
+const processBusinessEmailForm: SettingsFormHandler = async (
+  form,
+  errorPage,
+) => {
   const raw = form.get("business_email") || "";
   const trimmed = raw.trim();
 
@@ -460,16 +575,28 @@ const processBusinessEmailForm: SettingsFormHandler = async (form, errorPage) =>
   if (trimmed === "") {
     await updateBusinessEmail("");
     await logActivity("Business email cleared");
-    return redirectWithSuccess("/admin/settings", "Business email cleared", "settings-business-email");
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Business email cleared",
+      "settings-business-email",
+    );
   }
 
   if (!isValidBusinessEmail(trimmed)) {
-    return errorPage("Invalid email format. Please use format: name@domain.com", 400, "settings-business-email");
+    return errorPage(
+      "Invalid email format. Please use format: name@domain.com",
+      400,
+      "settings-business-email",
+    );
   }
 
   await updateBusinessEmail(trimmed);
   await logActivity("Business email updated");
-  return redirectWithSuccess("/admin/settings", "Business email updated", "settings-business-email");
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Business email updated",
+    "settings-business-email",
+  );
 };
 
 /** Handle POST /admin/settings/business-email - owner only */
@@ -485,7 +612,11 @@ const processThemeForm: SettingsFormHandler = async (form, errorPage) => {
 
   await updateTheme(theme);
   await logActivity(`Theme set to ${theme}`);
-  return redirectWithSuccess("/admin/settings", `Theme updated to ${theme}`, "settings-theme");
+  return redirectWithSuccess(
+    "/admin/settings",
+    `Theme updated to ${theme}`,
+    "settings-theme",
+  );
 };
 
 /** Handle POST /admin/settings/theme - owner only */
@@ -511,12 +642,20 @@ const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
   const raw = (form.get("phone_prefix") ?? "").trim();
 
   if (raw === "" || !/^\d+$/.test(raw)) {
-    return errorPage("Phone prefix must be a number (digits only)", 400, "settings-phone-prefix");
+    return errorPage(
+      "Phone prefix must be a number (digits only)",
+      400,
+      "settings-phone-prefix",
+    );
   }
 
   await updatePhonePrefix(raw);
   await logActivity(`Phone prefix set to ${raw}`);
-  return redirectWithSuccess("/admin/settings", `Phone prefix updated to ${raw}`, "settings-phone-prefix");
+  return redirectWithSuccess(
+    "/admin/settings",
+    `Phone prefix updated to ${raw}`,
+    "settings-phone-prefix",
+  );
 };
 
 /** Handle POST /admin/settings/phone-prefix - owner only */
@@ -538,20 +677,31 @@ const handleHeaderImagePost = (request: Request): Promise<Response> =>
     const data = new Uint8Array(await entry.arrayBuffer());
     const validation = validateImage(data, entry.type);
     if (!validation.valid) {
-      setFormError("settings-header-image", IMAGE_ERROR_MESSAGES[validation.error]);
+      setFormError(
+        "settings-header-image",
+        IMAGE_ERROR_MESSAGES[validation.error],
+      );
       return htmlResponse(await renderSettingsPage(session), 400);
     }
 
     // Delete old header image if one exists
     const existingUrl = await getHeaderImageUrlFromDb();
     if (existingUrl) {
-      await tryDeleteImage(existingUrl, undefined, `header image: ${existingUrl}`);
+      await tryDeleteImage(
+        existingUrl,
+        undefined,
+        `header image: ${existingUrl}`,
+      );
     }
 
     const filename = await uploadImage(data, validation.detectedType);
     await updateHeaderImageUrl(filename);
     await logActivity("Header image uploaded");
-    return redirectWithSuccess("/admin/settings", "Header image uploaded", "settings-header-image");
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Header image uploaded",
+      "settings-header-image",
+    );
   });
 
 /** Handle POST /admin/settings/header-image/delete - owner only */
@@ -564,27 +714,20 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
   await tryDeleteImage(existingUrl, undefined, `header image: ${existingUrl}`);
   await updateHeaderImageUrl("");
   await logActivity("Header image removed");
-  return redirectWithSuccess("/admin/settings", "Header image removed", "settings-header-image-delete");
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Header image removed",
+    "settings-header-image-delete",
+  );
 });
-
-/**
- * Expected confirmation phrase for database reset
- */
-const RESET_DATABASE_PHRASE =
-  "The site will be fully reset and all data will be lost.";
 
 /**
  * Handle POST /admin/settings/reset-database - owner only
  */
 const handleResetDatabasePost = settingsRoute(async (form, errorPage) => {
-  const confirmPhrase = form.get("confirm_phrase") ?? "";
-  if (confirmPhrase.trim() !== RESET_DATABASE_PHRASE) {
-    return errorPage(
-      "Confirmation phrase does not match. Please type the exact phrase to confirm reset.",
-      400,
-      "settings-reset-database",
-    );
-  }
+  const phraseError = validateResetPhrase(form);
+  if (phraseError)
+    return errorPage(phraseError, 400, "settings-reset-database");
 
   await logActivity("Database reset initiated");
   await resetDatabase();

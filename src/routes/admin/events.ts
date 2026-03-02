@@ -4,14 +4,9 @@
 
 import { filter } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
-import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
-import {
-  getEventWithActivityLog,
-  logActivity,
-} from "#lib/db/activityLog.ts";
-import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
+import { getEventWithActivityLog, logActivity } from "#lib/db/activityLog.ts";
 import {
   computeSlugIndex,
   deleteEvent,
@@ -21,13 +16,37 @@ import {
   isSlugTaken,
 } from "#lib/db/events.ts";
 import { getAllGroups, groupsTable } from "#lib/db/groups.ts";
+import { deleteAllStaleReservations } from "#lib/db/processed-payments.ts";
+import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
+import {
+  applyDemoOverrides,
+  EVENT_DEMO_FIELDS,
+  isDemoMode,
+} from "#lib/demo.ts";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
-import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
-import type { EventEditFormValues, EventFormValues } from "#templates/fields.ts";
-import { defineRoutes } from "#routes/router.ts";
+import {
+  IMAGE_ERROR_MESSAGES,
+  isStorageEnabled,
+  tryDeleteImage,
+  uploadImage,
+  validateImage,
+} from "#lib/storage.ts";
+import type {
+  AdminSession,
+  Attendee,
+  EventWithCount,
+  Group,
+} from "#lib/types.ts";
+import {
+  csvResponse,
+  type DecryptMode,
+  getDateFilter,
+  verifyIdentifier,
+  withEventAttendeesAuth,
+} from "#routes/admin/utils.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { csvResponse, type DecryptMode, getDateFilter, verifyIdentifier, withEventAttendeesAuth } from "#routes/admin/utils.ts";
+import { defineRoutes } from "#routes/router.ts";
 import {
   formDataToParams,
   getSearchParam,
@@ -43,6 +62,8 @@ import {
 } from "#routes/utils.ts";
 import { adminEventActivityLogPage } from "#templates/admin/activityLog.tsx";
 import {
+  type AddAttendeeMessage,
+  type AttendeeFilter,
   adminDeactivateEventPage,
   adminDeleteEventPage,
   adminDuplicateEventPage,
@@ -50,43 +71,53 @@ import {
   adminEventNewPage,
   adminEventPage,
   adminReactivateEventPage,
-  type AddAttendeeMessage,
-  type AttendeeFilter,
 } from "#templates/admin/events.tsx";
-import {
-  IMAGE_ERROR_MESSAGES,
-  isStorageEnabled,
-  tryDeleteImage,
-  uploadImage,
-  validateImage,
-} from "#lib/storage.ts";
 import { generateAttendeesCsv } from "#templates/csv.ts";
+import type {
+  EventEditFormValues,
+  EventFormValues,
+} from "#templates/fields.ts";
 import { eventFields, groupIdField, slugField } from "#templates/fields.ts";
 
 /** Generate a unique event slug, retrying on collision */
 const generateUniqueEventSlug = (excludeEventId?: number) =>
-  generateUniqueSlug(computeSlugIndex, (slug) => isSlugTaken(slug, excludeEventId));
+  generateUniqueSlug(computeSlugIndex, (slug) =>
+    isSlugTaken(slug, excludeEventId),
+  );
 
 /** Parse comma-separated day names to string array */
 const parseBookableDays = (value: string): string[] | undefined =>
-  value ? value.split(",").map((d) => d.trim()).filter((d) => d) : undefined;
+  value
+    ? value
+        .split(",")
+        .map((d) => d.trim())
+        .filter((d) => d)
+    : undefined;
 
 /** Extract common event fields from validated form values, normalizing datetimes to UTC */
 const extractCommonFields = (values: EventFormValues) => {
   const rawDate = values.date ?? "";
+  const date = rawDate ? normalizeDatetime(rawDate, "date") : rawDate;
+  const unitPrice = values.unit_price
+    ? toMinorUnits(Number.parseFloat(values.unit_price))
+    : null;
+  const closesAt = values.closes_at
+    ? normalizeDatetime(values.closes_at, "closes_at")
+    : values.closes_at;
+  const webhookUrl = isDemoMode() ? "" : values.webhook_url || "";
   return {
     name: values.name,
     description: values.description,
-    date: rawDate ? normalizeDatetime(rawDate, "date") : rawDate,
+    date,
     location: values.location,
     groupId: Number(values.group_id) || 0,
     maxAttendees: values.max_attendees,
     thankYouUrl: values.thank_you_url || "",
-    unitPrice: values.unit_price ? toMinorUnits(Number.parseFloat(values.unit_price)) : 0,
+    unitPrice,
     maxQuantity: values.max_quantity,
-    webhookUrl: values.webhook_url || "",
+    webhookUrl,
     fields: values.fields || "email",
-    closesAt: values.closes_at ? normalizeDatetime(values.closes_at, "closes_at") : values.closes_at,
+    closesAt,
     eventType: values.event_type || undefined,
     bookableDays: parseBookableDays(values.bookable_days),
     minimumDaysBefore: values.minimum_days_before ?? 1,
@@ -114,7 +145,9 @@ const extractEventUpdateInput = async (
 };
 
 /** Validate that the referenced group exists (when group_id is non-zero) */
-const validateGroupExists = async (input: EventInput): Promise<string | null> => {
+const validateGroupExists = async (
+  input: EventInput,
+): Promise<string | null> => {
   if (input.groupId && input.groupId !== 0) {
     const group = await groupsTable.findById(input.groupId);
     if (!group) return "Selected group does not exist";
@@ -152,7 +185,7 @@ const processFormImage = async (
 
   const filename = await uploadImage(data, validation.detectedType);
   await eventsTable.update(eventId, { imageUrl: filename });
-  await logActivity(`Image uploaded for event`, eventId);
+  await logActivity("Image uploaded for event", eventId);
   return null;
 };
 
@@ -160,16 +193,26 @@ const processFormImage = async (
 const withEventAttendees = (
   request: Request,
   eventId: number,
-  handler: (ctx: { event: EventWithCount; attendees: Attendee[]; session: AdminSession }) => Response | Promise<Response>,
+  handler: (ctx: {
+    event: EventWithCount;
+    attendees: Attendee[];
+    session: AdminSession;
+  }) => Response | Promise<Response>,
   mode: DecryptMode = "full",
 ): Promise<Response> =>
-  withEventAttendeesAuth(request, eventId, (event, attendees, session) =>
-    handler({ event, attendees, session }), mode);
+  withEventAttendeesAuth(
+    request,
+    eventId,
+    (event, attendees, session) => handler({ event, attendees, session }),
+    mode,
+  );
 
 /**
  * Handle GET /admin/event/new (show create event form)
  */
-const handleNewEventGet: TypedRouteHandler<"GET /admin/event/new"> = (request) =>
+const handleNewEventGet: TypedRouteHandler<"GET /admin/event/new"> = (
+  request,
+) =>
   requireSessionOr(request, async (session) => {
     const groups = await getAllGroups();
     return htmlResponse(adminEventNewPage(groups, session));
@@ -181,10 +224,14 @@ const handleNewEventGet: TypedRouteHandler<"GET /admin/event/new"> = (request) =
 const handleCreateEvent: TypedRouteHandler<"POST /admin/event"> = (request) =>
   withAuthMultipartForm(request, async (session, formData) => {
     const form = formDataToParams(formData);
+    applyDemoOverrides(form, EVENT_DEMO_FIELDS);
     const result = await eventsResource.create(form);
     if (!result.ok) {
       const groups = await getAllGroups();
-      return htmlResponse(adminEventNewPage(groups, session, result.error), 400);
+      return htmlResponse(
+        adminEventNewPage(groups, session, result.error),
+        400,
+      );
     }
     await logActivity(`Event '${result.row.name}' created`, result.row);
     const imageError = await processFormImage(formData, result.row.id);
@@ -195,7 +242,9 @@ const handleCreateEvent: TypedRouteHandler<"POST /admin/event"> = (request) =>
   });
 
 /** Extract check-in message params from request URL */
-const getCheckinMessage = (request: Request): { name: string; status: string } | null => {
+const getCheckinMessage = (
+  request: Request,
+): { name: string; status: string } | null => {
   const url = new URL(request.url);
   const name = url.searchParams.get("checkin_name");
   const status = url.searchParams.get("checkin_status");
@@ -218,54 +267,84 @@ const getAddAttendeeMessage = (request: Request): AddAttendeeMessage => {
 };
 
 /** Filter attendees by date for daily events */
-const filterByDate = (attendees: Attendee[], date: string | null): Attendee[] =>
+const filterByDate = (
+  attendees: Attendee[],
+  date: string | null,
+): Attendee[] =>
   date ? filter((a: Attendee) => a.date === date)(attendees) : attendees;
 
 /** Collect unique dates from attendees, sorted ascending */
-const getUniqueDates = (attendees: Attendee[]): { value: string; label: string }[] => {
+const getUniqueDates = (
+  attendees: Attendee[],
+): { value: string; label: string }[] => {
   const dates = new Set<string>();
   for (const a of attendees) {
     if (a.date) dates.add(a.date);
   }
-  return [...dates].sort().map((d) => ({ value: d, label: formatDateLabel(d) }));
+  return [...dates]
+    .sort()
+    .map((d) => ({ value: d, label: formatDateLabel(d) }));
 };
 
 /** Get date filter and filtered attendees for daily events */
-const applyDateFilter = (event: EventWithCount, attendees: Attendee[], request: Request) => {
-  const dateFilter = event.event_type === "daily" ? getDateFilter(request) : null;
-  const availableDates = event.event_type === "daily" ? getUniqueDates(attendees) : [];
-  return { dateFilter, availableDates, filteredByDate: filterByDate(attendees, dateFilter) };
+const applyDateFilter = (
+  event: EventWithCount,
+  attendees: Attendee[],
+  request: Request,
+) => {
+  const dateFilter =
+    event.event_type === "daily" ? getDateFilter(request) : null;
+  const availableDates =
+    event.event_type === "daily" ? getUniqueDates(attendees) : [];
+  return {
+    dateFilter,
+    availableDates,
+    filteredByDate: filterByDate(attendees, dateFilter),
+  };
 };
 
 /** Render event page with attendee list and optional filter */
-const renderEventPage = async (request: Request, { id }: { id: number }, activeFilter: AttendeeFilter = "all") => {
+const renderEventPage = async (
+  request: Request,
+  { id }: { id: number },
+  activeFilter: AttendeeFilter = "all",
+) => {
   // Run stale reservation cleanup concurrently with event data loading.
   // These are independent: cleanup targets processed_payments with NULL attendee_id,
   // which doesn't affect the attendees query. Saves 1 HTTP round-trip.
   const [, response] = await Promise.all([
     deleteAllStaleReservations(),
-    withEventAttendees(request, id, async ({ event, attendees, session }) => {
-      const { dateFilter, availableDates, filteredByDate } = applyDateFilter(event, attendees, request);
-      const imageError = getSearchParam(request, "image_error");
-      const successMessage = getSearchParam(request, "success");
-      const phonePrefix = await getPhonePrefixFromDb();
-      return htmlResponse(
-        adminEventPage({
+    withEventAttendees(
+      request,
+      id,
+      async ({ event, attendees, session }) => {
+        const { dateFilter, availableDates, filteredByDate } = applyDateFilter(
           event,
-          attendees: filteredByDate,
-          allowedDomain: getAllowedDomain(),
-          session,
-          checkinMessage: getCheckinMessage(request),
-          activeFilter,
-          dateFilter,
-          availableDates,
-          addAttendeeMessage: getAddAttendeeMessage(request),
-          imageError,
-          phonePrefix,
-          successMessage,
-        }),
-      );
-    }, "table"),
+          attendees,
+          request,
+        );
+        const imageError = getSearchParam(request, "image_error");
+        const successMessage = getSearchParam(request, "success");
+        const phonePrefix = await getPhonePrefixFromDb();
+        return htmlResponse(
+          adminEventPage({
+            event,
+            attendees: filteredByDate,
+            allowedDomain: getAllowedDomain(),
+            session,
+            checkinMessage: getCheckinMessage(request),
+            activeFilter,
+            dateFilter,
+            availableDates,
+            addAttendeeMessage: getAddAttendeeMessage(request),
+            imageError,
+            phonePrefix,
+            successMessage,
+          }),
+        );
+      },
+      "table",
+    ),
   ]);
   return response;
 };
@@ -280,8 +359,7 @@ const eventErrorPage = (
   ) => string,
   session: AdminSession,
   error: string,
-): Response =>
-  htmlResponse(renderPage(event, session, error), 400);
+): Response => htmlResponse(renderPage(event, session, error), 400);
 
 /** Handle GET /admin/event/:id/duplicate */
 const getEventAndGroups = async (
@@ -296,29 +374,36 @@ const getEventAndGroups = async (
 
 const withEventAndGroupsPage =
   (
-    renderPage: (event: EventWithCount, groups: Group[], session: AdminSession) => string,
+    renderPage: (
+      event: EventWithCount,
+      groups: Group[],
+      session: AdminSession,
+    ) => string,
   ): TypedRouteHandler<"GET /admin/event/:id"> =>
   (request, params) =>
     requireSessionOr(request, (session) =>
       orNotFound(getEventAndGroups(params.id), (ctx) =>
-        htmlResponse(renderPage(ctx.event, ctx.groups, session))));
+        htmlResponse(renderPage(ctx.event, ctx.groups, session)),
+      ),
+    );
 
-const handleAdminEventDuplicateGet: TypedRouteHandler<"GET /admin/event/:id/duplicate"> = withEventAndGroupsPage(
-  adminDuplicateEventPage,
-);
+const handleAdminEventDuplicateGet: TypedRouteHandler<"GET /admin/event/:id/duplicate"> =
+  withEventAndGroupsPage(adminDuplicateEventPage);
 
 /** Handle GET /admin/event/:id/edit */
-const handleAdminEventEditGet: TypedRouteHandler<"GET /admin/event/:id/edit"> = withEventAndGroupsPage(
-  adminEventEditPage,
-);
+const handleAdminEventEditGet: TypedRouteHandler<"GET /admin/event/:id/edit"> =
+  withEventAndGroupsPage(adminEventEditPage);
 
 /** Handle POST /admin/event/:id/edit */
-const handleAdminEventEditPost: TypedRouteHandler<"POST /admin/event/:id/edit"> = (request, { id }) =>
+const handleAdminEventEditPost: TypedRouteHandler<
+  "POST /admin/event/:id/edit"
+> = (request, { id }) =>
   withAuthMultipartForm(request, async (session, formData) => {
     const existing = await getEventWithCount(id);
     if (!existing) return notFoundResponse();
 
     const form = formDataToParams(formData);
+    applyDemoOverrides(form, EVENT_DEMO_FIELDS);
 
     // Build a resource that includes the slug field and validates uniqueness
     const updateResource = defineResource({
@@ -336,26 +421,44 @@ const handleAdminEventEditPost: TypedRouteHandler<"POST /admin/event/:id/edit"> 
     const result = await updateResource.update(id, form);
     if (result.ok) {
       await logActivity(`Event '${result.row.name}' updated`, result.row);
-      const imageError = await processFormImage(formData, id, existing.image_url);
+      const imageError = await processFormImage(
+        formData,
+        id,
+        existing.image_url,
+      );
       if (imageError) {
-        return redirect(`/admin/event/${result.row.id}?image_error=${encodeURIComponent(imageError)}`);
+        return redirect(
+          `/admin/event/${result.row.id}?image_error=${encodeURIComponent(imageError)}`,
+        );
       }
-      return redirectWithSuccess(`/admin/event/${result.row.id}`, "Event updated");
+      return redirectWithSuccess(
+        `/admin/event/${result.row.id}`,
+        "Event updated",
+      );
     }
     if ("notFound" in result) return notFoundResponse();
 
     const ctx = await getEventAndGroups(id);
     return ctx
-      ? htmlResponse(adminEventEditPage(ctx.event, ctx.groups, session, result.error), 400)
+      ? htmlResponse(
+          adminEventEditPage(ctx.event, ctx.groups, session, result.error),
+          400,
+        )
       : notFoundResponse();
   });
 
 /**
  * Handle GET /admin/event/:id/export (CSV export)
  */
-const handleAdminEventExport: TypedRouteHandler<"GET /admin/event/:id/export"> = (request, { id }) =>
+const handleAdminEventExport: TypedRouteHandler<
+  "GET /admin/event/:id/export"
+> = (request, { id }) =>
   withEventAttendees(request, id, async ({ event, attendees }) => {
-    const { dateFilter, filteredByDate } = applyDateFilter(event, attendees, request);
+    const { dateFilter, filteredByDate } = applyDateFilter(
+      event,
+      attendees,
+      request,
+    );
     const isDaily = event.event_type === "daily";
     const csv = generateAttendeesCsv(filteredByDate, isDaily, {
       eventDate: event.date,
@@ -365,7 +468,10 @@ const handleAdminEventExport: TypedRouteHandler<"GET /admin/event/:id/export"> =
     const filename = dateFilter
       ? `${sanitizedName}_${dateFilter}_attendees.csv`
       : `${sanitizedName}_attendees.csv`;
-    await logActivity(`CSV exported for '${event.name}'${dateFilter ? ` (date: ${dateFilter})` : ""}`, event);
+    await logActivity(
+      `CSV exported for '${event.name}'${dateFilter ? ` (date: ${dateFilter})` : ""}`,
+      event,
+    );
     return csvResponse(csv, filename);
   });
 
@@ -379,7 +485,11 @@ const handleAdminEventReactivateGet = withEventPage(adminReactivateEventPage);
 const handleEventWithConfirmation = (
   request: Request,
   id: number,
-  renderPage: (event: EventWithCount, session: AdminSession, error?: string) => string,
+  renderPage: (
+    event: EventWithCount,
+    session: AdminSession,
+    error?: string,
+  ) => string,
   errorMsg: string,
   action: (event: EventWithCount) => Promise<Response>,
 ): Promise<Response> =>
@@ -390,27 +500,45 @@ const handleEventWithConfirmation = (
         return eventErrorPage(event, renderPage, session, errorMsg);
       }
       return action(event);
-    }));
+    }),
+  );
 
-const CONFIRM_NAME_MSG = "Event name does not match. Please type the exact name to confirm.";
+const CONFIRM_NAME_MSG =
+  "Event name does not match. Please type the exact name to confirm.";
 
 /** Factory for event toggle handlers (deactivate/reactivate) */
-const eventToggleHandler = (
-  renderPage: typeof adminDeactivateEventPage,
-  active: boolean,
-  verb: string,
-): TypedRouteHandler<"POST /admin/event/:id/deactivate"> => (request, { id }) =>
-  handleEventWithConfirmation(request, id, renderPage, CONFIRM_NAME_MSG, async (event) => {
-    await eventsTable.update(id, { active });
-    await logActivity(`Event '${event.name}' ${verb}`, id);
-    return redirectWithSuccess(`/admin/event/${id}`, `Event ${verb}`);
-  });
+const eventToggleHandler =
+  (
+    renderPage: typeof adminDeactivateEventPage,
+    active: boolean,
+    verb: string,
+  ): TypedRouteHandler<"POST /admin/event/:id/deactivate"> =>
+  (request, { id }) =>
+    handleEventWithConfirmation(
+      request,
+      id,
+      renderPage,
+      CONFIRM_NAME_MSG,
+      async (event) => {
+        await eventsTable.update(id, { active });
+        await logActivity(`Event '${event.name}' ${verb}`, id);
+        return redirectWithSuccess(`/admin/event/${id}`, `Event ${verb}`);
+      },
+    );
 
 /** Handle POST /admin/event/:id/deactivate */
-const handleAdminEventDeactivatePost = eventToggleHandler(adminDeactivateEventPage, false, "deactivated");
+const handleAdminEventDeactivatePost = eventToggleHandler(
+  adminDeactivateEventPage,
+  false,
+  "deactivated",
+);
 
 /** Handle POST /admin/event/:id/reactivate */
-const handleAdminEventReactivatePost = eventToggleHandler(adminReactivateEventPage, true, "reactivated");
+const handleAdminEventReactivatePost = eventToggleHandler(
+  adminReactivateEventPage,
+  true,
+  "reactivated",
+);
 
 /** Handle GET /admin/event/:id/delete (show confirmation page) */
 const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
@@ -419,10 +547,17 @@ const handleAdminEventDeleteGet = withEventPage(adminDeleteEventPage);
  * Handle GET /admin/event/:id/log
  * Uses batched query to fetch event + activity log in a single DB round-trip.
  */
-const handleAdminEventLog: TypedRouteHandler<"GET /admin/event/:id/log"> = (request, { id }) =>
+const handleAdminEventLog: TypedRouteHandler<"GET /admin/event/:id/log"> = (
+  request,
+  { id },
+) =>
   requireSessionOr(request, (session) =>
     orNotFound(getEventWithActivityLog(id), (result) =>
-      htmlResponse(adminEventActivityLogPage(result.event, result.entries, session))));
+      htmlResponse(
+        adminEventActivityLogPage(result.event, result.entries, session),
+      ),
+    ),
+  );
 
 /** Perform event deletion */
 const performDelete = async (event: EventWithCount): Promise<Response> => {
@@ -435,18 +570,25 @@ const performDelete = async (event: EventWithCount): Promise<Response> => {
 };
 
 /** Handle DELETE /admin/event/:id (delete event with logging) */
-const handleAdminEventDelete: TypedRouteHandler<"POST /admin/event/:id/delete"> = (request, { id }) =>
+const handleAdminEventDelete: TypedRouteHandler<
+  "POST /admin/event/:id/delete"
+> = (request, { id }) =>
   getSearchParam(request, "verify_identifier") !== "false"
     ? handleEventWithConfirmation(
-        request, id, adminDeleteEventPage,
+        request,
+        id,
+        adminDeleteEventPage,
         "Event name does not match. Please type the exact name to confirm deletion.",
         performDelete,
       )
     : withAuthForm(request, () =>
-        orNotFound(getEventWithCount(id), performDelete));
+        orNotFound(getEventWithCount(id), performDelete),
+      );
 
 /** Handle POST /admin/event/:id/image/delete (delete event image) */
-const handleImageDelete: TypedRouteHandler<"POST /admin/event/:id/image/delete"> = (request, { id }) =>
+const handleImageDelete: TypedRouteHandler<
+  "POST /admin/event/:id/image/delete"
+> = (request, { id }) =>
   withAuthForm(request, () =>
     orNotFound(getEventWithCount(id), async (event) => {
       if (event.image_url) {
@@ -455,11 +597,14 @@ const handleImageDelete: TypedRouteHandler<"POST /admin/event/:id/image/delete">
         await logActivity(`Image removed for '${event.name}'`, event);
       }
       return redirectWithSuccess(`/admin/event/${id}`, "Image removed");
-    }));
+    }),
+  );
 
 /** Create a handler that renders the event page with a specific attendee filter */
-const eventPageHandler = (activeFilter?: AttendeeFilter): TypedRouteHandler<"GET /admin/event/:id"> =>
-  (request, params) => renderEventPage(request, params, activeFilter);
+const eventPageHandler =
+  (activeFilter?: AttendeeFilter): TypedRouteHandler<"GET /admin/event/:id"> =>
+  (request, params) =>
+    renderEventPage(request, params, activeFilter);
 
 /** Handle GET /admin/event/:id */
 const handleAdminEventGet = eventPageHandler();

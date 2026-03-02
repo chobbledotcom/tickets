@@ -4,6 +4,7 @@
 
 import { type Child, Raw, SafeHtml } from "#jsx/jsx-runtime.ts";
 import { CSS_PATH, IFRAME_RESIZER_CHILD_JS_PATH, JS_PATH } from "#lib/asset-paths.ts";
+import { DEMO_BANNER, isDemoMode } from "#lib/demo.ts";
 import { getHeaderImageUrl } from "#lib/header-image.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import { getTheme } from "#lib/theme.ts";
@@ -43,6 +44,7 @@ export const Layout = ({ title, bodyClass, headExtra, children, theme }: LayoutP
           {headExtra && <Raw html={headExtra} />}
         </head>
         <body class={bodyClass || undefined}>
+          {isDemoMode() && <Raw html={DEMO_BANNER} />}
           <main>
             {headerImage && <img src={getImageProxyUrl(headerImage)} alt="" class="header-image" />}
             {children}

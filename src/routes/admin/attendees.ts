@@ -4,6 +4,7 @@
 
 import { compact, filter, uniqueBy } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
+import { applyDemoOverrides, ATTENDEE_DEMO_FIELDS } from "#lib/demo.ts";
 import {
   createAttendeeAtomic,
   decryptAttendeeOrNull,
@@ -354,6 +355,7 @@ const handleAddAttendee = (
 
     const isDaily = event.event_type === "daily";
     const fields = getAddAttendeeFields(event.fields, isDaily);
+    applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
     const validation = validateForm<AddAttendeeFormValues>(form, fields);
 
     if (!validation.valid) {
@@ -458,6 +460,7 @@ function parseQuantity(value: string, max: number): number {
 async function editAttendeeHandler(
   session: AuthSession, form: URLSearchParams, data: EditAttendeeData, attendeeId: number,
 ): Promise<Response> {
+  applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
   const returnUrl = getReturnUrlFromForm(form);
   const name = form.get("name") || "";
   const email = form.get("email") || "";
