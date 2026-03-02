@@ -92,8 +92,8 @@ const loadImageRoutes = once(async () => {
 
 /** Lazy-load demo reset routes */
 const loadDemoResetRoutes = once(async () => {
-  const { routeDemoReset } = await import("#routes/demo-reset.ts");
-  return routeDemoReset;
+  const { routeDatabaseReset } = await import("#routes/admin/database-reset.ts");
+  return routeDatabaseReset;
 });
 
 // Re-export middleware functions for testing

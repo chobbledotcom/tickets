@@ -6,7 +6,7 @@ import { CsrfForm, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { ResetDatabaseForm } from "#templates/demo-reset.tsx";
+import { ResetDatabaseForm } from "#templates/admin/database-reset.tsx";
 import {
   changePasswordFields,
   FORMATTING_HINT,

@@ -5,7 +5,7 @@ import { resetDemoMode } from "#lib/demo.ts";
 import {
   RESET_DATABASE_PHRASE,
   RESET_PHRASE_MISMATCH_ERROR,
-} from "#templates/demo-reset.tsx";
+} from "#templates/admin/database-reset.tsx";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
