@@ -4,6 +4,7 @@
 
 import type { Child } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
+import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -779,6 +780,22 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             the attendee's details. You can also set a global webhook URL via
             the <code>WEBHOOK_URL</code> environment variable, which receives
             notifications for all events.
+          </p>
+        </Q>
+
+        <Q q="What does the webhook JSON look like?">
+          <p>
+            Each webhook is an HTTP POST with{" "}
+            <code>Content-Type: application/json</code>. Here is an example
+            payload for a paid event booking:
+          </p>
+          <pre><code>{WEBHOOK_EXAMPLE_JSON}</code></pre>
+          <p>
+            Prices are in the smallest currency unit (e.g. pence for GBP,
+            cents for USD). The <code>ticket_url</code> links to the
+            attendee's ticket page. For multi-event bookings the{" "}
+            <code>tickets</code> array contains one entry per event and the
+            URL combines all tokens with <code>+</code>.
           </p>
         </Q>
       </Section>

@@ -82,6 +82,42 @@ These measures aim to raise the cost of common attacks. They do not guarantee se
 - Payload: name, email, phone, address, amount, currency, payment ID, ticket URL, per-ticket details
 - Multi-event bookings send one consolidated webhook
 
+<details>
+<summary>Example webhook payload</summary>
+
+<!-- This example is tested — see test/lib/webhook-example.test.ts -->
+
+```json
+{
+  "event_type": "registration.completed",
+  "name": "Alice Smith",
+  "email": "alice@example.com",
+  "phone": "+44 7700 900000",
+  "address": "42 Oak Lane, Bristol, BS1 1AA",
+  "special_instructions": "Wheelchair access needed",
+  "price_paid": 3000,
+  "currency": "GBP",
+  "payment_id": "pi_3abc123def456",
+  "ticket_url": "https://tickets.example.com/t/A1B2C3D4E5",
+  "tickets": [
+    {
+      "event_name": "Summer Workshop",
+      "event_slug": "summer-workshop",
+      "unit_price": 1500,
+      "quantity": 2,
+      "date": "2025-08-20",
+      "ticket_token": "A1B2C3D4E5"
+    }
+  ],
+  "timestamp": "2025-08-20T14:30:00.000Z",
+  "business_email": "hello@example.com"
+}
+```
+
+Prices are in the smallest currency unit (e.g. pence, cents). For multi-event bookings the `tickets` array contains one entry per event and the `ticket_url` combines tokens with `+`.
+
+</details>
+
 ## Quick Start
 
 ```bash
