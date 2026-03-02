@@ -11,6 +11,7 @@ import { loadTheme } from "#lib/theme.ts";
 import { runWithQueryLogContext } from "#lib/db/query-log.ts";
 import { createRequestTimer, ErrorCode, logDebug, logError, logRequest, runWithRequestId } from "#lib/logger.ts";
 import { flushPendingWork } from "#lib/pending-work.ts";
+import { runWithSessionContext } from "#lib/session-context.ts";
 import {
   applySecurityHeaders,
   buildDomainRedirectUrl,
@@ -208,7 +209,7 @@ export const handleRequest = (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
-  return runWithRequestId(() => runWithQueryLogContext(async () => {
+  return runWithRequestId(() => runWithQueryLogContext(() => runWithSessionContext(async () => {
   const { url, path, method } = parseRequest(request);
   const getElapsed = createRequestTimer();
 
@@ -252,5 +253,5 @@ export const handleRequest = (
   } finally {
     await flushPendingWork();
   }
-  }));
+  })));
 };
