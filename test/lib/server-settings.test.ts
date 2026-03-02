@@ -2052,6 +2052,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects Stripe key configuration", async () => {
+      await setPaymentProvider("stripe");
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -2073,6 +2074,7 @@ describe("server (admin settings)", () => {
     });
 
     test("rejects Square credentials configuration", async () => {
+      await setPaymentProvider("square");
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
