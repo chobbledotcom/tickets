@@ -266,6 +266,13 @@ export const isInviteValid = async (user: User): Promise<boolean> => {
 };
 
 /**
+ * Check if a user's invite has expired.
+ * Callers should skip this for users who have already set a password.
+ */
+export const isInviteExpired = async (user: User): Promise<boolean> =>
+  user.invite_code_hash !== null && !(await isInviteValid(user));
+
+/**
  * Check if a user has set their password (password_hash is non-empty encrypted value)
  */
 export const hasPassword = async (user: User): Promise<boolean> => {
@@ -293,6 +300,7 @@ export const usersApi = {
   getUserByInviteCode,
   hashInviteCode,
   isInviteValid,
+  isInviteExpired,
   hasPassword,
   invalidateUsersCache,
 };

@@ -16,12 +16,14 @@ export interface DisplayUser {
   adminLevel: AdminLevel;
   hasPassword: boolean;
   hasDataKey: boolean;
+  inviteExpired: boolean;
 }
 
 /** Status label for a user */
 const userStatus = (user: DisplayUser): string => {
   if (user.hasDataKey && user.hasPassword) return "Active";
   if (user.hasPassword && !user.hasDataKey) return "Pending Activation";
+  if (user.inviteExpired) return "Invite Expired";
   return "Invited";
 };
 
