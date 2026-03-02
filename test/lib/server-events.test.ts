@@ -1,13 +1,15 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { addDays } from "#lib/dates.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { getDb } from "#lib/db/client.ts";
-import { addDays } from "#lib/dates.ts";
 import { invalidateEventsCache } from "#lib/db/events.ts";
+import { resetDemoMode } from "#lib/demo.ts";
+import { nowMs } from "#lib/now.ts";
 import { todayInTz } from "#lib/timezone.ts";
-
 import { handleRequest } from "#routes";
+import { formatCountdown, withCookie } from "#routes/utils.ts";
 import {
   adminGet,
   awaitTestRequest,
@@ -30,8 +32,6 @@ import {
   submitTicketForm,
   updateTestEvent,
 } from "#test-utils";
-import { nowMs } from "#lib/now.ts";
-import { formatCountdown, withCookie } from "#routes/utils.ts";
 
 describe("server (admin events)", () => {
   beforeEach(async () => {
@@ -40,6 +40,8 @@ describe("server (admin events)", () => {
   });
 
   afterEach(() => {
+    Deno.env.delete("DEMO_MODE");
+    resetDemoMode();
     resetDb();
   });
 
@@ -96,6 +98,39 @@ describe("server (admin events)", () => {
       const event = await getEvent(1);
       expect(event).not.toBeNull();
       expect(event?.name).toBe("New Event");
+    });
+
+    test("clears webhook URL when creating event in demo mode", async () => {
+      Deno.env.set("DEMO_MODE", "true");
+      resetDemoMode();
+
+      try {
+        const { cookie, csrfToken } = await loginAsAdmin();
+
+        const response = await handleRequest(
+          mockMultipartRequest(
+            "/admin/event",
+            {
+              name: "Demo Event",
+              max_attendees: "50",
+              max_quantity: "1",
+              webhook_url: "https://example.com/webhook",
+              csrf_token: csrfToken,
+            },
+            cookie,
+          ),
+        );
+        expectRedirect("/admin?success=Event%20created")(response);
+
+        // Verify webhook_url was cleared
+        const { getEvent } = await import("#lib/db/events.ts");
+        const event = await getEvent(1);
+        expect(event).not.toBeNull();
+        expect(event?.webhook_url).toBe("");
+      } finally {
+        Deno.env.delete("DEMO_MODE");
+        resetDemoMode();
+      }
     });
 
     test("creates event with group_id when provided", async () => {
@@ -737,6 +772,42 @@ describe("server (admin events)", () => {
       expect(updated?.unit_price).toBe(2000);
     });
 
+    test("clears webhook URL when updating event in demo mode", async () => {
+      Deno.env.set("DEMO_MODE", "true");
+      resetDemoMode();
+
+      try {
+        const { event, cookie, csrfToken } = await setupEventAndLogin({
+          maxAttendees: 100,
+          webhookUrl: "https://example.com/original-webhook",
+        });
+
+        const response = await handleRequest(
+          mockFormRequest(
+            "/admin/event/1/edit",
+            {
+              name: event.name,
+              slug: event.slug,
+              max_attendees: "200",
+              max_quantity: "5",
+              webhook_url: "https://example.com/new-webhook",
+              csrf_token: csrfToken,
+            },
+            cookie,
+          ),
+        );
+        expectRedirect("/admin/event/1?success=Event%20updated")(response);
+
+        // Verify webhook_url was cleared
+        const { getEventWithCount } = await import("#lib/db/events.ts");
+        const updated = await getEventWithCount(1);
+        expect(updated?.webhook_url).toBe("");
+      } finally {
+        Deno.env.delete("DEMO_MODE");
+        resetDemoMode();
+      }
+    });
+
     test("updates event group_id", async () => {
       const group1 = await createTestGroup({
         name: "Group One",
@@ -765,7 +836,9 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(response);
+      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(
+        response,
+      );
 
       const { getEvent } = await import("#lib/db/events.ts");
       const updated = await getEvent(event.id);
@@ -816,7 +889,9 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(response);
+      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(
+        response,
+      );
 
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(event.id);
@@ -842,7 +917,9 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(response);
+      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(
+        response,
+      );
 
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(event.id);
@@ -957,7 +1034,9 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(response);
+      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(
+        response,
+      );
 
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const updated = await getEventWithCount(event.id);
@@ -1470,9 +1549,7 @@ describe("server (admin events)", () => {
 
   describe("GET /admin/event/:id/log", () => {
     test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockRequest("/admin/event/1/log"),
-      );
+      const response = await handleRequest(mockRequest("/admin/event/1/log"));
       expectAdminRedirect(response);
     });
 
@@ -1491,10 +1568,9 @@ describe("server (admin events)", () => {
         maxAttendees: 50,
       });
 
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}/log`,
-        { cookie },
-      );
+      const response = await awaitTestRequest(`/admin/event/${event.id}/log`, {
+        cookie,
+      });
       await expectHtmlResponse(response, 200, "Log", event.name);
     });
   });
@@ -1636,7 +1712,7 @@ describe("server (admin events)", () => {
       // Submit without confirm_identifier field
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/1/delete`,
+          "/admin/event/1/delete",
           { csrf_token: csrfToken },
           cookie,
         ),
@@ -1663,7 +1739,11 @@ describe("server (admin events)", () => {
     });
 
     test("shows edit page with error when name is empty", async () => {
-      const { event: event1, cookie, csrfToken } = await setupEventAndLogin({
+      const {
+        event: event1,
+        cookie,
+        csrfToken,
+      } = await setupEventAndLogin({
         name: "Edit Orig",
         maxAttendees: 50,
       });
@@ -1716,7 +1796,11 @@ describe("server (admin events)", () => {
 
   describe("routes/admin/events.ts (event error page)", () => {
     test("shows edit error page for existing event with validation error", async () => {
-      const { event: event1, cookie, csrfToken } = await setupEventAndLogin({
+      const {
+        event: event1,
+        cookie,
+        csrfToken,
+      } = await setupEventAndLogin({
         name: "Event Err 1",
         maxAttendees: 50,
       });
@@ -1776,19 +1860,23 @@ describe("server (admin events)", () => {
       // Spy on eventsTable.findById: return the row on first call (so requireExists passes),
       // but also delete the event from DB so getEventWithCount (raw SQL) returns null.
       const originalFindById = eventsTable.findById.bind(eventsTable);
-      const findByIdStub = stub(eventsTable, "findById", async (id: unknown) => {
-        const row = await originalFindById(id as number);
-        if (row) {
-          // Delete the event from DB so getEventWithCount returns null
-          const { getDb } = await import("#lib/db/client.ts");
-          await getDb().execute({
-            sql: "DELETE FROM events WHERE id = ?",
-            args: [id as number],
-          });
-          invalidateEventsCache();
-        }
-        return row;
-      });
+      const findByIdStub = stub(
+        eventsTable,
+        "findById",
+        async (id: unknown) => {
+          const row = await originalFindById(id as number);
+          if (row) {
+            // Delete the event from DB so getEventWithCount returns null
+            const { getDb } = await import("#lib/db/client.ts");
+            await getDb().execute({
+              sql: "DELETE FROM events WHERE id = ?",
+              args: [id as number],
+            });
+            invalidateEventsCache();
+          }
+          return row;
+        },
+      );
 
       try {
         // Send an update with empty name to trigger validation error
@@ -1841,9 +1929,8 @@ describe("server (admin events)", () => {
       const db = getDb();
       const originalExecute = db.execute.bind(db);
       const executeStub = stub(db, "execute", async (query: unknown) => {
-        const sql = typeof query === "string"
-          ? query
-          : (query as { sql: string }).sql;
+        const sql =
+          typeof query === "string" ? query : (query as { sql: string }).sql;
         // Intercept the isSlugTaken query
         if (
           sql.includes("SELECT 1 WHERE EXISTS") &&
@@ -1895,7 +1982,9 @@ describe("server (admin events)", () => {
       // We spy on findById to return null, simulating the event being deleted
       // between the initial check and the update.
       const { eventsTable: table } = await import("#lib/db/events.ts");
-      const findByIdStub2 = stub(table, "findById", () => Promise.resolve(null));
+      const findByIdStub2 = stub(table, "findById", () =>
+        Promise.resolve(null),
+      );
 
       try {
         const response = await handleRequest(
@@ -1956,7 +2045,9 @@ describe("server (admin events)", () => {
     });
 
     test("admin event detail page shows closes_at with countdown when set", async () => {
-      const { event, cookie } = await setupEventAndLogin({ closesAt: "2099-06-15T14:30" });
+      const { event, cookie } = await setupEventAndLogin({
+        closesAt: "2099-06-15T14:30",
+      });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
@@ -1980,7 +2071,9 @@ describe("server (admin events)", () => {
     });
 
     test("admin event edit page shows closes_at in form", async () => {
-      const { event, cookie } = await setupEventAndLogin({ closesAt: "2099-06-15T14:30" });
+      const { event, cookie } = await setupEventAndLogin({
+        closesAt: "2099-06-15T14:30",
+      });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie,
@@ -1995,7 +2088,9 @@ describe("server (admin events)", () => {
     });
 
     test("admin event detail page shows 'closed' countdown for past closes_at", async () => {
-      const { event, cookie } = await setupEventAndLogin({ closesAt: "2024-01-01T00:00" });
+      const { event, cookie } = await setupEventAndLogin({
+        closesAt: "2024-01-01T00:00",
+      });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
@@ -2056,8 +2151,9 @@ describe("server (admin events)", () => {
     });
 
     test("formatCountdown shows only hours", () => {
-      const future = new Date(nowMs() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000)
-        .toISOString();
+      const future = new Date(
+        nowMs() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000,
+      ).toISOString();
       expect(formatCountdown(future)).toBe("5 hours from now");
     });
 
@@ -2169,7 +2265,9 @@ describe("server (admin events)", () => {
     });
 
     test("admin edit page pre-fills date as split inputs", async () => {
-      const { event, cookie } = await setupEventAndLogin({ date: "2026-06-15T14:00" });
+      const { event, cookie } = await setupEventAndLogin({
+        date: "2026-06-15T14:00",
+      });
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie,
       });
@@ -2182,7 +2280,9 @@ describe("server (admin events)", () => {
     });
 
     test("admin edit page pre-fills location", async () => {
-      const { event, cookie } = await setupEventAndLogin({ location: "Village Hall" });
+      const { event, cookie } = await setupEventAndLogin({
+        location: "Village Hall",
+      });
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie,
       });
@@ -2484,7 +2584,9 @@ describe("server (admin events)", () => {
     });
 
     test("admin event detail page shows non-transferable row when enabled", async () => {
-      const { event, cookie } = await setupEventAndLogin({ nonTransferable: true });
+      const { event, cookie } = await setupEventAndLogin({
+        nonTransferable: true,
+      });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
         cookie,
@@ -2508,12 +2610,18 @@ describe("server (admin events)", () => {
     });
 
     test("admin event edit page pre-fills non-transferable select", async () => {
-      const { event, cookie } = await setupEventAndLogin({ nonTransferable: true });
+      const { event, cookie } = await setupEventAndLogin({
+        nonTransferable: true,
+      });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
         cookie,
       });
-      const html = await expectHtmlResponse(response, 200, "Non-Transferable Tickets");
+      const html = await expectHtmlResponse(
+        response,
+        200,
+        "Non-Transferable Tickets",
+      );
       expect(html).toContain('value="1" selected');
     });
 
@@ -2527,7 +2635,9 @@ describe("server (admin events)", () => {
     });
 
     test("rejects invalid bookable_days value", async () => {
-      const { cookie, csrfToken } = await setupEventAndLogin({ name: "Edit Target" });
+      const { cookie, csrfToken } = await setupEventAndLogin({
+        name: "Edit Target",
+      });
 
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const event = (await getEventWithCount(1))!;
@@ -2578,7 +2688,7 @@ describe("server (admin events)", () => {
       const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
       const logs = await getEventActivityLog(event.id);
       const updateLog = logs.find((l: { message: string }) =>
-        l.message.includes("updated")
+        l.message.includes("updated"),
       );
       expect(updateLog).toBeDefined();
       expect(updateLog?.message).toContain(event.name);
@@ -2847,8 +2957,7 @@ describe("server (admin events)", () => {
       // Insert a stale reservation (older than 5 minutes)
       const staleTime = new Date(Date.now() - 6 * 60 * 1000).toISOString();
       await getDb().execute({
-        sql:
-          "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
         args: ["cs_stale_admin_test", staleTime],
       });
 
@@ -2882,8 +2991,7 @@ describe("server (admin events)", () => {
 
       // Insert a fresh reservation (just now)
       await getDb().execute({
-        sql:
-          "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
+        sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
         args: ["cs_fresh_admin_test", new Date().toISOString()],
       });
 

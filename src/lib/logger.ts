@@ -28,9 +28,7 @@ const getLogPrefix = (): string => {
 
 /** Run a function with a request-scoped random ID for log correlation */
 export const runWithRequestId = <T>(fn: () => T): T =>
-  requestIdStorage.run(generateRequestId(), () =>
-    runWithPendingWork(fn),
-  );
+  requestIdStorage.run(generateRequestId(), () => runWithPendingWork(fn));
 
 /**
  * Error codes for classified error logging
@@ -135,6 +133,7 @@ type RequestLogEntry = {
  * Path is automatically redacted for privacy
  */
 export const logRequest = (entry: RequestLogEntry): void => {
+  if (Deno.env.get("TEST_SUPPRESS_REQUEST_LOGS")) return;
   const { method, path, status, durationMs } = entry;
   const redactedPath = redactPath(path);
 
@@ -189,7 +188,14 @@ export const createRequestTimer = (): (() => number) => {
 /**
  * Log categories for debug logging
  */
-export type LogCategory = "Setup" | "Webhook" | "Payment" | "Auth" | "Stripe" | "Square" | "Domain";
+export type LogCategory =
+  | "Setup"
+  | "Webhook"
+  | "Payment"
+  | "Auth"
+  | "Stripe"
+  | "Square"
+  | "Domain";
 
 /**
  * Log a debug message with category prefix
