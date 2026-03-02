@@ -1602,7 +1602,7 @@ describe("html", () => {
         { id: 1, username: "owner", adminLevel: "owner", hasPassword: true, hasDataKey: true, inviteExpired: false },
         { id: 2, username: "expired-user", adminLevel: "manager", hasPassword: false, hasDataKey: false, inviteExpired: true },
       ];
-      const html = adminUsersPage(users, TEST_SESSION, { inviteLink: "", success: "", error: "" });
+      const html = adminUsersPage(users, TEST_SESSION, { inviteLink: "", success: "", error: "", currentUserId: 1 });
       expect(html).toContain("Invite Expired");
     });
 
@@ -1625,7 +1625,7 @@ describe("html", () => {
 
   describe("adminUserDeletePage", () => {
     test("renders delete confirmation form with username", () => {
-      const user: DisplayUser = { id: 5, username: "targetuser", adminLevel: "manager", hasPassword: true, hasDataKey: true };
+      const user: DisplayUser = { id: 5, username: "targetuser", adminLevel: "manager", hasPassword: true, hasDataKey: true, inviteExpired: false };
       const html = adminUserDeletePage(user, TEST_SESSION);
       expect(html).toContain("Delete User");
       expect(html).toContain("targetuser");
@@ -1635,7 +1635,7 @@ describe("html", () => {
     });
 
     test("renders error message when provided", () => {
-      const user: DisplayUser = { id: 5, username: "targetuser", adminLevel: "owner", hasPassword: true, hasDataKey: true };
+      const user: DisplayUser = { id: 5, username: "targetuser", adminLevel: "owner", hasPassword: true, hasDataKey: true, inviteExpired: false };
       const html = adminUserDeletePage(user, TEST_SESSION, "Username does not match");
       expect(html).toContain("Username does not match");
     });
