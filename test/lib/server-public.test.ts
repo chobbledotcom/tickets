@@ -3486,6 +3486,41 @@ describe("server (public routes)", () => {
       expectCheckoutRedirect(response);
     });
 
+    test("POST rejects price above maximum", async () => {
+      await setupStripe();
+      const event = await payMoreEvent();
+      const response = await submitTicketForm(event.slug, {
+        name: "Test User", email: "test@example.com", quantity: "1",
+        custom_price: "150.00",
+      });
+      const html = await response.text();
+      expect(html).toContain("maximum");
+    });
+
+    test("POST accepts price at maximum", async () => {
+      await setupStripe();
+      const event = await payMoreEvent();
+      const response = await submitTicketForm(event.slug, {
+        name: "Test User", email: "test@example.com", quantity: "1",
+        custom_price: "100.00",
+      });
+      expectCheckoutRedirect(response);
+    });
+
+    test("GET shows max price in label", async () => {
+      const event = await payMoreEvent();
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      const html = await response.text();
+      expect(html).toContain("£100.00");
+    });
+
+    test("GET shows max price for free can_pay_more event", async () => {
+      const event = await payMoreEvent({ unitPrice: 0 });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      const html = await response.text();
+      expect(html).toContain("up to £100.00");
+    });
+
     test("POST rejects empty custom_price", async () => {
       await setupStripe();
       const event = await payMoreEvent();
@@ -3542,6 +3577,20 @@ describe("server (public routes)", () => {
       });
       const html = await response.text();
       expect(html).toContain("minimum");
+    });
+
+    test("POST multi-ticket rejects custom_price above maximum", async () => {
+      await setupStripe();
+      const event1 = await payMoreEvent({ name: "Pay More Max Reject", unitPrice: 500, maxQuantity: 5 });
+      const event2 = await createTestEvent({ name: "Normal Max Reject", unitPrice: 1000, maxAttendees: 50, maxQuantity: 5 });
+      const slug = `${event1.slug}+${event2.slug}`;
+      const response = await submitMultiTicketForm(slug, {
+        name: "John Doe", email: "john@example.com",
+        [`quantity_${event1.id}`]: "1", [`quantity_${event2.id}`]: "1",
+        [`custom_price_${event1.id}`]: "200.00",
+      });
+      const html = await response.text();
+      expect(html).toContain("maximum");
     });
 
     test("POST multi-ticket skips price check for can_pay_more event with qty 0", async () => {

@@ -2954,6 +2954,60 @@ describe("server (webhooks)", () => {
       }
     });
 
+    test("single-ticket can_pay_more rejects amount above maximum price", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+        canPayMore: true,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
+        valid: true,
+        event: {
+          id: "evt_pay_too_much",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_pay_too_much",
+              payment_status: "paid",
+              payment_intent: "pi_pay_too_much",
+              amount_total: 20000,
+              metadata: webhookMeta({
+                event_id: String(event.id),
+                name: "Overpay User",
+                email: "overpay@example.com",
+                quantity: "1",
+              }),
+            },
+          },
+        },
+      }));
+
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_pay_too_much" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >));
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
+      }
+    });
+
     test("multi-ticket rejects metadata with non-integer p", async () => {
       await setupStripe();
 

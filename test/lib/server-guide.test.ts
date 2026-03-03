@@ -123,6 +123,14 @@ describe("server (admin guide)", () => {
       expect(html).toContain("Deactivate");
     });
 
+    test("contains allow pay more info with max price", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Allow Pay More");
+      expect(html).toContain("maximum");
+      expect(html).toContain("£100.00");
+    });
+
     test("contains non-transferable tickets info", async () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();
