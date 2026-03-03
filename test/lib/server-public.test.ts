@@ -3398,32 +3398,35 @@ describe("server (public routes)", () => {
       const event = await payMoreEvent();
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
-      expect(html).toContain("custom_price");
-      expect(html).toContain("Your Price");
-      expect(html).toContain("10.00");
+      expect(html).toContain('name="custom_price"');
+      expect(html).toContain("Your Price (minimum");
+      expect(html).toContain('value="10.00"');
+      expect(html).toContain("required");
     });
 
     test("GET does not show price input when can_pay_more is disabled", async () => {
       const event = await createTestEvent({ unitPrice: 1000, maxAttendees: 50 });
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
-      expect(html).not.toContain("custom_price");
+      expect(html).not.toContain('name="custom_price"');
     });
 
     test("GET shows price input for can_pay_more events with zero unit_price", async () => {
       const event = await payMoreEvent({ unitPrice: undefined });
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
-      expect(html).toContain("custom_price");
-      expect(html).toContain("optional");
+      expect(html).toContain('name="custom_price"');
+      expect(html).toContain("Your Price (optional)");
+      expect(html).toContain('min="0.00"');
     });
 
     test("GET shows optional price input for free can_pay_more events", async () => {
       const event = await payMoreEvent({ unitPrice: 0 });
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
-      expect(html).toContain("custom_price");
-      expect(html).toContain("optional");
+      expect(html).toContain('name="custom_price"');
+      expect(html).toContain("Your Price (optional)");
+      expect(html).toContain('value="0.00" min="0.00" />');
     });
 
     test("POST free can_pay_more with custom price redirects to checkout", async () => {
@@ -3443,6 +3446,11 @@ describe("server (public routes)", () => {
         custom_price: "",
       });
       expect(response.status).toBe(302);
+      const location = response.headers.get("location") || "";
+      expect(location).not.toContain("checkout");
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const attendees = await getAttendeesRaw(event.id);
+      expect(attendees.length).toBe(1);
     });
 
     test("POST free can_pay_more with zero price registers for free", async () => {
@@ -3452,11 +3460,14 @@ describe("server (public routes)", () => {
         custom_price: "0",
       });
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).not.toContain("checkout");
+      const location = response.headers.get("location") || "";
+      expect(location).not.toContain("checkout");
+      const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+      const attendees = await getAttendeesRaw(event.id);
+      expect(attendees.length).toBe(1);
     });
 
     test("POST rejects price below minimum", async () => {
-      await setupStripe();
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
         name: "Test User", email: "test@example.com", quantity: "1",
@@ -3486,8 +3497,7 @@ describe("server (public routes)", () => {
       expectCheckoutRedirect(response);
     });
 
-    test("POST rejects empty custom_price", async () => {
-      await setupStripe();
+    test("POST rejects empty custom_price for paid can_pay_more event", async () => {
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
         name: "Test User", email: "test@example.com", quantity: "1",
@@ -3498,11 +3508,20 @@ describe("server (public routes)", () => {
     });
 
     test("POST rejects invalid custom_price", async () => {
-      await setupStripe();
       const event = await payMoreEvent();
       const response = await submitTicketForm(event.slug, {
         name: "Test User", email: "test@example.com", quantity: "1",
         custom_price: "abc",
+      });
+      const html = await response.text();
+      expect(html).toContain("valid price");
+    });
+
+    test("POST rejects negative custom_price", async () => {
+      const event = await payMoreEvent();
+      const response = await submitTicketForm(event.slug, {
+        name: "Test User", email: "test@example.com", quantity: "1",
+        custom_price: "-5.00",
       });
       const html = await response.text();
       expect(html).toContain("valid price");
@@ -3513,8 +3532,8 @@ describe("server (public routes)", () => {
       const event2 = await createTestEvent({ name: "Normal Multi", unitPrice: 1000, maxAttendees: 50 });
       const response = await handleRequest(mockRequest(`/ticket/${event1.slug}+${event2.slug}`));
       const html = await response.text();
-      expect(html).toContain(`custom_price_${event1.id}`);
-      expect(html).not.toContain(`custom_price_${event2.id}`);
+      expect(html).toContain(`name="custom_price_${event1.id}"`);
+      expect(html).not.toContain(`name="custom_price_${event2.id}"`);
     });
 
     test("POST multi-ticket with can_pay_more redirects to checkout", async () => {
@@ -3531,7 +3550,6 @@ describe("server (public routes)", () => {
     });
 
     test("POST multi-ticket rejects custom_price below minimum", async () => {
-      await setupStripe();
       const event1 = await payMoreEvent({ name: "Pay More Reject", unitPrice: 500, maxQuantity: 5 });
       const event2 = await createTestEvent({ name: "Normal Reject", unitPrice: 1000, maxAttendees: 50, maxQuantity: 5 });
       const slug = `${event1.slug}+${event2.slug}`;
@@ -3587,8 +3605,16 @@ describe("server (public routes)", () => {
       const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie });
       const html = await response.text();
-      expect(html).toContain("can_pay_more");
-      expect(html).toContain("checked");
+      expect(html).toContain('name="can_pay_more" value="1" checked');
+    });
+
+    test("admin edit page shows can_pay_more unchecked for disabled event", async () => {
+      const event = await createTestEvent({ unitPrice: 1000, maxAttendees: 50 });
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie });
+      const html = await response.text();
+      expect(html).toContain('name="can_pay_more"');
+      expect(html).not.toContain('name="can_pay_more" value="1" checked');
     });
   });
 });
