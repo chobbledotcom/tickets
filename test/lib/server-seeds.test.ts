@@ -9,16 +9,58 @@ import { getDb } from "#lib/db/client.ts";
 import { invalidateSettingsCache } from "#lib/db/settings.ts";
 import {
   adminGet,
+  awaitTestRequest,
   createTestDbWithSetup,
   expectAdminRedirect,
   expectHtmlResponse,
   extractCsrfToken,
   loginAsAdmin,
+  mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
+  requireJoinCsrfToken,
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";
+
+/** Create a manager user and return their session cookie */
+const loginAsManager = async (): Promise<string> => {
+  const { cookie: ownerCookie, csrfToken: ownerCsrf } = await loginAsAdmin();
+
+  // Create a manager invite
+  const inviteResponse = await handleRequest(
+    mockFormRequest("/admin/users", {
+      username: "manager1",
+      admin_level: "manager",
+      csrf_token: ownerCsrf,
+    }, ownerCookie),
+  );
+  const inviteUrl = inviteResponse.headers.get("location") ?? "";
+  const inviteLink = decodeURIComponent(inviteUrl.match(/invite=([^&]+)/)![1] as string);
+  const inviteToken = inviteLink.split("/join/")[1];
+
+  // Set password for manager
+  const joinHtml = await (await handleRequest(mockRequest(`/join/${inviteToken}`))).text();
+  const joinCsrf = requireJoinCsrfToken(joinHtml);
+  await handleRequest(
+    mockFormRequest(`/join/${inviteToken}`, {
+      password: "managerpass123",
+      password_confirm: "managerpass123",
+      csrf_token: joinCsrf,
+    }),
+  );
+
+  // Activate the manager
+  await handleRequest(
+    mockFormRequest("/admin/users/2/activate", { csrf_token: ownerCsrf }, ownerCookie),
+  );
+
+  // Login as manager
+  const loginResponse = await handleRequest(
+    await mockAdminLoginRequest({ username: "manager1", password: "managerpass123" }),
+  );
+  return loginResponse.headers.get("set-cookie") ?? "";
+};
 
 describe("server (admin seeds)", () => {
   beforeEach(async () => {
@@ -34,6 +76,12 @@ describe("server (admin seeds)", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/seeds"));
       expectAdminRedirect(response);
+    });
+
+    test("returns 403 for non-owner", async () => {
+      const managerCookie = await loginAsManager();
+      const response = await awaitTestRequest("/admin/seeds", { cookie: managerCookie });
+      expect(response.status).toBe(403);
     });
 
     test("renders seeds page when authenticated", async () => {
@@ -62,6 +110,18 @@ describe("server (admin seeds)", () => {
         mockFormRequest("/admin/seeds", { event_count: "1", attendees_per_event: "0" }),
       );
       expectAdminRedirect(response);
+    });
+
+    test("returns 403 for non-owner", async () => {
+      const managerCookie = await loginAsManager();
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/seeds",
+          { event_count: "1", attendees_per_event: "0" },
+          managerCookie,
+        ),
+      );
+      expect(response.status).toBe(403);
     });
 
     test("creates seed events with no attendees", async () => {
