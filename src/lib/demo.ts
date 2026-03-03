@@ -24,7 +24,7 @@ export const resetDemoMode = (): void => setDemoMode(null);
 // Sample data arrays
 // ---------------------------------------------------------------------------
 
-/** Demo attendee names */
+/** Demo attendee names (full names for demo mode overrides) */
 export const DEMO_NAMES = [
   "Alice Johnson",
   "Bob Smith",
@@ -76,6 +76,40 @@ export const DEMO_NAMES = [
   "Wanda Kowalski",
   "Yuki Nakamura",
   "Amara Osei",
+] as const;
+
+/** Demo first names for seed data (combined with surnames for more variety) */
+export const DEMO_FIRST_NAMES = [
+  "Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Grace", "Henry",
+  "Ivy", "Jack", "Keiko", "Liam", "Maria", "Nadia", "Omar", "Priya",
+  "Quincy", "Rosa", "Sven", "Tomoko", "Uche", "Valentina", "Wei", "Xena",
+  "Yusuf", "Zara", "Aisling", "Bjorn", "Chiara", "Dmitri", "Elena",
+  "Fatima", "George", "Hana", "Ibrahim", "Jasmine", "Kofi", "Leila",
+  "Magnus", "Nkechi", "Olga", "Pablo", "Ravi", "Sakura", "Tariq", "Uma",
+  "Viktor", "Wanda", "Yuki", "Amara", "Aiden", "Bianca", "Callum",
+  "Daphne", "Emeka", "Fiona", "Gustavo", "Haruki", "Ingrid", "Javier",
+  "Keira", "Lorenzo", "Mina", "Niall", "Oona", "Petra", "Rafael",
+  "Sienna", "Theo", "Ursula", "Vijay", "Wendy", "Xiomara", "Yolanda",
+  "Zane", "Aoife", "Benoit", "Celine", "Declan", "Esme", "Felix",
+  "Gemma", "Hugo", "Isla", "Jules", "Khadija", "Lucian", "Maeve",
+  "Nico", "Orla", "Piotr", "Quinn", "Rosario", "Saoirse", "Tomas",
+] as const;
+
+/** Demo surnames for seed data (combined with first names for more variety) */
+export const DEMO_SURNAMES = [
+  "Johnson", "Smith", "Williams", "Brown", "Davis", "Miller", "Wilson",
+  "Moore", "Taylor", "Anderson", "Tanaka", "O'Brien", "Garcia", "Petrova",
+  "Hassan", "Sharma", "Adams", "Hernandez", "Lindqvist", "Sato", "Okafor",
+  "Rossi", "Zhang", "Papadopoulos", "Demir", "Mbeki", "Murphy", "Eriksson",
+  "Bianchi", "Volkov", "Vasquez", "Al-Rashid", "Kamau", "Yoshida", "Diallo",
+  "Patel", "Mensah", "Khoury", "Andersen", "Eze", "Novak", "Reyes",
+  "Krishnan", "Watanabe", "Benmoussa", "Devi", "Szabo", "Kowalski",
+  "Nakamura", "Osei", "Chen", "Fitzgerald", "Johansson", "Kim", "Larsson",
+  "Moreau", "Nguyen", "O'Sullivan", "Park", "Russo", "Singh", "Torres",
+  "Virtanen", "Weber", "Yamamoto", "Zimmerman", "Bergstrom", "Costa",
+  "Dubois", "Fischer", "Gonzalez", "Horvat", "Ivanova", "Jensen",
+  "Kapoor", "Li", "Martinez", "Nielsen", "Oduya", "Pereira", "Ramirez",
+  "Svensson", "Takahashi", "Ueda", "Varga", "Walsh", "Xu", "Yilmaz",
 ] as const;
 
 /** Demo email addresses */
@@ -386,6 +420,10 @@ export const TERMS_DEMO_FIELDS: DemoFieldMap = {
 /** Pick a random element from an array */
 export const randomChoice = <T>(arr: readonly T[]): T =>
   arr[Math.floor(Math.random() * arr.length)]!;
+
+/** Generate a random full name from first name + surname arrays */
+export const randomName = (): string =>
+  `${randomChoice(DEMO_FIRST_NAMES)} ${randomChoice(DEMO_SURNAMES)}`;
 
 /**
  * Replace form field values with demo data when demo mode is active.

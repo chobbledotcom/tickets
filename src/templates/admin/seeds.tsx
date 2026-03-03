@@ -50,7 +50,7 @@ export const adminSeedsPage = (
           name="attendees_per_event"
           value="10"
           min="0"
-          max="50"
+          max="1000"
           required
         />
 

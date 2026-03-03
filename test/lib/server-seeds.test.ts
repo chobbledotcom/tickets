@@ -162,6 +162,18 @@ describe("server (admin seeds)", () => {
 
       const attendees = await getAttendeesRaw(events[0]!.id);
       expect(attendees.length).toBe(3);
+
+      // Each attendee has a quantity between 1 and 4
+      for (const attendee of attendees) {
+        expect(attendee.quantity).toBeGreaterThanOrEqual(1);
+        expect(attendee.quantity).toBeLessThanOrEqual(4);
+      }
+
+      // Total quantity does not exceed event max_attendees (no overselling)
+      const totalQuantity = attendees.reduce((sum, a) => sum + a.quantity, 0);
+      expect(totalQuantity).toBeLessThanOrEqual(events[0]!.max_attendees);
+      // Event max_attendees equals exactly the sum of attendee quantities
+      expect(events[0]!.max_attendees).toBe(totalQuantity);
     });
 
     test("clamps event count to max", async () => {
@@ -182,10 +194,12 @@ describe("server (admin seeds)", () => {
     test("clamps attendees per event to max", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
+      // Request more than SEED_MAX_ATTENDEES but create 0 events to avoid slow creation
+      // We verify clamping by checking a single event with attendees
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "1", attendees_per_event: "999", csrf_token: csrfToken },
+          { event_count: "1", attendees_per_event: "9999", csrf_token: csrfToken },
           cookie,
         ),
       );
@@ -223,7 +237,7 @@ describe("server (admin seeds)", () => {
       expect(response.status).toBe(403);
     });
 
-    test("created events are active with expected max attendees", async () => {
+    test("created events are active", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       await handleRequest(
@@ -236,7 +250,8 @@ describe("server (admin seeds)", () => {
 
       const events = await getAllEvents();
       expect(events[0]!.active).toBe(true);
-      expect(events[0]!.max_attendees).toBe(SEED_MAX_ATTENDEES);
+      // With 0 attendees, max_attendees is 0 (sum of quantities)
+      expect(events[0]!.max_attendees).toBe(0);
     });
 
     test("returns 500 when seed creation fails", async () => {
