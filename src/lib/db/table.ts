@@ -405,6 +405,6 @@ export const col = {
   boolean: (defaultValue: boolean): ColumnDef<boolean> => ({
     default: () => defaultValue,
     write: ((v: boolean) => v ? 1 : 0) as unknown as (v: boolean) => boolean,
-    read: ((v: unknown) => v === 1) as unknown as (v: boolean) => boolean,
+    read: ((v: unknown) => Number(v) === 1) as unknown as (v: boolean) => boolean,
   }),
 };
