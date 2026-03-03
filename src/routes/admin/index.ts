@@ -21,6 +21,7 @@ import { sessionsRoutes } from "#routes/admin/sessions.ts";
 import { settingsRoutes } from "#routes/admin/settings.ts";
 import { siteRoutes } from "#routes/admin/site.ts";
 import { scannerRoutes } from "#routes/admin/scanner.ts";
+import { seedsRoutes } from "#routes/admin/seeds.ts";
 import { usersRoutes } from "#routes/admin/users.ts";
 import { createRouter } from "#routes/router.ts";
 import { getAuthenticatedSession } from "#routes/utils.ts";
@@ -40,6 +41,7 @@ const adminRoutes = {
   ...groupsRoutes,
   ...holidaysRoutes,
   ...scannerRoutes,
+  ...seedsRoutes,
 };
 
 const innerRouter = createRouter(adminRoutes);
