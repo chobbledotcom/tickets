@@ -10,6 +10,7 @@ import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { renderMarkdown, renderMarkdownInline } from "#lib/markdown.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
+import { canPayMoreMaxPrice } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
@@ -166,9 +167,16 @@ const quantityOptions = (max: number): string =>
     .join("");
 
 /** Render a price input for pay-more events */
-const renderPayMoreInput = (minPrice: number, fieldName = "custom_price"): string =>
-  `<label for="${fieldName}">${minPrice > 0 ? `Your Price (minimum ${formatCurrency(minPrice)})` : "Your Price (optional)"}</label>` +
-  `<input type="text" inputmode="decimal" name="${fieldName}" id="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}"${minPrice > 0 ? " required" : ""} />`;
+const renderPayMoreInput = (minPrice: number, fieldName = "custom_price"): string => {
+  const maxPrice = canPayMoreMaxPrice(minPrice);
+  const rangeHint = minPrice > 0
+    ? `Your Price (${formatCurrency(minPrice)} – ${formatCurrency(maxPrice)})`
+    : `Your Price (optional, up to ${formatCurrency(maxPrice)})`;
+  return (
+    `<label for="${fieldName}">${rangeHint}</label>` +
+    `<input type="text" inputmode="decimal" name="${fieldName}" id="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}"${minPrice > 0 ? " required" : ""} />`
+  );
+};
 
 /** Render terms and conditions block with agreement checkbox */
 const renderTermsAndCheckbox = (terms: string): string =>

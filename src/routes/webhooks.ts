@@ -36,6 +36,7 @@ import {
   type WebhookEvent,
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
+import { canPayMoreMaxPrice } from "#lib/types.ts";
 import { getAllowedDomain, getCurrencyCode } from "#lib/config.ts";
 import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -265,9 +266,11 @@ const validateAndPrice = async (
 };
 
 /** Check if the amount charged matches the current event price.
- * For pay-more events, the amount must be >= the expected minimum price. */
+ * For pay-more events, the amount must be >= the expected minimum price and <= the max cap. */
 const hasPriceMismatch = (amountTotal: number, expectedPrice: number, canPayMore: boolean): boolean =>
-  canPayMore ? amountTotal < expectedPrice : amountTotal !== expectedPrice;
+  canPayMore
+    ? amountTotal < expectedPrice || amountTotal > canPayMoreMaxPrice(expectedPrice)
+    : amountTotal !== expectedPrice;
 
 /** Format error for post-payment attendee creation failure */
 const formatPostPaymentError = formatCreationError(
@@ -376,7 +379,7 @@ const processMultiPaymentSession = async (
   // Per-item price validation: each item's p must match its event's rules
   for (const { item, event, expectedPrice } of validatedItems) {
     const itemMismatch = event.can_pay_more
-      ? item.p < expectedPrice   // pay-more: p must be >= minimum (unit_price * q)
+      ? item.p < expectedPrice || item.p > canPayMoreMaxPrice(expectedPrice)  // pay-more: min <= p <= max
       : item.p !== expectedPrice; // fixed: p must equal unit_price * q exactly
     if (itemMismatch) {
       logError({

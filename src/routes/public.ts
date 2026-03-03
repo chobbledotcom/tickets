@@ -32,6 +32,7 @@ import {
   type RegistrationIntent,
 } from "#lib/payments.ts";
 import type { ContactInfo, EventFields, EventWithCount, Group } from "#lib/types.ts";
+import { canPayMoreMaxPrice } from "#lib/types.ts";
 import { logDebug } from "#lib/logger.ts";
 import {
   logAndNotifyMultiRegistration,
@@ -274,6 +275,7 @@ const parseCustomPrice = (
   form: URLSearchParams,
   fieldName: string,
   minPrice: number,
+  maxPrice: number,
 ): { ok: true; price: number } | { ok: false; error: string } => {
   const raw = (form.get(fieldName) || "").trim();
   if (!raw) {
@@ -286,6 +288,9 @@ const parseCustomPrice = (
   const priceMinor = toMinorUnits(parsed);
   if (priceMinor < minPrice) {
     return { ok: false, error: "Price must be at least the minimum ticket price" };
+  }
+  if (priceMinor > maxPrice) {
+    return { ok: false, error: "Price exceeds the maximum allowed" };
   }
   return { ok: true, price: priceMinor };
 };
@@ -386,7 +391,7 @@ const processTicketReservation = async (
       // Parse custom price for pay-more events
       let customUnitPrice: number | undefined;
       if (event.can_pay_more) {
-        const priceResult = parseCustomPrice(form, "custom_price", event.unit_price);
+        const priceResult = parseCustomPrice(form, "custom_price", event.unit_price, canPayMoreMaxPrice(event.unit_price));
         if (!priceResult.ok) {
           return ticketResponse(event, inIframe, dates, terms)(priceResult.error);
         }
@@ -580,7 +585,7 @@ const submitMultiTicket = (
         if (event.can_pay_more) {
           const qty = quantities.get(event.id) ?? 0;
           if (qty > 0) {
-            const priceResult = parseCustomPrice(form, `custom_price_${event.id}`, event.unit_price);
+            const priceResult = parseCustomPrice(form, `custom_price_${event.id}`, event.unit_price, canPayMoreMaxPrice(event.unit_price));
             if (!priceResult.ok) {
               return multiTicketFormErrorResponse(ctx)(`${event.name}: ${priceResult.error}`);
             }
