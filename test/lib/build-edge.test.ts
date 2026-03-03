@@ -3,7 +3,11 @@ import { expect } from "@std/expect";
 import * as esbuild from "esbuild";
 import { minifyCss } from "../../scripts/css-minify.ts";
 
-describe("build-edge", () => {
+describe({
+  name: "build-edge",
+  sanitizeResources: false,
+  sanitizeOps: false,
+}, () => {
   afterAll(async () => {
     await esbuild.stop();
   });
