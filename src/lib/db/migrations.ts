@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add webhook_log table";
+export const LATEST_UPDATE = "add non_transferable to events";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -456,16 +456,6 @@ export const initDb = async (): Promise<void> => {
   // Migration: add non_transferable column to events (boolean, default false)
   await runMigration(`ALTER TABLE events ADD COLUMN non_transferable INTEGER NOT NULL DEFAULT 0`);
 
-  // Create webhook_log table for tracking failed outgoing webhook calls
-  await runMigration(`
-    CREATE TABLE IF NOT EXISTS webhook_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      created TEXT NOT NULL,
-      status_code INTEGER NOT NULL,
-      event_name TEXT NOT NULL
-    )
-  `);
-
   // Update the version marker
   await getDb().execute({
     sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('latest_db_update', ?)",
@@ -477,7 +467,6 @@ export const initDb = async (): Promise<void> => {
  * All database tables in order for safe dropping (respects foreign key constraints)
  */
 const ALL_TABLES = [
-  "webhook_log",
   "groups",
   "holidays",
   "activity_log",

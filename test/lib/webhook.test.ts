@@ -10,9 +10,8 @@ import {
   type WebhookEvent,
   type WebhookPayload,
 } from "#lib/webhook.ts";
-import { queryAll } from "#lib/db/client.ts";
-import type { WebhookLogEntry } from "#lib/db/webhookLog.ts";
-import { createTestDb, createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
+import { getAllActivityLog } from "#lib/db/activityLog.ts";
+import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
 import { bracket, map } from "#fp";
 
 /** Helper to build a WebhookEvent with sensible defaults */
@@ -234,7 +233,7 @@ describe("webhook", () => {
 
   describe("sendWebhook", () => {
     beforeEach(async () => {
-      await createTestDb();
+      await createTestDbWithSetup();
     });
 
     afterEach(() => {
@@ -297,28 +296,27 @@ describe("webhook", () => {
       expect(logs.some((c) => c.includes("E_WEBHOOK_SEND"))).toBe(false);
     });
 
-    test("saves webhook_log entry on non-2xx response", async () => {
+    test("logs activity on non-2xx response", async () => {
       await withErrorSpy(async () => {
         restubFetch(() => Promise.resolve(new Response("Bad Gateway", { status: 502 })));
         const payload = await buildWebhookPayload(defaultEntries(), "GBP");
         await sendWebhook("https://example.com/webhook", payload);
       });
 
-      const rows = await queryAll<WebhookLogEntry>("SELECT * FROM webhook_log");
-      expect(rows).toHaveLength(1);
-      expect(rows[0]!.status_code).toBe(502);
-      expect(rows[0]!.event_name).toBe("Test Event");
+      const entries = await getAllActivityLog();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.message).toBe("Webhook failed (status 502) for 'Test Event'");
     });
 
-    test("does not save webhook_log entry on successful response", async () => {
+    test("does not log activity on successful response", async () => {
       const payload = await buildWebhookPayload(defaultEntries(), "GBP");
       await sendWebhook("https://example.com/webhook", payload);
 
-      const rows = await queryAll<WebhookLogEntry>("SELECT * FROM webhook_log");
-      expect(rows).toHaveLength(0);
+      const entries = await getAllActivityLog();
+      expect(entries).toHaveLength(0);
     });
 
-    test("saves comma-separated event names for multi-event payload", async () => {
+    test("logs comma-separated event names for multi-event payload", async () => {
       await withErrorSpy(async () => {
         restubFetch(() => Promise.resolve(new Response("Error", { status: 500 })));
         const entries: RegistrationEntry[] = [
@@ -329,15 +327,15 @@ describe("webhook", () => {
         await sendWebhook("https://example.com/webhook", payload);
       });
 
-      const rows = await queryAll<WebhookLogEntry>("SELECT * FROM webhook_log");
-      expect(rows).toHaveLength(1);
-      expect(rows[0]!.event_name).toBe("Event A, Event B");
+      const entries = await getAllActivityLog();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.message).toBe("Webhook failed (status 500) for 'Event A, Event B'");
     });
   });
 
   describe("sendRegistrationWebhooks", () => {
     beforeEach(async () => {
-      await createTestDb();
+      await createTestDbWithSetup();
     });
 
     afterEach(() => {
