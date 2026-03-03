@@ -125,6 +125,8 @@ export const sendWebhook = async (
         code: ErrorCode.WEBHOOK_SEND,
         detail: `status=${response.status}`,
       });
+      const eventName = payload.tickets.map((t) => t.event_name).join(", ");
+      await logActivity(`Webhook failed (status ${response.status}) for '${eventName}'`);
     }
   } catch (error) {
     logError({

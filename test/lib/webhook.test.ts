@@ -10,6 +10,7 @@ import {
   type WebhookEvent,
   type WebhookPayload,
 } from "#lib/webhook.ts";
+import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
 import { bracket, map } from "#fp";
 
@@ -231,6 +232,14 @@ describe("webhook", () => {
   });
 
   describe("sendWebhook", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
+    afterEach(() => {
+      resetDb();
+    });
+
     test("sends POST request with correct payload", async () => {
       const payload: WebhookPayload = await buildWebhookPayload(defaultEntries(), "GBP");
 
@@ -286,10 +295,51 @@ describe("webhook", () => {
       );
       expect(logs.some((c) => c.includes("E_WEBHOOK_SEND"))).toBe(false);
     });
+
+    test("logs activity on non-2xx response", async () => {
+      await withErrorSpy(async () => {
+        restubFetch(() => Promise.resolve(new Response("Bad Gateway", { status: 502 })));
+        const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+        await sendWebhook("https://example.com/webhook", payload);
+      });
+
+      const entries = await getAllActivityLog();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.message).toBe("Webhook failed (status 502) for 'Test Event'");
+    });
+
+    test("does not log activity on successful response", async () => {
+      const payload = await buildWebhookPayload(defaultEntries(), "GBP");
+      await sendWebhook("https://example.com/webhook", payload);
+
+      const entries = await getAllActivityLog();
+      expect(entries).toHaveLength(0);
+    });
+
+    test("logs comma-separated event names for multi-event payload", async () => {
+      await withErrorSpy(async () => {
+        restubFetch(() => Promise.resolve(new Response("Error", { status: 500 })));
+        const entries: RegistrationEntry[] = [
+          makeEntry({ id: 1, name: "Event A", slug: "event-a" }, { ticket_token: "AA11BB22CC" }),
+          makeEntry({ id: 2, name: "Event B", slug: "event-b" }, { ticket_token: "DD33EE44FF" }),
+        ];
+        const payload = await buildWebhookPayload(entries, "GBP");
+        await sendWebhook("https://example.com/webhook", payload);
+      });
+
+      const entries = await getAllActivityLog();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.message).toBe("Webhook failed (status 500) for 'Event A, Event B'");
+    });
   });
 
   describe("sendRegistrationWebhooks", () => {
+    beforeEach(async () => {
+      await createTestDbWithSetup();
+    });
+
     afterEach(() => {
+      resetDb();
       Deno.env.delete("WEBHOOK_URL");
     });
 
