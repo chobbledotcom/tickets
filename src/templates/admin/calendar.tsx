@@ -23,7 +23,6 @@ export type CalendarAttendeeRow = Attendee & {
   eventDate: string;
   eventLocation: string;
   eventId: number;
-  hasPaidEvent: boolean;
 };
 
 /** Build date selector dropdown for calendar view */
@@ -56,7 +55,6 @@ export const adminCalendarPage = (
       attendee: a,
       eventId: a.eventId,
       eventName: a.eventName,
-      hasPaidEvent: a.hasPaidEvent,
     })),
   )(attendees);
 

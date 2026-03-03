@@ -883,6 +883,7 @@ export const createTestEvent = (
       maximum_days_after:
         input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
       non_transferable: input.nonTransferable ? "1" : "",
+      can_pay_more: input.canPayMore ? "1" : "",
     },
     async () => {
       // Get the most recently created event (302 redirect guarantees creation succeeded)
@@ -900,16 +901,12 @@ export const priceFormValue = (minorUnits: number): string =>
 
 /** Format optional price field for form submission (converts minor → major units) */
 const formatPrice = (
-  update: number | null | undefined,
-  existing: number | null,
+  update: number | undefined,
+  existing: number,
 ): string =>
   update !== undefined
-    ? update != null
-      ? priceFormValue(update)
-      : ""
-    : existing != null
-      ? priceFormValue(existing)
-      : "";
+    ? priceFormValue(update)
+    : priceFormValue(existing);
 
 /** Format optional string field for form submission */
 const formatOptional = (update: string | undefined, existing: string): string =>
@@ -1113,6 +1110,14 @@ export const expectRedirect =
 export const expectAdminRedirect: (response: Response) => Response =
   expectRedirect("/admin");
 
+/** Assert response is a checkout redirect (302 to an external HTTPS URL) */
+export const expectCheckoutRedirect = (response: Response): void => {
+  expect(response.status).toBe(302);
+  const location = response.headers.get("location");
+  expect(location).not.toBeNull();
+  expect(String(location).startsWith("https://")).toBe(true);
+};
+
 /** Follow a 302 redirect by making a new request to the location header. */
 export const followRedirect = (
   response: Response,
@@ -1175,7 +1180,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   max_attendees: 100,
   thank_you_url: "https://example.com/thanks",
   created: "2024-01-01T00:00:00Z",
-  unit_price: null,
+  unit_price: 0,
   max_quantity: 1,
   webhook_url: "",
   closes_at: null,
@@ -1195,6 +1200,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   maximum_days_after: 0,
   image_url: "",
   non_transferable: false,
+  can_pay_more: false,
   ...overrides,
 });
 
@@ -1346,6 +1352,24 @@ export const submitTicketForm = async (
   // doesn't show a form (e.g. event at capacity / sold out)
   const csrfToken = extractCsrfToken(html) ?? (await signCsrfToken());
   return handleRequest(mockTicketFormRequest(slug, data, csrfToken));
+};
+
+/**
+ * Submit a multi-ticket form with automatic CSRF token handling.
+ * GETs the multi-ticket page first to obtain a CSRF token, then POSTs the form.
+ * The slug should be in multi-ticket format: "slug1+slug2".
+ */
+export const submitMultiTicketForm = async (
+  slug: string,
+  data: Record<string, string>,
+): Promise<Response> => {
+  const { handleRequest } = await import("#routes");
+  const path = `/ticket/${slug}`;
+  const getResponse = await handleRequest(mockRequest(path));
+  const csrfToken = extractCsrfToken(await getResponse.text())!;
+  return handleRequest(
+    mockFormRequest(path, { ...data, csrf_token: csrfToken }, `csrf_token=${csrfToken}`),
+  );
 };
 
 /**

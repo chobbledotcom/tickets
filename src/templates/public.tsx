@@ -3,12 +3,14 @@
  */
 
 import { map, pipe } from "#fp";
+import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { renderMarkdown, renderMarkdownInline } from "#lib/markdown.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
+import { canPayMoreMaxPrice } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
@@ -164,6 +166,18 @@ const quantityOptions = (max: number): string =>
     .map((n) => `<option value="${n}">${n}</option>`)
     .join("");
 
+/** Render a price input for pay-more events */
+const renderPayMoreInput = (minPrice: number, fieldName = "custom_price"): string => {
+  const maxPrice = canPayMoreMaxPrice(minPrice);
+  const rangeHint = minPrice > 0
+    ? `Your Price (${formatCurrency(minPrice)} – ${formatCurrency(maxPrice)})`
+    : `Your Price (optional, up to ${formatCurrency(maxPrice)})`;
+  return (
+    `<label for="${fieldName}">${rangeHint}</label>` +
+    `<input type="text" inputmode="decimal" name="${fieldName}" id="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}"${minPrice > 0 ? " required" : ""} />`
+  );
+};
+
 /** Render terms and conditions block with agreement checkbox */
 const renderTermsAndCheckbox = (terms: string): string =>
   `<div class="terms">${renderMarkdown(terms)}</div>` +
@@ -188,6 +202,7 @@ export const ticketPage = (
   const fields: Field[] = getTicketFields(event.fields);
   const isDaily = event.event_type === "daily";
   const headExtra = baseUrl ? buildOgTags(event, baseUrl) : undefined;
+  const showPayMore = event.can_pay_more;
 
   return String(
     <Layout title={event.name} bodyClass={inIframe ? "iframe" : undefined} headExtra={headExtra}>
@@ -229,6 +244,9 @@ export const ticketPage = (
               </>
             ) : (
               <input type="hidden" name="quantity" value="1" />
+            )}
+            {showPayMore && (
+              <Raw html={renderPayMoreInput(event.unit_price)} />
             )}
             {termsAndConditions && (
               <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
@@ -320,6 +338,9 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
     .map((n) => `<option value="${n}">${n}</option>`)
     .join("");
 
+  const showPayMore = event.can_pay_more;
+  const priceFieldName = `custom_price_${event.id}`;
+
   return `
     <div class="multi-ticket-row">
       ${imageHtml}
@@ -328,6 +349,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
       <select name="${fieldName}" id="${fieldName}">
         ${options}
       </select>
+      ${showPayMore ? renderPayMoreInput(event.unit_price, priceFieldName) : ""}
     </div>
   `;
 };

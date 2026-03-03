@@ -30,7 +30,6 @@ export const checkinAdminPage = (
       attendee: e.attendee,
       eventId: e.event.id,
       eventName: e.event.name,
-      hasPaidEvent: e.event.unit_price !== null,
     })),
   )(entries);
 

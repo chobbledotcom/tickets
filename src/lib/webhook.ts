@@ -9,7 +9,7 @@ import { logActivity } from "#lib/db/activityLog.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { addPendingWork } from "#lib/pending-work.ts";
-import type { ContactInfo } from "#lib/types.ts";
+import { isPaidEvent, type ContactInfo } from "#lib/types.ts";
 import { nowIso } from "#lib/now.ts";
 import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 
@@ -17,7 +17,7 @@ import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 export type WebhookTicket = {
   event_name: string;
   event_slug: string;
-  unit_price: number | null;
+  unit_price: number;
   quantity: number;
   date: string | null;
   ticket_token: string;
@@ -43,7 +43,8 @@ export type WebhookEvent = {
   webhook_url: string;
   max_attendees: number;
   attendee_count: number;
-  unit_price: number | null;
+  unit_price: number;
+  can_pay_more: boolean;
 };
 
 /** Attendee data needed for webhook notifications */
@@ -79,7 +80,7 @@ export const buildWebhookPayload = async (
   const totalPricePaid = entries.reduce((sum, { attendee }) =>
     sum + Number.parseInt(attendee.price_paid, 10), 0);
 
-  const hasPaidEvent = entries.some(({ event }) => event.unit_price !== null);
+  const hasPaidEvent = entries.some(({ event }) => isPaidEvent(event));
   const businessEmail = await getBusinessEmailFromDb();
 
   return {

@@ -22,7 +22,8 @@ const makeEvent = (overrides: Partial<WebhookEvent> = {}): WebhookEvent => ({
   webhook_url: "https://example.com/webhook",
   max_attendees: 100,
   attendee_count: 10,
-  unit_price: null,
+  unit_price: 0,
+  can_pay_more: false,
   ...overrides,
 });
 
@@ -126,7 +127,7 @@ describe("webhook", () => {
       expect(payload.tickets).toHaveLength(1);
       expect(payload.tickets[0]!.event_name).toBe("Test Event");
       expect(payload.tickets[0]!.event_slug).toBe("test-event");
-      expect(payload.tickets[0]!.unit_price).toBeNull();
+      expect(payload.tickets[0]!.unit_price).toBe(0);
       expect(payload.tickets[0]!.quantity).toBe(1);
       expect(payload.tickets[0]!.date).toBeNull();
       expect(payload.tickets[0]!.ticket_token).toBe("AABB001122");
@@ -177,6 +178,20 @@ describe("webhook", () => {
       expect(payload.tickets[1]!.unit_price).toBe(700);
       expect(payload.tickets[1]!.quantity).toBe(2);
       expect(payload.tickets[1]!.ticket_token).toBe("DD22EE33FF");
+    });
+
+    test("includes price_paid for free can_pay_more event where attendee paid", async () => {
+      const entries: RegistrationEntry[] = [
+        {
+          event: makeEvent({ unit_price: 0, can_pay_more: true }),
+          attendee: makeAttendee({ price_paid: "500", payment_id: "pi_donate" }),
+        },
+      ];
+
+      const payload = await buildWebhookPayload(entries, "GBP");
+
+      expect(payload.price_paid).toBe(500);
+      expect(payload.payment_id).toBe("pi_donate");
     });
 
     test("includes date in ticket when attendee has a date", async () => {

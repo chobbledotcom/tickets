@@ -478,7 +478,7 @@ describe("db", () => {
       expect(event.max_attendees).toBe(100);
       expect(event.thank_you_url).toBe("https://example.com/thanks");
       expect(event.created).toBeDefined();
-      expect(event.unit_price).toBeNull();
+      expect(event.unit_price).toBe(0);
     });
 
     test("createEvent creates event with unit_price", async () => {
@@ -598,7 +598,7 @@ describe("db", () => {
       expect(result).toBeNull();
     });
 
-    test("eventsTable.update can set unit_price to null", async () => {
+    test("eventsTable.update can set unit_price to zero", async () => {
       const created = await createTestEvent({
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
@@ -611,10 +611,10 @@ describe("db", () => {
         slugIndex: created.slug_index,
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
-        unitPrice: null,
+        unitPrice: 0,
       });
 
-      expect(updated?.unit_price).toBeNull();
+      expect(updated?.unit_price).toBe(0);
     });
 
     test("deleteEvent removes event", async () => {
@@ -1485,7 +1485,7 @@ describe("db", () => {
         created: string;
         max_attendees: number;
         thank_you_url: string;
-        unit_price: number | null;
+        unit_price: number;
         max_quantity: number;
         webhook_url: string | null;
         active: number;
@@ -1495,7 +1495,7 @@ describe("db", () => {
         slugIndex: string;
         maxAttendees: number;
         thankYouUrl: string;
-        unitPrice?: number | null;
+        unitPrice?: number;
         maxQuantity?: number;
         webhookUrl?: string | null;
         active?: number;
@@ -1513,7 +1513,7 @@ describe("db", () => {
           slug_index: col.simple<string>(),
           max_attendees: col.simple<number>(),
           thank_you_url: col.simple<string>(),
-          unit_price: col.simple<number | null>(),
+          unit_price: col.withDefault(() => 0),
           max_quantity: col.withDefault(() => 1),
           webhook_url: col.simple<string | null>(),
           active: col.withDefault(() => 1),

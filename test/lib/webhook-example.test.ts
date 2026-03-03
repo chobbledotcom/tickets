@@ -63,6 +63,7 @@ describe("webhook example", () => {
       max_attendees: 100,
       attendee_count: 10,
       unit_price: EXAMPLE_EVENT.unit_price,
+      can_pay_more: false,
     },
     attendee: {
       id: 1,

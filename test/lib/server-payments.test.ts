@@ -452,7 +452,7 @@ describe("server (payment flow)", () => {
       const event = await createTestEvent({
         maxAttendees: 50,
         thankYouUrl: "https://example.com/thanks",
-        unitPrice: null, // free
+        unitPrice: 0, // free
       });
 
       const response = await submitTicketForm(event.slug, {
@@ -823,8 +823,8 @@ describe("server (payment flow)", () => {
             email: "multi@example.com",
             multi: "1",
             items: JSON.stringify([
-              { e: event1.id, q: 1 },
-              { e: event2.id, q: 2 },
+              { e: event1.id, q: 1, p: 500 },
+              { e: event2.id, q: 2, p: 2000 },
             ]),
           },
         } as unknown as Awaited<
@@ -906,7 +906,7 @@ describe("server (payment flow)", () => {
             name: "Missing Event",
             email: "missing@example.com",
             multi: "1",
-            items: JSON.stringify([{ e: 99999, q: 1 }]),
+            items: JSON.stringify([{ e: 99999, q: 1, p: 500 }]),
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -946,7 +946,7 @@ describe("server (payment flow)", () => {
             name: "Inactive Event",
             email: "inactive@example.com",
             multi: "1",
-            items: JSON.stringify([{ e: event.id, q: 1 }]),
+            items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
           },
         } as unknown as Awaited<
           ReturnType<typeof stripeApi.retrieveCheckoutSession>
@@ -1053,8 +1053,8 @@ describe("server (payment flow)", () => {
             email: "rollback@example.com",
             multi: "1",
             items: JSON.stringify([
-              { e: event1.id, q: 1 },
-              { e: event2.id, q: 1 },
+              { e: event1.id, q: 1, p: 500 },
+              { e: event2.id, q: 1, p: 1000 },
             ]),
           },
         } as unknown as Awaited<
@@ -1202,8 +1202,8 @@ describe("server (payment flow)", () => {
             email: "multireplay@example.com",
             multi: "1",
             items: JSON.stringify([
-              { e: event1.id, q: 1 },
-              { e: event2.id, q: 1 },
+              { e: event1.id, q: 1, p: 500 },
+              { e: event2.id, q: 1, p: 1000 },
             ]),
           },
         } as unknown as Awaited<

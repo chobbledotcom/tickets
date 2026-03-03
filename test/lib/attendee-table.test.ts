@@ -16,7 +16,6 @@ const makeRow = (overrides: Partial<AttendeeTableRow> = {}): AttendeeTableRow =>
   attendee: testAttendee(),
   eventId: 1,
   eventName: "Test Event",
-  hasPaidEvent: false,
   ...overrides,
 });
 
@@ -246,9 +245,8 @@ describe("AttendeeTable", () => {
   });
 
   describe("actions", () => {
-    test("shows Refund link when hasPaidEvent and attendee has payment_id", () => {
+    test("shows Refund link when attendee has payment_id", () => {
       const rows = [makeRow({
-        hasPaidEvent: true,
         attendee: testAttendee({ payment_id: "pay_123" }),
       })];
       const html = AttendeeTable(makeOpts({ rows }));
@@ -256,18 +254,8 @@ describe("AttendeeTable", () => {
       expect(html).toContain("/refund");
     });
 
-    test("hides Refund link when hasPaidEvent is false", () => {
-      const rows = [makeRow({
-        hasPaidEvent: false,
-        attendee: testAttendee({ payment_id: "pay_123" }),
-      })];
-      const html = AttendeeTable(makeOpts({ rows }));
-      expect(html).not.toContain("Refund");
-    });
-
     test("hides Refund link when attendee has no payment_id", () => {
       const rows = [makeRow({
-        hasPaidEvent: true,
         attendee: testAttendee({ payment_id: "" }),
       })];
       const html = AttendeeTable(makeOpts({ rows }));
@@ -276,7 +264,6 @@ describe("AttendeeTable", () => {
 
     test("hides Refund link when attendee is already refunded", () => {
       const rows = [makeRow({
-        hasPaidEvent: true,
         attendee: testAttendee({ payment_id: "pay_123", refunded: true }),
       })];
       const html = AttendeeTable(makeOpts({ rows }));

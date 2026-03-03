@@ -413,6 +413,24 @@ describe("server (admin attendees)", () => {
       expect(rows.length).toBe(1);
     });
 
+    test("deletes incomplete attendee on free can_pay_more event", async () => {
+      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100, unitPrice: 0, canPayMore: true });
+      const attendee = await createPaidTestAttendee(event.id, "Jane Stuck", "jane@example.com", "", 500);
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete-incomplete`,
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+      expectRedirect(`/admin/event/${event.id}`)(response);
+
+      const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
+      const deleted = await getAttendeeRaw(attendee.id);
+      expect(deleted).toBeNull();
+    });
+
     test("returns 404 for non-existent attendee", async () => {
       const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100, unitPrice: 1000 });
 

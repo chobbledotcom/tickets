@@ -126,12 +126,14 @@ type SessionConfig = {
   successUrl: string;
   cancelUrl: string;
   metadata: Record<string, string>;
+  /** Override unit price (minor units) for pay-more events */
+  unitPriceOverride?: number;
 };
 
 const buildSessionParams = async (
   cfg: SessionConfig,
-): Promise<Stripe.Checkout.SessionCreateParams | null> => {
-  if (cfg.event.unit_price === null) return null;
+): Promise<Stripe.Checkout.SessionCreateParams> => {
+  const unitAmount = cfg.unitPriceOverride ?? cfg.event.unit_price;
   const currency = (await getCurrencyCode()).toLowerCase();
   const label = cfg.quantity > 1 ? `${cfg.quantity} Tickets` : "Ticket";
   return {
@@ -144,7 +146,7 @@ const buildSessionParams = async (
             name: `Ticket: ${cfg.event.name}`,
             description: label,
           },
-          unit_amount: cfg.event.unit_price,
+          unit_amount: unitAmount,
         },
         quantity: cfg.quantity,
       },
@@ -282,11 +284,8 @@ export const stripeApi: {
       successUrl: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${baseUrl}/payment/cancel?session_id={CHECKOUT_SESSION_ID}`,
       metadata: buildSingleIntentMetadata(event.id, intent),
+      unitPriceOverride: intent.customUnitPrice,
     });
-    if (!config) {
-      logDebug("Stripe", `Session params returned null for event=${event.id} (missing unit_price?)`);
-      return null;
-    }
     logDebug("Stripe", `Calling Stripe API checkout.sessions.create for event=${event.id}`);
     const session = await withClient(
       (stripe) => stripe.checkout.sessions.create(config),

@@ -4,6 +4,8 @@
 
 import type { Child } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
+import { CAN_PAY_MORE_ABS_MIN, CAN_PAY_MORE_MULTIPLIER } from "#lib/types.ts";
+import { formatCurrency } from "#lib/currency.ts";
 import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -123,6 +125,22 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             transaction. For example, setting it to 4 lets someone book up to 4
             places at once. The quantity dropdown on the booking form won't
             exceed this number or the remaining capacity, whichever is lower.
+          </p>
+        </Q>
+
+        <Q q="What does 'Allow Pay More' do?">
+          <p>
+            When enabled, attendees can choose their own price instead of paying
+            a fixed amount. The ticket price becomes a minimum and they can pay
+            up to {CAN_PAY_MORE_MULTIPLIER}&times; that amount or{" "}
+            {formatCurrency(CAN_PAY_MORE_ABS_MIN)}, whichever is higher. For
+            example, a {formatCurrency(500)} ticket allows prices up to{" "}
+            {formatCurrency(Math.max(500 * CAN_PAY_MORE_MULTIPLIER, CAN_PAY_MORE_ABS_MIN))},
+            while a {formatCurrency(2000)} ticket allows up to{" "}
+            {formatCurrency(Math.max(2000 * CAN_PAY_MORE_MULTIPLIER, CAN_PAY_MORE_ABS_MIN))}.
+            If the ticket price is zero, it becomes a pay-what-you-want event
+            where attendees can optionally enter any amount up to{" "}
+            {formatCurrency(CAN_PAY_MORE_ABS_MIN)}.
           </p>
         </Q>
 

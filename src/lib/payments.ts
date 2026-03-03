@@ -23,6 +23,8 @@ export type RegistrationIntent = ContactInfo & {
   eventId: number;
   quantity: number;
   date?: string | null;
+  /** Custom unit price (minor units) when can_pay_more is enabled; overrides event.unit_price */
+  customUnitPrice?: number;
 };
 
 /** Single item within a multi-event checkout */

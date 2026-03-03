@@ -534,16 +534,16 @@ describe("test-utils", () => {
       expect(updated.thank_you_url).toBe("https://original.example.com");
     });
 
-    test("clears nullable fields when set to null", async () => {
+    test("clears fields when set to zero/empty", async () => {
       const event = await createTestEvent({
         unitPrice: 1000,
         webhookUrl: "https://hook.example.com",
       });
       const updated = await updateTestEvent(event.id, {
-        unitPrice: null,
+        unitPrice: 0,
         webhookUrl: "",
       });
-      expect(updated.unit_price).toBe(null);
+      expect(updated.unit_price).toBe(0);
       expect(updated.webhook_url).toBe("");
     });
   });

@@ -12,7 +12,7 @@ import { getTz } from "#lib/config.ts";
 import { isStorageEnabled } from "#lib/storage.ts";
 import { utcToLocalInput } from "#lib/timezone.ts";
 import { renderEventImage } from "#templates/public.tsx";
-import type { AdminSession, Attendee, EventWithCount, Group } from "#lib/types.ts";
+import { isPaidEvent, type AdminSession, type Attendee, type EventWithCount, type Group } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { formatCountdown } from "#routes/utils.ts";
 import { eventFields, getAddAttendeeFields, imageField, slugField } from "#templates/fields.ts";
@@ -170,7 +170,7 @@ export const adminEventPage = ({
   const ticketUrl = `https://${allowedDomain}/ticket/${event.slug}`;
   const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
   const isDaily = event.event_type === "daily";
-  const hasPaidEvent = event.unit_price !== null;
+  const hasPaidEvent = isPaidEvent(event);
 
   // Separate attendees with incomplete/failed payments from the main list
   const incompleteAttendees = hasPaidEvent
@@ -198,7 +198,6 @@ export const adminEventPage = ({
       attendee: a,
       eventId: event.id,
       eventName: event.name,
-      hasPaidEvent,
     })),
   )(filteredAttendees);
 
@@ -326,7 +325,7 @@ export const adminEventPage = ({
                   </td>
                 </tr>
               )}
-              {event.unit_price !== null && (
+              {hasPaidEvent && (
                 <tr>
                   <th>Total Revenue</th>
                   <td>{formatCurrency(calculateTotalRevenue(completeAttendees))}</td>
@@ -495,7 +494,8 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   minimum_days_before: event.minimum_days_before,
   maximum_days_after: event.maximum_days_after,
   fields: event.fields,
-  unit_price: event.unit_price !== null ? toMajorUnits(event.unit_price) : "",
+  unit_price: event.unit_price > 0 ? toMajorUnits(event.unit_price) : "",
+  can_pay_more: event.can_pay_more ? "1" : "",
   closes_at: formatDatetimeLocal(event.closes_at),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,

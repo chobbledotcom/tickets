@@ -17,7 +17,6 @@ export type AttendeeTableRow = {
   attendee: Attendee;
   eventId: number;
   eventName: string;
-  hasPaidEvent: boolean;
 };
 
 /** Options for the unified AttendeeTable component */
@@ -146,7 +145,7 @@ const CheckinButton = ({ a, eventId, activeFilter, returnUrl }: {
 
 /** Check if attendee is eligible for refund (has payment, not yet refunded) */
 const isRefundable = (row: AttendeeTableRow): boolean =>
-  row.hasPaidEvent && !!row.attendee.payment_id && !row.attendee.refunded;
+  !!row.attendee.payment_id && !row.attendee.refunded;
 
 /** Render the actions cell for a row */
 const ActionsCell = ({ row, returnUrl }: { row: AttendeeTableRow; returnUrl: string | undefined }): string => {

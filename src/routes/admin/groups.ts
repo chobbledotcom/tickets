@@ -25,7 +25,7 @@ import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
-import type { Attendee, Group } from "#lib/types.ts";
+import { isPaidEvent, type Attendee, type Group } from "#lib/types.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
@@ -137,7 +137,7 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (request, {
       if (eventIds.length > 0) {
         const privateKey = await requirePrivateKey(session);
         const fields = mergeEventFields(map((e: { fields: string }) => e.fields)(sortedEvents));
-        const hasPaidEvent = sortedEvents.some((e) => e.unit_price !== null);
+        const hasPaidEvent = sortedEvents.some(isPaidEvent);
         const [rawAttendees, prefix] = await Promise.all([
           getAttendeesByEventIds(eventIds),
           getPhonePrefixFromDb(),

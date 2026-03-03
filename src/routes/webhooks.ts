@@ -36,6 +36,7 @@ import {
   type WebhookEvent,
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
+import { canPayMoreMaxPrice } from "#lib/types.ts";
 import { getAllowedDomain, getCurrencyCode } from "#lib/config.ts";
 import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -53,7 +54,7 @@ import {
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 
 /** Parsed multi-ticket item from metadata */
-type MultiItem = { e: number; q: number };
+type MultiItem = { e: number; q: number; p: number };
 
 /** Check if session is a multi-ticket session */
 const isMultiSession = (metadata: SessionMetadata): boolean =>
@@ -260,13 +261,16 @@ const validateAndPrice = async (
   const validation = await validateEventForPayment(input.eventId, includeEventName);
   if (!validation.ok) return validation;
   const { event } = validation;
-  const expectedPrice = (event.unit_price ?? 0) * input.quantity;
+  const expectedPrice = event.unit_price * input.quantity;
   return { ok: true, event, expectedPrice };
 };
 
-/** Check if the amount charged matches the current event price */
-const hasPriceMismatch = (amountTotal: number, expectedPrice: number): boolean =>
-  amountTotal !== expectedPrice;
+/** Check if the amount charged matches the current event price.
+ * For pay-more events, the amount must be >= the expected minimum price and <= the max cap. */
+const hasPriceMismatch = (amountTotal: number, expectedPrice: number, canPayMore: boolean): boolean =>
+  canPayMore
+    ? amountTotal < expectedPrice || amountTotal > canPayMoreMaxPrice(expectedPrice)
+    : amountTotal !== expectedPrice;
 
 /** Format error for post-payment attendee creation failure */
 const formatPostPaymentError = formatCreationError(
@@ -285,11 +289,14 @@ const alreadyProcessedResult = async (
   return { success: true, attendee: { id: attendeeId }, event, ticketTokens: [] };
 };
 
-/** Validate that a parsed value has the shape of a MultiItem */
-const isMultiItem = (v: unknown): v is MultiItem =>
-  typeof v === "object" && v !== null &&
-  typeof (v as Record<string, unknown>).e === "number" &&
-  typeof (v as Record<string, unknown>).q === "number";
+/** Validate that a parsed value has the shape of a valid MultiItem */
+const isMultiItem = (v: unknown): v is MultiItem => {
+  if (typeof v !== "object" || v === null) return false;
+  const { e, q, p } = v as Record<string, unknown>;
+  return typeof e === "number" && Number.isInteger(e) && e > 0 &&
+    typeof q === "number" && Number.isInteger(q) && q >= 1 &&
+    typeof p === "number" && Number.isInteger(p) && p >= 0;
+};
 
 /** Parse multi-ticket items from metadata */
 const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
@@ -369,11 +376,31 @@ const processMultiPaymentSession = async (
     expectedTotal += vp.expectedPrice;
   }
 
-  // Reject if event prices changed since checkout was created
-  if (hasPriceMismatch(session.amountTotal, expectedTotal)) {
+  // Per-item price validation: each item's p must match its event's rules
+  for (const { item, event, expectedPrice } of validatedItems) {
+    const itemMismatch = event.can_pay_more
+      ? item.p < expectedPrice || item.p > canPayMoreMaxPrice(expectedPrice)  // pay-more: min <= p <= max
+      : item.p !== expectedPrice; // fixed: p must equal unit_price * q exactly
+    if (itemMismatch) {
+      logError({
+        code: ErrorCode.PAYMENT_SESSION,
+        detail: `Multi-ticket per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
+      });
+      return refundAndFail(
+        session,
+        "The price for one or more events changed while you were completing payment.",
+        undefined,
+        event.id,
+      );
+    }
+  }
+
+  // Cart total must equal the sum of per-item prices
+  const metadataTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
+  if (session.amountTotal !== metadataTotal) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
-      detail: `Multi-ticket price mismatch: provider charged ${session.amountTotal} but current event prices yield ${expectedTotal}`,
+      detail: `Multi-ticket total mismatch: provider charged ${session.amountTotal} but sum(p) = ${metadataTotal}`,
     });
     return refundAndFail(
       session,
@@ -387,7 +414,8 @@ const processMultiPaymentSession = async (
   let failedEvent: EventWithCount | null = null;
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
-  for (const { item, event, expectedPrice } of validatedItems) {
+  for (const { item, event } of validatedItems) {
+
     const result = await createAttendeeAtomic({
       eventId: item.e,
       name: intent.name,
@@ -397,7 +425,7 @@ const processMultiPaymentSession = async (
       phone: intent.phone,
       address: intent.address,
       special_instructions: intent.special_instructions,
-      pricePaid: expectedPrice,
+      pricePaid: item.p,
       date: event.event_type === "daily" ? intent.date : null,
     });
 
@@ -479,7 +507,8 @@ const processPaymentSession = async (
   const { event, expectedPrice } = vp;
 
   // Reject if event price changed since checkout was created
-  if (hasPriceMismatch(session.amountTotal, expectedPrice)) {
+  // For pay-more events, the amount charged may be >= the minimum price
+  if (hasPriceMismatch(session.amountTotal, expectedPrice, event.can_pay_more)) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       eventId: intent.eventId,
@@ -491,10 +520,13 @@ const processPaymentSession = async (
     );
   }
 
+  // Use the actual amount charged as price_paid (covers pay-more)
+  const pricePaid = event.can_pay_more ? session.amountTotal : expectedPrice;
+
   const result = await createAttendeeAtomic({
     ...intent,
     paymentId: session.paymentReference,
-    pricePaid: expectedPrice,
+    pricePaid,
   });
 
   if (!result.success) {
