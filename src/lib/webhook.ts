@@ -6,6 +6,7 @@
 import { compact, map, unique } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
+import { logWebhookError } from "#lib/db/webhookLog.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { addPendingWork } from "#lib/pending-work.ts";
@@ -125,6 +126,8 @@ export const sendWebhook = async (
         code: ErrorCode.WEBHOOK_SEND,
         detail: `status=${response.status}`,
       });
+      const eventName = payload.tickets.map((t) => t.event_name).join(", ");
+      await logWebhookError(response.status, eventName);
     }
   } catch (error) {
     logError({
