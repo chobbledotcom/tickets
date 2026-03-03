@@ -2900,6 +2900,69 @@ describe("server (webhooks)", () => {
       }
     });
 
+    test("multi-ticket rejects amount above event price when can_pay_more is disabled", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "No Pay More",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        name: "Normal Price",
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      // Same metadata shape as the pay-more test, but event1 has can_pay_more=false
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
+        valid: true,
+        event: {
+          id: "evt_no_pay_more",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_no_pay_more",
+              payment_status: "paid",
+              payment_intent: "pi_no_pay_more",
+              amount_total: 3000,
+              metadata: webhookMeta({
+                multi: "1",
+                name: "Over Payer",
+                email: "over@example.com",
+                items: JSON.stringify([
+                  { e: event1.id, q: 1, p: 2000 },
+                  { e: event2.id, q: 1, p: 1000 },
+                ]),
+              }),
+            },
+          },
+        },
+      }));
+
+      const mockRefund = stub(stripeApi, "refundPayment", () =>
+        Promise.resolve({ id: "re_no_pay_more" } as unknown as Awaited<
+          ReturnType<typeof stripeApi.refundPayment>
+        >));
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
+      }
+    });
+
     test("single-ticket can_pay_more rejects amount below minimum price", async () => {
       await setupStripe();
 
