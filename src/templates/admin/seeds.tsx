@@ -2,24 +2,16 @@
  * Seed data page template - lets admins populate the database with sample data
  */
 
-import { CsrfForm, renderError } from "#lib/forms.tsx";
+import { CsrfForm, renderError, renderSuccess } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { SeedResult } from "#lib/seeds.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
 import { Layout } from "#templates/layout.tsx";
 
-/** Success message after seeding */
-const SeedSuccess = ({ result }: { result: SeedResult }): JSX.Element => (
-  <article>
-    <aside>
-      <p>
-        Created <strong>{result.eventsCreated}</strong> event(s) with{" "}
-        <strong>{result.attendeesCreated}</strong> attendee(s) total.
-      </p>
-    </aside>
-  </article>
-);
+/** Format seed result as a success message string */
+const formatSeedResult = (result: SeedResult): string =>
+  `Created ${result.eventsCreated} event(s) with ${result.attendeesCreated} attendee(s) total.`;
 
 /** Seed data admin page */
 export const adminSeedsPage = (
@@ -37,7 +29,7 @@ export const adminSeedsPage = (
       </p>
 
       <Raw html={renderError(error)} />
-      {result && <SeedSuccess result={result} />}
+      <Raw html={renderSuccess(result ? formatSeedResult(result) : undefined)} />
 
       <CsrfForm action="/admin/seeds">
         <label for="event_count">Number of events</label>

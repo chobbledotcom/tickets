@@ -136,8 +136,8 @@ describe("server (admin seeds)", () => {
       );
 
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("<strong>2</strong> event(s)");
-      expect(html).toContain("<strong>0</strong> attendee(s)");
+      expect(html).toContain("class=\"success\"");
+      expect(html).toContain("Created 2 event(s) with 0 attendee(s) total.");
 
       const events = await getAllEvents();
       expect(events.length).toBe(2);
@@ -155,8 +155,7 @@ describe("server (admin seeds)", () => {
       );
 
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("<strong>1</strong> event(s)");
-      expect(html).toContain("<strong>3</strong> attendee(s)");
+      expect(html).toContain("Created 1 event(s) with 3 attendee(s) total.");
 
       const events = await getAllEvents();
       expect(events.length).toBe(1);
@@ -177,7 +176,7 @@ describe("server (admin seeds)", () => {
       );
 
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain(`<strong>${MAX_SEED_EVENTS}</strong> event(s)`);
+      expect(html).toContain(`Created ${MAX_SEED_EVENTS} event(s)`);
     });
 
     test("clamps attendees per event to max", async () => {
@@ -192,7 +191,7 @@ describe("server (admin seeds)", () => {
       );
 
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain(`<strong>${SEED_MAX_ATTENDEES}</strong> attendee(s)`);
+      expect(html).toContain(`with ${SEED_MAX_ATTENDEES} attendee(s) total.`);
     });
 
     test("clamps negative values to minimum", async () => {
@@ -207,8 +206,7 @@ describe("server (admin seeds)", () => {
       );
 
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("<strong>1</strong> event(s)");
-      expect(html).toContain("<strong>0</strong> attendee(s)");
+      expect(html).toContain("Created 1 event(s) with 0 attendee(s) total.");
     });
 
     test("rejects invalid CSRF token", async () => {
@@ -272,8 +270,7 @@ describe("server (admin seeds)", () => {
       );
 
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("<strong>1</strong> event(s)");
-      expect(html).toContain("<strong>2</strong> attendee(s)");
+      expect(html).toContain("Created 1 event(s) with 2 attendee(s) total.");
     });
 
     test("handles non-numeric attendees per event as 0", async () => {
@@ -288,8 +285,7 @@ describe("server (admin seeds)", () => {
       );
 
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("<strong>1</strong> event(s)");
-      expect(html).toContain("<strong>0</strong> attendee(s)");
+      expect(html).toContain("Created 1 event(s) with 0 attendee(s) total.");
     });
 
     test("throws when public key is not configured", async () => {
