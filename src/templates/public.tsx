@@ -83,6 +83,9 @@ const renderEventListing = (info: MultiTicketEvent): string => {
 /**
  * Homepage with events - lists all active upcoming events with booking links
  */
+export const RSS_DISCOVERY_TAG =
+  '<link rel="alternate" type="application/rss+xml" title="Events" href="/feeds/events.rss" />';
+
 export const homepagePage = (
   events: MultiTicketEvent[],
   websiteTitle?: string | null,
@@ -91,7 +94,7 @@ export const homepagePage = (
 
   if (events.length === 0) {
     return String(
-      <Layout title={title}>
+      <Layout title={title} headExtra={RSS_DISCOVERY_TAG}>
         {websiteTitle && <h1>{websiteTitle}</h1>}
         <PublicNav />
         <p><em>No events listed.</em></p>
@@ -108,7 +111,7 @@ export const homepagePage = (
   )(events);
 
   return String(
-    <Layout title={title}>
+    <Layout title={title} headExtra={RSS_DISCOVERY_TAG}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav />
       <h2>All bookable events</h2>

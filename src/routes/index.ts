@@ -91,6 +91,12 @@ const loadImageRoutes = once(async () => {
   return routeImage;
 });
 
+/** Lazy-load feed routes (ICS, RSS) */
+const loadFeedRoutes = once(async () => {
+  const { routeFeed } = await import("#routes/feeds.ts");
+  return routeFeed;
+});
+
 /** Lazy-load demo reset routes */
 const loadDemoResetRoutes = once(async () => {
   const { routeDatabaseReset } = await import("#routes/admin/database-reset.ts");
@@ -153,6 +159,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   image: lazyRoute(loadImageRoutes),
   payment: lazyRoute(loadPaymentRoutes),
   join: lazyRoute(loadJoinRoutes),
+  feeds: lazyRoute(loadFeedRoutes),
   demo: lazyRoute(loadDemoResetRoutes),
 };
 
