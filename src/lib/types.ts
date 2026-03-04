@@ -78,6 +78,7 @@ export interface Event {
   image_url: string;
   non_transferable: boolean;
   can_pay_more: boolean;
+  hidden: boolean;
 }
 
 export interface Attendee extends ContactInfo {
