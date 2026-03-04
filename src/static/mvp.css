@@ -539,6 +539,11 @@ label > input[type="email"] {
   width: auto;
 }
 
+label > input[inputmode="decimal"] {
+  flex: 0 0 auto;
+  width: 8ch;
+}
+
 label > textarea {
   width: 100%;
 }
