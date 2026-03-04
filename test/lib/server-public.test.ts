@@ -3399,8 +3399,7 @@ describe("server (public routes)", () => {
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
       expect(html).toContain('name="custom_price"');
-      expect(html).toContain("Your Price (£10.00");
-      expect(html).toContain("£100.00)");
+      expect(html).toContain("Your Price (£10 minimum)");
       expect(html).toContain('value="10.00"');
       expect(html).toContain("required");
     });
@@ -3417,7 +3416,7 @@ describe("server (public routes)", () => {
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
       expect(html).toContain('name="custom_price"');
-      expect(html).toContain("Your Price (optional, up to £100.00)");
+      expect(html).toContain("Your Price (optional, up to £100)");
       expect(html).toContain('min="0.00"');
     });
 
@@ -3426,7 +3425,7 @@ describe("server (public routes)", () => {
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
       expect(html).toContain('name="custom_price"');
-      expect(html).toContain("Your Price (optional, up to £100.00)");
+      expect(html).toContain("Your Price (optional, up to £100)");
       expect(html).toContain('value="0.00" min="0.00" max="100.00"');
     });
 
@@ -3518,18 +3517,18 @@ describe("server (public routes)", () => {
       expectCheckoutRedirect(response);
     });
 
-    test("GET shows max price in label", async () => {
+    test("GET shows min price in label", async () => {
       const event = await payMoreEvent();
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
-      expect(html).toContain("£100.00");
+      expect(html).toContain("£10 minimum");
     });
 
     test("GET shows max price for free can_pay_more event", async () => {
       const event = await payMoreEvent({ unitPrice: 0 });
       const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
       const html = await response.text();
-      expect(html).toContain("up to £100.00");
+      expect(html).toContain("up to £100");
     });
 
     test("POST rejects empty custom_price for paid can_pay_more event", async () => {

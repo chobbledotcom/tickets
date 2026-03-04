@@ -159,7 +159,7 @@ describe("server (admin refunds)", () => {
     test("shows refund confirmation page for paid attendee", async () => {
       const ctx = await setupRefundTest("pi_test_123");
       const response = await awaitTestRequest(refundUrl(ctx.event.id, ctx.attendee.id), { cookie: ctx.cookie });
-      await expectHtmlResponse(response, 200, "Refund Attendee", "John Doe", "type their name", "5.00");
+      await expectHtmlResponse(response, 200, "Refund Attendee", "John Doe", "type their name", "£5");
     });
 
     test("includes return_url as hidden field when provided", async () => {

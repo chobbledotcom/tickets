@@ -170,7 +170,7 @@ const quantityOptions = (max: number): string =>
 const renderPayMoreInput = (minPrice: number, fieldName = "custom_price"): string => {
   const maxPrice = canPayMoreMaxPrice(minPrice);
   const rangeHint = minPrice > 0
-    ? `Your Price (${formatCurrency(minPrice)} – ${formatCurrency(maxPrice)})`
+    ? `Your Price (${formatCurrency(minPrice)} minimum)`
     : `Your Price (optional, up to ${formatCurrency(maxPrice)})`;
   return (
     `<label>${rangeHint}` +
