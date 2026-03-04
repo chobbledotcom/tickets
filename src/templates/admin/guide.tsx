@@ -6,6 +6,7 @@ import type { Child } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { CAN_PAY_MORE_ABS_MIN, CAN_PAY_MORE_MULTIPLIER } from "#lib/types.ts";
 import { formatCurrency } from "#lib/currency.ts";
+import { getAllowedDomain } from "#lib/config.ts";
 import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -940,7 +941,7 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             </li>
             <li>
               Enter your ICS feed URL:{" "}
-              <code>https://your-domain/feeds/events.ics</code>
+              <code>https://{getAllowedDomain()}/feeds/events.ics</code>
             </li>
             <li>
               Set <strong>joinMode</strong> to <strong>external</strong> so the
