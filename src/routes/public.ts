@@ -65,7 +65,7 @@ import {
 /** Load active events for the homepage, sorted and with registration status */
 const loadHomepageEvents = async (): Promise<MultiTicketEvent[]> => {
   const [allEvents, holidays] = await Promise.all([getAllEvents(), getActiveHolidays()]);
-  const sorted = sortEvents(allEvents.filter((e) => e.active), holidays);
+  const sorted = sortEvents(allEvents.filter((e) => e.active && !e.hidden), holidays);
   return sorted.map((e) => buildMultiTicketEvent(e, isRegistrationClosed(e)));
 };
 
@@ -140,6 +140,12 @@ const computeDatesForEvent = async (event: EventWithCount): Promise<string[] | u
   return getAvailableDates(event, await getActiveHolidays());
 };
 
+/** Set noindex signal header on response for hidden events */
+const applyHiddenNoindex = (response: Response, hidden: boolean): Response => {
+  if (hidden) response.headers.set("x-robots-noindex", "true");
+  return response;
+};
+
 /** Handle GET for a single-ticket page */
 const handleSingleTicketGet = (slug: string, request: Request): Promise<Response> =>
   withActiveEventBySlug(slug, async (event) => {
@@ -149,7 +155,10 @@ const handleSingleTicketGet = (slug: string, request: Request): Promise<Response
     const dates = await computeDatesForEvent(event);
     const terms = await getTermsAndConditionsFromDb();
     const baseUrl = getBaseUrl(request);
-    return ticketResponseWithToken(event, closed, inIframe, dates, terms, baseUrl)();
+    return applyHiddenNoindex(
+      ticketResponseWithToken(event, closed, inIframe, dates, terms, baseUrl)(),
+      event.hidden,
+    );
   });
 
 /**
@@ -645,9 +654,11 @@ const handleMultiTicket = async (
     terms,
     inIframe,
   };
-  return request.method === "GET"
+  const response = request.method === "GET"
     ? multiTicketResponse(ctx)()
-    : submitMultiTicket(request, ctx);
+    : await submitMultiTicket(request, ctx);
+  const anyHidden = activeEvents.some((e) => e.event.hidden);
+  return applyHiddenNoindex(response, anyHidden);
 };
 
 const handleMultiTicketBySlugs = (request: Request, slugs: string[]): Promise<Response> =>

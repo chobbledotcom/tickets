@@ -1349,7 +1349,7 @@ describe("html", () => {
       ];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).toContain("Total Revenue");
-      expect(html).toContain("30.00");
+      expect(html).toContain("£30");
     });
 
     test("does not show total revenue for free events", () => {
@@ -1359,11 +1359,11 @@ describe("html", () => {
       expect(html).not.toContain("Total Revenue");
     });
 
-    test("shows 0.00 revenue for paid event with no attendees", () => {
+    test("shows zero revenue for paid event with no attendees", () => {
       const event = testEventWithCount({ unit_price: 1000, attendee_count: 0 });
       const html = adminEventPage({ event, attendees: [], allowedDomain: "localhost", session: TEST_SESSION });
       expect(html).toContain("Total Revenue");
-      expect(html).toContain("0.00");
+      expect(html).toContain("£0");
     });
   });
 
@@ -1492,8 +1492,8 @@ describe("html", () => {
         testAttendee({ id: 2, payment_id: "", price_paid: "2000" }),
       ];
       const html = adminEventPage({ event, attendees, allowedDomain: "localhost", session: TEST_SESSION });
-      expect(html).toContain("10.00");
-      expect(html).not.toContain("30.00");
+      expect(html).toContain("£10");
+      expect(html).not.toContain("£30");
     });
 
     test("failed payments table has delete button but no check-in or refund", () => {

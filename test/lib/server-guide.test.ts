@@ -128,7 +128,7 @@ describe("server (admin guide)", () => {
       const html = await response.text();
       expect(html).toContain("Allow Pay More");
       expect(html).toContain("maximum");
-      expect(html).toContain("£100.00");
+      expect(html).toContain("£100");
     });
 
     test("contains non-transferable tickets info", async () => {
@@ -153,6 +153,14 @@ describe("server (admin guide)", () => {
       expect(html).toContain('id="text-formatting"');
       expect(html).toContain("Markdown");
       expect(html).toContain("markdownguide.org/cheat-sheet");
+    });
+
+    test("contains hidden events info", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("hide an event");
+      expect(html).toContain("Hidden Event");
+      expect(html).toContain("noindex, nofollow");
     });
 
     test("contains admin navigation", async () => {

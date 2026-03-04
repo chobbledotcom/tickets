@@ -884,6 +884,7 @@ export const createTestEvent = (
         input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
       non_transferable: input.nonTransferable ? "1" : "",
       can_pay_more: input.canPayMore ? "1" : "",
+      hidden: input.hidden ? "1" : "",
     },
     async () => {
       // Get the most recently created event (302 redirect guarantees creation succeeded)
@@ -974,6 +975,10 @@ export const updateTestEvent = async (
       ),
       non_transferable:
         (updates.nonTransferable ?? existing.non_transferable) ? "1" : "",
+      can_pay_more:
+        (updates.canPayMore ?? existing.can_pay_more) ? "1" : "",
+      hidden:
+        (updates.hidden ?? existing.hidden) ? "1" : "",
     },
     async () => (await getEventWithCount(eventId)) as EventWithCount,
     "update event",
@@ -1201,6 +1206,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   image_url: "",
   non_transferable: false,
   can_pay_more: false,
+  hidden: false,
   ...overrides,
 });
 

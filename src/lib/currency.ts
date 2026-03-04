@@ -34,8 +34,11 @@ export const getDecimalPlaces = (currencyCode: string): number =>
 export const formatCurrency = (minorUnits: number | string): string => {
   const places = getDecimalPlaces(state.code);
   const divisor = 10 ** places;
-  return new Intl.NumberFormat("en", { style: "currency", currency: state.code })
-    .format(Number(minorUnits) / divisor);
+  return new Intl.NumberFormat("en", {
+    style: "currency",
+    currency: state.code,
+    trailingZeroDisplay: "stripIfInteger",
+  }).format(Number(minorUnits) / divisor);
 };
 
 /**

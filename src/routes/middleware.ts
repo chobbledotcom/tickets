@@ -240,6 +240,12 @@ export const applySecurityHeaders = async (
     response.headers.set(key, value);
   }
 
+  // Override x-robots-tag for hidden events (signal header set by route handlers)
+  if (response.headers.has("x-robots-noindex")) {
+    response.headers.set("x-robots-tag", "noindex, nofollow");
+    response.headers.delete("x-robots-noindex");
+  }
+
   // Prevent CDN from caching dynamic responses — static assets already set
   // their own cache-control (e.g. "public, max-age=31536000, immutable")
   if (!hasCacheControl) {

@@ -59,7 +59,7 @@ describe("currency", () => {
 
     test("formats GBP zero amount", () => {
       setCurrencyCodeForTest("GBP");
-      expect(formatCurrency(0)).toBe("£0.00");
+      expect(formatCurrency(0)).toBe("£0");
     });
 
     test("formats USD with dollar symbol", () => {

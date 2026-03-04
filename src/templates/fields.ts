@@ -39,6 +39,7 @@ export type EventFormValues = {
   non_transferable: string;
   group_id: string;
   can_pay_more: string;
+  hidden: string;
 };
 
 /** Typed values from event edit form (includes slug) */
@@ -396,6 +397,13 @@ export const eventFields: Field[] = [
       { value: "", label: "No" },
       { value: "1", label: "Yes" },
     ],
+  },
+  {
+    name: "hidden",
+    label: "Hidden Event",
+    type: "checkbox-group",
+    hint: "Hide from the public events page and search engines. The event is still bookable via its direct link.",
+    options: [{ value: "1", label: "Hide from public events list" }],
   },
 ];
 

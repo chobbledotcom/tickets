@@ -273,6 +273,17 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
+        <Q q="Can I hide an event from the public list?">
+          <p>
+            Yes. When editing an event, tick the <strong>Hidden Event</strong>{" "}
+            checkbox. Hidden events won&apos;t appear on the public Events
+            page and their ticket pages will be marked as{" "}
+            <code>noindex, nofollow</code> for search engines. The event is
+            still fully bookable via its direct link or when embedded in an
+            iframe.
+          </p>
+        </Q>
+
         <Q q="How do I edit the homepage and contact page?">
           <p>
             Enable the public site in <strong>Settings</strong>, then open the{" "}
