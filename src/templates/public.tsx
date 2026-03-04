@@ -236,12 +236,11 @@ export const ticketPage = (
               <Raw html={renderDateSelector(availableDates)} />
             )}
             {showQuantity ? (
-              <>
-                <label for="quantity">Number of Tickets</label>
-                <select name="quantity" id="quantity">
+              <label>Number of Tickets
+                <select name="quantity">
                   <Raw html={quantityOptions(maxPurchasable)} />
                 </select>
-              </>
+              </label>
             ) : (
               <input type="hidden" name="quantity" value="1" />
             )}
