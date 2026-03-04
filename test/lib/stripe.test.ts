@@ -176,6 +176,7 @@ describe("stripe", () => {
         image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        hidden: false,
       };
       const intent = {
         eventId: 1,
@@ -230,6 +231,7 @@ describe("stripe", () => {
         image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        hidden: false,
       };
 
       const intent = {
@@ -292,6 +294,7 @@ describe("stripe", () => {
         image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        hidden: false,
       };
       const intent = {
         eventId: 1,

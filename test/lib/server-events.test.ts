@@ -3085,4 +3085,79 @@ describe("server (admin events)", () => {
       expect(after.rows.length).toBe(1);
     });
   });
+
+  describe("hidden events", () => {
+    test("creates event with hidden enabled", async () => {
+      const event = await createTestEvent({ hidden: true });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.hidden).toBe(true);
+    });
+
+    test("creates event with hidden disabled by default", async () => {
+      const event = await createTestEvent();
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.hidden).toBe(false);
+    });
+
+    test("updates event to enable hidden", async () => {
+      const event = await createTestEvent();
+      await updateTestEvent(event.id, { hidden: true });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.hidden).toBe(true);
+    });
+
+    test("updates event to enable can_pay_more via updateTestEvent", async () => {
+      const event = await createTestEvent({ unitPrice: 1000 });
+      await updateTestEvent(event.id, { canPayMore: true });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.can_pay_more).toBe(true);
+    });
+
+    test("updates event to disable hidden", async () => {
+      const event = await createTestEvent({ hidden: true });
+      await updateTestEvent(event.id, { hidden: false });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.hidden).toBe(false);
+    });
+
+    test("admin event detail page shows Hidden row when enabled", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        hidden: true,
+      });
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      await expectHtmlResponse(
+        response,
+        200,
+        "Hidden",
+        "not shown in public events list",
+      );
+    });
+
+    test("admin event detail page does not show Hidden row when disabled", async () => {
+      const { event, cookie } = await setupEventAndLogin();
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).not.toContain("not shown in public events list");
+    });
+
+    test("admin event edit page pre-fills hidden checkbox", async () => {
+      const { event, cookie } = await setupEventAndLogin({
+        hidden: true,
+      });
+      const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, {
+        cookie,
+      });
+      const html = await response.text();
+      expect(html).toContain("hidden");
+    });
+  });
 });

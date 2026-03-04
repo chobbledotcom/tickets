@@ -177,6 +177,47 @@ describe("server (public routes)", () => {
       expect(html).not.toContain("Hidden Event");
     });
 
+    test("does not show hidden events in public events list", async () => {
+      await updateShowPublicSite(true);
+      await createTestEvent({ name: "Secret Event", hidden: true });
+      const response = await handleRequest(mockRequest("/events"));
+      const html = await expectHtmlResponse(response, 200, "No events listed.");
+      expect(html).not.toContain("Secret Event");
+    });
+
+    test("shows non-hidden events alongside hidden ones", async () => {
+      await updateShowPublicSite(true);
+      await createTestEvent({ name: "Visible Event" });
+      await createTestEvent({ name: "Secret Event", hidden: true });
+      const response = await handleRequest(mockRequest("/events"));
+      const html = await expectHtmlResponse(response, 200, "Visible Event");
+      expect(html).not.toContain("Secret Event");
+    });
+
+    test("hidden event is still accessible via direct ticket URL", async () => {
+      const event = await createTestEvent({ name: "Secret Event", hidden: true });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      await expectHtmlResponse(response, 200, "Secret Event");
+    });
+
+    test("hidden event ticket page has noindex x-robots-tag", async () => {
+      const event = await createTestEvent({ hidden: true });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    });
+
+    test("non-hidden event ticket page has index x-robots-tag", async () => {
+      const event = await createTestEvent();
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      expect(response.headers.get("x-robots-tag")).toBe("index, follow");
+    });
+
+    test("x-robots-noindex signal header is not leaked to client", async () => {
+      const event = await createTestEvent({ hidden: true });
+      const response = await handleRequest(mockRequest(`/ticket/${event.slug}`));
+      expect(response.headers.has("x-robots-noindex")).toBe(false);
+    });
+
     test("shows sold out for events at capacity", async () => {
       await updateShowPublicSite(true);
       const event = await createTestEvent({

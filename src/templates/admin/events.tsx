@@ -267,6 +267,12 @@ export const adminEventPage = ({
                   <td>Yes &mdash; ID verification required at entry</td>
                 </tr>
               )}
+              {event.hidden && (
+                <tr>
+                  <th>Hidden</th>
+                  <td>Yes &mdash; not shown in public events list</td>
+                </tr>
+              )}
               {event.event_type === "daily" && (
                 <tr>
                   <th>Bookable Days</th>
@@ -500,6 +506,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,
   non_transferable: event.non_transferable ? "1" : "",
+  hidden: event.hidden ? "1" : "",
 });
 
 /** Event fields with autofocus on the name field */

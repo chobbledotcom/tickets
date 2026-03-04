@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "backfill unit_price NULLs to 0";
+export const LATEST_UPDATE = "add hidden column to events";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -462,6 +462,9 @@ export const initDb = async (): Promise<void> => {
   // Migration: backfill existing NULL unit_price values to 0
   // (SQLite cannot ALTER COLUMN to add NOT NULL; application code enforces non-null going forward)
   await runMigration(`UPDATE events SET unit_price = 0 WHERE unit_price IS NULL`);
+
+  // Migration: add hidden column to events (boolean, defaults to false/0)
+  await runMigration(`ALTER TABLE events ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0`);
 
   // Update the version marker
   await getDb().execute({

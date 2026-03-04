@@ -184,6 +184,7 @@ describe("square", () => {
         image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        hidden: false,
       };
       const intent = {
         eventId: 1,
@@ -230,6 +231,7 @@ describe("square", () => {
         image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        hidden: false,
       };
       const intent = {
         eventId: 1,
@@ -285,6 +287,7 @@ describe("square", () => {
             image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        hidden: false,
           };
           const intent = {
             eventId: 7,
@@ -376,6 +379,7 @@ describe("square", () => {
             image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        hidden: false,
           };
           const intent = {
             eventId: 1,
@@ -435,6 +439,7 @@ describe("square", () => {
             image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        hidden: false,
           };
           const intent = {
             eventId: 1,
@@ -493,6 +498,7 @@ describe("square", () => {
             image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        hidden: false,
           };
           const intent = {
             eventId: 1,
@@ -1786,6 +1792,7 @@ describe("square", () => {
             image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        hidden: false,
           };
           const intent = {
             eventId: 1,

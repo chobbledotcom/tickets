@@ -42,6 +42,7 @@ export type EventInput = {
   imageUrl?: string;
   nonTransferable?: boolean;
   canPayMore?: boolean;
+  hidden?: boolean;
 };
 
 /** Compute slug index from slug for blind index lookup */
@@ -140,6 +141,7 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
     image_url: { default: () => "", write: encrypt, read: decrypt },
     non_transferable: col.boolean(false),
     can_pay_more: col.boolean(false),
+    hidden: col.boolean(false),
   });
 
 export const eventsTable: typeof rawEventsTable = {
