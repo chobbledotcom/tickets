@@ -184,6 +184,17 @@ export const setSetting = async (key: string, value: string): Promise<void> => {
   invalidateSettingsCache();
 };
 
+/** Get a boolean setting (stored as "true"/"false" string in DB). */
+const getBoolSetting = async (key: string): Promise<boolean> => {
+  const value = await getSetting(key);
+  return value === "true";
+};
+
+/** Set a boolean setting (stored as "true"/"false" string in DB). */
+const setBoolSetting = async (key: string, value: boolean): Promise<void> => {
+  await setSetting(key, value ? "true" : "false");
+};
+
 /**
  * Set a setting value, or delete it if value is empty.
  * Common pattern for optional text settings.
@@ -224,8 +235,7 @@ export const isSetupComplete = async (): Promise<boolean> => {
   const cached = getSetupCompleteCache();
   if (confirmed && cached) return true;
 
-  const value = await getSetting(CONFIG_KEYS.SETUP_COMPLETE);
-  const isComplete = value === "true";
+  const isComplete = await getBoolSetting(CONFIG_KEYS.SETUP_COMPLETE);
 
   // Only cache positive result (setup complete is permanent)
   if (isComplete) {
@@ -501,17 +511,14 @@ export const updateSquareLocationId = async (
  * Get Square sandbox mode from database.
  * Returns true if sandbox mode is enabled, false otherwise.
  */
-export const getSquareSandboxFromDb = async (): Promise<boolean> => {
-  const value = await getSetting(CONFIG_KEYS.SQUARE_SANDBOX);
-  return value === "true";
-};
+export const getSquareSandboxFromDb = (): Promise<boolean> =>
+  getBoolSetting(CONFIG_KEYS.SQUARE_SANDBOX);
 
 /**
  * Update Square sandbox mode setting.
  */
-export const updateSquareSandbox = async (sandbox: boolean): Promise<void> => {
-  await setSetting(CONFIG_KEYS.SQUARE_SANDBOX, sandbox ? "true" : "false");
-};
+export const updateSquareSandbox = (sandbox: boolean): Promise<void> =>
+  setBoolSetting(CONFIG_KEYS.SQUARE_SANDBOX, sandbox);
 
 /**
  * Get allowed embed hosts from database (decrypted)
@@ -631,10 +638,8 @@ export const updateTheme = async (theme: string): Promise<void> => {
  * Get the "show public site" setting from database.
  * Returns true if the setting is "true", false otherwise.
  */
-export const getShowPublicSiteFromDb = async (): Promise<boolean> => {
-  const value = await getSetting(CONFIG_KEYS.SHOW_PUBLIC_SITE);
-  return value === "true";
-};
+export const getShowPublicSiteFromDb = (): Promise<boolean> =>
+  getBoolSetting(CONFIG_KEYS.SHOW_PUBLIC_SITE);
 
 /**
  * Get the "show public site" setting synchronously from cache.
@@ -652,9 +657,8 @@ export const getShowPublicSiteCached = (): boolean => {
 /**
  * Update the "show public site" setting.
  */
-export const updateShowPublicSite = async (show: boolean): Promise<void> => {
-  await setSetting(CONFIG_KEYS.SHOW_PUBLIC_SITE, show ? "true" : "false");
-};
+export const updateShowPublicSite = (show: boolean): Promise<void> =>
+  setBoolSetting(CONFIG_KEYS.SHOW_PUBLIC_SITE, show);
 
 /** Get an encrypted optional setting (decrypted). Returns null if not set. */
 const getEncryptedSetting = async (key: string): Promise<string | null> => {

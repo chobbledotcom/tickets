@@ -544,6 +544,18 @@ export const plainResponse = (text: string, status = 200): Response =>
     headers: { "content-type": "text/plain; charset=utf-8" },
   });
 
+/** Create iCalendar response */
+export const icsResponse = (ics: string): Response =>
+  new Response(encodeBody(ics), {
+    headers: { "content-type": "text/calendar; charset=utf-8" },
+  });
+
+/** Create RSS/XML response */
+export const rssResponse = (xml: string): Response =>
+  new Response(encodeBody(xml), {
+    headers: { "content-type": "application/rss+xml; charset=utf-8" },
+  });
+
 type JsonHandler = (session: AuthSession, body: Record<string, unknown>) => Response | Promise<Response>;
 
 /**

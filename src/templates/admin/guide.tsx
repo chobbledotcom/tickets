@@ -902,6 +902,59 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
+      <Section title="Feeds &amp; Mobilizon">
+        <Q q="What event feeds are available?">
+          <p>
+            When the public site is enabled, two machine-readable feeds are
+            available:
+          </p>
+          <ul>
+            <li>
+              <strong>ICS calendar</strong> &mdash;{" "}
+              <code>/feeds/events.ics</code> &mdash; subscribe from any calendar
+              app (Google Calendar, Apple Calendar, Thunderbird, etc.)
+            </li>
+            <li>
+              <strong>RSS feed</strong> &mdash;{" "}
+              <code>/feeds/events.rss</code> &mdash; subscribe from any RSS
+              reader
+            </li>
+          </ul>
+          <p>
+            Both feeds include all active events with open registration. They
+            update automatically as you add, change, or close events.
+          </p>
+        </Q>
+
+        <Q q="How do I connect to Mobilizon?">
+          <p>
+            <a href="https://mobilizon.org/">Mobilizon</a> is a federated
+            event platform. You can use its built-in importer to pull events
+            from your ICS feed:
+          </p>
+          <ol>
+            <li>
+              On your Mobilizon instance, go to the event import tool (or use
+              the public importer at{" "}
+              <a href="https://import.mobilizon.fr/">import.mobilizon.fr</a>)
+            </li>
+            <li>
+              Enter your ICS feed URL:{" "}
+              <code>https://your-domain/feeds/events.ics</code>
+            </li>
+            <li>
+              Set <strong>joinMode</strong> to <strong>external</strong> so the
+              &ldquo;Join&rdquo; button on Mobilizon links back to your
+              registration page
+            </li>
+          </ol>
+          <p>
+            Events will appear on Mobilizon and federate across the Fediverse.
+            Users click through to your site to register and pay.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Customising Your Site">
         <Q q="Can I customise this system?">
           <p>
