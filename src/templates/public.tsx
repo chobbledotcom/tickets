@@ -173,8 +173,8 @@ const renderPayMoreInput = (minPrice: number, fieldName = "custom_price"): strin
     ? `Your Price (${formatCurrency(minPrice)} – ${formatCurrency(maxPrice)})`
     : `Your Price (optional, up to ${formatCurrency(maxPrice)})`;
   return (
-    `<label for="${fieldName}">${rangeHint}</label>` +
-    `<input type="text" inputmode="decimal" name="${fieldName}" id="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}"${minPrice > 0 ? " required" : ""} />`
+    `<label>${rangeHint}` +
+    `<input type="text" inputmode="decimal" name="${fieldName}" value="${escapeHtml(toMajorUnits(minPrice))}" min="${escapeHtml(toMajorUnits(minPrice))}" max="${escapeHtml(toMajorUnits(maxPrice))}"${minPrice > 0 ? " required" : ""} /></label>`
   );
 };
 
