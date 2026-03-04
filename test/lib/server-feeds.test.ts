@@ -246,7 +246,48 @@ describe("feeds", () => {
       });
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
-      expect(body).toContain("<description>A great event</description>");
+      expect(body).toContain("A great event");
+    });
+
+    test("includes date in description when event has a date", async () => {
+      await updateShowPublicSite(true);
+      await createTestEvent({
+        name: "Dated",
+        maxAttendees: 100,
+        date: "2026-06-15T14:00",
+      });
+      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const body = await response.text();
+      expect(body).toContain("Date:");
+      expect(body).toContain("15 Jun 2026");
+    });
+
+    test("includes location in description when event has a location", async () => {
+      await updateShowPublicSite(true);
+      await createTestEvent({
+        name: "Located",
+        maxAttendees: 100,
+        location: "Town Hall",
+      });
+      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const body = await response.text();
+      expect(body).toContain("Location: Town Hall");
+    });
+
+    test("includes description, date, and location together", async () => {
+      await updateShowPublicSite(true);
+      await createTestEvent({
+        name: "Full Event",
+        maxAttendees: 100,
+        description: "A great event",
+        date: "2026-06-15T14:00",
+        location: "Town Hall",
+      });
+      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const body = await response.text();
+      expect(body).toContain("A great event");
+      expect(body).toContain("Date:");
+      expect(body).toContain("Location: Town Hall");
     });
 
     test("excludes inactive events", async () => {
