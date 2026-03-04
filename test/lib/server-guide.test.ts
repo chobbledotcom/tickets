@@ -155,6 +155,14 @@ describe("server (admin guide)", () => {
       expect(html).toContain("markdownguide.org/cheat-sheet");
     });
 
+    test("contains hidden events info", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("hide an event");
+      expect(html).toContain("Hidden Event");
+      expect(html).toContain("noindex, nofollow");
+    });
+
     test("contains admin navigation", async () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();
