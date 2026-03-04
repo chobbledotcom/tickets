@@ -149,6 +149,15 @@ describe("feeds", () => {
       expect(body).not.toContain("BEGIN:VEVENT");
     });
 
+    test("excludes hidden events", async () => {
+      await updateShowPublicSite(true);
+      await createTestEvent({ name: "Secret Event", maxAttendees: 100, hidden: true });
+      const response = await handleRequest(mockRequest("/feeds/events.ics"));
+      const body = await response.text();
+      expect(body).not.toContain("Secret Event");
+      expect(body).not.toContain("BEGIN:VEVENT");
+    });
+
     test("escapes special characters in event fields", async () => {
       await updateShowPublicSite(true);
       await createTestEvent({
@@ -261,6 +270,15 @@ describe("feeds", () => {
       const response = await handleRequest(mockRequest("/feeds/events.rss"));
       const body = await response.text();
       expect(body).not.toContain("Closed Event");
+      expect(body).not.toContain("<item>");
+    });
+
+    test("excludes hidden events", async () => {
+      await updateShowPublicSite(true);
+      await createTestEvent({ name: "Secret Event", maxAttendees: 100, hidden: true });
+      const response = await handleRequest(mockRequest("/feeds/events.rss"));
+      const body = await response.text();
+      expect(body).not.toContain("Secret Event");
       expect(body).not.toContain("<item>");
     });
 

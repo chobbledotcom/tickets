@@ -45,7 +45,7 @@ const loadFeedData = async (): Promise<FeedData> => {
     getWebsiteTitleFromDb(),
   ]);
   const events = sortEvents(
-    allEvents.filter((e) => e.active && !isRegistrationClosed(e)),
+    allEvents.filter((e) => e.active && !e.hidden && !isRegistrationClosed(e)),
     holidays,
   );
   return { events, domain: getAllowedDomain(), title: websiteTitle || "Events" };
