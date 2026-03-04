@@ -88,6 +88,15 @@ const buildIcs = ({ events, domain, title }: FeedData): string => {
   ].join("\r\n");
 };
 
+/** Build a rich description for RSS items, including date and location */
+const buildRssDescription = (event: EventWithCount): string => {
+  const parts: string[] = [];
+  if (event.description) parts.push(event.description);
+  if (event.date) parts.push(`Date: ${formatRfc822(event.date)}`);
+  if (event.location) parts.push(`Location: ${event.location}`);
+  return parts.join("\n");
+};
+
 /** Build a single RSS item */
 const buildRssItem = (event: EventWithCount, domain: string): string => {
   const link = `https://${domain}/ticket/${event.slug}`;
@@ -96,7 +105,7 @@ const buildRssItem = (event: EventWithCount, domain: string): string => {
     `      <title>${escapeXml(event.name)}</title>`,
     `      <link>${link}</link>`,
     `      <guid isPermaLink="true">${link}</guid>`,
-    `      <description>${escapeXml(event.description || "")}</description>`,
+    `      <description>${escapeXml(buildRssDescription(event))}</description>`,
     `      <pubDate>${formatRfc822(event.created)}</pubDate>`,
     "    </item>",
   ].join("\n");

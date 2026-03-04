@@ -46,7 +46,7 @@ export const publicSitePage = (
   const pageTitle = websiteTitle ? `${titles[pageType]} - ${websiteTitle}` : titles[pageType];
 
   return String(
-    <Layout title={pageTitle}>
+    <Layout title={pageTitle} headExtra={FEED_DISCOVERY_TAGS}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav />
       {content ? (
@@ -86,6 +86,11 @@ const renderEventListing = (info: MultiTicketEvent): string => {
 export const RSS_DISCOVERY_TAG =
   '<link rel="alternate" type="application/rss+xml" title="Events" href="/feeds/events.rss" />';
 
+export const ICS_DISCOVERY_TAG =
+  '<link rel="alternate" type="text/calendar" title="Events" href="/feeds/events.ics" />';
+
+export const FEED_DISCOVERY_TAGS = `${RSS_DISCOVERY_TAG}\n${ICS_DISCOVERY_TAG}`;
+
 export const homepagePage = (
   events: MultiTicketEvent[],
   websiteTitle?: string | null,
@@ -94,7 +99,7 @@ export const homepagePage = (
 
   if (events.length === 0) {
     return String(
-      <Layout title={title} headExtra={RSS_DISCOVERY_TAG}>
+      <Layout title={title} headExtra={FEED_DISCOVERY_TAGS}>
         {websiteTitle && <h1>{websiteTitle}</h1>}
         <PublicNav />
         <p><em>No events listed.</em></p>
@@ -111,7 +116,7 @@ export const homepagePage = (
   )(events);
 
   return String(
-    <Layout title={title} headExtra={RSS_DISCOVERY_TAG}>
+    <Layout title={title} headExtra={FEED_DISCOVERY_TAGS}>
       {websiteTitle && <h1>{websiteTitle}</h1>}
       <PublicNav />
       <h2>All bookable events</h2>

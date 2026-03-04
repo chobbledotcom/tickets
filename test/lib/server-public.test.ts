@@ -34,6 +34,7 @@ import {
   submitTicketForm,
   updateTestEvent,
 } from "#test-utils";
+import { ICS_DISCOVERY_TAG, RSS_DISCOVERY_TAG } from "#templates/public.tsx";
 
 const expectReservedRedirectWithTokens = (response: Response): void => {
   expect(response.status).toBe(302);
@@ -122,6 +123,14 @@ describe("server (public routes)", () => {
       const html = await expectHtmlResponse(response, 200, "Line one");
       expect(html).toContain("<p>Line one</p>");
       expect(html).toContain("<p>Line two</p>");
+    });
+
+    test("includes RSS and ICS feed discovery tags", async () => {
+      await updateShowPublicSite(true);
+      const response = await handleRequest(mockRequest("/"));
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain(RSS_DISCOVERY_TAG);
+      expect(html).toContain(ICS_DISCOVERY_TAG);
     });
   });
 
@@ -308,6 +317,14 @@ describe("server (public routes)", () => {
       );
       expect(response.status).toBe(404);
     });
+
+    test("includes RSS and ICS feed discovery tags", async () => {
+      await updateShowPublicSite(true);
+      const response = await handleRequest(mockRequest("/events"));
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain(RSS_DISCOVERY_TAG);
+      expect(html).toContain(ICS_DISCOVERY_TAG);
+    });
   });
 
   describe("GET /terms", () => {
@@ -339,6 +356,14 @@ describe("server (public routes)", () => {
       await updateWebsiteTitle("My Site");
       const response = await handleRequest(mockRequest("/terms"));
       await expectHtmlResponse(response, 200, "My Site");
+    });
+
+    test("includes RSS and ICS feed discovery tags", async () => {
+      await updateShowPublicSite(true);
+      const response = await handleRequest(mockRequest("/terms"));
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain(RSS_DISCOVERY_TAG);
+      expect(html).toContain(ICS_DISCOVERY_TAG);
     });
   });
 
@@ -387,6 +412,14 @@ describe("server (public routes)", () => {
         mockFormRequest("/contact", { name: "Test" }),
       );
       expect(response.status).toBe(404);
+    });
+
+    test("includes RSS and ICS feed discovery tags", async () => {
+      await updateShowPublicSite(true);
+      const response = await handleRequest(mockRequest("/contact"));
+      const html = await expectHtmlResponse(response, 200);
+      expect(html).toContain(RSS_DISCOVERY_TAG);
+      expect(html).toContain(ICS_DISCOVERY_TAG);
     });
   });
 
