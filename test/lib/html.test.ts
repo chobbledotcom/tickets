@@ -2020,10 +2020,11 @@ describe("html", () => {
       expect(html).toContain('value="500.00"');
     });
 
-    test("renders empty max_price field when not set", () => {
+    test("renders max_price field with 0.00 when zero", () => {
       const event = testEventWithCount({ can_pay_more: true, max_price: 0, attendee_count: 0 });
       const html = adminEventEditPage(event, [], TEST_SESSION, undefined);
       expect(html).toContain('name="max_price"');
+      expect(html).toContain('value="0.00"');
     });
   });
 

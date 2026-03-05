@@ -41,6 +41,7 @@ export interface Field {
   accept?: string;
   autofocus?: boolean;
   autocomplete?: string;
+  defaultValue?: string;
   validate?: (value: string) => string | null;
   options?: { value: string; label: string }[];
 }
@@ -181,7 +182,7 @@ export const renderFields = (
   values: FieldValues = {},
 ): string =>
   pipe(
-    map((f: Field) => renderField(f, String(values[f.name] ?? ""))),
+    map((f: Field) => renderField(f, String(values[f.name] ?? f.defaultValue ?? ""))),
     joinStrings,
   )(fields);
 
@@ -225,6 +226,10 @@ const validateSingleField = (
     trimmed = form.getAll(field.name).map((v) => v.trim()).filter((v) => v).join(",");
   } else {
     trimmed = (form.get(field.name) || "").trim();
+  }
+
+  if (!trimmed && field.defaultValue) {
+    trimmed = field.defaultValue;
   }
 
   if (field.required && !trimmed) {

@@ -1599,11 +1599,39 @@ describe("server (admin events)", () => {
       expect(saved?.can_pay_more).toBe(true);
     });
 
-    test("max_price defaults to 0 when not set", async () => {
+    test("max_price defaults to 10000 when not set", async () => {
       const event = await createTestEvent({ canPayMore: true });
       const { getEventWithCount } = await import("#lib/db/events.ts");
       const saved = await getEventWithCount(event.id);
-      expect(saved?.max_price).toBe(0);
+      expect(saved?.max_price).toBe(10000);
+    });
+
+    test("rejects max_price less than unit_price + 100", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const response = await handleRequest(
+        mockMultipartRequest(
+          "/admin/event",
+          {
+            name: "Bad Max Price",
+            max_attendees: "50",
+            max_quantity: "1",
+            unit_price: "10.00",
+            max_price: "10.50",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+      await expectHtmlResponse(
+        response,
+        400,
+        "Maximum price must be at least 1.00 more than the ticket price",
+      );
+    });
+
+    test("accepts max_price equal to unit_price + 100", async () => {
+      const event = await createTestEvent({ unitPrice: 1000, maxPrice: 1100 });
+      expect(event.max_price).toBe(1100);
     });
 
     test("updates max_price via edit", async () => {

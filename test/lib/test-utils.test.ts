@@ -558,12 +558,6 @@ describe("test-utils", () => {
       expect(updated.max_price).toBe(7500);
     });
 
-    test("clears max_price when set to zero", async () => {
-      const event = await createTestEvent({ maxPrice: 5000 });
-      const updated = await updateTestEvent(event.id, { maxPrice: 0 });
-      expect(updated.max_price).toBe(0);
-    });
-
     test("preserves existing max_price when not specified in update", async () => {
       const event = await createTestEvent({ maxPrice: 3000 });
       const updated = await updateTestEvent(event.id, { maxAttendees: 50 });

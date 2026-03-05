@@ -372,7 +372,8 @@ export const eventFields: Field[] = [
     type: "text",
     inputmode: "decimal",
     placeholder: "e.g. 100.00",
-    hint: "The maximum price attendees can pay. Leave empty for the default cap.",
+    defaultValue: "100.00",
+    hint: "The maximum price attendees can pay. Must be at least 1.00 more than the ticket price.",
     validate: validateNonNegativePrice,
   },
   {

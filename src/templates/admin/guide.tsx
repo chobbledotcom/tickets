@@ -4,7 +4,6 @@
 
 import type { Child } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { DEFAULT_MAX_PRICE } from "#lib/types.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import { getAllowedDomain } from "#lib/config.ts";
 import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
@@ -133,9 +132,8 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             When enabled, attendees can choose their own price instead of paying
             a fixed amount. The ticket price becomes a minimum. You can set a
-            maximum price using the "Maximum Price" field that appears when this
-            option is enabled. If no maximum is set, it defaults to{" "}
-            {formatCurrency(DEFAULT_MAX_PRICE)}.
+            maximum price using the "Maximum Price" field — it must be at least{" "}
+            {formatCurrency(100)} more than the ticket price.
             If the ticket price is zero, it becomes a pay-what-you-want event
             where attendees can optionally enter any amount up to the configured
             maximum.

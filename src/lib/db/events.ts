@@ -42,7 +42,7 @@ export type EventInput = {
   imageUrl?: string;
   nonTransferable?: boolean;
   canPayMore?: boolean;
-  maxPrice?: number;
+  maxPrice: number;
   hidden?: boolean;
 };
 

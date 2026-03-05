@@ -2793,7 +2793,7 @@ describe("db", () => {
       const event = await eventsTable.insert({
         name: "test", slug: "test-date-read-1",
         slugIndex: await computeSlugIndex("test-date-read-1"),
-        maxAttendees: 100, date: "",
+        maxAttendees: 100, maxPrice: 10000, date: "",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.date).toBe("");
@@ -2803,7 +2803,7 @@ describe("db", () => {
       const event = await eventsTable.insert({
         name: "test", slug: "test-date-read-2",
         slugIndex: await computeSlugIndex("test-date-read-2"),
-        maxAttendees: 100, date: "2026-06-15T14:00",
+        maxAttendees: 100, maxPrice: 10000, date: "2026-06-15T14:00",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.date).toBe("2026-06-15T14:00:00.000Z");
@@ -2815,7 +2815,7 @@ describe("db", () => {
       const event = await eventsTable.insert({
         name: "test", slug: "test-read-1",
         slugIndex: await computeSlugIndex("test-read-1"),
-        maxAttendees: 100, closesAt: "",
+        maxAttendees: 100, maxPrice: 10000, closesAt: "",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.closes_at).toBeNull();
@@ -2825,7 +2825,7 @@ describe("db", () => {
       const event = await eventsTable.insert({
         name: "test", slug: "test-read-2",
         slugIndex: await computeSlugIndex("test-read-2"),
-        maxAttendees: 100, closesAt: "2099-12-31T23:59",
+        maxAttendees: 100, maxPrice: 10000, closesAt: "2099-12-31T23:59",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.closes_at).toBe("2099-12-31T23:59:00.000Z");
@@ -2839,7 +2839,7 @@ describe("db", () => {
       const event = await eventsTable.insert({
         name: "test-bd", slug: "test-bd-1",
         slugIndex: await computeSlugIndex("test-bd-1"),
-        maxAttendees: 100,
+        maxAttendees: 100, maxPrice: 10000,
       });
       // Overwrite bookable_days with non-array JSON directly in DB
       await getDb().execute({

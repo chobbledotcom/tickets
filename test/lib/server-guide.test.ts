@@ -128,7 +128,7 @@ describe("server (admin guide)", () => {
       const html = await response.text();
       expect(html).toContain("Allow Pay More");
       expect(html).toContain("maximum");
-      expect(html).toContain("£100");
+      expect(html).toContain("£1");
     });
 
     test("contains non-transferable tickets info", async () => {

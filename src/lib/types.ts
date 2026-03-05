@@ -42,13 +42,9 @@ export const isEventType = (s: string): s is EventType =>
 export const isPaidEvent = (event: Pick<Event, "unit_price" | "can_pay_more">): boolean =>
   event.unit_price > 0 || event.can_pay_more;
 
-/** Default max price for pay-more events when none is configured (in minor units) */
-export const DEFAULT_MAX_PRICE = 10000;
-
-/** Get the effective max price for a pay-more event (in minor units).
- *  Uses the event's configured max_price, or falls back to DEFAULT_MAX_PRICE. */
+/** Get the effective max price for a pay-more event (in minor units). */
 export const getMaxPrice = (event: Pick<Event, "max_price">): number =>
-  event.max_price > 0 ? event.max_price : DEFAULT_MAX_PRICE;
+  event.max_price;
 
 export interface Event {
   id: number;
