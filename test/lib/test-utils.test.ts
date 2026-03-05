@@ -496,6 +496,11 @@ describe("test-utils", () => {
       expect(event.max_attendees).toBe(100);
       expect(event.active).toBe(true);
     });
+
+    test("creates an event with maxPrice", async () => {
+      const event = await createTestEvent({ maxPrice: 5000 });
+      expect(event.max_price).toBe(5000);
+    });
   });
 
   describe("updateTestEvent", () => {
@@ -545,6 +550,24 @@ describe("test-utils", () => {
       });
       expect(updated.unit_price).toBe(0);
       expect(updated.webhook_url).toBe("");
+    });
+
+    test("updates max_price when explicitly set", async () => {
+      const event = await createTestEvent();
+      const updated = await updateTestEvent(event.id, { maxPrice: 7500 });
+      expect(updated.max_price).toBe(7500);
+    });
+
+    test("clears max_price when set to zero", async () => {
+      const event = await createTestEvent({ maxPrice: 5000 });
+      const updated = await updateTestEvent(event.id, { maxPrice: 0 });
+      expect(updated.max_price).toBe(0);
+    });
+
+    test("preserves existing max_price when not specified in update", async () => {
+      const event = await createTestEvent({ maxPrice: 3000 });
+      const updated = await updateTestEvent(event.id, { maxAttendees: 50 });
+      expect(updated.max_price).toBe(3000);
     });
   });
 
