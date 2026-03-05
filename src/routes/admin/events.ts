@@ -4,7 +4,7 @@
 
 import { filter } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
-import { toMinorUnits } from "#lib/currency.ts";
+import { formatCurrency, toMinorUnits } from "#lib/currency.ts";
 import { formatDateLabel, normalizeDatetime } from "#lib/dates.ts";
 import { getEventWithActivityLog, logActivity } from "#lib/db/activityLog.ts";
 import {
@@ -150,7 +150,7 @@ const extractEventUpdateInput = async (
 /** Validate max_price is at least unit_price + 100 cents */
 const validateMaxPrice = (input: EventInput): string | null => {
   if (input.maxPrice < (input.unitPrice ?? 0) + 100) {
-    return "Maximum price must be at least 1.00 more than the ticket price";
+    return `Maximum price must be at least ${formatCurrency(100)} more than the ticket price`;
   }
   return null;
 };
