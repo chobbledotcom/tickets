@@ -88,6 +88,7 @@ const editFormData = async (
     minimum_days_before: String(event.minimum_days_before),
     maximum_days_after: String(event.maximum_days_after),
     slug: event.slug,
+    max_price: toMajorUnits(event.max_price),
   };
 };
 

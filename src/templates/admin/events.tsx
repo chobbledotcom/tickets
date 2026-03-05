@@ -502,6 +502,7 @@ const eventToFieldValues = (event: EventWithCount): FieldValues => ({
   fields: event.fields,
   unit_price: event.unit_price > 0 ? toMajorUnits(event.unit_price) : "",
   can_pay_more: event.can_pay_more ? "1" : "",
+  max_price: toMajorUnits(event.max_price),
   closes_at: formatDatetimeLocal(event.closes_at),
   thank_you_url: event.thank_you_url,
   webhook_url: event.webhook_url,

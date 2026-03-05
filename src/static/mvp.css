@@ -546,7 +546,7 @@ label > input[type="email"] {
 
 label > input[inputmode="decimal"] {
   flex: 0 0 auto;
-  width: 8ch;
+  width: 11ch;
 }
 
 label > textarea {
@@ -962,6 +962,11 @@ form:has(select[name="event_type"] option[value="standard"]:checked) > label:has
 
 /* Hide event date field when event type is "daily" */
 form:has(select[name="event_type"] option[value="daily"]:checked) > label:has([name="date_date"]) {
+  display: none;
+}
+
+/* Hide max price field when "Allow Pay More" is not checked */
+form:not(:has(input[name="can_pay_more"]:checked)) > label:has([name="max_price"]) {
   display: none;
 }
 

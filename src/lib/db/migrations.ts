@@ -9,7 +9,7 @@ import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add hidden column to events";
+export const LATEST_UPDATE = "add max_price column to events";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -465,6 +465,9 @@ export const initDb = async (): Promise<void> => {
 
   // Migration: add hidden column to events (boolean, defaults to false/0)
   await runMigration(`ALTER TABLE events ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0`);
+
+  // Migration: add max_price column to events (integer in minor units, 0 = use default)
+  await runMigration(`ALTER TABLE events ADD COLUMN max_price INTEGER NOT NULL DEFAULT 0`);
 
   // Update the version marker
   await getDb().execute({

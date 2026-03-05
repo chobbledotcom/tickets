@@ -176,6 +176,7 @@ describe("stripe", () => {
         image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        max_price: 0,
         hidden: false,
       };
       const intent = {
@@ -231,6 +232,7 @@ describe("stripe", () => {
         image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        max_price: 0,
         hidden: false,
       };
 
@@ -294,6 +296,7 @@ describe("stripe", () => {
         image_url: "",
         non_transferable: false,
         can_pay_more: false,
+        max_price: 0,
         hidden: false,
       };
       const intent = {

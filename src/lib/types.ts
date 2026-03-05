@@ -42,16 +42,9 @@ export const isEventType = (s: string): s is EventType =>
 export const isPaidEvent = (event: Pick<Event, "unit_price" | "can_pay_more">): boolean =>
   event.unit_price > 0 || event.can_pay_more;
 
-/** Absolute minimum for the pay-more max price cap (in minor units) */
-export const CAN_PAY_MORE_ABS_MIN = 10000;
-
-/** Multiplier applied to unit_price for the pay-more max price cap */
-export const CAN_PAY_MORE_MULTIPLIER = 10;
-
-/** Calculate the maximum price for a can_pay_more event (in minor units).
- *  Returns the higher of (10 × minPrice) or 10000. */
-export const canPayMoreMaxPrice = (minPrice: number): number =>
-  Math.max(minPrice * CAN_PAY_MORE_MULTIPLIER, CAN_PAY_MORE_ABS_MIN);
+/** Get the effective max price for a pay-more event (in minor units). */
+export const getMaxPrice = (event: Pick<Event, "max_price">): number =>
+  event.max_price;
 
 export interface Event {
   id: number;
@@ -78,6 +71,7 @@ export interface Event {
   image_url: string;
   non_transferable: boolean;
   can_pay_more: boolean;
+  max_price: number;
   hidden: boolean;
 }
 

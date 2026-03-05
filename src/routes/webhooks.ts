@@ -36,7 +36,7 @@ import {
   type WebhookEvent,
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
-import { canPayMoreMaxPrice } from "#lib/types.ts";
+import { getMaxPrice } from "#lib/types.ts";
 import { getAllowedDomain, getCurrencyCode } from "#lib/config.ts";
 import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -267,9 +267,9 @@ const validateAndPrice = async (
 
 /** Check if the amount charged matches the current event price.
  * For pay-more events, the amount must be >= the expected minimum price and <= the max cap. */
-const hasPriceMismatch = (amountTotal: number, expectedPrice: number, canPayMore: boolean): boolean =>
-  canPayMore
-    ? amountTotal < expectedPrice || amountTotal > canPayMoreMaxPrice(expectedPrice)
+const hasPriceMismatch = (amountTotal: number, expectedPrice: number, event: Pick<EventWithCount, "can_pay_more" | "max_price">): boolean =>
+  event.can_pay_more
+    ? amountTotal < expectedPrice || amountTotal > getMaxPrice(event)
     : amountTotal !== expectedPrice;
 
 /** Format error for post-payment attendee creation failure */
@@ -379,7 +379,7 @@ const processMultiPaymentSession = async (
   // Per-item price validation: each item's p must match its event's rules
   for (const { item, event, expectedPrice } of validatedItems) {
     const itemMismatch = event.can_pay_more
-      ? item.p < expectedPrice || item.p > canPayMoreMaxPrice(expectedPrice)  // pay-more: min <= p <= max
+      ? item.p < expectedPrice || item.p > getMaxPrice(event)  // pay-more: min <= p <= max
       : item.p !== expectedPrice; // fixed: p must equal unit_price * q exactly
     if (itemMismatch) {
       logError({
@@ -508,7 +508,7 @@ const processPaymentSession = async (
 
   // Reject if event price changed since checkout was created
   // For pay-more events, the amount charged may be >= the minimum price
-  if (hasPriceMismatch(session.amountTotal, expectedPrice, event.can_pay_more)) {
+  if (hasPriceMismatch(session.amountTotal, expectedPrice, event)) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       eventId: intent.eventId,

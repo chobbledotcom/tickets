@@ -335,6 +335,21 @@ describe("forms", () => {
       );
     });
 
+    test("validates max_price accepts valid values", () => {
+      expectValid(eventFields, eventForm({ max_price: "100.00" }));
+    });
+
+    test("validates max_price rejects negative values", () => {
+      expectInvalid("Price must be 0 or greater")(
+        eventFields,
+        eventForm({ max_price: "-50" }),
+      );
+    });
+
+    test("validates max_price accepts empty value", () => {
+      expectValid(eventFields, eventForm({ max_price: "" }));
+    });
+
     test("validates name is required", () => {
       const { name: _, ...formWithoutName } = baseEventForm;
       expectInvalid("Event Name is required")(eventFields, formWithoutName);

@@ -124,6 +124,7 @@ const extractCommonFields = (values: EventFormValues) => {
     maximumDaysAfter: values.maximum_days_after ?? 90,
     nonTransferable: values.non_transferable === "1",
     canPayMore: values.can_pay_more === "1",
+    maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
     hidden: values.hidden === "1",
   };
 };
@@ -146,9 +147,19 @@ const extractEventUpdateInput = async (
 };
 
 /** Validate that the referenced group exists (when group_id is non-zero) */
-const validateGroupExists = async (
+/** Validate max_price is at least unit_price + 100 cents */
+const validateMaxPrice = (input: EventInput): string | null => {
+  if (input.maxPrice < (input.unitPrice ?? 0) + 100) {
+    return "Maximum price must be at least 1.00 more than the ticket price";
+  }
+  return null;
+};
+
+const validateEventInput = async (
   input: EventInput,
 ): Promise<string | null> => {
+  const maxPriceError = validateMaxPrice(input);
+  if (maxPriceError) return maxPriceError;
   if (input.groupId && input.groupId !== 0) {
     const group = await groupsTable.findById(input.groupId);
     if (!group) return "Selected group does not exist";
@@ -162,7 +173,7 @@ const eventsResource = defineResource({
   fields: [...eventFields, groupIdField],
   toInput: extractEventInput,
   nameField: "name",
-  validate: validateGroupExists,
+  validate: validateEventInput,
 });
 
 /** Process image from multipart form and attach to event. Returns error message if validation fails. */
@@ -415,7 +426,7 @@ const handleAdminEventEditPost: TypedRouteHandler<
       validate: async (input, existingId) => {
         const taken = await isSlugTaken(input.slug, Number(existingId));
         if (taken) return "Slug is already in use by another event";
-        return validateGroupExists(input);
+        return validateEventInput(input);
       },
     });
 

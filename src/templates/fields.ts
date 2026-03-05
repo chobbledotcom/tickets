@@ -39,6 +39,7 @@ export type EventFormValues = {
   non_transferable: string;
   group_id: string;
   can_pay_more: string;
+  max_price: string;
   hidden: string;
 };
 
@@ -364,6 +365,16 @@ export const eventFields: Field[] = [
     type: "checkbox-group",
     hint: "Let attendees pay more than the ticket price (the price above becomes a minimum)",
     options: [{ value: "1", label: "Allow attendees to set their own price" }],
+  },
+  {
+    name: "max_price",
+    label: "Maximum Price (for pay more)",
+    type: "text",
+    inputmode: "decimal",
+    placeholder: "e.g. 100.00",
+    defaultValue: "100.00",
+    hint: "The maximum price attendees can pay. Must be at least 1.00 more than the ticket price.",
+    validate: validateNonNegativePrice,
   },
   {
     name: "closes_at",
