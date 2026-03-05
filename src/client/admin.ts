@@ -125,6 +125,20 @@ if (checkoutPopup) {
   });
 }
 
+/* Toggle max_price field visibility based on can_pay_more checkbox */
+{
+  const canPayMore = document.querySelector<HTMLInputElement>('input[name="can_pay_more"]');
+  const maxPriceInput = document.querySelector<HTMLInputElement>('input[name="max_price"]');
+  if (canPayMore && maxPriceInput) {
+    const maxPriceLabel = maxPriceInput.closest("label") as HTMLElement | null;
+    if (maxPriceLabel) {
+      const toggle = () => { maxPriceLabel.hidden = !canPayMore.checked; };
+      toggle();
+      canPayMore.addEventListener("change", toggle);
+    }
+  }
+}
+
 /* Scroll-hide nav: hide sticky main nav on scroll down, show on scroll up or at top */
 {
   const nav = document.querySelector<HTMLElement>("#main-nav");
