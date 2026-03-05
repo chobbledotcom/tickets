@@ -3737,5 +3737,25 @@ describe("server (public routes)", () => {
       expect(html).toContain('name="can_pay_more"');
       expect(html).not.toContain('name="can_pay_more" value="1" checked');
     });
+
+    test("POST respects custom max_price", async () => {
+      const event = await payMoreEvent({ maxPrice: 2000 });
+      const response = await submitTicketForm(event.slug, {
+        name: "Test User", email: "test@example.com", quantity: "1",
+        custom_price: "25.00",
+      });
+      const html = await response.text();
+      expect(html).toContain("maximum");
+    });
+
+    test("POST accepts price within custom max_price", async () => {
+      await setupStripe();
+      const event = await payMoreEvent({ maxPrice: 5000 });
+      const response = await submitTicketForm(event.slug, {
+        name: "Test User", email: "test@example.com", quantity: "1",
+        custom_price: "45.00",
+      });
+      expectCheckoutRedirect(response);
+    });
   });
 });

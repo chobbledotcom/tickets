@@ -10,7 +10,7 @@ import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
 import { renderMarkdown, renderMarkdownInline } from "#lib/markdown.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
-import { canPayMoreMaxPrice } from "#lib/types.ts";
+import { getMaxPrice } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getTicketFields, mergeEventFields } from "#templates/fields.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
@@ -175,8 +175,9 @@ const quantityOptions = (max: number): string =>
     .join("");
 
 /** Render a price input for pay-more events */
-const renderPayMoreInput = (minPrice: number, fieldName = "custom_price"): string => {
-  const maxPrice = canPayMoreMaxPrice(minPrice);
+const renderPayMoreInput = (event: Pick<EventWithCount, "unit_price" | "max_price">, fieldName = "custom_price"): string => {
+  const minPrice = event.unit_price;
+  const maxPrice = getMaxPrice(event);
   const rangeHint = minPrice > 0
     ? `Your Price (${formatCurrency(minPrice)} minimum)`
     : `Your Price (optional, up to ${formatCurrency(maxPrice)})`;
@@ -253,7 +254,7 @@ export const ticketPage = (
               <input type="hidden" name="quantity" value="1" />
             )}
             {showPayMore && (
-              <Raw html={renderPayMoreInput(event.unit_price)} />
+              <Raw html={renderPayMoreInput(event)} />
             )}
             {termsAndConditions && (
               <Raw html={renderTermsAndCheckbox(termsAndConditions)} />
@@ -356,7 +357,7 @@ const renderMultiEventRow = (info: MultiTicketEvent): string => {
       <select name="${fieldName}" id="${fieldName}">
         ${options}
       </select>
-      ${showPayMore ? renderPayMoreInput(event.unit_price, priceFieldName) : ""}
+      ${showPayMore ? renderPayMoreInput(event, priceFieldName) : ""}
     </div>
   `;
 };

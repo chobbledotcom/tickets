@@ -124,6 +124,9 @@ const extractCommonFields = (values: EventFormValues) => {
     maximumDaysAfter: values.maximum_days_after ?? 90,
     nonTransferable: values.non_transferable === "1",
     canPayMore: values.can_pay_more === "1",
+    maxPrice: values.max_price
+      ? toMinorUnits(Number.parseFloat(values.max_price))
+      : 0,
     hidden: values.hidden === "1",
   };
 };

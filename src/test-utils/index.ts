@@ -884,6 +884,7 @@ export const createTestEvent = (
         input.maximumDaysAfter != null ? String(input.maximumDaysAfter) : "",
       non_transferable: input.nonTransferable ? "1" : "",
       can_pay_more: input.canPayMore ? "1" : "",
+      max_price: input.maxPrice ? priceFormValue(input.maxPrice) : "",
       hidden: input.hidden ? "1" : "",
     },
     async () => {
@@ -977,6 +978,9 @@ export const updateTestEvent = async (
         (updates.nonTransferable ?? existing.non_transferable) ? "1" : "",
       can_pay_more:
         (updates.canPayMore ?? existing.can_pay_more) ? "1" : "",
+      max_price: updates.maxPrice !== undefined
+        ? (updates.maxPrice > 0 ? priceFormValue(updates.maxPrice) : "")
+        : (existing.max_price > 0 ? priceFormValue(existing.max_price) : ""),
       hidden:
         (updates.hidden ?? existing.hidden) ? "1" : "",
     },
@@ -1206,6 +1210,7 @@ export const testEvent = (overrides: Partial<Event> = {}): Event => ({
   image_url: "",
   non_transferable: false,
   can_pay_more: false,
+  max_price: 0,
   hidden: false,
   ...overrides,
 });

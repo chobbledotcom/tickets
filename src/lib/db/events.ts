@@ -42,6 +42,7 @@ export type EventInput = {
   imageUrl?: string;
   nonTransferable?: boolean;
   canPayMore?: boolean;
+  maxPrice?: number;
   hidden?: boolean;
 };
 
@@ -141,6 +142,7 @@ const rawEventsTable = defineIdTable<Event, EventInput>("events", {
     image_url: { default: () => "", write: encrypt, read: decrypt },
     non_transferable: col.boolean(false),
     can_pay_more: col.boolean(false),
+    max_price: col.withDefault(() => 0),
     hidden: col.boolean(false),
   });
 

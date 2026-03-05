@@ -1,38 +1,24 @@
 import { describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import {
-  canPayMoreMaxPrice,
-  CAN_PAY_MORE_ABS_MIN,
-  CAN_PAY_MORE_MULTIPLIER,
+  getMaxPrice,
+  DEFAULT_MAX_PRICE,
 } from "#lib/types.ts";
 
-describe("canPayMoreMaxPrice", () => {
-  test("returns absolute minimum when 10x price is lower", () => {
-    // 500 * 10 = 5000, which is less than 10000
-    expect(canPayMoreMaxPrice(500)).toBe(CAN_PAY_MORE_ABS_MIN);
+describe("getMaxPrice", () => {
+  test("returns configured max_price when set", () => {
+    expect(getMaxPrice({ max_price: 50000 })).toBe(50000);
   });
 
-  test("returns 10x price when it exceeds absolute minimum", () => {
-    // 2000 * 10 = 20000, which is greater than 10000
-    expect(canPayMoreMaxPrice(2000)).toBe(2000 * CAN_PAY_MORE_MULTIPLIER);
+  test("returns configured max_price even when small", () => {
+    expect(getMaxPrice({ max_price: 100 })).toBe(100);
   });
 
-  test("returns absolute minimum for zero price", () => {
-    expect(canPayMoreMaxPrice(0)).toBe(CAN_PAY_MORE_ABS_MIN);
+  test("returns default when max_price is 0", () => {
+    expect(getMaxPrice({ max_price: 0 })).toBe(DEFAULT_MAX_PRICE);
   });
 
-  test("returns absolute minimum at the boundary (price = 1000)", () => {
-    // 1000 * 10 = 10000, which equals the absolute minimum
-    expect(canPayMoreMaxPrice(1000)).toBe(CAN_PAY_MORE_ABS_MIN);
-  });
-
-  test("returns 10x price just above the boundary", () => {
-    // 1001 * 10 = 10010, which is greater than 10000
-    expect(canPayMoreMaxPrice(1001)).toBe(1001 * CAN_PAY_MORE_MULTIPLIER);
-  });
-
-  test("constants have expected values", () => {
-    expect(CAN_PAY_MORE_ABS_MIN).toBe(10000);
-    expect(CAN_PAY_MORE_MULTIPLIER).toBe(10);
+  test("default max price constant has expected value", () => {
+    expect(DEFAULT_MAX_PRICE).toBe(10000);
   });
 });

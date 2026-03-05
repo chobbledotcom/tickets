@@ -965,6 +965,11 @@ form:has(select[name="event_type"] option[value="daily"]:checked) > label:has([n
   display: none;
 }
 
+/* Hide max price field when "Allow Pay More" is not checked */
+form:not(:has(input[name="can_pay_more"]:checked)) > label:has([name="max_price"]) {
+  display: none;
+}
+
 /* Utility classes for strict CSP (no inline styles) */
 .hidden {
   display: none;

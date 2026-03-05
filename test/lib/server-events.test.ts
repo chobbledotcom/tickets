@@ -1590,6 +1590,31 @@ describe("server (admin events)", () => {
     });
   });
 
+  describe("POST /admin/event with max_price", () => {
+    test("creates event with max_price", async () => {
+      const event = await createTestEvent({ canPayMore: true, maxPrice: 50000 });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.max_price).toBe(50000);
+      expect(saved?.can_pay_more).toBe(true);
+    });
+
+    test("max_price defaults to 0 when not set", async () => {
+      const event = await createTestEvent({ canPayMore: true });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.max_price).toBe(0);
+    });
+
+    test("updates max_price via edit", async () => {
+      const event = await createTestEvent({ canPayMore: true, unitPrice: 1000 });
+      await updateTestEvent(event.id, { maxPrice: 25000 });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const updated = await getEventWithCount(event.id);
+      expect(updated?.max_price).toBe(25000);
+    });
+  });
+
   describe("GET /admin/log", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(mockRequest("/admin/log"));

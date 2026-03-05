@@ -2012,6 +2012,21 @@ describe("html", () => {
     });
   });
 
+  describe("adminEventEditPage max_price field", () => {
+    test("renders max_price field with value when set", () => {
+      const event = testEventWithCount({ can_pay_more: true, max_price: 50000, attendee_count: 0 });
+      const html = adminEventEditPage(event, [], TEST_SESSION, undefined);
+      expect(html).toContain('name="max_price"');
+      expect(html).toContain('value="500.00"');
+    });
+
+    test("renders empty max_price field when not set", () => {
+      const event = testEventWithCount({ can_pay_more: true, max_price: 0, attendee_count: 0 });
+      const html = adminEventEditPage(event, [], TEST_SESSION, undefined);
+      expect(html).toContain('name="max_price"');
+    });
+  });
+
   describe("generateAttendeesCsv with eventInfo", () => {
     test("includes Event Date column when eventInfo has non-empty eventDate", () => {
       const eventInfo: CsvEventInfo = { eventDate: "2026-06-15T14:00:00.000Z", eventLocation: "" };

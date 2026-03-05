@@ -4,7 +4,7 @@
 
 import type { Child } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { CAN_PAY_MORE_ABS_MIN, CAN_PAY_MORE_MULTIPLIER } from "#lib/types.ts";
+import { DEFAULT_MAX_PRICE } from "#lib/types.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import { getAllowedDomain } from "#lib/config.ts";
 import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
@@ -132,16 +132,13 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         <Q q="What does 'Allow Pay More' do?">
           <p>
             When enabled, attendees can choose their own price instead of paying
-            a fixed amount. The ticket price becomes a minimum and they can pay
-            up to {CAN_PAY_MORE_MULTIPLIER}&times; that amount or{" "}
-            {formatCurrency(CAN_PAY_MORE_ABS_MIN)}, whichever is higher. For
-            example, a {formatCurrency(500)} ticket allows prices up to{" "}
-            {formatCurrency(Math.max(500 * CAN_PAY_MORE_MULTIPLIER, CAN_PAY_MORE_ABS_MIN))},
-            while a {formatCurrency(2000)} ticket allows up to{" "}
-            {formatCurrency(Math.max(2000 * CAN_PAY_MORE_MULTIPLIER, CAN_PAY_MORE_ABS_MIN))}.
+            a fixed amount. The ticket price becomes a minimum. You can set a
+            maximum price using the "Maximum Price" field that appears when this
+            option is enabled. If no maximum is set, it defaults to{" "}
+            {formatCurrency(DEFAULT_MAX_PRICE)}.
             If the ticket price is zero, it becomes a pay-what-you-want event
-            where attendees can optionally enter any amount up to{" "}
-            {formatCurrency(CAN_PAY_MORE_ABS_MIN)}.
+            where attendees can optionally enter any amount up to the configured
+            maximum.
           </p>
         </Q>
 
