@@ -158,8 +158,10 @@ const validateMaxPrice = (input: EventInput): string | null => {
 const validateEventInput = async (
   input: EventInput,
 ): Promise<string | null> => {
-  const maxPriceError = validateMaxPrice(input);
-  if (maxPriceError) return maxPriceError;
+  if (input.canPayMore) {
+    const maxPriceError = validateMaxPrice(input);
+    if (maxPriceError) return maxPriceError;
+  }
   if (input.groupId && input.groupId !== 0) {
     const group = await groupsTable.findById(input.groupId);
     if (!group) return "Selected group does not exist";

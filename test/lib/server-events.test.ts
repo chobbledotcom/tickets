@@ -1606,7 +1606,7 @@ describe("server (admin events)", () => {
       expect(saved?.max_price).toBe(10000);
     });
 
-    test("rejects max_price less than unit_price + 100", async () => {
+    test("rejects max_price less than unit_price + 100 when can_pay_more", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
       const response = await handleRequest(
         mockMultipartRequest(
@@ -1617,6 +1617,7 @@ describe("server (admin events)", () => {
             max_quantity: "1",
             unit_price: "10.00",
             max_price: "10.50",
+            can_pay_more: "1",
             csrf_token: csrfToken,
           },
           cookie,
@@ -1627,6 +1628,13 @@ describe("server (admin events)", () => {
         400,
         "Maximum price must be at least £1 more than the ticket price",
       );
+    });
+
+    test("allows max_price less than unit_price + 100 when can_pay_more is off", async () => {
+      const event = await createTestEvent({ unitPrice: 1000, maxPrice: 1050 });
+      const { getEventWithCount } = await import("#lib/db/events.ts");
+      const saved = await getEventWithCount(event.id);
+      expect(saved?.max_price).toBe(1050);
     });
 
     test("accepts max_price equal to unit_price + 100", async () => {
