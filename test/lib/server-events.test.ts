@@ -1625,7 +1625,7 @@ describe("server (admin events)", () => {
       await expectHtmlResponse(
         response,
         400,
-        "Maximum price must be at least 1.00 more than the ticket price",
+        "Maximum price must be at least £1 more than the ticket price",
       );
     });
 

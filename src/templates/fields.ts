@@ -2,6 +2,7 @@
  * Form field definitions and typed value interfaces for all forms
  */
 
+import { formatCurrency } from "#lib/currency.ts";
 import { DAY_NAMES } from "#lib/dates.ts";
 import { isValidDatetime } from "#lib/timezone.ts";
 import type { Field } from "#lib/forms.tsx";
@@ -373,7 +374,9 @@ export const eventFields: Field[] = [
     inputmode: "decimal",
     placeholder: "e.g. 100.00",
     defaultValue: "100.00",
-    hint: "The maximum price attendees can pay. Must be at least 1.00 more than the ticket price.",
+    get hint() {
+      return `The maximum price attendees can pay. Must be at least ${formatCurrency(100)} more than the ticket price.`;
+    },
     validate: validateNonNegativePrice,
   },
   {
