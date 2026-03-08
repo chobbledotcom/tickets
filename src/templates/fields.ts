@@ -465,13 +465,13 @@ export const imageField: Field = {
   accept: "image/jpeg,image/png,image/gif,image/webp",
 };
 
-/** Slug field for event edit page only */
+/** Slug field for event/group edit pages */
 export const slugField: Field = {
   name: "slug",
   label: "Slug",
   type: "text",
   required: true,
-  hint: "URL-friendly identifier (lowercase letters, numbers, and hyphens)",
+  hint: "URL-friendly identifier (lowercase letters, numbers, and hyphens). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
   validate: (value: string) => validateSlug(normalizeSlug(value)),
 };
 
