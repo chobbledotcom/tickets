@@ -4,12 +4,18 @@ import { type Spy, spy, stub } from "@std/testing/mock";
 import {
   createRequestTimer,
   ErrorCode,
+  errorCodeLabel,
+  type ErrorCodeType,
+  type ErrorContext,
+  formatErrorMessage,
   logDebug,
   logError,
   logRequest,
   redactPath,
   runWithRequestId,
 } from "#lib/logger.ts";
+import { getAllActivityLog } from "#lib/db/activityLog.ts";
+import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
 
 describe("logger", () => {
   describe("redactPath", () => {
@@ -204,6 +210,79 @@ describe("logger", () => {
 
       fetchStub.restore();
       Deno.env.delete("NTFY_URL");
+    });
+
+    describe("activity log persistence", () => {
+      beforeEach(async () => {
+        await createTestDbWithSetup();
+        // Drain floating promises from earlier logError calls in the parent block
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        resetDb();
+        await createTestDbWithSetup();
+      });
+
+      afterEach(() => {
+        resetDb();
+      });
+
+      test("persists error to activity log", async () => {
+        logError({ code: ErrorCode.STRIPE_CHECKOUT, detail: "session creation failed" });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        const entries = await getAllActivityLog();
+        const match = entries.find((e) => e.message === "Error: Stripe checkout failed (session creation failed)");
+        expect(match).toBeDefined();
+        expect(match!.event_id).toBeNull();
+      });
+
+      test("persists error with event ID to activity log", async () => {
+        const event = await createTestEvent();
+        logError({ code: ErrorCode.PAYMENT_REFUND, eventId: event.id, detail: "refund declined" });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        const entries = await getAllActivityLog();
+        const match = entries.find((e) => e.message === "Error: Payment refund failed (refund declined)");
+        expect(match).toBeDefined();
+        expect(match!.event_id).toBe(event.id);
+      });
+
+      test("persists error without detail to activity log", async () => {
+        logError({ code: ErrorCode.DB_CONNECTION });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        const entries = await getAllActivityLog();
+        const match = entries.find((e) => e.message === "Error: Database connection failed");
+        expect(match).toBeDefined();
+      });
+    });
+  });
+
+  describe("errorCodeLabel", () => {
+    test("has a label for every error code", () => {
+      for (const code of Object.values(ErrorCode)) {
+        expect(errorCodeLabel[code as ErrorCodeType]).toBeDefined();
+      }
+    });
+  });
+
+  describe("formatErrorMessage", () => {
+    test("formats error with detail", () => {
+      const context: ErrorContext = { code: ErrorCode.STRIPE_CHECKOUT, detail: "timeout" };
+      expect(formatErrorMessage(context)).toBe("Error: Stripe checkout failed (timeout)");
+    });
+
+    test("formats error without detail", () => {
+      const context: ErrorContext = { code: ErrorCode.DB_CONNECTION };
+      expect(formatErrorMessage(context)).toBe("Error: Database connection failed");
+    });
+
+    test("formats payment session error with detail", () => {
+      const context: ErrorContext = {
+        code: ErrorCode.PAYMENT_SESSION,
+        eventId: 42,
+        detail: "price mismatch",
+      };
+      expect(formatErrorMessage(context)).toBe("Error: Payment session error (price mismatch)");
     });
   });
 
