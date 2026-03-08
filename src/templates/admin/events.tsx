@@ -351,7 +351,7 @@ export const adminEventPage = ({
                 <th>Public URL</th>
                 <td>
                   <a href={ticketUrl}>{`${allowedDomain}/ticket/${event.slug}`}</a>
-                  <small> (<a href={`/event/${event.id}/qr`}>QR Code</a>)</small>
+                  <small> (<a href={`/ticket/${event.slug}/qr`}>QR Code</a>)</small>
                 </td>
               </tr>
               {event.thank_you_url && (
