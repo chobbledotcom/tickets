@@ -2,14 +2,14 @@
  * Database migrations
  */
 
-import { computeTicketTokenIndex, encrypt, encryptAttendeePII, generateTicketToken, hmacHash } from "#lib/crypto.ts";
+import { computeTicketTokenIndex, decrypt, encrypt, encryptAttendeePII, generateTicketToken, hmacHash } from "#lib/crypto.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
 import { getPublicKey, getSetting } from "#lib/db/settings.ts";
 
 /**
  * The latest database update identifier - update this when changing schema
  */
-export const LATEST_UPDATE = "add max_price column to events";
+export const LATEST_UPDATE = "fix price_paid empty string backfill";
 
 /**
  * Run a migration that may fail if already applied (e.g., adding a column that exists)
@@ -442,7 +442,7 @@ export const initDb = async (): Promise<void> => {
   );
 
   // Migration: backfill NULL price_paid with encrypted "0" and NULL payment_id with encrypted ""
-  await backfillEncryptedColumn("attendees", "price_paid", `price_paid IS NULL`);
+  await backfillColumn("attendees", "price_paid", `price_paid IS NULL`, await encrypt("0"));
   await backfillHybridEncryptedColumn("attendees", "payment_id", `payment_id IS NULL`);
 
   // Migration: add refunded column to attendees (hybrid encrypted, "true"/"false" like checked_in)
@@ -468,6 +468,28 @@ export const initDb = async (): Promise<void> => {
 
   // Migration: add max_price column to events (integer in minor units, 0 = use default)
   await runMigration(`ALTER TABLE events ADD COLUMN max_price INTEGER NOT NULL DEFAULT 0`);
+
+  // Migration: fix price_paid values that were incorrectly backfilled with encrypt("") instead of encrypt("0")
+  {
+    const rows = await queryAll<{ id: number; price_paid: string }>(
+      `SELECT id, price_paid FROM attendees WHERE price_paid IS NOT NULL`
+    );
+    const encryptedZero = await encrypt("0");
+    for (const row of rows) {
+      let needsFix: boolean;
+      try {
+        needsFix = (await decrypt(row.price_paid)) === "";
+      } catch {
+        needsFix = true;
+      }
+      if (needsFix) {
+        await getDb().execute({
+          sql: `UPDATE attendees SET price_paid = ? WHERE id = ?`,
+          args: [encryptedZero, row.id],
+        });
+      }
+    }
+  }
 
   // Update the version marker
   await getDb().execute({

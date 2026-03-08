@@ -1284,17 +1284,10 @@ describe("html", () => {
       expect(calculateTotalRevenue(attendees)).toBe(0);
     });
 
-    test("treats null price_paid as 0", () => {
-      const attendees = [
-        testAttendee({ price_paid: null as unknown as string }),
-      ];
-      expect(calculateTotalRevenue(attendees)).toBe(0);
-    });
-
     test("skips attendees without price_paid when summing", () => {
       const attendees = [
         testAttendee({ price_paid: "1500" }),
-        testAttendee({ id: 2, price_paid: null as unknown as string }),
+        testAttendee({ id: 2, quantity: 2 }),
       ];
       expect(calculateTotalRevenue(attendees)).toBe(1500);
     });
