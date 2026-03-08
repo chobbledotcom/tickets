@@ -666,6 +666,26 @@ describe("db", () => {
       expect(processed).toBeNull();
     });
 
+    test("deleteEvent removes activity log entries for the event", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        thankYouUrl: "https://example.com",
+      });
+
+      await logActivity("Action for event", event.id);
+      await logActivity("Another action", event.id);
+      await logActivity("Global action");
+
+      await deleteEvent(event.id);
+
+      const eventLog = await getEventActivityLog(event.id);
+      expect(eventLog).toEqual([]);
+
+      const allLog = await getAllActivityLog();
+      expect(allLog).toHaveLength(1);
+      expect(allLog[0]!.message).toBe("Global action");
+    });
+
     test("deleteEvent works with no attendees", async () => {
       const event = await createTestEvent({
         maxAttendees: 50,

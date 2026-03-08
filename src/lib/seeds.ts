@@ -26,7 +26,7 @@ import {
   randomName,
 } from "#lib/demo.ts";
 import { nowIso } from "#lib/now.ts";
-import { generateSlug } from "#lib/slug.ts";
+import { generateUniqueSlug, type SlugWithIndex } from "#lib/slug.ts";
 
 /** Max attendees per seeded event */
 export const SEED_MAX_ATTENDEES = 1000;
@@ -40,13 +40,23 @@ const DEMO_UNIT_PRICES = [500, 1000, 1500, 2000, 2500, 3000, 5000];
 /** Sum an array of numbers */
 const sum = reduce((acc: number, n: number) => acc + n, 0);
 
+/** Generate slugs that are unique within the batch */
+const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {
+  const usedSlugs = new Set<string>();
+  const results: SlugWithIndex[] = [];
+  for (let i = 0; i < count; i++) {
+    const result = await generateUniqueSlug(hmacHash, (slug) => Promise.resolve(usedSlugs.has(slug)));
+    usedSlugs.add(result.slug);
+    results.push(result);
+  }
+  return results;
+};
+
 /** Prepare encrypted values for a single event */
-const prepareEvent = async (index: number, maxAttendees: number, unitPrice: number) => {
+const prepareEvent = async (index: number, maxAttendees: number, unitPrice: number, slug: string, slugIndex: string) => {
   const name = DEMO_EVENT_NAMES[index % DEMO_EVENT_NAMES.length]!;
   const description = DEMO_EVENT_DESCRIPTIONS[index % DEMO_EVENT_DESCRIPTIONS.length]!;
   const location = DEMO_EVENT_LOCATIONS[index % DEMO_EVENT_LOCATIONS.length]!;
-  const slug = generateSlug();
-  const slugIndex = await hmacHash(slug);
   const created = nowIso();
 
   const [encName, encSlug, encDesc, encLoc, encDate, encThankYou, encWebhook, encClosesAt, encImageUrl] =
@@ -141,9 +151,10 @@ export const createSeeds = async (
     i % 2 === 0 ? randomChoice(DEMO_UNIT_PRICES) : 0,
   );
 
-  // Prepare all event inserts in parallel
+  // Generate unique slugs sequentially, then prepare events in parallel
+  const slugs = await generateUniqueSlugs(eventCount);
   const eventStatements = await Promise.all(
-    map((i: number) => prepareEvent(i, eventCapacities[i]!, eventUnitPrices[i]!))(Array.from({ length: eventCount }, (_, i) => i)),
+    map((i: number) => prepareEvent(i, eventCapacities[i]!, eventUnitPrices[i]!, slugs[i]!.slug, slugs[i]!.slugIndex))(Array.from({ length: eventCount }, (_, i) => i)),
   );
 
   // Insert events in a single batch and get their IDs
