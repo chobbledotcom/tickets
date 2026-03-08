@@ -33,7 +33,7 @@ export { formatAddressInline } from "#templates/attendee-table.tsx";
 /** Calculate total revenue in cents from attendees */
 export const calculateTotalRevenue = (attendees: Attendee[]): number =>
   reduce((sum: number, a: Attendee) =>
-    sum + Number.parseInt(a.price_paid, 10), 0)(attendees);
+    sum + (Number.parseInt(a.price_paid, 10) || 0), 0)(attendees);
 
 /** Count how many people are checked in (summing quantity per registration) */
 export const countCheckedIn = (attendees: Attendee[]): number =>
