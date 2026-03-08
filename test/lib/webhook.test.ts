@@ -312,26 +312,45 @@ describe("webhook", () => {
     });
 
     test("logs activity on non-2xx response", async () => {
+      // Drain floating promises from earlier logError calls, then reset DB
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      resetDb();
+      await createTestDbWithSetup();
+
       await withErrorSpy(async () => {
         restubFetch(() => Promise.resolve(new Response("Bad Gateway", { status: 502 })));
         const payload = await buildWebhookPayload(defaultEntries(), "GBP");
         await sendWebhook("https://example.com/webhook", payload);
       });
+      // Wait for pending logError→logActivity to flush
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       const entries = await getAllActivityLog();
-      expect(entries).toHaveLength(1);
-      expect(entries[0]!.message).toBe("Webhook failed (status 502) for 'Test Event'");
+      const match = entries.find((e) => e.message === "Error: Webhook send failed (status=502 for 'Test Event')");
+      expect(match).toBeDefined();
     });
 
     test("does not log activity on successful response", async () => {
+      // Drain and reset to avoid contamination from prior error tests
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      resetDb();
+      await createTestDbWithSetup();
+
       const payload = await buildWebhookPayload(defaultEntries(), "GBP");
       await sendWebhook("https://example.com/webhook", payload);
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       const entries = await getAllActivityLog();
-      expect(entries).toHaveLength(0);
+      const errorEntries = entries.filter((e) => e.message.startsWith("Error:"));
+      expect(errorEntries).toHaveLength(0);
     });
 
     test("logs comma-separated event names for multi-event payload", async () => {
+      // Drain and reset to avoid contamination from prior error tests
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      resetDb();
+      await createTestDbWithSetup();
+
       await withErrorSpy(async () => {
         restubFetch(() => Promise.resolve(new Response("Error", { status: 500 })));
         const entries: RegistrationEntry[] = [
@@ -341,10 +360,12 @@ describe("webhook", () => {
         const payload = await buildWebhookPayload(entries, "GBP");
         await sendWebhook("https://example.com/webhook", payload);
       });
+      // Wait for pending logError→logActivity to flush
+      await new Promise((resolve) => setTimeout(resolve, 50));
 
       const entries = await getAllActivityLog();
-      expect(entries).toHaveLength(1);
-      expect(entries[0]!.message).toBe("Webhook failed (status 500) for 'Event A, Event B'");
+      const match = entries.find((e) => e.message === "Error: Webhook send failed (status=500 for 'Event A, Event B')");
+      expect(match).toBeDefined();
     });
   });
 

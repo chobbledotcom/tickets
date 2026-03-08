@@ -8,6 +8,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
+import { logActivity } from "#lib/db/activityLog.ts";
 import { sendNtfyError } from "#lib/ntfy.ts";
 import { addPendingWork, runWithPendingWork } from "#lib/pending-work.ts";
 
@@ -101,6 +102,45 @@ export const ErrorCode = {
 
 export type ErrorCodeType = (typeof ErrorCode)[keyof typeof ErrorCode];
 
+/** Human-readable labels for error codes (shown in admin activity log) */
+export const errorCodeLabel: Record<ErrorCodeType, string> = {
+  [ErrorCode.DB_CONNECTION]: "Database connection failed",
+  [ErrorCode.DB_QUERY]: "Database query failed",
+  [ErrorCode.CAPACITY_EXCEEDED]: "Capacity exceeded",
+  [ErrorCode.DECRYPT_FAILED]: "Decryption failed",
+  [ErrorCode.ENCRYPT_FAILED]: "Encryption failed",
+  [ErrorCode.KEY_DERIVATION]: "Key derivation failed",
+  [ErrorCode.AUTH_INVALID_SESSION]: "Invalid session",
+  [ErrorCode.AUTH_EXPIRED]: "Session expired",
+  [ErrorCode.AUTH_CSRF_MISMATCH]: "CSRF mismatch",
+  [ErrorCode.AUTH_RATE_LIMITED]: "Rate limited",
+  [ErrorCode.PAYMENT_SIGNATURE]: "Payment signature verification failed",
+  [ErrorCode.PAYMENT_SESSION]: "Payment session error",
+  [ErrorCode.PAYMENT_REFUND]: "Payment refund failed",
+  [ErrorCode.PAYMENT_CHECKOUT]: "Payment checkout failed",
+  [ErrorCode.PAYMENT_WEBHOOK_SETUP]: "Payment webhook setup failed",
+  [ErrorCode.STRIPE_SIGNATURE]: "Stripe signature verification failed",
+  [ErrorCode.STRIPE_SESSION]: "Stripe session retrieval failed",
+  [ErrorCode.STRIPE_REFUND]: "Stripe refund failed",
+  [ErrorCode.STRIPE_CHECKOUT]: "Stripe checkout failed",
+  [ErrorCode.STRIPE_WEBHOOK_SETUP]: "Stripe webhook setup failed",
+  [ErrorCode.SQUARE_SIGNATURE]: "Square signature verification failed",
+  [ErrorCode.SQUARE_SESSION]: "Square session retrieval failed",
+  [ErrorCode.SQUARE_REFUND]: "Square refund failed",
+  [ErrorCode.SQUARE_CHECKOUT]: "Square checkout failed",
+  [ErrorCode.SQUARE_ORDER]: "Square order validation failed",
+  [ErrorCode.VALIDATION_FORM]: "Form validation error",
+  [ErrorCode.VALIDATION_CONTENT_TYPE]: "Invalid content type",
+  [ErrorCode.DATA_INVALID]: "Invalid data",
+  [ErrorCode.STORAGE_DELETE]: "Storage delete failed",
+  [ErrorCode.WEBHOOK_SEND]: "Webhook send failed",
+  [ErrorCode.NOT_FOUND_EVENT]: "Event not found",
+  [ErrorCode.NOT_FOUND_ATTENDEE]: "Attendee not found",
+  [ErrorCode.CONFIG_MISSING]: "Configuration missing",
+  [ErrorCode.DOMAIN_REJECTED]: "Domain rejected",
+  [ErrorCode.CDN_REQUEST]: "CDN request failed",
+};
+
 /**
  * Redact dynamic segments from paths for privacy-safe logging
  * Replaces:
@@ -146,7 +186,7 @@ export const logRequest = (entry: RequestLogEntry): void => {
 /**
  * Error log context (privacy-safe metadata only)
  */
-type ErrorContext = {
+export type ErrorContext = {
   /** Error code for classification */
   code: ErrorCodeType;
   /** Optional: event ID (not slug) */
@@ -157,9 +197,32 @@ type ErrorContext = {
   detail?: string;
 };
 
+/** Format an error context into a human-readable activity log message */
+export const formatErrorMessage = (context: ErrorContext): string => {
+  const label = errorCodeLabel[context.code];
+  return context.detail ? `Error: ${label} (${context.detail})` : `Error: ${label}`;
+};
+
+/** Guard against recursive logError→logActivity→logError loops */
+const errorPersistGuard = { active: false };
+
+/** Persist error to activity log, swallowing failures to prevent cascading errors */
+const persistErrorToActivityLog = async (context: ErrorContext): Promise<void> => {
+  if (errorPersistGuard.active) return;
+  errorPersistGuard.active = true;
+  try {
+    await logActivity(formatErrorMessage(context), context.eventId ?? null);
+  } catch {
+    // Swallow DB errors to avoid cascading failures
+  } finally {
+    errorPersistGuard.active = false;
+  }
+};
+
 /**
- * Log a classified error to console.error
- * Only logs error codes and safe metadata, never PII
+ * Log a classified error to console.error and persist to the activity log.
+ * Console output uses error codes and safe metadata (never PII).
+ * Activity log entry is encrypted and visible to admins on the log pages.
  */
 export const logError = (context: ErrorContext): void => {
   const { code, eventId, attendeeId, detail } = context;
@@ -175,6 +238,7 @@ export const logError = (context: ErrorContext): void => {
   console.error(`${getLogPrefix()}${parts.join(" ")}`);
 
   addPendingWork(sendNtfyError(code));
+  addPendingWork(persistErrorToActivityLog(context));
 };
 
 /**
