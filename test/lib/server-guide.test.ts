@@ -163,6 +163,15 @@ describe("server (admin guide)", () => {
       expect(html).toContain("noindex, nofollow");
     });
 
+    test("contains testing your system section", async () => {
+      const { response } = await adminGet("/admin/guide");
+      const html = await response.text();
+      expect(html).toContain("Testing Your System");
+      expect(html).toContain("test the full booking process");
+      expect(html).toContain("early in development");
+      expect(html).toContain("hello@chobble.com");
+    });
+
     test("contains admin navigation", async () => {
       const { response } = await adminGet("/admin/guide");
       const html = await response.text();

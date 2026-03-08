@@ -70,6 +70,29 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
+      <Section title="Testing Your System">
+        <Q q="Should I test after changing settings?">
+          <p>
+            Yes. After changing any setting &mdash; especially payment
+            configuration, event capacity, or booking fields &mdash; you should
+            test the full booking process to make sure everything works as
+            expected. Create a test event (or use test payment credentials) and
+            complete a booking from start to finish.
+          </p>
+        </Q>
+
+        <Q q="How do I report a bug?">
+          <p>
+            This project is early in development (started January 2026) and
+            bugs are expected. If you find something that doesn&apos;t work
+            correctly, please email{" "}
+            <a href="mailto:hello@chobble.com">hello@chobble.com</a> with a
+            description of what happened and what you expected. The more detail
+            you can provide, the faster it can be fixed.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Events">
         <Q q="What's the difference between standard and daily events?">
           <p>
