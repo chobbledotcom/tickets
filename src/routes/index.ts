@@ -91,6 +91,12 @@ const loadImageRoutes = once(async () => {
   return routeImage;
 });
 
+/** Lazy-load event QR code routes */
+const loadEventQrRoutes = once(async () => {
+  const { routeEventQr } = await import("#routes/event-qr.ts");
+  return routeEventQr;
+});
+
 /** Lazy-load feed routes (ICS, RSS) */
 const loadFeedRoutes = once(async () => {
   const { routeFeed } = await import("#routes/feeds.ts");
@@ -158,6 +164,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   checkin: lazyRoute(loadCheckinRoutes),
   image: lazyRoute(loadImageRoutes),
   payment: lazyRoute(loadPaymentRoutes),
+  event: lazyRoute(loadEventQrRoutes),
   join: lazyRoute(loadJoinRoutes),
   feeds: lazyRoute(loadFeedRoutes),
   demo: lazyRoute(loadDemoResetRoutes),
