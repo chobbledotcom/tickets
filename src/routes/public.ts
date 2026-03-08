@@ -5,7 +5,7 @@
 import { compact, filter, map, pipe, reduce } from "#fp";
 import { signCsrfToken } from "#lib/csrf.ts";
 import { toMinorUnits } from "#lib/currency.ts";
-import { getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
+import { getAllowedDomain, getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
 import { applyDemoOverrides, ATTENDEE_DEMO_FIELDS } from "#lib/demo.ts";
 import {
   getContactPageTextFromDb,
@@ -15,9 +15,10 @@ import {
   getWebsiteTitleFromDb,
 } from "#lib/db/settings.ts";
 import { getAvailableDates } from "#lib/dates.ts";
+import { generateQrSvg } from "#lib/qr.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { checkBatchAvailability, createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
-import { getAllEvents, getEventsBySlugsBatch } from "#lib/db/events.ts";
+import { getAllEvents, getEventsBySlugsBatch, getEventWithCountBySlug } from "#lib/db/events.ts";
 import {
   computeGroupSlugIndex,
   getActiveEventsByGroupId,
@@ -847,9 +848,25 @@ const handleTicketPost = slugRoute(
   handleMultiTicketBySlugs,
 );
 
+/** Handle GET /ticket/:slug/qr */
+export const handleTicketQrGet = async (
+  _request: Request,
+  { slug }: { slug: string },
+): Promise<Response> => {
+  const event = await getEventWithCountBySlug(slug);
+  if (!event) return notFoundResponse();
+
+  const ticketUrl = `https://${getAllowedDomain()}/ticket/${slug}`;
+  const svg = await generateQrSvg(ticketUrl);
+  return new Response(svg, {
+    headers: { "content-type": "image/svg+xml" },
+  });
+};
+
 /** Public ticket routes */
 const publicRoutes = defineRoutes({
   "GET /ticket/reserved": handleReservedGet,
+  "GET /ticket/:slug/qr": handleTicketQrGet,
   "GET /ticket/:slug": handleTicketGet,
   "POST /ticket/:slug": handleTicketPost,
 });
