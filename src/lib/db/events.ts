@@ -203,6 +203,7 @@ export const deleteEvent = async (eventId: number): Promise<void> => {
   await executeBatch([
     { sql: "DELETE FROM processed_payments WHERE attendee_id IN (SELECT id FROM attendees WHERE event_id = ?)", args: [eventId] },
     { sql: "DELETE FROM attendees WHERE event_id = ?", args: [eventId] },
+    { sql: "DELETE FROM activity_log WHERE event_id = ?", args: [eventId] },
     { sql: "DELETE FROM events WHERE id = ?", args: [eventId] },
   ]);
   invalidateEventsCache();
