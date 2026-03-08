@@ -64,6 +64,12 @@ export const CONFIG_KEYS = {
   PHONE_PREFIX: "phone_prefix",
   // Header image (encrypted - Bunny CDN filename)
   HEADER_IMAGE_URL: "header_image_url",
+  // Email provider (plaintext - "resend" | "postmark" | "sendgrid" | "")
+  EMAIL_PROVIDER: "email_provider",
+  // Email API key (encrypted)
+  EMAIL_API_KEY: "email_api_key",
+  // Email from address (encrypted - verified sender address)
+  EMAIL_FROM_ADDRESS: "email_from_address",
 } as const;
 
 /**
@@ -743,6 +749,30 @@ export const updateHeaderImageUrl = async (url: string): Promise<void> => {
   await updateEncryptedSetting(CONFIG_KEYS.HEADER_IMAGE_URL, url);
 };
 
+/** Get the configured email provider. Returns null if not configured. */
+export const getEmailProviderFromDb = (): Promise<string | null> =>
+  getSetting(CONFIG_KEYS.EMAIL_PROVIDER);
+
+/** Update the configured email provider. Pass empty string to clear. */
+export const updateEmailProvider = (provider: string): Promise<void> =>
+  setOrDeleteSetting(CONFIG_KEYS.EMAIL_PROVIDER, provider);
+
+/** Get email API key from database (decrypted). Returns null if not configured. */
+export const getEmailApiKeyFromDb = (): Promise<string | null> =>
+  getEncryptedSetting(CONFIG_KEYS.EMAIL_API_KEY);
+
+/** Update email API key (encrypted at rest). Pass empty string to clear. */
+export const updateEmailApiKey = (key: string): Promise<void> =>
+  updateEncryptedSetting(CONFIG_KEYS.EMAIL_API_KEY, key);
+
+/** Get email from address from database (decrypted). Returns null if not configured. */
+export const getEmailFromAddressFromDb = (): Promise<string | null> =>
+  getEncryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS);
+
+/** Update email from address (encrypted at rest). Pass empty string to clear. */
+export const updateEmailFromAddress = (address: string): Promise<void> =>
+  updateEncryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS, address);
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
@@ -800,4 +830,10 @@ export const settingsApi = {
   updatePhonePrefix,
   getHeaderImageUrlFromDb,
   updateHeaderImageUrl,
+  getEmailProviderFromDb,
+  updateEmailProvider,
+  getEmailApiKeyFromDb,
+  updateEmailApiKey,
+  getEmailFromAddressFromDb,
+  updateEmailFromAddress,
 };

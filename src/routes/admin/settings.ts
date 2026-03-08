@@ -8,6 +8,7 @@ import {
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
+import { getEmailConfig, sendTestEmail } from "#lib/email.ts";
 import { getAllowedDomain, getSquareWebhookSignatureKey } from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -15,6 +16,8 @@ import { resetDatabase } from "#lib/db/migrations.ts";
 import {
   clearPaymentProvider,
   getEmbedHostsFromDb,
+  getEmailFromAddressFromDb,
+  getEmailProviderFromDb,
   getHeaderImageUrlFromDb,
   getPaymentProviderFromDb,
   getPhonePrefixFromDb,
@@ -30,6 +33,9 @@ import {
   setPaymentProvider,
   setStripeWebhookConfig,
   updateEmbedHosts,
+  updateEmailApiKey,
+  updateEmailFromAddress,
+  updateEmailProvider,
   updateHeaderImageUrl,
   updatePhonePrefix,
   updateShowPublicSite,
@@ -116,6 +122,8 @@ const getSettingsPageState = async () => {
     showPublicSite,
     phonePrefix,
     headerImageUrl,
+    emailProvider,
+    emailFromAddress,
   ] = await Promise.all([
     hasStripeKey(),
     getPaymentProviderFromDb(),
@@ -130,6 +138,8 @@ const getSettingsPageState = async () => {
     getShowPublicSiteFromDb(),
     getPhonePrefixFromDb(),
     getHeaderImageUrlFromDb(),
+    getEmailProviderFromDb(),
+    getEmailFromAddressFromDb(),
   ]);
   return {
     stripeKeyConfigured,
@@ -147,30 +157,15 @@ const getSettingsPageState = async () => {
     phonePrefix,
     headerImageUrl,
     storageEnabled: isStorageEnabled(),
+    emailProvider,
+    emailFromAddress,
   };
 };
 
 /** Render the settings page with current state */
 const renderSettingsPage = async (session: AuthSession) => {
   const state = await getSettingsPageState();
-  return adminSettingsPage(
-    session,
-    state.stripeKeyConfigured,
-    state.paymentProvider,
-    state.squareTokenConfigured,
-    state.squareSandbox,
-    state.squareWebhookConfigured,
-    state.webhookUrl,
-    state.embedHosts,
-    state.termsAndConditions,
-    state.timezone,
-    state.businessEmail,
-    state.theme,
-    state.showPublicSite,
-    state.phonePrefix,
-    state.headerImageUrl,
-    state.storageEnabled,
-  );
+  return adminSettingsPage(session, state);
 };
 
 /** Render settings page with error on a specific form */
@@ -721,6 +716,45 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
   );
 });
 
+/** Valid email provider values */
+const VALID_EMAIL_PROVIDERS: ReadonlySet<string> = new Set(["resend", "postmark", "sendgrid"]);
+
+/** Handle POST /admin/settings/email - owner only */
+const handleEmailPost = settingsRoute(async (form, errorPage) => {
+  const provider = (form.get("email_provider") ?? "").trim();
+  const apiKey = (form.get("email_api_key") ?? "").trim();
+  const fromAddress = (form.get("email_from_address") ?? "").trim();
+
+  if (provider === "") {
+    await updateEmailProvider("");
+    await updateEmailApiKey("");
+    await updateEmailFromAddress("");
+    await logActivity("Email provider disabled");
+    return redirectWithSuccess("/admin/settings", "Email provider disabled", "settings-email");
+  }
+
+  if (!VALID_EMAIL_PROVIDERS.has(provider)) {
+    return errorPage("Invalid email provider", 400, "settings-email");
+  }
+
+  await updateEmailProvider(provider);
+  if (apiKey) await updateEmailApiKey(apiKey);
+  if (fromAddress) await updateEmailFromAddress(fromAddress);
+  await logActivity(`Email provider set to ${provider}`);
+  return redirectWithSuccess("/admin/settings", "Email settings updated", "settings-email");
+});
+
+/** Handle POST /admin/settings/email/test - send test email to business email */
+const handleEmailTestPost = (request: Request): Promise<Response> =>
+  withOwnerAuthForm(request, async () => {
+    const config = await getEmailConfig();
+    if (!config) return jsonResponse({ success: false, error: "Email not configured" });
+    const businessEmail = await getBusinessEmailFromDb();
+    if (!businessEmail) return jsonResponse({ success: false, error: "No business email set" });
+    await sendTestEmail(config, businessEmail);
+    return jsonResponse({ success: true });
+  });
+
 /**
  * Handle POST /admin/settings/reset-database - owner only
  */
@@ -754,5 +788,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/phone-prefix": handlePhonePrefixPost,
   "POST /admin/settings/header-image": handleHeaderImagePost,
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
+  "POST /admin/settings/email": handleEmailPost,
+  "POST /admin/settings/email/test": handleEmailTestPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

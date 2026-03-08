@@ -1699,15 +1699,30 @@ describe("html", () => {
   });
 
   describe("adminSettingsPage", () => {
+    const defaultState: import("#templates/admin/settings.tsx").SettingsPageState = {
+      stripeKeyConfigured: false,
+      paymentProvider: null,
+      squareTokenConfigured: false,
+      squareSandbox: false,
+      squareWebhookConfigured: false,
+      webhookUrl: "https://example.com/payment/webhook",
+      embedHosts: null,
+      termsAndConditions: null,
+      timezone: "Europe/London",
+      businessEmail: "",
+      theme: "light",
+      showPublicSite: false,
+      phonePrefix: "44",
+      headerImageUrl: null,
+      storageEnabled: false,
+      emailProvider: null,
+      emailFromAddress: null,
+    };
+
     test("shows square webhook configured message when key is set", () => {
       const html = adminSettingsPage(
         TEST_SESSION,
-        false, // stripeKeyConfigured
-        "square", // paymentProvider
-        true, // squareTokenConfigured
-        false, // squareSandbox
-        true, // squareWebhookConfigured
-        "https://example.com/payment/webhook",
+        { ...defaultState, paymentProvider: "square", squareTokenConfigured: true, squareWebhookConfigured: true },
       );
       expect(html).toContain("A webhook signature key is currently configured");
       expect(html).toContain("Enter a new key below to replace it");
@@ -1716,12 +1731,7 @@ describe("html", () => {
     test("shows square webhook not configured message when key is not set", () => {
       const html = adminSettingsPage(
         TEST_SESSION,
-        false,
-        "square",
-        true,
-        false, // squareSandbox
-        false, // squareWebhookConfigured = false
-        "https://example.com/payment/webhook",
+        { ...defaultState, paymentProvider: "square", squareTokenConfigured: true },
       );
       expect(html).toContain("No webhook signature key is configured");
       expect(html).toContain("Follow the steps above to set one up");
@@ -1730,12 +1740,7 @@ describe("html", () => {
     test("shows sandbox checkbox checked when sandbox mode enabled", () => {
       const html = adminSettingsPage(
         TEST_SESSION,
-        false,
-        "square",
-        true,
-        true, // squareSandbox
-        false,
-        "https://example.com/payment/webhook",
+        { ...defaultState, paymentProvider: "square", squareTokenConfigured: true, squareSandbox: true },
       );
       expect(html).toContain("Sandbox mode");
       expect(html).toContain('name="square_sandbox"');
