@@ -968,8 +968,8 @@ const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
 
   return redirect(
     "/admin/settings",
-    "Custom domain saved (validation pending — see instructions below)",
-    true,
+    `Custom domain saved but validation failed: ${result.error}`,
+    false,
     { formId: "settings-custom-domain" },
   );
 });

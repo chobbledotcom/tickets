@@ -2962,7 +2962,7 @@ describe("server (admin settings)", () => {
         }
       });
 
-      test("saves domain with pending message when validation fails", async () => {
+      test("saves domain with error message when validation fails", async () => {
         setBunnyEnv();
         const original = bunnyCdnApi.validateCustomDomain;
         bunnyCdnApi.validateCustomDomain = () =>
@@ -2977,7 +2977,10 @@ describe("server (admin settings)", () => {
           );
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("validation pending");
+          const decoded = decodeURIComponent(location.replaceAll("+", " "));
+          expect(decoded).toContain("validation failed");
+          expect(decoded).toContain("DNS not configured");
+          expect(decoded).toContain("error=");
           expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
           expect(await getCustomDomainLastValidatedFromDb()).toBeNull();
         } finally {
