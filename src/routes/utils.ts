@@ -208,7 +208,7 @@ export const redirectResponse = (url: string, cookie?: string): Response => {
 };
 
 /** Options for redirect */
-type RedirectOpts = { formId?: string; cookie?: string };
+type RedirectOpts = { formId?: string; cookie?: string; form?: URLSearchParams };
 
 /**
  * Redirect with a success or error message (PRG pattern).
@@ -219,7 +219,8 @@ type RedirectOpts = { formId?: string; cookie?: string };
 export const redirect = (
   url: string, message: string, succeeded: boolean, opts?: RedirectOpts,
 ): Response => {
-  const u = new URL(url, "http://localhost");
+  const target = opts?.form?.get("return_url") || url;
+  const u = new URL(target, "http://localhost");
   u.searchParams.set(succeeded ? "success" : "error", message);
   if (opts?.formId) {
     u.searchParams.set("form", opts.formId);

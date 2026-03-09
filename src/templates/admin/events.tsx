@@ -104,8 +104,6 @@ const FailedPaymentsTable = ({ attendees, eventId }: { attendees: Attendee[]; ev
 /** Check-in message to display after toggling */
 export type CheckinMessage = { name: string; status: string } | null;
 
-/** Add-attendee result message */
-export type AddAttendeeMessage = { name: string } | { edited: string } | { error: string } | null;
 
 /** Filter attendees by check-in status */
 const filterAttendees = (attendees: Attendee[], activeFilter: AttendeeFilter): Attendee[] => {
@@ -147,8 +145,7 @@ export type AdminEventPageOptions = {
   activeFilter?: AttendeeFilter;
   dateFilter?: string | null;
   availableDates?: DateOption[];
-  addAttendeeMessage?: AddAttendeeMessage;
-  imageError?: string | null;
+  errorMessage?: string | null;
   phonePrefix?: string;
   successMessage?: string | null;
 };
@@ -162,8 +159,7 @@ export const adminEventPage = ({
   activeFilter = "all",
   dateFilter = null,
   availableDates = [],
-  addAttendeeMessage = null,
-  imageError = null,
+  errorMessage = null,
   phonePrefix,
   successMessage = null,
 }: AdminEventPageOptions): string => {
@@ -234,8 +230,8 @@ export const adminEventPage = ({
           <div class="error">This event is deactivated and cannot be booked</div>
         )}
 
-        {imageError && (
-          <p class="error">{imageError}</p>
+        {errorMessage && (
+          <p class="error">{errorMessage}</p>
         )}
 
         <article>
@@ -453,21 +449,6 @@ export const adminEventPage = ({
 
         <article>
           <h2 id="add-attendee">Add Attendee</h2>
-          {addAttendeeMessage && "name" in addAttendeeMessage && (
-            <p class="checkin-message-in">
-              Added {addAttendeeMessage.name}
-            </p>
-          )}
-          {addAttendeeMessage && "edited" in addAttendeeMessage && (
-            <p class="checkin-message-in">
-              Updated {addAttendeeMessage.edited}
-            </p>
-          )}
-          {addAttendeeMessage && "error" in addAttendeeMessage && (
-            <p class="error">
-              {addAttendeeMessage.error}
-            </p>
-          )}
           <CsrfForm action={`/admin/event/${event.id}/attendee`}>
             <Raw html={renderFields(getAddAttendeeFields(event.fields, event.event_type === "daily"))} />
             <button type="submit">Add Attendee</button>

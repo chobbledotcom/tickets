@@ -558,9 +558,11 @@ describe("server (admin attendees)", () => {
         return_url: "/admin/calendar?date=2026-03-15#attendees",
       })();
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(
-        "/admin/calendar?date=2026-03-15#attendees",
-      );
+      const location = response.headers.get("location")!;
+      expect(location).toContain("/admin/calendar");
+      expect(location).toContain("date=2026-03-15");
+      expect(location).toContain("success=");
+      expect(location).toContain("checked");
     });
 
     test("checks out an already checked-in attendee", async () => {
@@ -706,7 +708,7 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(location).toContain(`/admin/event/${event.id}`);
-      expect(location).toContain("added=Jane");
+      expect(location).toContain("success=Added");
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
@@ -731,7 +733,7 @@ describe("server (admin attendees)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("added=Phone");
+      expect(response.headers.get("location")).toContain("success=Added");
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
@@ -757,7 +759,7 @@ describe("server (admin attendees)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("added=Both");
+      expect(response.headers.get("location")).toContain("success=Added");
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
@@ -781,7 +783,7 @@ describe("server (admin attendees)", () => {
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(location).toContain("add_error=");
+      expect(location).toContain("error=");
       expect(location).toContain("#add-attendee");
     });
 
@@ -810,7 +812,7 @@ describe("server (admin attendees)", () => {
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(location).toContain("add_error=");
+      expect(location).toContain("error=");
       expect(location).toContain("spots");
     });
 
@@ -840,7 +842,7 @@ describe("server (admin attendees)", () => {
           );
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
-          expect(location).toContain("add_error=");
+          expect(location).toContain("error=");
           expect(location).toContain("Encryption");
         },
       );
@@ -879,7 +881,7 @@ describe("server (admin attendees)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain("added=Daily");
+      expect(response.headers.get("location")).toContain("success=Added");
 
       const attendees = await getAttendeesRaw(event.id);
       expect(attendees.length).toBe(1);
@@ -903,21 +905,21 @@ describe("server (admin attendees)", () => {
       );
     });
 
-    test("event page shows success message when ?added param present", async () => {
+    test("event page shows success message when ?success param present", async () => {
       const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}?added=Jane%20Doe`,
+        `/admin/event/${event.id}?success=Added%20Jane%20Doe`,
         { cookie },
       );
       await expectHtmlResponse(response, 200, "Added Jane Doe");
     });
 
-    test("event page shows error message when ?add_error param present", async () => {
+    test("event page shows error message when ?error param present", async () => {
       const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}?add_error=Not%20enough%20spots`,
+        `/admin/event/${event.id}?error=Not%20enough%20spots`,
         { cookie },
       );
       await expectHtmlResponse(response, 200, "Not enough spots");
@@ -1272,7 +1274,7 @@ describe("server (admin attendees)", () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
-        `/admin/event/${event.id}?edited=Jane%20Doe#attendees`,
+        `/admin/event/${event.id}?success=Updated+Jane+Doe#attendees`,
       );
 
       // Verify the edit form shows the updated data
@@ -1359,7 +1361,7 @@ describe("server (admin attendees)", () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
-        `/admin/event/${event2.id}?edited=John%20Doe#attendees`,
+        `/admin/event/${event2.id}?success=Updated+John+Doe#attendees`,
       );
 
       // Verify attendee was moved to event2 by checking the raw attendee data
@@ -1373,7 +1375,7 @@ describe("server (admin attendees)", () => {
       const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}?edited=Jane%20Doe`,
+        `/admin/event/${event.id}?success=Updated%20Jane%20Doe`,
         { cookie },
       );
       await expectHtmlResponse(response, 200, "Updated Jane Doe");
@@ -1556,7 +1558,7 @@ describe("server (admin attendees)", () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
-        `/admin/event/${event.id}?edited=Jane%20Smith#attendees`,
+        `/admin/event/${event.id}?success=Updated+Jane+Smith#attendees`,
       );
     });
 
