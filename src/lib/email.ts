@@ -1,6 +1,6 @@
 /**
  * Email sending module
- * Sends registration emails via HTTP email APIs (Resend, Postmark, SendGrid)
+ * Sends registration emails via HTTP email APIs (Resend, Postmark, SendGrid, Mailgun)
  */
 
 import { getBusinessEmailFromDb } from "#lib/business-email.ts";
@@ -86,10 +86,40 @@ const sendgridRequest: ProviderRequest = (config, msg) => [
   },
 ];
 
+const mailgunRequest = (host: string): ProviderRequest => (config, msg) => {
+  const domain = config.fromAddress.split("@")[1];
+  const form = new FormData();
+  form.append("from", config.fromAddress);
+  form.append("to", msg.to);
+  form.append("subject", msg.subject);
+  form.append("html", msg.html);
+  form.append("text", msg.text);
+  if (msg.replyTo) form.append("h:Reply-To", msg.replyTo);
+  return [
+    `https://${host}/v3/${domain}/messages`,
+    { "Authorization": `Basic ${btoa("api:" + config.apiKey)}` },
+    form,
+  ];
+};
+
 const PROVIDERS: Record<string, ProviderRequest> = {
   resend: resendRequest,
   postmark: postmarkRequest,
   sendgrid: sendgridRequest,
+  "mailgun-us": mailgunRequest("api.mailgun.net"),
+  "mailgun-eu": mailgunRequest("api.eu.mailgun.net"),
+};
+
+/** Valid provider names, derived from the PROVIDERS map */
+export const VALID_EMAIL_PROVIDERS: ReadonlySet<string> = new Set(Object.keys(PROVIDERS));
+
+/** Display labels for email providers */
+export const EMAIL_PROVIDER_LABELS: Record<string, string> = {
+  resend: "Resend",
+  postmark: "Postmark",
+  sendgrid: "SendGrid",
+  "mailgun-us": "Mailgun (US)",
+  "mailgun-eu": "Mailgun (EU)",
 };
 
 /** Send a single email via the configured provider. Logs errors, never throws. */
@@ -101,10 +131,11 @@ export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise
   }
   try {
     const [url, headers, body] = buildRequest(config, msg);
+    const isFormData = body instanceof FormData;
     const response = await fetch(url, {
       method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers: isFormData ? headers : { ...headers, "Content-Type": "application/json" },
+      body: isFormData ? body : JSON.stringify(body),
     });
     if (!response.ok) {
       logError({ code: ErrorCode.EMAIL_SEND, detail: `status=${response.status} to=${msg.to}` });
