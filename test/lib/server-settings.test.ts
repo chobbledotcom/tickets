@@ -272,8 +272,13 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      // Should redirect to admin login with session cleared
-      expectAdminRedirect(response);
+      // Should redirect to admin login with success message and session cleared
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain("/admin?success=");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
+        "Password changed",
+      );
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
 
       // Verify old session is invalidated
@@ -288,7 +293,7 @@ describe("server (admin settings)", () => {
           password: "newpassword123",
         }),
       );
-      expectAdminRedirect(newLoginResponse);
+      expectRedirect("/admin?success=Logged+in")(newLoginResponse);
     });
 
     test("returns error when password update fails", async () => {
@@ -387,8 +392,8 @@ describe("server (admin settings)", () => {
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
           expect(location).toContain("/admin/settings?success=");
-          expect(decodeURIComponent(location)).toContain("Stripe key updated");
-          expect(decodeURIComponent(location)).toContain("webhook configured");
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Stripe key updated");
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("webhook configured");
         },
       );
     });
@@ -596,7 +601,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Embed host restrictions removed",
       );
       expect(await getEmbedHostsFromDb()).toBe(null);
@@ -632,7 +637,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Allowed embed hosts updated",
       );
       expect(await getEmbedHostsFromDb()).toBe(
@@ -720,7 +725,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Square credentials updated",
       );
     });
@@ -804,7 +809,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Square webhook signature key updated",
       );
     });
@@ -827,7 +832,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Payment provider set to square",
       );
     });
@@ -902,7 +907,7 @@ describe("server (admin settings)", () => {
       );
 
       // Should redirect to setup page with session cleared
-      expectRedirect("/setup/")(response);
+      expectRedirect("/setup/?success=Database+reset")(response);
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
     });
 
@@ -943,7 +948,7 @@ describe("server (admin settings)", () => {
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Payment provider set to stripe",
       );
     });
@@ -963,7 +968,7 @@ describe("server (admin settings)", () => {
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Payment provider disabled",
       );
     });
@@ -1119,7 +1124,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Terms and conditions updated",
       );
     });
@@ -1157,7 +1162,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Terms and conditions updated",
       );
     });
@@ -1191,7 +1196,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Terms and conditions removed",
       );
     });
@@ -1209,7 +1214,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Terms and conditions removed",
       );
     });
@@ -1407,7 +1412,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Business email updated");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Business email updated");
 
       const saved = await getBusinessEmailFromDb();
       expect(saved).toBe("contact@example.com");
@@ -1437,7 +1442,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Business email cleared");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Business email cleared");
 
       const saved = await getBusinessEmailFromDb();
       expect(saved).toBe("");
@@ -1772,7 +1777,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Theme updated to dark");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Theme updated to dark");
     });
 
     test("updates theme to light successfully", async () => {
@@ -1791,7 +1796,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Theme updated to light");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Theme updated to light");
     });
 
     test("theme setting persists in database", async () => {
@@ -1875,7 +1880,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Public site enabled");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public site enabled");
     });
 
     test("disables public site", async () => {
@@ -1894,7 +1899,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Public site disabled");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public site disabled");
     });
 
     test("setting persists in database", async () => {
@@ -1974,7 +1979,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Public API enabled");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public API enabled");
     });
 
     test("disables public API", async () => {
@@ -1993,7 +1998,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Public API disabled");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public API disabled");
     });
 
     test("setting persists in database", async () => {
@@ -2071,7 +2076,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Phone prefix updated to 1",
       );
     });
@@ -2204,7 +2209,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Email settings updated");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Email settings updated");
     });
 
     test("disables email when provider is empty", async () => {
@@ -2223,7 +2228,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Email provider disabled");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Email provider disabled");
     });
 
     test("rejects invalid email provider", async () => {
@@ -2255,7 +2260,7 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!)).toContain("Email provider disabled");
+      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("Email provider disabled");
     });
 
     test("saves provider without updating key when key is empty", async () => {
@@ -2275,7 +2280,7 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!)).toContain("Email settings updated");
+      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("Email settings updated");
     });
 
     test("logs activity when email provider is set", async () => {
@@ -2367,7 +2372,7 @@ describe("server (admin settings)", () => {
 
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location)).toContain("Test email sent (status 200)");
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Test email sent (status 200)");
         },
       );
     });
@@ -2553,7 +2558,7 @@ describe("server (admin settings)", () => {
           );
 
           expect(response.status).toBe(302);
-          expect(decodeURIComponent(response.headers.get("location")!)).toContain("unchanged");
+          expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("unchanged");
           expect(await getStripeSecretKeyFromDb()).toBe("sk_test_original");
         },
       );
@@ -2618,7 +2623,7 @@ describe("server (admin settings)", () => {
       );
 
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!)).toContain("unchanged");
+      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("unchanged");
     });
 
     test("submitting sentinel for email API key does not overwrite existing key", async () => {
@@ -2730,7 +2735,7 @@ describe("server (admin settings)", () => {
           );
 
           expect(response.status).toBe(302);
-          expect(decodeURIComponent(response.headers.get("location")!)).toContain("unchanged");
+          expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("unchanged");
           expect(await getStripeSecretKeyFromDb()).toBe("sk_test_keep_me");
         },
       );
@@ -2949,7 +2954,7 @@ describe("server (admin settings)", () => {
           );
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location)).toContain("Custom domain saved and validated");
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain saved and validated");
           expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
           expect(await getCustomDomainLastValidatedFromDb()).not.toBeNull();
         } finally {
@@ -2972,7 +2977,7 @@ describe("server (admin settings)", () => {
           );
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location)).toContain("validation pending");
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("validation pending");
           expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
           expect(await getCustomDomainLastValidatedFromDb()).toBeNull();
         } finally {
@@ -3010,7 +3015,7 @@ describe("server (admin settings)", () => {
         );
         expect(response.status).toBe(302);
         const location = response.headers.get("location")!;
-        expect(decodeURIComponent(location)).toContain("Custom domain cleared");
+        expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain cleared");
         expect(await getCustomDomainFromDb()).toBeNull();
       });
 
@@ -3025,7 +3030,7 @@ describe("server (admin settings)", () => {
         );
         expect(response.status).toBe(302);
         const location = response.headers.get("location")!;
-        expect(decodeURIComponent(location)).toContain("Custom domain cleared");
+        expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain cleared");
         expect(await getCustomDomainFromDb()).toBeNull();
       });
 
@@ -3117,7 +3122,7 @@ describe("server (admin settings)", () => {
           );
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location)).toContain("Custom domain validated successfully");
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain validated successfully");
           const lastValidated = await getCustomDomainLastValidatedFromDb();
           expect(lastValidated).not.toBeNull();
         } finally {

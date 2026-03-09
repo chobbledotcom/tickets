@@ -32,7 +32,7 @@ const handleAdminGet = (request: Request): Promise<Response> =>
     request,
     async (session) => {
       const url = new URL(request.url);
-      const imageError = url.searchParams.get("image_error");
+      const imageError = url.searchParams.get("error");
       const successMessage = url.searchParams.get("success");
       const [events, holidays, newestRaw, privateKey] = await Promise.all([
         getAllEvents(),

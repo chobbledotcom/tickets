@@ -548,7 +548,7 @@ describe("server (multi-user admin)", () => {
         }),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin");
+      expect(response.headers.get("location")).toBe("/admin?success=Logged+in");
       expect(response.headers.get("set-cookie")).toContain(
         `${getSessionCookieName()}=`,
       );
@@ -611,7 +611,7 @@ describe("server (multi-user admin)", () => {
         password_confirm: "newpassword123",
       });
 
-      expectRedirect("/join/complete")(joinPostResponse);
+      expectRedirect("/join/complete?success=Password+set+successfully")(joinPostResponse);
 
       // Verify user now has a password
       const user = await getUserByUsername("joiner2");
@@ -710,7 +710,7 @@ describe("server (multi-user admin)", () => {
       );
       expect(activateResponse.status).toBe(302);
       const location = activateResponse.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("activated successfully");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("activated successfully");
     });
 
     test("returns 404 for nonexistent user", async () => {

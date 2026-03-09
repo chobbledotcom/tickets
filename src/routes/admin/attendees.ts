@@ -31,6 +31,7 @@ import {
   notFoundResponse,
   orNotFound,
   redirect,
+  redirectResponse,
   requireSessionOr,
   withAuthForm,
 } from "#routes/utils.ts";
@@ -112,26 +113,6 @@ const withAttendeeForm = (
 const getReturnUrl = (request: Request): string =>
   getSearchParam(request, "return_url");
 
-/** Read return_url from form data */
-const getReturnUrlFromForm = (form: URLSearchParams): string =>
-  form.get("return_url") ?? "";
-
-/** Redirect to return_url from form if present, otherwise redirect to fallback */
-const redirectOrReturn = (form: URLSearchParams, fallback: string): Response => {
-  const returnUrl = getReturnUrlFromForm(form);
-  return redirect(returnUrl || fallback);
-};
-
-/** Log activity and redirect back to event page */
-const logAndRedirectToEvent = async (
-  message: string,
-  eventId: number,
-  form: URLSearchParams,
-): Promise<Response> => {
-  await logActivity(message, eventId);
-  return redirectOrReturn(form, `/admin/event/${eventId}`);
-};
-
 /** Verify confirm_name matches attendee name, returning error page on mismatch */
 const verifyAttendeeName = (
   data: AttendeeWithEvent,
@@ -147,7 +128,7 @@ const verifyAttendeeName = (
 ): Response | null => {
   const confirmName = form.get("confirm_name") ?? "";
   if (!verifyIdentifier(data.attendee.name, confirmName)) {
-    const returnUrl = getReturnUrlFromForm(form);
+    const returnUrl = form.get("return_url") ?? "";
     return htmlResponse(renderPage(data, session, errorMsg, returnUrl), 400);
   }
   return null;
@@ -176,7 +157,8 @@ const handleAttendeeDelete = attendeeFormAction(async (data, session, form, even
   if (error) return error;
 
   await deleteAttendee(attendeeId);
-  return logAndRedirectToEvent(`Attendee deleted from '${data.event.name}'`, eventId, form);
+  await logActivity(`Attendee deleted from '${data.event.name}'`, eventId);
+  return redirect(`/admin/event/${eventId}`, "Attendee deleted", true, { form });
 });
 
 /**
@@ -190,12 +172,12 @@ const handleDeleteIncomplete = attendeeFormAction(async (data, _session, _form, 
     Number.parseInt(data.attendee.price_paid, 10) > 0;
 
   if (!isIncomplete) {
-    return redirect(`/admin/event/${eventId}`);
+    return redirect(`/admin/event/${eventId}`, "Attendee does not have an incomplete payment", false);
   }
 
   await deleteAttendee(attendeeId);
   await logActivity(`Incomplete attendee deleted from '${data.event.name}'`, eventId);
-  return redirect(`/admin/event/${eventId}`);
+  return redirect(`/admin/event/${eventId}`, "Incomplete registration removed", true);
 });
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/checkin */
@@ -208,14 +190,14 @@ const handleAttendeeCheckin = attendeeFormAction(async (data, _session, form, ev
   const action = nowCheckedIn ? "checked in" : "checked out";
   await logActivity(`Attendee ${action} for '${data.event.name}'`, eventId);
 
-  const returnUrl = getReturnUrlFromForm(form);
-  if (returnUrl) return redirect(returnUrl);
+  const returnUrl = form.get("return_url") ?? "";
+  if (returnUrl) return redirect(returnUrl, `${data.attendee.name} ${action}`, true);
 
   const name = encodeURIComponent(data.attendee.name);
   const status = nowCheckedIn ? "in" : "out";
   const filterValue = form.get("return_filter") ?? "";
   const suffix = filterValue === "in" ? "/in" : filterValue === "out" ? "/out" : "";
-  return redirect(
+  return redirectResponse(
     `/admin/event/${eventId}${suffix}?checkin_name=${name}&checkin_status=${status}#message`,
   );
 });
@@ -225,9 +207,13 @@ const refundError = (
   data: AttendeeWithEvent,
   session: AuthSession,
   msg: string,
-  returnUrl: string,
-): Response =>
-  htmlResponse(adminRefundAttendeePage(data, session, msg, returnUrl), 400);
+  formOrReturnUrl: URLSearchParams | string,
+): Response => {
+  const returnUrl = typeof formOrReturnUrl === "string"
+    ? formOrReturnUrl
+    : (formOrReturnUrl.get("return_url") ?? "");
+  return htmlResponse(adminRefundAttendeePage(data, session, msg, returnUrl), 400);
+};
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute((data, session, request) => {
@@ -242,12 +228,11 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
     "Attendee name does not match. Please type the exact name to confirm refund.");
   if (nameError) return nameError;
 
-  const returnUrl = getReturnUrlFromForm(form);
-  if (!data.attendee.payment_id) return refundError(data, session, NO_PAYMENT_ERROR, returnUrl);
-  if (data.attendee.refunded) return refundError(data, session, ALREADY_REFUNDED_ERROR, returnUrl);
+  if (!data.attendee.payment_id) return refundError(data, session, NO_PAYMENT_ERROR, form);
+  if (data.attendee.refunded) return refundError(data, session, ALREADY_REFUNDED_ERROR, form);
 
   const provider = await getActivePaymentProvider();
-  if (!provider) return refundError(data, session, NO_PROVIDER_ERROR, returnUrl);
+  if (!provider) return refundError(data, session, NO_PROVIDER_ERROR, form);
 
   const refunded = await provider.refundPayment(data.attendee.payment_id);
   if (!refunded) {
@@ -255,11 +240,12 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
       code: ErrorCode.PAYMENT_REFUND,
       detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
     });
-    return refundError(data, session, REFUND_FAILED_ERROR, returnUrl);
+    return refundError(data, session, REFUND_FAILED_ERROR, form);
   }
 
   await markRefunded(data.attendee.id);
-  return logAndRedirectToEvent(`Refund issued for attendee '${data.attendee.name}'`, eventId, form);
+  await logActivity(`Refund issued for attendee '${data.attendee.name}'`, eventId);
+  return redirect(`/admin/event/${eventId}`, "Refund issued", true, { form });
 });
 
 /** Filter attendees that have a payment_id and are not yet refunded */
@@ -332,7 +318,7 @@ const processRefundAll = async (
   }
 
   await logActivity(`Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`, event.id);
-  return redirect(`/admin/event/${event.id}`);
+  return redirect(`/admin/event/${event.id}`, "All attendees refunded", true);
 };
 
 /** Handle POST /admin/event/:id/refund-all */
@@ -359,9 +345,7 @@ const handleAddAttendee = (
     const validation = validateForm<AddAttendeeFormValues>(form, fields);
 
     if (!validation.valid) {
-      return redirect(
-        `/admin/event/${eventId}?add_error=${encodeURIComponent(validation.error)}#add-attendee`,
-      );
+      return redirect(`/admin/event/${eventId}`, validation.error, false);
     }
 
     const { name, email, phone, address, special_instructions, quantity, date } = validation.values;
@@ -384,15 +368,11 @@ const handleAddAttendee = (
       const errorMsg = result.reason === "capacity_exceeded"
         ? "Not enough spots available"
         : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
-      return redirect(
-        `/admin/event/${eventId}?add_error=${encodeURIComponent(errorMsg)}#add-attendee`,
-      );
+      return redirect(`/admin/event/${eventId}`, errorMsg, false);
     }
 
     await logActivity(`Attendee '${name}' added manually`, eventId);
-    return redirect(
-      `/admin/event/${eventId}?added=${encodeURIComponent(name)}#add-attendee`,
-    );
+    return redirect(`/admin/event/${eventId}`, `Added ${name}`, true);
   });
 
 /** Get all events (active + the current event), uniquified */
@@ -461,7 +441,8 @@ async function editAttendeeHandler(
   session: AuthSession, form: URLSearchParams, data: EditAttendeeData, attendeeId: number,
 ): Promise<Response> {
   applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-  const returnUrl = getReturnUrlFromForm(form);
+  const editError = (msg: string) =>
+    htmlResponse(adminEditAttendeePage(data, session, msg, form.get("return_url") ?? ""), 400);
   const name = form.get("name") || "";
   const email = form.get("email") || "";
   const phone = form.get("phone") || "";
@@ -469,18 +450,11 @@ async function editAttendeeHandler(
   const special_instructions = form.get("special_instructions") || "";
   const event_id = Number(form.get("event_id")) || 0;
 
-  if (!name.trim()) {
-    return htmlResponse(adminEditAttendeePage(data, session, "Name is required", returnUrl), 400);
-  }
-
-  if (!event_id) {
-    return htmlResponse(adminEditAttendeePage(data, session, "Event is required", returnUrl), 400);
-  }
+  if (!name.trim()) return editError("Name is required");
+  if (!event_id) return editError("Event is required");
 
   const targetEvent = event_id === data.event.id ? data.event : await getEventWithCount(event_id);
-  if (!targetEvent) {
-    return htmlResponse(adminEditAttendeePage(data, session, "Event not found", returnUrl), 400);
-  }
+  if (!targetEvent) return editError("Event not found");
 
   const quantity = parseQuantity(form.get("quantity") || "1", targetEvent.max_quantity);
 
@@ -491,21 +465,13 @@ async function editAttendeeHandler(
     // For event change, check full quantity against new event; for same event, check only the delta
     const spotsNeeded = eventChanged ? quantity : quantityDelta;
     const available = await hasAvailableSpots(event_id, spotsNeeded, data.attendee.date);
-    if (!available) {
-      return htmlResponse(adminEditAttendeePage(data, session, "Not enough spots available", returnUrl), 400);
-    }
+    if (!available) return editError("Not enough spots available");
   }
 
   await updateAttendee(attendeeId, { name, email, phone, address, special_instructions, event_id, quantity });
   await logActivity(`Attendee '${name}' updated`, event_id);
 
-  const successMessage = `Attendee '${name}' updated`;
-  if (returnUrl) {
-    const url = new URL(returnUrl, "http://localhost");
-    url.searchParams.set("success", successMessage);
-    return redirect(url.pathname + url.search + url.hash);
-  }
-  return redirect(`/admin/event/${event_id}?edited=${encodeURIComponent(name)}#attendees`);
+  return redirect(`/admin/event/${event_id}#attendees`, `Updated ${name}`, true, { form });
 }
 const handleEditAttendeePost = editAttendeePost(editAttendeeHandler);
 
@@ -524,7 +490,7 @@ const handleResendNotification = attendeeFormAction(async (data, session, form, 
     logAndNotifyRegistration(data.event, data.attendee, currency),
     logActivity(`Notification re-sent for attendee '${data.attendee.name}'`, eventId),
   ]);
-  return redirectOrReturn(form, `/admin/event/${eventId}`);
+  return redirect(`/admin/event/${eventId}`, "Notification re-sent", true, { form });
 });
 
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */
@@ -532,7 +498,7 @@ async function refreshPaymentHandler(
   session: AuthSession, _form: URLSearchParams, data: EditAttendeeData, attendeeId: number,
 ): Promise<Response> {
   if (!data.attendee.payment_id) {
-    return redirect(`/admin/attendees/${attendeeId}`);
+    return redirect(`/admin/attendees/${attendeeId}`, "No payment to refresh", false);
   }
 
   const provider = await getActivePaymentProvider();
@@ -544,10 +510,10 @@ async function refreshPaymentHandler(
   if (isRefunded && !data.attendee.refunded) {
     await markRefunded(attendeeId);
     await logActivity(`Payment marked as refunded for attendee '${data.attendee.name}'`, data.event.id);
-    return redirect(`/admin/attendees/${attendeeId}?success=${encodeURIComponent("Payment status updated: refunded")}`);
+    return redirect(`/admin/attendees/${attendeeId}`, "Payment status updated: refunded", true);
   }
 
-  return redirect(`/admin/attendees/${attendeeId}?success=${encodeURIComponent("Payment status is up to date")}`);
+  return redirect(`/admin/attendees/${attendeeId}`, "Payment status is up to date", true);
 }
 const handleRefreshPayment = editAttendeePost(refreshPaymentHandler);
 

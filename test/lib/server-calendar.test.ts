@@ -346,7 +346,7 @@ describe("admin calendar", () => {
         cookie,
       });
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/calendar");
+      expect(response.headers.get("location")).toBe("/admin/calendar?error=Select+a+date+to+export");
     });
 
     test("returns CSV with correct headers", async () => {

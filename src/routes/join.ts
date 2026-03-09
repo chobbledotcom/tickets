@@ -103,7 +103,7 @@ const handleJoinPost = (request: Request, { code }: InviteCodeParams): Promise<R
         // Set the password and clear the invite code
         await setUserPassword(user.id, password);
 
-        return redirect("/join/complete");
+        return redirect("/join/complete", "Password set successfully", true);
       },
     ));
 

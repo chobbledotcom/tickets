@@ -27,7 +27,7 @@ import {
 import type { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { notFoundResponse, parseRequest, redirect, SessionKeyError, temporaryErrorResponse } from "#routes/utils.ts";
+import { notFoundResponse, parseRequest, redirectResponse, SessionKeyError, temporaryErrorResponse } from "#routes/utils.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 
 /** Router function type - reuse from router.ts */
@@ -207,7 +207,7 @@ const handleRequestInternal = async (
 
   // Require setup before accessing other routes
   if (!(await isSetupComplete())) {
-    return redirect("/setup");
+    return redirectResponse("/setup");
   }
 
   await loadCurrencyCode();
@@ -271,7 +271,7 @@ export const handleRequest = (
   } catch (error) {
     logError({ code: ErrorCode.CDN_REQUEST, detail: String(error) });
     if (error instanceof SessionKeyError) {
-      return logAndReturn(redirect("/admin", clearSessionCookie()), method, path, getElapsed);
+      return logAndReturn(redirectResponse("/admin", clearSessionCookie()), method, path, getElapsed);
     }
     return logAndReturn(temporaryErrorResponse(), method, path, getElapsed);
   }

@@ -150,7 +150,7 @@ export const adminDashboardPage = (
       <Raw html={renderSuccess(successMessage ?? undefined)} />
 
       {imageError && (
-        <p class="error">Event created but image was not saved: {imageError}</p>
+        <p class="error">{imageError}</p>
       )}
 
       <p><a href="/admin/event/new">Add Event</a></p>

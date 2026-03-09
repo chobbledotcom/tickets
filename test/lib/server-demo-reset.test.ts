@@ -157,7 +157,7 @@ describe("server (demo reset)", () => {
         }),
       );
 
-      expectRedirect("/setup/")(response);
+      expectRedirect("/setup/?success=Database+reset")(response);
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
       invalidateTestDbCache();
     });

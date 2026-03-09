@@ -1,7 +1,7 @@
 import { logActivity } from "#lib/db/activityLog.ts";
 import type { NamedResource } from "#lib/rest/resource.ts";
 import type { AdminSession } from "#lib/types.ts";
-import { getSearchParam, htmlResponse, notFoundResponse, orNotFound, redirectWithSuccess, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
+import { getSearchParam, htmlResponse, notFoundResponse, orNotFound, redirect, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
 
 type OwnerCrudConfig<Row, Input> = {
   singular: string;
@@ -45,7 +45,7 @@ export const createOwnerCrudHandlers = <Row, Input>(cfg: OwnerCrudConfig<Row, In
 
   const logAndRedirect = async (verb: string, name: string, path?: string): Promise<Response> => {
     await logActivity(`${cfg.singular} '${name}' ${verb}`);
-    return redirectWithSuccess(path ?? cfg.listPath, `${cfg.singular} ${verb}`);
+    return redirect(path ?? cfg.listPath, `${cfg.singular} ${verb}`, true);
   };
 
   const listGet = (request: Request): Promise<Response> =>
@@ -103,7 +103,7 @@ export const createOwnerCrudHandlers = <Row, Input>(cfg: OwnerCrudConfig<Row, In
       const result = await cfg.resource.delete(id);
       if ("notFound" in result) return notFoundResponse();
       await logActivity(`${cfg.singular} '${cfg.getName(row)}' deleted`);
-      return redirectWithSuccess(cfg.listPath, `${cfg.singular} deleted`);
+      return redirect(cfg.listPath, `${cfg.singular} deleted`, true);
     });
 
   const deletePost = ownerFormForId(deleteHandler);

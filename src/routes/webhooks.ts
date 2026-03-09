@@ -49,7 +49,7 @@ import {
   jsonResponse,
   paymentErrorResponse,
   plainResponse,
-  redirect,
+  redirectResponse,
 } from "#routes/utils.ts";
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 
@@ -573,7 +573,7 @@ const processSessionAndRedirect = async (sessionId: string): Promise<Response> =
   // Redirect to success page with verified tokens in URL
   // encodeURIComponent preserves + as %2B so URLSearchParams.get() decodes it back correctly
   if (result.ticketTokens.length > 0) {
-    return redirect(`/payment/success?tokens=${encodeURIComponent(result.ticketTokens.join("+"))}`);
+    return redirectResponse(`/payment/success?tokens=${encodeURIComponent(result.ticketTokens.join("+"))}`);
   }
 
   // Already-processed session (no tokens available) - render directly

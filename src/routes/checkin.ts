@@ -16,7 +16,7 @@ import {
   getPrivateKey,
   getSearchParam,
   htmlResponse,
-  redirect,
+  redirectResponse,
   withAuthForm,
 } from "#routes/utils.ts";
 import { createTokenRoute, lookupAttendees, resolveEntries } from "#routes/token-utils.ts";
@@ -87,7 +87,7 @@ const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response
       const eligible = filter((a: Attendee) => !a.refunded)(decrypted);
 
       if (eligible.length === 0) {
-        return redirect(`/checkin/${tokens.join("+")}?message=${encodeURIComponent("Cannot check in refunded tickets")}`);
+        return redirectResponse(`/checkin/${tokens.join("+")}?message=${encodeURIComponent("Cannot check in refunded tickets")}`);
       }
 
       const totalTickets = sumTicketCount(eligible);
@@ -105,7 +105,7 @@ const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response
       } else {
         message = `Checked in ${formatTicketCount(uncheckedTickets)}`;
       }
-      return redirect(`/checkin/${tokens.join("+")}?message=${encodeURIComponent(message)}`);
+      return redirectResponse(`/checkin/${tokens.join("+")}?message=${encodeURIComponent(message)}`);
     }));
 
 /** Route check-in requests */

@@ -400,7 +400,7 @@ describe("test-utils", () => {
         password: "newpassword123",
         password_confirm: "newpassword123",
       });
-      expectRedirect("/join/complete")(response);
+      expectRedirect("/join/complete?success=Password+set+successfully")(response);
     });
 
     test("returns error response for mismatched passwords", async () => {

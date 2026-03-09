@@ -46,10 +46,7 @@ const createLoginSession = async (
 
   await createSession(token, csrfToken, expires, wrappedDataKey, userId);
 
-  return redirect(
-    "/admin",
-    buildSessionCookie(token),
-  );
+  return redirect("/admin", "Logged in", true, { cookie: buildSessionCookie(token) });
 };
 
 /**
@@ -132,13 +129,13 @@ const handleAdminLogin = async (
 const handleAdminLogout = (request: Request): Promise<Response> =>
   withAuthForm(request, async (session) => {
     await deleteSession(session.token);
-    return redirect("/admin", clearSessionCookie());
+    return redirect("/admin", "Logged out", true, { cookie: clearSessionCookie() });
   });
 
 /** Handle GET /admin/login - redirect to dashboard if already authenticated */
 const handleLoginGet = async (request: Request): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
-  if (session) return redirect("/admin");
+  if (session) return redirect("/admin", "Already logged in", true);
   return loginResponse();
 };
 

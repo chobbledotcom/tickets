@@ -191,9 +191,12 @@ export const temporaryErrorResponse = (): Response =>
   htmlResponse(temporaryErrorPage(), 503);
 
 /**
- * Create redirect response
+ * Create bare 302 redirect response (no message).
+ * Use for external URLs, setup flow, public pages, and other cases
+ * where the target page doesn't render success/error banners.
+ * For admin redirects that should show a message, use `redirect` instead.
  */
-export const redirect = (url: string, cookie?: string): Response => {
+export const redirectResponse = (url: string, cookie?: string): Response => {
   const headers: HeadersInit = {
     location: url,
     "content-type": "text/html; charset=utf-8",
@@ -204,15 +207,27 @@ export const redirect = (url: string, cookie?: string): Response => {
   return new Response(null, { status: 302, headers });
 };
 
+/** Options for redirect */
+type RedirectOpts = { formId?: string; cookie?: string; form?: URLSearchParams };
+
 /**
- * Create redirect response with a success message as query parameter (PRG pattern).
+ * Redirect with a success or error message (PRG pattern).
+ * Appends ?success= or ?error= to the URL, safely handling existing query params.
  * When formId is provided, adds a `form` param and `#formId` anchor so the
  * browser scrolls to the form that was just submitted.
  */
-export const redirectWithSuccess = (basePath: string, message: string, formId?: string): Response =>
-  formId
-    ? redirect(`${basePath}?success=${encodeURIComponent(message)}&form=${encodeURIComponent(formId)}#${formId}`)
-    : redirect(`${basePath}?success=${encodeURIComponent(message)}`);
+export const redirect = (
+  url: string, message: string, succeeded: boolean, opts?: RedirectOpts,
+): Response => {
+  const target = opts?.form?.get("return_url") || url;
+  const u = new URL(target, "http://localhost");
+  u.searchParams.set(succeeded ? "success" : "error", message);
+  if (opts?.formId) {
+    u.searchParams.set("form", opts.formId);
+    u.hash = opts.formId;
+  }
+  return redirectResponse(u.pathname + u.search + u.hash, opts?.cookie);
+};
 
 /**
  * Parse form data from request
@@ -392,7 +407,7 @@ export const withSession = async (
 export const requireSessionOr = (
   request: Request,
   handler: (session: AuthSession) => Response | Promise<Response>,
-): Promise<Response> => withSession(request, handler, () => redirect("/admin"));
+): Promise<Response> => withSession(request, handler, () => redirectResponse("/admin"));
 
 /** Check owner role, return 403 if not owner */
 const requireOwnerRole = (
@@ -456,7 +471,7 @@ export const requireAuthForm = async (
 ): Promise<AuthFormResult> => {
   const session = await getAuthenticatedSession(request);
   if (!session) {
-    return { ok: false, response: redirect("/admin") };
+    return { ok: false, response: redirectResponse("/admin") };
   }
 
   const form = await parseFormData(request);
@@ -509,7 +524,7 @@ export const withAuthMultipartForm = async (
   handler: MultipartFormHandler,
 ): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
-  if (!session) return redirect("/admin");
+  if (!session) return redirectResponse("/admin");
 
   const formData = await request.formData();
   const csrfToken = String(formData.get("csrf_token") ?? "");

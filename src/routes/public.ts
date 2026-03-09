@@ -45,7 +45,7 @@ import {
   htmlResponse,
   isRegistrationClosed,
   notFoundResponse,
-  redirect,
+  redirectResponse,
   withCsrfForm,
   withActiveEventBySlug,
 } from "#routes/utils.ts";
@@ -70,7 +70,7 @@ const loadHomepageEvents = async (): Promise<MultiTicketEvent[]> => {
 
 /** Guard: redirect to admin if public site is disabled */
 const requirePublicSite = async (fn: () => Promise<Response>): Promise<Response> =>
-  await getShowPublicSiteFromDb() ? fn() : redirect("/admin/");
+  await getShowPublicSiteFromDb() ? fn() : redirectResponse("/admin/");
 
 /** Render a public site page with website title and content fetched in parallel */
 const renderPublicPage = (
@@ -168,12 +168,12 @@ const bookingResultToWebResponse = (
 ): Response => {
   switch (result.type) {
     case "success": {
-      if (event.thank_you_url) return redirect(event.thank_you_url);
+      if (event.thank_you_url) return redirectResponse(event.thank_you_url);
       const iframeParam = ctx.inIframe ? "&iframe=true" : "";
-      return redirect(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}${iframeParam}`);
+      return redirectResponse(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}${iframeParam}`);
     }
     case "checkout":
-      return ctx.inIframe ? htmlResponse(checkoutPopupPage(result.checkoutUrl)) : redirect(result.checkoutUrl);
+      return ctx.inIframe ? htmlResponse(checkoutPopupPage(result.checkoutUrl)) : redirectResponse(result.checkoutUrl);
     case "sold_out":
       return ticketResponse(event, ctx.inIframe, ctx.dates, ctx.terms)("Sorry, not enough spots available");
     case "checkout_failed":
@@ -195,7 +195,7 @@ const tryCheckoutRedirect = <T>(
   errorHandler: () => T,
 ): Response | T => {
   if (!sessionUrl) return errorHandler();
-  return inIframe ? htmlResponse(checkoutPopupPage(sessionUrl)) : redirect(sessionUrl);
+  return inIframe ? htmlResponse(checkoutPopupPage(sessionUrl)) : redirectResponse(sessionUrl);
 };
 
 /** Get active payment provider or return an error response */
@@ -556,7 +556,7 @@ const submitMultiTicket = (
 
       const iframeParam = inIframe ? "&iframe=true" : "";
       const tokens = encodeURIComponent(result.tokens.join("+"));
-      return redirect(`/ticket/reserved?tokens=${tokens}${iframeParam}`);
+      return redirectResponse(`/ticket/reserved?tokens=${tokens}${iframeParam}`);
     },
   );
 
