@@ -266,7 +266,7 @@ describe("email-renderer", () => {
         expect(result.subject).toContain("Test Event");
         // Should have logged the error
         const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
-        expect(logs.some((l) => l.includes("template render error"))).toBe(true);
+        expect(logs.some((l) => l.includes("E_EMAIL_TEMPLATE_RENDER") && l.includes("template render error"))).toBe(true);
       } finally {
         errorSpy.restore();
       }
