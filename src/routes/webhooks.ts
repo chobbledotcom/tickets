@@ -53,7 +53,10 @@ import {
 } from "#routes/utils.ts";
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 
-/** Parsed multi-ticket item from metadata */
+/** Raw multi-ticket item from metadata (p may be absent in old webhooks) */
+type RawMultiItem = { e: number; q: number; p?: number };
+
+/** Multi-ticket item with p defaulted to 0 */
 type MultiItem = { e: number; q: number; p: number };
 
 /** Check if session is a multi-ticket session */
@@ -289,8 +292,8 @@ const alreadyProcessedResult = async (
   return { success: true, attendee: { id: attendeeId }, event, ticketTokens: [] };
 };
 
-/** Validate that a parsed value has the shape of a valid MultiItem */
-const isMultiItem = (v: unknown): v is MultiItem => {
+/** Validate that a parsed value has the shape of a valid RawMultiItem */
+const isMultiItem = (v: unknown): v is RawMultiItem => {
   if (typeof v !== "object" || v === null) return false;
   const { e, q, p } = v as Record<string, unknown>;
   return typeof e === "number" && Number.isInteger(e) && e > 0 &&
@@ -303,8 +306,8 @@ const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
   try {
     const parsed: unknown = JSON.parse(itemsJson);
     if (!Array.isArray(parsed) || !parsed.every(isMultiItem)) return null;
-    // Default p to 0 when absent — backfilled in processMultiPaymentSession
-    return map((item: MultiItem) => ({ ...item, p: item.p ?? 0 }))(parsed);
+    // Default p to 0 when absent — old webhooks may lack per-item prices
+    return map((item: RawMultiItem): MultiItem => ({ ...item, p: item.p ?? 0 }))(parsed);
   } catch {
     return null;
   }
