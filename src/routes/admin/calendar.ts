@@ -3,9 +3,10 @@
  */
 
 import { filter, flatMap, map, pipe, reduce, sort, unique } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { getAllowedDomain, getTz } from "#lib/config.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { eventDateToCalendarDate, formatDateLabel, getAvailableDates } from "#lib/dates.ts";
+import { todayInTz } from "#lib/timezone.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { decryptAttendees, decryptAttendeesForTable } from "#lib/db/attendees.ts";
 import { mergeEventFields } from "#lib/event-fields.ts";
@@ -185,6 +186,7 @@ const handleAdminCalendarGet = (request: Request) =>
         session,
         dateFilter,
         availableDates,
+        todayInTz(getTz()),
         phonePrefix,
       ),
     );
