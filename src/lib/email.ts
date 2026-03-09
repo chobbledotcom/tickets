@@ -122,12 +122,12 @@ export const EMAIL_PROVIDER_LABELS: Record<string, string> = {
   "mailgun-eu": "Mailgun (EU)",
 };
 
-/** Send a single email via the configured provider. Logs errors, never throws. */
-export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise<void> => {
+/** Send a single email via the configured provider. Logs errors, never throws. Returns HTTP status or undefined on non-HTTP errors. */
+export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise<number | undefined> => {
   const buildRequest = PROVIDERS[config.provider];
   if (!buildRequest) {
     logError({ code: ErrorCode.EMAIL_SEND, detail: `unknown provider: ${config.provider}` });
-    return;
+    return undefined;
   }
   try {
     const [url, headers, body] = buildRequest(config, msg);
@@ -140,11 +140,13 @@ export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise
     if (!response.ok) {
       logError({ code: ErrorCode.EMAIL_SEND, detail: `status=${response.status} to=${msg.to}` });
     }
+    return response.status;
   } catch (error) {
     logError({
       code: ErrorCode.EMAIL_SEND,
       detail: error instanceof Error ? error.message : String(error),
     });
+    return undefined;
   }
 };
 
@@ -165,7 +167,7 @@ export const sendRegistrationEmails = async (
   const replyTo = businessEmail || undefined;
 
   const confirmation = registrationConfirmation(entries, currency, ticketUrl);
-  const promises: Promise<void>[] = [
+  const promises: Promise<number | undefined>[] = [
     sendEmail(config, { to: entries[0]!.attendee.email, ...confirmation, replyTo }),
   ];
 
@@ -179,9 +181,9 @@ export const sendRegistrationEmails = async (
   await Promise.allSettled(promises);
 };
 
-/** Send a test email to the business email address. */
-export const sendTestEmail = async (config: EmailConfig, to: string): Promise<void> => {
-  await sendEmail(config, {
+/** Send a test email to the business email address. Returns HTTP status or undefined on non-HTTP errors. */
+export const sendTestEmail = async (config: EmailConfig, to: string): Promise<number | undefined> => {
+  return await sendEmail(config, {
     to,
     subject: "Test email from your ticket system",
     html: "<p>This is a test email. Your email configuration is working correctly.</p>",
