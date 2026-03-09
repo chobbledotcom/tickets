@@ -295,7 +295,7 @@ const isMultiItem = (v: unknown): v is MultiItem => {
   const { e, q, p } = v as Record<string, unknown>;
   return typeof e === "number" && Number.isInteger(e) && e > 0 &&
     typeof q === "number" && Number.isInteger(q) && q >= 1 &&
-    typeof p === "number" && Number.isInteger(p) && p >= 0;
+    (p === undefined || (typeof p === "number" && Number.isInteger(p) && p >= 0));
 };
 
 /** Parse multi-ticket items from metadata */
@@ -303,7 +303,8 @@ const parseMultiItems = (itemsJson: string): MultiItem[] | null => {
   try {
     const parsed: unknown = JSON.parse(itemsJson);
     if (!Array.isArray(parsed) || !parsed.every(isMultiItem)) return null;
-    return parsed;
+    // Default p to 0 when absent — backfilled in processMultiPaymentSession
+    return map((item: MultiItem) => ({ ...item, p: item.p ?? 0 }))(parsed);
   } catch {
     return null;
   }
@@ -334,6 +335,21 @@ const extractMultiIntent = (
     date: metadata.date ?? null,
     items,
   };
+};
+
+/** Log a price mismatch and refund the session */
+const priceMismatchRefund = (
+  session: ValidatedPaymentSession,
+  detail: string,
+  eventId?: number,
+): Promise<PaymentResult> => {
+  logError({ code: ErrorCode.PAYMENT_SESSION, detail });
+  return refundAndFail(
+    session,
+    "The price for one or more events changed while you were completing payment.",
+    undefined,
+    eventId,
+  );
 };
 
 /**
@@ -376,45 +392,49 @@ const processMultiPaymentSession = async (
     expectedTotal += vp.expectedPrice;
   }
 
-  // Per-item price validation: each item's p must match its event's rules
-  for (const { item, event, expectedPrice } of validatedItems) {
-    const itemMismatch = event.can_pay_more
-      ? item.p < expectedPrice || item.p > getMaxPrice(event)  // pay-more: min <= p <= max
-      : item.p !== expectedPrice; // fixed: p must equal unit_price * q exactly
-    if (itemMismatch) {
-      logError({
-        code: ErrorCode.PAYMENT_SESSION,
-        detail: `Multi-ticket per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
-      });
-      return refundAndFail(
-        session,
-        "The price for one or more events changed while you were completing payment.",
-        undefined,
-        event.id,
-      );
-    }
-  }
+  // When items have per-item prices, validate each against the event's rules
+  const hasPerItemPrices = intent.items.some((item) => item.p > 0);
 
-  // Cart total must equal the sum of per-item prices
-  const metadataTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
-  if (session.amountTotal !== metadataTotal) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      detail: `Multi-ticket total mismatch: provider charged ${session.amountTotal} but sum(p) = ${metadataTotal}`,
-    });
-    return refundAndFail(
-      session,
-      "The price for one or more events changed while you were completing payment.",
-      undefined,
-      validatedItems[0]?.event.id,
-    );
+  if (hasPerItemPrices) {
+    for (const { item, event, expectedPrice } of validatedItems) {
+      const itemMismatch = event.can_pay_more
+        ? item.p < expectedPrice || item.p > getMaxPrice(event)  // pay-more: min <= p <= max
+        : item.p !== expectedPrice; // fixed: p must equal unit_price * q exactly
+      if (itemMismatch) {
+        return priceMismatchRefund(session,
+          `Multi-ticket per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
+          event.id);
+      }
+    }
+
+    // Cart total must equal the sum of per-item prices
+    const metadataTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
+    if (session.amountTotal !== metadataTotal) {
+      return priceMismatchRefund(session,
+        `Multi-ticket total mismatch: provider charged ${session.amountTotal} but sum(p) = ${metadataTotal}`,
+        validatedItems[0]?.event.id);
+    }
+  } else {
+    // No per-item prices: validate that provider charged at least the expected total
+    if (session.amountTotal < expectedTotal) {
+      return priceMismatchRefund(session,
+        `Multi-ticket total mismatch: provider charged ${session.amountTotal} but expected at least ${expectedTotal}`,
+        validatedItems[0]?.event.id);
+    }
   }
 
   const createdAttendees: { attendee: Attendee; event: EventWithCount }[] = [];
   let failedEvent: EventWithCount | null = null;
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
-  for (const { item, event } of validatedItems) {
+  if (!hasPerItemPrices) {
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      detail: `Multi-ticket session ${session.id} missing per-item prices, using expected prices (possible old payment)`,
+    });
+  }
+
+  for (const { item, event, expectedPrice } of validatedItems) {
 
     const result = await createAttendeeAtomic({
       eventId: item.e,
@@ -425,7 +445,7 @@ const processMultiPaymentSession = async (
       phone: intent.phone,
       address: intent.address,
       special_instructions: intent.special_instructions,
-      pricePaid: item.p,
+      pricePaid: hasPerItemPrices ? item.p : expectedPrice,
       date: event.event_type === "daily" ? intent.date : null,
     });
 
@@ -707,6 +727,8 @@ const extractSessionFromEvent = (
       name: metadata.name,
       email: metadata.email,
       phone: metadata.phone as string | undefined,
+      address: metadata.address as string | undefined,
+      special_instructions: metadata.special_instructions as string | undefined,
       quantity: metadata.quantity as string | undefined,
       multi: metadata.multi as string | undefined,
       items: metadata.items as string | undefined,
@@ -750,11 +772,13 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Get signature header (sync — headers are always available)
   const signature = getWebhookSignatureHeader(request);
   if (!signature) {
+    logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Webhook missing signature header" });
     return plainResponse("Missing signature", 400);
   }
 
   const provider = await getActivePaymentProvider();
   if (!provider) {
+    logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Webhook received but payment provider not configured" });
     return plainResponse("Payment provider not configured", 400);
   }
 
@@ -791,6 +815,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
     const sessionId = extractSessionIdFromObject(obj);
 
     if (!sessionId) {
+      logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Webhook event missing session ID" });
       return plainResponse("Invalid session data", 400);
     }
 
@@ -801,6 +826,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
     session = await provider.retrieveSession(sessionId);
     if (!session) {
+      logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Failed to retrieve session ${sessionId}` });
       return plainResponse("Invalid session data", 400);
     }
   }
@@ -830,6 +856,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   if (isMulti) {
     const multiIntent = extractMultiIntent(session);
     if (!multiIntent) {
+      logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Invalid multi-ticket session data for ${session.id}` });
       return plainResponse("Invalid multi-ticket session data", 400);
     }
     eventIdForLog = multiIntent.items[0]?.e;
