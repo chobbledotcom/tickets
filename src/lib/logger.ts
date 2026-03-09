@@ -88,6 +88,7 @@ const ERROR_DEFS = {
 
   // Email errors
   EMAIL_SEND: ["E_EMAIL_SEND", "Email send failed"],
+  EMAIL_TEMPLATE_RENDER: ["E_EMAIL_TEMPLATE_RENDER", "Email template render failed"],
 
   // Not found
   NOT_FOUND_EVENT: ["E_NOT_FOUND_EVENT", "Event not found"],
