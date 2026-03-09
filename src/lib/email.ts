@@ -10,6 +10,7 @@ import {
   getEmailProviderFromDb,
 } from "#lib/db/settings.ts";
 import { buildTemplateData, renderEmailContent } from "#lib/email-renderer.ts";
+import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
 import type { RegistrationEntry } from "#lib/webhook.ts";
@@ -39,6 +40,15 @@ export const getEmailConfig = async (): Promise<EmailConfig | null> => {
   const from = fromAddress || businessEmail;
   if (!provider || !apiKey || !from) return null;
   return { provider, apiKey, fromAddress: from };
+};
+
+/** Read host-level email config from environment variables. Returns null if not fully configured. */
+export const getHostEmailConfig = (): EmailConfig | null => {
+  const provider = getEnv("HOST_EMAIL_PROVIDER");
+  const apiKey = getEnv("HOST_EMAIL_API_KEY");
+  const fromAddress = getEnv("HOST_EMAIL_FROM_ADDRESS");
+  if (!provider || !apiKey || !fromAddress) return null;
+  return { provider, apiKey, fromAddress };
 };
 
 /** Build provider-specific request: [url, extra-headers, body] */
@@ -158,7 +168,7 @@ export const sendRegistrationEmails = async (
   entries: RegistrationEntry[],
   currency: string,
 ): Promise<void> => {
-  const config = await getEmailConfig();
+  const config = await getEmailConfig() ?? getHostEmailConfig();
   if (!config) return;
 
   const businessEmail = await getBusinessEmailFromDb();

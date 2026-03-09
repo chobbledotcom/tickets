@@ -9,7 +9,7 @@ import {
   updateBusinessEmail,
 } from "#lib/business-email.ts";
 import { validateCustomDomain } from "#lib/bunny-cdn.ts";
-import { getEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
+import { EMAIL_PROVIDER_LABELS, getEmailConfig, getHostEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { buildTemplateData, renderTemplate, validateTemplate } from "#lib/email-renderer.ts";
 import {
   getAllowedDomain,
@@ -17,7 +17,6 @@ import {
   getSquareWebhookSignatureKey,
   isBunnyCdnEnabled,
 } from "#lib/config.ts";
-import { getEnv } from "#lib/env.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
@@ -182,7 +181,12 @@ const getSettingsPageState = async () => {
     emailProvider: emailProvider ?? "",
     emailApiKeyConfigured,
     emailFromAddress: emailFromAddress ?? "",
-    globalWebhookUrl: getEnv("WEBHOOK_URL") ?? "",
+    hostEmailLabel: (() => {
+      const hostConfig = getHostEmailConfig();
+      if (!hostConfig) return "";
+      const label = EMAIL_PROVIDER_LABELS[hostConfig.provider] ?? hostConfig.provider;
+      return `Host ${label} (${hostConfig.fromAddress})`;
+    })(),
     confirmationTemplates: {
       subject: confirmationTemplates.subject ?? "",
       html: confirmationTemplates.html ?? "",
@@ -947,9 +951,22 @@ const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
 
   await updateCustomDomain(raw);
   await logActivity(`Custom domain set to ${raw}`);
+
+  // Attempt validation immediately after saving
+  const result = await validateCustomDomain(raw);
+  if (result.ok) {
+    await updateCustomDomainLastValidated();
+    await logActivity(`Custom domain validated: ${raw}`);
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Custom domain saved and validated",
+      "settings-custom-domain",
+    );
+  }
+
   return redirectWithSuccess(
     "/admin/settings",
-    "Custom domain saved",
+    "Custom domain saved (validation pending — see instructions below)",
     "settings-custom-domain",
   );
 });

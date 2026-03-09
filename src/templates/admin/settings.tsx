@@ -45,7 +45,7 @@ export type SettingsPageState = {
   emailProvider: string;
   emailApiKeyConfigured: boolean;
   emailFromAddress: string;
-  globalWebhookUrl: string;
+  hostEmailLabel: string;
   confirmationTemplates: EmailTemplateState;
   adminTemplates: EmailTemplateState;
   bunnyCdnEnabled: boolean;
@@ -138,7 +138,7 @@ export const adminSettingsPage = (
           <p>Send confirmation emails to attendees and admin notifications when registrations come in.</p>
           <label for="email_provider">Email Provider</label>
           <select id="email_provider" name="email_provider">
-            <option value="" selected={!s.emailProvider}>{s.globalWebhookUrl ? `Default webhook (${new URL(s.globalWebhookUrl).hostname})` : "None (disabled)"}</option>
+            <option value="" selected={!s.emailProvider}>{s.hostEmailLabel || "None (disabled)"}</option>
             {Array.from(VALID_EMAIL_PROVIDERS).map((p) => (
               <option value={p} selected={s.emailProvider === p}>{EMAIL_PROVIDER_LABELS[p]}</option>
             ))}
@@ -459,6 +459,13 @@ export const adminSettingsPage = (
 
           {s.customDomain && (
           <CsrfForm action="/admin/settings/custom-domain/validate" id="settings-custom-domain-validate">
+            {!s.customDomainLastValidated && (
+            <article>
+              <aside role="alert">
+                <p><strong>Your custom domain is not yet validated.</strong> It will not work until validation is complete.</p>
+              </aside>
+            </article>
+            )}
             <article>
               <aside>
                 <p>To use your custom domain, create a <strong>CNAME</strong> record:</p>
