@@ -889,7 +889,7 @@ describe("server (admin settings)", () => {
       );
 
       // Should redirect to setup page with session cleared
-      expectRedirect("/setup/")(response);
+      expectRedirect("/setup/?success=Database+reset")(response);
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
     });
 

@@ -611,7 +611,7 @@ describe("server (multi-user admin)", () => {
         password_confirm: "newpassword123",
       });
 
-      expectRedirect("/join/complete")(joinPostResponse);
+      expectRedirect("/join/complete?success=Password+set+successfully")(joinPostResponse);
 
       // Verify user now has a password
       const user = await getUserByUsername("joiner2");

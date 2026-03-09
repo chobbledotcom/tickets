@@ -14,7 +14,7 @@ import { validateForm } from "#lib/forms.tsx";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
-  redirectResponse,
+  redirect,
   withCsrfForm,
 } from "#routes/utils.ts";
 import { joinFields, type JoinFormValues } from "#templates/fields.ts";
@@ -103,7 +103,7 @@ const handleJoinPost = (request: Request, { code }: InviteCodeParams): Promise<R
         // Set the password and clear the invite code
         await setUserPassword(user.id, password);
 
-        return redirectResponse("/join/complete");
+        return redirect("/join/complete", "Password set successfully", true);
       },
     ));
 

@@ -82,7 +82,6 @@ import {
   htmlResponse,
   jsonResponse,
   redirect,
-  redirectResponse,
   requireOwnerOr,
   withOwnerAuthForm,
   withOwnerAuthMultipartForm,
@@ -776,7 +775,7 @@ const handleResetDatabasePost = settingsRoute(async (form, errorPage) => {
   await resetDatabase();
 
   // Redirect to setup page since the database is now empty
-  return redirectResponse("/setup/", clearSessionCookie());
+  return redirect("/setup/", "Database reset", true, { cookie: clearSessionCookie() });
 });
 
 /** Settings routes */

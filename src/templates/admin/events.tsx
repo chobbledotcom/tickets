@@ -449,7 +449,7 @@ export const adminEventPage = ({
 
         <article>
           <h2 id="add-attendee">Add Attendee</h2>
-          <CsrfForm action={`/admin/event/${event.id}/attendee`}>
+          <CsrfForm id="add-attendee" action={`/admin/event/${event.id}/attendee`}>
             <Raw html={renderFields(getAddAttendeeFields(event.fields, event.event_type === "daily"))} />
             <button type="submit">Add Attendee</button>
           </CsrfForm>

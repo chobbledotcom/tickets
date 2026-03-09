@@ -23,6 +23,7 @@ import {
   EVENT_DEMO_FIELDS,
   isDemoMode,
 } from "#lib/demo.ts";
+import { setFormError, setFormSuccess } from "#lib/forms.tsx";
 import { defineResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import {
@@ -324,8 +325,11 @@ const renderEventPage = async (
           attendees,
           request,
         );
+        const formId = getSearchParam(request, "form");
         const errorMessage = getSearchParam(request, "error");
         const successMessage = getSearchParam(request, "success");
+        if (formId && successMessage) setFormSuccess(formId, successMessage);
+        if (formId && errorMessage) setFormError(formId, errorMessage);
         const phonePrefix = await getPhonePrefixFromDb();
         return htmlResponse(
           adminEventPage({

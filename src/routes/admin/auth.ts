@@ -23,7 +23,6 @@ import {
   getClientIp,
   parseFormData,
   redirect,
-  redirectResponse,
   withAuthForm,
 } from "#routes/utils.ts";
 import { loginFields, type LoginFormValues } from "#templates/fields.ts";
@@ -136,7 +135,7 @@ const handleAdminLogout = (request: Request): Promise<Response> =>
 /** Handle GET /admin/login - redirect to dashboard if already authenticated */
 const handleLoginGet = async (request: Request): Promise<Response> => {
   const session = await getAuthenticatedSession(request);
-  if (session) return redirectResponse("/admin");
+  if (session) return redirect("/admin", "Already logged in", true);
   return loginResponse();
 };
 

@@ -207,9 +207,13 @@ const refundError = (
   data: AttendeeWithEvent,
   session: AuthSession,
   msg: string,
-  returnUrl: string,
-): Response =>
-  htmlResponse(adminRefundAttendeePage(data, session, msg, returnUrl), 400);
+  formOrReturnUrl: URLSearchParams | string,
+): Response => {
+  const returnUrl = typeof formOrReturnUrl === "string"
+    ? formOrReturnUrl
+    : (formOrReturnUrl.get("return_url") ?? "");
+  return htmlResponse(adminRefundAttendeePage(data, session, msg, returnUrl), 400);
+};
 
 /** Handle GET /admin/event/:eventId/attendee/:attendeeId/refund */
 const handleAdminAttendeeRefundGet = attendeeGetRoute((data, session, request) => {
@@ -224,12 +228,11 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
     "Attendee name does not match. Please type the exact name to confirm refund.");
   if (nameError) return nameError;
 
-  const returnUrl = form.get("return_url") ?? "";
-  if (!data.attendee.payment_id) return refundError(data, session, NO_PAYMENT_ERROR, returnUrl);
-  if (data.attendee.refunded) return refundError(data, session, ALREADY_REFUNDED_ERROR, returnUrl);
+  if (!data.attendee.payment_id) return refundError(data, session, NO_PAYMENT_ERROR, form);
+  if (data.attendee.refunded) return refundError(data, session, ALREADY_REFUNDED_ERROR, form);
 
   const provider = await getActivePaymentProvider();
-  if (!provider) return refundError(data, session, NO_PROVIDER_ERROR, returnUrl);
+  if (!provider) return refundError(data, session, NO_PROVIDER_ERROR, form);
 
   const refunded = await provider.refundPayment(data.attendee.payment_id);
   if (!refunded) {
@@ -237,7 +240,7 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
       code: ErrorCode.PAYMENT_REFUND,
       detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
     });
-    return refundError(data, session, REFUND_FAILED_ERROR, returnUrl);
+    return refundError(data, session, REFUND_FAILED_ERROR, form);
   }
 
   await markRefunded(data.attendee.id);
@@ -342,7 +345,7 @@ const handleAddAttendee = (
     const validation = validateForm<AddAttendeeFormValues>(form, fields);
 
     if (!validation.valid) {
-      return redirect(`/admin/event/${eventId}#add-attendee`, validation.error, false);
+      return redirect(`/admin/event/${eventId}`, validation.error, false, { formId: "add-attendee" });
     }
 
     const { name, email, phone, address, special_instructions, quantity, date } = validation.values;
@@ -365,11 +368,11 @@ const handleAddAttendee = (
       const errorMsg = result.reason === "capacity_exceeded"
         ? "Not enough spots available"
         : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
-      return redirect(`/admin/event/${eventId}#add-attendee`, errorMsg, false);
+      return redirect(`/admin/event/${eventId}`, errorMsg, false, { formId: "add-attendee" });
     }
 
     await logActivity(`Attendee '${name}' added manually`, eventId);
-    return redirect(`/admin/event/${eventId}#add-attendee`, `Added ${name}`, true);
+    return redirect(`/admin/event/${eventId}`, `Added ${name}`, true, { formId: "add-attendee" });
   });
 
 /** Get all events (active + the current event), uniquified */
@@ -438,7 +441,8 @@ async function editAttendeeHandler(
   session: AuthSession, form: URLSearchParams, data: EditAttendeeData, attendeeId: number,
 ): Promise<Response> {
   applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-  const returnUrl = form.get("return_url") ?? "";
+  const editError = (msg: string) =>
+    htmlResponse(adminEditAttendeePage(data, session, msg, form.get("return_url") ?? ""), 400);
   const name = form.get("name") || "";
   const email = form.get("email") || "";
   const phone = form.get("phone") || "";
@@ -446,18 +450,11 @@ async function editAttendeeHandler(
   const special_instructions = form.get("special_instructions") || "";
   const event_id = Number(form.get("event_id")) || 0;
 
-  if (!name.trim()) {
-    return htmlResponse(adminEditAttendeePage(data, session, "Name is required", returnUrl), 400);
-  }
-
-  if (!event_id) {
-    return htmlResponse(adminEditAttendeePage(data, session, "Event is required", returnUrl), 400);
-  }
+  if (!name.trim()) return editError("Name is required");
+  if (!event_id) return editError("Event is required");
 
   const targetEvent = event_id === data.event.id ? data.event : await getEventWithCount(event_id);
-  if (!targetEvent) {
-    return htmlResponse(adminEditAttendeePage(data, session, "Event not found", returnUrl), 400);
-  }
+  if (!targetEvent) return editError("Event not found");
 
   const quantity = parseQuantity(form.get("quantity") || "1", targetEvent.max_quantity);
 
@@ -468,9 +465,7 @@ async function editAttendeeHandler(
     // For event change, check full quantity against new event; for same event, check only the delta
     const spotsNeeded = eventChanged ? quantity : quantityDelta;
     const available = await hasAvailableSpots(event_id, spotsNeeded, data.attendee.date);
-    if (!available) {
-      return htmlResponse(adminEditAttendeePage(data, session, "Not enough spots available", returnUrl), 400);
-    }
+    if (!available) return editError("Not enough spots available");
   }
 
   await updateAttendee(attendeeId, { name, email, phone, address, special_instructions, event_id, quantity });
