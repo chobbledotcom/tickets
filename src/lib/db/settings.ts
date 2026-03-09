@@ -72,6 +72,10 @@ export const CONFIG_KEYS = {
   EMAIL_API_KEY: "email_api_key",
   // Email from address (encrypted - verified sender address)
   EMAIL_FROM_ADDRESS: "email_from_address",
+  // Custom domain (plaintext - user-configured custom domain for Bunny CDN pull zone)
+  CUSTOM_DOMAIN: "custom_domain",
+  // Custom domain last validated timestamp (plaintext - ISO 8601 UTC)
+  CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
 } as const;
 
 /**
@@ -803,6 +807,22 @@ export const getEmailFromAddressFromDb = (): Promise<string | null> =>
 export const updateEmailFromAddress = (address: string): Promise<void> =>
   updateEncryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS, address);
 
+/** Get the custom domain from database. Returns null if not set. */
+export const getCustomDomainFromDb = (): Promise<string | null> =>
+  getSetting(CONFIG_KEYS.CUSTOM_DOMAIN);
+
+/** Update the custom domain. Pass empty string to clear. */
+export const updateCustomDomain = (domain: string): Promise<void> =>
+  setOrDeleteSetting(CONFIG_KEYS.CUSTOM_DOMAIN, domain);
+
+/** Get the custom domain last validated timestamp. Returns null if never validated. */
+export const getCustomDomainLastValidatedFromDb = (): Promise<string | null> =>
+  getSetting(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED);
+
+/** Update the custom domain last validated timestamp to now (UTC ISO 8601). */
+export const updateCustomDomainLastValidated = (): Promise<void> =>
+  setSetting(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, new Date().toISOString());
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
@@ -869,4 +889,8 @@ export const settingsApi = {
   updateEmailApiKey,
   getEmailFromAddressFromDb,
   updateEmailFromAddress,
+  getCustomDomainFromDb,
+  updateCustomDomain,
+  getCustomDomainLastValidatedFromDb,
+  updateCustomDomainLastValidated,
 };
