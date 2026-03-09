@@ -119,24 +119,36 @@ describe("server (admin settings)", () => {
       expect(html).toContain('id="settings-reset-database"');
     });
 
-    test("shows 'None (disabled)' when WEBHOOK_URL is not set", async () => {
-      Deno.env.delete("WEBHOOK_URL");
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).toContain("None (disabled)");
-    });
-
-    test("shows 'Default webhook (hostname)' when WEBHOOK_URL is set", async () => {
-      Deno.env.set("WEBHOOK_URL", "https://hooks.example.com/notify");
+    test("shows host email label when host email is configured", async () => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
       try {
         const { cookie } = await loginAsAdmin();
         const response = await awaitTestRequest("/admin/settings", { cookie });
         const html = await response.text();
-        expect(html).toContain("Default webhook (hooks.example.com)");
+        expect(html).toContain("Host Resend (noreply@example.com)");
         expect(html).not.toContain("None (disabled)");
       } finally {
-        Deno.env.delete("WEBHOOK_URL");
+        Deno.env.delete("HOST_EMAIL_PROVIDER");
+        Deno.env.delete("HOST_EMAIL_API_KEY");
+        Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
+      }
+    });
+
+    test("shows raw provider name when host email provider is unknown", async () => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", "custom-smtp");
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-456");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "mail@example.com");
+      try {
+        const { cookie } = await loginAsAdmin();
+        const response = await awaitTestRequest("/admin/settings", { cookie });
+        const html = await response.text();
+        expect(html).toContain("Host custom-smtp (mail@example.com)");
+      } finally {
+        Deno.env.delete("HOST_EMAIL_PROVIDER");
+        Deno.env.delete("HOST_EMAIL_API_KEY");
+        Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
       }
     });
   });

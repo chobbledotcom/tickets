@@ -151,7 +151,6 @@ On first launch, visit `/setup/` to set admin credentials and currency. Payment 
 | `PORT` | No | Local dev server port (default: 3000) |
 | `STORAGE_ZONE_NAME` | No | Bunny CDN storage zone name (required for image uploads) |
 | `STORAGE_ZONE_KEY` | No | Bunny CDN storage zone access key (required for image uploads) |
-| `WEBHOOK_URL` | No | Global webhook URL for all registrations |
 | `NTFY_URL` | No | Ntfy endpoint for error notifications (sends domain + error code only) |
 
 ## Deployment

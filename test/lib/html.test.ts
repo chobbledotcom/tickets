@@ -1718,7 +1718,7 @@ describe("html", () => {
       emailProvider: "",
       emailApiKeyConfigured: false,
       emailFromAddress: "",
-      globalWebhookUrl: "",
+      hostEmailLabel: "",
       bunnyCdnEnabled: false,
       customDomain: "",
       customDomainLastValidated: "",
@@ -1778,6 +1778,19 @@ describe("html", () => {
     test("uses default placeholder when no business email", () => {
       const html = adminSettingsPage(TEST_SESSION, defaultState);
       expect(html).toContain('placeholder="tickets@yourdomain.com"');
+    });
+
+    test("shows host email label when hostEmailLabel is set", () => {
+      const html = adminSettingsPage(
+        TEST_SESSION,
+        { ...defaultState, hostEmailLabel: "Host Resend (noreply@example.com)" },
+      );
+      expect(html).toContain("Host Resend (noreply@example.com)");
+    });
+
+    test("shows None disabled when no hostEmailLabel set", () => {
+      const html = adminSettingsPage(TEST_SESSION, defaultState);
+      expect(html).toContain("None (disabled)");
     });
   });
 

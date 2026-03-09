@@ -38,7 +38,7 @@ export type SettingsPageState = {
   emailProvider: string;
   emailApiKeyConfigured: boolean;
   emailFromAddress: string;
-  globalWebhookUrl: string;
+  hostEmailLabel: string;
   bunnyCdnEnabled: boolean;
   customDomain: string;
   customDomainLastValidated: string;
@@ -129,7 +129,7 @@ export const adminSettingsPage = (
           <p>Send confirmation emails to attendees and admin notifications when registrations come in.</p>
           <label for="email_provider">Email Provider</label>
           <select id="email_provider" name="email_provider">
-            <option value="" selected={!s.emailProvider}>{s.globalWebhookUrl ? `Default webhook (${new URL(s.globalWebhookUrl).hostname})` : "None (disabled)"}</option>
+            <option value="" selected={!s.emailProvider}>{s.hostEmailLabel || "None (disabled)"}</option>
             {Array.from(VALID_EMAIL_PROVIDERS).map((p) => (
               <option value={p} selected={s.emailProvider === p}>{EMAIL_PROVIDER_LABELS[p]}</option>
             ))}

@@ -376,7 +376,6 @@ describe("webhook", () => {
 
     afterEach(() => {
       resetDb();
-      Deno.env.delete("WEBHOOK_URL");
     });
 
     test("sends to all unique webhook URLs", async () => {
@@ -417,93 +416,12 @@ describe("webhook", () => {
       expect(url).toBe("https://hook.com");
     });
 
-    test("does nothing when all webhook URLs are null and WEBHOOK_URL is not set", async () => {
+    test("does nothing when all webhook URLs are empty", async () => {
       await sendRegistrationWebhooks([makeEntry({ webhook_url: "" })], "GBP");
 
       expect(fetchSpy.calls.length).toBe(0);
     });
 
-    test("sends to WEBHOOK_URL env var in addition to event webhook URLs", async () => {
-      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
-
-      await sendRegistrationWebhooks(
-        [makeEntry({ webhook_url: "https://event-hook.com" })],
-        "GBP",
-      );
-
-      expect(fetchSpy.calls.length).toBe(2);
-      const urls = spyFirstArgs(fetchSpy.calls);
-      expect(urls).toContain("https://event-hook.com");
-      expect(urls).toContain("https://global-hook.com");
-    });
-
-    test("sends to WEBHOOK_URL even when no events have webhook URLs", async () => {
-      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
-
-      await sendRegistrationWebhooks([makeEntry({ webhook_url: "" })], "GBP");
-
-      expect(fetchSpy.calls.length).toBe(1);
-      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
-      expect(url).toBe("https://global-hook.com");
-    });
-
-    test("deduplicates WEBHOOK_URL when it matches an event webhook URL", async () => {
-      Deno.env.set("WEBHOOK_URL", "https://same-hook.com");
-
-      await sendRegistrationWebhooks(
-        [makeEntry({ webhook_url: "https://same-hook.com" })],
-        "GBP",
-      );
-
-      expect(fetchSpy.calls.length).toBe(1);
-    });
-
-    test("excludes WEBHOOK_URL when email provider is configured", async () => {
-      const { updateEmailProvider, invalidateSettingsCache } = await import("#lib/db/settings.ts");
-      await updateEmailProvider("resend");
-      invalidateSettingsCache();
-      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
-
-      await sendRegistrationWebhooks(
-        [makeEntry({ webhook_url: "https://event-hook.com" })],
-        "GBP",
-      );
-
-      expect(fetchSpy.calls.length).toBe(1);
-      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
-      expect(url).toBe("https://event-hook.com");
-    });
-
-    test("sends no webhooks when email provider is set and no per-event URLs", async () => {
-      const { updateEmailProvider, invalidateSettingsCache } = await import("#lib/db/settings.ts");
-      await updateEmailProvider("postmark");
-      invalidateSettingsCache();
-      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
-
-      await sendRegistrationWebhooks(
-        [makeEntry({ webhook_url: "" })],
-        "GBP",
-      );
-
-      expect(fetchSpy.calls.length).toBe(0);
-    });
-
-    test("includes WEBHOOK_URL when email provider is cleared", async () => {
-      const { updateEmailProvider, invalidateSettingsCache } = await import("#lib/db/settings.ts");
-      await updateEmailProvider("resend");
-      await updateEmailProvider("");
-      invalidateSettingsCache();
-      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
-
-      await sendRegistrationWebhooks(
-        [makeEntry({ webhook_url: "" })],
-        "GBP",
-      );
-
-      expect(fetchSpy.calls.length).toBe(1);
-      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
-      expect(url).toBe("https://global-hook.com");
-    });
   });
 
   describe("logAndNotifyRegistration", () => {
@@ -542,20 +460,6 @@ describe("webhook", () => {
       expect(fetchSpy.calls.length).toBe(0);
     });
 
-    test("sends to WEBHOOK_URL env var when event has no webhook_url", async () => {
-      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
-      const { logAndNotifyRegistration } = await import("#lib/webhook.ts");
-      const dbEvent = await createTestEvent();
-      const event = makeEvent(eventFromDb(dbEvent, ""));
-
-      await logAndNotifyRegistration(event, makeAttendee(), "GBP");
-      await flushAsync();
-
-      expect(fetchSpy.calls.length).toBe(1);
-      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
-      expect(url).toBe("https://global-hook.com");
-      Deno.env.delete("WEBHOOK_URL");
-    });
   });
 
   describe("logAndNotifyMultiRegistration", () => {
@@ -600,23 +504,6 @@ describe("webhook", () => {
       expect(fetchSpy.calls.length).toBe(0);
     });
 
-    test("sends to WEBHOOK_URL env var for multi-event registration", async () => {
-      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
-      const { logAndNotifyMultiRegistration } = await import("#lib/webhook.ts");
-      const dbEventA = await createTestEvent();
-      const dbEventB = await createTestEvent();
-      const entries = [
-        makeEntry(eventFromDb(dbEventA, "")),
-        makeEntry(eventFromDb(dbEventB, "")),
-      ];
 
-      await logAndNotifyMultiRegistration(entries, "USD");
-      await flushAsync();
-
-      expect(fetchSpy.calls.length).toBe(1);
-      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
-      expect(url).toBe("https://global-hook.com");
-      Deno.env.delete("WEBHOOK_URL");
-    });
   });
 });

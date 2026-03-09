@@ -9,14 +9,13 @@ import {
   updateBusinessEmail,
 } from "#lib/business-email.ts";
 import { validateCustomDomain } from "#lib/bunny-cdn.ts";
-import { getEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
+import { EMAIL_PROVIDER_LABELS, getEmailConfig, getHostEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import {
   getAllowedDomain,
   getCdnHostname,
   getSquareWebhookSignatureKey,
   isBunnyCdnEnabled,
 } from "#lib/config.ts";
-import { getEnv } from "#lib/env.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
@@ -173,7 +172,12 @@ const getSettingsPageState = async () => {
     emailProvider: emailProvider ?? "",
     emailApiKeyConfigured,
     emailFromAddress: emailFromAddress ?? "",
-    globalWebhookUrl: getEnv("WEBHOOK_URL") ?? "",
+    hostEmailLabel: (() => {
+      const hostConfig = getHostEmailConfig();
+      if (!hostConfig) return "";
+      const label = EMAIL_PROVIDER_LABELS[hostConfig.provider] ?? hostConfig.provider;
+      return `Host ${label} (${hostConfig.fromAddress})`;
+    })(),
     bunnyCdnEnabled: bunnyCdnConfigured,
     customDomain: customDomain ?? "",
     customDomainLastValidated: customDomainLastValidated ?? "",
