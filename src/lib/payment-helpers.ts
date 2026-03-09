@@ -139,9 +139,9 @@ export const toCheckoutResult = (
  */
 export const hasRequiredSessionMetadata = (
   metadata: Record<string, string | undefined> | null | undefined,
-): metadata is SessionMetadata & { name: string } => {
+): metadata is SessionMetadata => {
   if (!metadata?.name) return false;
-  const isMulti = metadata.multi === "1" && typeof metadata.items === "string";
+  const isMulti = metadata.multi === "1" && !!metadata.items;
   return isMulti || !!metadata.event_id;
 };
 

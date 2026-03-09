@@ -1400,9 +1400,21 @@ export const setupStripe = async (key = "sk_test_mock"): Promise<void> => {
  * webhook handler can ignore sessions from unrelated applications sharing the
  * same payment provider account.
  */
-export const webhookMeta = <T extends Record<string, unknown>>(
-  metadata: T,
-): T & { _origin: string } => ({ _origin: "localhost", ...metadata });
+export const webhookMeta = (
+  metadata: Partial<SessionMetadata> & { name: string },
+): SessionMetadata => ({
+  _origin: "localhost",
+  event_id: "",
+  email: "",
+  phone: "",
+  address: "",
+  special_instructions: "",
+  quantity: "",
+  multi: "",
+  items: "",
+  date: "",
+  ...metadata,
+});
 
 /**
  * Create a mock webhook POST request.
@@ -1738,7 +1750,7 @@ export const createPaidTestAttendee = async (
   return (result as { success: true; attendee: Attendee }).attendee;
 };
 
-import type { PaymentProviderType } from "#lib/payments.ts";
+import type { PaymentProviderType, SessionMetadata } from "#lib/payments.ts";
 
 /** Mock return type for getConfiguredProvider */
 export const mockProviderType = (

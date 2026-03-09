@@ -27,6 +27,7 @@ import {
   reserveSession,
 } from "#lib/db/processed-payments.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
+import { extractSessionMetadata, hasRequiredSessionMetadata } from "#lib/payment-helpers.ts";
 import {
   getActivePaymentProvider,
   isPaymentStatus,
@@ -331,8 +332,6 @@ const extractMultiIntent = (
   session: ValidatedPaymentSession,
 ): MultiIntent | null => {
   const { metadata } = session;
-  if (!metadata.items) return null;
-
   const items = parseMultiItems(metadata.items);
   if (!items || items.length === 0) return null;
 
@@ -711,15 +710,14 @@ const extractSessionFromEvent = (
   event: WebhookEvent,
 ): ValidatedPaymentSession | null => {
   const obj = event.data.object;
-  const metadata = obj.metadata as Record<string, unknown> | undefined;
+  const metadata = obj.metadata as Record<string, string | undefined> | undefined;
 
   // Validate required fields with strict type checking
   if (
     typeof obj.id !== "string" ||
     typeof obj.payment_status !== "string" ||
     typeof obj.amount_total !== "number" ||
-    !metadata ||
-    typeof metadata.name !== "string"
+    !hasRequiredSessionMetadata(metadata)
   ) {
     return null;
   }
@@ -730,19 +728,7 @@ const extractSessionFromEvent = (
     paymentReference:
       typeof obj.payment_intent === "string" ? obj.payment_intent : "",
     amountTotal: obj.amount_total,
-    metadata: {
-      _origin: metadata._origin as string | undefined,
-      event_id: metadata.event_id as string | undefined,
-      name: metadata.name,
-      email: typeof metadata.email === "string" ? metadata.email : undefined,
-      phone: metadata.phone as string | undefined,
-      address: metadata.address as string | undefined,
-      special_instructions: metadata.special_instructions as string | undefined,
-      quantity: metadata.quantity as string | undefined,
-      multi: metadata.multi as string | undefined,
-      items: metadata.items as string | undefined,
-      date: metadata.date as string | undefined,
-    },
+    metadata: extractSessionMetadata(metadata),
   };
 };
 

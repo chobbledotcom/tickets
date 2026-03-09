@@ -832,7 +832,7 @@ describe("server (webhooks)", () => {
                 name: "Test",
                 email: "test@example.com",
                 multi: "1",
-                items: "", // empty string: isMultiSession returns true but extractMultiIntent returns null
+                items: "", // empty items with multi=1: hasRequiredSessionMetadata rejects (no event_id, no items)
               }),
             },
           },
@@ -849,7 +849,7 @@ describe("server (webhooks)", () => {
         await expectHtmlResponse(
           response,
           400,
-          "Invalid multi-ticket session data",
+          "Invalid session data",
         );
       } finally {
         mockVerify.restore();
@@ -2428,7 +2428,7 @@ describe("server (webhooks)", () => {
               metadata: webhookMeta({
                 event_id: String(event.id),
                 name: "No Email Single",
-                email: 12345, // not a string -> undefined in extractSessionFromEvent -> "" in extractIntent
+                email: 12345 as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
                 quantity: "1",
               }),
             },
@@ -2477,7 +2477,7 @@ describe("server (webhooks)", () => {
               amount_total: 500,
               metadata: webhookMeta({
                 name: "No Email Multi",
-                email: true, // not a string -> undefined in extractSessionFromEvent -> "" in extractMultiIntent
+                email: true as unknown as string, // not a string -> coerced to "" by extractSessionMetadata
                 multi: "1",
                 items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
               }),
@@ -2878,12 +2878,12 @@ describe("server (webhooks)", () => {
           paymentStatus: "paid" as const,
           paymentReference: "pi_fallback_foreign",
           amountTotal: 100,
-          metadata: {
+          metadata: webhookMeta({
             name: "Fallback Foreign",
             email: "fallback@example.com",
             quantity: "1",
-            // No _origin -> should be rejected as unrecognized
-          },
+            _origin: "", // Empty _origin -> should be rejected as unrecognized
+          }),
         }),
       );
 
