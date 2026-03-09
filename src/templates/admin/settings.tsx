@@ -62,8 +62,6 @@ export const adminSettingsPage = (
 
         {s.storageEnabled && (
         <div>
-          <h2>Header Image</h2>
-          <p>An optional image displayed at the top of every page. JPEG, PNG, GIF, or WebP — max 256KB.</p>
           {s.headerImageUrl && (
             <div>
               <img src={getImageProxyUrl(s.headerImageUrl)} alt="Header image" class="event-image-preview" />
@@ -73,6 +71,8 @@ export const adminSettingsPage = (
             </div>
           )}
           <CsrfForm action="/admin/settings/header-image" enctype="multipart/form-data" id="settings-header-image">
+            <h2>Header Image</h2>
+            <p>An optional image displayed at the top of every page. JPEG, PNG, GIF, or WebP — max 256KB.</p>
             <label for="header_image">{s.headerImageUrl ? "Replace Image" : "Upload Image"}</label>
             <input
               type="file"
