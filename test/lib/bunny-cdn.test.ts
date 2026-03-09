@@ -156,7 +156,7 @@ describe("bunny-cdn", () => {
           await bunnyCdnApi.findPullZoneId();
           expect(calls).toHaveLength(1);
           expect(calls.at(0)!.url).toBe(
-            "https://api.bunny.net/pullzone?perPage=1000",
+            "https://api.bunny.net/pullzone?search=mysite.b-cdn.net",
           );
           expect(calls.at(0)!.init!.headers).toEqual({
             AccessKey: "test-bunny-key",

@@ -27,17 +27,17 @@ interface BunnyPullZoneListResponse {
 }
 
 /**
- * Find the pull zone ID by listing all pull zones and matching the one
- * whose hostname matches the CDN hostname (ALLOWED_DOMAIN with
- * .bunny.run replaced by .b-cdn.net).
+ * Find the pull zone ID by searching pull zones for the CDN hostname
+ * (ALLOWED_DOMAIN with .bunny.run replaced by .b-cdn.net).
  */
 const findPullZoneIdImpl = async (): Promise<
   { ok: true; id: number } | { ok: false; error: string }
 > => {
   const cdnHostname = getCdnHostname();
-  const response = await fetch(`${BUNNY_API_BASE}/pullzone?perPage=1000`, {
-    headers: { AccessKey: getBunnyApiKey() },
-  });
+  const response = await fetch(
+    `${BUNNY_API_BASE}/pullzone?search=${encodeURIComponent(cdnHostname)}`,
+    { headers: { AccessKey: getBunnyApiKey() } },
+  );
 
   if (!response.ok) {
     const text = await response.text();
