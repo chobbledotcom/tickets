@@ -87,7 +87,7 @@ const withSessionId =
   (request: Request): Promise<Response> => {
     const sessionId = getSearchParam(request, "session_id");
     if (!sessionId) {
-      logDebug("Payment", "Payment callback missing session_id parameter");
+      logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Payment callback missing session_id parameter" });
     }
     return sessionId
       ? handler(sessionId)
@@ -227,7 +227,7 @@ const validationFailure = (
   eventId?: number,
 ): Promise<PaymentResult> => {
   if (validation.status === 404) {
-    logDebug("Payment", `Post-payment event not found (session=${session.id}, eventId=${eventId})`);
+    logError({ code: ErrorCode.PAYMENT_SESSION, eventId, detail: `Post-payment event not found (session=${session.id})` });
     return Promise.resolve({ success: false, error: validation.error, status: 404 });
   }
   return refundAndFail(session, validation.error, validation.status, eventId);
@@ -687,16 +687,20 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
  *
  * No attendee cleanup needed - attendee is only created after successful payment.
  */
+/** Log a payment session error with cancel context prefix */
+const logCancelError = (detail: string): void =>
+  logError({ code: ErrorCode.PAYMENT_SESSION, detail: `[cancel] ${detail}` });
+
 const handlePaymentCancel = withSessionId(async (sid) => {
   const provider = await getActivePaymentProvider();
   if (!provider) {
-    logDebug("Payment", `Cancel callback with no provider configured (session=${sid})`);
+    logCancelError(`No provider configured (session=${sid})`);
     return paymentErrorResponse("Payment provider not configured");
   }
 
   const session = await provider.retrieveSession(sid);
   if (!session) {
-    logDebug("Payment", `Cancel callback session not found (session=${sid})`);
+    logCancelError(`Session not found (session=${sid})`);
     return paymentErrorResponse("Payment session not found");
   }
 
@@ -705,7 +709,7 @@ const handlePaymentCancel = withSessionId(async (sid) => {
   // Use getEvent (not getEventWithCount) - we only need slug for redirect
   const event = await getEvent(intent.eventId);
   if (!event) {
-    logDebug("Payment", `Cancel callback event not found (session=${sid}, eventId=${intent.eventId})`);
+    logCancelError(`Event not found (session=${sid}, eventId=${intent.eventId})`);
     return paymentErrorResponse("Event not found", 404);
   }
 
@@ -850,7 +854,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
     // For Square payment.updated: check payment status before retrieving order
     if (typeof obj.status === "string" && obj.status !== "COMPLETED") {
-      logDebug("Payment", `Webhook payment not completed (status=${obj.status})`);
+      logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Webhook payment not completed (status=${obj.status})` });
       return webhookAckResponse({ status: "pending" });
     }
 
@@ -874,7 +878,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   // Verify payment is complete
   if (session.paymentStatus !== "paid") {
-    logDebug("Payment", `Webhook session not yet paid (session=${session.id}, status=${session.paymentStatus})`);
+    logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Webhook session not yet paid (session=${session.id}, status=${session.paymentStatus})` });
     return webhookAckResponse({ status: "pending" });
   }
 
