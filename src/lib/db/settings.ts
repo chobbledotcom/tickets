@@ -70,6 +70,13 @@ export const CONFIG_KEYS = {
   EMAIL_API_KEY: "email_api_key",
   // Email from address (encrypted - verified sender address)
   EMAIL_FROM_ADDRESS: "email_from_address",
+  // Custom email templates (plaintext - Liquid syntax)
+  EMAIL_TPL_CONFIRMATION_SUBJECT: "email_tpl_confirmation_subject",
+  EMAIL_TPL_CONFIRMATION_HTML: "email_tpl_confirmation_html",
+  EMAIL_TPL_CONFIRMATION_TEXT: "email_tpl_confirmation_text",
+  EMAIL_TPL_ADMIN_SUBJECT: "email_tpl_admin_subject",
+  EMAIL_TPL_ADMIN_HTML: "email_tpl_admin_html",
+  EMAIL_TPL_ADMIN_TEXT: "email_tpl_admin_text",
 } as const;
 
 /**
@@ -789,6 +796,59 @@ export const getEmailFromAddressFromDb = (): Promise<string | null> =>
 export const updateEmailFromAddress = (address: string): Promise<void> =>
   updateEncryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS, address);
 
+/** Valid email template types */
+export type EmailTemplateType = "confirmation" | "admin";
+
+/** Valid email template formats */
+export type EmailTemplateFormat = "subject" | "html" | "text";
+
+/** Config key for a given template type+format */
+const emailTemplateKey = (type: EmailTemplateType, format: EmailTemplateFormat): string => {
+  const keys: Record<string, string> = {
+    "confirmation:subject": CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
+    "confirmation:html": CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
+    "confirmation:text": CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
+    "admin:subject": CONFIG_KEYS.EMAIL_TPL_ADMIN_SUBJECT,
+    "admin:html": CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
+    "admin:text": CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
+  };
+  return keys[`${type}:${format}`]!;
+};
+
+/** Max length for email templates */
+export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
+
+/** Get a custom email template. Returns null if not customized (use default). */
+export const getEmailTemplate = (type: EmailTemplateType, format: EmailTemplateFormat): Promise<string | null> =>
+  getSetting(emailTemplateKey(type, format));
+
+/** Update a custom email template. Pass empty string to clear (revert to default). */
+export const updateEmailTemplate = (type: EmailTemplateType, format: EmailTemplateFormat, content: string): Promise<void> =>
+  setOrDeleteSetting(emailTemplateKey(type, format), content);
+
+/** Get all 3 parts of a custom email template (subject, html, text). Nulls mean "use default". */
+export const getEmailTemplateSet = async (type: EmailTemplateType): Promise<{
+  subject: string | null;
+  html: string | null;
+  text: string | null;
+}> => {
+  const [subject, html, text] = await Promise.all([
+    getEmailTemplate(type, "subject"),
+    getEmailTemplate(type, "html"),
+    getEmailTemplate(type, "text"),
+  ]);
+  return { subject, html, text };
+};
+
+/** Delete all 3 parts of a custom email template (reset to defaults). */
+export const resetEmailTemplate = async (type: EmailTemplateType): Promise<void> => {
+  await Promise.all([
+    updateEmailTemplate(type, "subject", ""),
+    updateEmailTemplate(type, "html", ""),
+    updateEmailTemplate(type, "text", ""),
+  ]);
+};
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
@@ -853,4 +913,8 @@ export const settingsApi = {
   updateEmailApiKey,
   getEmailFromAddressFromDb,
   updateEmailFromAddress,
+  getEmailTemplate,
+  updateEmailTemplate,
+  getEmailTemplateSet,
+  resetEmailTemplate,
 };

@@ -19,6 +19,12 @@ import {
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
+export type EmailTemplateState = {
+  subject: string;
+  html: string;
+  text: string;
+};
+
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
   paymentProvider: string;
@@ -39,6 +45,8 @@ export type SettingsPageState = {
   emailApiKeyConfigured: boolean;
   emailFromAddress: string;
   globalWebhookUrl: string;
+  confirmationTemplates: EmailTemplateState;
+  adminTemplates: EmailTemplateState;
 };
 
 /**
@@ -153,6 +161,93 @@ export const adminSettingsPage = (
         {s.emailProvider && (
         <CsrfForm action="/admin/settings/email/test" id="settings-email-test">
           <button type="submit" class="secondary">Send Test Email</button>
+        </CsrfForm>
+        )}
+
+        <CsrfForm action="/admin/settings/email-templates/confirmation" id="settings-email-tpl-confirmation">
+            <h2>Confirmation Email Template</h2>
+          <p>Customize the registration confirmation email sent to attendees. Uses <a href="https://liquidjs.com/" target="_blank" rel="noopener">Liquid</a> template syntax. Leave blank to use the default template.</p>
+          <details>
+            <summary>Available variables</summary>
+            <table>
+              <tr><td><code>{`{{ event_names }}`}</code></td><td>All event names joined with "and"</td></tr>
+              <tr><td><code>{`{{ ticket_url }}`}</code></td><td>Link to view tickets</td></tr>
+              <tr><td><code>{`{{ attendee.name }}`}</code></td><td>Attendee name</td></tr>
+              <tr><td><code>{`{{ attendee.email }}`}</code></td><td>Attendee email</td></tr>
+              <tr><td><code>{`{{ attendee.phone }}`}</code></td><td>Attendee phone</td></tr>
+              <tr><td><code>{`{{ attendee.address }}`}</code></td><td>Attendee address</td></tr>
+              <tr><td><code>{`{{ attendee.special_instructions }}`}</code></td><td>Special instructions</td></tr>
+              <tr><td><code>{`{{ entries }}`}</code></td><td>Array of event+attendee pairs</td></tr>
+              <tr><td><code>{`{{ entry.event.name }}`}</code></td><td>Event name (in loop)</td></tr>
+              <tr><td><code>{`{{ entry.event.is_paid }}`}</code></td><td>Whether event has a price</td></tr>
+              <tr><td><code>{`{{ entry.attendee.quantity }}`}</code></td><td>Ticket quantity</td></tr>
+              <tr><td><code>{`{{ entry.attendee.price_paid | currency }}`}</code></td><td>Price formatted as currency</td></tr>
+              <tr><td><code>{`{{ entry.attendee.date }}`}</code></td><td>Selected date (if any)</td></tr>
+              <tr><td><code>{`{{ 2 | pluralize: "ticket", "tickets" }}`}</code></td><td>Pluralize based on count</td></tr>
+            </table>
+          </details>
+          <label for="confirmation_subject">Subject</label>
+          <input
+            type="text"
+            id="confirmation_subject"
+            name="subject"
+            placeholder="Your tickets for {{ event_names }}"
+            value={s.confirmationTemplates.subject}
+            autocomplete="off"
+          />
+          <label for="confirmation_html">HTML Body</label>
+          <textarea
+            id="confirmation_html"
+            name="html"
+            rows="8"
+            placeholder="Leave blank to use the default HTML template"
+          >{s.confirmationTemplates.html}</textarea>
+          <label for="confirmation_text">Plain Text Body</label>
+          <textarea
+            id="confirmation_text"
+            name="text"
+            rows="6"
+            placeholder="Leave blank to use the default plain text template"
+          >{s.confirmationTemplates.text}</textarea>
+          <button type="submit">Save Confirmation Template</button>
+        </CsrfForm>
+        {(s.confirmationTemplates.subject || s.confirmationTemplates.html || s.confirmationTemplates.text) && (
+        <CsrfForm action="/admin/settings/email-templates/confirmation/reset" id="settings-email-tpl-confirmation-reset">
+          <button type="submit" class="secondary">Reset Confirmation Template to Default</button>
+        </CsrfForm>
+        )}
+
+        <CsrfForm action="/admin/settings/email-templates/admin" id="settings-email-tpl-admin">
+            <h2>Admin Notification Email Template</h2>
+          <p>Customize the notification email sent to the business email when a registration comes in. Leave blank to use the default template.</p>
+          <label for="admin_subject">Subject</label>
+          <input
+            type="text"
+            id="admin_subject"
+            name="subject"
+            placeholder={"New registration: {{ attendee.name }} for {{ event_names }}"}
+            value={s.adminTemplates.subject}
+            autocomplete="off"
+          />
+          <label for="admin_html">HTML Body</label>
+          <textarea
+            id="admin_html"
+            name="html"
+            rows="8"
+            placeholder="Leave blank to use the default HTML template"
+          >{s.adminTemplates.html}</textarea>
+          <label for="admin_text">Plain Text Body</label>
+          <textarea
+            id="admin_text"
+            name="text"
+            rows="6"
+            placeholder="Leave blank to use the default plain text template"
+          >{s.adminTemplates.text}</textarea>
+          <button type="submit">Save Admin Notification Template</button>
+        </CsrfForm>
+        {(s.adminTemplates.subject || s.adminTemplates.html || s.adminTemplates.text) && (
+        <CsrfForm action="/admin/settings/email-templates/admin/reset" id="settings-email-tpl-admin-reset">
+          <button type="submit" class="secondary">Reset Admin Template to Default</button>
         </CsrfForm>
         )}
 

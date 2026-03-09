@@ -9,11 +9,10 @@ import {
   getEmailFromAddressFromDb,
   getEmailProviderFromDb,
 } from "#lib/db/settings.ts";
+import { buildTemplateData, renderEmailContent } from "#lib/email-renderer.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
 import type { RegistrationEntry } from "#lib/webhook.ts";
-import { registrationConfirmation } from "#templates/email/registration-confirmation.ts";
-import { adminNotification } from "#templates/email/admin-notification.ts";
 
 export type EmailMessage = {
   to: string;
@@ -165,14 +164,15 @@ export const sendRegistrationEmails = async (
   const businessEmail = await getBusinessEmailFromDb();
   const ticketUrl = buildTicketUrl(entries);
   const replyTo = businessEmail || undefined;
+  const data = buildTemplateData(entries, currency, ticketUrl);
 
-  const confirmation = registrationConfirmation(entries, currency, ticketUrl);
+  const confirmation = await renderEmailContent("confirmation", data);
   const promises: Promise<number | undefined>[] = [
     sendEmail(config, { to: entries[0]!.attendee.email, ...confirmation, replyTo }),
   ];
 
   if (businessEmail) {
-    const notification = adminNotification(entries, currency);
+    const notification = await renderEmailContent("admin", data);
     promises.push(
       sendEmail(config, { to: businessEmail, ...notification, replyTo: entries[0]!.attendee.email }),
     );

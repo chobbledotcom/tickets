@@ -1719,6 +1719,8 @@ describe("html", () => {
       emailApiKeyConfigured: false,
       emailFromAddress: "",
       globalWebhookUrl: "",
+      confirmationTemplates: { subject: "", html: "", text: "" },
+      adminTemplates: { subject: "", html: "", text: "" },
     };
 
     test("shows square webhook configured message when key is set", () => {
