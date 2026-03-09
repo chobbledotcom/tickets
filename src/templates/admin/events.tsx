@@ -388,6 +388,7 @@ export const adminEventPage = ({
                     readonly
                     data-select-on-click
                   />
+                  <small>Recommended &mdash; paste this and it handles everything automatically.</small>
                 </td>
               </tr>
               <tr>
@@ -400,6 +401,7 @@ export const adminEventPage = ({
                     readonly
                     data-select-on-click
                   />
+                  <small>Alternative &mdash; use only if your host blocks scripts or you want to customise the iframe yourself.</small>
                 </td>
               </tr>
             </tbody>

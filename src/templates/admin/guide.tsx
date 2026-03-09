@@ -182,11 +182,24 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
 
         <Q q="How do I embed the booking form on my website?">
           <p>
-            Use the <strong>Embed Script</strong> code from your event page
-            (recommended) or the <strong>Embed Iframe</strong> code if you
-            prefer the manual setup. In <strong>Settings</strong>, add your
-            website's domain to the embed hosts list so the browser allows the
-            iframe to load.
+            You only need <strong>one</strong> of the two embed codes shown on
+            your event page &mdash; not both:
+          </p>
+          <ul>
+            <li>
+              <strong>Embed Script</strong> (recommended) &mdash; paste a single{" "}
+              <code>&lt;script&gt;</code> tag and it creates the iframe for you
+              with automatic resizing.
+            </li>
+            <li>
+              <strong>Embed Iframe</strong> &mdash; use this if your hosting
+              platform blocks third-party scripts or if you want full control
+              over the iframe styling yourself.
+            </li>
+          </ul>
+          <p>
+            In <strong>Settings</strong>, add your website's domain to the embed
+            hosts list so the browser allows the iframe to load.
           </p>
         </Q>
 
