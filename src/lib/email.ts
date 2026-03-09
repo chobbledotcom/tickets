@@ -58,36 +58,50 @@ export const getHostEmailConfig = (): EmailConfig | null => {
 /** Build provider-specific request: [url, extra-headers, body] */
 type ProviderRequest = (config: EmailConfig, msg: EmailMessage) => [string, Record<string, string>, unknown];
 
-const resendRequest: ProviderRequest = (config, msg) => [
-  "https://api.resend.com/emails",
-  { "Authorization": `Bearer ${config.apiKey}` },
-  {
-    from: config.fromAddress,
-    to: [msg.to],
-    reply_to: msg.replyTo,
-    subject: msg.subject,
-    html: msg.html,
-    text: msg.text,
-  },
+/** Create a ProviderRequest from declarative url, headers, and body components */
+const provider = (
+  url: string | ((config: EmailConfig) => string),
+  headers: (apiKey: string) => Record<string, string>,
+  body: (config: EmailConfig, msg: EmailMessage) => unknown,
+): ProviderRequest => (config, msg) => [
+  typeof url === "string" ? url : url(config),
+  headers(config.apiKey),
+  body(config, msg),
 ];
 
-const postmarkRequest: ProviderRequest = (config, msg) => [
-  "https://api.postmarkapp.com/email",
-  { "X-Postmark-Server-Token": config.apiKey, "Accept": "application/json" },
-  {
-    From: config.fromAddress,
-    To: msg.to,
-    ReplyTo: msg.replyTo,
-    Subject: msg.subject,
-    HtmlBody: msg.html,
-    TextBody: msg.text,
-  },
-];
+const bearerAuth = (apiKey: string): Record<string, string> => ({ Authorization: `Bearer ${apiKey}` });
 
-const sendgridRequest: ProviderRequest = (config, msg) => [
-  "https://api.sendgrid.com/v3/mail/send",
-  { "Authorization": `Bearer ${config.apiKey}` },
-  {
+const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
+  const form = new FormData();
+  form.append("from", config.fromAddress);
+  form.append("to", msg.to);
+  form.append("subject", msg.subject);
+  form.append("html", msg.html);
+  form.append("text", msg.text);
+  if (msg.replyTo) form.append("h:Reply-To", msg.replyTo);
+  return form;
+};
+
+const mailgun = (host: string) => provider(
+  (config) => `https://${host}/v3/${config.fromAddress.split("@")[1]}/messages`,
+  (apiKey) => ({ Authorization: `Basic ${btoa("api:" + apiKey)}` }),
+  mailgunBody,
+);
+
+const PROVIDERS = {
+  resend: provider("https://api.resend.com/emails", bearerAuth, (config, msg) => ({
+    from: config.fromAddress, to: [msg.to], reply_to: msg.replyTo,
+    subject: msg.subject, html: msg.html, text: msg.text,
+  })),
+  postmark: provider(
+    "https://api.postmarkapp.com/email",
+    (apiKey) => ({ "X-Postmark-Server-Token": apiKey, Accept: "application/json" }),
+    (config, msg) => ({
+      From: config.fromAddress, To: msg.to, ReplyTo: msg.replyTo,
+      Subject: msg.subject, HtmlBody: msg.html, TextBody: msg.text,
+    }),
+  ),
+  sendgrid: provider("https://api.sendgrid.com/v3/mail/send", bearerAuth, (config, msg) => ({
     personalizations: [{ to: [{ email: msg.to }] }],
     from: { email: config.fromAddress },
     reply_to: msg.replyTo ? { email: msg.replyTo } : undefined,
@@ -96,31 +110,9 @@ const sendgridRequest: ProviderRequest = (config, msg) => [
       { type: "text/plain", value: msg.text },
       { type: "text/html", value: msg.html },
     ],
-  },
-];
-
-const mailgunRequest = (host: string): ProviderRequest => (config, msg) => {
-  const domain = config.fromAddress.split("@")[1];
-  const form = new FormData();
-  form.append("from", config.fromAddress);
-  form.append("to", msg.to);
-  form.append("subject", msg.subject);
-  form.append("html", msg.html);
-  form.append("text", msg.text);
-  if (msg.replyTo) form.append("h:Reply-To", msg.replyTo);
-  return [
-    `https://${host}/v3/${domain}/messages`,
-    { "Authorization": `Basic ${btoa("api:" + config.apiKey)}` },
-    form,
-  ];
-};
-
-const PROVIDERS = {
-  resend: resendRequest,
-  postmark: postmarkRequest,
-  sendgrid: sendgridRequest,
-  "mailgun-us": mailgunRequest("api.mailgun.net"),
-  "mailgun-eu": mailgunRequest("api.eu.mailgun.net"),
+  })),
+  "mailgun-us": mailgun("api.mailgun.net"),
+  "mailgun-eu": mailgun("api.eu.mailgun.net"),
 } as const satisfies Record<string, ProviderRequest>;
 
 /** Union of all supported email provider keys, derived from the PROVIDERS map */
