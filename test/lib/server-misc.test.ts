@@ -7,7 +7,7 @@ import {
   isValidContentType,
   normalizeHostname,
 } from "#routes";
-import { redirectWithSuccess, temporaryErrorResponse } from "#routes/utils.ts";
+import { redirectToWithSuccess, redirectWithSuccess, temporaryErrorResponse } from "#routes/utils.ts";
 import {
   createTestDb,
   createTestDbWithSetup,
@@ -285,6 +285,32 @@ describe("server (misc)", () => {
       expect(location).toContain("success=A%20%26%20B");
       expect(location).toContain("form=form%26id");
       expect(location).toContain("#form&id");
+    });
+  });
+
+  describe("routes/utils.ts (redirectToWithSuccess)", () => {
+    test("appends success param to simple path", () => {
+      const response = redirectToWithSuccess("/admin/event/1", "Deleted");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/event/1?success=Deleted");
+    });
+
+    test("appends success param to path with existing query params", () => {
+      const response = redirectToWithSuccess("/admin/event/1?tab=attendees", "Updated");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/event/1?tab=attendees&success=Updated");
+    });
+
+    test("preserves hash fragment", () => {
+      const response = redirectToWithSuccess("/admin/calendar#attendees", "Done");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/admin/calendar?success=Done#attendees");
+    });
+
+    test("encodes special characters in message", () => {
+      const response = redirectToWithSuccess("/admin/event/1", "A & B");
+      const location = response.headers.get("location")!;
+      expect(location).toContain("success=A+%26+B");
     });
   });
 

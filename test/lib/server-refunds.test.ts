@@ -220,7 +220,7 @@ describe("server (admin refunds)", () => {
       await withRefundMock(true, async (mockRefund) => {
         const response = await submitRefund(ctx);
         expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(`/admin/event/${ctx.event.id}`);
+        expect(response.headers.get("location")).toBe(`/admin/event/${ctx.event.id}?success=Refund+issued`);
         expect(mockRefund.calls.length).toBeGreaterThan(0);
       });
     });
@@ -339,7 +339,7 @@ describe("server (admin refunds)", () => {
           mockFormRequest(refundAllUrl(event.id), { confirm_name: event.name, csrf_token: csrfToken }, cookie),
         );
         expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
+        expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?success=All+attendees+refunded`);
         expect(mockRefund.calls.length).toBe(2);
       });
     });

@@ -31,6 +31,7 @@ import {
   notFoundResponse,
   orNotFound,
   redirect,
+  redirectToWithSuccess,
   requireSessionOr,
   withAuthForm,
 } from "#routes/utils.ts";
@@ -116,20 +117,21 @@ const getReturnUrl = (request: Request): string =>
 const getReturnUrlFromForm = (form: URLSearchParams): string =>
   form.get("return_url") ?? "";
 
-/** Redirect to return_url from form if present, otherwise redirect to fallback */
-const redirectOrReturn = (form: URLSearchParams, fallback: string): Response => {
-  const returnUrl = getReturnUrlFromForm(form);
-  return redirect(returnUrl || fallback);
+/** Redirect to return_url or fallback with a success message */
+const redirectOrReturn = (form: URLSearchParams, fallback: string, successMessage: string): Response => {
+  const target = getReturnUrlFromForm(form) || fallback;
+  return redirectToWithSuccess(target, successMessage);
 };
 
-/** Log activity and redirect back to event page */
+/** Log activity and redirect back to event page with a success message */
 const logAndRedirectToEvent = async (
   message: string,
   eventId: number,
   form: URLSearchParams,
+  successMessage: string,
 ): Promise<Response> => {
   await logActivity(message, eventId);
-  return redirectOrReturn(form, `/admin/event/${eventId}`);
+  return redirectOrReturn(form, `/admin/event/${eventId}`, successMessage);
 };
 
 /** Verify confirm_name matches attendee name, returning error page on mismatch */
@@ -176,7 +178,7 @@ const handleAttendeeDelete = attendeeFormAction(async (data, session, form, even
   if (error) return error;
 
   await deleteAttendee(attendeeId);
-  return logAndRedirectToEvent(`Attendee deleted from '${data.event.name}'`, eventId, form);
+  return logAndRedirectToEvent(`Attendee deleted from '${data.event.name}'`, eventId, form, "Attendee deleted");
 });
 
 /**
@@ -195,7 +197,7 @@ const handleDeleteIncomplete = attendeeFormAction(async (data, _session, _form, 
 
   await deleteAttendee(attendeeId);
   await logActivity(`Incomplete attendee deleted from '${data.event.name}'`, eventId);
-  return redirect(`/admin/event/${eventId}`);
+  return redirectToWithSuccess(`/admin/event/${eventId}`, "Incomplete registration removed");
 });
 
 /** Handle POST /admin/event/:eventId/attendee/:attendeeId/checkin */
@@ -259,7 +261,7 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
   }
 
   await markRefunded(data.attendee.id);
-  return logAndRedirectToEvent(`Refund issued for attendee '${data.attendee.name}'`, eventId, form);
+  return logAndRedirectToEvent(`Refund issued for attendee '${data.attendee.name}'`, eventId, form, "Refund issued");
 });
 
 /** Filter attendees that have a payment_id and are not yet refunded */
@@ -332,7 +334,7 @@ const processRefundAll = async (
   }
 
   await logActivity(`Bulk refund: all ${refundedCount} attendee(s) refunded for '${event.name}'`, event.id);
-  return redirect(`/admin/event/${event.id}`);
+  return redirectToWithSuccess(`/admin/event/${event.id}`, "All attendees refunded");
 };
 
 /** Handle POST /admin/event/:id/refund-all */
@@ -501,9 +503,7 @@ async function editAttendeeHandler(
 
   const successMessage = `Attendee '${name}' updated`;
   if (returnUrl) {
-    const url = new URL(returnUrl, "http://localhost");
-    url.searchParams.set("success", successMessage);
-    return redirect(url.pathname + url.search + url.hash);
+    return redirectToWithSuccess(returnUrl, successMessage);
   }
   return redirect(`/admin/event/${event_id}?edited=${encodeURIComponent(name)}#attendees`);
 }
@@ -524,7 +524,7 @@ const handleResendNotification = attendeeFormAction(async (data, session, form, 
     logAndNotifyRegistration(data.event, data.attendee, currency),
     logActivity(`Notification re-sent for attendee '${data.attendee.name}'`, eventId),
   ]);
-  return redirectOrReturn(form, `/admin/event/${eventId}`);
+  return redirectOrReturn(form, `/admin/event/${eventId}`, "Notification re-sent");
 });
 
 /** Handle POST /admin/attendees/:attendeeId/refresh-payment */

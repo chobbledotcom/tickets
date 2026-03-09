@@ -229,7 +229,7 @@ describe("server (admin attendees)", () => {
         confirm_name: "john doe",
       })();
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
+      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?success=Attendee+deleted`);
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
@@ -241,7 +241,7 @@ describe("server (admin attendees)", () => {
       const { response } = await deleteAction({
         confirm_name: "  John Doe  ",
       })();
-      expectRedirect("/admin/event/1")(response);
+      expectRedirect("/admin/event/1?success=Attendee+deleted")(response);
     });
   });
 
@@ -279,7 +279,7 @@ describe("server (admin attendees)", () => {
           },
         ),
       );
-      expectRedirect("/admin/event/1")(response);
+      expectRedirect("/admin/event/1?success=Attendee+deleted")(response);
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
@@ -368,7 +368,7 @@ describe("server (admin attendees)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}`)(response);
+      expectRedirect(`/admin/event/${event.id}?success=Incomplete+registration+removed`)(response);
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
@@ -424,7 +424,7 @@ describe("server (admin attendees)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}`)(response);
+      expectRedirect(`/admin/event/${event.id}?success=Incomplete+registration+removed`)(response);
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const deleted = await getAttendeeRaw(attendee.id);
@@ -1992,7 +1992,7 @@ describe("server (admin attendees)", () => {
           webhookUrl: "https://example.com/webhook",
         });
         expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(`/admin/event/${event.id}`);
+        expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?success=Notification+re-sent`);
 
         // Verify webhook was sent
         expect(webhookFetch.calls.length).toBeGreaterThan(0);

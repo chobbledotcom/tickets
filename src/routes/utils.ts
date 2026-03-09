@@ -215,6 +215,17 @@ export const redirectWithSuccess = (basePath: string, message: string, formId?: 
     : redirect(`${basePath}?success=${encodeURIComponent(message)}`);
 
 /**
+ * Redirect to a fully-formed URL with a success message query parameter.
+ * Safely appends ?success= regardless of existing query params or hash fragments.
+ * Use this when the target URL may already contain query parameters (e.g. return_url).
+ */
+export const redirectToWithSuccess = (targetUrl: string, message: string): Response => {
+  const url = new URL(targetUrl, "http://localhost");
+  url.searchParams.set("success", message);
+  return redirect(url.pathname + url.search + url.hash);
+};
+
+/**
  * Parse form data from request
  */
 export const parseFormData = async (
