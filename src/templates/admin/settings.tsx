@@ -373,6 +373,13 @@ export const adminSettingsPage = (
 
           {s.customDomain && (
           <CsrfForm action="/admin/settings/custom-domain/validate" id="settings-custom-domain-validate">
+            {!s.customDomainLastValidated && (
+            <article>
+              <aside role="alert">
+                <p><strong>Your custom domain is not yet validated.</strong> It will not work until validation is complete.</p>
+              </aside>
+            </article>
+            )}
             <article>
               <aside>
                 <p>To use your custom domain, create a <strong>CNAME</strong> record:</p>
