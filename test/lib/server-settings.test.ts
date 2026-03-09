@@ -2248,6 +2248,25 @@ describe("server (admin settings)", () => {
       await expectHtmlResponse(response, 400, "Invalid email provider");
     });
 
+    test("rejects invalid from-address format", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email",
+          {
+            email_provider: "resend",
+            email_api_key: "re_test_123",
+            email_from_address: "not-an-email",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      await expectHtmlResponse(response, 400, "Invalid from-address format");
+    });
+
     test("disables email when provider field is missing", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
