@@ -55,13 +55,12 @@ export const getHostEmailConfig = (): EmailConfig | null => {
   return { provider, apiKey, fromAddress };
 };
 
-/** Build provider-specific request: [url, extra-headers, body] */
-type ProviderRequest = (config: EmailConfig, msg: EmailMessage) => [string, Record<string, string>, unknown];
+type Headers = Record<string, string>;
+type ProviderRequest = (config: EmailConfig, msg: EmailMessage) => [url: string, headers: Headers, body: unknown];
 
-/** Create a ProviderRequest from declarative url, headers, and body components */
 const provider = (
   url: string | ((config: EmailConfig) => string),
-  headers: (apiKey: string) => Record<string, string>,
+  headers: (apiKey: string) => Headers,
   body: (config: EmailConfig, msg: EmailMessage) => unknown,
 ): ProviderRequest => (config, msg) => [
   typeof url === "string" ? url : url(config),
@@ -69,7 +68,7 @@ const provider = (
   body(config, msg),
 ];
 
-const bearerAuth = (apiKey: string): Record<string, string> => ({ Authorization: `Bearer ${apiKey}` });
+const bearerAuth = (apiKey: string): Headers => ({ Authorization: `Bearer ${apiKey}` });
 
 const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
   const form = new FormData();
