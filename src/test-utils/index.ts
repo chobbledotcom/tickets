@@ -3,6 +3,7 @@
  */
 
 import { type Client, createClient } from "@libsql/client";
+import { stub } from "@std/testing/mock";
 import { bracket } from "#fp";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
@@ -1891,4 +1892,35 @@ export const createTestManagerSession = async (
   );
 
   return `${getSessionCookieName()}=${token}`;
+};
+
+/**
+ * Stub `stripePaymentProvider.verifyWebhookSignature` to return a valid event.
+ * Returns the stub (call `.restore()` in a `finally` block).
+ */
+export const stubWebhookVerify = async (
+  eventData: { id: string; type: string; data: { object: Record<string, unknown> } },
+) => {
+  const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+  return stub(
+    stripePaymentProvider,
+    "verifyWebhookSignature",
+    () => Promise.resolve({ valid: true as const, event: eventData }),
+  );
+};
+
+/**
+ * Stub `stripeApi.refundPayment` to return a successful refund.
+ * Returns the stub (call `.restore()` in a `finally` block).
+ */
+export const stubRefundPayment = async () => {
+  const { stripeApi } = await import("#lib/stripe.ts");
+  return stub(
+    stripeApi,
+    "refundPayment",
+    () =>
+      Promise.resolve({ id: "re_stub" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >),
+  );
 };

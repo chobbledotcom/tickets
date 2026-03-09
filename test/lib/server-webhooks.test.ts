@@ -16,6 +16,8 @@ import {
   resetDb,
   resetTestSlugCounter,
   setupStripe,
+  stubRefundPayment,
+  stubWebhookVerify,
   webhookMeta,
 } from "#test-utils";
 
@@ -322,32 +324,28 @@ describe("server (webhooks)", () => {
         unitPrice: 1000,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
       // Items without p field — legacy sessions created before per-item price tracking
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_legacy_multi",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_legacy_multi",
-              payment_status: "paid",
-              payment_intent: "pi_legacy_multi",
-              amount_total: 2000,
-              metadata: webhookMeta({
-                name: "Legacy User",
-                email: "legacy@example.com",
-                multi: "1",
-                items: JSON.stringify([
-                  { e: event1.id, q: 2 },
-                  { e: event2.id, q: 1 },
-                ]),
-              }),
-            },
+      const mockVerify = await stubWebhookVerify({
+        id: "evt_legacy_multi",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_legacy_multi",
+            payment_status: "paid",
+            payment_intent: "pi_legacy_multi",
+            amount_total: 2000,
+            metadata: webhookMeta({
+              name: "Legacy User",
+              email: "legacy@example.com",
+              multi: "1",
+              items: JSON.stringify([
+                { e: event1.id, q: 2 },
+                { e: event2.id, q: 1 },
+              ]),
+            }),
           },
         },
-      }));
+      });
 
       try {
         const response = await handleRequest(
@@ -361,14 +359,67 @@ describe("server (webhooks)", () => {
         expect(json.received).toBe(true);
         expect(json.processed).toBe(true);
 
-        // Verify attendees were created for both events
+        // Verify attendees were created with correct pricePaid (unit_price * quantity)
         const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
         const attendees1 = await getAttendeesRaw(event1.id);
         const attendees2 = await getAttendeesRaw(event2.id);
         expect(attendees1.length).toBe(1);
         expect(attendees1[0]?.quantity).toBe(2);
+        expect(await decrypt(attendees1[0]!.price_paid)).toBe("1000"); // 500 * 2
         expect(attendees2.length).toBe(1);
         expect(attendees2[0]?.quantity).toBe(1);
+        expect(await decrypt(attendees2[0]!.price_paid)).toBe("1000"); // 1000 * 1
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("multi-ticket webhook without per-item prices accepts overpayment", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Overpaid Multi",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      // amountTotal (1200) > expectedTotal (500 * 1 = 500) — overpayment accepted in legacy path
+      const mockVerify = await stubWebhookVerify({
+        id: "evt_overpaid_legacy",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_overpaid_legacy",
+            payment_status: "paid",
+            payment_intent: "pi_overpaid_legacy",
+            amount_total: 1200,
+            metadata: webhookMeta({
+              name: "Overpaid User",
+              email: "overpaid@example.com",
+              multi: "1",
+              items: JSON.stringify([{ e: event1.id, q: 1 }]),
+            }),
+          },
+        },
+      });
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        expect(json.processed).toBe(true);
+
+        // pricePaid falls back to expectedPrice (unit_price * quantity), not the overpaid amount
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event1.id);
+        expect(attendees.length).toBe(1);
+        expect(await decrypt(attendees[0]!.price_paid)).toBe("500"); // 500 * 1, not 1200
       } finally {
         mockVerify.restore();
       }
@@ -383,32 +434,26 @@ describe("server (webhooks)", () => {
         unitPrice: 500,
       });
 
-      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
-        valid: true,
-        event: {
-          id: "evt_underpaid",
-          type: "checkout.session.completed",
-          data: {
-            object: {
-              id: "cs_underpaid",
-              payment_status: "paid",
-              payment_intent: "pi_underpaid",
-              amount_total: 100, // Far less than expected 500
-              metadata: webhookMeta({
-                name: "Underpaid User",
-                email: "underpaid@example.com",
-                multi: "1",
-                items: JSON.stringify([{ e: event1.id, q: 1 }]),
-              }),
-            },
+      const mockVerify = await stubWebhookVerify({
+        id: "evt_underpaid",
+        type: "checkout.session.completed",
+        data: {
+          object: {
+            id: "cs_underpaid",
+            payment_status: "paid",
+            payment_intent: "pi_underpaid",
+            amount_total: 100, // Far less than expected 500
+            metadata: webhookMeta({
+              name: "Underpaid User",
+              email: "underpaid@example.com",
+              multi: "1",
+              items: JSON.stringify([{ e: event1.id, q: 1 }]),
+            }),
           },
         },
-      }));
+      });
 
-      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >));
+      const mockRefund = await stubRefundPayment();
 
       try {
         const response = await handleRequest(
@@ -421,6 +466,10 @@ describe("server (webhooks)", () => {
         const json = await response.json();
         expect(json.processed).toBe(false);
         expect(json.error).toContain("price");
+
+        // Verify refund was actually attempted
+        expect(mockRefund.calls.length).toBe(1);
+        expect(mockRefund.calls[0]!.args).toEqual(["pi_underpaid"]);
       } finally {
         mockVerify.restore();
         mockRefund.restore();
