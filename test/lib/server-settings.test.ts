@@ -2799,6 +2799,26 @@ describe("server (admin settings)", () => {
       expect(html).toContain("localhost");
     });
 
+    test("shows warning when custom domain is not validated", async () => {
+      setBunnyEnv();
+      await updateCustomDomain("tickets.example.com");
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain("not yet validated");
+      expect(html).toContain("will not work until validation is complete");
+    });
+
+    test("does not show warning when custom domain is validated", async () => {
+      setBunnyEnv();
+      await updateCustomDomain("tickets.example.com");
+      await updateCustomDomainLastValidated();
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).not.toContain("not yet validated");
+    });
+
     test("shows last validated timestamp when domain has been validated", async () => {
       setBunnyEnv();
       await updateCustomDomain("tickets.example.com");
@@ -2822,31 +2842,67 @@ describe("server (admin settings)", () => {
         expect(response.status).toBe(400);
       });
 
-      test("saves a valid custom domain", async () => {
+      test("saves and validates domain when validation succeeds", async () => {
         setBunnyEnv();
-        const { cookie, csrfToken } = await loginAsAdmin();
-        const response = await handleRequest(
-          mockFormRequest("/admin/settings/custom-domain", {
-            custom_domain: "tickets.example.com",
-            csrf_token: csrfToken,
-          }, cookie),
-        );
-        expect(response.status).toBe(302);
-        const location = response.headers.get("location")!;
-        expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain saved");
-        expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
+        const original = bunnyCdnApi.validateCustomDomain;
+        bunnyCdnApi.validateCustomDomain = () => Promise.resolve({ ok: true as const });
+        try {
+          const { cookie, csrfToken } = await loginAsAdmin();
+          const response = await handleRequest(
+            mockFormRequest("/admin/settings/custom-domain", {
+              custom_domain: "tickets.example.com",
+              csrf_token: csrfToken,
+            }, cookie),
+          );
+          expect(response.status).toBe(302);
+          const location = response.headers.get("location")!;
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain saved and validated");
+          expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
+          expect(await getCustomDomainLastValidatedFromDb()).not.toBeNull();
+        } finally {
+          bunnyCdnApi.validateCustomDomain = original;
+        }
+      });
+
+      test("saves domain with pending message when validation fails", async () => {
+        setBunnyEnv();
+        const original = bunnyCdnApi.validateCustomDomain;
+        bunnyCdnApi.validateCustomDomain = () =>
+          Promise.resolve({ ok: false as const, error: "DNS not configured" });
+        try {
+          const { cookie, csrfToken } = await loginAsAdmin();
+          const response = await handleRequest(
+            mockFormRequest("/admin/settings/custom-domain", {
+              custom_domain: "tickets.example.com",
+              csrf_token: csrfToken,
+            }, cookie),
+          );
+          expect(response.status).toBe(302);
+          const location = response.headers.get("location")!;
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("validation pending");
+          expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
+          expect(await getCustomDomainLastValidatedFromDb()).toBeNull();
+        } finally {
+          bunnyCdnApi.validateCustomDomain = original;
+        }
       });
 
       test("normalizes domain to lowercase", async () => {
         setBunnyEnv();
-        const { cookie, csrfToken } = await loginAsAdmin();
-        await handleRequest(
-          mockFormRequest("/admin/settings/custom-domain", {
-            custom_domain: "Tickets.Example.COM",
-            csrf_token: csrfToken,
-          }, cookie),
-        );
-        expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
+        const original = bunnyCdnApi.validateCustomDomain;
+        bunnyCdnApi.validateCustomDomain = () => Promise.resolve({ ok: true as const });
+        try {
+          const { cookie, csrfToken } = await loginAsAdmin();
+          await handleRequest(
+            mockFormRequest("/admin/settings/custom-domain", {
+              custom_domain: "Tickets.Example.COM",
+              csrf_token: csrfToken,
+            }, cookie),
+          );
+          expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
+        } finally {
+          bunnyCdnApi.validateCustomDomain = original;
+        }
       });
 
       test("clears custom domain when empty", async () => {
@@ -2894,15 +2950,40 @@ describe("server (admin settings)", () => {
 
       test("logs activity when domain is set", async () => {
         setBunnyEnv();
-        const { cookie, csrfToken } = await loginAsAdmin();
-        await handleRequest(
-          mockFormRequest("/admin/settings/custom-domain", {
-            custom_domain: "tickets.example.com",
-            csrf_token: csrfToken,
-          }, cookie),
-        );
-        const log = await getAllActivityLog();
-        expect(log.some((e) => e.message.includes("Custom domain set to tickets.example.com"))).toBe(true);
+        const original = bunnyCdnApi.validateCustomDomain;
+        bunnyCdnApi.validateCustomDomain = () => Promise.resolve({ ok: true as const });
+        try {
+          const { cookie, csrfToken } = await loginAsAdmin();
+          await handleRequest(
+            mockFormRequest("/admin/settings/custom-domain", {
+              custom_domain: "tickets.example.com",
+              csrf_token: csrfToken,
+            }, cookie),
+          );
+          const log = await getAllActivityLog();
+          expect(log.some((e) => e.message.includes("Custom domain set to tickets.example.com"))).toBe(true);
+        } finally {
+          bunnyCdnApi.validateCustomDomain = original;
+        }
+      });
+
+      test("logs validation activity when save triggers successful validation", async () => {
+        setBunnyEnv();
+        const original = bunnyCdnApi.validateCustomDomain;
+        bunnyCdnApi.validateCustomDomain = () => Promise.resolve({ ok: true as const });
+        try {
+          const { cookie, csrfToken } = await loginAsAdmin();
+          await handleRequest(
+            mockFormRequest("/admin/settings/custom-domain", {
+              custom_domain: "tickets.example.com",
+              csrf_token: csrfToken,
+            }, cookie),
+          );
+          const log = await getAllActivityLog();
+          expect(log.some((e) => e.message.includes("Custom domain validated"))).toBe(true);
+        } finally {
+          bunnyCdnApi.validateCustomDomain = original;
+        }
       });
     });
 

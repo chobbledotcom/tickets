@@ -812,9 +812,23 @@ const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
 
   await updateCustomDomain(raw);
   await logActivity(`Custom domain set to ${raw}`);
+
+  // Attempt validation immediately after saving
+  const result = await validateCustomDomain(raw);
+  if (result.ok) {
+    await updateCustomDomainLastValidated();
+    await logActivity(`Custom domain validated: ${raw}`);
+    return redirect(
+      "/admin/settings",
+      "Custom domain saved and validated",
+      true,
+      { formId: "settings-custom-domain" },
+    );
+  }
+
   return redirect(
     "/admin/settings",
-    "Custom domain saved",
+    "Custom domain saved (validation pending — see instructions below)",
     true,
     { formId: "settings-custom-domain" },
   );
