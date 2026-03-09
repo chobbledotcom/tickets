@@ -22,6 +22,7 @@ export type PaymentProviderType = "stripe" | "square";
 export type RegistrationIntent = ContactInfo & {
   eventId: number;
   quantity: number;
+  /** Selected date for daily events; null means no date selected */
   date?: string | null;
   /** Custom unit price (minor units) when can_pay_more is enabled; overrides event.unit_price */
   customUnitPrice?: number;
@@ -53,7 +54,16 @@ export type CheckoutSessionResult = {
   error: string;
 } | null;
 
-/** Metadata attached to a validated payment session (all fields guaranteed present after extraction) */
+/**
+ * Metadata attached to a validated payment session.
+ *
+ * All fields are guaranteed to be strings after extraction.
+ * Empty string ("") is the canonical representation for "not provided" —
+ * payment providers store metadata as string key-value pairs, so null/undefined
+ * are normalized to "" by extractSessionMetadata. Domain types (e.g.
+ * RegistrationIntent.date) may use null for "not provided"; conversion
+ * between "" and null happens at the extraction boundary.
+ */
 export type SessionMetadata = {
   _origin: string;
   event_id: string;

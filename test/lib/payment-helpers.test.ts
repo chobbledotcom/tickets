@@ -610,5 +610,22 @@ describe("payment-helpers", () => {
       expect(result.date).toBe("");
       expect(result.items).toBe("");
     });
+
+    test("defaults name to empty string when undefined", () => {
+      const metadata: Record<string, string | undefined> = {
+        name: undefined,
+        event_id: "1",
+      };
+      const result = extractSessionMetadata(metadata);
+      expect(result.name).toBe("");
+    });
+
+    test("all fields use consistent empty-string convention for missing values", () => {
+      const metadata: Record<string, string | undefined> = {};
+      const result = extractSessionMetadata(metadata);
+      for (const value of Object.values(result)) {
+        expect(value).toBe("");
+      }
+    });
   });
 });
