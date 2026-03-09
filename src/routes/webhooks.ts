@@ -73,7 +73,7 @@ const extractIntent = (
 ): RegistrationIntent => ({
   eventId: Number.parseInt(session.metadata.event_id ?? "0", 10),
   name: session.metadata.name,
-  email: session.metadata.email,
+  email: session.metadata.email ?? "",
   phone: session.metadata.phone ?? "",
   address: session.metadata.address ?? "",
   special_instructions: session.metadata.special_instructions ?? "",
@@ -338,7 +338,7 @@ const extractMultiIntent = (
 
   return {
     name: metadata.name,
-    email: metadata.email,
+    email: metadata.email ?? "",
     phone: metadata.phone ?? "",
     address: metadata.address ?? "",
     special_instructions: metadata.special_instructions ?? "",
@@ -719,8 +719,7 @@ const extractSessionFromEvent = (
     typeof obj.payment_status !== "string" ||
     typeof obj.amount_total !== "number" ||
     !metadata ||
-    typeof metadata.name !== "string" ||
-    typeof metadata.email !== "string"
+    typeof metadata.name !== "string"
   ) {
     return null;
   }
@@ -735,7 +734,7 @@ const extractSessionFromEvent = (
       _origin: metadata._origin as string | undefined,
       event_id: metadata.event_id as string | undefined,
       name: metadata.name,
-      email: metadata.email,
+      email: typeof metadata.email === "string" ? metadata.email : undefined,
       phone: metadata.phone as string | undefined,
       address: metadata.address as string | undefined,
       special_instructions: metadata.special_instructions as string | undefined,

@@ -59,7 +59,7 @@ export type SessionMetadata = {
   _origin?: string;
   event_id?: string;
   name: string;
-  email: string;
+  email?: string;
   phone?: string;
   address?: string;
   special_instructions?: string;

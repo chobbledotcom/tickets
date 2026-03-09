@@ -453,9 +453,9 @@ describe("payment-helpers", () => {
       expect(hasRequiredSessionMetadata(metadata)).toBe(false);
     });
 
-    test("returns false when email is missing", () => {
+    test("returns true when email is missing but name and event_id present", () => {
       const metadata = { name: "Alice", event_id: "1" };
-      expect(hasRequiredSessionMetadata(metadata)).toBe(false);
+      expect(hasRequiredSessionMetadata(metadata)).toBe(true);
     });
 
     test("returns false when neither event_id nor multi+items present", () => {
@@ -473,9 +473,9 @@ describe("payment-helpers", () => {
       expect(hasRequiredSessionMetadata(metadata)).toBe(false);
     });
 
-    test("returns false when email is empty string", () => {
+    test("returns true when email is empty string", () => {
       const metadata = { name: "Alice", email: "", event_id: "1" };
-      expect(hasRequiredSessionMetadata(metadata)).toBe(false);
+      expect(hasRequiredSessionMetadata(metadata)).toBe(true);
     });
 
     test("returns true when multi is 1 and items is a string", () => {
@@ -582,7 +582,7 @@ describe("payment-helpers", () => {
       expect(result.items).toBeUndefined();
     });
 
-    test("preserves name and email as non-optional strings", () => {
+    test("preserves name and email when present", () => {
       const metadata = {
         name: "Dana",
         email: "dana@example.com",
@@ -591,6 +591,16 @@ describe("payment-helpers", () => {
       const result = extractSessionMetadata(metadata);
       expect(result.name).toBe("Dana");
       expect(result.email).toBe("dana@example.com");
+    });
+
+    test("defaults email to empty string when not present", () => {
+      const metadata = {
+        name: "Eve",
+        event_id: "1",
+      };
+      const result = extractSessionMetadata(metadata);
+      expect(result.name).toBe("Eve");
+      expect(result.email).toBe("");
     });
   });
 });
