@@ -343,7 +343,7 @@ const priceMismatchRefund = (
   detail: string,
   eventId?: number,
 ): Promise<PaymentResult> => {
-  logError({ code: ErrorCode.PAYMENT_SESSION, detail });
+  logError({ code: ErrorCode.PAYMENT_SESSION, eventId, detail });
   return refundAndFail(
     session,
     "The price for one or more events changed while you were completing payment.",
@@ -430,6 +430,7 @@ const processMultiPaymentSession = async (
   if (!hasPerItemPrices) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
+      eventId: validatedItems[0]?.event.id,
       detail: `Multi-ticket session ${session.id} missing per-item prices, using expected prices (possible old payment)`,
     });
   }
