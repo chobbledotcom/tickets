@@ -124,7 +124,7 @@ export const adminSettingsPage = (
           <select id="email_provider" name="email_provider">
             <option value="" selected={!s.emailProvider}>None (disabled)</option>
             {Array.from(VALID_EMAIL_PROVIDERS).map((p) => (
-              <option value={p} selected={s.emailProvider === p}>{EMAIL_PROVIDER_LABELS[p] ?? p}</option>
+              <option value={p} selected={s.emailProvider === p}>{EMAIL_PROVIDER_LABELS[p]}</option>
             ))}
           </select>
           <label for="email_api_key">API Key</label>
