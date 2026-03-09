@@ -42,23 +42,33 @@ export const getEmailConfig = async (): Promise<EmailConfig | null> => {
   return { provider, apiKey, fromAddress: from };
 };
 
-/** POST JSON to a URL with custom headers */
-const postJson = (url: string, headers: Record<string, string>, body: unknown): Promise<Response> =>
-  fetch(url, { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body) });
-
 /** Build provider-specific request: [url, extra-headers, body] */
 type ProviderRequest = (config: EmailConfig, msg: EmailMessage) => [string, Record<string, string>, unknown];
 
 const resendRequest: ProviderRequest = (config, msg) => [
   "https://api.resend.com/emails",
   { "Authorization": `Bearer ${config.apiKey}` },
-  { from: config.fromAddress, to: [msg.to], reply_to: msg.replyTo, subject: msg.subject, html: msg.html, text: msg.text },
+  {
+    from: config.fromAddress,
+    to: [msg.to],
+    reply_to: msg.replyTo,
+    subject: msg.subject,
+    html: msg.html,
+    text: msg.text,
+  },
 ];
 
 const postmarkRequest: ProviderRequest = (config, msg) => [
   "https://api.postmarkapp.com/email",
   { "X-Postmark-Server-Token": config.apiKey, "Accept": "application/json" },
-  { From: config.fromAddress, To: msg.to, ReplyTo: msg.replyTo, Subject: msg.subject, HtmlBody: msg.html, TextBody: msg.text },
+  {
+    From: config.fromAddress,
+    To: msg.to,
+    ReplyTo: msg.replyTo,
+    Subject: msg.subject,
+    HtmlBody: msg.html,
+    TextBody: msg.text,
+  },
 ];
 
 const sendgridRequest: ProviderRequest = (config, msg) => [
@@ -69,7 +79,10 @@ const sendgridRequest: ProviderRequest = (config, msg) => [
     from: { email: config.fromAddress },
     reply_to: msg.replyTo ? { email: msg.replyTo } : undefined,
     subject: msg.subject,
-    content: [{ type: "text/plain", value: msg.text }, { type: "text/html", value: msg.html }],
+    content: [
+      { type: "text/plain", value: msg.text },
+      { type: "text/html", value: msg.html },
+    ],
   },
 ];
 
@@ -88,7 +101,11 @@ export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise
   }
   try {
     const [url, headers, body] = buildRequest(config, msg);
-    const response = await postJson(url, headers, body);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
     if (!response.ok) {
       logError({ code: ErrorCode.EMAIL_SEND, detail: `status=${response.status} to=${msg.to}` });
     }
@@ -102,6 +119,7 @@ export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise
 
 /**
  * Send registration confirmation + admin notification emails.
+ * Entries is an array because one registration can cover multiple events.
  * Silently skips if email is not configured.
  */
 export const sendRegistrationEmails = async (

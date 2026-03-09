@@ -143,22 +143,22 @@ const getSettingsPageState = async () => {
   ]);
   return {
     stripeKeyConfigured,
-    paymentProvider,
+    paymentProvider: paymentProvider ?? "",
     squareTokenConfigured,
     squareSandbox,
     squareWebhookConfigured: squareWebhookKey !== null,
     webhookUrl: getWebhookUrl(),
-    embedHosts,
-    termsAndConditions,
+    embedHosts: embedHosts ?? "",
+    termsAndConditions: termsAndConditions ?? "",
     timezone,
     businessEmail,
     theme,
     showPublicSite,
     phonePrefix,
-    headerImageUrl,
+    headerImageUrl: headerImageUrl ?? "",
     storageEnabled: isStorageEnabled(),
-    emailProvider,
-    emailFromAddress,
+    emailProvider: emailProvider ?? "",
+    emailFromAddress: emailFromAddress ?? "",
   };
 };
 
@@ -745,15 +745,14 @@ const handleEmailPost = settingsRoute(async (form, errorPage) => {
 });
 
 /** Handle POST /admin/settings/email/test - send test email to business email */
-const handleEmailTestPost = (request: Request): Promise<Response> =>
-  withOwnerAuthForm(request, async () => {
-    const config = await getEmailConfig();
-    if (!config) return jsonResponse({ success: false, error: "Email not configured" });
-    const businessEmail = await getBusinessEmailFromDb();
-    if (!businessEmail) return jsonResponse({ success: false, error: "No business email set" });
-    await sendTestEmail(config, businessEmail);
-    return jsonResponse({ success: true });
-  });
+const handleEmailTestPost = settingsRoute(async (_form, errorPage) => {
+  const config = await getEmailConfig();
+  if (!config) return errorPage("Email not configured", 400, "settings-email-test");
+  const businessEmail = await getBusinessEmailFromDb();
+  if (!businessEmail) return errorPage("No business email set", 400, "settings-email-test");
+  await sendTestEmail(config, businessEmail);
+  return redirectWithSuccess("/admin/settings", "Test email sent", "settings-email-test");
+});
 
 /**
  * Handle POST /admin/settings/reset-database - owner only

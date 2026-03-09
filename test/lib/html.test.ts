@@ -1701,22 +1701,22 @@ describe("html", () => {
   describe("adminSettingsPage", () => {
     const defaultState: import("#templates/admin/settings.tsx").SettingsPageState = {
       stripeKeyConfigured: false,
-      paymentProvider: null,
+      paymentProvider: "",
       squareTokenConfigured: false,
       squareSandbox: false,
       squareWebhookConfigured: false,
       webhookUrl: "https://example.com/payment/webhook",
-      embedHosts: null,
-      termsAndConditions: null,
+      embedHosts: "",
+      termsAndConditions: "",
       timezone: "Europe/London",
       businessEmail: "",
       theme: "light",
       showPublicSite: false,
       phonePrefix: "44",
-      headerImageUrl: null,
+      headerImageUrl: "",
       storageEnabled: false,
-      emailProvider: null,
-      emailFromAddress: null,
+      emailProvider: "",
+      emailFromAddress: "",
     };
 
     test("shows square webhook configured message when key is set", () => {

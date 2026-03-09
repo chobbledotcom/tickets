@@ -2159,7 +2159,7 @@ describe("server (admin settings)", () => {
   });
 
   describe("POST /admin/settings/email/test", () => {
-    test("returns error when email not configured", async () => {
+    test("shows error when email not configured", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
@@ -2170,13 +2170,10 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      expect(response.status).toBe(200);
-      const json = await response.json();
-      expect(json.success).toBe(false);
-      expect(json.error).toContain("Email not configured");
+      await expectHtmlResponse(response, 400, "Email not configured");
     });
 
-    test("returns error when no business email set", async () => {
+    test("shows error when no business email set", async () => {
       const { settingsApi } = await import("#lib/db/settings.ts");
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -2192,13 +2189,10 @@ describe("server (admin settings)", () => {
         ),
       );
 
-      expect(response.status).toBe(200);
-      const json = await response.json();
-      expect(json.success).toBe(false);
-      expect(json.error).toContain("No business email set");
+      await expectHtmlResponse(response, 400, "No business email set");
     });
 
-    test("sends test email when configured", async () => {
+    test("sends test email and redirects with success", async () => {
       const { settingsApi } = await import("#lib/db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import("#lib/business-email.ts");
       const { cookie, csrfToken } = await loginAsAdmin();
@@ -2220,9 +2214,9 @@ describe("server (admin settings)", () => {
             ),
           );
 
-          expect(response.status).toBe(200);
-          const json = await response.json();
-          expect(json.success).toBe(true);
+          expect(response.status).toBe(302);
+          const location = response.headers.get("location")!;
+          expect(decodeURIComponent(location)).toContain("Test email sent");
         },
       );
     });

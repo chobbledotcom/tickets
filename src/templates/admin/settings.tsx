@@ -19,22 +19,22 @@ import { AdminNav } from "#templates/admin/nav.tsx";
 
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
-  paymentProvider: string | null;
+  paymentProvider: string;
   squareTokenConfigured: boolean;
   squareSandbox: boolean;
   squareWebhookConfigured: boolean;
   webhookUrl: string;
-  embedHosts: string | null;
-  termsAndConditions: string | null;
+  embedHosts: string;
+  termsAndConditions: string;
   timezone: string;
   businessEmail: string;
   theme: string;
   showPublicSite: boolean;
   phonePrefix: string;
-  headerImageUrl: string | null;
+  headerImageUrl: string;
   storageEnabled: boolean;
-  emailProvider: string | null;
-  emailFromAddress: string | null;
+  emailProvider: string;
+  emailFromAddress: string;
 };
 
 /**
@@ -54,7 +54,7 @@ export const adminSettingsPage = (
           <label for="timezone">IANA Timezone</label>
           <select id="timezone" name="timezone" required>
             {Intl.supportedValuesOf("timeZone").map((tz: string) => (
-              <option value={tz} selected={tz === (s.timezone ?? "Europe/London")}>{tz}</option>
+              <option value={tz} selected={tz === s.timezone}>{tz}</option>
             ))}
           </select>
           <button type="submit">Save Timezone</button>
@@ -95,7 +95,7 @@ export const adminSettingsPage = (
             name="phone_prefix"
             step="1"
             min="1"
-            value={s.phonePrefix ?? "44"}
+            value={s.phonePrefix}
             required
           />
           <button type="submit">Save Phone Prefix</button>
@@ -110,7 +110,7 @@ export const adminSettingsPage = (
             id="business_email"
             name="business_email"
             placeholder="contact@example.com"
-            value={s.businessEmail ?? ""}
+            value={s.businessEmail}
             autocomplete="email"
           />
           <button type="submit">Save Business Email</button>
@@ -140,15 +140,16 @@ export const adminSettingsPage = (
             id="email_from_address"
             name="email_from_address"
             placeholder={s.businessEmail || "tickets@yourdomain.com"}
-            value={s.emailFromAddress ?? ""}
+            value={s.emailFromAddress}
             autocomplete="off"
           />
           <button type="submit">Save Email Settings</button>
-          {s.emailProvider && (
-            <button type="button" id="email-test-btn" class="secondary">Send Test Email</button>
-          )}
-          <div id="email-test-result" class="hidden"></div>
         </CsrfForm>
+        {s.emailProvider && (
+        <CsrfForm action="/admin/settings/email/test" id="settings-email-test">
+          <button type="submit" class="secondary">Send Test Email</button>
+        </CsrfForm>
+        )}
 
         <CsrfForm action="/admin/settings/payment-provider" id="settings-payment-provider">
             <h2>Payment Provider</h2>
@@ -264,7 +265,7 @@ export const adminSettingsPage = (
             id="embed_hosts"
             name="embed_hosts"
             placeholder="example.com, *.mysite.org"
-            value={s.embedHosts ?? ""}
+            value={s.embedHosts}
             autocomplete="off"
           />
           <p><small>Use <code>*.example.com</code> to allow all subdomains. Direct visits to the booking page are always allowed.</small></p>
@@ -281,7 +282,7 @@ export const adminSettingsPage = (
             name="terms_and_conditions"
             rows="4"
             placeholder="Enter terms and conditions that attendees must agree to before registering. Leave blank to disable."
-          >{s.termsAndConditions ?? ""}</textarea>
+          >{s.termsAndConditions}</textarea>
           <button type="submit">Save Terms</button>
         </CsrfForm>
 
@@ -327,7 +328,7 @@ export const adminSettingsPage = (
                 type="radio"
                 name="theme"
                 value="light"
-                checked={(s.theme ?? "light") === "light"}
+                checked={s.theme === "light"}
               />
               Light
             </label>
