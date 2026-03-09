@@ -825,9 +825,7 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           <p>
             Add a webhook URL when creating or editing an event. Every time
             someone books that event, a POST request is sent to your URL with
-            the attendee's details. You can also set a global webhook URL via
-            the <code>WEBHOOK_URL</code> environment variable, which receives
-            notifications for all events.
+            the attendee's details.
           </p>
         </Q>
 

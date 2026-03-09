@@ -10,7 +10,6 @@ import {
 } from "#lib/business-email.ts";
 import { EMAIL_PROVIDER_LABELS, getEmailConfig, getHostEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { getAllowedDomain, getSquareWebhookSignatureKey } from "#lib/config.ts";
-import { getEnv } from "#lib/env.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
@@ -158,7 +157,6 @@ const getSettingsPageState = async () => {
     emailProvider: emailProvider ?? "",
     emailApiKeyConfigured,
     emailFromAddress: emailFromAddress ?? "",
-    globalWebhookUrl: getEnv("WEBHOOK_URL") ?? "",
     hostEmailLabel: (() => {
       const hostConfig = getHostEmailConfig();
       if (!hostConfig) return "";

@@ -1718,7 +1718,6 @@ describe("html", () => {
       emailProvider: "",
       emailApiKeyConfigured: false,
       emailFromAddress: "",
-      globalWebhookUrl: "",
       hostEmailLabel: "",
     };
 
@@ -1785,24 +1784,7 @@ describe("html", () => {
       expect(html).toContain("Host Resend (noreply@example.com)");
     });
 
-    test("shows default webhook option when globalWebhookUrl set but no hostEmailLabel", () => {
-      const html = adminSettingsPage(
-        TEST_SESSION,
-        { ...defaultState, globalWebhookUrl: "https://hook.example.com/notify" },
-      );
-      expect(html).toContain("Default webhook (hook.example.com)");
-    });
-
-    test("prefers hostEmailLabel over globalWebhookUrl in no-selection option", () => {
-      const html = adminSettingsPage(
-        TEST_SESSION,
-        { ...defaultState, hostEmailLabel: "Host Resend (noreply@example.com)", globalWebhookUrl: "https://hook.example.com/notify" },
-      );
-      expect(html).toContain("Host Resend (noreply@example.com)");
-      expect(html).not.toContain("Default webhook");
-    });
-
-    test("shows None disabled when neither hostEmailLabel nor globalWebhookUrl set", () => {
+    test("shows None disabled when no hostEmailLabel set", () => {
       const html = adminSettingsPage(TEST_SESSION, defaultState);
       expect(html).toContain("None (disabled)");
     });
