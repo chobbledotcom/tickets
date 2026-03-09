@@ -12,6 +12,7 @@ import { runWithQueryLogContext } from "#lib/db/query-log.ts";
 import { createRequestTimer, ErrorCode, logDebug, logError, logRequest, runWithRequestId } from "#lib/logger.ts";
 import { flushPendingWork } from "#lib/pending-work.ts";
 import { runWithSessionContext } from "#lib/session-context.ts";
+import { getShowPublicApiFromDb } from "#lib/db/settings.ts";
 import {
   applySecurityHeaders,
   buildDomainRedirectUrl,
@@ -103,6 +104,12 @@ const loadDemoResetRoutes = once(async () => {
   return routeDatabaseReset;
 });
 
+/** Lazy-load public API routes */
+const loadApiRoutes = once(async () => {
+  const { routeApi } = await import("#routes/api.ts");
+  return routeApi;
+});
+
 // Re-export middleware functions for testing
 export {
   getCleanUrl,
@@ -161,6 +168,10 @@ const prefixHandlers: Record<string, RouterFn> = {
   join: lazyRoute(loadJoinRoutes),
   feeds: lazyRoute(loadFeedRoutes),
   demo: lazyRoute(loadDemoResetRoutes),
+  api: async (request, path, method, server) =>
+    await getShowPublicApiFromDb()
+      ? (await loadApiRoutes())(request, path, method, server)
+      : null,
 };
 
 /**

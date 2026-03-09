@@ -30,6 +30,7 @@ import {
   getHeaderImageUrlFromDb,
   getPaymentProviderFromDb,
   getPhonePrefixFromDb,
+  getShowPublicApiFromDb,
   getShowPublicSiteFromDb,
   getSquareSandboxFromDb,
   getStripeWebhookEndpointId,
@@ -51,6 +52,7 @@ import {
   updateEmailProvider,
   updateHeaderImageUrl,
   updatePhonePrefix,
+  updateShowPublicApi,
   updateShowPublicSite,
   updateSquareAccessToken,
   updateSquareLocationId,
@@ -131,6 +133,7 @@ const getSettingsPageState = async () => {
     businessEmail,
     theme,
     showPublicSite,
+    showPublicApi,
     phonePrefix,
     headerImageUrl,
     emailProvider,
@@ -152,6 +155,7 @@ const getSettingsPageState = async () => {
     getBusinessEmailFromDb(),
     getThemeFromDb(),
     getShowPublicSiteFromDb(),
+    getShowPublicApiFromDb(),
     getPhonePrefixFromDb(),
     getHeaderImageUrlFromDb(),
     getEmailProviderFromDb(),
@@ -175,6 +179,7 @@ const getSettingsPageState = async () => {
     businessEmail,
     theme,
     showPublicSite,
+    showPublicApi,
     phonePrefix,
     headerImageUrl: headerImageUrl ?? "",
     storageEnabled: isStorageEnabled(),
@@ -700,6 +705,21 @@ const processShowPublicSiteForm: SettingsFormHandler = async (form) => {
 /** Handle POST /admin/settings/show-public-site - owner only */
 const handleShowPublicSitePost = settingsRoute(processShowPublicSiteForm);
 
+/** Validate and save show-public-api from form submission */
+const processShowPublicApiForm: SettingsFormHandler = async (form) => {
+  const value = form.get("show_public_api") === "true";
+  await updateShowPublicApi(value);
+  await logActivity(`Public API ${value ? "enabled" : "disabled"}`);
+  return redirectWithSuccess(
+    "/admin/settings",
+    value ? "Public API enabled" : "Public API disabled",
+    "settings-show-public-api",
+  );
+};
+
+/** Handle POST /admin/settings/show-public-api - owner only */
+const handleShowPublicApiPost = settingsRoute(processShowPublicApiForm);
+
 /** Validate and save phone prefix from form submission */
 const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
   const raw = (form.get("phone_prefix") ?? "").trim();
@@ -1026,6 +1046,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/business-email": handleBusinessEmailPost,
   "POST /admin/settings/theme": handleThemePost,
   "POST /admin/settings/show-public-site": handleShowPublicSitePost,
+  "POST /admin/settings/show-public-api": handleShowPublicApiPost,
   "POST /admin/settings/phone-prefix": handlePhonePrefixPost,
   "POST /admin/settings/header-image": handleHeaderImagePost,
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,

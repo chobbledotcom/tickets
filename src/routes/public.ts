@@ -3,8 +3,9 @@
  */
 
 import { compact, filter, map, pipe, reduce } from "#fp";
+import { processBooking, type BookingResult } from "#lib/booking.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
-import { toMinorUnits } from "#lib/currency.ts";
+import { validatePrice } from "#lib/currency.ts";
 import { getAllowedDomain, getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
 import { applyDemoOverrides, ATTENDEE_DEMO_FIELDS } from "#lib/demo.ts";
 import {
@@ -17,7 +18,7 @@ import {
 import { getAvailableDates } from "#lib/dates.ts";
 import { generateQrSvg } from "#lib/qr.ts";
 import { sortEvents } from "#lib/sort-events.ts";
-import { checkBatchAvailability, createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
+import { checkBatchAvailability, createAttendeeAtomic } from "#lib/db/attendees.ts";
 import { getAllEvents, getEventsBySlugsBatch, getEventWithCountBySlug } from "#lib/db/events.ts";
 import {
   computeGroupSlugIndex,
@@ -25,19 +26,16 @@ import {
   getGroupBySlugIndex,
 } from "#lib/db/groups.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { validateForm } from "#lib/forms.tsx";
 import {
   getActivePaymentProvider,
   type MultiRegistrationIntent,
   type MultiRegistrationItem,
-  type RegistrationIntent,
 } from "#lib/payments.ts";
 import type { ContactInfo, EventFields, EventWithCount, Group } from "#lib/types.ts";
 import { getMaxPrice } from "#lib/types.ts";
 import { logDebug } from "#lib/logger.ts";
 import {
   logAndNotifyMultiRegistration,
-  logAndNotifyRegistration,
   type RegistrationEntry,
 } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -51,7 +49,7 @@ import {
   withCsrfForm,
   withActiveEventBySlug,
 } from "#routes/utils.ts";
-import { getTicketFields, mergeEventFields, type TicketFormValues } from "#templates/fields.ts";
+import { extractContact, mergeEventFields, tryValidateTicketFields } from "#templates/fields.ts";
 import { checkoutPopupPage, reservationSuccessPage } from "#templates/payment.tsx";
 import {
   buildMultiTicketEvent,
@@ -162,23 +160,31 @@ const handleSingleTicketGet = (slug: string, request: Request): Promise<Response
     );
   });
 
-/**
- * Check if payment is required for an event
- */
-const requiresPayment = async (
-  event: { unit_price: number },
-): Promise<boolean> => {
-  return (
-    (await isPaymentsEnabled()) &&
-    event.unit_price > 0
-  );
-};
-
-/** Common parameters for reservation processing */
-type ReservationParams = ContactInfo & {
-  event: EventWithCount;
-  quantity: number;
-  date: string | null;
+/** Map a BookingResult to a web response for single-ticket pages */
+const bookingResultToWebResponse = (
+  result: BookingResult,
+  event: EventWithCount,
+  ctx: TicketContext,
+): Response => {
+  switch (result.type) {
+    case "success": {
+      if (event.thank_you_url) return redirect(event.thank_you_url);
+      const iframeParam = ctx.inIframe ? "&iframe=true" : "";
+      return redirect(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}${iframeParam}`);
+    }
+    case "checkout":
+      return ctx.inIframe ? htmlResponse(checkoutPopupPage(result.checkoutUrl)) : redirect(result.checkoutUrl);
+    case "sold_out":
+      return ticketResponse(event, ctx.inIframe, ctx.dates, ctx.terms)("Sorry, not enough spots available");
+    case "checkout_failed":
+      return result.error
+        ? ticketResponse(event, ctx.inIframe, ctx.dates, ctx.terms)(result.error, 400)
+        : ticketResponse(event, ctx.inIframe, ctx.dates, ctx.terms)("Failed to create payment session. Please try again.", 500);
+    case "creation_failed":
+      return ticketResponse(event, ctx.inIframe, ctx.dates, ctx.terms)(
+        formatAtomicError(result.reason),
+      );
+  }
 };
 
 /** Try to redirect to checkout, or return error using provided handler.
@@ -240,34 +246,6 @@ const runCheckoutFlow = (
 /** Shared context for ticket page rendering */
 type TicketContext = { dates: string[] | undefined; terms: string | null | undefined; inIframe: boolean };
 
-/** Handle payment flow for single-ticket purchase */
-const handlePaymentFlow = (
-  request: Request,
-  event: EventWithCount,
-  intent: RegistrationIntent,
-  ctx: TicketContext,
-): Promise<Response> =>
-  runCheckoutFlow(
-    `single-ticket event=${event.id}`,
-    request,
-    ctx.inIframe,
-    (provider, baseUrl) => provider.createCheckoutSession(event, intent, baseUrl),
-    (msg, status) => ticketResponse(event, ctx.inIframe, undefined, ctx.terms)(msg, status),
-  );
-
-/** Validate ticket form fields and return typed values */
-const validateTicketFields = (form: URLSearchParams, fieldsSetting: EventFields) =>
-  validateForm<TicketFormValues>(form, getTicketFields(fieldsSetting));
-
-/** Extract contact details from validated form values */
-const extractContact = (values: TicketFormValues): ContactInfo => ({
-  name: values.name,
-  email: values.email || "",
-  phone: values.phone || "",
-  address: values.address || "",
-  special_instructions: values.special_instructions || "",
-});
-
 /** Parse and validate a quantity value from a raw string, capping at max */
 const parseQuantityValue = (raw: string, max: number, minDefault = 1): number => {
   const quantity = Number.parseInt(raw, 10);
@@ -286,24 +264,7 @@ const parseCustomPrice = (
   fieldName: string,
   minPrice: number,
   maxPrice: number,
-): { ok: true; price: number } | { ok: false; error: string } => {
-  const raw = (form.get(fieldName) || "").trim();
-  if (!raw) {
-    return minPrice === 0 ? { ok: true, price: 0 } : { ok: false, error: "Please enter a price" };
-  }
-  const parsed = Number.parseFloat(raw);
-  if (Number.isNaN(parsed) || parsed < 0) {
-    return { ok: false, error: "Please enter a valid price" };
-  }
-  const priceMinor = toMinorUnits(parsed);
-  if (priceMinor < minPrice) {
-    return { ok: false, error: "Price must be at least the minimum ticket price" };
-  }
-  if (priceMinor > maxPrice) {
-    return { ok: false, error: "Price exceeds the maximum allowed" };
-  }
-  return { ok: true, price: priceMinor };
-};
+) => validatePrice((form.get(fieldName) || "").trim(), minPrice, maxPrice);
 
 /** Format error message for failed attendee creation */
 const formatAtomicError = formatCreationError(
@@ -312,29 +273,6 @@ const formatAtomicError = formatCreationError(
   "Registration failed. Please try again.",
 );
 
-/** Handle free event registration - atomic create with capacity check */
-const processFreeReservation = async (
-  reservation: ReservationParams,
-  ctx: TicketContext,
-): Promise<Response> => {
-  const { event, quantity, date, ...contact } = reservation;
-  const result = await createAttendeeAtomic({ eventId: event.id, ...contact, quantity, date });
-
-  if (!result.success) {
-    return ticketResponse(event, ctx.inIframe, ctx.dates, ctx.terms)(formatAtomicError(result.reason));
-  }
-
-  await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
-  if (event.thank_you_url) return redirect(event.thank_you_url);
-  const iframeParam = ctx.inIframe ? "&iframe=true" : "";
-  return redirect(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}${iframeParam}`);
-};
-
-/**
- * Process ticket reservation for an event.
- * - For paid events: creates Stripe session with intent, attendee created after payment
- * - For free events: atomically creates attendee with capacity check
- */
 /** Registration closed message for form submissions */
 const REGISTRATION_CLOSED_SUBMIT_MESSAGE =
   "Sorry, registration closed while you were submitting.";
@@ -368,12 +306,12 @@ const processTicketReservation = async (
       }
 
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-      const validation = validateTicketFields(form, event.fields);
-      if (!validation.valid) {
-        return ticketResponse(event, inIframe, undefined, terms)(
-          validation.error,
-        );
-      }
+      const valResult = tryValidateTicketFields(
+        form, event.fields,
+        (msg) => ticketResponse(event, inIframe, undefined, terms)(msg),
+      );
+      if (valResult instanceof Response) return valResult;
+      const values = valResult;
 
       // Validate terms and conditions acceptance if configured
       if (terms && form.get("agree_terms") !== "1") {
@@ -396,7 +334,6 @@ const processTicketReservation = async (
       }
 
       const quantity = parseQuantity(form, event);
-      const contact = extractContact(validation.values);
 
       // Parse custom price for pay-more events
       let customUnitPrice: number | undefined;
@@ -408,25 +345,10 @@ const processTicketReservation = async (
         customUnitPrice = priceResult.price;
       }
 
-      const params: ReservationParams = {
-        event,
-        ...contact,
-        quantity,
-        date,
-      };
-
       const ctx: TicketContext = { dates, terms, inIframe };
-      const needsPayment = await requiresPayment(event) ||
-        (customUnitPrice !== undefined && customUnitPrice > 0 && await isPaymentsEnabled());
-      if (needsPayment) {
-        const intent: RegistrationIntent = { eventId: event.id, ...contact, quantity, date, customUnitPrice };
-        const available = await hasAvailableSpots(event.id, quantity, date);
-        if (!available) {
-          return ticketResponse(event, inIframe, dates, terms)("Sorry, not enough spots available");
-        }
-        return handlePaymentFlow(request, event, intent, ctx);
-      }
-      return processFreeReservation(params, ctx);
+      const contact = extractContact(values);
+      const bookingResult = await processBooking(event, contact, quantity, date, getBaseUrl(request), customUnitPrice);
+      return bookingResultToWebResponse(bookingResult, event, ctx);
     },
   );
 };
@@ -544,19 +466,19 @@ const submitMultiTicket = (
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
 
       // Validate fields based on merged event settings
-      const validation = validateTicketFields(form, getMultiTicketFieldsSetting(ctx.events));
-      if (!validation.valid) {
-        return multiTicketFormErrorResponse(ctx)(validation.error);
-      }
+      const errorResponse = multiTicketFormErrorResponse(ctx);
+      const fieldResult = tryValidateTicketFields(
+        form, getMultiTicketFieldsSetting(ctx.events), errorResponse,
+      );
+      if (fieldResult instanceof Response) return fieldResult;
+      const values = fieldResult;
 
       // Validate terms and conditions acceptance if configured
       if (terms && form.get("agree_terms") !== "1") {
-        return multiTicketFormErrorResponse(ctx)(
-          "You must agree to the terms and conditions",
-        );
+        return errorResponse("You must agree to the terms and conditions");
       }
 
-      const contact = extractContact(validation.values);
+      const contact = extractContact(values);
 
       // For daily events, validate the submitted date
       let date: string | null = null;

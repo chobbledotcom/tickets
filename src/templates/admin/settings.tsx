@@ -39,6 +39,7 @@ export type SettingsPageState = {
   businessEmail: string;
   theme: string;
   showPublicSite: boolean;
+  showPublicApi: boolean;
   phonePrefix: string;
   headerImageUrl: string;
   storageEnabled: boolean;
@@ -407,6 +408,35 @@ export const adminSettingsPage = (
                 name="show_public_site"
                 value="false"
                 checked={s.showPublicSite !== true}
+              />
+              No
+            </label>
+          </fieldset>
+          <button type="submit">Save</button>
+        </CsrfForm>
+
+        <CsrfForm action="/admin/settings/show-public-api" id="settings-show-public-api">
+            <h2>Enable public API?</h2>
+          <p>
+            Exposes a JSON API for listing events, checking availability, and creating bookings.
+            See the <a href="/admin/guide#api">API guide</a> for details.
+          </p>
+          <fieldset>
+            <label>
+              <input
+                type="radio"
+                name="show_public_api"
+                value="true"
+                checked={s.showPublicApi === true}
+              />
+              Yes
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="show_public_api"
+                value="false"
+                checked={s.showPublicApi !== true}
               />
               No
             </label>

@@ -1718,6 +1718,7 @@ describe("html", () => {
       emailProvider: "",
       emailApiKeyConfigured: false,
       emailFromAddress: "",
+      showPublicApi: false,
       hostEmailLabel: "",
       confirmationTemplates: { subject: "", html: "", text: "" },
       adminTemplates: { subject: "", html: "", text: "" },

@@ -115,6 +115,7 @@ describe("server (admin settings)", () => {
       expect(html).toContain('id="settings-terms"');
       expect(html).toContain('id="settings-password"');
       expect(html).toContain('id="settings-show-public-site"');
+      expect(html).toContain('id="settings-show-public-api"');
       expect(html).toContain('id="settings-theme"');
       expect(html).toContain('id="settings-reset-database"');
     });
@@ -1927,6 +1928,103 @@ describe("server (admin settings)", () => {
         200,
         "Show public site?",
         "show_public_site",
+      );
+    });
+  });
+
+  describe("POST /admin/settings/show-public-api", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/show-public-api", {
+          show_public_api: "true",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("rejects invalid CSRF token", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/show-public-api",
+          {
+            show_public_api: "true",
+            csrf_token: "invalid-csrf-token",
+          },
+          cookie,
+        ),
+      );
+      await expectHtmlResponse(response, 403, "Invalid CSRF token");
+    });
+
+    test("enables public API", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/show-public-api",
+          {
+            show_public_api: "true",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Public API enabled");
+    });
+
+    test("disables public API", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/show-public-api",
+          {
+            show_public_api: "false",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Public API disabled");
+    });
+
+    test("setting persists in database", async () => {
+      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      expect(await settingsApi.getShowPublicApiFromDb()).toBe(false);
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/show-public-api",
+          {
+            show_public_api: "true",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(await settingsApi.getShowPublicApiFromDb()).toBe(true);
+    });
+
+    test("settings page displays enable public API section", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      await expectHtmlResponse(
+        response,
+        200,
+        "Enable public API?",
+        "show_public_api",
       );
     });
   });

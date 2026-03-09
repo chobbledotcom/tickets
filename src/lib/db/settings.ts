@@ -64,6 +64,8 @@ export const CONFIG_KEYS = {
   PHONE_PREFIX: "phone_prefix",
   // Header image (encrypted - Bunny CDN filename)
   HEADER_IMAGE_URL: "header_image_url",
+  // Show public API (plaintext - "true" or "false")
+  SHOW_PUBLIC_API: "show_public_api",
   // Email provider (plaintext - "resend" | "postmark" | "sendgrid" | "")
   EMAIL_PROVIDER: "email_provider",
   // Email API key (encrypted)
@@ -687,6 +689,18 @@ export const getShowPublicSiteCached = (): boolean => {
 export const updateShowPublicSite = (show: boolean): Promise<void> =>
   setBoolSetting(CONFIG_KEYS.SHOW_PUBLIC_SITE, show);
 
+/**
+ * Get the "show public API" setting from database.
+ */
+export const getShowPublicApiFromDb = (): Promise<boolean> =>
+  getBoolSetting(CONFIG_KEYS.SHOW_PUBLIC_API);
+
+/**
+ * Update the "show public API" setting.
+ */
+export const updateShowPublicApi = (show: boolean): Promise<void> =>
+  setBoolSetting(CONFIG_KEYS.SHOW_PUBLIC_API, show);
+
 /** Get an encrypted optional setting (decrypted). Returns null if not set. */
 const getEncryptedSetting = async (key: string): Promise<string | null> => {
   const value = await getSetting(key);
@@ -917,6 +931,8 @@ export const settingsApi = {
   updatePhonePrefix,
   getHeaderImageUrlFromDb,
   updateHeaderImageUrl,
+  getShowPublicApiFromDb,
+  updateShowPublicApi,
   getEmailProviderFromDb,
   updateEmailProvider,
   hasEmailApiKey,
