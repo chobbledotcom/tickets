@@ -824,13 +824,13 @@ const handleEmailTestPost = settingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
   if (!config) return errorPage("Email not configured", 400, "settings-email");
   const businessEmail = await getBusinessEmailFromDb();
-  if (!businessEmail) return errorPage("No business email set", 400, "settings-email");
+  if (!businessEmail) return errorPage("No business email set", 400, "settings-email-test");
   const status = await sendTestEmail(config, businessEmail);
   if (!status) {
-    return errorPage("Test email failed (no response)", 502, "settings-email");
+    return errorPage("Test email failed (no response)", 502, "settings-email-test");
   }
   if (status >= 300) {
-    return errorPage(`Test email failed (status ${status})`, 502, "settings-email");
+    return errorPage(`Test email failed (status ${status})`, 502, "settings-email-test");
   }
   return redirect("/admin/settings", `Test email sent (status ${status})`, true, { formId: "settings-email-test" });
 });
