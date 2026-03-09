@@ -400,10 +400,7 @@ const processMultiPaymentSession = async (
 
   if (hasPerItemPrices) {
     for (const { item, event, expectedPrice } of validatedItems) {
-      const itemMismatch = event.can_pay_more
-        ? item.p < expectedPrice || item.p > getMaxPrice(event)  // pay-more: min <= p <= max
-        : item.p !== expectedPrice; // fixed: p must equal unit_price * q exactly
-      if (itemMismatch) {
+      if (hasPriceMismatch(item.p, expectedPrice, event)) {
         return priceMismatchRefund(session,
           `Multi-ticket per-item price mismatch for event ${event.id}: metadata p=${item.p} but expected ${expectedPrice} (can_pay_more=${event.can_pay_more})`,
           event.id);
