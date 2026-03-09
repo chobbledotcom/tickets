@@ -142,9 +142,8 @@ if (checkoutPopup) {
   const nav = document.querySelector<HTMLElement>("#main-nav");
   if (nav) {
     if (location.hash) {
-      nav.style.transition = "none";
-      nav.classList.add("nav-hidden");
-      requestAnimationFrame(() => { nav.style.transition = ""; });
+      nav.classList.add("nav-no-transition", "nav-hidden");
+      requestAnimationFrame(() => { nav.classList.remove("nav-no-transition"); });
     }
     let lastY = scrollY;
     let ticking = false;

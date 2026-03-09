@@ -1361,6 +1361,11 @@ button.secondary:hover {
   display: none;
 }
 
+/* No-transition helper (used by admin nav scroll-hide) */
+.nav-no-transition {
+  transition: none !important;
+}
+
 /* Guide page */
 body.guide h3 {
   margin-top: 3rem;
