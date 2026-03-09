@@ -1717,6 +1717,7 @@ describe("html", () => {
       storageEnabled: false,
       emailProvider: "",
       emailFromAddress: "",
+      globalWebhookUrl: "",
     };
 
     test("shows square webhook configured message when key is set", () => {

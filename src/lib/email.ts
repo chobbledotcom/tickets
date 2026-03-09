@@ -86,7 +86,7 @@ const sendgridRequest: ProviderRequest = (config, msg) => [
   },
 ];
 
-const mailgunRequest: ProviderRequest = (config, msg) => {
+const mailgunRequest = (host: string): ProviderRequest => (config, msg) => {
   const domain = config.fromAddress.split("@")[1];
   const form = new FormData();
   form.append("from", config.fromAddress);
@@ -96,7 +96,7 @@ const mailgunRequest: ProviderRequest = (config, msg) => {
   form.append("text", msg.text);
   if (msg.replyTo) form.append("h:Reply-To", msg.replyTo);
   return [
-    `https://api.mailgun.net/v3/${domain}/messages`,
+    `https://${host}/v3/${domain}/messages`,
     { "Authorization": `Basic ${btoa("api:" + config.apiKey)}` },
     form,
   ];
@@ -106,7 +106,8 @@ const PROVIDERS: Record<string, ProviderRequest> = {
   resend: resendRequest,
   postmark: postmarkRequest,
   sendgrid: sendgridRequest,
-  mailgun: mailgunRequest,
+  "mailgun-us": mailgunRequest("api.mailgun.net"),
+  "mailgun-eu": mailgunRequest("api.eu.mailgun.net"),
 };
 
 /** Valid provider names, derived from the PROVIDERS map */
@@ -117,7 +118,8 @@ export const EMAIL_PROVIDER_LABELS: Record<string, string> = {
   resend: "Resend",
   postmark: "Postmark",
   sendgrid: "SendGrid",
-  mailgun: "Mailgun",
+  "mailgun-us": "Mailgun (US)",
+  "mailgun-eu": "Mailgun (EU)",
 };
 
 /** Send a single email via the configured provider. Logs errors, never throws. */

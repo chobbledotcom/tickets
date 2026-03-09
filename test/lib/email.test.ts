@@ -163,8 +163,8 @@ describe("email", () => {
       expect(body.reply_to).toBeUndefined();
     });
 
-    test("sends via Mailgun with correct URL, headers, and FormData body", async () => {
-      const config: EmailConfig = { ...testConfig, provider: "mailgun" };
+    test("sends via Mailgun (US) with correct URL, headers, and FormData body", async () => {
+      const config: EmailConfig = { ...testConfig, provider: "mailgun-us" };
       const msg: EmailMessage = {
         to: "user@test.com",
         subject: "Test",
@@ -191,8 +191,30 @@ describe("email", () => {
       expect(body.get("h:Reply-To")).toBe("reply@test.com");
     });
 
+    test("sends via Mailgun (EU) with EU API endpoint", async () => {
+      const config: EmailConfig = { ...testConfig, provider: "mailgun-eu" };
+      const msg: EmailMessage = {
+        to: "user@test.com",
+        subject: "Test",
+        html: "<p>Hi</p>",
+        text: "Hi",
+      };
+
+      await sendEmail(config, msg);
+
+      expect(fetchStub.calls.length).toBe(1);
+      const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
+      expect(url).toBe("https://api.eu.mailgun.net/v3/example.com/messages");
+      expect((opts.headers as Record<string, string>)["Authorization"]).toBe(
+        `Basic ${btoa("api:re_test_key")}`,
+      );
+      const body = opts.body as FormData;
+      expect(body.get("from")).toBe("tickets@example.com");
+      expect(body.get("to")).toBe("user@test.com");
+    });
+
     test("sends via Mailgun without h:Reply-To when not provided", async () => {
-      const config: EmailConfig = { ...testConfig, provider: "mailgun" };
+      const config: EmailConfig = { ...testConfig, provider: "mailgun-us" };
       const msg: EmailMessage = { to: "user@test.com", subject: "Test", html: "<p>Hi</p>", text: "Hi" };
 
       await sendEmail(config, msg);
