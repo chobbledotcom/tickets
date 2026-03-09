@@ -2228,7 +2228,7 @@ describe("server (admin settings)", () => {
       await expectHtmlResponse(response, 400, "No business email set");
     });
 
-    test("sends test email and redirects with success", async () => {
+    test("sends test email and redirects with success including status code", async () => {
       const { settingsApi } = await import("#lib/db/settings.ts");
       const { updateBusinessEmail: setBizEmail } = await import("#lib/business-email.ts");
       const { cookie, csrfToken } = await loginAsAdmin();
@@ -2252,7 +2252,65 @@ describe("server (admin settings)", () => {
 
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location)).toContain("Test email sent");
+          expect(decodeURIComponent(location)).toContain("Test email sent (status 200)");
+        },
+      );
+    });
+
+    test("shows error when email API returns non-2xx status", async () => {
+      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { updateBusinessEmail: setBizEmail } = await import("#lib/business-email.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await settingsApi.updateEmailProvider("resend");
+      await settingsApi.updateEmailApiKey("re_test_key");
+      await settingsApi.updateEmailFromAddress("from@test.com");
+      await setBizEmail("admin@test.com");
+      settingsApi.invalidateSettingsCache();
+
+      await withMocks(
+        () => stub(globalThis, "fetch", () => Promise.resolve(new Response("Forbidden", { status: 403 }))),
+        async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/email/test",
+              { csrf_token: csrfToken },
+              cookie,
+            ),
+          );
+
+          const html = await response.text();
+          expect(response.status).toBe(500);
+          expect(html).toContain("Test email failed (status 403)");
+        },
+      );
+    });
+
+    test("shows error when email send encounters network error", async () => {
+      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { updateBusinessEmail: setBizEmail } = await import("#lib/business-email.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await settingsApi.updateEmailProvider("resend");
+      await settingsApi.updateEmailApiKey("re_test_key");
+      await settingsApi.updateEmailFromAddress("from@test.com");
+      await setBizEmail("admin@test.com");
+      settingsApi.invalidateSettingsCache();
+
+      await withMocks(
+        () => stub(globalThis, "fetch", () => Promise.reject(new Error("Network error"))),
+        async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/email/test",
+              { csrf_token: csrfToken },
+              cookie,
+            ),
+          );
+
+          const html = await response.text();
+          expect(response.status).toBe(500);
+          expect(html).toContain("Test email failed (status unknown)");
         },
       );
     });

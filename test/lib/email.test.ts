@@ -98,8 +98,9 @@ describe("email", () => {
         replyTo: "reply@test.com",
       };
 
-      await sendEmail(testConfig, msg);
+      const status = await sendEmail(testConfig, msg);
 
+      expect(status).toBe(200);
       expect(fetchStub.calls.length).toBe(1);
       const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://api.resend.com/emails");
@@ -163,39 +164,43 @@ describe("email", () => {
       expect(body.reply_to).toBeUndefined();
     });
 
-    test("logs error on non-OK response", async () => {
+    test("returns status code on non-OK response", async () => {
       restubFetch(() => Promise.resolve(new Response("Error", { status: 500 })));
 
       await withErrorSpy(async (errorSpy) => {
-        await sendEmail(testConfig, { to: "a@b.com", subject: "s", html: "h", text: "t" });
+        const status = await sendEmail(testConfig, { to: "a@b.com", subject: "s", html: "h", text: "t" });
+        expect(status).toBe(500);
         const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
         expect(logs.some((l) => l.includes("E_EMAIL_SEND") && l.includes("status=500"))).toBe(true);
       });
     });
 
-    test("logs error on fetch failure", async () => {
+    test("returns undefined on fetch failure", async () => {
       restubFetch(() => Promise.reject(new Error("Network error")));
 
       await withErrorSpy(async (errorSpy) => {
-        await sendEmail(testConfig, { to: "a@b.com", subject: "s", html: "h", text: "t" });
+        const status = await sendEmail(testConfig, { to: "a@b.com", subject: "s", html: "h", text: "t" });
+        expect(status).toBeUndefined();
         const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
         expect(logs.some((l) => l.includes("E_EMAIL_SEND") && l.includes("Network error"))).toBe(true);
       });
     });
 
-    test("logs non-Error thrown values as strings", async () => {
+    test("returns undefined for non-Error thrown values", async () => {
       restubFetch(() => Promise.reject("string error"));
 
       await withErrorSpy(async (errorSpy) => {
-        await sendEmail(testConfig, { to: "a@b.com", subject: "s", html: "h", text: "t" });
+        const status = await sendEmail(testConfig, { to: "a@b.com", subject: "s", html: "h", text: "t" });
+        expect(status).toBeUndefined();
         const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
         expect(logs.some((l) => l.includes("E_EMAIL_SEND") && l.includes("string error"))).toBe(true);
       });
     });
 
-    test("logs error for unknown provider", async () => {
+    test("returns undefined for unknown provider", async () => {
       await withErrorSpy(async (errorSpy) => {
-        await sendEmail({ ...testConfig, provider: "invalid" }, { to: "a@b.com", subject: "s", html: "h", text: "t" });
+        const status = await sendEmail({ ...testConfig, provider: "invalid" }, { to: "a@b.com", subject: "s", html: "h", text: "t" });
+        expect(status).toBeUndefined();
         const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
         expect(logs.some((l) => l.includes("E_EMAIL_SEND") && l.includes("unknown provider"))).toBe(true);
       });
@@ -321,9 +326,10 @@ describe("email", () => {
   });
 
   describe("sendTestEmail", () => {
-    test("sends test email to specified address", async () => {
-      await sendTestEmail(testConfig, "admin@test.com");
+    test("sends test email and returns status code", async () => {
+      const status = await sendTestEmail(testConfig, "admin@test.com");
 
+      expect(status).toBe(200);
       expect(fetchStub.calls.length).toBe(1);
       const body = JSON.parse((fetchStub.calls[0].args as [string, RequestInit])[1].body as string);
       expect(body.to).toEqual(["admin@test.com"]);
