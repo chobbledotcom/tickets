@@ -8,13 +8,21 @@ import {
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
+import { validateCustomDomain } from "#lib/bunny-cdn.ts";
 import { EMAIL_PROVIDER_LABELS, getEmailConfig, getHostEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
-import { getAllowedDomain, getSquareWebhookSignatureKey } from "#lib/config.ts";
+import {
+  getAllowedDomain,
+  getCdnHostname,
+  getSquareWebhookSignatureKey,
+  isBunnyCdnEnabled,
+} from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
 import {
   clearPaymentProvider,
+  getCustomDomainFromDb,
+  getCustomDomainLastValidatedFromDb,
   getEmbedHostsFromDb,
   getEmailFromAddressFromDb,
   getEmailProviderFromDb,
@@ -34,6 +42,8 @@ import {
   MAX_TERMS_LENGTH,
   setPaymentProvider,
   setStripeWebhookConfig,
+  updateCustomDomain,
+  updateCustomDomainLastValidated,
   updateEmbedHosts,
   updateEmailApiKey,
   updateEmailFromAddress,
@@ -103,6 +113,7 @@ const getWebhookUrl = (): string => {
  * to reduce sequential await overhead (especially for calls that decrypt).
  */
 const getSettingsPageState = async () => {
+  const bunnyCdnConfigured = isBunnyCdnEnabled();
   const [
     stripeKeyConfigured,
     paymentProvider,
@@ -120,6 +131,8 @@ const getSettingsPageState = async () => {
     emailProvider,
     emailApiKeyConfigured,
     emailFromAddress,
+    customDomain,
+    customDomainLastValidated,
   ] = await Promise.all([
     hasStripeKey(),
     getPaymentProviderFromDb(),
@@ -137,6 +150,8 @@ const getSettingsPageState = async () => {
     getEmailProviderFromDb(),
     hasEmailApiKey(),
     getEmailFromAddressFromDb(),
+    bunnyCdnConfigured ? getCustomDomainFromDb() : Promise.resolve(null),
+    bunnyCdnConfigured ? getCustomDomainLastValidatedFromDb() : Promise.resolve(null),
   ]);
   return {
     stripeKeyConfigured,
@@ -163,6 +178,10 @@ const getSettingsPageState = async () => {
       const label = EMAIL_PROVIDER_LABELS[hostConfig.provider] ?? hostConfig.provider;
       return `Host ${label} (${hostConfig.fromAddress})`;
     })(),
+    bunnyCdnEnabled: bunnyCdnConfigured,
+    customDomain: customDomain ?? "",
+    customDomainLastValidated: customDomainLastValidated ?? "",
+    cdnHostname: bunnyCdnConfigured ? getCdnHostname() : "",
   };
 };
 
@@ -788,6 +807,63 @@ const handleEmailTestPost = settingsRoute(async (_form, errorPage) => {
   return redirectWithSuccess("/admin/settings", `Test email sent (status ${status})`, "settings-email-test");
 });
 
+/** Handle POST /admin/settings/custom-domain - save custom domain */
+const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
+  if (!isBunnyCdnEnabled()) {
+    return errorPage("Bunny CDN is not configured", 400, "settings-custom-domain");
+  }
+
+  const raw = (form.get("custom_domain") ?? "").trim().toLowerCase();
+
+  if (raw === "") {
+    await updateCustomDomain("");
+    await logActivity("Custom domain cleared");
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Custom domain cleared",
+      "settings-custom-domain",
+    );
+  }
+
+  // Basic domain validation: must look like a hostname
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(raw)) {
+    return errorPage("Invalid domain format", 400, "settings-custom-domain");
+  }
+
+  await updateCustomDomain(raw);
+  await logActivity(`Custom domain set to ${raw}`);
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Custom domain saved",
+    "settings-custom-domain",
+  );
+});
+
+/** Handle POST /admin/settings/custom-domain/validate - validate with Bunny CDN */
+const handleCustomDomainValidatePost = settingsRoute(async (_form, errorPage) => {
+  if (!isBunnyCdnEnabled()) {
+    return errorPage("Bunny CDN is not configured", 400, "settings-custom-domain-validate");
+  }
+
+  const customDomain = await getCustomDomainFromDb();
+  if (!customDomain) {
+    return errorPage("No custom domain is configured", 400, "settings-custom-domain-validate");
+  }
+
+  const result = await validateCustomDomain(customDomain);
+  if (!result.ok) {
+    return errorPage(result.error, 502, "settings-custom-domain-validate");
+  }
+
+  await updateCustomDomainLastValidated();
+  await logActivity(`Custom domain validated: ${customDomain}`);
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Custom domain validated successfully",
+    "settings-custom-domain-validate",
+  );
+});
+
 /**
  * Handle POST /admin/settings/reset-database - owner only
  */
@@ -823,5 +899,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
   "POST /admin/settings/email": handleEmailPost,
   "POST /admin/settings/email/test": handleEmailTestPost,
+  "POST /admin/settings/custom-domain": handleCustomDomainPost,
+  "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

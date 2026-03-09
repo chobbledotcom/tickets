@@ -77,6 +77,11 @@ Also deployable with [Fly.io](https://fly.io) (`fly launch`) or any Docker host.
 
 These measures aim to raise the cost of common attacks. They do not guarantee security against all scenarios — proper operational practices (key management, access control, monitoring) are equally important.
 
+### Email Notifications
+- Automatic confirmation email to attendees and notification email to admins on each registration
+- Five HTTP API providers: Resend, Postmark, SendGrid, Mailgun (US/EU)
+- Configured in admin settings — optional, system works without it
+
 ### Webhooks
 - Outbound POST on every registration (free or paid) to per-event and/or global webhook URLs
 - Payload: name, email, phone, address, amount, currency, payment ID, ticket URL, per-ticket details

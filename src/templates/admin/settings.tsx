@@ -39,6 +39,10 @@ export type SettingsPageState = {
   emailApiKeyConfigured: boolean;
   emailFromAddress: string;
   hostEmailLabel: string;
+  bunnyCdnEnabled: boolean;
+  customDomain: string;
+  customDomainLastValidated: string;
+  cdnHostname: string;
 };
 
 /**
@@ -349,6 +353,48 @@ export const adminSettingsPage = (
           </fieldset>
           <button type="submit">Save Theme</button>
         </CsrfForm>
+
+        {s.bunnyCdnEnabled && (
+        <div>
+          <CsrfForm action="/admin/settings/custom-domain" id="settings-custom-domain">
+            <h2>Custom Domain</h2>
+            <p>Set a custom domain for your booking site.</p>
+            <label for="custom_domain">Domain</label>
+            <input
+              type="text"
+              id="custom_domain"
+              name="custom_domain"
+              placeholder="tickets.yourdomain.com"
+              value={s.customDomain}
+              autocomplete="off"
+            />
+            <button type="submit">Save Custom Domain</button>
+          </CsrfForm>
+
+          {s.customDomain && (
+          <CsrfForm action="/admin/settings/custom-domain/validate" id="settings-custom-domain-validate">
+            <article>
+              <aside>
+                <p>To use your custom domain, create a <strong>CNAME</strong> record:</p>
+                <table>
+                  <thead>
+                    <tr><th>Type</th><th>Name</th><th>Value</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>CNAME</td><td><code>{s.customDomain}</code></td><td><code>{s.cdnHostname}</code></td></tr>
+                  </tbody>
+                </table>
+                <p>Once the DNS record is in place, click the button below to validate and enable SSL.</p>
+              </aside>
+            </article>
+            {s.customDomainLastValidated && (
+              <p><small>Last validated: {s.customDomainLastValidated}</small></p>
+            )}
+            <button type="submit">Validate Custom Domain</button>
+          </CsrfForm>
+          )}
+        </div>
+        )}
 
         <ResetDatabaseForm action="/admin/settings/reset-database" id="settings-reset-database" />
     </Layout>

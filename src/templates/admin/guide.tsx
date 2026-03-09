@@ -43,7 +43,7 @@ const Q = ({
  */
 export const adminGuidePage = (adminSession: AdminSession): string =>
   String(
-    <Layout title="Guide">
+    <Layout title="Guide" bodyClass="guide">
       <AdminNav session={adminSession} active="/admin/guide" />
 
       <h2>Guide</h2>
@@ -888,6 +888,103 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
+      <Section title="Email Notifications">
+        <Q q="What are email notifications?">
+          <p>
+            When configured, the system can send up to two emails after
+            each successful registration: a <strong>confirmation email</strong>{" "}
+            to the attendee (if they provided an email address) with their
+            ticket details and link, and a{" "}
+            <strong>notification email</strong> to the business email address
+            (if one is set) letting you know someone has booked. Emails are
+            sent in the background and won't delay the booking process.
+          </p>
+        </Q>
+
+        <Q q="Which email providers are supported?">
+          <p>
+            Five providers are supported, all using HTTP APIs (no SMTP
+            required):
+          </p>
+          <ul>
+            <li><strong>Resend</strong></li>
+            <li><strong>Postmark</strong></li>
+            <li><strong>SendGrid</strong></li>
+            <li><strong>Mailgun (US)</strong></li>
+            <li><strong>Mailgun (EU)</strong></li>
+          </ul>
+          <p>
+            All providers work the same way &mdash; choose whichever you
+            already have an account with or whichever offers a free tier that
+            suits your volume.
+          </p>
+        </Q>
+
+        <Q q="How do I set up email?">
+          <ol>
+            <li>
+              Go to <a href="/admin/settings">Settings</a> and find the{" "}
+              <strong>Email</strong> section
+            </li>
+            <li>
+              Choose your email provider from the dropdown
+            </li>
+            <li>
+              Paste your provider's API key into the{" "}
+              <strong>API Key</strong> field
+            </li>
+            <li>
+              Enter a <strong>From Address</strong> &mdash; this is the sender
+              address that appears on outgoing emails. If left blank, the
+              business email address is used instead
+            </li>
+            <li>Save the settings</li>
+          </ol>
+          <p>
+            The from address must be a verified sender in your email provider's
+            account, otherwise emails will be rejected. Check your provider's
+            documentation for how to verify a sender domain or address.
+          </p>
+        </Q>
+
+        <Q q="How do I test that email is working?">
+          <p>
+            After saving your email settings, a <strong>Send Test
+            Email</strong> button appears. Click it to send a test email to
+            your business email address. If the test fails, you'll see an
+            error with the HTTP status code from your provider &mdash; check
+            that your API key is correct and your from address is verified.
+          </p>
+        </Q>
+
+        <Q q="What if email is not configured?">
+          <p>
+            Email is entirely optional. If no provider is selected, the system
+            skips sending emails silently. Registrations, payments, webhooks,
+            and everything else continue to work normally.
+          </p>
+        </Q>
+
+        <Q q="What does the confirmation email contain?">
+          <p>
+            The attendee receives an email with the event name(s), quantity,
+            price paid, and a clickable link to their ticket page. For
+            multi-event bookings, all events are listed in a single email. The
+            business email is set as the reply-to address so attendees can
+            reply directly to you.
+          </p>
+        </Q>
+
+        <Q q="What does the admin notification email contain?">
+          <p>
+            You receive an email showing the attendee's name, email, phone,
+            address, and any special instructions, along with the event
+            name(s), quantity, and price. The attendee's email is set as the
+            reply-to address so you can reply directly to them.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Settings Overview">
         <Q q="What settings are available?">
           <p>
@@ -910,6 +1007,10 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             <li>
               <strong>Payment provider</strong> &mdash; Stripe, Square, or
               none
+            </li>
+            <li>
+              <strong>Email provider</strong> &mdash; Resend, Postmark,
+              SendGrid, or Mailgun for automatic registration emails
             </li>
             <li>
               <strong>Embed hosts</strong> &mdash; restrict which websites can
