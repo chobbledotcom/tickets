@@ -49,6 +49,7 @@ import {
   withCsrfForm,
   withActiveEventBySlug,
 } from "#routes/utils.ts";
+import { getEmailConfig, getHostEmailConfig } from "#lib/email.ts";
 import { extractContact, mergeEventFields, tryValidateTicketFields } from "#templates/fields.ts";
 import { checkoutPopupPage, reservationSuccessPage } from "#templates/payment.tsx";
 import {
@@ -730,15 +731,24 @@ const handleGroupTicketBySlug = (request: Request, slug: string): Promise<Respon
   withActiveGroupEventsBySlug(slug, (group, activeEvents) =>
     handleMultiTicket(request, [slug], activeEvents, getGroupMultiTicketContext(group)));
 
+/** Get the email from-address if email is configured. Returns empty string if not. */
+export const getFromEmailIfConfigured = async (): Promise<string> => {
+  const config = await getEmailConfig() ?? getHostEmailConfig();
+  return config?.fromAddress ?? "";
+};
+
 /** Handle GET /ticket/reserved - reservation success page */
-const handleReservedGet = (request: Request): Response => {
+const handleReservedGet = async (request: Request): Promise<Response> => {
   const url = new URL(request.url);
   const tokensParam = url.searchParams.get("tokens");
   const normalizedTokens = tokensParam?.replaceAll(" ", "+") ?? "";
   const tokens = normalizedTokens.split("+").filter((t) => t.length > 0);
   const ticketUrl = tokens.length > 0 ? `/t/${tokens.join("+")}` : null;
   const inIframe = isIframeRequest(request.url);
-  return htmlResponse(reservationSuccessPage(ticketUrl, inIframe));
+
+  const fromEmail = tokens.length > 0 ? await getFromEmailIfConfigured() : "";
+
+  return htmlResponse(reservationSuccessPage(ticketUrl, inIframe, fromEmail));
 };
 
 /** Create a slug route that dispatches single vs multi-ticket requests */

@@ -51,6 +51,7 @@ import {
   plainResponse,
   redirectResponse,
 } from "#routes/utils.ts";
+import { getFromEmailIfConfigured } from "#routes/public.ts";
 import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
 
 /** Raw multi-ticket item from metadata (p may be absent in old webhooks) */
@@ -634,7 +635,9 @@ const renderSuccessFromTokens = async (tokensParam: string): Promise<Response> =
     if (event) thankYouUrl = event.thank_you_url;
   }
 
-  return htmlResponse(paymentSuccessPage(thankYouUrl, ticketUrl));
+  const fromEmail = await getFromEmailIfConfigured();
+
+  return htmlResponse(paymentSuccessPage(thankYouUrl, ticketUrl, fromEmail));
 };
 
 /**

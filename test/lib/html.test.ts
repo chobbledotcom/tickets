@@ -721,6 +721,17 @@ describe("html", () => {
       const html = paymentSuccessPage("", null);
       expect(html).not.toContain("view your tickets");
     });
+
+    test("shows email notice when fromEmail is provided", () => {
+      const html = paymentSuccessPage("", "/t/abc123", "tickets@example.com");
+      expect(html).toContain("tickets@example.com");
+      expect(html).toContain("Junk/Spam");
+    });
+
+    test("does not show email notice when fromEmail is empty", () => {
+      const html = paymentSuccessPage("", "/t/abc123");
+      expect(html).not.toContain("Junk/Spam");
+    });
   });
 
   describe("paymentCancelPage", () => {
@@ -800,6 +811,17 @@ describe("html", () => {
     test("excludes scroll-into-view marker when not in iframe mode", () => {
       const html = reservationSuccessPage("/t/abc123");
       expect(html).not.toContain("data-scroll-into-view");
+    });
+
+    test("shows email notice when fromEmail is provided", () => {
+      const html = reservationSuccessPage("/t/abc123", false, "tickets@example.com");
+      expect(html).toContain("tickets@example.com");
+      expect(html).toContain("Junk/Spam");
+    });
+
+    test("does not show email notice when fromEmail is empty", () => {
+      const html = reservationSuccessPage("/t/abc123");
+      expect(html).not.toContain("Junk/Spam");
     });
   });
 
