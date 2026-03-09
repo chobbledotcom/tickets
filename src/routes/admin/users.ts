@@ -27,7 +27,6 @@ import {
   getSearchParam,
   htmlResponse,
   redirect,
-  redirectResponse,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
@@ -145,7 +144,7 @@ const handleUsersPostForm = async (
     const inviteLink = `https://${domain}/join/${inviteCode}`;
 
     await logActivity(`User '${username}' invited as ${adminLevel}`);
-    return redirectResponse(`/admin/users?invite=${encodeURIComponent(inviteLink)}`);
+    return redirect(`/admin/users?invite=${encodeURIComponent(inviteLink)}`, "User invited", true);
 };
 
 type UserErrorPageFn = (error: string, status: number) => Promise<Response>;

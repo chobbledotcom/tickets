@@ -172,7 +172,7 @@ const handleDeleteIncomplete = attendeeFormAction(async (data, _session, _form, 
     Number.parseInt(data.attendee.price_paid, 10) > 0;
 
   if (!isIncomplete) {
-    return redirectResponse(`/admin/event/${eventId}`);
+    return redirect(`/admin/event/${eventId}`, "Attendee does not have an incomplete payment", false);
   }
 
   await deleteAttendee(attendeeId);
@@ -503,7 +503,7 @@ async function refreshPaymentHandler(
   session: AuthSession, _form: URLSearchParams, data: EditAttendeeData, attendeeId: number,
 ): Promise<Response> {
   if (!data.attendee.payment_id) {
-    return redirectResponse(`/admin/attendees/${attendeeId}`);
+    return redirect(`/admin/attendees/${attendeeId}`, "No payment to refresh", false);
   }
 
   const provider = await getActivePaymentProvider();

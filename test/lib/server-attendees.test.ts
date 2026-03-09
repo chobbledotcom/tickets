@@ -387,7 +387,9 @@ describe("server (admin attendees)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}`)(response);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(`/admin/event/${event.id}`);
+      expect(response.headers.get("location")).toContain("error=");
 
       // Verify attendee was NOT deleted (still exists)
       const rows = await getAttendeesRaw(event.id);
@@ -406,7 +408,9 @@ describe("server (admin attendees)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}`)(response);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toContain(`/admin/event/${event.id}`);
+      expect(response.headers.get("location")).toContain("error=");
 
       // Verify attendee was NOT deleted
       const rows = await getAttendeesRaw(event.id);
@@ -2159,7 +2163,7 @@ describe("server (admin attendees)", () => {
       );
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe(
-        `/admin/attendees/${attendee.id}`,
+        `/admin/attendees/${attendee.id}?error=No+payment+to+refresh`,
       );
     });
 
