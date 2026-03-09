@@ -741,21 +741,23 @@ const extractSessionIdFromObject = (obj: Record<string, unknown>): string | null
  * Primary handler for payment completion - more reliable than redirects.
  */
 const handlePaymentWebhook = async (request: Request): Promise<Response> => {
-  const provider = await getActivePaymentProvider();
-  if (!provider) {
-    return plainResponse("Payment provider not configured", 400);
-  }
+  // Read raw body bytes FIRST, before any async work. The Bunny Edge runtime
+  // can garbage-collect the underlying request body resource during awaits
+  // (e.g. dynamic imports in getActivePaymentProvider), causing "BadResource:
+  // Cannot read body as underlying resource unavailable" errors.
+  const payloadBytes = new Uint8Array(await request.arrayBuffer());
 
-  // Get signature header
+  // Get signature header (sync — headers are always available)
   const signature = getWebhookSignatureHeader(request);
   if (!signature) {
     return plainResponse("Missing signature", 400);
   }
 
-  // Read raw body bytes for signature verification. Using arrayBuffer() and
-  // passing raw bytes to the HMAC avoids a text decoding/encoding round-trip
-  // that can silently alter the payload in CDN edge runtimes.
-  const payloadBytes = new Uint8Array(await request.arrayBuffer());
+  const provider = await getActivePaymentProvider();
+  if (!provider) {
+    return plainResponse("Payment provider not configured", 400);
+  }
+
   const payload = new TextDecoder().decode(payloadBytes);
 
   // Use the public-facing domain for signature verification. Square signs the
