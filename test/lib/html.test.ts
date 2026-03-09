@@ -1721,6 +1721,10 @@ describe("html", () => {
       globalWebhookUrl: "",
       confirmationTemplates: { subject: "", html: "", text: "" },
       adminTemplates: { subject: "", html: "", text: "" },
+      bunnyCdnEnabled: false,
+      customDomain: "",
+      customDomainLastValidated: "",
+      cdnHostname: "",
     };
 
     test("shows square webhook configured message when key is set", () => {

@@ -8,16 +8,23 @@ import {
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
+import { validateCustomDomain } from "#lib/bunny-cdn.ts";
 import { getEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { buildTemplateData, renderTemplate, validateTemplate } from "#lib/email-renderer.ts";
-import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
-import { getAllowedDomain, getSquareWebhookSignatureKey } from "#lib/config.ts";
+import {
+  getAllowedDomain,
+  getCdnHostname,
+  getSquareWebhookSignatureKey,
+  isBunnyCdnEnabled,
+} from "#lib/config.ts";
 import { getEnv } from "#lib/env.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
 import {
   clearPaymentProvider,
+  getCustomDomainFromDb,
+  getCustomDomainLastValidatedFromDb,
   getEmbedHostsFromDb,
   getEmailFromAddressFromDb,
   getEmailProviderFromDb,
@@ -37,6 +44,8 @@ import {
   MAX_TERMS_LENGTH,
   setPaymentProvider,
   setStripeWebhookConfig,
+  updateCustomDomain,
+  updateCustomDomainLastValidated,
   updateEmbedHosts,
   updateEmailApiKey,
   updateEmailFromAddress,
@@ -111,6 +120,7 @@ const getWebhookUrl = (): string => {
  * to reduce sequential await overhead (especially for calls that decrypt).
  */
 const getSettingsPageState = async () => {
+  const bunnyCdnConfigured = isBunnyCdnEnabled();
   const [
     stripeKeyConfigured,
     paymentProvider,
@@ -130,6 +140,8 @@ const getSettingsPageState = async () => {
     emailFromAddress,
     confirmationTemplates,
     adminTemplates,
+    customDomain,
+    customDomainLastValidated,
   ] = await Promise.all([
     hasStripeKey(),
     getPaymentProviderFromDb(),
@@ -149,6 +161,8 @@ const getSettingsPageState = async () => {
     getEmailFromAddressFromDb(),
     getEmailTemplateSet("confirmation"),
     getEmailTemplateSet("admin"),
+    bunnyCdnConfigured ? getCustomDomainFromDb() : Promise.resolve(null),
+    bunnyCdnConfigured ? getCustomDomainLastValidatedFromDb() : Promise.resolve(null),
   ]);
   return {
     stripeKeyConfigured,
@@ -180,6 +194,10 @@ const getSettingsPageState = async () => {
       html: adminTemplates.html ?? "",
       text: adminTemplates.text ?? "",
     },
+    bunnyCdnEnabled: bunnyCdnConfigured,
+    customDomain: customDomain ?? "",
+    customDomainLastValidated: customDomainLastValidated ?? "",
+    cdnHostname: bunnyCdnConfigured ? getCdnHostname() : "",
   };
 };
 
@@ -914,9 +932,66 @@ const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
       const rendered = await renderTemplate(template, sampleData);
       return jsonResponse({ rendered, format });
     } catch (err) {
-      return jsonResponse({ error: err instanceof Error ? err.message : String(err) }, 400);
+      return jsonResponse({ error: String(err) }, 400);
     }
   });
+
+/** Handle POST /admin/settings/custom-domain - save custom domain */
+const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
+  if (!isBunnyCdnEnabled()) {
+    return errorPage("Bunny CDN is not configured", 400, "settings-custom-domain");
+  }
+
+  const raw = (form.get("custom_domain") ?? "").trim().toLowerCase();
+
+  if (raw === "") {
+    await updateCustomDomain("");
+    await logActivity("Custom domain cleared");
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Custom domain cleared",
+      "settings-custom-domain",
+    );
+  }
+
+  // Basic domain validation: must look like a hostname
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(raw)) {
+    return errorPage("Invalid domain format", 400, "settings-custom-domain");
+  }
+
+  await updateCustomDomain(raw);
+  await logActivity(`Custom domain set to ${raw}`);
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Custom domain saved",
+    "settings-custom-domain",
+  );
+});
+
+/** Handle POST /admin/settings/custom-domain/validate - validate with Bunny CDN */
+const handleCustomDomainValidatePost = settingsRoute(async (_form, errorPage) => {
+  if (!isBunnyCdnEnabled()) {
+    return errorPage("Bunny CDN is not configured", 400, "settings-custom-domain-validate");
+  }
+
+  const customDomain = await getCustomDomainFromDb();
+  if (!customDomain) {
+    return errorPage("No custom domain is configured", 400, "settings-custom-domain-validate");
+  }
+
+  const result = await validateCustomDomain(customDomain);
+  if (!result.ok) {
+    return errorPage(result.error, 502, "settings-custom-domain-validate");
+  }
+
+  await updateCustomDomainLastValidated();
+  await logActivity(`Custom domain validated: ${customDomain}`);
+  return redirectWithSuccess(
+    "/admin/settings",
+    "Custom domain validated successfully",
+    "settings-custom-domain-validate",
+  );
+});
 
 /**
  * Handle POST /admin/settings/reset-database - owner only
@@ -958,5 +1033,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/email-templates/confirmation/reset": handleEmailTemplateResetPost("confirmation"),
   "POST /admin/settings/email-templates/admin/reset": handleEmailTemplateResetPost("admin"),
   "POST /admin/settings/email-templates/preview": handleEmailTemplatePreviewPost,
+  "POST /admin/settings/custom-domain": handleCustomDomainPost,
+  "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

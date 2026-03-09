@@ -8,7 +8,6 @@ import {
   validateTemplate,
 } from "#lib/email-renderer.ts";
 import type { TemplateData } from "#lib/email-renderer.ts";
-import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import type { RegistrationEntry, WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils";
 import { setCurrencyCodeForTest, resetCurrencyCode } from "#lib/currency.ts";

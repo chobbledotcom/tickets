@@ -139,3 +139,30 @@ export const getTz = (): string => getTimezoneCached();
  * Check if initial setup has been completed
  */
 export { isSetupComplete };
+
+/**
+ * Check if Bunny CDN pull zone management is enabled
+ * Requires both BUNNY_API_KEY and BUNNY_PULL_ZONE_ID to be set
+ */
+export const isBunnyCdnEnabled = (): boolean => {
+  const apiKey = getEnv("BUNNY_API_KEY");
+  const pullZoneId = getEnv("BUNNY_PULL_ZONE_ID");
+  return !!apiKey && !!pullZoneId;
+};
+
+/**
+ * Get the Bunny CDN API key from environment
+ */
+export const getBunnyApiKey = (): string => requireEnv("BUNNY_API_KEY");
+
+/**
+ * Get the Bunny CDN pull zone ID from environment
+ */
+export const getBunnyPullZoneId = (): string => requireEnv("BUNNY_PULL_ZONE_ID");
+
+/**
+ * Get the CDN hostname derived from ALLOWED_DOMAIN.
+ * Replaces ".bunny.run" with ".b-cdn.net" for the CNAME target.
+ */
+export const getCdnHostname = (): string =>
+  getAllowedDomain().replace(/\.bunny\.run$/, ".b-cdn.net");

@@ -77,6 +77,10 @@ export const CONFIG_KEYS = {
   EMAIL_TPL_ADMIN_SUBJECT: "email_tpl_admin_subject",
   EMAIL_TPL_ADMIN_HTML: "email_tpl_admin_html",
   EMAIL_TPL_ADMIN_TEXT: "email_tpl_admin_text",
+  // Custom domain (plaintext - user-configured custom domain for Bunny CDN pull zone)
+  CUSTOM_DOMAIN: "custom_domain",
+  // Custom domain last validated timestamp (plaintext - ISO 8601 UTC)
+  CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
 } as const;
 
 /**
@@ -849,6 +853,22 @@ export const resetEmailTemplate = async (type: EmailTemplateType): Promise<void>
   ]);
 };
 
+/** Get the custom domain from database. Returns null if not set. */
+export const getCustomDomainFromDb = (): Promise<string | null> =>
+  getSetting(CONFIG_KEYS.CUSTOM_DOMAIN);
+
+/** Update the custom domain. Pass empty string to clear. */
+export const updateCustomDomain = (domain: string): Promise<void> =>
+  setOrDeleteSetting(CONFIG_KEYS.CUSTOM_DOMAIN, domain);
+
+/** Get the custom domain last validated timestamp. Returns null if never validated. */
+export const getCustomDomainLastValidatedFromDb = (): Promise<string | null> =>
+  getSetting(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED);
+
+/** Update the custom domain last validated timestamp to now (UTC ISO 8601). */
+export const updateCustomDomainLastValidated = (): Promise<void> =>
+  setSetting(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, new Date().toISOString());
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
@@ -917,4 +937,8 @@ export const settingsApi = {
   updateEmailTemplate,
   getEmailTemplateSet,
   resetEmailTemplate,
+  getCustomDomainFromDb,
+  updateCustomDomain,
+  getCustomDomainLastValidatedFromDb,
+  updateCustomDomainLastValidated,
 };
