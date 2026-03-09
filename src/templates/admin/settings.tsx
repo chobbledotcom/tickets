@@ -2,6 +2,7 @@
  * Admin settings page template
  */
 
+import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { CsrfForm, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
@@ -123,9 +124,9 @@ export const adminSettingsPage = (
           <label for="email_provider">Email Provider</label>
           <select id="email_provider" name="email_provider">
             <option value="" selected={!s.emailProvider}>{s.globalWebhookUrl ? `Default webhook (${new URL(s.globalWebhookUrl).hostname})` : "None (disabled)"}</option>
-            <option value="resend" selected={s.emailProvider === "resend"}>Resend</option>
-            <option value="postmark" selected={s.emailProvider === "postmark"}>Postmark</option>
-            <option value="sendgrid" selected={s.emailProvider === "sendgrid"}>SendGrid</option>
+            {Array.from(VALID_EMAIL_PROVIDERS).map((p) => (
+              <option value={p} selected={s.emailProvider === p}>{EMAIL_PROVIDER_LABELS[p]}</option>
+            ))}
           </select>
           <label for="email_api_key">API Key</label>
           <input
