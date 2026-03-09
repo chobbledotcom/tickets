@@ -66,6 +66,22 @@ const findPullZoneIdImpl = async (): Promise<
   return { ok: true, id: zone.Id };
 };
 
+/** Parse a Bunny API error response into a BunnyApiResult. */
+const parseBunnyError = async (
+  response: Response,
+  label: string,
+): Promise<BunnyApiResult & { ok: false }> => {
+  const text = await response.text();
+  let message = text;
+  let errorKey: string | undefined;
+  try {
+    const json = JSON.parse(text);
+    if (json.Message) message = json.Message;
+    if (json.ErrorKey) errorKey = json.ErrorKey;
+  } catch { /* use raw text */ }
+  return { ok: false, error: `${label} failed (${response.status}): ${message}`, errorKey };
+};
+
 /** POST to a Bunny CDN pull zone endpoint with JSON body. */
 const pullZonePost = async (
   pullZoneId: number,
@@ -82,16 +98,24 @@ const pullZonePost = async (
   });
 
   if (response.status === 204 || response.ok) return { ok: true };
+  return parseBunnyError(response, label);
+};
 
-  const text = await response.text();
-  let message = text;
-  let errorKey: string | undefined;
-  try {
-    const json = JSON.parse(text);
-    if (json.Message) message = json.Message;
-    if (json.ErrorKey) errorKey = json.ErrorKey;
-  } catch { /* use raw text */ }
-  return { ok: false, error: `${label} failed (${response.status}): ${message}`, errorKey };
+/** Request a free Let's Encrypt certificate for a hostname on a pull zone. */
+const loadFreeCertificate = async (
+  _pullZoneId: number,
+  hostname: string,
+): Promise<BunnyApiResult> => {
+  const url =
+    `${BUNNY_API_BASE}/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(hostname)}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { AccessKey: getBunnyApiKey() },
+  });
+
+  if (response.ok) return { ok: true };
+  return parseBunnyError(response, "Load free certificate");
 };
 
 /**
@@ -121,6 +145,12 @@ const validateCustomDomainImpl = async (
   ) {
     logError({ code: ErrorCode.CDN_REQUEST, detail: hostnameResult.error });
     return hostnameResult;
+  }
+
+  const certResult = await loadFreeCertificate(pullZoneId, hostname);
+  if (!certResult.ok) {
+    logError({ code: ErrorCode.CDN_REQUEST, detail: certResult.error });
+    return certResult;
   }
 
   const sslResult = await pullZonePost(
