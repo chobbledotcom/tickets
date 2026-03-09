@@ -42,10 +42,6 @@ export const isEventType = (s: string): s is EventType =>
 export const isPaidEvent = (event: Pick<Event, "unit_price" | "can_pay_more">): boolean =>
   event.unit_price > 0 || event.can_pay_more;
 
-/** Get the effective max price for a pay-more event (in minor units). */
-export const getMaxPrice = (event: Pick<Event, "max_price">): number =>
-  event.max_price;
-
 export interface Event {
   id: number;
   name: string;

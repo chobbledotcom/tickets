@@ -11,7 +11,7 @@ import { getAvailableDates } from "#lib/dates.ts";
 import { hasAvailableSpots } from "#lib/db/attendees.ts";
 import { getAllEvents, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { getMaxPrice, type EventWithCount } from "#lib/types.ts";
+import type { EventWithCount } from "#lib/types.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
@@ -86,7 +86,7 @@ export const toPublicEvent = (event: EventWithCount, closed = false, availableDa
     imageUrl: event.image_url || null,
     unitPrice: event.unit_price,
     canPayMore: event.can_pay_more,
-    maxPrice: getMaxPrice(event),
+    maxPrice: event.max_price,
     nonTransferable: event.non_transferable,
     fields: event.fields,
     eventType: event.event_type,
@@ -250,7 +250,7 @@ const handleBook = withActiveEvent(async (request, event) => {
   // Parse custom price for pay-more events
   let customUnitPrice: number | undefined;
   if (event.can_pay_more) {
-    const priceResult = parseCustomPrice(body.customPrice, event.unit_price, getMaxPrice(event));
+    const priceResult = parseCustomPrice(body.customPrice, event.unit_price, event.max_price);
     if (!priceResult.ok) {
       return apiResponse({ error: priceResult.error }, 400);
     }
