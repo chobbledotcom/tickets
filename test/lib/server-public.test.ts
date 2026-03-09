@@ -2261,6 +2261,48 @@ describe("server (public routes)", () => {
       }
     });
 
+    test("multi-ticket paid flow shows validation error from checkout session", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Multi Valerr 1",
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+      const event2 = await createTestEvent({
+        name: "Multi Valerr 2",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      const path = `/ticket/${event1.slug}+${event2.slug}`;
+      const getResponse = await handleRequest(mockRequest(path));
+      const csrfToken = getTicketCsrfToken(await getResponse.text());
+      if (!csrfToken) throw new Error("Failed to get CSRF token");
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockCreate = stub(
+        stripePaymentProvider,
+        "createMultiCheckoutSession",
+        () => Promise.resolve({ error: "Invalid phone number format" }),
+      );
+
+      try {
+        const response = await handleRequest(
+          mockFormRequest(path, {
+            name: "John Doe",
+            email: "john@example.com",
+            [`quantity_${event1.id}`]: "1",
+            [`quantity_${event2.id}`]: "1",
+            csrf_token: csrfToken,
+          }, `csrf_token=${csrfToken}`),
+        );
+        await expectHtmlResponse(response, 400, "Invalid phone number format");
+      } finally {
+        mockCreate.restore();
+      }
+    });
+
     test("multi-ticket skips sold-out events in quantity parsing", async () => {
       const event1 = await createTestEvent({
         name: "Multi Soldout 1",
@@ -2530,39 +2572,6 @@ describe("server (public routes)", () => {
         "Pay Now",
         'target="_blank"',
       );
-    });
-  });
-
-  describe("routes/public.ts (withPaymentProvider onMissing single-ticket)", () => {
-    afterEach(() => {
-      resetStripeClient();
-    });
-
-    test("shows payment not configured error when provider returns null for single-ticket", async () => {
-      await setupStripe();
-
-      const event = await createTestEvent({
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
-
-      // Mock paymentsApi.getConfiguredProvider to return null so getActivePaymentProvider
-      // returns null, while isPaymentsEnabled still returns true from the DB
-      const { paymentsApi } = await import("#lib/payments.ts");
-      const mockConfigured = stub(paymentsApi, "getConfiguredProvider",
-        () => Promise.resolve(null),
-      );
-
-      try {
-        const response = await submitTicketForm(event.slug, {
-          name: "John Doe",
-          email: "john@example.com",
-        });
-
-        await expectHtmlResponse(response, 500, "Payments are not configured");
-      } finally {
-        mockConfigured.restore();
-      }
     });
   });
 

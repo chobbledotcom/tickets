@@ -6,16 +6,13 @@
  */
 
 import { filter, map, pipe } from "#fp";
-import { isPaymentsEnabled } from "#lib/config.ts";
-import { getCurrencyCode } from "#lib/config.ts";
+import { processBooking } from "#lib/booking.ts";
 import { getAvailableDates } from "#lib/dates.ts";
-import { createAttendeeAtomic, hasAvailableSpots } from "#lib/db/attendees.ts";
+import { hasAvailableSpots } from "#lib/db/attendees.ts";
 import { getAllEvents, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { getActivePaymentProvider, type RegistrationIntent } from "#lib/payments.ts";
 import { getMaxPrice, type EventWithCount } from "#lib/types.ts";
 import { sortEvents } from "#lib/sort-events.ts";
-import { logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   getBaseUrl,
@@ -191,6 +188,29 @@ const parseCustomPrice = (
   maxPrice,
 );
 
+/** Map a BookingResult to an API JSON response */
+const bookingResultToResponse = (result: import("#lib/booking.ts").BookingResult): Response => {
+  switch (result.type) {
+    case "success":
+      return apiResponse({
+        ticketToken: result.attendee.ticket_token,
+        ticketUrl: `/t/${result.attendee.ticket_token}`,
+      });
+    case "checkout":
+      return apiResponse({ checkoutUrl: result.checkoutUrl });
+    case "sold_out":
+      return apiResponse({ error: "Sorry, not enough spots available" }, 409);
+    case "checkout_failed":
+      return result.error
+        ? apiResponse({ error: result.error }, 400)
+        : apiResponse({ error: "Failed to create payment session" }, 500);
+    case "creation_failed":
+      return result.reason === "capacity_exceeded"
+        ? apiResponse({ error: "Sorry, not enough spots available" }, 409)
+        : apiResponse({ error: "Registration failed. Please try again." }, 500);
+  }
+};
+
 /** POST /api/events/:slug/book — create a booking */
 const handleBook = withActiveEvent(async (request, event) => {
   if (isRegistrationClosed(event)) {
@@ -238,64 +258,9 @@ const handleBook = withActiveEvent(async (request, event) => {
   }
 
   const contact = extractContact(values);
-
-  // Determine if payment is required
-  const paymentsEnabled = await isPaymentsEnabled();
-  const needsPayment = (paymentsEnabled && event.unit_price > 0) ||
-    (customUnitPrice !== undefined && customUnitPrice > 0 && paymentsEnabled);
-
-  if (needsPayment) {
-    // Check availability before creating checkout session
-    const available = await hasAvailableSpots(event.id, quantity, date);
-    if (!available) {
-      return apiResponse({ error: "Sorry, not enough spots available" }, 409);
-    }
-
-    // Provider is guaranteed to exist when isPaymentsEnabled() is true
-    const provider = (await getActivePaymentProvider())!;
-
-    const intent: RegistrationIntent = {
-      eventId: event.id,
-      ...contact,
-      quantity,
-      date,
-      customUnitPrice,
-    };
-
-    const baseUrl = getBaseUrl(request);
-    const result = await provider.createCheckoutSession(event, intent, baseUrl);
-
-    if (!result) {
-      return apiResponse({ error: "Failed to create payment session" }, 500);
-    }
-    if ("error" in result) {
-      return apiResponse({ error: result.error }, 400);
-    }
-
-    return apiResponse({ checkoutUrl: result.checkoutUrl });
-  }
-
-  // Free event — create attendee atomically
-  const result = await createAttendeeAtomic({
-    eventId: event.id,
-    ...contact,
-    quantity,
-    date,
-  });
-
-  if (!result.success) {
-    const message = result.reason === "capacity_exceeded"
-      ? "Sorry, not enough spots available"
-      : "Registration failed. Please try again.";
-    return apiResponse({ error: message }, result.reason === "capacity_exceeded" ? 409 : 500);
-  }
-
-  await logAndNotifyRegistration(event, result.attendee, await getCurrencyCode());
-
-  return apiResponse({
-    ticketToken: result.attendee.ticket_token,
-    ticketUrl: `/t/${result.attendee.ticket_token}`,
-  });
+  return bookingResultToResponse(
+    await processBooking(event, contact, quantity, date, getBaseUrl(request), customUnitPrice),
+  );
 });
 
 // =============================================================================
