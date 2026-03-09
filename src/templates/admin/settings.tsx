@@ -125,6 +125,7 @@ export const adminSettingsPage = (
             <option value="resend" selected={s.emailProvider === "resend"}>Resend</option>
             <option value="postmark" selected={s.emailProvider === "postmark"}>Postmark</option>
             <option value="sendgrid" selected={s.emailProvider === "sendgrid"}>SendGrid</option>
+            <option value="mailgun" selected={s.emailProvider === "mailgun"}>Mailgun</option>
           </select>
           <label for="email_api_key">API Key</label>
           <input

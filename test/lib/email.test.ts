@@ -163,6 +163,44 @@ describe("email", () => {
       expect(body.reply_to).toBeUndefined();
     });
 
+    test("sends via Mailgun with correct URL, headers, and FormData body", async () => {
+      const config: EmailConfig = { ...testConfig, provider: "mailgun" };
+      const msg: EmailMessage = {
+        to: "user@test.com",
+        subject: "Test",
+        html: "<p>Hi</p>",
+        text: "Hi",
+        replyTo: "reply@test.com",
+      };
+
+      await sendEmail(config, msg);
+
+      expect(fetchStub.calls.length).toBe(1);
+      const [url, opts] = fetchStub.calls[0].args as [string, RequestInit];
+      expect(url).toBe("https://api.mailgun.net/v3/example.com/messages");
+      expect((opts.headers as Record<string, string>)["Authorization"]).toBe(
+        `Basic ${btoa("api:re_test_key")}`,
+      );
+      expect(opts.headers as Record<string, string>).not.toHaveProperty("Content-Type");
+      const body = opts.body as FormData;
+      expect(body.get("from")).toBe("tickets@example.com");
+      expect(body.get("to")).toBe("user@test.com");
+      expect(body.get("subject")).toBe("Test");
+      expect(body.get("html")).toBe("<p>Hi</p>");
+      expect(body.get("text")).toBe("Hi");
+      expect(body.get("h:Reply-To")).toBe("reply@test.com");
+    });
+
+    test("sends via Mailgun without h:Reply-To when not provided", async () => {
+      const config: EmailConfig = { ...testConfig, provider: "mailgun" };
+      const msg: EmailMessage = { to: "user@test.com", subject: "Test", html: "<p>Hi</p>", text: "Hi" };
+
+      await sendEmail(config, msg);
+
+      const body = (fetchStub.calls[0].args as [string, RequestInit])[1].body as FormData;
+      expect(body.get("h:Reply-To")).toBeNull();
+    });
+
     test("logs error on non-OK response", async () => {
       restubFetch(() => Promise.resolve(new Response("Error", { status: 500 })));
 

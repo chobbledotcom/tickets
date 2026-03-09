@@ -8,7 +8,7 @@ import {
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
-import { getEmailConfig, sendTestEmail } from "#lib/email.ts";
+import { getEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { getAllowedDomain, getSquareWebhookSignatureKey } from "#lib/config.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
@@ -716,8 +716,6 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
   );
 });
 
-/** Valid email provider values */
-const VALID_EMAIL_PROVIDERS: ReadonlySet<string> = new Set(["resend", "postmark", "sendgrid"]);
 
 /** Handle POST /admin/settings/email - owner only */
 const handleEmailPost = settingsRoute(async (form, errorPage) => {
