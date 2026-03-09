@@ -333,6 +333,33 @@ describe("bunny-cdn", () => {
       });
     });
 
+    test("extracts Message from JSON error response", async () => {
+      await withFixedPullZoneId(async () => {
+        const jsonBody = JSON.stringify({
+          ErrorKey: "pullzone.hostname_already_registered",
+          Field: "Hostname",
+          Message: "The hostname is already registered.",
+        });
+        await withMocks(
+          () =>
+            stub(globalThis, "fetch", () =>
+              Promise.resolve(
+                new Response(jsonBody, { status: 400 }),
+              )),
+          async () => {
+            const result = await bunnyCdnApi.validateCustomDomain(
+              "cdn.example.com",
+            );
+            expect(result).toEqual({
+              ok: false,
+              error:
+                "Add hostname failed (400): The hostname is already registered.",
+            });
+          },
+        );
+      });
+    });
+
     test("does not call setForceSSL when addHostname fails", async () => {
       await withFixedPullZoneId(async () => {
         let callCount = 0;

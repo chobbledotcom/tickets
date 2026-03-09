@@ -80,7 +80,12 @@ const pullZonePost = async (
   if (response.status === 204 || response.ok) return { ok: true };
 
   const text = await response.text();
-  return { ok: false, error: `${label} failed (${response.status}): ${text}` };
+  let message = text;
+  try {
+    const json = JSON.parse(text);
+    if (json.Message) message = json.Message;
+  } catch { /* use raw text */ }
+  return { ok: false, error: `${label} failed (${response.status}): ${message}` };
 };
 
 /**
