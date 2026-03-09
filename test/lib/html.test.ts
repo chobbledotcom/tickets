@@ -1942,9 +1942,8 @@ describe("html", () => {
         { value: "2026-03-16", label: "Monday 16 March 2026", hasBookings: true },
       ];
       const html = adminCalendarPage([], "localhost", TEST_SESSION, null, dates, "2026-03-10");
-      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/);
-      const options = selectMatch![1];
-      const optionTexts = [...options.matchAll(/>([^<]+)</g)].map((m) => m[1]);
+      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
+      const optionTexts = [...selectMatch[1]!.matchAll(/>([^<]+)</g)].map((m) => m[1]);
       expect(optionTexts).toEqual([
         "Sunday 8 March 2026",
         "Monday 9 March 2026",
@@ -1960,9 +1959,8 @@ describe("html", () => {
         { value: "2026-03-09", label: "Monday 9 March 2026", hasBookings: true },
       ];
       const html = adminCalendarPage([], "localhost", TEST_SESSION, null, dates, "2026-03-10");
-      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/);
-      const options = selectMatch![1];
-      const optionTexts = [...options.matchAll(/>([^<]+)</g)].map((m) => m[1]);
+      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
+      const optionTexts = [...selectMatch[1]!.matchAll(/>([^<]+)</g)].map((m) => m[1]);
       expect(optionTexts).toEqual([
         "Sunday 8 March 2026",
         "Monday 9 March 2026",
@@ -1976,9 +1974,8 @@ describe("html", () => {
         { value: "2026-03-16", label: "Monday 16 March 2026", hasBookings: true },
       ];
       const html = adminCalendarPage([], "localhost", TEST_SESSION, null, dates, "2026-03-10");
-      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/);
-      const options = selectMatch![1];
-      const optionTexts = [...options.matchAll(/>([^<]+)</g)].map((m) => m[1]);
+      const selectMatch = html.match(/<select[^>]*>([\s\S]*?)<\/select>/)!;
+      const optionTexts = [...selectMatch[1]!.matchAll(/>([^<]+)</g)].map((m) => m[1]);
       expect(optionTexts).toEqual([
         "Select a date",
         "Sunday 15 March 2026",
