@@ -412,7 +412,9 @@ const processMultiPaymentSession = async (
     }
 
     // Cart total must equal the sum of per-item prices
-    const metadataTotal = reduce((sum: number, { item }: { item: { p: number } }) => sum + item.p, 0)(validatedItems);
+    const metadataTotal = reduce(
+      (sum: number, { item }: typeof validatedItems[number]) => sum + item.p, 0,
+    )(validatedItems);
     if (session.amountTotal !== metadataTotal) {
       return priceMismatchRefund(session,
         `Multi-ticket total mismatch: provider charged ${session.amountTotal} but sum(p) = ${metadataTotal}`,
