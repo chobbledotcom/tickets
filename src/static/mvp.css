@@ -1354,3 +1354,11 @@ button.secondary:hover {
     color: #666;
   }
 }
+
+/* Hide email API key and from address fields when provider is "None" */
+#email_provider:has(option[value=""]:checked) ~ label[for="email_api_key"],
+#email_provider:has(option[value=""]:checked) ~ #email_api_key,
+#email_provider:has(option[value=""]:checked) ~ label[for="email_from_address"],
+#email_provider:has(option[value=""]:checked) ~ #email_from_address {
+  display: none;
+}
