@@ -65,20 +65,20 @@ const PRICE_CHANGED_MESSAGE =
 
 /** Check if session is a multi-ticket session */
 const isMultiSession = (metadata: SessionMetadata): boolean =>
-  metadata.multi === "1" && typeof metadata.items === "string";
+  metadata.multi === "1" && metadata.items !== "";
 
 /** Extract registration intent from validated session metadata (single-ticket only) */
 const extractIntent = (
   session: ValidatedPaymentSession,
 ): RegistrationIntent => ({
-  eventId: Number.parseInt(session.metadata.event_id ?? "0", 10),
+  eventId: Number.parseInt(session.metadata.event_id || "0", 10),
   name: session.metadata.name,
-  email: session.metadata.email ?? "",
-  phone: session.metadata.phone ?? "",
-  address: session.metadata.address ?? "",
-  special_instructions: session.metadata.special_instructions ?? "",
+  email: session.metadata.email,
+  phone: session.metadata.phone,
+  address: session.metadata.address,
+  special_instructions: session.metadata.special_instructions,
   quantity: Number.parseInt(session.metadata.quantity || "1", 10),
-  date: session.metadata.date ?? null,
+  date: session.metadata.date || null,
 });
 
 /** Wrap handler with session ID extraction */
@@ -338,11 +338,11 @@ const extractMultiIntent = (
 
   return {
     name: metadata.name,
-    email: metadata.email ?? "",
-    phone: metadata.phone ?? "",
-    address: metadata.address ?? "",
-    special_instructions: metadata.special_instructions ?? "",
-    date: metadata.date ?? null,
+    email: metadata.email,
+    phone: metadata.phone,
+    address: metadata.address,
+    special_instructions: metadata.special_instructions,
+    date: metadata.date || null,
     items,
   };
 };
