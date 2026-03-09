@@ -70,7 +70,7 @@ export const CONFIG_KEYS = {
   EMAIL_API_KEY: "email_api_key",
   // Email from address (encrypted - verified sender address)
   EMAIL_FROM_ADDRESS: "email_from_address",
-  // Custom email templates (plaintext - Liquid syntax)
+  // Custom email templates (encrypted - may contain PII in Liquid syntax)
   EMAIL_TPL_CONFIRMATION_SUBJECT: "email_tpl_confirmation_subject",
   EMAIL_TPL_CONFIRMATION_HTML: "email_tpl_confirmation_html",
   EMAIL_TPL_CONFIRMATION_TEXT: "email_tpl_confirmation_text",
@@ -822,13 +822,13 @@ const emailTemplateKey = (type: EmailTemplateType, format: EmailTemplateFormat):
 /** Max length for email templates */
 export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
 
-/** Get a custom email template. Returns null if not customised (use default). */
+/** Get a custom email template (decrypted). Returns null if not customised (use default). */
 export const getEmailTemplate = (type: EmailTemplateType, format: EmailTemplateFormat): Promise<string | null> =>
-  getSetting(emailTemplateKey(type, format));
+  getEncryptedSetting(emailTemplateKey(type, format));
 
-/** Update a custom email template. Pass empty string to clear (revert to default). */
+/** Update a custom email template (encrypted at rest). Pass empty string to clear (revert to default). */
 export const updateEmailTemplate = (type: EmailTemplateType, format: EmailTemplateFormat, content: string): Promise<void> =>
-  setOrDeleteSetting(emailTemplateKey(type, format), content);
+  updateEncryptedSetting(emailTemplateKey(type, format), content);
 
 /** Get all 3 parts of a custom email template (subject, html, text). Nulls mean "use default". */
 export const getEmailTemplateSet = async (type: EmailTemplateType): Promise<{

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import {
+  getSetting,
   getEmailTemplateSet,
   invalidateSettingsCache,
   updateEmailTemplate,
+  CONFIG_KEYS,
 } from "#lib/db/settings.ts";
 import { handleRequest } from "#routes";
 import {
@@ -72,6 +74,35 @@ describe("admin email templates", () => {
       );
 
       expect(response.status).toBe(302);
+      const templates = await getEmailTemplateSet("confirmation");
+      expect(templates.subject).toBe("Custom: {{ event_names }}");
+      expect(templates.html).toBe("<b>{{ attendee.name }}</b>");
+      expect(templates.text).toBe("Hi {{ attendee.name }}");
+    });
+
+    test("stores templates encrypted at rest", async () => {
+      await handleRequest(
+        mockFormRequest("/admin/settings/email-templates/confirmation", {
+          subject: "Custom: {{ event_names }}",
+          html: "<b>{{ attendee.name }}</b>",
+          text: "Hi {{ attendee.name }}",
+          csrf_token: csrfToken,
+        }, cookie),
+      );
+
+      // Raw DB values should be encrypted, not plaintext
+      const rawSubject = await getSetting(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT);
+      expect(rawSubject).not.toBeNull();
+      expect(rawSubject!.startsWith("enc:1:")).toBe(true);
+      expect(rawSubject).not.toContain("event_names");
+
+      const rawHtml = await getSetting(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML);
+      expect(rawHtml!.startsWith("enc:1:")).toBe(true);
+
+      const rawText = await getSetting(CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT);
+      expect(rawText!.startsWith("enc:1:")).toBe(true);
+
+      // But getEmailTemplateSet should return decrypted values
       const templates = await getEmailTemplateSet("confirmation");
       expect(templates.subject).toBe("Custom: {{ event_names }}");
       expect(templates.html).toBe("<b>{{ attendee.name }}</b>");
