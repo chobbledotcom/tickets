@@ -12,7 +12,7 @@ import {
   serializeMultiItems,
   toCheckoutResult,
 } from "#lib/payment-helpers.ts";
-import { isPaymentStatus } from "#lib/payments.ts";
+import { isPaymentStatus, type SessionMetadata } from "#lib/payments.ts";
 import { ErrorCode } from "#lib/logger.ts";
 
 describe("payment-helpers", () => {
@@ -529,7 +529,7 @@ describe("payment-helpers", () => {
         email: "alice@example.com",
         phone: "+1234567890",
         quantity: "3",
-      };
+      } as SessionMetadata;
       const result = extractSessionMetadata(metadata);
       expect(result).toEqual({
         _origin: "",
@@ -552,7 +552,7 @@ describe("payment-helpers", () => {
         email: "bob@example.com",
         multi: "1",
         items: '[{"e":1,"q":2}]',
-      };
+      } as SessionMetadata;
       const result = extractSessionMetadata(metadata);
       expect(result).toEqual({
         _origin: "",
@@ -574,7 +574,7 @@ describe("payment-helpers", () => {
         name: "Charlie",
         email: "charlie@example.com",
         event_id: "5",
-      };
+      } as SessionMetadata;
       const result = extractSessionMetadata(metadata);
       expect(result.phone).toBe("");
       expect(result.quantity).toBe("");
@@ -582,21 +582,21 @@ describe("payment-helpers", () => {
       expect(result.items).toBe("");
     });
 
-    test("preserves name and email when present", () => {
+    test("preserves name directly without fallback", () => {
       const metadata = {
         name: "Dana",
         email: "dana@example.com",
         event_id: "1",
-      };
+      } as SessionMetadata;
       const result = extractSessionMetadata(metadata);
       expect(result.name).toBe("Dana");
       expect(result.email).toBe("dana@example.com");
     });
 
-    test("defaults all optional fields to empty string when not present", () => {
+    test("normalizes all optional fields to empty string when absent", () => {
       const metadata = {
         name: "Eve",
-      };
+      } as SessionMetadata;
       const result = extractSessionMetadata(metadata);
       expect(result.name).toBe("Eve");
       expect(result.email).toBe("");
@@ -609,23 +609,6 @@ describe("payment-helpers", () => {
       expect(result.multi).toBe("");
       expect(result.date).toBe("");
       expect(result.items).toBe("");
-    });
-
-    test("defaults name to empty string when undefined", () => {
-      const metadata: Record<string, string | undefined> = {
-        name: undefined,
-        event_id: "1",
-      };
-      const result = extractSessionMetadata(metadata);
-      expect(result.name).toBe("");
-    });
-
-    test("all fields use consistent empty-string convention for missing values", () => {
-      const metadata: Record<string, string | undefined> = {};
-      const result = extractSessionMetadata(metadata);
-      for (const value of Object.values(result)) {
-        expect(value).toBe("");
-      }
     });
   });
 });
