@@ -1289,6 +1289,42 @@ describe("server (admin attendees)", () => {
       expect(html).toContain("Wheelchair access");
     });
 
+    test("appends success message to return_url after edit", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const returnUrl = "/admin/calendar?date=2026-03-15#attendees";
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "1",
+            csrf_token: csrfToken,
+            return_url: returnUrl,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain("/admin/calendar");
+      expect(location).toContain("success=");
+      expect(location).toContain("John+Doe");
+      expect(location).toContain("#attendees");
+    });
+
     test("allows moving attendee to different event", async () => {
       const event1 = await createTestEvent({
         name: "Event 1",

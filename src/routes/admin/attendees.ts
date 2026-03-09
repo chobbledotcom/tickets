@@ -499,7 +499,13 @@ async function editAttendeeHandler(
   await updateAttendee(attendeeId, { name, email, phone, address, special_instructions, event_id, quantity });
   await logActivity(`Attendee '${name}' updated`, event_id);
 
-  return redirectOrReturn(form, `/admin/event/${event_id}?edited=${encodeURIComponent(name)}#attendees`);
+  const successMessage = `Attendee '${name}' updated`;
+  if (returnUrl) {
+    const url = new URL(returnUrl, "http://localhost");
+    url.searchParams.set("success", successMessage);
+    return redirect(url.pathname + url.search + url.hash);
+  }
+  return redirect(`/admin/event/${event_id}?edited=${encodeURIComponent(name)}#attendees`);
 }
 const handleEditAttendeePost = editAttendeePost(editAttendeeHandler);
 
