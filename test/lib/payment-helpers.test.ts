@@ -532,17 +532,17 @@ describe("payment-helpers", () => {
       };
       const result = extractSessionMetadata(metadata);
       expect(result).toEqual({
-        _origin: undefined,
+        _origin: "",
         event_id: "42",
         name: "Alice",
         email: "alice@example.com",
         phone: "+1234567890",
-        address: undefined,
-        special_instructions: undefined,
+        address: "",
+        special_instructions: "",
         quantity: "3",
-        multi: undefined,
-        date: undefined,
-        items: undefined,
+        multi: "",
+        date: "",
+        items: "",
       });
     });
 
@@ -555,31 +555,31 @@ describe("payment-helpers", () => {
       };
       const result = extractSessionMetadata(metadata);
       expect(result).toEqual({
-        _origin: undefined,
-        event_id: undefined,
+        _origin: "",
+        event_id: "",
         name: "Bob",
         email: "bob@example.com",
-        phone: undefined,
-        address: undefined,
-        special_instructions: undefined,
-        quantity: undefined,
+        phone: "",
+        address: "",
+        special_instructions: "",
+        quantity: "",
         multi: "1",
-        date: undefined,
+        date: "",
         items: '[{"e":1,"q":2}]',
       });
     });
 
-    test("sets optional fields to undefined when not present", () => {
+    test("defaults optional fields to empty string when not present", () => {
       const metadata = {
         name: "Charlie",
         email: "charlie@example.com",
         event_id: "5",
       };
       const result = extractSessionMetadata(metadata);
-      expect(result.phone).toBeUndefined();
-      expect(result.quantity).toBeUndefined();
-      expect(result.multi).toBeUndefined();
-      expect(result.items).toBeUndefined();
+      expect(result.phone).toBe("");
+      expect(result.quantity).toBe("");
+      expect(result.multi).toBe("");
+      expect(result.items).toBe("");
     });
 
     test("preserves name and email when present", () => {
@@ -593,14 +593,22 @@ describe("payment-helpers", () => {
       expect(result.email).toBe("dana@example.com");
     });
 
-    test("defaults email to empty string when not present", () => {
+    test("defaults all optional fields to empty string when not present", () => {
       const metadata = {
         name: "Eve",
-        event_id: "1",
       };
       const result = extractSessionMetadata(metadata);
       expect(result.name).toBe("Eve");
       expect(result.email).toBe("");
+      expect(result.phone).toBe("");
+      expect(result._origin).toBe("");
+      expect(result.event_id).toBe("");
+      expect(result.address).toBe("");
+      expect(result.special_instructions).toBe("");
+      expect(result.quantity).toBe("");
+      expect(result.multi).toBe("");
+      expect(result.date).toBe("");
+      expect(result.items).toBe("");
     });
   });
 });
