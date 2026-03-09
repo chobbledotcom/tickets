@@ -2040,6 +2040,209 @@ describe("server (admin settings)", () => {
     });
   });
 
+  describe("POST /admin/settings/email", () => {
+    test("redirects to login when not authenticated", async () => {
+      const response = await handleRequest(
+        mockFormRequest("/admin/settings/email", {
+          email_provider: "resend",
+        }),
+      );
+      expectAdminRedirect(response);
+    });
+
+    test("saves email provider settings", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email",
+          {
+            email_provider: "resend",
+            email_api_key: "re_test_123",
+            email_from_address: "tickets@example.com",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Email settings updated");
+    });
+
+    test("disables email when provider is empty", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email",
+          {
+            email_provider: "",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(decodeURIComponent(location)).toContain("Email provider disabled");
+    });
+
+    test("rejects invalid email provider", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email",
+          {
+            email_provider: "invalid-provider",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      await expectHtmlResponse(response, 400, "Invalid email provider");
+    });
+
+    test("saves provider without updating key when key is empty", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email",
+          {
+            email_provider: "postmark",
+            email_api_key: "",
+            email_from_address: "",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(decodeURIComponent(response.headers.get("location")!)).toContain("Email settings updated");
+    });
+
+    test("logs activity when email provider is set", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email",
+          {
+            email_provider: "sendgrid",
+            email_api_key: "sg_key",
+            email_from_address: "from@test.com",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      const logs = await getAllActivityLog();
+      expect(logs.some((l) => l.message.includes("Email provider set to sendgrid"))).toBe(true);
+    });
+
+    test("settings page displays email configuration section", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain('id="settings-email"');
+      expect(html).toContain("email_provider");
+      expect(html).toContain("Email Notifications");
+    });
+  });
+
+  describe("POST /admin/settings/email/test", () => {
+    test("returns error when email not configured", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email/test",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toContain("Email not configured");
+    });
+
+    test("returns error when no business email set", async () => {
+      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await settingsApi.updateEmailProvider("resend");
+      await settingsApi.updateEmailApiKey("re_test_key");
+      await settingsApi.updateEmailFromAddress("from@test.com");
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email/test",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toContain("No business email set");
+    });
+
+    test("sends test email when configured", async () => {
+      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { updateBusinessEmail: setBizEmail } = await import("#lib/business-email.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      await settingsApi.updateEmailProvider("resend");
+      await settingsApi.updateEmailApiKey("re_test_key");
+      await settingsApi.updateEmailFromAddress("from@test.com");
+      await setBizEmail("admin@test.com");
+      settingsApi.invalidateSettingsCache();
+
+      await withMocks(
+        () => stub(globalThis, "fetch", () => Promise.resolve(new Response())),
+        async () => {
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/email/test",
+              { csrf_token: csrfToken },
+              cookie,
+            ),
+          );
+
+          expect(response.status).toBe(200);
+          const json = await response.json();
+          expect(json.success).toBe(true);
+        },
+      );
+    });
+  });
+
+  describe("settings page email provider display", () => {
+    test("shows email provider when configured", async () => {
+      const { settingsApi } = await import("#lib/db/settings.ts");
+      const { cookie } = await loginAsAdmin();
+
+      await settingsApi.updateEmailProvider("resend");
+      await settingsApi.updateEmailFromAddress("from@test.com");
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain('value="resend"');
+      expect(html).toContain("Send Test Email");
+    });
+  });
+
   describe("demo mode restrictions", () => {
     beforeEach(() => {
       Deno.env.set("DEMO_MODE", "true");

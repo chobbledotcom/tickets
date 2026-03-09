@@ -29,15 +29,17 @@ export type EmailConfig = {
   fromAddress: string;
 };
 
-/** Read email config from DB settings. Returns null if not configured. */
+/** Read email config from DB settings. Falls back to business email for fromAddress. Returns null if not configured. */
 export const getEmailConfig = async (): Promise<EmailConfig | null> => {
-  const [provider, apiKey, fromAddress] = await Promise.all([
+  const [provider, apiKey, fromAddress, businessEmail] = await Promise.all([
     getEmailProviderFromDb(),
     getEmailApiKeyFromDb(),
     getEmailFromAddressFromDb(),
+    getBusinessEmailFromDb(),
   ]);
-  if (!provider || !apiKey || !fromAddress) return null;
-  return { provider, apiKey, fromAddress };
+  const from = fromAddress || businessEmail;
+  if (!provider || !apiKey || !from) return null;
+  return { provider, apiKey, fromAddress: from };
 };
 
 /** POST JSON to a URL with custom headers */

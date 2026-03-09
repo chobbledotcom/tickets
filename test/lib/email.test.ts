@@ -153,6 +153,16 @@ describe("email", () => {
       expect(body.content[1]).toEqual({ type: "text/html", value: "<p>Hi</p>" });
     });
 
+    test("sends via SendGrid without reply_to when not provided", async () => {
+      const config: EmailConfig = { ...testConfig, provider: "sendgrid" };
+      const msg: EmailMessage = { to: "user@test.com", subject: "Test", html: "<p>Hi</p>", text: "Hi" };
+
+      await sendEmail(config, msg);
+
+      const body = JSON.parse((fetchStub.calls[0].args as [string, RequestInit])[1].body as string);
+      expect(body.reply_to).toBeUndefined();
+    });
+
     test("logs error on non-OK response", async () => {
       restubFetch(() => Promise.resolve(new Response("Error", { status: 500 })));
 
@@ -170,6 +180,16 @@ describe("email", () => {
         await sendEmail(testConfig, { to: "a@b.com", subject: "s", html: "h", text: "t" });
         const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
         expect(logs.some((l) => l.includes("E_EMAIL_SEND") && l.includes("Network error"))).toBe(true);
+      });
+    });
+
+    test("logs non-Error thrown values as strings", async () => {
+      restubFetch(() => Promise.reject("string error"));
+
+      await withErrorSpy(async (errorSpy) => {
+        await sendEmail(testConfig, { to: "a@b.com", subject: "s", html: "h", text: "t" });
+        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
+        expect(logs.some((l) => l.includes("E_EMAIL_SEND") && l.includes("string error"))).toBe(true);
       });
     });
 
@@ -202,6 +222,25 @@ describe("email", () => {
     test("returns null when API key missing", async () => {
       await updateEmailProvider("resend");
       await updateEmailFromAddress("from@test.com");
+      invalidateSettingsCache();
+
+      const config = await getEmailConfig();
+      expect(config).toBeNull();
+    });
+
+    test("falls back to business email when from address not set", async () => {
+      await updateEmailProvider("resend");
+      await updateEmailApiKey("test-key");
+      await updateBusinessEmail("biz@example.com");
+      invalidateSettingsCache();
+
+      const config = await getEmailConfig();
+      expect(config).toEqual({ provider: "resend", apiKey: "test-key", fromAddress: "biz@example.com" });
+    });
+
+    test("returns null when neither from address nor business email set", async () => {
+      await updateEmailProvider("resend");
+      await updateEmailApiKey("test-key");
       invalidateSettingsCache();
 
       const config = await getEmailConfig();

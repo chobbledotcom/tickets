@@ -138,9 +138,11 @@ describe("adminNotification", () => {
 
   test("text omits empty contact fields", () => {
     const { text } = adminNotification(
-      [makeEntry({}, { address: "", special_instructions: "" })],
+      [makeEntry({}, { email: "", phone: "", address: "", special_instructions: "" })],
       "GBP",
     );
+    expect(text).not.toContain("Email:");
+    expect(text).not.toContain("Phone:");
     expect(text).not.toContain("Address:");
     expect(text).not.toContain("Notes:");
   });
@@ -161,5 +163,23 @@ describe("adminNotification", () => {
     );
     expect(text).toContain("£5");
     resetCurrencyCode();
+  });
+
+  test("includes address when present", () => {
+    const { text, html } = adminNotification(
+      [makeEntry({}, { address: "123 Main St" })],
+      "GBP",
+    );
+    expect(text).toContain("Address: 123 Main St");
+    expect(html).toContain("Address: 123 Main St");
+  });
+
+  test("includes special instructions when present", () => {
+    const { text, html } = adminNotification(
+      [makeEntry({}, { special_instructions: "Wheelchair access" })],
+      "GBP",
+    );
+    expect(text).toContain("Notes: Wheelchair access");
+    expect(html).toContain("Notes: Wheelchair access");
   });
 });

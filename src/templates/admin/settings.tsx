@@ -139,7 +139,7 @@ export const adminSettingsPage = (
             type="email"
             id="email_from_address"
             name="email_from_address"
-            placeholder="tickets@yourdomain.com"
+            placeholder={s.businessEmail || "tickets@yourdomain.com"}
             value={s.emailFromAddress ?? ""}
             autocomplete="off"
           />

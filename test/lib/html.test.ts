@@ -1745,6 +1745,34 @@ describe("html", () => {
       expect(html).toContain("Sandbox mode");
       expect(html).toContain('name="square_sandbox"');
     });
+
+    test("shows email provider selection when configured", () => {
+      const html = adminSettingsPage(
+        TEST_SESSION,
+        { ...defaultState, emailProvider: "resend", emailFromAddress: "from@test.com" },
+      );
+      expect(html).toContain('value="resend"');
+      expect(html).toContain("Send Test Email");
+      expect(html).toContain('value="from@test.com"');
+    });
+
+    test("hides test button when no email provider configured", () => {
+      const html = adminSettingsPage(TEST_SESSION, defaultState);
+      expect(html).not.toContain("Send Test Email");
+    });
+
+    test("uses business email as from address placeholder", () => {
+      const html = adminSettingsPage(
+        TEST_SESSION,
+        { ...defaultState, businessEmail: "biz@example.com" },
+      );
+      expect(html).toContain('placeholder="biz@example.com"');
+    });
+
+    test("uses default placeholder when no business email", () => {
+      const html = adminSettingsPage(TEST_SESSION, defaultState);
+      expect(html).toContain('placeholder="tickets@yourdomain.com"');
+    });
   });
 
   describe("adminCalendarPage", () => {
