@@ -2273,6 +2273,304 @@ describe("server (admin settings)", () => {
     });
   });
 
+  describe("sensitive field masking", () => {
+    test("shows mask sentinel for configured Stripe key", async () => {
+      const { MASK_SENTINEL } = await import("#lib/db/settings.ts");
+      await setPaymentProvider("stripe");
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            }),
+          ),
+        async () => {
+          const { cookie, csrfToken } = await loginAsAdmin();
+
+          // Configure a Stripe key
+          await handleRequest(
+            mockFormRequest(
+              "/admin/settings/stripe",
+              { stripe_secret_key: "sk_test_real_secret", csrf_token: csrfToken },
+              cookie,
+            ),
+          );
+
+          // Settings page should show sentinel, not the actual key
+          const response = await awaitTestRequest("/admin/settings", { cookie });
+          const html = await response.text();
+          expect(html).toContain(MASK_SENTINEL);
+          expect(html).not.toContain("sk_test_real_secret");
+        },
+      );
+    });
+
+    test("shows mask sentinel for configured Square token", async () => {
+      const { MASK_SENTINEL } = await import("#lib/db/settings.ts");
+      await setPaymentProvider("square");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Configure Square credentials
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square",
+          {
+            square_access_token: "EAAAl_real_secret",
+            square_location_id: "L_test_loc",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain(MASK_SENTINEL);
+      expect(html).not.toContain("EAAAl_real_secret");
+    });
+
+    test("shows mask sentinel for configured email API key", async () => {
+      const { MASK_SENTINEL, settingsApi } = await import("#lib/db/settings.ts");
+      const { cookie } = await loginAsAdmin();
+
+      await settingsApi.updateEmailProvider("resend");
+      await settingsApi.updateEmailApiKey("re_real_secret_key");
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain(MASK_SENTINEL);
+      expect(html).not.toContain("re_real_secret_key");
+    });
+
+    test("submitting sentinel for Stripe key does not overwrite existing key", async () => {
+      const { MASK_SENTINEL, getStripeSecretKeyFromDb } = await import("#lib/db/settings.ts");
+      await setPaymentProvider("stripe");
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            }),
+          ),
+        async () => {
+          const { cookie, csrfToken } = await loginAsAdmin();
+
+          // Configure a Stripe key
+          await handleRequest(
+            mockFormRequest(
+              "/admin/settings/stripe",
+              { stripe_secret_key: "sk_test_original", csrf_token: csrfToken },
+              cookie,
+            ),
+          );
+
+          // Submit sentinel — should not change the key
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/stripe",
+              { stripe_secret_key: MASK_SENTINEL, csrf_token: csrfToken },
+              cookie,
+            ),
+          );
+
+          expect(response.status).toBe(302);
+          expect(decodeURIComponent(response.headers.get("location")!)).toContain("unchanged");
+          expect(await getStripeSecretKeyFromDb()).toBe("sk_test_original");
+        },
+      );
+    });
+
+    test("submitting sentinel for Square token preserves token but updates location", async () => {
+      const { MASK_SENTINEL, getSquareAccessTokenFromDb, getSquareLocationIdFromDb } = await import("#lib/db/settings.ts");
+      await setPaymentProvider("square");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Configure Square credentials
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square",
+          {
+            square_access_token: "EAAAl_original",
+            square_location_id: "L_original",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      // Submit sentinel for token but new location ID
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square",
+          {
+            square_access_token: MASK_SENTINEL,
+            square_location_id: "L_updated",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(await getSquareAccessTokenFromDb()).toBe("EAAAl_original");
+      expect(await getSquareLocationIdFromDb()).toBe("L_updated");
+    });
+
+    test("submitting sentinel for Square webhook key does not overwrite", async () => {
+      const { MASK_SENTINEL } = await import("#lib/db/settings.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Configure webhook key
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square-webhook",
+          { square_webhook_signature_key: "sig_original", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      // Submit sentinel
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square-webhook",
+          { square_webhook_signature_key: MASK_SENTINEL, csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(decodeURIComponent(response.headers.get("location")!)).toContain("unchanged");
+    });
+
+    test("submitting sentinel for email API key does not overwrite existing key", async () => {
+      const { MASK_SENTINEL, getEmailApiKeyFromDb } = await import("#lib/db/settings.ts");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      // Configure email with API key
+      await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email",
+          {
+            email_provider: "resend",
+            email_api_key: "re_original_key",
+            email_from_address: "from@test.com",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      // Submit sentinel for API key
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email",
+          {
+            email_provider: "resend",
+            email_api_key: MASK_SENTINEL,
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(await getEmailApiKeyFromDb()).toBe("re_original_key");
+    });
+
+    test("submitting new value still updates the key", async () => {
+      const { getStripeSecretKeyFromDb } = await import("#lib/db/settings.ts");
+      await setPaymentProvider("stripe");
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            }),
+          ),
+        async () => {
+          const { cookie, csrfToken } = await loginAsAdmin();
+
+          // Configure initial key
+          await handleRequest(
+            mockFormRequest(
+              "/admin/settings/stripe",
+              { stripe_secret_key: "sk_test_old", csrf_token: csrfToken },
+              cookie,
+            ),
+          );
+
+          // Submit a new key (not sentinel)
+          await handleRequest(
+            mockFormRequest(
+              "/admin/settings/stripe",
+              { stripe_secret_key: "sk_test_new", csrf_token: csrfToken },
+              cookie,
+            ),
+          );
+
+          expect(await getStripeSecretKeyFromDb()).toBe("sk_test_new");
+        },
+      );
+    });
+
+    test("empty Stripe key rejected when no key is configured", async () => {
+      await setPaymentProvider("stripe");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/stripe",
+          { stripe_secret_key: "", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      await expectHtmlResponse(response, 400, "required");
+    });
+
+    test("empty Square token rejected when no token is configured", async () => {
+      await setPaymentProvider("square");
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square",
+          {
+            square_access_token: "",
+            square_location_id: "L_test",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      await expectHtmlResponse(response, 400, "required");
+    });
+
+    test("empty Square webhook key rejected", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/square-webhook",
+          { square_webhook_signature_key: "", csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      await expectHtmlResponse(response, 400, "required");
+    });
+  });
+
   describe("demo mode restrictions", () => {
     beforeEach(() => {
       Deno.env.set("DEMO_MODE", "true");
