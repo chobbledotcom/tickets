@@ -488,6 +488,42 @@ describe("webhook", () => {
       expect(fetchSpy.calls.length).toBe(0);
     });
 
+    test("excludes WEBHOOK_URL when env mailgun is configured", async () => {
+      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
+      Deno.env.set("MAILGUN_KEY", "key-123");
+      Deno.env.set("MAILGUN_FROM", "noreply@example.com");
+      Deno.env.set("MAILGUN_EU", "false");
+
+      await sendRegistrationWebhooks(
+        [makeEntry({ webhook_url: "https://event-hook.com" })],
+        "GBP",
+      );
+
+      expect(fetchSpy.calls.length).toBe(1);
+      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
+      expect(url).toBe("https://event-hook.com");
+      Deno.env.delete("MAILGUN_KEY");
+      Deno.env.delete("MAILGUN_FROM");
+      Deno.env.delete("MAILGUN_EU");
+    });
+
+    test("sends no webhooks when env mailgun is set and no per-event URLs", async () => {
+      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
+      Deno.env.set("MAILGUN_KEY", "key-123");
+      Deno.env.set("MAILGUN_FROM", "noreply@example.com");
+      Deno.env.set("MAILGUN_EU", "false");
+
+      await sendRegistrationWebhooks(
+        [makeEntry({ webhook_url: "" })],
+        "GBP",
+      );
+
+      expect(fetchSpy.calls.length).toBe(0);
+      Deno.env.delete("MAILGUN_KEY");
+      Deno.env.delete("MAILGUN_FROM");
+      Deno.env.delete("MAILGUN_EU");
+    });
+
     test("includes WEBHOOK_URL when email provider is cleared", async () => {
       const { updateEmailProvider, invalidateSettingsCache } = await import("#lib/db/settings.ts");
       await updateEmailProvider("resend");

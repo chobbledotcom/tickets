@@ -9,6 +9,7 @@ import {
   getEmailFromAddressFromDb,
   getEmailProviderFromDb,
 } from "#lib/db/settings.ts";
+import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
 import type { RegistrationEntry } from "#lib/webhook.ts";
@@ -40,6 +41,16 @@ export const getEmailConfig = async (): Promise<EmailConfig | null> => {
   const from = fromAddress || businessEmail;
   if (!provider || !apiKey || !from) return null;
   return { provider, apiKey, fromAddress: from };
+};
+
+/** Read Mailgun config from environment variables. Returns null if not fully configured. */
+export const getEnvMailgunConfig = (): EmailConfig | null => {
+  const apiKey = getEnv("MAILGUN_KEY");
+  const fromAddress = getEnv("MAILGUN_FROM");
+  const eu = getEnv("MAILGUN_EU");
+  if (!apiKey || !fromAddress || eu === undefined) return null;
+  const provider = eu === "true" ? "mailgun-eu" : "mailgun-us";
+  return { provider, apiKey, fromAddress };
 };
 
 /** Build provider-specific request: [url, extra-headers, body] */
@@ -159,7 +170,7 @@ export const sendRegistrationEmails = async (
   entries: RegistrationEntry[],
   currency: string,
 ): Promise<void> => {
-  const config = await getEmailConfig();
+  const config = await getEmailConfig() ?? getEnvMailgunConfig();
   if (!config) return;
 
   const businessEmail = await getBusinessEmailFromDb();
