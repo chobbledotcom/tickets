@@ -30,16 +30,34 @@ export const paymentPage = (
   );
 
 /**
- * Payment success page - with optional redirect and ticket link
+ * Success page - shown after payment or free reservation
  */
-export const paymentSuccessPage = (thankYouUrl: string, ticketUrl: string | null): string =>
-  String(
-    <Layout title="Payment Successful" headExtra={thankYouUrl ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(thankYouUrl)}">` : undefined}>
-        <div data-payment-result="success">
-          <h1>Payment Successful!</h1>
-          <div class="success">
-            <p>Thank you for your payment. Your ticket has been confirmed.</p>
-          </div>
+export const successPage = ({
+  ticketUrl,
+  thankYouUrl = "",
+  inIframe = false,
+  paid = false,
+}: {
+  ticketUrl: string | null;
+  thankYouUrl?: string;
+  inIframe?: boolean;
+  paid?: boolean;
+}): string => {
+  const title = paid ? "Payment Successful" : "Ticket Reserved";
+  const heading = paid ? "Payment Successful!" : "Ticket reserved successfully.";
+  return String(
+    <Layout
+      title={title}
+      headExtra={thankYouUrl ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(thankYouUrl)}">` : undefined}
+      bodyClass={inIframe ? "iframe" : undefined}
+    >
+        <div data-payment-result={paid ? "success" : undefined} data-scroll-into-view={inIframe || undefined}>
+          <h1>{heading}</h1>
+          {paid ? (
+            <div class="success">
+              <p>Thank you for your payment. Your ticket has been confirmed.</p>
+            </div>
+          ) : null}
           {ticketUrl ? (
             <p><a href={ticketUrl} target="_blank">Click here to view your tickets</a></p>
           ) : null}
@@ -52,19 +70,7 @@ export const paymentSuccessPage = (thankYouUrl: string, ticketUrl: string | null
         </div>
     </Layout>
   );
-
-/**
- * Simple reservation success page (for free events with no thank_you_url)
- */
-export const reservationSuccessPage = (ticketUrl: string | null, inIframe = false): string =>
-  String(
-    <Layout title="Ticket Reserved" bodyClass={inIframe ? "iframe" : undefined}>
-        <h1 data-scroll-into-view={inIframe || undefined}>Ticket reserved successfully.</h1>
-        {ticketUrl ? (
-          <p><a href={ticketUrl} target="_blank">Click here to view your tickets</a></p>
-        ) : null}
-    </Layout>
-  );
+};
 
 /**
  * Payment cancelled page

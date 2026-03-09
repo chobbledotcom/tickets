@@ -50,7 +50,7 @@ import {
   withActiveEventBySlug,
 } from "#routes/utils.ts";
 import { extractContact, mergeEventFields, tryValidateTicketFields } from "#templates/fields.ts";
-import { checkoutPopupPage, reservationSuccessPage } from "#templates/payment.tsx";
+import { checkoutPopupPage, successPage } from "#templates/payment.tsx";
 import {
   buildMultiTicketEvent,
   homepagePage,
@@ -738,7 +738,7 @@ const handleReservedGet = (request: Request): Response => {
   const tokens = normalizedTokens.split("+").filter((t) => t.length > 0);
   const ticketUrl = tokens.length > 0 ? `/t/${tokens.join("+")}` : null;
   const inIframe = isIframeRequest(request.url);
-  return htmlResponse(reservationSuccessPage(ticketUrl, inIframe));
+  return htmlResponse(successPage({ ticketUrl, inIframe }));
 };
 
 /** Create a slug route that dispatches single vs multi-ticket requests */
