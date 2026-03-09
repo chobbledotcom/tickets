@@ -189,7 +189,7 @@ const getSettingsPageState = async () => {
     hostEmailLabel: (() => {
       const hostConfig = getHostEmailConfig();
       if (!hostConfig) return "";
-      const label = EMAIL_PROVIDER_LABELS[hostConfig.provider] ?? hostConfig.provider;
+      const label = EMAIL_PROVIDER_LABELS[hostConfig.provider];
       return `Host ${label} (${hostConfig.fromAddress})`;
     })(),
     confirmationTemplates: {

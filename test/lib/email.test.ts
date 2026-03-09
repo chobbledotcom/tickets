@@ -365,6 +365,18 @@ describe("email", () => {
         fromAddress: "noreply@example.com",
       });
     });
+
+    test("returns null and logs error for invalid provider", async () => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun");
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
+      await withErrorSpy((errorSpy) => {
+        const config = getHostEmailConfig();
+        expect(config).toBeNull();
+        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
+        expect(logs.some((l) => l.includes("E_EMAIL_SEND") && l.includes("invalid HOST_EMAIL_PROVIDER"))).toBe(true);
+      });
+    });
   });
 
   describe("sendRegistrationEmails", () => {
