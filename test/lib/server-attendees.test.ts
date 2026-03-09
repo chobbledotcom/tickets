@@ -1289,6 +1289,42 @@ describe("server (admin attendees)", () => {
       expect(html).toContain("Wheelchair access");
     });
 
+    test("appends success message to return_url after edit", async () => {
+      const event = await createTestEvent({ maxAttendees: 100 });
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "John Doe",
+        "john@example.com",
+      );
+      const { cookie, csrfToken } = await loginAsAdmin();
+      const returnUrl = "/admin/calendar?date=2026-03-15#attendees";
+
+      const response = await handleRequest(
+        mockFormRequest(
+          `/admin/attendees/${attendee.id}`,
+          {
+            name: "John Doe",
+            email: "john@example.com",
+            phone: "",
+            address: "",
+            special_instructions: "",
+            event_id: String(event.id),
+            quantity: "1",
+            csrf_token: csrfToken,
+            return_url: returnUrl,
+          },
+          cookie,
+        ),
+      );
+      expect(response.status).toBe(302);
+      const location = response.headers.get("location")!;
+      expect(location).toContain("/admin/calendar");
+      expect(location).toContain("success=");
+      expect(location).toContain("John+Doe");
+      expect(location).toContain("#attendees");
+    });
+
     test("allows moving attendee to different event", async () => {
       const event1 = await createTestEvent({
         name: "Event 1",
@@ -1765,7 +1801,7 @@ describe("server (admin attendees)", () => {
     });
   });
 
-  describe("GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook", () => {
+  describe("GET /admin/event/:eventId/attendee/:attendeeId/resend-notification", () => {
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
       const attendee = await createTestAttendee(
@@ -1777,7 +1813,7 @@ describe("server (admin attendees)", () => {
 
       const response = await handleRequest(
         mockRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`,
+          `/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`,
         ),
       );
       expectAdminRedirect(response);
@@ -1787,7 +1823,7 @@ describe("server (admin attendees)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
-        "/admin/event/999/attendee/1/resend-webhook",
+        "/admin/event/999/attendee/1/resend-notification",
         { cookie: cookie },
       );
       expect(response.status).toBe(404);
@@ -1799,21 +1835,21 @@ describe("server (admin attendees)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
-        "/admin/event/1/attendee/999/resend-webhook",
+        "/admin/event/1/attendee/999/resend-notification",
         { cookie: cookie },
       );
       expect(response.status).toBe(404);
     });
 
-    test("shows resend webhook confirmation page when authenticated", async () => {
+    test("shows resend notification confirmation page when authenticated", async () => {
       const { response } = await adminEventPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-webhook`,
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-notification`,
       )();
       await expectHtmlResponse(
         response,
         200,
-        "Re-send Webhook",
+        "Re-send Notification",
         "John Doe",
         "type their name",
       );
@@ -1822,7 +1858,7 @@ describe("server (admin attendees)", () => {
     test("includes return_url as hidden field when provided", async () => {
       const { response } = await adminEventPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-webhook?return_url=${
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-notification?return_url=${
             encodeURIComponent("/admin/calendar#attendees")
           }`,
       )();
@@ -1834,7 +1870,7 @@ describe("server (admin attendees)", () => {
       );
     });
 
-    test("shows amount paid on resend webhook page for paid attendee", async () => {
+    test("shows amount paid on resend notification page for paid attendee", async () => {
       const event = await createTestEvent({
         maxAttendees: 100,
         unitPrice: 1000,
@@ -1857,21 +1893,21 @@ describe("server (admin attendees)", () => {
 
       const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest(
-        `/admin/event/${event.id}/attendee/${result.attendee.id}/resend-webhook`,
+        `/admin/event/${event.id}/attendee/${result.attendee.id}/resend-notification`,
         { cookie },
       );
       await expectHtmlResponse(
         response,
         200,
-        "Re-send Webhook",
+        "Re-send Notification",
         "Jane Paid",
         "Amount Paid",
       );
     });
   });
 
-  describe("POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook", () => {
-    const resendWebhookAction = adminAttendeeAction("resend-webhook");
+  describe("POST /admin/event/:eventId/attendee/:attendeeId/resend-notification", () => {
+    const resendNotificationAction = adminAttendeeAction("resend-notification");
 
     test("redirects to login when not authenticated", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
@@ -1884,7 +1920,7 @@ describe("server (admin attendees)", () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          `/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`,
+          `/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`,
           {
             confirm_name: "John Doe",
           },
@@ -1898,7 +1934,7 @@ describe("server (admin attendees)", () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/event/999/attendee/1/resend-webhook",
+          "/admin/event/999/attendee/1/resend-notification",
           {
             confirm_name: "John Doe",
             csrf_token: csrfToken,
@@ -1916,7 +1952,7 @@ describe("server (admin attendees)", () => {
 
       const response = await handleRequest(
         mockFormRequest(
-          "/admin/event/1/attendee/999/resend-webhook",
+          "/admin/event/1/attendee/999/resend-notification",
           {
             confirm_name: "John Doe",
             csrf_token: csrfToken,
@@ -1928,7 +1964,7 @@ describe("server (admin attendees)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { response } = await resendWebhookAction({
+      const { response } = await resendNotificationAction({
         confirm_name: "John Doe",
         csrf_token: "invalid-token",
       })();
@@ -1936,13 +1972,13 @@ describe("server (admin attendees)", () => {
     });
 
     test("rejects mismatched attendee name", async () => {
-      const { response } = await resendWebhookAction({
+      const { response } = await resendNotificationAction({
         confirm_name: "Wrong Name",
       })();
       await expectHtmlResponse(response, 400, "does not match");
     });
 
-    test("re-sends webhook with matching name", async () => {
+    test("re-sends notification with matching name", async () => {
       const webhookFetch = stub(
         globalThis,
         "fetch",
@@ -1950,7 +1986,7 @@ describe("server (admin attendees)", () => {
       );
 
       try {
-        const { response, event } = await resendWebhookAction({
+        const { response, event } = await resendNotificationAction({
           confirm_name: "John Doe",
         })({
           webhookUrl: "https://example.com/webhook",
@@ -1965,7 +2001,7 @@ describe("server (admin attendees)", () => {
       }
     });
 
-    test("logs activity when webhook is re-sent", async () => {
+    test("logs activity when notification is re-sent", async () => {
       const webhookFetch = stub(
         globalThis,
         "fetch",
@@ -1973,7 +2009,7 @@ describe("server (admin attendees)", () => {
       );
 
       try {
-        const { response, event } = await resendWebhookAction({
+        const { response, event } = await resendNotificationAction({
           confirm_name: "John Doe",
         })({
           webhookUrl: "https://example.com/webhook",
@@ -1984,7 +2020,7 @@ describe("server (admin attendees)", () => {
         const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
         const logs = await getEventActivityLog(event.id);
         const resendLog = logs.find((l: { message: string }) =>
-          l.message.includes("Webhook re-sent")
+          l.message.includes("Notification re-sent")
         );
         expect(resendLog).toBeDefined();
         expect(resendLog?.message).toContain("John Doe");

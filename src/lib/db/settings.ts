@@ -66,7 +66,23 @@ export const CONFIG_KEYS = {
   HEADER_IMAGE_URL: "header_image_url",
   // Show public API (plaintext - "true" or "false")
   SHOW_PUBLIC_API: "show_public_api",
+  // Email provider (plaintext - "resend" | "postmark" | "sendgrid" | "")
+  EMAIL_PROVIDER: "email_provider",
+  // Email API key (encrypted)
+  EMAIL_API_KEY: "email_api_key",
+  // Email from address (encrypted - verified sender address)
+  EMAIL_FROM_ADDRESS: "email_from_address",
 } as const;
+
+/**
+ * Sentinel value rendered in password fields for configured secrets.
+ * The actual secret is never sent to the browser — only this placeholder.
+ * On form submission, if the value equals the sentinel, the update is skipped.
+ */
+export const MASK_SENTINEL = "••••••••";
+
+/** Check whether a submitted form value is the mask sentinel (i.e. unchanged) */
+export const isMaskSentinel = (value: string): boolean => value === MASK_SENTINEL;
 
 /**
  * In-memory settings cache. Loads all rows in a single query and
@@ -757,6 +773,36 @@ export const updateHeaderImageUrl = async (url: string): Promise<void> => {
   await updateEncryptedSetting(CONFIG_KEYS.HEADER_IMAGE_URL, url);
 };
 
+/** Get the configured email provider. Returns null if not configured. */
+export const getEmailProviderFromDb = (): Promise<string | null> =>
+  getSetting(CONFIG_KEYS.EMAIL_PROVIDER);
+
+/** Update the configured email provider. Pass empty string to clear. */
+export const updateEmailProvider = (provider: string): Promise<void> =>
+  setOrDeleteSetting(CONFIG_KEYS.EMAIL_PROVIDER, provider);
+
+/** Check if an email API key has been configured in the database */
+export const hasEmailApiKey = async (): Promise<boolean> => {
+  const value = await getSetting(CONFIG_KEYS.EMAIL_API_KEY);
+  return value !== null;
+};
+
+/** Get email API key from database (decrypted). Returns null if not configured. */
+export const getEmailApiKeyFromDb = (): Promise<string | null> =>
+  getEncryptedSetting(CONFIG_KEYS.EMAIL_API_KEY);
+
+/** Update email API key (encrypted at rest). Pass empty string to clear. */
+export const updateEmailApiKey = (key: string): Promise<void> =>
+  updateEncryptedSetting(CONFIG_KEYS.EMAIL_API_KEY, key);
+
+/** Get email from address from database (decrypted). Returns null if not configured. */
+export const getEmailFromAddressFromDb = (): Promise<string | null> =>
+  getEncryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS);
+
+/** Update email from address (encrypted at rest). Pass empty string to clear. */
+export const updateEmailFromAddress = (address: string): Promise<void> =>
+  updateEncryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS, address);
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
@@ -816,4 +862,11 @@ export const settingsApi = {
   updateHeaderImageUrl,
   getShowPublicApiFromDb,
   updateShowPublicApi,
+  getEmailProviderFromDb,
+  updateEmailProvider,
+  hasEmailApiKey,
+  getEmailApiKeyFromDb,
+  updateEmailApiKey,
+  getEmailFromAddressFromDb,
+  updateEmailFromAddress,
 };

@@ -8,13 +8,17 @@ import {
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
+import { getEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { getAllowedDomain, getSquareWebhookSignatureKey } from "#lib/config.ts";
+import { getEnv } from "#lib/env.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { resetDatabase } from "#lib/db/migrations.ts";
 import {
   clearPaymentProvider,
   getEmbedHostsFromDb,
+  getEmailFromAddressFromDb,
+  getEmailProviderFromDb,
   getHeaderImageUrlFromDb,
   getPaymentProviderFromDb,
   getPhonePrefixFromDb,
@@ -25,12 +29,17 @@ import {
   getTermsAndConditionsFromDb,
   getThemeFromDb,
   getTimezoneFromDb,
+  hasEmailApiKey,
   hasSquareToken,
   hasStripeKey,
+  isMaskSentinel,
   MAX_TERMS_LENGTH,
   setPaymentProvider,
   setStripeWebhookConfig,
   updateEmbedHosts,
+  updateEmailApiKey,
+  updateEmailFromAddress,
+  updateEmailProvider,
   updateHeaderImageUrl,
   updatePhonePrefix,
   updateShowPublicApi,
@@ -53,7 +62,6 @@ import {
 } from "#lib/demo.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#lib/embed-hosts.ts";
 import {
-  type Field,
   setFormError,
   setFormSuccess,
   validateForm,
@@ -85,12 +93,6 @@ import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import {
   type ChangePasswordFormValues,
   changePasswordFields,
-  type SquareTokenFormValues,
-  type SquareWebhookFormValues,
-  type StripeKeyFormValues,
-  squareAccessTokenFields,
-  squareWebhookFields,
-  stripeKeyFields,
 } from "#templates/fields.ts";
 
 /** Build the webhook URL from the configured domain */
@@ -119,6 +121,9 @@ const getSettingsPageState = async () => {
     showPublicApi,
     phonePrefix,
     headerImageUrl,
+    emailProvider,
+    emailApiKeyConfigured,
+    emailFromAddress,
   ] = await Promise.all([
     hasStripeKey(),
     getPaymentProviderFromDb(),
@@ -134,49 +139,38 @@ const getSettingsPageState = async () => {
     getShowPublicApiFromDb(),
     getPhonePrefixFromDb(),
     getHeaderImageUrlFromDb(),
+    getEmailProviderFromDb(),
+    hasEmailApiKey(),
+    getEmailFromAddressFromDb(),
   ]);
   return {
     stripeKeyConfigured,
-    paymentProvider,
+    paymentProvider: paymentProvider ?? "",
     squareTokenConfigured,
     squareSandbox,
     squareWebhookConfigured: squareWebhookKey !== null,
     webhookUrl: getWebhookUrl(),
-    embedHosts,
-    termsAndConditions,
+    embedHosts: embedHosts ?? "",
+    termsAndConditions: termsAndConditions ?? "",
     timezone,
     businessEmail,
     theme,
     showPublicSite,
     showPublicApi,
     phonePrefix,
-    headerImageUrl,
+    headerImageUrl: headerImageUrl ?? "",
     storageEnabled: isStorageEnabled(),
+    emailProvider: emailProvider ?? "",
+    emailApiKeyConfigured,
+    emailFromAddress: emailFromAddress ?? "",
+    globalWebhookUrl: getEnv("WEBHOOK_URL") ?? "",
   };
 };
 
 /** Render the settings page with current state */
 const renderSettingsPage = async (session: AuthSession) => {
   const state = await getSettingsPageState();
-  return adminSettingsPage(
-    session,
-    state.stripeKeyConfigured,
-    state.paymentProvider,
-    state.squareTokenConfigured,
-    state.squareSandbox,
-    state.squareWebhookConfigured,
-    state.webhookUrl,
-    state.embedHosts,
-    state.termsAndConditions,
-    state.timezone,
-    state.businessEmail,
-    state.theme,
-    state.showPublicSite,
-    state.showPublicApi,
-    state.phonePrefix,
-    state.headerImageUrl,
-    state.storageEnabled,
-  );
+  return adminSettingsPage(session, state);
 };
 
 /** Render settings page with error on a specific form */
@@ -206,19 +200,6 @@ const settingsRoute =
     withOwnerAuthForm(request, (session, form) =>
       handler(form, settingsPageWithError(session), session),
     );
-
-/** Validate form and return values, or an error response */
-const validateSettingsForm = async <T>(
-  form: URLSearchParams,
-  fields: Field[],
-  errorPage: ErrorPageFn,
-  formId: string,
-): Promise<{ values: T } | { response: Response }> => {
-  const result = validateForm<T>(form, fields);
-  if (result.valid) return { values: result.values };
-  const response = await errorPage(result.error, 400, formId);
-  return { response };
-};
 
 /**
  * Handle GET /admin/settings - owner only
@@ -364,15 +345,34 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  const validated = await validateSettingsForm<StripeKeyFormValues>(
-    form,
-    stripeKeyFields,
-    errorPage,
-    "settings-stripe",
-  );
-  if ("response" in validated) return validated.response;
+  const stripeSecretKey = (form.get("stripe_secret_key") || "").trim();
 
-  const { stripe_secret_key: stripeSecretKey } = validated.values;
+  // Sentinel means "keep existing" — no-op
+  if (isMaskSentinel(stripeSecretKey)) {
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Stripe settings unchanged",
+      "settings-stripe",
+    );
+  }
+
+  // Require a key when none is configured
+  if (!stripeSecretKey && !(await hasStripeKey())) {
+    return errorPage(
+      "Stripe Secret Key is required",
+      400,
+      "settings-stripe",
+    );
+  }
+
+  // Empty with existing key = no change
+  if (!stripeSecretKey) {
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Stripe settings unchanged",
+      "settings-stripe",
+    );
+  }
 
   // Set up webhook endpoint automatically
   const webhookUrl = getWebhookUrl();
@@ -419,19 +419,29 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  const validated = await validateSettingsForm<SquareTokenFormValues>(
-    form,
-    squareAccessTokenFields,
-    errorPage,
-    "settings-square",
-  );
-  if ("response" in validated) return validated.response;
-
-  const { square_access_token: accessToken, square_location_id: locationId } =
-    validated.values;
+  const accessToken = (form.get("square_access_token") || "").trim();
+  const locationId = (form.get("square_location_id") || "").trim();
   const sandbox = form.get("square_sandbox") === "on";
 
-  await updateSquareAccessToken(accessToken);
+  if (!locationId) {
+    return errorPage("Location ID is required", 400, "settings-square");
+  }
+
+  // Require a token when none is configured
+  if (!accessToken && !(await hasSquareToken())) {
+    return errorPage(
+      "Square Access Token is required",
+      400,
+      "settings-square",
+    );
+  }
+
+  // Only update the token if it's not the sentinel (i.e. user entered a new value)
+  if (!isMaskSentinel(accessToken) && accessToken) {
+    await updateSquareAccessToken(accessToken);
+  }
+
+  // Always allow updating non-secret fields
   await updateSquareLocationId(locationId);
   await updateSquareSandbox(sandbox);
 
@@ -450,17 +460,27 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/square-webhook - owner only
  */
 const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
-  const validated = await validateSettingsForm<SquareWebhookFormValues>(
-    form,
-    squareWebhookFields,
-    errorPage,
-    "settings-square-webhook",
-  );
-  if ("response" in validated) return validated.response;
+  const signatureKey = (form.get("square_webhook_signature_key") || "").trim();
 
-  const { square_webhook_signature_key: signatureKey } = validated.values;
+  // Sentinel means "keep existing" — no-op
+  if (isMaskSentinel(signatureKey)) {
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Square webhook settings unchanged",
+      "settings-square-webhook",
+    );
+  }
+
+  if (!signatureKey) {
+    return errorPage(
+      "Webhook Signature Key is required",
+      400,
+      "settings-square-webhook",
+    );
+  }
 
   await updateSquareWebhookSignatureKey(signatureKey);
+
 
   await logActivity("Square webhook signature key configured");
   return redirectWithSuccess(
@@ -742,6 +762,48 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
   );
 });
 
+
+/** Handle POST /admin/settings/email - owner only */
+const handleEmailPost = settingsRoute(async (form, errorPage) => {
+  const provider = (form.get("email_provider") ?? "").trim();
+  const apiKey = (form.get("email_api_key") ?? "").trim();
+  const fromAddress = (form.get("email_from_address") ?? "").trim();
+
+  if (provider === "") {
+    await updateEmailProvider("");
+    await updateEmailApiKey("");
+    await updateEmailFromAddress("");
+    await logActivity("Email provider disabled");
+    return redirectWithSuccess("/admin/settings", "Email provider disabled", "settings-email");
+  }
+
+  if (!VALID_EMAIL_PROVIDERS.has(provider)) {
+    return errorPage("Invalid email provider", 400, "settings-email");
+  }
+
+  await updateEmailProvider(provider);
+  if (apiKey && !isMaskSentinel(apiKey)) await updateEmailApiKey(apiKey);
+  if (fromAddress) await updateEmailFromAddress(fromAddress);
+  await logActivity(`Email provider set to ${provider}`);
+  return redirectWithSuccess("/admin/settings", "Email settings updated", "settings-email");
+});
+
+/** Handle POST /admin/settings/email/test - send test email to business email */
+const handleEmailTestPost = settingsRoute(async (_form, errorPage) => {
+  const config = await getEmailConfig();
+  if (!config) return errorPage("Email not configured", 400, "settings-email");
+  const businessEmail = await getBusinessEmailFromDb();
+  if (!businessEmail) return errorPage("No business email set", 400, "settings-email");
+  const status = await sendTestEmail(config, businessEmail);
+  if (!status) {
+    return errorPage("Test email failed (no response)", 502, "settings-email");
+  }
+  if (status >= 300) {
+    return errorPage(`Test email failed (status ${status})`, 502, "settings-email");
+  }
+  return redirectWithSuccess("/admin/settings", `Test email sent (status ${status})`, "settings-email-test");
+});
+
 /**
  * Handle POST /admin/settings/reset-database - owner only
  */
@@ -776,5 +838,7 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/phone-prefix": handlePhonePrefixPost,
   "POST /admin/settings/header-image": handleHeaderImagePost,
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
+  "POST /admin/settings/email": handleEmailPost,
+  "POST /admin/settings/email/test": handleEmailTestPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

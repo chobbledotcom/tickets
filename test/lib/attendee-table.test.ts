@@ -63,7 +63,7 @@ describe("AttendeeTable", () => {
       expect(html).toContain("/admin/attendees/1");
       expect(html).toContain("Edit");
       expect(html).toContain("Delete");
-      expect(html).toContain("Re-send Webhook");
+      expect(html).toContain("Re-send Notification");
     });
   });
 

@@ -39,7 +39,7 @@ import {
   adminEditAttendeePage,
   adminRefundAllAttendeesPage,
   adminRefundAttendeePage,
-  adminResendWebhookPage,
+  adminResendNotificationPage,
 } from "#templates/admin/attendees.tsx";
 import { type AddAttendeeFormValues, getAddAttendeeFields } from "#templates/fields.ts";
 
@@ -88,7 +88,7 @@ type EventRouteParams = { id: number };
 /** Route params for attendee-scoped routes */
 type AttendeeRouteParams = { eventId: number; attendeeId: number };
 
-/** Auth + load attendee GET handler (shared by delete, refund, and resend-webhook GET routes) */
+/** Auth + load attendee GET handler (shared by delete, refund, and resend-notification GET routes) */
 const attendeeGetRoute = (
   handler: (data: AttendeeWithEvent, session: AuthSession, request: Request) => Response | Promise<Response>,
 ) =>
@@ -499,24 +499,30 @@ async function editAttendeeHandler(
   await updateAttendee(attendeeId, { name, email, phone, address, special_instructions, event_id, quantity });
   await logActivity(`Attendee '${name}' updated`, event_id);
 
-  return redirectOrReturn(form, `/admin/event/${event_id}?edited=${encodeURIComponent(name)}#attendees`);
+  const successMessage = `Attendee '${name}' updated`;
+  if (returnUrl) {
+    const url = new URL(returnUrl, "http://localhost");
+    url.searchParams.set("success", successMessage);
+    return redirect(url.pathname + url.search + url.hash);
+  }
+  return redirect(`/admin/event/${event_id}?edited=${encodeURIComponent(name)}#attendees`);
 }
 const handleEditAttendeePost = editAttendeePost(editAttendeeHandler);
 
-/** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook */
-const handleAdminResendWebhookGet = attendeeGetRoute((data, session, request) =>
-  htmlResponse(adminResendWebhookPage(data, session, undefined, getReturnUrl(request))));
+/** Handle GET /admin/event/:eventId/attendee/:attendeeId/resend-notification */
+const handleAdminResendNotificationGet = attendeeGetRoute((data, session, request) =>
+  htmlResponse(adminResendNotificationPage(data, session, undefined, getReturnUrl(request))));
 
-/** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook */
-const handleResendWebhook = attendeeFormAction(async (data, session, form, eventId) => {
-  const error = verifyAttendeeName(data, session, form, adminResendWebhookPage,
+/** Handle POST /admin/event/:eventId/attendee/:attendeeId/resend-notification */
+const handleResendNotification = attendeeFormAction(async (data, session, form, eventId) => {
+  const error = verifyAttendeeName(data, session, form, adminResendNotificationPage,
     "Attendee name does not match. Please type the exact name to confirm.");
   if (error) return error;
 
   const currency = await getCurrencyCode();
   await Promise.all([
     logAndNotifyRegistration(data.event, data.attendee, currency),
-    logActivity(`Webhook re-sent for attendee '${data.attendee.name}'`, eventId),
+    logActivity(`Notification re-sent for attendee '${data.attendee.name}'`, eventId),
   ]);
   return redirectOrReturn(form, `/admin/event/${eventId}`);
 });
@@ -560,6 +566,6 @@ export const attendeesRoutes = defineRoutes({
   "POST /admin/event/:eventId/attendee/:attendeeId/refund": handleAttendeeRefund,
   "GET /admin/event/:id/refund-all": handleAdminRefundAllGet,
   "POST /admin/event/:id/refund-all": handleAdminRefundAllPost,
-  "GET /admin/event/:eventId/attendee/:attendeeId/resend-webhook": handleAdminResendWebhookGet,
-  "POST /admin/event/:eventId/attendee/:attendeeId/resend-webhook": handleResendWebhook,
+  "GET /admin/event/:eventId/attendee/:attendeeId/resend-notification": handleAdminResendNotificationGet,
+  "POST /admin/event/:eventId/attendee/:attendeeId/resend-notification": handleResendNotification,
 });

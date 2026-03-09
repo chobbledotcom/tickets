@@ -86,6 +86,9 @@ const ERROR_DEFS = {
   // Webhook errors
   WEBHOOK_SEND: ["E_WEBHOOK_SEND", "Webhook send failed"],
 
+  // Email errors
+  EMAIL_SEND: ["E_EMAIL_SEND", "Email send failed"],
+
   // Not found
   NOT_FOUND_EVENT: ["E_NOT_FOUND_EVENT", "Event not found"],
   NOT_FOUND_ATTENDEE: ["E_NOT_FOUND_ATTENDEE", "Attendee not found"],
@@ -234,7 +237,8 @@ export type LogCategory =
   | "Auth"
   | "Stripe"
   | "Square"
-  | "Domain";
+  | "Domain"
+  | "Email";
 
 /**
  * Log a debug message with category prefix

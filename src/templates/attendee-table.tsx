@@ -167,8 +167,8 @@ const ActionsCell = ({ row, returnUrl }: { row: AttendeeTableRow; returnUrl: str
         Delete
       </a>
       {" "}
-      <a href={`/admin/event/${row.eventId}/attendee/${a.id}/resend-webhook${suffix}`}>
-        Re-send Webhook
+      <a href={`/admin/event/${row.eventId}/attendee/${a.id}/resend-notification${suffix}`}>
+        Re-send Notification
       </a>
     </>
   );
