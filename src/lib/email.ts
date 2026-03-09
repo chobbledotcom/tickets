@@ -181,6 +181,9 @@ export const sendRegistrationEmails = async (
   entries: RegistrationEntry[],
   currency: string,
 ): Promise<void> => {
+  const attendeeEmail = entries[0]!.attendee.email;
+  if (!attendeeEmail) return;
+
   const config = await getEmailConfig() ?? getHostEmailConfig();
   if (!config) return;
 
@@ -191,13 +194,13 @@ export const sendRegistrationEmails = async (
 
   const confirmation = await renderEmailContent("confirmation", data);
   const promises: Promise<number | undefined>[] = [
-    sendEmail(config, { to: entries[0]!.attendee.email, ...confirmation, replyTo }),
+    sendEmail(config, { to: attendeeEmail, ...confirmation, replyTo }),
   ];
 
   if (businessEmail) {
     const notification = await renderEmailContent("admin", data);
     promises.push(
-      sendEmail(config, { to: businessEmail, ...notification, replyTo: entries[0]!.attendee.email }),
+      sendEmail(config, { to: businessEmail, ...notification, replyTo: attendeeEmail }),
     );
   }
 

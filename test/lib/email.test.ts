@@ -386,6 +386,16 @@ describe("email", () => {
       Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
     });
 
+    test("skips when attendee has no email address", async () => {
+      await updateEmailProvider("resend");
+      await updateEmailApiKey("test-key");
+      await updateEmailFromAddress("from@test.com");
+      invalidateSettingsCache();
+
+      await sendRegistrationEmails([makeEntry({}, { email: "" })], "GBP");
+      expect(fetchStub.calls.length).toBe(0);
+    });
+
     test("skips when email not configured", async () => {
       await sendRegistrationEmails([makeEntry()], "GBP");
       expect(fetchStub.calls.length).toBe(0);
