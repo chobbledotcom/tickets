@@ -24,6 +24,7 @@
     "npm:esbuild@0.20": "0.20.2",
     "npm:jscpd@*": "4.0.8",
     "npm:jsqr@^1.4.0": "1.4.0",
+    "npm:liquidjs@10": "10.25.0",
     "npm:marked@15": "15.0.12",
     "npm:qrcode@^1.5.0": "1.5.4",
     "npm:stripe@17": "17.7.0"
@@ -525,6 +526,9 @@
     "colors@1.4.0": {
       "integrity": "sha512-a+UqTh4kgZg/SlGvfbzDHpgRu7AAQOmmqRHJnxhRZICKFUT91brVhNNt58CMWU9PsBbv3PDCZUHbVxuDiH2mtA=="
     },
+    "commander@10.0.1": {
+      "integrity": "sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug=="
+    },
     "commander@5.1.0": {
       "integrity": "sha512-P0CysNDQ7rtVw4QIQtm+MRxV66vKFSvlsQvGYXZWR3qFU0jlMKHZZZgw8e+8DSah4UDKMqnknRDQz+xuQXQ/Zg=="
     },
@@ -832,7 +836,7 @@
         "@jscpd/html-reporter",
         "@jscpd/tokenizer",
         "colors",
-        "commander",
+        "commander@5.1.0",
         "fs-extra",
         "gitignore-to-glob",
         "jscpd-sarif-reporter"
@@ -877,6 +881,13 @@
       ],
       "os": ["darwin", "linux", "win32"],
       "cpu": ["x64", "arm64", "wasm32", "arm"]
+    },
+    "liquidjs@10.25.0": {
+      "integrity": "sha512-XpO7AiGULTG4xcTlwkcTI5JreFG7b6esLCLp+aUSh7YuQErJZEoUXre9u9rbdb0057pfWG4l0VursvLd5Q/eAw==",
+      "dependencies": [
+        "commander@10.0.1"
+      ],
+      "bin": true
     },
     "locate-path@5.0.0": {
       "integrity": "sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g==",
@@ -1338,6 +1349,7 @@
       "npm:auto-console-group@1",
       "npm:esbuild@0.20",
       "npm:jsqr@^1.4.0",
+      "npm:liquidjs@10",
       "npm:marked@15",
       "npm:qrcode@^1.5.0",
       "npm:stripe@17"

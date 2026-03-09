@@ -1719,6 +1719,8 @@ describe("html", () => {
       emailApiKeyConfigured: false,
       emailFromAddress: "",
       hostEmailLabel: "",
+      confirmationTemplates: { subject: "", html: "", text: "" },
+      adminTemplates: { subject: "", html: "", text: "" },
       bunnyCdnEnabled: false,
       customDomain: "",
       customDomainLastValidated: "",

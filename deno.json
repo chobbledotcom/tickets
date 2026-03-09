@@ -44,6 +44,7 @@
     "@iframe-resizer/parent": "npm:@iframe-resizer/parent@^5",
     "@iframe-resizer/child": "npm:@iframe-resizer/child@^5",
     "@iframe-resizer/core": "npm:@iframe-resizer/core@^5",
+    "liquidjs": "npm:liquidjs@^10",
     "marked": "npm:marked@^15",
     "auto-console-group": "npm:auto-console-group@^1",
     "@std/assert": "jsr:@std/assert@1",
