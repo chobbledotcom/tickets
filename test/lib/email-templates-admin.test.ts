@@ -53,6 +53,28 @@ describe("admin email templates", () => {
       expect(html).toContain("Your tickets for");
       expect(html).toContain("New registration");
     });
+
+    test("uses 'Leave blank' placeholder for html/text bodies", async () => {
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain('placeholder="Leave blank to use default template"');
+    });
+
+    test("shows edit default template links for html/text bodies", async () => {
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain('data-fill-default="confirmation_html"');
+      expect(html).toContain('data-fill-default="confirmation_text"');
+      expect(html).toContain('data-fill-default="admin_html"');
+      expect(html).toContain('data-fill-default="admin_text"');
+      expect(html).toContain("Edit default template");
+    });
+
+    test("includes default templates as data attributes", async () => {
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain("data-default-tpl=");
+    });
   });
 
   describe("POST /admin/settings/email-templates/confirmation", () => {

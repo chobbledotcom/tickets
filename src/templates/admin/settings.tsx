@@ -206,15 +206,19 @@ export const adminSettingsPage = (
             id="confirmation_html"
             name="html"
             rows="8"
-            placeholder={DEFAULT_TEMPLATES.confirmation.html}
+            placeholder="Leave blank to use default template"
+            data-default-tpl={DEFAULT_TEMPLATES.confirmation.html}
           >{s.confirmationTemplates.html}</textarea>
+          <a href="#" data-fill-default="confirmation_html"><small>Edit default template</small></a>
           <label for="confirmation_text">Plain Text Body</label>
           <textarea
             id="confirmation_text"
             name="text"
             rows="6"
-            placeholder={DEFAULT_TEMPLATES.confirmation.text}
+            placeholder="Leave blank to use default template"
+            data-default-tpl={DEFAULT_TEMPLATES.confirmation.text}
           >{s.confirmationTemplates.text}</textarea>
+          <a href="#" data-fill-default="confirmation_text"><small>Edit default template</small></a>
           <button type="submit">Save Confirmation Template</button>
         </CsrfForm>
 
@@ -235,15 +239,19 @@ export const adminSettingsPage = (
             id="admin_html"
             name="html"
             rows="8"
-            placeholder={DEFAULT_TEMPLATES.admin.html}
+            placeholder="Leave blank to use default template"
+            data-default-tpl={DEFAULT_TEMPLATES.admin.html}
           >{s.adminTemplates.html}</textarea>
+          <a href="#" data-fill-default="admin_html"><small>Edit default template</small></a>
           <label for="admin_text">Plain Text Body</label>
           <textarea
             id="admin_text"
             name="text"
             rows="6"
-            placeholder={DEFAULT_TEMPLATES.admin.text}
+            placeholder="Leave blank to use default template"
+            data-default-tpl={DEFAULT_TEMPLATES.admin.text}
           >{s.adminTemplates.text}</textarea>
+          <a href="#" data-fill-default="admin_text"><small>Edit default template</small></a>
           <button type="submit">Save Admin Notification Template</button>
         </CsrfForm>
 
