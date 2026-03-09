@@ -1362,3 +1362,8 @@ button.secondary:hover {
 #email_provider:has(option[value=""]:checked) ~ #email_from_address {
   display: none;
 }
+
+/* Guide page */
+body.guide h3 {
+  margin-top: 3rem;
+}
