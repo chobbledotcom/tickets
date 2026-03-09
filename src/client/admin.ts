@@ -57,6 +57,18 @@ if (multiUrl) {
   }
 }
 
+/* Fill default template: clicking "Edit default template" fills the textarea */
+for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-fill-default]")) {
+  link.addEventListener("click", (e) => {
+    e.preventDefault();
+    const ta = document.getElementById(link.dataset.fillDefault!) as HTMLTextAreaElement | null;
+    if (ta && !ta.value) {
+      ta.value = ta.dataset.defaultTpl ?? "";
+      ta.focus();
+    }
+  });
+}
+
 /* Auto-populate closes_at from event date when closes_at is empty */
 const dateInput = document.querySelector<HTMLInputElement>('input[name="date"]');
 const closesAtInput = document.querySelector<HTMLInputElement>('input[name="closes_at"]');
