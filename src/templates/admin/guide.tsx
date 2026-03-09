@@ -893,12 +893,13 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
       <Section title="Email Notifications">
         <Q q="What are email notifications?">
           <p>
-            When configured, the system automatically sends two emails after
+            When configured, the system can send up to two emails after
             each successful registration: a <strong>confirmation email</strong>{" "}
-            to the attendee with their ticket details and link, and a{" "}
+            to the attendee (if they provided an email address) with their
+            ticket details and link, and a{" "}
             <strong>notification email</strong> to the business email address
-            letting you know someone has booked. Emails are sent in the
-            background and won't delay the booking process.
+            (if one is set) letting you know someone has booked. Emails are
+            sent in the background and won't delay the booking process.
           </p>
         </Q>
 
