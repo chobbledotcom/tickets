@@ -1979,7 +1979,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Public API enabled");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public API enabled");
     });
 
     test("disables public API", async () => {
@@ -1998,7 +1998,7 @@ describe("server (admin settings)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain("Public API disabled");
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public API disabled");
     });
 
     test("setting persists in database", async () => {

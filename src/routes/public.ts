@@ -168,12 +168,12 @@ const bookingResultToWebResponse = (
 ): Response => {
   switch (result.type) {
     case "success": {
-      if (event.thank_you_url) return redirect(event.thank_you_url);
+      if (event.thank_you_url) return redirectResponse(event.thank_you_url);
       const iframeParam = ctx.inIframe ? "&iframe=true" : "";
-      return redirect(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}${iframeParam}`);
+      return redirectResponse(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}${iframeParam}`);
     }
     case "checkout":
-      return ctx.inIframe ? htmlResponse(checkoutPopupPage(result.checkoutUrl)) : redirect(result.checkoutUrl);
+      return ctx.inIframe ? htmlResponse(checkoutPopupPage(result.checkoutUrl)) : redirectResponse(result.checkoutUrl);
     case "sold_out":
       return ticketResponse(event, ctx.inIframe, ctx.dates, ctx.terms)("Sorry, not enough spots available");
     case "checkout_failed":
