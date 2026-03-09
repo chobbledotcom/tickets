@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { spy, stub } from "@std/testing/mock";
 import {
+  buildSvgTicketData,
+  buildTicketAttachments,
+  type EmailAttachment,
   type EmailConfig,
   type EmailMessage,
   getEmailConfig,
@@ -269,6 +272,111 @@ describe("email", () => {
     });
   });
 
+  describe("sendEmail with attachments", () => {
+    const attachment: EmailAttachment = {
+      filename: "ticket.svg",
+      content: btoa("<svg>test</svg>"),
+      contentType: "image/svg+xml",
+    };
+    const msgWithAttachment: EmailMessage = {
+      to: "user@test.com",
+      subject: "Tickets",
+      html: "<p>Hi</p>",
+      text: "Hi",
+      attachments: [attachment],
+    };
+
+    test("Resend includes attachments with filename and content", async () => {
+      await sendEmail(testConfig, msgWithAttachment);
+
+      const body = JSON.parse((fetchStub.calls[0].args as [string, RequestInit])[1].body as string);
+      expect(body.attachments).toEqual([{ filename: "ticket.svg", content: attachment.content }]);
+    });
+
+    test("Postmark includes Attachments with Name, Content, ContentType", async () => {
+      await sendEmail({ ...testConfig, provider: "postmark" }, msgWithAttachment);
+
+      const body = JSON.parse((fetchStub.calls[0].args as [string, RequestInit])[1].body as string);
+      expect(body.Attachments).toEqual([{
+        Name: "ticket.svg",
+        Content: attachment.content,
+        ContentType: "image/svg+xml",
+      }]);
+    });
+
+    test("SendGrid includes attachments with content, filename, type, disposition", async () => {
+      await sendEmail({ ...testConfig, provider: "sendgrid" }, msgWithAttachment);
+
+      const body = JSON.parse((fetchStub.calls[0].args as [string, RequestInit])[1].body as string);
+      expect(body.attachments).toEqual([{
+        content: attachment.content,
+        filename: "ticket.svg",
+        type: "image/svg+xml",
+        disposition: "attachment",
+      }]);
+    });
+
+    test("Mailgun appends attachment as Blob to FormData", async () => {
+      await sendEmail({ ...testConfig, provider: "mailgun-us" }, msgWithAttachment);
+
+      const body = (fetchStub.calls[0].args as [string, RequestInit])[1].body as FormData;
+      const file = body.get("attachment") as File;
+      expect(file).toBeInstanceOf(File);
+      expect(file.name).toBe("ticket.svg");
+      expect(file.type).toBe("image/svg+xml");
+    });
+
+    test("omits attachments field when no attachments provided", async () => {
+      const msg: EmailMessage = { to: "user@test.com", subject: "Test", html: "h", text: "t" };
+      await sendEmail(testConfig, msg);
+
+      const body = JSON.parse((fetchStub.calls[0].args as [string, RequestInit])[1].body as string);
+      expect(body.attachments).toBeUndefined();
+    });
+  });
+
+  describe("buildSvgTicketData", () => {
+    test("maps entry fields to SvgTicketData", () => {
+      const data = buildSvgTicketData(makeEntry({ name: "Concert" }, { quantity: 2, price_paid: "1500", ticket_token: "tok123" }), "GBP");
+      expect(data.eventName).toBe("Concert");
+      expect(data.quantity).toBe(2);
+      expect(data.pricePaid).toBe("1500");
+      expect(data.checkinUrl).toContain("/checkin/tok123");
+    });
+
+    test("includes attendee date for daily events", () => {
+      const data = buildSvgTicketData(makeEntry({}, { date: "2026-06-15" }), "GBP");
+      expect(data.attendeeDate).toBe("2026-06-15");
+    });
+  });
+
+  describe("buildTicketAttachments", () => {
+    test("generates one attachment per entry", async () => {
+      const entries = [makeEntry({}, { ticket_token: "tok1" }), makeEntry({}, { ticket_token: "tok2" })];
+      const attachments = await buildTicketAttachments(entries, "GBP");
+
+      expect(attachments.length).toBe(2);
+      expect(attachments[0]!.filename).toBe("ticket-1.svg");
+      expect(attachments[1]!.filename).toBe("ticket-2.svg");
+      expect(attachments[0]!.contentType).toBe("image/svg+xml");
+    });
+
+    test("uses 'ticket.svg' filename for single entry", async () => {
+      const attachments = await buildTicketAttachments([makeEntry()], "GBP");
+
+      expect(attachments.length).toBe(1);
+      expect(attachments[0]!.filename).toBe("ticket.svg");
+    });
+
+    test("attachment content is base64-encoded SVG", async () => {
+      const attachments = await buildTicketAttachments([makeEntry()], "GBP");
+
+      const decoded = atob(attachments[0]!.content);
+      expect(decoded).toContain("<svg");
+      expect(decoded).toContain("</svg>");
+    });
+  });
+
   describe("getEmailConfig", () => {
     test("returns null when no provider configured", async () => {
       invalidateSettingsCache();
@@ -493,6 +601,56 @@ describe("email", () => {
       });
       const body = JSON.parse((adminCall.args as [string, RequestInit])[1].body as string);
       expect(body.reply_to).toBe("jane@example.com");
+    });
+
+    test("attaches SVG ticket to confirmation email", async () => {
+      await updateEmailProvider("resend");
+      await updateEmailApiKey("test-key");
+      await updateEmailFromAddress("from@test.com");
+      invalidateSettingsCache();
+
+      await sendRegistrationEmails([makeEntry()], "GBP");
+
+      const body = JSON.parse((fetchStub.calls[0].args as [string, RequestInit])[1].body as string);
+      expect(body.attachments).toHaveLength(1);
+      expect(body.attachments[0].filename).toBe("ticket.svg");
+      const decoded = atob(body.attachments[0].content);
+      expect(decoded).toContain("<svg");
+    });
+
+    test("does not attach tickets to admin notification", async () => {
+      await updateEmailProvider("resend");
+      await updateEmailApiKey("test-key");
+      await updateEmailFromAddress("from@test.com");
+      await updateBusinessEmail("admin@business.com");
+      invalidateSettingsCache();
+
+      await sendRegistrationEmails([makeEntry()], "GBP");
+
+      const adminCall = fetchStub.calls.find((c: { args: unknown[] }) => {
+        const body = JSON.parse((c.args as [string, RequestInit])[1].body as string);
+        return body.to[0] === "admin@business.com";
+      });
+      const body = JSON.parse((adminCall.args as [string, RequestInit])[1].body as string);
+      expect(body.attachments).toBeUndefined();
+    });
+
+    test("attaches numbered tickets for multi-event registration", async () => {
+      await updateEmailProvider("resend");
+      await updateEmailApiKey("test-key");
+      await updateEmailFromAddress("from@test.com");
+      invalidateSettingsCache();
+
+      const entries = [
+        makeEntry({ name: "Event A" }, { ticket_token: "tok1" }),
+        makeEntry({ name: "Event B" }, { ticket_token: "tok2" }),
+      ];
+      await sendRegistrationEmails(entries, "GBP");
+
+      const body = JSON.parse((fetchStub.calls[0].args as [string, RequestInit])[1].body as string);
+      expect(body.attachments).toHaveLength(2);
+      expect(body.attachments[0].filename).toBe("ticket-1.svg");
+      expect(body.attachments[1].filename).toBe("ticket-2.svg");
     });
   });
 
