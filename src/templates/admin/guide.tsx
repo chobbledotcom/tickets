@@ -218,6 +218,15 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
           </p>
         </Q>
 
+        <Q q="Where can I find the event QR code?">
+          <p>
+            On the admin event page, click the <strong>QR code</strong> link
+            next to the public URL. This opens an SVG image of the QR code
+            that links to your event's registration page. You can save or
+            print it for posters, flyers, or other materials.
+          </p>
+        </Q>
+
         <Q q="How do I duplicate an event?">
           <p>
             Open the event and click <strong>Duplicate</strong>. This creates
@@ -993,6 +1002,103 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
+      <Section title="Email Templates">
+        <Q q="Can I customise the emails that are sent?">
+          <p>
+            Yes. In <a href="/admin/settings">Settings</a>, scroll to the
+            email template sections. You can customise both the{" "}
+            <strong>confirmation email</strong> (sent to the attendee) and the{" "}
+            <strong>admin notification email</strong> (sent to you). Each has
+            three parts: subject line, HTML body, and plain text body.
+          </p>
+          <p>
+            Templates use{" "}
+            <a href="https://liquidjs.com/">Liquid</a> syntax. Clear any
+            field to revert to the built-in default.
+          </p>
+        </Q>
+
+        <Q q="What variables can I use in templates?">
+          <ul>
+            <li>
+              <code>{"{{ event_names }}"}</code> &mdash; all event names
+              joined with &ldquo;and&rdquo;
+            </li>
+            <li>
+              <code>{"{{ ticket_url }}"}</code> &mdash; link to view tickets
+            </li>
+            <li>
+              <code>{"{{ currency }}"}</code> &mdash; currency code (e.g. GBP)
+            </li>
+            <li>
+              <code>{"{{ attendee.name }}"}</code>,{" "}
+              <code>{"{{ attendee.email }}"}</code>,{" "}
+              <code>{"{{ attendee.phone }}"}</code>,{" "}
+              <code>{"{{ attendee.address }}"}</code>,{" "}
+              <code>{"{{ attendee.special_instructions }}"}</code>
+            </li>
+            <li>
+              <code>{"{{ attendee.quantity }}"}</code>,{" "}
+              <code>{"{{ attendee.price_paid }}"}</code>,{" "}
+              <code>{"{{ attendee.date }}"}</code>
+            </li>
+          </ul>
+          <p>
+            For multi-event bookings, loop through the{" "}
+            <code>entries</code> array:{" "}
+            <code>{"{% for entry in entries %}"}</code>. Each entry has{" "}
+            <code>entry.event.name</code>,{" "}
+            <code>entry.attendee.quantity</code>, etc.
+          </p>
+        </Q>
+
+        <Q q="What template filters are available?">
+          <p>
+            Two custom filters are built in:
+          </p>
+          <ul>
+            <li>
+              <code>{"{{ amount | currency }}"}</code> &mdash; formats a
+              number as currency (e.g. &pound;15.00)
+            </li>
+            <li>
+              <code>{"{{ count | pluralize: \"ticket\", \"tickets\" }}"}</code>{" "}
+              &mdash; returns the singular or plural form based on the count
+            </li>
+          </ul>
+        </Q>
+
+        <Q q="What happens if my template has an error?">
+          <p>
+            If a custom template fails to render, the system falls back to
+            the built-in default template automatically. The email is still
+            sent &mdash; your attendees won't miss their confirmation.
+          </p>
+        </Q>
+      </Section>
+
+      <Section title="Custom Domain">
+        <Q q="How do I set up a custom domain?">
+          <p>
+            If your site runs on Bunny CDN and the{" "}
+            <code>BUNNY_API_KEY</code> environment variable is configured,
+            you'll see a <strong>Custom Domain</strong> section in{" "}
+            <a href="/admin/settings">Settings</a>. Enter your domain (e.g.{" "}
+            <code>tickets.yourdomain.com</code>) and save, then follow the
+            CNAME instructions shown and click <strong>Validate</strong>.
+          </p>
+        </Q>
+
+        <Q q="What does validation do?">
+          <p>
+            Validation checks that your DNS is set up correctly, registers
+            the hostname with Bunny CDN, requests a free SSL certificate,
+            and enables HTTPS. You can re-validate at any time if you change
+            your DNS.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Settings Overview">
         <Q q="What settings are available?">
           <p>
@@ -1019,6 +1125,14 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
             <li>
               <strong>Email provider</strong> &mdash; Resend, Postmark,
               SendGrid, or Mailgun for automatic registration emails
+            </li>
+            <li>
+              <strong>Email templates</strong> &mdash; customise
+              confirmation and admin notification emails using Liquid syntax
+            </li>
+            <li>
+              <strong>Custom domain</strong> &mdash; set up a custom domain
+              for your site (Bunny CDN only)
             </li>
             <li>
               <strong>Embed hosts</strong> &mdash; restrict which websites can
