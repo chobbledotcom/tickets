@@ -804,6 +804,14 @@ const handleEmailPost = settingsRoute(async (form, errorPage) => {
     return errorPage("Invalid email provider", 400, "settings-email");
   }
 
+  if (fromAddress && !isValidBusinessEmail(fromAddress)) {
+    return errorPage(
+      "Invalid from-address format. Please use format: name@domain.com",
+      400,
+      "settings-email",
+    );
+  }
+
   await updateEmailProvider(provider);
   if (apiKey && !isMaskSentinel(apiKey)) await updateEmailApiKey(apiKey);
   if (fromAddress) await updateEmailFromAddress(fromAddress);
