@@ -68,7 +68,13 @@ const PRICE_CHANGED_MESSAGE =
 const isMultiSession = (metadata: SessionMetadata): boolean =>
   metadata.multi === "1" && metadata.items !== "";
 
-/** Extract registration intent from validated session metadata (single-ticket only) */
+/**
+ * Extract registration intent from validated session metadata (single-ticket only).
+ *
+ * Converts from SessionMetadata's "" convention back to domain types:
+ * - date: "" → null (RegistrationIntent uses null for "no date selected")
+ * - numeric fields: "" → default via parseInt
+ */
 const extractIntent = (
   session: ValidatedPaymentSession,
 ): RegistrationIntent => ({
@@ -345,7 +351,11 @@ type MultiIntent = ContactInfo & {
   items: MultiItem[];
 };
 
-/** Extract multi-ticket intent from session metadata */
+/**
+ * Extract multi-ticket intent from session metadata.
+ *
+ * Converts date from SessionMetadata's "" convention to null for domain use.
+ */
 const extractMultiIntent = (
   session: ValidatedPaymentSession,
 ): MultiIntent | null => {

@@ -71,7 +71,13 @@ export const serializeMultiItems = (
     }))(items),
   );
 
-/** Spread optional phone/address/special_instructions/date fields into metadata (only if truthy) */
+/**
+ * Spread optional contact/date fields into metadata (only if truthy).
+ *
+ * This is the boundary where domain values (which may be undefined, null, or "")
+ * are converted to metadata entries. Falsy values are excluded entirely — they
+ * will become "" when extractSessionMetadata normalizes the metadata back.
+ */
 const optionalFields = (intent: Partial<Pick<ContactInfo, "phone" | "address" | "special_instructions">> & { date?: string | null }): Record<string, string> => ({
   ...(intent.phone ? { phone: intent.phone } : {}),
   ...(intent.address ? { address: intent.address } : {}),
@@ -146,15 +152,18 @@ export const hasRequiredSessionMetadata = (
 };
 
 /**
- * Extract the standard metadata fields from a provider-specific metadata object.
- * Assumes metadata has already been validated with hasRequiredSessionMetadata.
+ * Normalize validated session metadata into the canonical SessionMetadata shape.
+ *
+ * Must only be called after hasRequiredSessionMetadata narrows the type —
+ * name is guaranteed non-empty by that guard. Optional fields that were
+ * omitted during metadata creation are normalized to "" here.
  */
 export const extractSessionMetadata = (
-  metadata: Record<string, string | undefined>,
+  metadata: SessionMetadata,
 ): ValidatedPaymentSession["metadata"] => ({
   _origin: metadata._origin || "",
   event_id: metadata.event_id || "",
-  name: metadata.name!,
+  name: metadata.name,
   email: metadata.email || "",
   phone: metadata.phone || "",
   address: metadata.address || "",
