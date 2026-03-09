@@ -39,9 +39,12 @@ import {
 } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
+  checkoutResponse,
   formatCreationError,
   getBaseUrl,
   htmlResponse,
+  iframeAwareRedirect,
+  isIframeRequest,
   isRegistrationClosed,
   notFoundResponse,
   redirectResponse,
@@ -50,7 +53,7 @@ import {
 } from "#routes/utils.ts";
 import { getEmailConfig, getHostEmailConfig } from "#lib/email.ts";
 import { extractContact, mergeEventFields, tryValidateTicketFields } from "#templates/fields.ts";
-import { checkoutPopupPage, successPage } from "#templates/payment.tsx";
+import { successPage } from "#templates/payment.tsx";
 import {
   buildMultiTicketEvent,
   homepagePage,
@@ -129,10 +132,6 @@ const ticketResponse = validationErrorResponder(
     ticketPage(event, error, false, inIframe, dates, terms),
 );
 
-/** Check if request URL has ?iframe=true */
-const isIframeRequest = (url: string): boolean =>
-  new URL(url).searchParams.get("iframe") === "true";
-
 /** Compute available dates for a daily event, or undefined for standard */
 const computeDatesForEvent = async (event: EventWithCount): Promise<string[] | undefined> => {
   if (event.event_type !== "daily") return undefined;
@@ -169,11 +168,10 @@ const bookingResultToWebResponse = (
   switch (result.type) {
     case "success": {
       if (event.thank_you_url) return redirectResponse(event.thank_you_url);
-      const iframeParam = ctx.inIframe ? "&iframe=true" : "";
-      return redirectResponse(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}${iframeParam}`);
+      return iframeAwareRedirect(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}`, ctx.inIframe);
     }
     case "checkout":
-      return ctx.inIframe ? htmlResponse(checkoutPopupPage(result.checkoutUrl)) : redirectResponse(result.checkoutUrl);
+      return checkoutResponse(result.checkoutUrl, ctx.inIframe);
     case "sold_out":
       return ticketResponse(event, ctx.inIframe, ctx.dates, ctx.terms)("Sorry, not enough spots available");
     case "checkout_failed":
@@ -195,7 +193,7 @@ const tryCheckoutRedirect = <T>(
   errorHandler: () => T,
 ): Response | T => {
   if (!sessionUrl) return errorHandler();
-  return inIframe ? htmlResponse(checkoutPopupPage(sessionUrl)) : redirectResponse(sessionUrl);
+  return checkoutResponse(sessionUrl, inIframe);
 };
 
 /** Get active payment provider or return an error response */
@@ -554,9 +552,8 @@ const submitMultiTicket = (
         return multiTicketFormErrorResponse(ctx)(result.error);
       }
 
-      const iframeParam = inIframe ? "&iframe=true" : "";
       const tokens = encodeURIComponent(result.tokens.join("+"));
-      return redirectResponse(`/ticket/reserved?tokens=${tokens}${iframeParam}`);
+      return iframeAwareRedirect(`/ticket/reserved?tokens=${tokens}`, inIframe);
     },
   );
 
