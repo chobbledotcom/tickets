@@ -108,6 +108,7 @@ export const buildWebhookPayload = async (
 export const sendWebhook = async (
   webhookUrl: string,
   payload: WebhookPayload,
+  eventId?: number,
 ): Promise<void> => {
   try {
     const response = await fetch(webhookUrl, {
@@ -119,12 +120,14 @@ export const sendWebhook = async (
       const eventName = payload.tickets.map((t) => t.event_name).join(", ");
       logError({
         code: ErrorCode.WEBHOOK_SEND,
+        eventId,
         detail: `status=${response.status} for '${eventName}'`,
       });
     }
   } catch (error) {
     logError({
       code: ErrorCode.WEBHOOK_SEND,
+      eventId,
       detail: error instanceof Error ? error.message : String(error),
     });
   }
@@ -143,7 +146,8 @@ export const sendRegistrationWebhooks = async (
   if (webhookUrls.length === 0) return;
 
   const payload = await buildWebhookPayload(entries, currency);
-  await Promise.allSettled(webhookUrls.map((url) => sendWebhook(url, payload)));
+  const firstEventId = entries[0]?.event.id;
+  await Promise.allSettled(webhookUrls.map((url) => sendWebhook(url, payload, firstEventId)));
 };
 
 /**
