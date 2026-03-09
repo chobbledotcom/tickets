@@ -126,12 +126,15 @@ export const getDomainRejectionReason = (request: Request): string => {
 export const isWebhookPath = (path: string): boolean =>
   path === "/payment/webhook";
 
+/** Pattern for public API paths */
+const API_PATH_PATTERN = /^\/api\//;
+
 /**
  * Check if path is a JSON API endpoint.
  * Patterns are exported from their respective route modules.
  */
 export const isJsonApiPath = (path: string): boolean =>
-  SCAN_API_PATTERN.test(path);
+  SCAN_API_PATTERN.test(path) || API_PATH_PATTERN.test(path);
 
 /**
  * Validate Content-Type for POST requests

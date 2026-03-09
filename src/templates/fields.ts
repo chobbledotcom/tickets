@@ -5,7 +5,7 @@
 import { formatCurrency } from "#lib/currency.ts";
 import { DAY_NAMES } from "#lib/dates.ts";
 import { isValidDatetime } from "#lib/timezone.ts";
-import type { Field } from "#lib/forms.tsx";
+import { type Field, validateForm } from "#lib/forms.tsx";
 import { isContactField, isEventType, type AdminLevel, type ContactField, type EventFields, type EventType } from "#lib/types.ts";
 import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
@@ -591,6 +591,10 @@ export const getTicketFields = (fields: EventFields): Field[] => {
   const parsed = parseEventFields(fields);
   return [nameField, ...parsed.map((f) => contactFieldMap[f])];
 };
+
+/** Validate ticket form fields against the event's field setting */
+export const validateTicketFields = (form: URLSearchParams, fieldsSetting: EventFields) =>
+  validateForm<TicketFormValues>(form, getTicketFields(fieldsSetting));
 
 /** Quantity field for admin add-attendee form */
 const addAttendeeQuantityField: Field = {

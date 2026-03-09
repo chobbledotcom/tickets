@@ -103,6 +103,12 @@ const loadDemoResetRoutes = once(async () => {
   return routeDatabaseReset;
 });
 
+/** Lazy-load public API routes */
+const loadApiRoutes = once(async () => {
+  const { routeApi } = await import("#routes/api.ts");
+  return routeApi;
+});
+
 // Re-export middleware functions for testing
 export {
   getCleanUrl,
@@ -161,6 +167,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   join: lazyRoute(loadJoinRoutes),
   feeds: lazyRoute(loadFeedRoutes),
   demo: lazyRoute(loadDemoResetRoutes),
+  api: lazyRoute(loadApiRoutes),
 };
 
 /**

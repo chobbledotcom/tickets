@@ -985,6 +985,153 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
       </Section>
 
+      <Section id="api" title="Public API">
+        <Q q="What is the public API?">
+          <p>
+            The system includes a JSON API that exposes the same data and
+            booking functionality as the web interface. It lets you build
+            custom frontends, integrate with other services, or automate
+            bookings. No API key is needed &mdash; the API is public, just
+            like the booking forms.
+          </p>
+        </Q>
+
+        <Q q="What endpoints are available?">
+          <p>The base URL is your domain (e.g.{" "}
+            <code>https://{getAllowedDomain()}</code>). All responses are JSON.</p>
+          <ul>
+            <li>
+              <code>GET /api/events</code> &mdash; list all active, non-hidden
+              events
+            </li>
+            <li>
+              <code>GET /api/events/:slug</code> &mdash; get a single event by
+              its slug (hidden events are accessible if you know the slug)
+            </li>
+            <li>
+              <code>GET /api/events/:slug/availability?quantity=N&amp;date=YYYY-MM-DD</code>{" "}
+              &mdash; check if spots are available
+            </li>
+            <li>
+              <code>POST /api/events/:slug/book</code> &mdash; create a booking
+            </li>
+          </ul>
+          <p>
+            All endpoints support CORS, so you can call them from any website.
+            <code>OPTIONS</code> preflight requests are handled automatically.
+          </p>
+        </Q>
+
+        <Q q="How do I list events?">
+          <pre><code>{`GET /api/events
+
+Response:
+{
+  "events": [
+    {
+      "name": "My Event",
+      "slug": "my-event",
+      "description": "Event description",
+      "date": "Sat 15 Mar 2026, 2:00 PM",
+      "location": "Town Hall",
+      "imageUrl": null,
+      "unitPrice": 500,
+      "canPayMore": false,
+      "maxPrice": 500,
+      "nonTransferable": false,
+      "fields": "email",
+      "eventType": "standard",
+      "isSoldOut": false,
+      "isClosed": false,
+      "maxPurchasable": 10
+    }
+  ]
+}`}</code></pre>
+          <p>
+            Prices are in the smallest currency unit (e.g. pence for GBP,
+            cents for USD). <code>maxPurchasable</code> is 0 when the event is
+            sold out or registration is closed.
+          </p>
+        </Q>
+
+        <Q q="How do I get a single event?">
+          <pre><code>{`GET /api/events/my-event
+
+Response:
+{
+  "event": {
+    "name": "My Event",
+    "slug": "my-event",
+    ...same fields as the list endpoint...
+    "availableDates": ["2026-03-16", "2026-03-17"]
+  }
+}`}</code></pre>
+          <p>
+            The <code>availableDates</code> field is only included for daily
+            events. Returns <code>{"{ \"error\": \"Event not found\" }"}</code>{" "}
+            with status 404 if the event doesn&apos;t exist or is inactive.
+          </p>
+        </Q>
+
+        <Q q="How do I check availability?">
+          <pre><code>{`GET /api/events/my-event/availability?quantity=2
+
+Response:
+{ "available": true }`}</code></pre>
+          <p>
+            For daily events, add <code>&amp;date=YYYY-MM-DD</code> to check a
+            specific date. The <code>quantity</code> parameter defaults to 1.
+          </p>
+        </Q>
+
+        <Q q="How do I create a booking?">
+          <pre><code>{`POST /api/events/my-event/book
+Content-Type: application/json
+
+{
+  "name": "Alice Smith",
+  "email": "alice@example.com",
+  "phone": "07700900000",
+  "quantity": 2,
+  "date": "2026-03-16",
+  "customPrice": 10.00
+}`}</code></pre>
+          <p>
+            Which fields are required depends on the event's field settings.
+            The <code>name</code> field is always required.{" "}
+            <code>date</code> is required for daily events (use a date from{" "}
+            <code>availableDates</code>). <code>customPrice</code> is for
+            pay-more events only (in major currency units, e.g. 10.00 for
+            &pound;10).
+          </p>
+          <p><strong>Free event response:</strong></p>
+          <pre><code>{`{
+  "ticketToken": "abc123...",
+  "ticketUrl": "/t/abc123..."
+}`}</code></pre>
+          <p><strong>Paid event response:</strong></p>
+          <pre><code>{`{
+  "checkoutUrl": "https://checkout.stripe.com/..."
+}`}</code></pre>
+          <p>
+            Redirect the user to <code>checkoutUrl</code> to complete payment.
+            Possible error responses: 400 (validation error or registration
+            closed), 404 (event not found), 409 (not enough spots available).
+          </p>
+        </Q>
+
+        <Q q="What data does the API expose?">
+          <p>
+            The API exposes <strong>exactly the same data</strong> as the
+            public booking pages &mdash; no more. Internal fields like
+            capacity limits, attendee counts, close times, and webhook URLs
+            are never included. The <code>isSoldOut</code>,{" "}
+            <code>isClosed</code>, and <code>maxPurchasable</code> fields are
+            derived values, not raw database fields.
+          </p>
+        </Q>
+      </Section>
+
       <Section title="Customising Your Site">
         <Q q="Can I customise this system?">
           <p>

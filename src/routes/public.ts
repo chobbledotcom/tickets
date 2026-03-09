@@ -4,7 +4,7 @@
 
 import { compact, filter, map, pipe, reduce } from "#fp";
 import { signCsrfToken } from "#lib/csrf.ts";
-import { toMinorUnits } from "#lib/currency.ts";
+import { validatePrice } from "#lib/currency.ts";
 import { getAllowedDomain, getCurrencyCode, isPaymentsEnabled } from "#lib/config.ts";
 import { applyDemoOverrides, ATTENDEE_DEMO_FIELDS } from "#lib/demo.ts";
 import {
@@ -25,7 +25,6 @@ import {
   getGroupBySlugIndex,
 } from "#lib/db/groups.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { validateForm } from "#lib/forms.tsx";
 import {
   getActivePaymentProvider,
   type MultiRegistrationIntent,
@@ -51,7 +50,7 @@ import {
   withCsrfForm,
   withActiveEventBySlug,
 } from "#routes/utils.ts";
-import { getTicketFields, mergeEventFields, type TicketFormValues } from "#templates/fields.ts";
+import { mergeEventFields, type TicketFormValues, validateTicketFields } from "#templates/fields.ts";
 import { checkoutPopupPage, reservationSuccessPage } from "#templates/payment.tsx";
 import {
   buildMultiTicketEvent,
@@ -255,10 +254,6 @@ const handlePaymentFlow = (
     (msg, status) => ticketResponse(event, ctx.inIframe, undefined, ctx.terms)(msg, status),
   );
 
-/** Validate ticket form fields and return typed values */
-const validateTicketFields = (form: URLSearchParams, fieldsSetting: EventFields) =>
-  validateForm<TicketFormValues>(form, getTicketFields(fieldsSetting));
-
 /** Extract contact details from validated form values */
 const extractContact = (values: TicketFormValues): ContactInfo => ({
   name: values.name,
@@ -286,24 +281,7 @@ const parseCustomPrice = (
   fieldName: string,
   minPrice: number,
   maxPrice: number,
-): { ok: true; price: number } | { ok: false; error: string } => {
-  const raw = (form.get(fieldName) || "").trim();
-  if (!raw) {
-    return minPrice === 0 ? { ok: true, price: 0 } : { ok: false, error: "Please enter a price" };
-  }
-  const parsed = Number.parseFloat(raw);
-  if (Number.isNaN(parsed) || parsed < 0) {
-    return { ok: false, error: "Please enter a valid price" };
-  }
-  const priceMinor = toMinorUnits(parsed);
-  if (priceMinor < minPrice) {
-    return { ok: false, error: "Price must be at least the minimum ticket price" };
-  }
-  if (priceMinor > maxPrice) {
-    return { ok: false, error: "Price exceeds the maximum allowed" };
-  }
-  return { ok: true, price: priceMinor };
-};
+) => validatePrice((form.get(fieldName) || "").trim(), minPrice, maxPrice);
 
 /** Format error message for failed attendee creation */
 const formatAtomicError = formatCreationError(
