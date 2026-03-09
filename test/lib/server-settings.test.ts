@@ -2735,11 +2735,9 @@ describe("server (admin settings)", () => {
   describe("custom domain", () => {
     const setBunnyEnv = () => {
       Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
-      Deno.env.set("BUNNY_PULL_ZONE_ID", "12345");
     };
     const clearBunnyEnv = () => {
       Deno.env.delete("BUNNY_API_KEY");
-      Deno.env.delete("BUNNY_PULL_ZONE_ID");
     };
 
     afterEach(() => {
