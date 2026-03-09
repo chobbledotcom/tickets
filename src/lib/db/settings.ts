@@ -822,7 +822,7 @@ export type EmailTemplateFormat = "subject" | "html" | "text";
 
 /** Config key for a given template type+format */
 const emailTemplateKey = (type: EmailTemplateType, format: EmailTemplateFormat): string => {
-  const keys: Record<string, string> = {
+  const keys: Record<`${EmailTemplateType}:${EmailTemplateFormat}`, string> = {
     "confirmation:subject": CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
     "confirmation:html": CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
     "confirmation:text": CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_TEXT,
@@ -830,7 +830,7 @@ const emailTemplateKey = (type: EmailTemplateType, format: EmailTemplateFormat):
     "admin:html": CONFIG_KEYS.EMAIL_TPL_ADMIN_HTML,
     "admin:text": CONFIG_KEYS.EMAIL_TPL_ADMIN_TEXT,
   };
-  return keys[`${type}:${format}`]!;
+  return keys[`${type}:${format}`];
 };
 
 /** Max length for email templates */
