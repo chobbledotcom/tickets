@@ -10,6 +10,7 @@ import {
 } from "#lib/business-email.ts";
 import { validateCustomDomain } from "#lib/bunny-cdn.ts";
 import { EMAIL_PROVIDER_LABELS, getEmailConfig, getHostEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
+import { buildTemplateData, renderTemplate, validateTemplate } from "#lib/email-renderer.ts";
 import {
   getAllowedDomain,
   getCdnHostname,
@@ -29,6 +30,7 @@ import {
   getHeaderImageUrlFromDb,
   getPaymentProviderFromDb,
   getPhonePrefixFromDb,
+  getShowPublicApiFromDb,
   getShowPublicSiteFromDb,
   getSquareSandboxFromDb,
   getStripeWebhookEndpointId,
@@ -50,6 +52,7 @@ import {
   updateEmailProvider,
   updateHeaderImageUrl,
   updatePhonePrefix,
+  updateShowPublicApi,
   updateShowPublicSite,
   updateSquareAccessToken,
   updateSquareLocationId,
@@ -60,6 +63,10 @@ import {
   updateTheme,
   updateTimezone,
   updateUserPassword,
+  type EmailTemplateType,
+  getEmailTemplateSet,
+  updateEmailTemplate,
+  MAX_EMAIL_TEMPLATE_LENGTH,
 } from "#lib/db/settings.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
 import {
@@ -125,11 +132,14 @@ const getSettingsPageState = async () => {
     businessEmail,
     theme,
     showPublicSite,
+    showPublicApi,
     phonePrefix,
     headerImageUrl,
     emailProvider,
     emailApiKeyConfigured,
     emailFromAddress,
+    confirmationTemplates,
+    adminTemplates,
     customDomain,
     customDomainLastValidated,
   ] = await Promise.all([
@@ -144,11 +154,14 @@ const getSettingsPageState = async () => {
     getBusinessEmailFromDb(),
     getThemeFromDb(),
     getShowPublicSiteFromDb(),
+    getShowPublicApiFromDb(),
     getPhonePrefixFromDb(),
     getHeaderImageUrlFromDb(),
     getEmailProviderFromDb(),
     hasEmailApiKey(),
     getEmailFromAddressFromDb(),
+    getEmailTemplateSet("confirmation"),
+    getEmailTemplateSet("admin"),
     bunnyCdnConfigured ? getCustomDomainFromDb() : Promise.resolve(null),
     bunnyCdnConfigured ? getCustomDomainLastValidatedFromDb() : Promise.resolve(null),
   ]);
@@ -165,6 +178,7 @@ const getSettingsPageState = async () => {
     businessEmail,
     theme,
     showPublicSite,
+    showPublicApi,
     phonePrefix,
     headerImageUrl: headerImageUrl ?? "",
     storageEnabled: isStorageEnabled(),
@@ -177,6 +191,16 @@ const getSettingsPageState = async () => {
       const label = EMAIL_PROVIDER_LABELS[hostConfig.provider] ?? hostConfig.provider;
       return `Host ${label} (${hostConfig.fromAddress})`;
     })(),
+    confirmationTemplates: {
+      subject: confirmationTemplates.subject ?? "",
+      html: confirmationTemplates.html ?? "",
+      text: confirmationTemplates.text ?? "",
+    },
+    adminTemplates: {
+      subject: adminTemplates.subject ?? "",
+      html: adminTemplates.html ?? "",
+      text: adminTemplates.text ?? "",
+    },
     bunnyCdnEnabled: bunnyCdnConfigured,
     customDomain: customDomain ?? "",
     customDomainLastValidated: customDomainLastValidated ?? "",
@@ -663,6 +687,22 @@ const processShowPublicSiteForm: SettingsFormHandler = async (form) => {
 /** Handle POST /admin/settings/show-public-site - owner only */
 const handleShowPublicSitePost = settingsRoute(processShowPublicSiteForm);
 
+/** Validate and save show-public-api from form submission */
+const processShowPublicApiForm: SettingsFormHandler = async (form) => {
+  const value = form.get("show_public_api") === "true";
+  await updateShowPublicApi(value);
+  await logActivity(`Public API ${value ? "enabled" : "disabled"}`);
+  return redirect(
+    "/admin/settings",
+    value ? "Public API enabled" : "Public API disabled",
+    true,
+    { formId: "settings-show-public-api" },
+  );
+};
+
+/** Handle POST /admin/settings/show-public-api - owner only */
+const handleShowPublicApiPost = settingsRoute(processShowPublicApiForm);
+
 /** Validate and save phone prefix from form submission */
 const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
   const raw = (form.get("phone_prefix") ?? "").trim();
@@ -786,6 +826,106 @@ const handleEmailTestPost = settingsRoute(async (_form, errorPage) => {
   return redirect("/admin/settings", `Test email sent (status ${status})`, true, { formId: "settings-email-test" });
 });
 
+/** Valid template types for form submissions */
+const VALID_TEMPLATE_TYPES: ReadonlySet<string> = new Set(["confirmation", "admin"]);
+
+/** Handle POST /admin/settings/email-templates/:type - save custom email templates */
+const handleEmailTemplatePost = (type: EmailTemplateType) =>
+  settingsRoute(async (form, errorPage) => {
+    const formId = `settings-email-tpl-${type}`;
+    const subject = form.get("subject") ?? "";
+    const html = form.get("html") ?? "";
+    const text = form.get("text") ?? "";
+
+    // Validate lengths
+    for (const [name, value] of [["subject", subject], ["html", html], ["text", text]] as const) {
+      if (value.length > MAX_EMAIL_TEMPLATE_LENGTH) {
+        return errorPage(
+          `Template ${name} exceeds maximum length of ${MAX_EMAIL_TEMPLATE_LENGTH} characters`,
+          400,
+          formId,
+        );
+      }
+    }
+
+    // Validate Liquid syntax
+    for (const [name, value] of [["subject", subject], ["html", html], ["text", text]] as const) {
+      if (value) {
+        const error = validateTemplate(value);
+        if (error) {
+          return errorPage(`Invalid template syntax in ${name}: ${error}`, 400, formId);
+        }
+      }
+    }
+
+    await Promise.all([
+      updateEmailTemplate(type, "subject", subject.trim()),
+      updateEmailTemplate(type, "html", html.trim()),
+      updateEmailTemplate(type, "text", text.trim()),
+    ]);
+
+    const label = type === "confirmation" ? "Confirmation" : "Admin notification";
+    await logActivity(`${label} email template updated`);
+    return redirect("/admin/settings", `${label} email template updated`, true, { formId });
+  });
+
+/** Handle POST /admin/settings/email-templates/preview - render template with sample data */
+const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
+  withOwnerAuthForm(request, async (_session, form) => {
+    const type = form.get("type") ?? "";
+    const template = form.get("template") ?? "";
+    const format = form.get("format") ?? "html";
+
+    if (!VALID_TEMPLATE_TYPES.has(type)) {
+      return jsonResponse({ error: "Invalid template type" }, 400);
+    }
+
+    const error = validateTemplate(template);
+    if (error) {
+      return jsonResponse({ error: `Template syntax error: ${error}` }, 400);
+    }
+
+    // Sample data for preview
+    const sampleData = buildTemplateData(
+      [{
+        event: {
+          id: 1, name: "Summer Concert", slug: "summer-concert",
+          webhook_url: "", max_attendees: 100, attendee_count: 42,
+          unit_price: 2500, can_pay_more: false,
+        },
+        attendee: {
+          id: 1, name: "Jane Smith", email: "jane@example.com",
+          phone: "+44 7700 900000", address: "123 High Street, London",
+          special_instructions: "Wheelchair access please",
+          quantity: 2, payment_id: "pi_sample", price_paid: "5000",
+          ticket_token: "SAMPLE123", date: null,
+        },
+      }, {
+        event: {
+          id: 2, name: "Workshop", slug: "workshop",
+          webhook_url: "", max_attendees: 20, attendee_count: 8,
+          unit_price: 0, can_pay_more: false,
+        },
+        attendee: {
+          id: 2, name: "Jane Smith", email: "jane@example.com",
+          phone: "+44 7700 900000", address: "123 High Street, London",
+          special_instructions: "Wheelchair access please",
+          quantity: 1, payment_id: "", price_paid: "0",
+          ticket_token: "SAMPLE456", date: "2026-04-15",
+        },
+      }],
+      "GBP",
+      "https://example.com/t/SAMPLE123+SAMPLE456",
+    );
+
+    try {
+      const rendered = await renderTemplate(template, sampleData);
+      return jsonResponse({ rendered, format });
+    } catch (err) {
+      return jsonResponse({ error: String(err) }, 400);
+    }
+  });
+
 /** Handle POST /admin/settings/custom-domain - save custom domain */
 const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
   if (!isBunnyCdnEnabled()) {
@@ -890,11 +1030,15 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/business-email": handleBusinessEmailPost,
   "POST /admin/settings/theme": handleThemePost,
   "POST /admin/settings/show-public-site": handleShowPublicSitePost,
+  "POST /admin/settings/show-public-api": handleShowPublicApiPost,
   "POST /admin/settings/phone-prefix": handlePhonePrefixPost,
   "POST /admin/settings/header-image": handleHeaderImagePost,
   "POST /admin/settings/header-image/delete": handleHeaderImageDeletePost,
   "POST /admin/settings/email": handleEmailPost,
   "POST /admin/settings/email/test": handleEmailTestPost,
+  "POST /admin/settings/email-templates/confirmation": handleEmailTemplatePost("confirmation"),
+  "POST /admin/settings/email-templates/admin": handleEmailTemplatePost("admin"),
+  "POST /admin/settings/email-templates/preview": handleEmailTemplatePreviewPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,

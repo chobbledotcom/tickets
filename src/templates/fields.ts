@@ -5,8 +5,8 @@
 import { formatCurrency } from "#lib/currency.ts";
 import { DAY_NAMES } from "#lib/dates.ts";
 import { isValidDatetime } from "#lib/timezone.ts";
-import type { Field } from "#lib/forms.tsx";
-import { isContactField, isEventType, type AdminLevel, type ContactField, type EventFields, type EventType } from "#lib/types.ts";
+import { type Field, validateForm } from "#lib/forms.tsx";
+import { isContactField, isEventType, type AdminLevel, type ContactField, type ContactInfo, type EventFields, type EventType } from "#lib/types.ts";
 import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
 
@@ -591,6 +591,25 @@ export const getTicketFields = (fields: EventFields): Field[] => {
   const parsed = parseEventFields(fields);
   return [nameField, ...parsed.map((f) => contactFieldMap[f])];
 };
+
+/** Validate ticket fields, mapping validation failure to a response via onError */
+export const tryValidateTicketFields = (
+  form: URLSearchParams,
+  fieldsSetting: EventFields,
+  onError: (message: string) => Response,
+): TicketFormValues | Response => {
+  const result = validateForm<TicketFormValues>(form, getTicketFields(fieldsSetting));
+  return result.valid ? result.values : onError(result.error);
+};
+
+/** Extract contact details from validated ticket form values */
+export const extractContact = (values: TicketFormValues): ContactInfo => ({
+  name: values.name,
+  email: values.email || "",
+  phone: values.phone || "",
+  address: values.address || "",
+  special_instructions: values.special_instructions || "",
+});
 
 /** Quantity field for admin add-attendee form */
 const addAttendeeQuantityField: Field = {

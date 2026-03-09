@@ -59,6 +59,36 @@ export const toMajorUnits = (minorUnits: number): string => {
   return (minorUnits / (10 ** places)).toFixed(places);
 };
 
+/** Result type for price validation */
+export type PriceResult = { ok: true; price: number } | { ok: false; error: string };
+
+/**
+ * Validate and convert a raw price string to minor units.
+ * Returns ok with 0 if raw is empty and minPrice is 0 (pay-what-you-want with no input).
+ * Returns error if raw is empty and minPrice > 0, or if parsed value is out of range.
+ */
+export const validatePrice = (
+  raw: string,
+  minPrice: number,
+  maxPrice: number,
+): PriceResult => {
+  if (!raw) {
+    return minPrice === 0 ? { ok: true, price: 0 } : { ok: false, error: "Please enter a price" };
+  }
+  const parsed = Number.parseFloat(raw);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    return { ok: false, error: "Please enter a valid price" };
+  }
+  const priceMinor = toMinorUnits(parsed);
+  if (priceMinor < minPrice) {
+    return { ok: false, error: "Price must be at least the minimum ticket price" };
+  }
+  if (priceMinor > maxPrice) {
+    return { ok: false, error: "Price exceeds the maximum allowed" };
+  }
+  return { ok: true, price: priceMinor };
+};
+
 /** For testing: set the currency code directly */
 export const setCurrencyCodeForTest = (c: string): void => {
   state.code = c;

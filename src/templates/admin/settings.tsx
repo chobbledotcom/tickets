@@ -16,8 +16,15 @@ import {
   squareWebhookFields,
   stripeKeyFields,
 } from "#templates/fields.ts";
+import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
+
+export type EmailTemplateState = {
+  subject: string;
+  html: string;
+  text: string;
+};
 
 export type SettingsPageState = {
   stripeKeyConfigured: boolean;
@@ -32,6 +39,7 @@ export type SettingsPageState = {
   businessEmail: string;
   theme: string;
   showPublicSite: boolean;
+  showPublicApi: boolean;
   phonePrefix: string;
   headerImageUrl: string;
   storageEnabled: boolean;
@@ -39,6 +47,8 @@ export type SettingsPageState = {
   emailApiKeyConfigured: boolean;
   emailFromAddress: string;
   hostEmailLabel: string;
+  confirmationTemplates: EmailTemplateState;
+  adminTemplates: EmailTemplateState;
   bunnyCdnEnabled: boolean;
   customDomain: string;
   customDomainLastValidated: string;
@@ -159,6 +169,83 @@ export const adminSettingsPage = (
           <button type="submit" class="secondary">Send Test Email</button>
         </CsrfForm>
         )}
+
+        <CsrfForm action="/admin/settings/email-templates/confirmation" id="settings-email-tpl-confirmation">
+            <h2>Confirmation Email Template</h2>
+          <p>Customise the registration confirmation email sent to attendees. Uses <a href="https://liquidjs.com/" target="_blank" rel="noopener">Liquid</a> template syntax. Leave blank to use the default template.</p>
+          <details>
+            <summary>Available variables</summary>
+            <table>
+              <tr><td><code>{`{{ event_names }}`}</code></td><td>All event names joined with "and"</td></tr>
+              <tr><td><code>{`{{ ticket_url }}`}</code></td><td>Link to view tickets</td></tr>
+              <tr><td><code>{`{{ attendee.name }}`}</code></td><td>Attendee name</td></tr>
+              <tr><td><code>{`{{ attendee.email }}`}</code></td><td>Attendee email</td></tr>
+              <tr><td><code>{`{{ attendee.phone }}`}</code></td><td>Attendee phone</td></tr>
+              <tr><td><code>{`{{ attendee.address }}`}</code></td><td>Attendee address</td></tr>
+              <tr><td><code>{`{{ attendee.special_instructions }}`}</code></td><td>Special instructions</td></tr>
+              <tr><td><code>{`{{ entries }}`}</code></td><td>Array of event+attendee pairs</td></tr>
+              <tr><td><code>{`{{ entry.event.name }}`}</code></td><td>Event name (in loop)</td></tr>
+              <tr><td><code>{`{{ entry.event.is_paid }}`}</code></td><td>Whether event has a price</td></tr>
+              <tr><td><code>{`{{ entry.attendee.quantity }}`}</code></td><td>Ticket quantity</td></tr>
+              <tr><td><code>{`{{ entry.attendee.price_paid | currency }}`}</code></td><td>Price formatted as currency</td></tr>
+              <tr><td><code>{`{{ entry.attendee.date }}`}</code></td><td>Selected date (if any)</td></tr>
+              <tr><td><code>{`{{ 2 | pluralize: "ticket", "tickets" }}`}</code></td><td>Pluralize based on count</td></tr>
+            </table>
+          </details>
+          <label for="confirmation_subject">Subject</label>
+          <input
+            type="text"
+            id="confirmation_subject"
+            name="subject"
+            placeholder={DEFAULT_TEMPLATES.confirmation.subject}
+            value={s.confirmationTemplates.subject}
+            autocomplete="off"
+          />
+          <label for="confirmation_html">HTML Body</label>
+          <textarea
+            id="confirmation_html"
+            name="html"
+            rows="8"
+            placeholder={DEFAULT_TEMPLATES.confirmation.html}
+          >{s.confirmationTemplates.html}</textarea>
+          <label for="confirmation_text">Plain Text Body</label>
+          <textarea
+            id="confirmation_text"
+            name="text"
+            rows="6"
+            placeholder={DEFAULT_TEMPLATES.confirmation.text}
+          >{s.confirmationTemplates.text}</textarea>
+          <button type="submit">Save Confirmation Template</button>
+        </CsrfForm>
+
+        <CsrfForm action="/admin/settings/email-templates/admin" id="settings-email-tpl-admin">
+            <h2>Admin Notification Email Template</h2>
+          <p>Customise the notification email sent to the business email when a registration comes in. Leave blank to use the default template.</p>
+          <label for="admin_subject">Subject</label>
+          <input
+            type="text"
+            id="admin_subject"
+            name="subject"
+            placeholder={DEFAULT_TEMPLATES.admin.subject}
+            value={s.adminTemplates.subject}
+            autocomplete="off"
+          />
+          <label for="admin_html">HTML Body</label>
+          <textarea
+            id="admin_html"
+            name="html"
+            rows="8"
+            placeholder={DEFAULT_TEMPLATES.admin.html}
+          >{s.adminTemplates.html}</textarea>
+          <label for="admin_text">Plain Text Body</label>
+          <textarea
+            id="admin_text"
+            name="text"
+            rows="6"
+            placeholder={DEFAULT_TEMPLATES.admin.text}
+          >{s.adminTemplates.text}</textarea>
+          <button type="submit">Save Admin Notification Template</button>
+        </CsrfForm>
 
         <CsrfForm action="/admin/settings/payment-provider" id="settings-payment-provider">
             <h2>Payment Provider</h2>
@@ -321,6 +408,35 @@ export const adminSettingsPage = (
                 name="show_public_site"
                 value="false"
                 checked={s.showPublicSite !== true}
+              />
+              No
+            </label>
+          </fieldset>
+          <button type="submit">Save</button>
+        </CsrfForm>
+
+        <CsrfForm action="/admin/settings/show-public-api" id="settings-show-public-api">
+            <h2>Enable public API?</h2>
+          <p>
+            Exposes a JSON API for listing events, checking availability, and creating bookings.
+            See the <a href="/admin/guide#api">API guide</a> for details.
+          </p>
+          <fieldset>
+            <label>
+              <input
+                type="radio"
+                name="show_public_api"
+                value="true"
+                checked={s.showPublicApi === true}
+              />
+              Yes
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="show_public_api"
+                value="false"
+                checked={s.showPublicApi !== true}
               />
               No
             </label>
