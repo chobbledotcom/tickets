@@ -1719,6 +1719,10 @@ describe("html", () => {
       emailApiKeyConfigured: false,
       emailFromAddress: "",
       globalWebhookUrl: "",
+      bunnyCdnEnabled: false,
+      customDomain: "",
+      customDomainLastValidated: "",
+      cdnHostname: "",
     };
 
     test("shows square webhook configured message when key is set", () => {
