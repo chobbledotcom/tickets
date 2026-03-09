@@ -54,7 +54,6 @@ import {
   notFoundResponse,
   orNotFound,
   redirect,
-  redirectWithSuccess,
   requireSessionOr,
   withAuthForm,
   withAuthMultipartForm,
@@ -250,9 +249,9 @@ const handleCreateEvent: TypedRouteHandler<"POST /admin/event"> = (request) =>
     await logActivity(`Event '${result.row.name}' created`, result.row);
     const imageError = await processFormImage(formData, result.row.id);
     if (imageError) {
-      return redirect(`/admin?image_error=${encodeURIComponent(imageError)}`);
+      return redirect("/admin", `Event created but image was not saved: ${imageError}`, false);
     }
-    return redirectWithSuccess("/admin", "Event created");
+    return redirect("/admin", "Event created", true);
   });
 
 /** Extract check-in message params from request URL */
@@ -337,7 +336,7 @@ const renderEventPage = async (
           attendees,
           request,
         );
-        const imageError = getSearchParam(request, "image_error");
+        const imageError = getSearchParam(request, "error");
         const successMessage = getSearchParam(request, "success");
         const phonePrefix = await getPhonePrefixFromDb();
         return htmlResponse(
@@ -442,12 +441,11 @@ const handleAdminEventEditPost: TypedRouteHandler<
       );
       if (imageError) {
         return redirect(
-          `/admin/event/${result.row.id}?image_error=${encodeURIComponent(imageError)}`,
+          `/admin/event/${result.row.id}`, `Event updated but image was not saved: ${imageError}`, false,
         );
       }
-      return redirectWithSuccess(
-        `/admin/event/${result.row.id}`,
-        "Event updated",
+      return redirect(
+        `/admin/event/${result.row.id}`, "Event updated", true,
       );
     }
     if ("notFound" in result) return notFoundResponse();
@@ -536,7 +534,7 @@ const eventToggleHandler =
       async (event) => {
         await eventsTable.update(id, { active });
         await logActivity(`Event '${event.name}' ${verb}`, id);
-        return redirectWithSuccess(`/admin/event/${id}`, `Event ${verb}`);
+        return redirect(`/admin/event/${id}`, `Event ${verb}`, true);
       },
     );
 
@@ -580,7 +578,7 @@ const performDelete = async (event: EventWithCount): Promise<Response> => {
   await logActivity(
     `Event '${event.name}' deleted (${attendeeCount} attendee(s) removed)`,
   );
-  return redirectWithSuccess("/admin", "Event deleted");
+  return redirect("/admin", "Event deleted", true);
 };
 
 /** Handle DELETE /admin/event/:id (delete event with logging) */
@@ -610,7 +608,7 @@ const handleImageDelete: TypedRouteHandler<
         await eventsTable.update(id, { imageUrl: "" });
         await logActivity(`Image removed for '${event.name}'`, event);
       }
-      return redirectWithSuccess(`/admin/event/${id}`, "Image removed");
+      return redirect(`/admin/event/${id}`, "Image removed", true);
     }),
   );
 

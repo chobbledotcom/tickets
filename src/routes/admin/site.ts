@@ -20,7 +20,7 @@ import {
   type AuthSession,
   getSearchParam,
   htmlResponse,
-  redirectWithSuccess,
+  redirect,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
@@ -89,7 +89,7 @@ const handleSiteHomePost = sitePostRoute(async (session, form) => {
   await updateWebsiteTitle(titleRaw);
   await updateHomepageText(textRaw);
   await logActivity("Site homepage updated");
-  return redirectWithSuccess("/admin/site", "Homepage updated");
+  return redirect("/admin/site", "Homepage updated", true);
 });
 
 /** Handle POST /admin/site/contact - save contact page */
@@ -105,7 +105,7 @@ const handleSiteContactPost = sitePostRoute(async (session, form) => {
 
   await updateContactPageText(textRaw);
   await logActivity("Site contact page updated");
-  return redirectWithSuccess("/admin/site/contact", "Contact page updated");
+  return redirect("/admin/site/contact", "Contact page updated", true);
 });
 
 /** Site editor routes */

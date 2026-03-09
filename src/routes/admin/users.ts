@@ -27,7 +27,7 @@ import {
   getSearchParam,
   htmlResponse,
   redirect,
-  redirectWithSuccess,
+  redirectResponse,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
@@ -145,7 +145,7 @@ const handleUsersPostForm = async (
     const inviteLink = `https://${domain}/join/${inviteCode}`;
 
     await logActivity(`User '${username}' invited as ${adminLevel}`);
-    return redirect(`/admin/users?invite=${encodeURIComponent(inviteLink)}`);
+    return redirectResponse(`/admin/users?invite=${encodeURIComponent(inviteLink)}`);
 };
 
 type UserErrorPageFn = (error: string, status: number) => Promise<Response>;
@@ -200,7 +200,7 @@ const handleUserActivate: UserActionHandler = async (user, session, errorPage) =
 
   const username = await decryptUsername(user);
   await logActivity(`User '${username}' activated`);
-  return redirectWithSuccess("/admin/users", "User activated successfully");
+  return redirect("/admin/users", "User activated successfully", true);
 };
 
 /**
@@ -252,7 +252,7 @@ const handleUserDeletePost: TypedRouteHandler<"POST /admin/users/:id/delete"> = 
     await deleteUser(user.id);
 
     await logActivity(`User '${username}' deleted`);
-    return redirectWithSuccess("/admin/users", "User deleted successfully");
+    return redirect("/admin/users", "User deleted successfully", true);
   });
 
 /** Create a route handler that runs a user action by ID */

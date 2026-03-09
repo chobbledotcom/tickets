@@ -2294,7 +2294,7 @@ describe("server (admin attendees)", () => {
             );
             expect(response.headers.get("location")).toContain("success=");
             expect(response.headers.get("location")).toContain(
-              "up%20to%20date",
+              "up+to+date",
             );
           } finally {
             mockRefunded.restore();

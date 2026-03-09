@@ -11,7 +11,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
   notFoundResponse,
-  redirect,
+  redirectResponse,
   withCsrfForm,
 } from "#routes/utils.ts";
 import {
@@ -56,7 +56,7 @@ const handleDemoResetPost = (request: Request): Response | Promise<Response> =>
       if (phraseError) return resetPageError(phraseError, 400);
 
       await resetDatabase();
-      return redirect("/setup/", clearSessionCookie());
+      return redirectResponse("/setup/", clearSessionCookie());
     }),
   );
 

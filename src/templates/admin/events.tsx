@@ -235,7 +235,7 @@ export const adminEventPage = ({
         )}
 
         {imageError && (
-          <p class="error">Event saved but image was not uploaded: {imageError}</p>
+          <p class="error">{imageError}</p>
         )}
 
         <article>

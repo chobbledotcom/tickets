@@ -12,7 +12,7 @@ import { sortEvents } from "#lib/sort-events.ts";
 import type { EventWithCount } from "#lib/types.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { icsResponse, isRegistrationClosed, redirect, rssResponse } from "#routes/utils.ts";
+import { icsResponse, isRegistrationClosed, redirectResponse, rssResponse } from "#routes/utils.ts";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
 export const escapeIcs = (text: string): string =>
@@ -53,7 +53,7 @@ const loadFeedData = async (): Promise<FeedData> => {
 
 /** Guard: redirect to admin if public site is disabled */
 const requirePublicSite = async <T>(fn: () => Promise<T>): Promise<T | Response> =>
-  await getShowPublicSiteFromDb() ? fn() : redirect("/admin/");
+  await getShowPublicSiteFromDb() ? fn() : redirectResponse("/admin/");
 
 /** Build a single VEVENT block */
 const buildVEvent = (event: EventWithCount, domain: string, dtstamp: string): string => {

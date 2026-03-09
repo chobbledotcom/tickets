@@ -8,7 +8,7 @@ import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   getSearchParam,
   htmlResponse,
-  redirectWithSuccess,
+  redirect,
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
@@ -33,7 +33,7 @@ const handleAdminSessionsGet: TypedRouteHandler<"GET /admin/sessions"> = (reques
 const handleAdminSessionsPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (session) => {
     await deleteOtherSessions(session.token);
-    return redirectWithSuccess("/admin/sessions", "Logged out of all other sessions");
+    return redirect("/admin/sessions", "Logged out of all other sessions", true);
   });
 
 /** Session management routes */

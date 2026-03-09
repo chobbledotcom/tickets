@@ -74,7 +74,7 @@ describe("server (embed hosts)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Allowed embed hosts updated",
       );
     });
@@ -112,7 +112,7 @@ describe("server (embed hosts)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Embed host restrictions removed",
       );
     });
@@ -141,7 +141,7 @@ describe("server (embed hosts)", () => {
 
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
+      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain(
         "Embed host restrictions removed",
       );
     });

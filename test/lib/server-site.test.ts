@@ -111,7 +111,7 @@ describe("server (admin site)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!)).toContain(
+      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain(
         "Homepage updated",
       );
 
@@ -257,7 +257,7 @@ describe("server (admin site)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!)).toContain(
+      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain(
         "Contact page updated",
       );
       expect(await getContactPageTextFromDb()).toBe("Email us!");

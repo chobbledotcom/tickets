@@ -7,7 +7,7 @@ import {
   isValidContentType,
   normalizeHostname,
 } from "#routes";
-import { redirectToWithSuccess, redirectWithSuccess, temporaryErrorResponse } from "#routes/utils.ts";
+import { redirect, temporaryErrorResponse } from "#routes/utils.ts";
 import {
   createTestDb,
   createTestDbWithSetup,
@@ -265,52 +265,55 @@ describe("server (misc)", () => {
     });
   });
 
-  describe("routes/utils.ts (redirectWithSuccess)", () => {
-    test("creates redirect without form ID", () => {
-      const response = redirectWithSuccess("/admin/settings", "Saved");
+  describe("routes/utils.ts (redirect)", () => {
+    test("creates success redirect without form ID", () => {
+      const response = redirect("/admin/settings", "Saved", true);
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/settings?success=Saved");
     });
 
-    test("creates redirect with form ID and anchor", () => {
-      const response = redirectWithSuccess("/admin/settings", "Timezone updated", "settings-timezone");
+    test("creates success redirect with form ID and anchor", () => {
+      const response = redirect("/admin/settings", "Timezone updated", true, { formId: "settings-timezone" });
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(location).toBe("/admin/settings?success=Timezone%20updated&form=settings-timezone#settings-timezone");
+      expect(location).toBe("/admin/settings?success=Timezone+updated&form=settings-timezone#settings-timezone");
     });
 
     test("encodes special characters in message and form ID", () => {
-      const response = redirectWithSuccess("/admin/settings", "A & B", "form&id");
+      const response = redirect("/admin/settings", "A & B", true, { formId: "form&id" });
       const location = response.headers.get("location")!;
-      expect(location).toContain("success=A%20%26%20B");
+      expect(location).toContain("success=A+%26+B");
       expect(location).toContain("form=form%26id");
       expect(location).toContain("#form&id");
     });
-  });
 
-  describe("routes/utils.ts (redirectToWithSuccess)", () => {
-    test("appends success param to simple path", () => {
-      const response = redirectToWithSuccess("/admin/event/1", "Deleted");
+    test("creates error redirect", () => {
+      const response = redirect("/admin/settings", "Something failed", false);
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/event/1?success=Deleted");
+      expect(response.headers.get("location")).toBe("/admin/settings?error=Something+failed");
     });
 
     test("appends success param to path with existing query params", () => {
-      const response = redirectToWithSuccess("/admin/event/1?tab=attendees", "Updated");
+      const response = redirect("/admin/event/1?tab=attendees", "Updated", true);
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/event/1?tab=attendees&success=Updated");
     });
 
     test("preserves hash fragment", () => {
-      const response = redirectToWithSuccess("/admin/calendar#attendees", "Done");
+      const response = redirect("/admin/calendar#attendees", "Done", true);
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin/calendar?success=Done#attendees");
     });
 
     test("encodes special characters in message", () => {
-      const response = redirectToWithSuccess("/admin/event/1", "A & B");
+      const response = redirect("/admin/event/1", "A & B", true);
       const location = response.headers.get("location")!;
       expect(location).toContain("success=A+%26+B");
+    });
+
+    test("passes cookie through to response", () => {
+      const response = redirect("/admin", "Done", true, { cookie: "session=abc; Path=/" });
+      expect(response.headers.get("set-cookie")).toBe("session=abc; Path=/");
     });
   });
 

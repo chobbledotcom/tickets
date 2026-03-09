@@ -135,15 +135,15 @@ const submitImageDelete = (
     ),
   );
 
-/** Assert a 302 redirect whose location contains `image_error=` and a decoded substring */
+/** Assert a 302 redirect whose location contains `error=` and a decoded substring */
 const expectImageErrorRedirect = (
   response: Response,
   errorSubstring: string,
 ): void => {
   expect(response.status).toBe(302);
   const location = response.headers.get("location") ?? "";
-  expect(location).toContain("image_error=");
-  expect(decodeURIComponent(location)).toContain(errorSubstring);
+  expect(location).toContain("error=");
+  expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(errorSubstring);
 };
 
 /** Shared form fields for creating a new event via POST /admin/event */
@@ -278,7 +278,7 @@ describe("server (event images)", () => {
         const response = await submitEditJpeg(event.id, cookie, csrfToken, "photo.jpg");
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe(
-          `/admin/event/${event.id}?success=Event%20updated`,
+          `/admin/event/${event.id}?success=Event+updated`,
         );
 
         const updated = await getEventWithCount(event.id);
@@ -354,8 +354,8 @@ describe("server (event images)", () => {
         );
         expect(response.status).toBe(302);
         const location = response.headers.get("location") ?? "";
-        expect(location).toContain("/admin?image_error=");
-        expect(decodeURIComponent(location)).toContain(
+        expect(location).toContain("/admin?error=");
+        expect(decodeURIComponent(location.replaceAll("+", "%20"))).toContain(
           "JPEG, PNG, GIF, or WebP",
         );
 
@@ -373,15 +373,14 @@ describe("server (event images)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await handleRequest(
-        mockRequest("/admin?image_error=Image+exceeds+the+256KB+size+limit", {
+        mockRequest("/admin?error=Image+exceeds+the+256KB+size+limit", {
           headers: { cookie },
         }),
       );
       await expectHtmlResponse(
         response,
         200,
-        "Event created but image was not saved",
-        "256KB",
+        "Image exceeds the 256KB size limit",
       );
     });
 
@@ -390,15 +389,14 @@ describe("server (event images)", () => {
 
       const response = await handleRequest(
         mockRequest(
-          `/admin/event/${event.id}?image_error=Image+must+be+a+JPEG%2C+PNG%2C+GIF%2C+or+WebP+file`,
+          `/admin/event/${event.id}?error=Image+must+be+a+JPEG%2C+PNG%2C+GIF%2C+or+WebP+file`,
           { headers: { cookie } },
         ),
       );
       await expectHtmlResponse(
         response,
         200,
-        "Event saved but image was not uploaded",
-        "JPEG, PNG, GIF, or WebP",
+        "Image must be a JPEG, PNG, GIF, or WebP file",
       );
     });
 
@@ -422,7 +420,7 @@ describe("server (event images)", () => {
         const response = await submitImageDelete(event.id, cookie, csrfToken);
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe(
-          `/admin/event/${event.id}?success=Image%20removed`,
+          `/admin/event/${event.id}?success=Image+removed`,
         );
 
         const updated = await getEventWithCount(event.id);
@@ -435,7 +433,7 @@ describe("server (event images)", () => {
 
       const response = await submitImageDelete(event.id, cookie, csrfToken);
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?success=Image%20removed`);
+      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?success=Image+removed`);
     });
 
     test("returns 404 for non-existent event", async () => {

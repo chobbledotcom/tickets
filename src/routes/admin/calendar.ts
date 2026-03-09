@@ -23,7 +23,7 @@ import { csvResponse, getDateFilter } from "#routes/admin/utils.ts";
 import {
   getPrivateKey,
   htmlResponse,
-  redirect,
+  redirectResponse,
   requireSessionOr,
 } from "#routes/utils.ts";
 import { adminCalendarPage, type CalendarAttendeeRow, type CalendarDateOption } from "#templates/admin/calendar.tsx";
@@ -195,7 +195,7 @@ const handleAdminCalendarGet = (request: Request) =>
  */
 const handleAdminCalendarExport = (request: Request) =>
   withCalendarSession(request, async (session, dateFilter) => {
-    if (!dateFilter) return redirect("/admin/calendar");
+    if (!dateFilter) return redirectResponse("/admin/calendar");
 
     const privateKey = (await getPrivateKey(session))!;
     const [dailyEvents, rawDailyAttendees, standardCtx] = await Promise.all([

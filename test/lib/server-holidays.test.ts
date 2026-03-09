@@ -402,7 +402,7 @@ describe("server (admin holidays)", () => {
         },
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/holidays?success=Holiday%20deleted");
+      expect(response.headers.get("location")).toBe("/admin/holidays?success=Holiday+deleted");
     });
 
     test("returns 404 for non-existent holiday", async () => {

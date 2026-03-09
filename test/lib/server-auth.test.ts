@@ -89,7 +89,10 @@ describe("server (admin auth)", () => {
       const response = await handleRequest(
         await mockAdminLoginRequest({ username: "testadmin", password }),
       );
-      expectAdminRedirect(response);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        "/admin?success=Logged+in",
+      );
       expect(response.headers.get("set-cookie")).toContain(
         `${getSessionCookieName()}=`,
       );
@@ -200,7 +203,10 @@ describe("server (admin auth)", () => {
       const response = await handleRequest(
         mockFormRequest("/admin/logout", { csrf_token: csrfToken }, cookie),
       );
-      expectAdminRedirect(response);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        "/admin?success=Logged+out",
+      );
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
     });
   });
@@ -318,8 +324,8 @@ describe("server (admin auth)", () => {
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location)).toContain(
-        "Logged out of all other sessions",
+      expect(location).toContain(
+        "success=Logged+out+of+all+other+sessions",
       );
 
       // Verify other sessions are deleted
@@ -453,7 +459,10 @@ describe("server (admin auth)", () => {
         }),
       );
       const elapsed = Date.now() - start;
-      expectAdminRedirect(response);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(
+        "/admin?success=Logged+in",
+      );
       expect(elapsed).toBeGreaterThanOrEqual(100);
       Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1");
     });

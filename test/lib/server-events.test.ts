@@ -91,7 +91,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect("/admin?success=Event%20created")(response);
+      expectRedirect("/admin?success=Event+created")(response);
 
       // Verify event was actually created
       const { getEvent } = await import("#lib/db/events.ts");
@@ -120,7 +120,7 @@ describe("server (admin events)", () => {
             cookie,
           ),
         );
-        expectRedirect("/admin?success=Event%20created")(response);
+        expectRedirect("/admin?success=Event+created")(response);
 
         // Verify webhook_url was cleared
         const { getEvent } = await import("#lib/db/events.ts");
@@ -154,7 +154,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect("/admin?success=Event%20created")(response);
+      expectRedirect("/admin?success=Event+created")(response);
 
       const { getEvent } = await import("#lib/db/events.ts");
       const event = await getEvent(1);
@@ -264,7 +264,7 @@ describe("server (admin events)", () => {
         ),
       );
       // Slug auto-generated so creation succeeds
-      expectRedirect("/admin?success=Event%20created")(response);
+      expectRedirect("/admin?success=Event+created")(response);
     });
   });
 
@@ -762,7 +762,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect("/admin/event/1?success=Event%20updated")(response);
+      expectRedirect("/admin/event/1?success=Event+updated")(response);
 
       // Verify the event was updated
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -796,7 +796,7 @@ describe("server (admin events)", () => {
             cookie,
           ),
         );
-        expectRedirect("/admin/event/1?success=Event%20updated")(response);
+        expectRedirect("/admin/event/1?success=Event+updated")(response);
 
         // Verify webhook_url was cleared
         const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -836,7 +836,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(
+      expectRedirect(`/admin/event/${event.id}?success=Event+updated`)(
         response,
       );
 
@@ -889,7 +889,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(
+      expectRedirect(`/admin/event/${event.id}?success=Event+updated`)(
         response,
       );
 
@@ -917,7 +917,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(
+      expectRedirect(`/admin/event/${event.id}?success=Event+updated`)(
         response,
       );
 
@@ -1034,7 +1034,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Event%20updated`)(
+      expectRedirect(`/admin/event/${event.id}?success=Event+updated`)(
         response,
       );
 
@@ -1112,7 +1112,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect("/admin/event/1?success=Event%20deactivated")(response);
+      expectRedirect("/admin/event/1?success=Event+deactivated")(response);
 
       // Verify event is now inactive
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -1188,7 +1188,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect("/admin/event/1?success=Event%20reactivated")(response);
+      expectRedirect("/admin/event/1?success=Event+reactivated")(response);
 
       // Verify event is now active
       const { getEventWithCount } = await import("#lib/db/events.ts");
@@ -1345,7 +1345,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect("/admin?success=Event%20deleted")(response);
+      expectRedirect("/admin?success=Event+deleted")(response);
 
       // Verify event was deleted
       const { getEvent } = await import("#lib/db/events.ts");
@@ -1370,7 +1370,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect("/admin?success=Event%20deleted")(response);
+      expectRedirect("/admin?success=Event+deleted")(response);
     });
 
     test("deletes event and all attendees", async () => {
@@ -1923,7 +1923,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect("/admin?success=Event%20deleted")(response);
+      expectRedirect("/admin?success=Event+deleted")(response);
 
       const { getEvent: getEventFn } = await import("#lib/db/events.ts");
       const deleted = await getEventFn(event.id);
@@ -1976,7 +1976,7 @@ describe("server (admin events)", () => {
           cookie,
         ),
       );
-      expectRedirect("/admin?success=Event%20deleted")(response);
+      expectRedirect("/admin?success=Event+deleted")(response);
 
       const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
       const attendees = await getAttendeesRaw(event.id);

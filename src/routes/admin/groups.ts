@@ -30,7 +30,7 @@ import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
 import { defineRoutes } from "#routes/router.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { getSearchParam, htmlResponse, orNotFound, redirectWithSuccess, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
+import { getSearchParam, htmlResponse, orNotFound, redirect, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -159,7 +159,7 @@ const handleAddEventsToGroup: TypedRouteHandler<"POST /admin/group/:id/add-event
         await assignEventsToGroup(eventIds, id);
         await logActivity(`${eventIds.length} event(s) added to group '${group.name}'`);
       }
-      return redirectWithSuccess(`/admin/group/${id}`, "Events added to group");
+      return redirect(`/admin/group/${id}`, "Events added to group", true);
     }));
 
 /** Group routes */

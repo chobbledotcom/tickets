@@ -11,7 +11,7 @@ import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   htmlResponse,
   parseFormData,
-  redirect,
+  redirectResponse,
 } from "#routes/utils.ts";
 import { setupFields, type SetupFormValues } from "#templates/fields.ts";
 import { setupCompletePage, setupPage } from "#templates/setup.tsx";
@@ -85,7 +85,7 @@ type SetupCheck = () => Promise<boolean>;
  * Handle GET /setup/
  */
 const handleSetupGet = async (isSetupComplete: SetupCheck): Promise<Response> => {
-  if (await isSetupComplete()) return redirect("/");
+  if (await isSetupComplete()) return redirectResponse("/");
   await signCsrfToken();
   return setupResponse();
 };
@@ -102,7 +102,7 @@ const handleSetupPost = async (
 
   if (await isSetupComplete()) {
     logDebug("Setup", "Setup already complete, redirecting");
-    return redirect("/");
+    return redirectResponse("/");
   }
 
   // Validate signed CSRF token
@@ -142,7 +142,7 @@ const handleSetupPost = async (
     );
     await logActivity("Initial setup completed");
     logDebug("Setup", "Setup completed successfully!");
-    return redirect("/setup/complete");
+    return redirectResponse("/setup/complete");
   } catch (error) {
     logError({ code: ErrorCode.DB_QUERY, detail: "setup completion" });
     throw error;
@@ -154,7 +154,7 @@ const handleSetupPost = async (
  */
 const handleSetupComplete = async (isSetupComplete: SetupCheck): Promise<Response> => {
   if (!(await isSetupComplete())) {
-    return redirect("/setup/");
+    return redirectResponse("/setup/");
   }
   return htmlResponse(setupCompletePage());
 };

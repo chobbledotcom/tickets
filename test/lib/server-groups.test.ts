@@ -566,7 +566,7 @@ describe("server (admin groups)", () => {
         }, cookie),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/group/${group.id}?success=Events%20added%20to%20group`);
+      expect(response.headers.get("location")).toBe(`/admin/group/${group.id}?success=Events+added+to+group`);
 
       const { getEvent } = await import("#lib/db/events.ts");
       const updated1 = await getEvent(event1.id);
@@ -587,7 +587,7 @@ describe("server (admin groups)", () => {
         }, cookie),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/group/${group.id}?success=Events%20added%20to%20group`);
+      expect(response.headers.get("location")).toBe(`/admin/group/${group.id}?success=Events+added+to+group`);
     });
   });
 
@@ -603,7 +603,7 @@ describe("server (admin groups)", () => {
       );
       expect(response.status).toBe(302);
       const location = response.headers.get("location") ?? "";
-      expect(location).toMatch(/\/admin\/group\/\d+\?success=Group%20created$/);
+      expect(location).toMatch(/\/admin\/group\/\d+\?success=Group\+created$/);
     });
 
     test("edit redirects to group detail page", async () => {
@@ -621,7 +621,7 @@ describe("server (admin groups)", () => {
         }, cookie),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/group/${group.id}?success=Group%20updated`);
+      expect(response.headers.get("location")).toBe(`/admin/group/${group.id}?success=Group+updated`);
     });
   });
 
