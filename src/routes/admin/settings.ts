@@ -9,7 +9,7 @@ import {
   updateBusinessEmail,
 } from "#lib/business-email.ts";
 import { validateCustomDomain } from "#lib/bunny-cdn.ts";
-import { EMAIL_PROVIDER_LABELS, getEmailConfig, getHostEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
+import { EMAIL_PROVIDER_LABELS, getEmailConfig, getHostEmailConfig, isEmailProvider, sendTestEmail } from "#lib/email.ts";
 import { buildTemplateData, renderTemplate, validateTemplate } from "#lib/email-renderer.ts";
 import {
   getAllowedDomain,
@@ -799,7 +799,7 @@ const handleEmailPost = settingsRoute(async (form, errorPage) => {
     return redirect("/admin/settings", "Email provider disabled", true, { formId: "settings-email" });
   }
 
-  if (!VALID_EMAIL_PROVIDERS.has(provider)) {
+  if (!isEmailProvider(provider)) {
     return errorPage("Invalid email provider", 400, "settings-email");
   }
 
