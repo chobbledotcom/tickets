@@ -788,7 +788,6 @@ describe("server (admin attendees)", () => {
       expect(response.status).toBe(302);
       const location = response.headers.get("location")!;
       expect(location).toContain("error=");
-      expect(location).toContain("#add-attendee");
     });
 
     test("redirects with error when capacity exceeded", async () => {

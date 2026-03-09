@@ -345,7 +345,7 @@ const handleAddAttendee = (
     const validation = validateForm<AddAttendeeFormValues>(form, fields);
 
     if (!validation.valid) {
-      return redirect(`/admin/event/${eventId}`, validation.error, false, { formId: "add-attendee" });
+      return redirect(`/admin/event/${eventId}`, validation.error, false);
     }
 
     const { name, email, phone, address, special_instructions, quantity, date } = validation.values;
@@ -368,11 +368,11 @@ const handleAddAttendee = (
       const errorMsg = result.reason === "capacity_exceeded"
         ? "Not enough spots available"
         : "Encryption error — check that DB_ENCRYPTION_KEY is configured";
-      return redirect(`/admin/event/${eventId}`, errorMsg, false, { formId: "add-attendee" });
+      return redirect(`/admin/event/${eventId}`, errorMsg, false);
     }
 
     await logActivity(`Attendee '${name}' added manually`, eventId);
-    return redirect(`/admin/event/${eventId}`, `Added ${name}`, true, { formId: "add-attendee" });
+    return redirect(`/admin/event/${eventId}`, `Added ${name}`, true);
   });
 
 /** Get all events (active + the current event), uniquified */
