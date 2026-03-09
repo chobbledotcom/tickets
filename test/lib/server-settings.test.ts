@@ -2107,6 +2107,21 @@ describe("server (admin settings)", () => {
       await expectHtmlResponse(response, 400, "Invalid email provider");
     });
 
+    test("disables email when provider field is missing", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email",
+          { csrf_token: csrfToken },
+          cookie,
+        ),
+      );
+
+      expect(response.status).toBe(302);
+      expect(decodeURIComponent(response.headers.get("location")!)).toContain("Email provider disabled");
+    });
+
     test("saves provider without updating key when key is empty", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
