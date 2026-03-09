@@ -754,6 +754,17 @@ describe("html", () => {
       const html = successPage({ ticketUrl: "/t/abc123" });
       expect(html).not.toContain("data-scroll-into-view");
     });
+
+    test("shows email notice when fromEmail is provided", () => {
+      const html = successPage({ ticketUrl: "/t/abc123", paid: true, fromEmail: "tickets@example.com" });
+      expect(html).toContain("tickets@example.com");
+      expect(html).toContain("Junk/Spam");
+    });
+
+    test("does not show email notice when fromEmail is empty", () => {
+      const html = successPage({ ticketUrl: "/t/abc123", paid: true });
+      expect(html).not.toContain("Junk/Spam");
+    });
   });
 
   describe("paymentCancelPage", () => {
@@ -812,6 +823,16 @@ describe("html", () => {
     });
   });
 
+    test("shows email notice for reservation when fromEmail is provided", () => {
+      const html = successPage({ ticketUrl: "/t/abc123", fromEmail: "tickets@example.com" });
+      expect(html).toContain("tickets@example.com");
+      expect(html).toContain("Junk/Spam");
+    });
+
+    test("does not show email notice for reservation when fromEmail is empty", () => {
+      const html = successPage({ ticketUrl: "/t/abc123" });
+      expect(html).not.toContain("Junk/Spam");
+    });
 
   describe("paymentErrorPage", () => {
     test("renders error message", () => {

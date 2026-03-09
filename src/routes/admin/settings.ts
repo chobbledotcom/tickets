@@ -9,6 +9,7 @@ import {
   updateBusinessEmail,
 } from "#lib/business-email.ts";
 import { validateCustomDomain } from "#lib/bunny-cdn.ts";
+import { DOMAIN_PATTERN } from "#lib/embed-hosts.ts";
 import { EMAIL_PROVIDER_LABELS, getEmailConfig, getHostEmailConfig, isEmailProvider, sendTestEmail } from "#lib/email.ts";
 import { buildTemplateData, renderTemplate, validateTemplate } from "#lib/email-renderer.ts";
 import {
@@ -188,7 +189,7 @@ const getSettingsPageState = async () => {
     hostEmailLabel: (() => {
       const hostConfig = getHostEmailConfig();
       if (!hostConfig) return "";
-      const label = EMAIL_PROVIDER_LABELS[hostConfig.provider] ?? hostConfig.provider;
+      const label = EMAIL_PROVIDER_LABELS[hostConfig.provider];
       return `Host ${label} (${hostConfig.fromAddress})`;
     })(),
     confirmationTemplates: {
@@ -803,6 +804,14 @@ const handleEmailPost = settingsRoute(async (form, errorPage) => {
     return errorPage("Invalid email provider", 400, "settings-email");
   }
 
+  if (fromAddress && !isValidBusinessEmail(fromAddress)) {
+    return errorPage(
+      "Invalid from-address format. Please use format: name@domain.com",
+      400,
+      "settings-email",
+    );
+  }
+
   await updateEmailProvider(provider);
   if (apiKey && !isMaskSentinel(apiKey)) await updateEmailApiKey(apiKey);
   if (fromAddress) await updateEmailFromAddress(fromAddress);
@@ -946,7 +955,7 @@ const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
   }
 
   // Basic domain validation: must look like a hostname
-  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(raw)) {
+  if (!DOMAIN_PATTERN.test(raw)) {
     return errorPage("Invalid domain format", 400, "settings-custom-domain");
   }
 

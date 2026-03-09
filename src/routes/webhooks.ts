@@ -51,6 +51,7 @@ import {
   plainResponse,
   redirectResponse,
 } from "#routes/utils.ts";
+import { getFromEmailIfConfigured } from "#routes/public.ts";
 import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 
 /** Raw multi-ticket item from metadata (p may be absent in old webhooks) */
@@ -58,6 +59,10 @@ type RawMultiItem = { e: number; q: number; p?: number };
 
 /** Multi-ticket item with p defaulted to 0 */
 type MultiItem = { e: number; q: number; p: number };
+
+/** User-facing message when the event price changed between checkout and payment */
+const PRICE_CHANGED_MESSAGE =
+  "The price for this event changed while you were completing payment.";
 
 /** Check if session is a multi-ticket session */
 const isMultiSession = (metadata: SessionMetadata): boolean =>
@@ -149,13 +154,14 @@ type PaymentResult =
  * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
  * Logs an error if refund fails.
  */
-const tryRefund = async (paymentReference: string): Promise<boolean> => {
+const tryRefund = async (paymentReference: string, eventId?: number): Promise<boolean> => {
   if (!paymentReference) return false;
 
   const provider = await getActivePaymentProvider();
   if (!provider) {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
+      eventId,
       detail: "No payment provider configured for refund",
     });
     return false;
@@ -168,6 +174,7 @@ const tryRefund = async (paymentReference: string): Promise<boolean> => {
   } else {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
+      eventId,
       detail: `Failed to refund payment ${paymentReference}`,
     });
   }
@@ -189,10 +196,11 @@ const refundAndFail = async (
   status?: number,
   eventId?: number | null,
 ): Promise<PaymentResult> => {
-  const refunded = await tryRefund(session.paymentReference);
+  const metadataEventId = session.metadata.event_id ? Number.parseInt(session.metadata.event_id, 10) : undefined;
+  const resolvedEventId = eventId ?? metadataEventId;
+  const refunded = await tryRefund(session.paymentReference, resolvedEventId);
   if (refunded) {
-    const metadataEventId = session.metadata.event_id ? Number.parseInt(session.metadata.event_id, 10) : null;
-    await logActivity(`Automatic refund: ${error}`, eventId ?? metadataEventId);
+    await logActivity(`Automatic refund: ${error}`, resolvedEventId);
   }
   return { success: false, error, status, refunded };
 };
@@ -346,10 +354,10 @@ const priceMismatchRefund = (
   detail: string,
   eventId?: number,
 ): Promise<PaymentResult> => {
-  logError({ code: ErrorCode.PAYMENT_SESSION, detail });
+  logError({ code: ErrorCode.PAYMENT_SESSION, eventId, detail });
   return refundAndFail(
     session,
-    "The price for one or more events changed while you were completing payment.",
+    PRICE_CHANGED_MESSAGE,
     undefined,
     eventId,
   );
@@ -430,6 +438,7 @@ const processMultiPaymentSession = async (
   if (!hasPerItemPrices) {
     logError({
       code: ErrorCode.PAYMENT_SESSION,
+      eventId: validatedItems[0]?.event.id,
       detail: `Multi-ticket session ${session.id} missing per-item prices, using expected prices (possible old payment)`,
     });
   }
@@ -536,7 +545,7 @@ const processPaymentSession = async (
     });
     return refundAndFail(
       session,
-      "The price for this event changed while you were completing payment.",
+      PRICE_CHANGED_MESSAGE,
     );
   }
 
@@ -634,7 +643,9 @@ const renderSuccessFromTokens = async (tokensParam: string): Promise<Response> =
     if (event) thankYouUrl = event.thank_you_url;
   }
 
-  return htmlResponse(successPage({ ticketUrl, thankYouUrl, paid: true }));
+  const fromEmail = await getFromEmailIfConfigured();
+
+  return htmlResponse(successPage({ ticketUrl, thankYouUrl, paid: true, fromEmail }));
 };
 
 /**

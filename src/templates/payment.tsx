@@ -37,11 +37,13 @@ export const successPage = ({
   thankYouUrl = "",
   inIframe = false,
   paid = false,
+  fromEmail = "",
 }: {
   ticketUrl: string | null;
   thankYouUrl?: string;
   inIframe?: boolean;
   paid?: boolean;
+  fromEmail?: string;
 }): string => {
   const title = paid ? "Payment Successful" : "Ticket Reserved";
   const heading = paid ? "Payment Successful!" : "Ticket reserved successfully.";
@@ -57,6 +59,9 @@ export const successPage = ({
             <div class="success">
               <p>Thank you for your payment. Your ticket has been confirmed.</p>
             </div>
+          ) : null}
+          {fromEmail ? (
+            <p><small><i>Your ticket will be sent from {fromEmail} &mdash; please check your Junk/Spam folder.</i></small></p>
           ) : null}
           {ticketUrl ? (
             <p><a href={ticketUrl} target="_blank">Click here to view your tickets</a></p>

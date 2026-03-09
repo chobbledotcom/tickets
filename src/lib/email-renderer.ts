@@ -140,7 +140,7 @@ const safeRender = async (
     return await renderTemplate(template, data);
   } catch (error) {
     logError({
-      code: ErrorCode.EMAIL_SEND,
+      code: ErrorCode.EMAIL_TEMPLATE_RENDER,
       detail: `template render error (${type}/${format}): ${error instanceof Error ? error.message : String(error)}`,
     });
     // If the custom template failed and it differs from the default, try the default

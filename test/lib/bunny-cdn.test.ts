@@ -205,6 +205,28 @@ describe("bunny-cdn", () => {
         },
       );
     });
+
+    test("returns errorKey from JSON error response", async () => {
+      const jsonBody = JSON.stringify({
+        ErrorKey: "pullzone.rate_limited",
+        Message: "Too many requests.",
+      });
+      await withMocks(
+        () =>
+          stub(globalThis, "fetch", () =>
+            Promise.resolve(
+              new Response(jsonBody, { status: 429 }),
+            )),
+        async () => {
+          const result = await bunnyCdnApi.findPullZoneId();
+          expect(result).toEqual({
+            ok: false,
+            error: "List pull zones failed (429): Too many requests.",
+            errorKey: "pullzone.rate_limited",
+          });
+        },
+      );
+    });
   });
 
   describe("validateCustomDomain (real implementation)", () => {

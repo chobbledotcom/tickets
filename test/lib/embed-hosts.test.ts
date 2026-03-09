@@ -2,6 +2,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import {
   buildFrameAncestors,
+  DOMAIN_PATTERN,
   parseEmbedHosts,
   validateEmbedHosts,
   validateHostPattern,
@@ -76,6 +77,40 @@ describe("embed-hosts", () => {
     test("rejects uppercase characters", () => {
       const result = validateHostPattern("Example.com");
       expect(result).toContain("Invalid host pattern");
+    });
+  });
+
+  describe("DOMAIN_PATTERN", () => {
+    test("matches simple hostname", () => {
+      expect(DOMAIN_PATTERN.test("example.com")).toBe(true);
+    });
+
+    test("matches subdomain hostname", () => {
+      expect(DOMAIN_PATTERN.test("sub.example.com")).toBe(true);
+    });
+
+    test("matches hostname with hyphens", () => {
+      expect(DOMAIN_PATTERN.test("my-site.example.com")).toBe(true);
+    });
+
+    test("rejects single label", () => {
+      expect(DOMAIN_PATTERN.test("localhost")).toBe(false);
+    });
+
+    test("rejects wildcard prefix", () => {
+      expect(DOMAIN_PATTERN.test("*.example.com")).toBe(false);
+    });
+
+    test("rejects hostname with port", () => {
+      expect(DOMAIN_PATTERN.test("example.com:8080")).toBe(false);
+    });
+
+    test("rejects hostname with path", () => {
+      expect(DOMAIN_PATTERN.test("example.com/path")).toBe(false);
+    });
+
+    test("rejects uppercase characters", () => {
+      expect(DOMAIN_PATTERN.test("Example.com")).toBe(false);
     });
   });
 

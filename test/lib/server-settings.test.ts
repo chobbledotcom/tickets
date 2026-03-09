@@ -137,7 +137,7 @@ describe("server (admin settings)", () => {
       }
     });
 
-    test("shows raw provider name when host email provider is unknown", async () => {
+    test("shows no host config when host email provider is invalid", async () => {
       Deno.env.set("HOST_EMAIL_PROVIDER", "custom-smtp");
       Deno.env.set("HOST_EMAIL_API_KEY", "key-456");
       Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "mail@example.com");
@@ -145,7 +145,7 @@ describe("server (admin settings)", () => {
         const { cookie } = await loginAsAdmin();
         const response = await awaitTestRequest("/admin/settings", { cookie });
         const html = await response.text();
-        expect(html).toContain("Host custom-smtp (mail@example.com)");
+        expect(html).not.toContain("Host custom-smtp");
       } finally {
         Deno.env.delete("HOST_EMAIL_PROVIDER");
         Deno.env.delete("HOST_EMAIL_API_KEY");
@@ -2246,6 +2246,25 @@ describe("server (admin settings)", () => {
       );
 
       await expectHtmlResponse(response, 400, "Invalid email provider");
+    });
+
+    test("rejects invalid from-address format", async () => {
+      const { cookie, csrfToken } = await loginAsAdmin();
+
+      const response = await handleRequest(
+        mockFormRequest(
+          "/admin/settings/email",
+          {
+            email_provider: "resend",
+            email_api_key: "re_test_123",
+            email_from_address: "not-an-email",
+            csrf_token: csrfToken,
+          },
+          cookie,
+        ),
+      );
+
+      await expectHtmlResponse(response, 400, "Invalid from-address format");
     });
 
     test("disables email when provider field is missing", async () => {

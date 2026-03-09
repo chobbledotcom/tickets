@@ -95,6 +95,17 @@ describe("email-renderer", () => {
       expect(data.attendee.name).toBe("Jane Doe");
     });
 
+    test("formats three or more event names with commas and 'and'", () => {
+      const entries = [
+        makeEntry({ name: "Event A" }),
+        makeEntry({ name: "Event B" }),
+        makeEntry({ name: "Event C" }),
+      ];
+      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC+DEF+GHI");
+
+      expect(data.event_names).toBe("Event A, Event B, and Event C");
+    });
+
     test("marks paid events correctly", () => {
       const entries = [makeEntry({ unit_price: 1000 })];
       const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
@@ -266,7 +277,7 @@ describe("email-renderer", () => {
         expect(result.subject).toContain("Test Event");
         // Should have logged the error
         const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
-        expect(logs.some((l) => l.includes("template render error"))).toBe(true);
+        expect(logs.some((l) => l.includes("E_EMAIL_TEMPLATE_RENDER") && l.includes("template render error"))).toBe(true);
       } finally {
         errorSpy.restore();
       }
