@@ -36,7 +36,6 @@ import {
   type WebhookEvent,
 } from "#lib/payments.ts";
 import type { Attendee, ContactInfo, EventWithCount } from "#lib/types.ts";
-import { getMaxPrice } from "#lib/types.ts";
 import { getAllowedDomain, getCurrencyCode } from "#lib/config.ts";
 import { logAndNotifyMultiRegistration, logAndNotifyRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
@@ -280,7 +279,7 @@ const validateAndPrice = async (
  * For pay-more events, the amount must be >= the expected minimum price and <= the max cap. */
 const hasPriceMismatch = (amountTotal: number, expectedPrice: number, event: Pick<EventWithCount, "can_pay_more" | "max_price">): boolean =>
   event.can_pay_more
-    ? amountTotal < expectedPrice || amountTotal > getMaxPrice(event)
+    ? amountTotal < expectedPrice || amountTotal > event.max_price
     : amountTotal !== expectedPrice;
 
 /** Format error for post-payment attendee creation failure */
