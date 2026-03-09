@@ -2280,7 +2280,7 @@ describe("server (admin settings)", () => {
           );
 
           const html = await response.text();
-          expect(response.status).toBe(500);
+          expect(response.status).toBe(502);
           expect(html).toContain("Test email failed (status 403)");
         },
       );
@@ -2309,8 +2309,8 @@ describe("server (admin settings)", () => {
           );
 
           const html = await response.text();
-          expect(response.status).toBe(500);
-          expect(html).toContain("Test email failed (status unknown)");
+          expect(response.status).toBe(502);
+          expect(html).toContain("Test email failed (no response)");
         },
       );
     });
