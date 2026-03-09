@@ -35,7 +35,7 @@ interface BunnyPullZoneListResponse {
  * (ALLOWED_DOMAIN with .bunny.run replaced by .b-cdn.net).
  */
 const findPullZoneIdImpl = async (): Promise<
-  { ok: true; id: number } | { ok: false; error: string }
+  { ok: true; id: number } | { ok: false; error: string; errorKey?: string }
 > => {
   const cdnHostname = getCdnHostname();
   const response = await fetch(
@@ -44,11 +44,7 @@ const findPullZoneIdImpl = async (): Promise<
   );
 
   if (!response.ok) {
-    const text = await response.text();
-    return {
-      ok: false,
-      error: `List pull zones failed (${response.status}): ${text}`,
-    };
+    return parseBunnyError(response, "List pull zones");
   }
 
   const data: BunnyPullZoneListResponse = await response.json();
