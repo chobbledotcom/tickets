@@ -48,7 +48,11 @@ export const getHostEmailConfig = (): EmailConfig | null => {
   const apiKey = getEnv("HOST_EMAIL_API_KEY");
   const fromAddress = getEnv("HOST_EMAIL_FROM_ADDRESS");
   if (!provider || !apiKey || !fromAddress) return null;
-  return { provider: provider as EmailProvider, apiKey, fromAddress };
+  if (!isEmailProvider(provider)) {
+    logError({ code: ErrorCode.EMAIL_SEND, detail: `invalid HOST_EMAIL_PROVIDER: "${provider}"` });
+    return null;
+  }
+  return { provider, apiKey, fromAddress };
 };
 
 /** Build provider-specific request: [url, extra-headers, body] */
