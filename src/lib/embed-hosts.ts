@@ -4,21 +4,14 @@
 
 import { filter, map, pipe } from "#fp";
 
-/**
- * Valid host pattern: a hostname with optional wildcard prefix.
- * Allowed forms:
- *   - "example.com"
- *   - "sub.example.com"
- *   - "*.example.com"
- * Rejects:
- *   - Ports, paths, protocols, spaces
- *   - Bare "*" (too broad)
- *   - "**.example.com" or "*example.com"
- */
 /** Matches a valid hostname like "example.com" or "sub.example.com" */
 export const DOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
-const HOST_PATTERN = /^(?:\*\.)?[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
+/**
+ * Matches a hostname with optional wildcard prefix ("*.example.com").
+ * Rejects ports, paths, protocols, spaces, bare "*", "**.", "*example.com".
+ */
+const HOST_PATTERN = new RegExp(`^(?:\\*\\.)?${DOMAIN_PATTERN.source.slice(1)}`);
 
 /**
  * Validate a single host pattern
