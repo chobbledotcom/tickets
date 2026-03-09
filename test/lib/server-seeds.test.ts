@@ -143,37 +143,45 @@ describe("server (admin seeds)", () => {
       expect(events.length).toBe(2);
     });
 
-    test("creates seed events with attendees", async () => {
+    test("creates seed events with attendees including paid and free", async () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "1", attendees_per_event: "3", csrf_token: csrfToken },
+          { event_count: "2", attendees_per_event: "3", csrf_token: csrfToken },
           cookie,
         ),
       );
 
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("Created 1 event(s) with 3 attendee(s) total.");
+      expect(html).toContain("Created 2 event(s) with 6 attendee(s) total.");
 
       const events = await getAllEvents();
-      expect(events.length).toBe(1);
+      expect(events.length).toBe(2);
 
-      const attendees = await getAttendeesRaw(events[0]!.id);
-      expect(attendees.length).toBe(3);
+      // Verify both paid and free events are created
+      const paidEvent = events.find(e => e.unit_price > 0);
+      const freeEvent = events.find(e => e.unit_price === 0);
+      expect(paidEvent).toBeDefined();
+      expect(freeEvent).toBeDefined();
 
-      // Each attendee has a quantity between 1 and 4
-      for (const attendee of attendees) {
-        expect(attendee.quantity).toBeGreaterThanOrEqual(1);
-        expect(attendee.quantity).toBeLessThanOrEqual(4);
+      for (const event of events) {
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(3);
+
+        // Each attendee has a quantity between 1 and 4
+        for (const attendee of attendees) {
+          expect(attendee.quantity).toBeGreaterThanOrEqual(1);
+          expect(attendee.quantity).toBeLessThanOrEqual(4);
+        }
+
+        // Total quantity does not exceed event max_attendees (no overselling)
+        const totalQuantity = attendees.reduce((sum, a) => sum + a.quantity, 0);
+        expect(totalQuantity).toBeLessThanOrEqual(event.max_attendees);
+        // Event max_attendees equals exactly the sum of attendee quantities
+        expect(event.max_attendees).toBe(totalQuantity);
       }
-
-      // Total quantity does not exceed event max_attendees (no overselling)
-      const totalQuantity = attendees.reduce((sum, a) => sum + a.quantity, 0);
-      expect(totalQuantity).toBeLessThanOrEqual(events[0]!.max_attendees);
-      // Event max_attendees equals exactly the sum of attendee quantities
-      expect(events[0]!.max_attendees).toBe(totalQuantity);
     });
 
     test("clamps event count to max", async () => {

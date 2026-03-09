@@ -1295,3 +1295,62 @@ button.secondary:hover {
 .stripe-test-result {
   white-space: pre-wrap;
 }
+
+/* Print styles for ticket pages */
+@media print {
+  body {
+    background: white;
+    color: #333;
+  }
+
+  main {
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+  }
+
+  .ticket-slider {
+    display: flex;
+    flex-wrap: wrap;
+    overflow: visible;
+    scroll-snap-type: none;
+    gap: 1rem;
+    padding: 0;
+    margin: 1rem 0;
+  }
+
+  .ticket-card {
+    flex: 0 0 calc(33.333% - 0.667rem);
+    width: auto;
+    box-shadow: none;
+    border: 1px solid #ccc;
+    background: white;
+    color: #333;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .ticket-card-name {
+    color: #333;
+  }
+
+  .ticket-card-date,
+  .ticket-card-description {
+    color: #666;
+  }
+
+  .ticket-card-qr svg {
+    max-width: 8rem;
+  }
+
+  [data-theme="dark"] .ticket-card {
+    box-shadow: none;
+    background: white;
+    color: #333;
+  }
+
+  [data-theme="dark"] .ticket-card-date,
+  [data-theme="dark"] .ticket-card-description {
+    color: #666;
+  }
+}
