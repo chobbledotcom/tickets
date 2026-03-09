@@ -3,12 +3,13 @@
  * Sends consolidated registration data to configured webhook URLs
  */
 
-import { compact, map, unique } from "#fp";
-import { getAllowedDomain } from "#lib/config.ts";
+import { compact, unique } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
+import { sendRegistrationEmails } from "#lib/email.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { addPendingWork } from "#lib/pending-work.ts";
+import { buildTicketUrl } from "#lib/ticket-url.ts";
 import { isPaidEvent, type ContactInfo } from "#lib/types.ts";
 import { nowIso } from "#lib/now.ts";
 import { getBusinessEmailFromDb } from "#lib/business-email.ts";
@@ -61,12 +62,6 @@ export type WebhookAttendee = ContactInfo & {
 export type RegistrationEntry = {
   event: WebhookEvent;
   attendee: WebhookAttendee;
-};
-
-/** Build the combined ticket URL from attendee tokens */
-const buildTicketUrl = (entries: RegistrationEntry[]): string => {
-  const tokens = map(({ attendee }: RegistrationEntry) => attendee.ticket_token)(entries);
-  return `https://${getAllowedDomain()}/t/${tokens.join("+")}`;
 };
 
 /**
@@ -167,7 +162,9 @@ export const logAndNotifyRegistration = async (
   currency: string,
 ): Promise<void> => {
   await logActivity(`Attendee registered for '${event.name}'`, event);
-  addPendingWork(sendRegistrationWebhooks([{ event, attendee }], currency));
+  const entries = [{ event, attendee }];
+  addPendingWork(sendRegistrationWebhooks(entries, currency));
+  addPendingWork(sendRegistrationEmails(entries, currency));
 };
 
 /**
@@ -181,4 +178,5 @@ export const logAndNotifyMultiRegistration = async (
     await logActivity(`Attendee registered for '${event.name}'`, event);
   }
   addPendingWork(sendRegistrationWebhooks(entries, currency));
+  addPendingWork(sendRegistrationEmails(entries, currency));
 };
