@@ -95,6 +95,17 @@ describe("email-renderer", () => {
       expect(data.attendee.name).toBe("Jane Doe");
     });
 
+    test("formats three or more event names with commas and 'and'", () => {
+      const entries = [
+        makeEntry({ name: "Event A" }),
+        makeEntry({ name: "Event B" }),
+        makeEntry({ name: "Event C" }),
+      ];
+      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC+DEF+GHI");
+
+      expect(data.event_names).toBe("Event A, Event B, and Event C");
+    });
+
     test("marks paid events correctly", () => {
       const entries = [makeEntry({ unit_price: 1000 })];
       const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");

@@ -8,5 +8,7 @@ export type { RegistrationEntry };
 
 export type EmailContent = { subject: string; html: string; text: string };
 
+const listFormat = new Intl.ListFormat("en", { type: "conjunction" });
+
 export const eventNames = (entries: RegistrationEntry[]): string =>
-  map(({ event }: RegistrationEntry) => event.name)(entries).join(" and ");
+  listFormat.format(map(({ event }: RegistrationEntry) => event.name)(entries));
