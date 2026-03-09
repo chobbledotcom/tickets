@@ -9,6 +9,7 @@ import {
   updateBusinessEmail,
 } from "#lib/business-email.ts";
 import { validateCustomDomain } from "#lib/bunny-cdn.ts";
+import { DOMAIN_PATTERN } from "#lib/embed-hosts.ts";
 import { EMAIL_PROVIDER_LABELS, getEmailConfig, getHostEmailConfig, isEmailProvider, sendTestEmail } from "#lib/email.ts";
 import { buildTemplateData, renderTemplate, validateTemplate } from "#lib/email-renderer.ts";
 import {
@@ -946,7 +947,7 @@ const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
   }
 
   // Basic domain validation: must look like a hostname
-  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(raw)) {
+  if (!DOMAIN_PATTERN.test(raw)) {
     return errorPage("Invalid domain format", 400, "settings-custom-domain");
   }
 

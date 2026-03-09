@@ -15,6 +15,9 @@ import { filter, map, pipe } from "#fp";
  *   - Bare "*" (too broad)
  *   - "**.example.com" or "*example.com"
  */
+/** Matches a valid hostname like "example.com" or "sub.example.com" */
+export const DOMAIN_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
+
 const HOST_PATTERN = /^(?:\*\.)?[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
 /**
