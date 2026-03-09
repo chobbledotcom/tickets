@@ -22,7 +22,7 @@ import {
   isRegistrationClosed,
   jsonResponse,
 } from "#routes/utils.ts";
-import { validateTicketFields } from "#templates/fields.ts";
+import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
 import { validatePrice } from "#lib/currency.ts";
 
 // =============================================================================
@@ -202,8 +202,12 @@ const handleBook = withActiveEvent(async (request, event) => {
   const body = bodyOrError;
 
   // Validate fields using the same form validation as the web
-  const validation = validateTicketFields(toFormParams(body), event.fields);
-  if (!validation.valid) return apiResponse({ error: validation.error }, 400);
+  const valResult = tryValidateTicketFields(
+    toFormParams(body), event.fields,
+    (msg) => apiResponse({ error: msg }, 400),
+  );
+  if (valResult instanceof Response) return valResult;
+  const values = valResult;
 
   // Parse quantity
   const rawQuantity = Number.parseInt(String(body.quantity ?? "1"), 10);
@@ -233,13 +237,7 @@ const handleBook = withActiveEvent(async (request, event) => {
     customUnitPrice = priceResult.price;
   }
 
-  const contact = {
-    name: validation.values.name,
-    email: validation.values.email || "",
-    phone: validation.values.phone || "",
-    address: validation.values.address || "",
-    special_instructions: validation.values.special_instructions || "",
-  };
+  const contact = extractContact(values);
 
   // Determine if payment is required
   const paymentsEnabled = await isPaymentsEnabled();

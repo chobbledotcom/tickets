@@ -50,7 +50,7 @@ import {
   withCsrfForm,
   withActiveEventBySlug,
 } from "#routes/utils.ts";
-import { mergeEventFields, type TicketFormValues, validateTicketFields } from "#templates/fields.ts";
+import { extractContact, mergeEventFields, tryValidateTicketFields } from "#templates/fields.ts";
 import { checkoutPopupPage, reservationSuccessPage } from "#templates/payment.tsx";
 import {
   buildMultiTicketEvent,
@@ -254,14 +254,6 @@ const handlePaymentFlow = (
     (msg, status) => ticketResponse(event, ctx.inIframe, undefined, ctx.terms)(msg, status),
   );
 
-/** Extract contact details from validated form values */
-const extractContact = (values: TicketFormValues): ContactInfo => ({
-  name: values.name,
-  email: values.email || "",
-  phone: values.phone || "",
-  address: values.address || "",
-  special_instructions: values.special_instructions || "",
-});
 
 /** Parse and validate a quantity value from a raw string, capping at max */
 const parseQuantityValue = (raw: string, max: number, minDefault = 1): number => {
@@ -346,12 +338,12 @@ const processTicketReservation = async (
       }
 
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-      const validation = validateTicketFields(form, event.fields);
-      if (!validation.valid) {
-        return ticketResponse(event, inIframe, undefined, terms)(
-          validation.error,
-        );
-      }
+      const valResult = tryValidateTicketFields(
+        form, event.fields,
+        (msg) => ticketResponse(event, inIframe, undefined, terms)(msg),
+      );
+      if (valResult instanceof Response) return valResult;
+      const values = valResult;
 
       // Validate terms and conditions acceptance if configured
       if (terms && form.get("agree_terms") !== "1") {
@@ -374,7 +366,7 @@ const processTicketReservation = async (
       }
 
       const quantity = parseQuantity(form, event);
-      const contact = extractContact(validation.values);
+      const contact = extractContact(values);
 
       // Parse custom price for pay-more events
       let customUnitPrice: number | undefined;
@@ -522,19 +514,19 @@ const submitMultiTicket = (
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
 
       // Validate fields based on merged event settings
-      const validation = validateTicketFields(form, getMultiTicketFieldsSetting(ctx.events));
-      if (!validation.valid) {
-        return multiTicketFormErrorResponse(ctx)(validation.error);
-      }
+      const errorResponse = multiTicketFormErrorResponse(ctx);
+      const fieldResult = tryValidateTicketFields(
+        form, getMultiTicketFieldsSetting(ctx.events), errorResponse,
+      );
+      if (fieldResult instanceof Response) return fieldResult;
+      const values = fieldResult;
 
       // Validate terms and conditions acceptance if configured
       if (terms && form.get("agree_terms") !== "1") {
-        return multiTicketFormErrorResponse(ctx)(
-          "You must agree to the terms and conditions",
-        );
+        return errorResponse("You must agree to the terms and conditions");
       }
 
-      const contact = extractContact(validation.values);
+      const contact = extractContact(values);
 
       // For daily events, validate the submitted date
       let date: string | null = null;
