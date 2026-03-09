@@ -336,9 +336,9 @@ describe("bunny-cdn", () => {
     test("extracts Message from JSON error response", async () => {
       await withFixedPullZoneId(async () => {
         const jsonBody = JSON.stringify({
-          ErrorKey: "pullzone.hostname_already_registered",
+          ErrorKey: "pullzone.some_other_error",
           Field: "Hostname",
-          Message: "The hostname is already registered.",
+          Message: "Something went wrong.",
         });
         await withMocks(
           () =>
@@ -353,8 +353,39 @@ describe("bunny-cdn", () => {
             expect(result).toEqual({
               ok: false,
               error:
-                "Add hostname failed (400): The hostname is already registered.",
+                "Add hostname failed (400): Something went wrong.",
+              errorKey: "pullzone.some_other_error",
             });
+          },
+        );
+      });
+    });
+
+    test("treats hostname_already_registered as success", async () => {
+      await withFixedPullZoneId(async () => {
+        let callCount = 0;
+        const jsonBody = JSON.stringify({
+          ErrorKey: "pullzone.hostname_already_registered",
+          Field: "Hostname",
+          Message: "The hostname is already registered.",
+        });
+        await withMocks(
+          () =>
+            stub(globalThis, "fetch", () => {
+              callCount++;
+              if (callCount === 1) {
+                return Promise.resolve(
+                  new Response(jsonBody, { status: 400 }),
+                );
+              }
+              return Promise.resolve(new Response(null, { status: 204 }));
+            }),
+          async () => {
+            const result = await bunnyCdnApi.validateCustomDomain(
+              "cdn.example.com",
+            );
+            expect(result).toEqual({ ok: true });
+            expect(callCount).toBe(2);
           },
         );
       });
