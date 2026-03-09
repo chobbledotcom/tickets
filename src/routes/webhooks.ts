@@ -86,6 +86,9 @@ const withSessionId =
   (handler: (sessionId: string) => Promise<Response>) =>
   (request: Request): Promise<Response> => {
     const sessionId = getSearchParam(request, "session_id");
+    if (!sessionId) {
+      logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Payment callback missing session_id parameter" });
+    }
     return sessionId
       ? handler(sessionId)
       : Promise.resolve(paymentErrorResponse("Invalid payment callback"));
@@ -100,11 +103,16 @@ type SessionValidation =
   | { ok: true; data: ValidatedSession }
   | { ok: false; response: Response };
 
+/** Log a payment session error with redirect context prefix */
+const logRedirectError = (detail: string): void =>
+  logError({ code: ErrorCode.PAYMENT_SESSION, detail: `[redirect] ${detail}` });
+
 const validatePaidSession = async (
   sessionId: string,
 ): Promise<SessionValidation> => {
   const provider = await getActivePaymentProvider();
   if (!provider) {
+    logRedirectError(`No payment provider configured (session=${sessionId})`);
     return {
       ok: false,
       response: paymentErrorResponse("Payment provider not configured"),
@@ -113,6 +121,7 @@ const validatePaidSession = async (
 
   const session = await provider.retrieveSession(sessionId);
   if (!session) {
+    logRedirectError(`Session not found (session=${sessionId})`);
     return {
       ok: false,
       response: paymentErrorResponse("Payment session not found"),
@@ -120,6 +129,7 @@ const validatePaidSession = async (
   }
 
   if (session.paymentStatus !== "paid") {
+    logRedirectError(`Payment not verified as paid (session=${sessionId}, status=${session.paymentStatus})`);
     return {
       ok: false,
       response: paymentErrorResponse(
@@ -132,6 +142,7 @@ const validatePaidSession = async (
   if (isMultiSession(session.metadata)) {
     const multiIntent = extractMultiIntent(session);
     if (!multiIntent) {
+      logRedirectError(`Invalid multi-ticket data (session=${sessionId})`);
       return {
         ok: false,
         response: paymentErrorResponse("Invalid multi-ticket session data"),
@@ -214,10 +225,13 @@ const validationFailure = (
   session: ValidatedPaymentSession,
   validation: { error: string; status?: number },
   eventId?: number,
-): Promise<PaymentResult> =>
-  validation.status === 404
-    ? Promise.resolve({ success: false, error: validation.error, status: 404 })
-    : refundAndFail(session, validation.error, validation.status, eventId);
+): Promise<PaymentResult> => {
+  if (validation.status === 404) {
+    logError({ code: ErrorCode.PAYMENT_SESSION, eventId, detail: `Post-payment event not found (session=${session.id})` });
+    return Promise.resolve({ success: false, error: validation.error, status: 404 });
+  }
+  return refundAndFail(session, validation.error, validation.status, eventId);
+};
 
 /** Rollback created attendees (multi-ticket failure recovery) */
 const rollbackAttendees = async (
@@ -664,6 +678,7 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
   const tokensParam = getSearchParam(request, "tokens");
   if (tokensParam) return renderSuccessFromTokens(tokensParam);
 
+  logError({ code: ErrorCode.PAYMENT_SESSION, detail: "Payment success callback with no session_id or tokens" });
   return Promise.resolve(paymentErrorResponse("Invalid payment callback"));
 };
 
@@ -672,14 +687,20 @@ const handlePaymentSuccess = (request: Request): Promise<Response> => {
  *
  * No attendee cleanup needed - attendee is only created after successful payment.
  */
+/** Log a payment session error with cancel context prefix */
+const logCancelError = (detail: string): void =>
+  logError({ code: ErrorCode.PAYMENT_SESSION, detail: `[cancel] ${detail}` });
+
 const handlePaymentCancel = withSessionId(async (sid) => {
   const provider = await getActivePaymentProvider();
   if (!provider) {
+    logCancelError(`No provider configured (session=${sid})`);
     return paymentErrorResponse("Payment provider not configured");
   }
 
   const session = await provider.retrieveSession(sid);
   if (!session) {
+    logCancelError(`Session not found (session=${sid})`);
     return paymentErrorResponse("Payment session not found");
   }
 
@@ -688,6 +709,7 @@ const handlePaymentCancel = withSessionId(async (sid) => {
   // Use getEvent (not getEventWithCount) - we only need slug for redirect
   const event = await getEvent(intent.eventId);
   if (!event) {
+    logCancelError(`Event not found (session=${sid}, eventId=${intent.eventId})`);
     return paymentErrorResponse("Event not found", 404);
   }
 
@@ -803,6 +825,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   // Verify signature (pass raw bytes so HMAC is computed on exact received bytes)
   const verification = await provider.verifyWebhookSignature(payload, signature, webhookUrl, payloadBytes);
   if (!verification.valid) {
+    logError({ code: ErrorCode.PAYMENT_SIGNATURE, detail: `Webhook signature verification failed: ${verification.error}` });
     return plainResponse(verification.error, 400);
   }
 
@@ -831,6 +854,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
     // For Square payment.updated: check payment status before retrieving order
     if (typeof obj.status === "string" && obj.status !== "COMPLETED") {
+      logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Webhook payment not completed (status=${obj.status})` });
       return webhookAckResponse({ status: "pending" });
     }
 
@@ -854,6 +878,7 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
 
   // Verify payment is complete
   if (session.paymentStatus !== "paid") {
+    logError({ code: ErrorCode.PAYMENT_SESSION, detail: `Webhook session not yet paid (session=${session.id}, status=${session.paymentStatus})` });
     return webhookAckResponse({ status: "pending" });
   }
 
