@@ -797,10 +797,11 @@ const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
   if (raw === "") {
     await updateCustomDomain("");
     await logActivity("Custom domain cleared");
-    return redirectWithSuccess(
+    return redirect(
       "/admin/settings",
       "Custom domain cleared",
-      "settings-custom-domain",
+      true,
+      { formId: "settings-custom-domain" },
     );
   }
 
@@ -811,10 +812,11 @@ const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
 
   await updateCustomDomain(raw);
   await logActivity(`Custom domain set to ${raw}`);
-  return redirectWithSuccess(
+  return redirect(
     "/admin/settings",
     "Custom domain saved",
-    "settings-custom-domain",
+    true,
+    { formId: "settings-custom-domain" },
   );
 });
 
@@ -836,10 +838,11 @@ const handleCustomDomainValidatePost = settingsRoute(async (_form, errorPage) =>
 
   await updateCustomDomainLastValidated();
   await logActivity(`Custom domain validated: ${customDomain}`);
-  return redirectWithSuccess(
+  return redirect(
     "/admin/settings",
     "Custom domain validated successfully",
-    "settings-custom-domain-validate",
+    true,
+    { formId: "settings-custom-domain-validate" },
   );
 });
 

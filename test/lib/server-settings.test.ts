@@ -2833,7 +2833,7 @@ describe("server (admin settings)", () => {
         );
         expect(response.status).toBe(302);
         const location = response.headers.get("location")!;
-        expect(decodeURIComponent(location)).toContain("Custom domain saved");
+        expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain saved");
         expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
       });
 
@@ -2861,7 +2861,7 @@ describe("server (admin settings)", () => {
         );
         expect(response.status).toBe(302);
         const location = response.headers.get("location")!;
-        expect(decodeURIComponent(location)).toContain("Custom domain cleared");
+        expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain cleared");
         expect(await getCustomDomainFromDb()).toBeNull();
       });
 
@@ -2876,7 +2876,7 @@ describe("server (admin settings)", () => {
         );
         expect(response.status).toBe(302);
         const location = response.headers.get("location")!;
-        expect(decodeURIComponent(location)).toContain("Custom domain cleared");
+        expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain cleared");
         expect(await getCustomDomainFromDb()).toBeNull();
       });
 
@@ -2943,7 +2943,7 @@ describe("server (admin settings)", () => {
           );
           expect(response.status).toBe(302);
           const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location)).toContain("Custom domain validated successfully");
+          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain validated successfully");
           const lastValidated = await getCustomDomainLastValidatedFromDb();
           expect(lastValidated).not.toBeNull();
         } finally {
