@@ -6,6 +6,14 @@ import type { Child } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession } from "#lib/types.ts";
 import { formatCurrency } from "#lib/currency.ts";
 import { getAllowedDomain } from "#lib/config.ts";
+import {
+  API_AVAILABILITY_EXAMPLE_JSON,
+  API_BOOK_FREE_EXAMPLE_JSON,
+  API_BOOK_PAID_EXAMPLE_JSON,
+  API_BOOK_REQUEST_JSON,
+  API_LIST_EXAMPLE_JSON,
+  API_SINGLE_EXAMPLE_JSON,
+} from "#lib/api-example.ts";
 import { WEBHOOK_EXAMPLE_JSON } from "#lib/webhook-example.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
@@ -1023,30 +1031,7 @@ export const adminGuidePage = (adminSession: AdminSession): string =>
         </Q>
 
         <Q q="How do I list events?">
-          <pre><code>{`GET /api/events
-
-Response:
-{
-  "events": [
-    {
-      "name": "My Event",
-      "slug": "my-event",
-      "description": "Event description",
-      "date": "Sat 15 Mar 2026, 2:00 PM",
-      "location": "Town Hall",
-      "imageUrl": null,
-      "unitPrice": 500,
-      "canPayMore": false,
-      "maxPrice": 500,
-      "nonTransferable": false,
-      "fields": "email",
-      "eventType": "standard",
-      "isSoldOut": false,
-      "isClosed": false,
-      "maxPurchasable": 10
-    }
-  ]
-}`}</code></pre>
+          <pre><code>{`GET /api/events\n\nResponse:\n${API_LIST_EXAMPLE_JSON}`}</code></pre>
           <p>
             Prices are in the smallest currency unit (e.g. pence for GBP,
             cents for USD). <code>maxPurchasable</code> is 0 when the event is
@@ -1055,17 +1040,7 @@ Response:
         </Q>
 
         <Q q="How do I get a single event?">
-          <pre><code>{`GET /api/events/my-event
-
-Response:
-{
-  "event": {
-    "name": "My Event",
-    "slug": "my-event",
-    ...same fields as the list endpoint...
-    "availableDates": ["2026-03-16", "2026-03-17"]
-  }
-}`}</code></pre>
+          <pre><code>{`GET /api/events/summer-workshop\n\nResponse:\n${API_SINGLE_EXAMPLE_JSON}`}</code></pre>
           <p>
             The <code>availableDates</code> field is only included for daily
             events. Returns <code>{"{ \"error\": \"Event not found\" }"}</code>{" "}
@@ -1074,10 +1049,7 @@ Response:
         </Q>
 
         <Q q="How do I check availability?">
-          <pre><code>{`GET /api/events/my-event/availability?quantity=2
-
-Response:
-{ "available": true }`}</code></pre>
+          <pre><code>{`GET /api/events/summer-workshop/availability?quantity=2\n\nResponse:\n${API_AVAILABILITY_EXAMPLE_JSON}`}</code></pre>
           <p>
             For daily events, add <code>&amp;date=YYYY-MM-DD</code> to check a
             specific date. The <code>quantity</code> parameter defaults to 1.
@@ -1085,17 +1057,7 @@ Response:
         </Q>
 
         <Q q="How do I create a booking?">
-          <pre><code>{`POST /api/events/my-event/book
-Content-Type: application/json
-
-{
-  "name": "Alice Smith",
-  "email": "alice@example.com",
-  "phone": "07700900000",
-  "quantity": 2,
-  "date": "2026-03-16",
-  "customPrice": 10.00
-}`}</code></pre>
+          <pre><code>{`POST /api/events/summer-workshop/book\nContent-Type: application/json\n\n${API_BOOK_REQUEST_JSON}`}</code></pre>
           <p>
             Which fields are required depends on the event's field settings.
             The <code>name</code> field is always required.{" "}
@@ -1105,14 +1067,9 @@ Content-Type: application/json
             &pound;10).
           </p>
           <p><strong>Free event response:</strong></p>
-          <pre><code>{`{
-  "ticketToken": "abc123...",
-  "ticketUrl": "/t/abc123..."
-}`}</code></pre>
+          <pre><code>{API_BOOK_FREE_EXAMPLE_JSON}</code></pre>
           <p><strong>Paid event response:</strong></p>
-          <pre><code>{`{
-  "checkoutUrl": "https://checkout.stripe.com/..."
-}`}</code></pre>
+          <pre><code>{API_BOOK_PAID_EXAMPLE_JSON}</code></pre>
           <p>
             Redirect the user to <code>checkoutUrl</code> to complete payment.
             Possible error responses: 400 (validation error or registration

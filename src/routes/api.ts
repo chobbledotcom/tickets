@@ -53,7 +53,7 @@ const handleOptions = (): Response =>
 // Public event shape
 // =============================================================================
 
-type PublicEvent = {
+export type PublicEvent = {
   name: string;
   slug: string;
   description: string;
@@ -73,7 +73,7 @@ type PublicEvent = {
 };
 
 /** Serialize an event to the public API shape (same data the web UI renders) */
-const toPublicEvent = (event: EventWithCount, closed = false, availableDates?: string[]): PublicEvent => {
+export const toPublicEvent = (event: EventWithCount, closed = false, availableDates?: string[]): PublicEvent => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isSoldOut = spotsRemaining <= 0;
   const maxPurchasable = isSoldOut || closed

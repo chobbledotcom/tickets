@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { handleRequest } from "#routes";
+import { updateShowPublicApi } from "#lib/db/settings.ts";
 import {
   createDailyTestEvent,
   createTestDbWithSetup,
@@ -46,6 +47,7 @@ describe("Public API", () => {
   beforeEach(async () => {
     resetTestSlugCounter();
     await createTestDbWithSetup();
+    await updateShowPublicApi(true);
   });
 
   afterEach(() => {
@@ -722,6 +724,14 @@ describe("Public API", () => {
       );
       expect(response.status).toBe(204);
       expectCorsHeaders(response);
+    });
+  });
+
+  describe("API disabled", () => {
+    test("returns 404 when public API setting is disabled", async () => {
+      await updateShowPublicApi(false);
+      const response = await handleRequest(apiRequest("/api/events"));
+      expect(response.status).toBe(404);
     });
   });
 });
