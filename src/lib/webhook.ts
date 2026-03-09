@@ -6,6 +6,7 @@
 import { compact, unique } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { sendRegistrationEmails } from "#lib/email.ts";
+import { getEmailProviderFromDb } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { addPendingWork } from "#lib/pending-work.ts";
@@ -139,9 +140,11 @@ export const sendRegistrationWebhooks = async (
   currency: string,
 ): Promise<void> => {
   const envWebhookUrl = getEnv("WEBHOOK_URL");
+  const emailProvider = envWebhookUrl ? await getEmailProviderFromDb() : null;
+  const globalUrl = envWebhookUrl && !emailProvider ? envWebhookUrl : null;
   const webhookUrls = unique(compact([
     ...entries.map((e) => e.event.webhook_url || null),
-    envWebhookUrl,
+    globalUrl,
   ]));
   if (webhookUrls.length === 0) return;
 

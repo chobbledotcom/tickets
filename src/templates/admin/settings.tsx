@@ -35,6 +35,7 @@ export type SettingsPageState = {
   storageEnabled: boolean;
   emailProvider: string;
   emailFromAddress: string;
+  globalWebhookUrl: string;
 };
 
 /**
@@ -121,7 +122,7 @@ export const adminSettingsPage = (
           <p>Send confirmation emails to attendees and admin notifications when registrations come in.</p>
           <label for="email_provider">Email Provider</label>
           <select id="email_provider" name="email_provider">
-            <option value="" selected={!s.emailProvider}>None (disabled)</option>
+            <option value="" selected={!s.emailProvider}>{s.globalWebhookUrl ? `Default webhook (${new URL(s.globalWebhookUrl).hostname})` : "None (disabled)"}</option>
             <option value="resend" selected={s.emailProvider === "resend"}>Resend</option>
             <option value="postmark" selected={s.emailProvider === "postmark"}>Postmark</option>
             <option value="sendgrid" selected={s.emailProvider === "sendgrid"}>SendGrid</option>

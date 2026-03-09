@@ -457,6 +457,53 @@ describe("webhook", () => {
 
       expect(fetchSpy.calls.length).toBe(1);
     });
+
+    test("excludes WEBHOOK_URL when email provider is configured", async () => {
+      const { updateEmailProvider, invalidateSettingsCache } = await import("#lib/db/settings.ts");
+      await updateEmailProvider("resend");
+      invalidateSettingsCache();
+      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
+
+      await sendRegistrationWebhooks(
+        [makeEntry({ webhook_url: "https://event-hook.com" })],
+        "GBP",
+      );
+
+      expect(fetchSpy.calls.length).toBe(1);
+      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
+      expect(url).toBe("https://event-hook.com");
+    });
+
+    test("sends no webhooks when email provider is set and no per-event URLs", async () => {
+      const { updateEmailProvider, invalidateSettingsCache } = await import("#lib/db/settings.ts");
+      await updateEmailProvider("postmark");
+      invalidateSettingsCache();
+      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
+
+      await sendRegistrationWebhooks(
+        [makeEntry({ webhook_url: "" })],
+        "GBP",
+      );
+
+      expect(fetchSpy.calls.length).toBe(0);
+    });
+
+    test("includes WEBHOOK_URL when email provider is cleared", async () => {
+      const { updateEmailProvider, invalidateSettingsCache } = await import("#lib/db/settings.ts");
+      await updateEmailProvider("resend");
+      await updateEmailProvider("");
+      invalidateSettingsCache();
+      Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
+
+      await sendRegistrationWebhooks(
+        [makeEntry({ webhook_url: "" })],
+        "GBP",
+      );
+
+      expect(fetchSpy.calls.length).toBe(1);
+      const [url] = fetchSpy.calls[0].args as [string, RequestInit];
+      expect(url).toBe("https://global-hook.com");
+    });
   });
 
   describe("logAndNotifyRegistration", () => {
