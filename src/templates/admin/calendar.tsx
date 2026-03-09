@@ -26,17 +26,19 @@ export type CalendarAttendeeRow = Attendee & {
 };
 
 /** Build date selector dropdown for calendar view */
-const CalendarDateSelector = ({ dateFilter, dates }: { dateFilter: string | null; dates: CalendarDateOption[] }): string => {
-  const options = [
-    `<option value="/admin/calendar#attendees"${!dateFilter ? " selected" : ""}>Select a date</option>`,
-    ...dates.map(
-      (d) =>
-        d.hasBookings
-          ? `<option value="/admin/calendar?date=${d.value}#attendees"${dateFilter === d.value ? " selected" : ""}>${d.label}</option>`
-          : `<option disabled>${d.label}</option>`,
-    ),
-  ].join("");
-  return `<select data-nav-select>${options}</select>`;
+const CalendarDateSelector = ({ dateFilter, dates, today }: { dateFilter: string | null; dates: CalendarDateOption[]; today: string }): string => {
+  const selectOption = `<option value="/admin/calendar#attendees"${!dateFilter ? " selected" : ""}>Select a date</option>`;
+  const dateOptions = dates.map(
+    (d) =>
+      d.hasBookings
+        ? `<option value="/admin/calendar?date=${d.value}#attendees"${dateFilter === d.value ? " selected" : ""}>${d.label}</option>`
+        : `<option disabled>${d.label}</option>`,
+  );
+  // Insert "Select a date" before the first current/future date to split past from future
+  const splitIndex = dates.findIndex((d) => d.value >= today);
+  const insertAt = splitIndex === -1 ? dateOptions.length : splitIndex;
+  dateOptions.splice(insertAt, 0, selectOption);
+  return `<select data-nav-select>${dateOptions.join("")}</select>`;
 };
 
 /**
@@ -48,6 +50,7 @@ export const adminCalendarPage = (
   session: AdminSession,
   dateFilter: string | null,
   availableDates: CalendarDateOption[],
+  today: string,
   phonePrefix?: string,
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
@@ -74,7 +77,7 @@ export const adminCalendarPage = (
 
         <article>
           <h2 id="attendees">Attendees by Date</h2>
-          <Raw html={CalendarDateSelector({ dateFilter, dates: availableDates })} />
+          <Raw html={CalendarDateSelector({ dateFilter, dates: availableDates, today })} />
           {dateFilter && (
             <p><strong>{formatDateLabel(dateFilter)}</strong></p>
           )}
