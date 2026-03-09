@@ -253,37 +253,45 @@ describe("bunny-cdn", () => {
 
     test("sends correct requests to Bunny API", async () => {
       await withFixedPullZoneId(async () => {
-        const calls: { url: string; init: RequestInit }[] = [];
+        const calls: { url: string; init: RequestInit | undefined }[] = [];
         await withMocks(
           () =>
             stub(
               globalThis,
               "fetch",
               (input: string | URL | Request, init?: RequestInit) => {
-                calls.push({ url: String(input), init: init! });
+                calls.push({ url: String(input), init });
                 return Promise.resolve(new Response(null, { status: 204 }));
               },
             ),
           async () => {
             await bunnyCdnApi.validateCustomDomain("cdn.example.com");
-            expect(calls).toHaveLength(2);
+            expect(calls).toHaveLength(3);
             const addCall = calls.at(0)!;
-            const sslCall = calls.at(1)!;
+            const certCall = calls.at(1)!;
+            const sslCall = calls.at(2)!;
             expect(addCall.url).toBe(
               "https://api.bunny.net/pullzone/12345/addHostname",
             );
-            expect(addCall.init.method).toBe("POST");
-            expect(addCall.init.headers).toEqual({
+            expect(addCall.init!.method).toBe("POST");
+            expect(addCall.init!.headers).toEqual({
               AccessKey: "test-bunny-key",
               "Content-Type": "application/json",
             });
-            expect(JSON.parse(addCall.init.body as string)).toEqual({
+            expect(JSON.parse(addCall.init!.body as string)).toEqual({
               Hostname: "cdn.example.com",
+            });
+            expect(certCall.url).toBe(
+              "https://api.bunny.net/pullzone/loadFreeCertificate?hostname=cdn.example.com",
+            );
+            expect(certCall.init!.method).toBe("GET");
+            expect(certCall.init!.headers).toEqual({
+              AccessKey: "test-bunny-key",
             });
             expect(sslCall.url).toBe(
               "https://api.bunny.net/pullzone/12345/setForceSSL",
             );
-            expect(JSON.parse(sslCall.init.body as string)).toEqual({
+            expect(JSON.parse(sslCall.init!.body as string)).toEqual({
               Hostname: "cdn.example.com",
               ForceSSL: true,
             });
@@ -385,7 +393,7 @@ describe("bunny-cdn", () => {
               "cdn.example.com",
             );
             expect(result).toEqual({ ok: true });
-            expect(callCount).toBe(2);
+            expect(callCount).toBe(3);
           },
         );
       });
@@ -410,7 +418,7 @@ describe("bunny-cdn", () => {
       });
     });
 
-    test("returns error when setForceSSL fails", async () => {
+    test("returns error when loadFreeCertificate fails", async () => {
       await withFixedPullZoneId(async () => {
         let callCount = 0;
         await withMocks(
@@ -418,6 +426,57 @@ describe("bunny-cdn", () => {
             stub(globalThis, "fetch", () => {
               callCount++;
               if (callCount === 1) {
+                return Promise.resolve(new Response(null, { status: 204 }));
+              }
+              return Promise.resolve(
+                new Response("Certificate error", { status: 400 }),
+              );
+            }),
+          async () => {
+            const result = await bunnyCdnApi.validateCustomDomain(
+              "cdn.example.com",
+            );
+            expect(result).toEqual({
+              ok: false,
+              error:
+                "Load free certificate failed (400): Certificate error",
+            });
+            expect(callCount).toBe(2);
+          },
+        );
+      });
+    });
+
+    test("does not call setForceSSL when loadFreeCertificate fails", async () => {
+      await withFixedPullZoneId(async () => {
+        let callCount = 0;
+        await withMocks(
+          () =>
+            stub(globalThis, "fetch", () => {
+              callCount++;
+              if (callCount <= 1) {
+                return Promise.resolve(new Response(null, { status: 204 }));
+              }
+              return Promise.resolve(
+                new Response("Certificate error", { status: 400 }),
+              );
+            }),
+          async () => {
+            await bunnyCdnApi.validateCustomDomain("cdn.example.com");
+            expect(callCount).toBe(2);
+          },
+        );
+      });
+    });
+
+    test("returns error when setForceSSL fails", async () => {
+      await withFixedPullZoneId(async () => {
+        let callCount = 0;
+        await withMocks(
+          () =>
+            stub(globalThis, "fetch", () => {
+              callCount++;
+              if (callCount <= 2) {
                 return Promise.resolve(new Response(null, { status: 204 }));
               }
               return Promise.resolve(
