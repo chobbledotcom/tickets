@@ -112,6 +112,14 @@ const PROVIDERS: Record<string, ProviderRequest> = {
 /** Valid provider names, derived from the PROVIDERS map */
 export const VALID_EMAIL_PROVIDERS: ReadonlySet<string> = new Set(Object.keys(PROVIDERS));
 
+/** Display labels for email providers */
+export const EMAIL_PROVIDER_LABELS: Record<string, string> = {
+  resend: "Resend",
+  postmark: "Postmark",
+  sendgrid: "SendGrid",
+  mailgun: "Mailgun",
+};
+
 /** Send a single email via the configured provider. Logs errors, never throws. */
 export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise<void> => {
   const buildRequest = PROVIDERS[config.provider];
