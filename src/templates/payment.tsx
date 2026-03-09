@@ -32,7 +32,7 @@ export const paymentPage = (
 /**
  * Payment success page - with optional redirect and ticket link
  */
-export const paymentSuccessPage = (thankYouUrl: string, ticketUrl: string | null): string =>
+export const paymentSuccessPage = (thankYouUrl: string, ticketUrl: string | null, fromEmail = ""): string =>
   String(
     <Layout title="Payment Successful" headExtra={thankYouUrl ? `<meta http-equiv="refresh" content="3;url=${escapeHtml(thankYouUrl)}">` : undefined}>
         <div data-payment-result="success">
@@ -40,6 +40,9 @@ export const paymentSuccessPage = (thankYouUrl: string, ticketUrl: string | null
           <div class="success">
             <p>Thank you for your payment. Your ticket has been confirmed.</p>
           </div>
+          {fromEmail ? (
+            <p><small><i>Your ticket will be sent from {fromEmail} &mdash; please check your Junk/Spam folder.</i></small></p>
+          ) : null}
           {ticketUrl ? (
             <p><a href={ticketUrl} target="_blank">Click here to view your tickets</a></p>
           ) : null}
@@ -56,10 +59,13 @@ export const paymentSuccessPage = (thankYouUrl: string, ticketUrl: string | null
 /**
  * Simple reservation success page (for free events with no thank_you_url)
  */
-export const reservationSuccessPage = (ticketUrl: string | null, inIframe = false): string =>
+export const reservationSuccessPage = (ticketUrl: string | null, inIframe = false, fromEmail = ""): string =>
   String(
     <Layout title="Ticket Reserved" bodyClass={inIframe ? "iframe" : undefined}>
         <h1 data-scroll-into-view={inIframe || undefined}>Ticket reserved successfully.</h1>
+        {fromEmail ? (
+          <p><small><i>Your ticket will be sent from {fromEmail} &mdash; please check your Junk/Spam folder.</i></small></p>
+        ) : null}
         {ticketUrl ? (
           <p><a href={ticketUrl} target="_blank">Click here to view your tickets</a></p>
         ) : null}

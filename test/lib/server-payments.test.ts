@@ -1316,5 +1316,38 @@ describe("server (payment flow)", () => {
         mockRetrieve.restore();
       }
     });
+
+    test("shows email notice on payment success when email configured", async () => {
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      // Create attendee directly (simulates post-payment state)
+      const result = await createAttendeeAtomic({
+        eventId: event.id,
+        name: "Email Test",
+        email: "buyer@example.com",
+        paymentId: "pi_email_notice",
+        pricePaid: 500,
+      });
+      if (!result.success) throw new Error("Failed to create attendee");
+
+      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
+      Deno.env.set("HOST_EMAIL_API_KEY", "re_test123");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@tickets.com");
+
+      try {
+        const response = await handleRequest(
+          mockRequest(`/payment/success?tokens=${encodeURIComponent(result.attendee.ticket_token)}`),
+        );
+        const html = await expectHtmlResponse(response, 200, "Junk/Spam");
+        expect(html).toContain("noreply@tickets.com");
+      } finally {
+        Deno.env.delete("HOST_EMAIL_PROVIDER");
+        Deno.env.delete("HOST_EMAIL_API_KEY");
+        Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
+      }
+    });
   });
 });
