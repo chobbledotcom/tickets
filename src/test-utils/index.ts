@@ -1899,7 +1899,7 @@ export const createTestManagerSession = async (
  * Returns the stub (call `.restore()` in a `finally` block).
  */
 export const stubWebhookVerify = async (
-  eventData: Record<string, unknown>,
+  eventData: { id: string; type: string; data: { object: Record<string, unknown> } },
 ) => {
   const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
   return stub(
