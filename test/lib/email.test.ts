@@ -6,6 +6,7 @@ import {
   type EmailMessage,
   getEmailConfig,
   getHostEmailConfig,
+  isEmailProvider,
   sendEmail,
   sendRegistrationEmails,
   sendTestEmail,
@@ -260,7 +261,7 @@ describe("email", () => {
 
     test("returns undefined for unknown provider", async () => {
       await withErrorSpy(async (errorSpy) => {
-        const status = await sendEmail({ ...testConfig, provider: "invalid" }, { to: "a@b.com", subject: "s", html: "h", text: "t" });
+        const status = await sendEmail({ ...testConfig, provider: "invalid" as never }, { to: "a@b.com", subject: "s", html: "h", text: "t" });
         expect(status).toBeUndefined();
         const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
         expect(logs.some((l) => l.includes("E_EMAIL_SEND") && l.includes("unknown provider"))).toBe(true);
@@ -482,6 +483,21 @@ describe("email", () => {
       const body = JSON.parse((fetchStub.calls[0].args as [string, RequestInit])[1].body as string);
       expect(body.to).toEqual(["admin@test.com"]);
       expect(body.subject).toContain("Test email");
+    });
+  });
+
+  describe("isEmailProvider", () => {
+    test("returns true for valid providers", () => {
+      expect(isEmailProvider("resend")).toBe(true);
+      expect(isEmailProvider("postmark")).toBe(true);
+      expect(isEmailProvider("sendgrid")).toBe(true);
+      expect(isEmailProvider("mailgun-us")).toBe(true);
+      expect(isEmailProvider("mailgun-eu")).toBe(true);
+    });
+
+    test("returns false for invalid providers", () => {
+      expect(isEmailProvider("invalid")).toBe(false);
+      expect(isEmailProvider("")).toBe(false);
     });
   });
 });

@@ -24,7 +24,7 @@ export type EmailMessage = {
 };
 
 export type EmailConfig = {
-  provider: string;
+  provider: EmailProvider;
   apiKey: string;
   fromAddress: string;
 };
@@ -39,7 +39,7 @@ export const getEmailConfig = async (): Promise<EmailConfig | null> => {
   ]);
   const from = fromAddress || businessEmail;
   if (!provider || !apiKey || !from) return null;
-  return { provider, apiKey, fromAddress: from };
+  return { provider: provider as EmailProvider, apiKey, fromAddress: from };
 };
 
 /** Read host-level email config from environment variables. Returns null if not fully configured. */
@@ -48,7 +48,7 @@ export const getHostEmailConfig = (): EmailConfig | null => {
   const apiKey = getEnv("HOST_EMAIL_API_KEY");
   const fromAddress = getEnv("HOST_EMAIL_FROM_ADDRESS");
   if (!provider || !apiKey || !fromAddress) return null;
-  return { provider, apiKey, fromAddress };
+  return { provider: provider as EmailProvider, apiKey, fromAddress };
 };
 
 /** Build provider-specific request: [url, extra-headers, body] */
@@ -111,19 +111,28 @@ const mailgunRequest = (host: string): ProviderRequest => (config, msg) => {
   ];
 };
 
-const PROVIDERS: Record<string, ProviderRequest> = {
+const PROVIDERS = {
   resend: resendRequest,
   postmark: postmarkRequest,
   sendgrid: sendgridRequest,
   "mailgun-us": mailgunRequest("api.mailgun.net"),
   "mailgun-eu": mailgunRequest("api.eu.mailgun.net"),
-};
+} as const satisfies Record<string, ProviderRequest>;
+
+/** Union of all supported email provider keys, derived from the PROVIDERS map */
+export type EmailProvider = keyof typeof PROVIDERS;
 
 /** Valid provider names, derived from the PROVIDERS map */
-export const VALID_EMAIL_PROVIDERS: ReadonlySet<string> = new Set(Object.keys(PROVIDERS));
+export const VALID_EMAIL_PROVIDERS: ReadonlySet<EmailProvider> = new Set(
+  Object.keys(PROVIDERS) as EmailProvider[],
+);
 
-/** Display labels for email providers */
-export const EMAIL_PROVIDER_LABELS: Record<string, string> = {
+/** Type guard: checks if a string is a valid EmailProvider */
+export const isEmailProvider = (value: string): value is EmailProvider =>
+  (VALID_EMAIL_PROVIDERS as ReadonlySet<string>).has(value);
+
+/** Display labels for email providers — keys must match EmailProvider */
+export const EMAIL_PROVIDER_LABELS: Record<EmailProvider, string> = {
   resend: "Resend",
   postmark: "Postmark",
   sendgrid: "SendGrid",
