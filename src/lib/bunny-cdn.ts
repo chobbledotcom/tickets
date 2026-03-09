@@ -10,7 +10,11 @@ import { ErrorCode, logError } from "#lib/logger.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
-type BunnyApiResult = { ok: true } | { ok: false; error: string };
+type BunnyApiResult =
+  | { ok: true }
+  | { ok: false; error: string; errorKey?: string };
+
+const HOSTNAME_ALREADY_REGISTERED = "pullzone.hostname_already_registered";
 
 interface BunnyHostname {
   Value: string;
@@ -81,11 +85,13 @@ const pullZonePost = async (
 
   const text = await response.text();
   let message = text;
+  let errorKey: string | undefined;
   try {
     const json = JSON.parse(text);
     if (json.Message) message = json.Message;
+    if (json.ErrorKey) errorKey = json.ErrorKey;
   } catch { /* use raw text */ }
-  return { ok: false, error: `${label} failed (${response.status}): ${message}` };
+  return { ok: false, error: `${label} failed (${response.status}): ${message}`, errorKey };
 };
 
 /**
@@ -109,7 +115,10 @@ const validateCustomDomainImpl = async (
     { Hostname: hostname },
     "Add hostname",
   );
-  if (!hostnameResult.ok) {
+  if (
+    !hostnameResult.ok &&
+    hostnameResult.errorKey !== HOSTNAME_ALREADY_REGISTERED
+  ) {
     logError({ code: ErrorCode.CDN_REQUEST, detail: hostnameResult.error });
     return hostnameResult;
   }
