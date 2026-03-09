@@ -881,6 +881,38 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
     return redirect("/admin/settings", `${label} email template updated`, true, { formId });
   });
 
+/** Sample booking data used for email template previews */
+const PREVIEW_BOOKINGS = [{
+  event: {
+    id: 1, name: "Summer Concert", slug: "summer-concert",
+    webhook_url: "", max_attendees: 100, attendee_count: 42,
+    unit_price: 2500, can_pay_more: false,
+  },
+  attendee: {
+    id: 1, name: "Jane Smith", email: "jane@example.com",
+    phone: "+44 7700 900000", address: "123 High Street, London",
+    special_instructions: "Wheelchair access please",
+    quantity: 2, payment_id: "pi_sample", price_paid: "5000",
+    ticket_token: "SAMPLE123", date: null,
+  },
+}, {
+  event: {
+    id: 2, name: "Workshop", slug: "workshop",
+    webhook_url: "", max_attendees: 20, attendee_count: 8,
+    unit_price: 0, can_pay_more: false,
+  },
+  attendee: {
+    id: 2, name: "Jane Smith", email: "jane@example.com",
+    phone: "+44 7700 900000", address: "123 High Street, London",
+    special_instructions: "Wheelchair access please",
+    quantity: 1, payment_id: "", price_paid: "0",
+    ticket_token: "SAMPLE456", date: "2026-04-15",
+  },
+}];
+
+const PREVIEW_CURRENCY = "GBP";
+const PREVIEW_TICKET_URL = "https://example.com/t/SAMPLE123+SAMPLE456";
+
 /** Handle POST /admin/settings/email-templates/preview - render template with sample data */
 const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (_session, form) => {
@@ -897,37 +929,10 @@ const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
       return jsonResponse({ error: `Template syntax error: ${error}` }, 400);
     }
 
-    // Sample data for preview
     const sampleData = buildTemplateData(
-      [{
-        event: {
-          id: 1, name: "Summer Concert", slug: "summer-concert",
-          webhook_url: "", max_attendees: 100, attendee_count: 42,
-          unit_price: 2500, can_pay_more: false,
-        },
-        attendee: {
-          id: 1, name: "Jane Smith", email: "jane@example.com",
-          phone: "+44 7700 900000", address: "123 High Street, London",
-          special_instructions: "Wheelchair access please",
-          quantity: 2, payment_id: "pi_sample", price_paid: "5000",
-          ticket_token: "SAMPLE123", date: null,
-        },
-      }, {
-        event: {
-          id: 2, name: "Workshop", slug: "workshop",
-          webhook_url: "", max_attendees: 20, attendee_count: 8,
-          unit_price: 0, can_pay_more: false,
-        },
-        attendee: {
-          id: 2, name: "Jane Smith", email: "jane@example.com",
-          phone: "+44 7700 900000", address: "123 High Street, London",
-          special_instructions: "Wheelchair access please",
-          quantity: 1, payment_id: "", price_paid: "0",
-          ticket_token: "SAMPLE456", date: "2026-04-15",
-        },
-      }],
-      "GBP",
-      "https://example.com/t/SAMPLE123+SAMPLE456",
+      PREVIEW_BOOKINGS,
+      PREVIEW_CURRENCY,
+      PREVIEW_TICKET_URL,
     );
 
     try {
