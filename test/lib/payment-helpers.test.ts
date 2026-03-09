@@ -453,9 +453,9 @@ describe("payment-helpers", () => {
       expect(hasRequiredSessionMetadata(metadata)).toBe(false);
     });
 
-    test("returns false when email is missing", () => {
+    test("returns true when email is missing but name and event_id present", () => {
       const metadata = { name: "Alice", event_id: "1" };
-      expect(hasRequiredSessionMetadata(metadata)).toBe(false);
+      expect(hasRequiredSessionMetadata(metadata)).toBe(true);
     });
 
     test("returns false when neither event_id nor multi+items present", () => {
@@ -473,9 +473,9 @@ describe("payment-helpers", () => {
       expect(hasRequiredSessionMetadata(metadata)).toBe(false);
     });
 
-    test("returns false when email is empty string", () => {
+    test("returns true when email is empty string", () => {
       const metadata = { name: "Alice", email: "", event_id: "1" };
-      expect(hasRequiredSessionMetadata(metadata)).toBe(false);
+      expect(hasRequiredSessionMetadata(metadata)).toBe(true);
     });
 
     test("returns true when multi is 1 and items is a string", () => {
@@ -532,17 +532,17 @@ describe("payment-helpers", () => {
       };
       const result = extractSessionMetadata(metadata);
       expect(result).toEqual({
-        _origin: undefined,
+        _origin: "",
         event_id: "42",
         name: "Alice",
         email: "alice@example.com",
         phone: "+1234567890",
-        address: undefined,
-        special_instructions: undefined,
+        address: "",
+        special_instructions: "",
         quantity: "3",
-        multi: undefined,
-        date: undefined,
-        items: undefined,
+        multi: "",
+        date: "",
+        items: "",
       });
     });
 
@@ -555,34 +555,34 @@ describe("payment-helpers", () => {
       };
       const result = extractSessionMetadata(metadata);
       expect(result).toEqual({
-        _origin: undefined,
-        event_id: undefined,
+        _origin: "",
+        event_id: "",
         name: "Bob",
         email: "bob@example.com",
-        phone: undefined,
-        address: undefined,
-        special_instructions: undefined,
-        quantity: undefined,
+        phone: "",
+        address: "",
+        special_instructions: "",
+        quantity: "",
         multi: "1",
-        date: undefined,
+        date: "",
         items: '[{"e":1,"q":2}]',
       });
     });
 
-    test("sets optional fields to undefined when not present", () => {
+    test("defaults optional fields to empty string when not present", () => {
       const metadata = {
         name: "Charlie",
         email: "charlie@example.com",
         event_id: "5",
       };
       const result = extractSessionMetadata(metadata);
-      expect(result.phone).toBeUndefined();
-      expect(result.quantity).toBeUndefined();
-      expect(result.multi).toBeUndefined();
-      expect(result.items).toBeUndefined();
+      expect(result.phone).toBe("");
+      expect(result.quantity).toBe("");
+      expect(result.multi).toBe("");
+      expect(result.items).toBe("");
     });
 
-    test("preserves name and email as non-optional strings", () => {
+    test("preserves name and email when present", () => {
       const metadata = {
         name: "Dana",
         email: "dana@example.com",
@@ -591,6 +591,24 @@ describe("payment-helpers", () => {
       const result = extractSessionMetadata(metadata);
       expect(result.name).toBe("Dana");
       expect(result.email).toBe("dana@example.com");
+    });
+
+    test("defaults all optional fields to empty string when not present", () => {
+      const metadata = {
+        name: "Eve",
+      };
+      const result = extractSessionMetadata(metadata);
+      expect(result.name).toBe("Eve");
+      expect(result.email).toBe("");
+      expect(result.phone).toBe("");
+      expect(result._origin).toBe("");
+      expect(result.event_id).toBe("");
+      expect(result.address).toBe("");
+      expect(result.special_instructions).toBe("");
+      expect(result.quantity).toBe("");
+      expect(result.multi).toBe("");
+      expect(result.date).toBe("");
+      expect(result.items).toBe("");
     });
   });
 });

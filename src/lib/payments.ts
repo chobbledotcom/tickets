@@ -53,20 +53,19 @@ export type CheckoutSessionResult = {
   error: string;
 } | null;
 
-/** Metadata attached to a validated payment session */
+/** Metadata attached to a validated payment session (all fields guaranteed present after extraction) */
 export type SessionMetadata = {
-  /** Origin domain marker to identify sessions created by this instance */
-  _origin?: string;
-  event_id?: string;
+  _origin: string;
+  event_id: string;
   name: string;
   email: string;
-  phone?: string;
-  address?: string;
-  special_instructions?: string;
-  quantity?: string;
-  multi?: string;
-  items?: string;
-  date?: string;
+  phone: string;
+  address: string;
+  special_instructions: string;
+  quantity: string;
+  multi: string;
+  items: string;
+  date: string;
 };
 
 /** Valid payment status values */

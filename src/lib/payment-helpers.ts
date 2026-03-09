@@ -133,15 +133,15 @@ export const toCheckoutResult = (
 };
 
 /**
- * Validate that session metadata contains required fields (name, email)
+ * Validate that session metadata contains required fields (name)
  * and either event_id (single) or multi+items (multi).
  * Returns false if validation fails.
  */
 export const hasRequiredSessionMetadata = (
   metadata: Record<string, string | undefined> | null | undefined,
-): metadata is SessionMetadata & { name: string; email: string } => {
-  if (!metadata?.name || !metadata?.email) return false;
-  const isMulti = metadata.multi === "1" && typeof metadata.items === "string";
+): metadata is SessionMetadata => {
+  if (!metadata?.name) return false;
+  const isMulti = metadata.multi === "1" && !!metadata.items;
   return isMulti || !!metadata.event_id;
 };
 
@@ -152,15 +152,15 @@ export const hasRequiredSessionMetadata = (
 export const extractSessionMetadata = (
   metadata: Record<string, string | undefined>,
 ): ValidatedPaymentSession["metadata"] => ({
-  _origin: metadata._origin,
-  event_id: metadata.event_id,
+  _origin: metadata._origin || "",
+  event_id: metadata.event_id || "",
   name: metadata.name!,
-  email: metadata.email!,
-  phone: metadata.phone,
-  address: metadata.address,
-  special_instructions: metadata.special_instructions,
-  quantity: metadata.quantity,
-  multi: metadata.multi,
-  date: metadata.date,
-  items: metadata.items,
+  email: metadata.email || "",
+  phone: metadata.phone || "",
+  address: metadata.address || "",
+  special_instructions: metadata.special_instructions || "",
+  quantity: metadata.quantity || "",
+  multi: metadata.multi || "",
+  date: metadata.date || "",
+  items: metadata.items || "",
 });
