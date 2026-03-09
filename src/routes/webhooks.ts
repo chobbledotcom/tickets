@@ -14,7 +14,7 @@
  * - Two-phase locking prevents duplicate attendee creation from race conditions
  */
 
-import { map, unique } from "#fp";
+import { map, reduce, unique } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
   createAttendeeAtomic,
@@ -412,7 +412,7 @@ const processMultiPaymentSession = async (
     }
 
     // Cart total must equal the sum of per-item prices
-    const metadataTotal = validatedItems.reduce((sum, { item }) => sum + item.p, 0);
+    const metadataTotal = reduce((sum: number, { item }: { item: { p: number } }) => sum + item.p, 0)(validatedItems);
     if (session.amountTotal !== metadataTotal) {
       return priceMismatchRefund(session,
         `Multi-ticket total mismatch: provider charged ${session.amountTotal} but sum(p) = ${metadataTotal}`,
