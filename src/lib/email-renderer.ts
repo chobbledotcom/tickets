@@ -8,7 +8,7 @@
 
 import { lazyRef, map } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
-import type { EmailTemplateType } from "#lib/db/settings.ts";
+import type { EmailTemplateFormat, EmailTemplateType } from "#lib/db/settings.ts";
 import { getEmailTemplateSet } from "#lib/db/settings.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { isPaidEvent } from "#lib/types.ts";
@@ -133,8 +133,8 @@ const safeRender = async (
   template: string,
   data: TemplateData,
   fallbackTemplate: string,
-  type: string,
-  format: string,
+  type: EmailTemplateType,
+  format: EmailTemplateFormat,
 ): Promise<string> => {
   try {
     return await renderTemplate(template, data);
