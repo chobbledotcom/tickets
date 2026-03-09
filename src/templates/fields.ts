@@ -696,6 +696,7 @@ export const stripeKeyFields: Field[] = [
     name: "stripe_secret_key",
     label: "Stripe Secret Key",
     type: "password",
+    required: true,
     placeholder: "sk_live_... or sk_test_...",
     hint: "Enter a new key to update",
   },
@@ -709,6 +710,7 @@ export const squareAccessTokenFields: Field[] = [
     name: "square_access_token",
     label: "Square Access Token",
     type: "password",
+    required: true,
     placeholder: "EAAAl...",
     hint: "Your Square application's access token",
   },
@@ -730,6 +732,7 @@ export const squareWebhookFields: Field[] = [
     name: "square_webhook_signature_key",
     label: "Webhook Signature Key",
     type: "password",
+    required: true,
     hint: "The signature key from your Square webhook subscription",
   },
 ];
