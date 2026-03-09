@@ -159,7 +159,7 @@ const validatePaidSession = async (
 /** Result type for processPaymentSession */
 type PaymentResult =
   | { success: true; attendee: Pick<Attendee, "id">; event: EventWithCount; ticketTokens: string[] }
-  | { success: false; error: string; status?: number; refunded?: boolean };
+  | { success: false; error: string; status?: number; refunded?: boolean; detail?: string };
 
 /**
  * Attempt to refund a payment. Returns true if refund succeeded, false otherwise.
@@ -228,8 +228,12 @@ const validationFailure = (
   eventId?: number,
 ): Promise<PaymentResult> => {
   if (validation.status === 404) {
-    logError({ code: ErrorCode.PAYMENT_SESSION, eventId, detail: `Post-payment event not found (session=${session.id})` });
-    return Promise.resolve({ success: false, error: validation.error, status: 404 });
+    return Promise.resolve({
+      success: false,
+      error: validation.error,
+      status: 404,
+      detail: `Post-payment event not found (session=${session.id})`,
+    });
   }
   return refundAndFail(session, validation.error, validation.status, eventId);
 };
@@ -361,18 +365,16 @@ const extractMultiIntent = (
 };
 
 /** Log a price mismatch and refund the session */
-const priceMismatchRefund = (
+const priceMismatchRefund = async (
   session: ValidatedPaymentSession,
   detail: string,
   eventId?: number,
 ): Promise<PaymentResult> => {
-  logError({ code: ErrorCode.PAYMENT_SESSION, eventId, detail });
-  return refundAndFail(
-    session,
-    PRICE_CHANGED_MESSAGE,
-    undefined,
-    eventId,
-  );
+  const refunded = await tryRefund(session.paymentReference, eventId);
+  if (refunded) {
+    await logActivity(`Automatic refund: ${PRICE_CHANGED_MESSAGE}`, eventId);
+  }
+  return { success: false, error: PRICE_CHANGED_MESSAGE, refunded, detail };
 };
 
 /**
@@ -448,11 +450,7 @@ const processMultiPaymentSession = async (
   let failureReason: "capacity_exceeded" | "encryption_error" | null = null;
 
   if (!hasPerItemPrices) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      eventId: validatedItems[0]?.event.id,
-      detail: `Multi-ticket session ${session.id} missing per-item prices, using expected prices (possible old payment)`,
-    });
+    logDebug("Payment", `Multi-ticket session ${session.id} missing per-item prices, using expected prices (possible old payment)`);
   }
 
   for (const { item, event, expectedPrice } of validatedItems) {
@@ -550,14 +548,10 @@ const processPaymentSession = async (
   // Reject if event price changed since checkout was created
   // For pay-more events, the amount charged may be >= the minimum price
   if (hasPriceMismatch(session.amountTotal, expectedPrice, event)) {
-    logError({
-      code: ErrorCode.PAYMENT_SESSION,
-      eventId: intent.eventId,
-      detail: `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
-    });
-    return refundAndFail(
+    return priceMismatchRefund(
       session,
-      PRICE_CHANGED_MESSAGE,
+      `Price mismatch: provider charged ${session.amountTotal} but current event price yields ${expectedPrice}`,
+      intent.eventId,
     );
   }
 
@@ -608,6 +602,15 @@ const processSessionAndRedirect = async (sessionId: string): Promise<Response> =
       : await processPaymentSession(sessionId, data);
 
   if (!result.success) {
+    // Log once at the redirect boundary
+    const eventId = data.type === "multi"
+      ? data.intent.items[0]?.e
+      : data.intent.eventId;
+    logError({
+      code: ErrorCode.PAYMENT_SESSION,
+      eventId,
+      detail: `[redirect] ${result.detail ?? result.error}`,
+    });
     return paymentErrorResponse(formatPaymentError(result), result.status);
   }
 
@@ -888,11 +891,11 @@ const handlePaymentWebhook = async (request: Request): Promise<Response> => {
   }
 
   if (!result.success) {
-    // Log error but return 200 to prevent provider retries for business logic failures
+    // Log once at the boundary — inner functions pass structured context via result.detail
     logError({
       code: ErrorCode.PAYMENT_SESSION,
       eventId: eventIdForLog,
-      detail: result.error,
+      detail: result.detail ?? result.error,
     });
   }
 
