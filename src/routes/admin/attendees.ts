@@ -238,6 +238,7 @@ const handleAttendeeRefund = attendeeFormAction(async (data, session, form, even
   if (!refunded) {
     logError({
       code: ErrorCode.PAYMENT_REFUND,
+      eventId,
       detail: `Admin refund failed for attendee ${data.attendee.id}, payment ${data.attendee.payment_id}`,
     });
     return refundError(data, session, REFUND_FAILED_ERROR, form);
@@ -303,6 +304,7 @@ const processRefundAll = async (
       failedCount++;
       logError({
         code: ErrorCode.PAYMENT_REFUND,
+        eventId: event.id,
         detail: `Admin bulk refund failed for attendee ${attendee.id}, payment ${attendee.payment_id}`,
       });
     }
