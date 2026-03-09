@@ -20,6 +20,7 @@ Also deployable with [Fly.io](https://fly.io) (`fly launch`) or any Docker host.
 - Capacity limits, max tickets per purchase, registration deadlines
 - Multi-event booking — combine events in one URL (`/ticket/event1+event2`), one form, one checkout
 - Multi-booking link builder on the dashboard for generating combined-event URLs
+- Event QR code SVG (`/ticket/:slug/qr`) for posters and printed materials
 - Embeddable via iframe with configurable CSP frame-ancestors
 - Custom thank-you URL or default confirmation page
 - Non-transferable tickets — per-event toggle requiring ID verification at check-in
@@ -49,7 +50,7 @@ Also deployable with [Fly.io](https://fly.io) (`fly launch`) or any Docker host.
 - Holiday/blackout date management for daily events
 - Multi-user: owners invite managers via time-limited links (7-day expiry)
 - Session management: view active sessions, kill all others
-- Settings: payment provider config, embed host restrictions, terms and conditions, password change, database reset
+- Settings: payment provider config, email templates, custom domain, embed host restrictions, terms and conditions, password change, database reset
 - Built-in admin guide (`/admin/guide`) with FAQ for all features
 - Ntfy error notifications for production monitoring (optional)
 
@@ -80,7 +81,14 @@ These measures aim to raise the cost of common attacks. They do not guarantee se
 ### Email Notifications
 - Automatic confirmation email to attendees and notification email to admins on each registration
 - Five HTTP API providers: Resend, Postmark, SendGrid, Mailgun (US/EU)
+- Customisable email templates using Liquid syntax (subject, HTML body, text body)
+- Built-in template filters: `currency` (formats amounts) and `pluralize`
 - Configured in admin settings — optional, system works without it
+
+### Public JSON API
+- RESTful API for event listing and booking (`/api/events`, `/api/events/:slug`, `/api/events/:slug/availability`, `/api/events/:slug/book`)
+- No API key required — same data as public booking pages
+- CORS-enabled for cross-origin requests
 
 ### Webhooks
 - Outbound POST on every registration (free or paid) to per-event and/or global webhook URLs
@@ -151,6 +159,10 @@ On first launch, visit `/setup/` to set admin credentials and currency. Payment 
 | `PORT` | No | Local dev server port (default: 3000) |
 | `STORAGE_ZONE_NAME` | No | Bunny CDN storage zone name (required for image uploads) |
 | `STORAGE_ZONE_KEY` | No | Bunny CDN storage zone access key (required for image uploads) |
+| `BUNNY_API_KEY` | No | Bunny CDN API key (required for custom domain settings) |
+| `HOST_EMAIL_PROVIDER` | No | Host-level email provider (resend, postmark, sendgrid, mailgun-us, mailgun-eu) |
+| `HOST_EMAIL_API_KEY` | No | Host-level email API key |
+| `HOST_EMAIL_FROM_ADDRESS` | No | Host-level email sender address |
 | `NTFY_URL` | No | Ntfy endpoint for error notifications (sends domain + error code only) |
 
 ## Deployment
