@@ -219,6 +219,7 @@ export const adminSettingsPage = (
             data-default-tpl={DEFAULT_TEMPLATES.confirmation.text}
           >{s.confirmationTemplates.text}</textarea>
           <a href="#" data-fill-default="confirmation_text"><small>Edit default template</small></a>
+          <br />
           <button type="submit">Save Confirmation Template</button>
         </CsrfForm>
 
@@ -252,6 +253,7 @@ export const adminSettingsPage = (
             data-default-tpl={DEFAULT_TEMPLATES.admin.text}
           >{s.adminTemplates.text}</textarea>
           <a href="#" data-fill-default="admin_text"><small>Edit default template</small></a>
+          <br />
           <button type="submit">Save Admin Notification Template</button>
         </CsrfForm>
 
