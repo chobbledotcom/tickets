@@ -43,7 +43,6 @@ import {
   formatCreationError,
   getBaseUrl,
   htmlResponse,
-  iframeAwareRedirect,
   isIframeRequest,
   isRegistrationClosed,
   notFoundResponse,
@@ -168,7 +167,7 @@ const bookingResultToWebResponse = (
   switch (result.type) {
     case "success": {
       if (event.thank_you_url) return redirectResponse(event.thank_you_url);
-      return iframeAwareRedirect(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}`, ctx.inIframe);
+      return redirectResponse(`/ticket/reserved?tokens=${encodeURIComponent(result.attendee.ticket_token)}`, { inIframe: ctx.inIframe });
     }
     case "checkout":
       return checkoutResponse(result.checkoutUrl, ctx.inIframe);
@@ -553,7 +552,7 @@ const submitMultiTicket = (
       }
 
       const tokens = encodeURIComponent(result.tokens.join("+"));
-      return iframeAwareRedirect(`/ticket/reserved?tokens=${tokens}`, inIframe);
+      return redirectResponse(`/ticket/reserved?tokens=${tokens}`, { inIframe });
     },
   );
 

@@ -23,7 +23,7 @@ import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
 import { notFoundPage, temporaryErrorPage } from "#templates/public.tsx";
 
 // Re-export for use by other modules
-export { isIframeRequest, appendIframeParam };
+export { isIframeRequest };
 
 // Re-export for use by other route modules
 export { generateSecureToken };
@@ -195,13 +195,6 @@ export const temporaryErrorResponse = (): Response =>
   htmlResponse(temporaryErrorPage(), 503);
 
 /**
- * Redirect response that preserves iframe mode by appending ?iframe=true to the target URL.
- * Use instead of manually building iframe query params on redirect URLs.
- */
-export const iframeAwareRedirect = (url: string, inIframe: boolean): Response =>
-  redirectResponse(appendIframeParam(url, inIframe));
-
-/**
  * Respond with checkout: popup page in iframe mode, 302 redirect otherwise.
  * Stripe Checkout cannot run inside iframes, so we show a page that opens
  * the checkout URL in a popup window instead.
@@ -209,19 +202,24 @@ export const iframeAwareRedirect = (url: string, inIframe: boolean): Response =>
 export const checkoutResponse = (checkoutUrl: string, inIframe: boolean): Response =>
   inIframe ? htmlResponse(checkoutPopupPage(checkoutUrl)) : redirectResponse(checkoutUrl);
 
+/** Options for redirectResponse */
+type RedirectResponseOpts = { cookie?: string; inIframe?: boolean };
+
 /**
  * Create bare 302 redirect response (no message).
  * Use for external URLs, setup flow, public pages, and other cases
  * where the target page doesn't render success/error banners.
  * For admin redirects that should show a message, use `redirect` instead.
+ * When inIframe is true, appends ?iframe=true to the target URL.
  */
-export const redirectResponse = (url: string, cookie?: string): Response => {
+export const redirectResponse = (url: string, opts?: RedirectResponseOpts): Response => {
+  const location = appendIframeParam(url, opts?.inIframe ?? false);
   const headers: HeadersInit = {
-    location: url,
+    location,
     "content-type": "text/html; charset=utf-8",
   };
-  if (cookie) {
-    headers["set-cookie"] = cookie;
+  if (opts?.cookie) {
+    headers["set-cookie"] = opts.cookie;
   }
   return new Response(null, { status: 302, headers });
 };
@@ -245,7 +243,7 @@ export const redirect = (
     u.searchParams.set("form", opts.formId);
     u.hash = opts.formId;
   }
-  return redirectResponse(u.pathname + u.search + u.hash, opts?.cookie);
+  return redirectResponse(u.pathname + u.search + u.hash, { cookie: opts?.cookie });
 };
 
 /**

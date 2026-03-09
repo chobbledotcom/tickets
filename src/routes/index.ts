@@ -271,7 +271,7 @@ export const handleRequest = (
   } catch (error) {
     logError({ code: ErrorCode.CDN_REQUEST, detail: String(error) });
     if (error instanceof SessionKeyError) {
-      return logAndReturn(redirectResponse("/admin", clearSessionCookie()), method, path, getElapsed);
+      return logAndReturn(redirectResponse("/admin", { cookie: clearSessionCookie() }), method, path, getElapsed);
     }
     return logAndReturn(temporaryErrorResponse(), method, path, getElapsed);
   }

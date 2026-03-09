@@ -7,7 +7,7 @@ import {
   isValidContentType,
   normalizeHostname,
 } from "#routes";
-import { redirect, temporaryErrorResponse } from "#routes/utils.ts";
+import { redirect, redirectResponse, temporaryErrorResponse } from "#routes/utils.ts";
 import {
   createTestDb,
   createTestDbWithSetup,
@@ -313,6 +313,29 @@ describe("server (misc)", () => {
 
     test("passes cookie through to response", () => {
       const response = redirect("/admin", "Done", true, { cookie: "session=abc; Path=/" });
+      expect(response.headers.get("set-cookie")).toBe("session=abc; Path=/");
+    });
+  });
+
+  describe("routes/utils.ts (redirectResponse)", () => {
+    test("creates 302 redirect with location header", () => {
+      const response = redirectResponse("/ticket/test");
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/ticket/test");
+    });
+
+    test("appends iframe=true when inIframe is true", () => {
+      const response = redirectResponse("/ticket/reserved?tokens=abc", { inIframe: true });
+      expect(response.headers.get("location")).toBe("/ticket/reserved?tokens=abc&iframe=true");
+    });
+
+    test("does not append iframe param when inIframe is false", () => {
+      const response = redirectResponse("/ticket/test", { inIframe: false });
+      expect(response.headers.get("location")).toBe("/ticket/test");
+    });
+
+    test("sets cookie header when cookie option is provided", () => {
+      const response = redirectResponse("/admin", { cookie: "session=abc; Path=/" });
       expect(response.headers.get("set-cookie")).toBe("session=abc; Path=/");
     });
   });

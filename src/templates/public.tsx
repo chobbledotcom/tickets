@@ -7,7 +7,6 @@ import { formatCurrency, toMajorUnits } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import type { Field } from "#lib/forms.tsx";
 import { CsrfForm, renderError, renderFields } from "#lib/forms.tsx";
-import { appendIframeParam } from "#lib/iframe.ts";
 import { renderMarkdown, renderMarkdownInline } from "#lib/markdown.ts";
 import { getImageProxyUrl } from "#lib/storage.ts";
 import type { EventFields, EventWithCount } from "#lib/types.ts";
@@ -239,7 +238,7 @@ export const ticketPage = (
       ) : isFull ? (
           <div class="error">Sorry, this event is full.</div>
       ) : (
-          <CsrfForm action={appendIframeParam(`/ticket/${event.slug}`, inIframe)}>
+          <CsrfForm action={`/ticket/${event.slug}`} inIframe={inIframe}>
             <Raw html={renderFields(fields)} />
             {isDaily && availableDates && (
               <Raw html={renderDateSelector(availableDates)} />
@@ -381,7 +380,6 @@ export const multiTicketPage = (
 ): string => {
   const allUnavailable = events.every((e) => e.isSoldOut || e.isClosed);
   const allClosed = events.every((e) => e.isClosed);
-  const formAction = appendIframeParam(`/ticket/${slugs.join("+")}`, inIframe);
   const fieldsSetting = getMultiTicketFieldsSetting(events);
   const fields: Field[] = getTicketFields(fieldsSetting);
   const hasDaily = events.some((e) => e.event.event_type === "daily");
@@ -398,7 +396,7 @@ export const multiTicketPage = (
       {allUnavailable ? (
         <div class="error">{allClosed ? "Registration closed." : "Sorry, all events are sold out."}</div>
       ) : (
-        <CsrfForm action={formAction}>
+        <CsrfForm action={`/ticket/${slugs.join("+")}`} inIframe={inIframe}>
           <Raw html={renderFields(fields)} />
           {hasDaily && availableDates && (
             <Raw html={renderDateSelector(availableDates)} />

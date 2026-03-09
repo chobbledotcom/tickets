@@ -1183,6 +1183,23 @@ describe("forms", () => {
       expect(html).not.toContain('class="error"');
       setFormError("", "");
     });
+
+    test("appends ?iframe=true to action when inIframe is true", () => {
+      const html = String(CsrfForm({ action: "/ticket/test", inIframe: true }));
+      expect(html).toContain('action="/ticket/test?iframe=true"');
+    });
+
+    test("does not append iframe param when inIframe is false", () => {
+      const html = String(CsrfForm({ action: "/ticket/test", inIframe: false }));
+      expect(html).toContain('action="/ticket/test"');
+      expect(html).not.toContain("iframe");
+    });
+
+    test("does not append iframe param when inIframe is omitted", () => {
+      const html = String(CsrfForm({ action: "/ticket/test" }));
+      expect(html).toContain('action="/ticket/test"');
+      expect(html).not.toContain("iframe");
+    });
   });
 
   describe("renderSuccess", () => {
