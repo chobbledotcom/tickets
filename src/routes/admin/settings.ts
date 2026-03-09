@@ -8,7 +8,7 @@ import {
   isValidBusinessEmail,
   updateBusinessEmail,
 } from "#lib/business-email.ts";
-import { getEmailConfig, getEnvMailgunConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
+import { EMAIL_PROVIDER_LABELS, getEmailConfig, getHostEmailConfig, sendTestEmail, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { getAllowedDomain, getSquareWebhookSignatureKey } from "#lib/config.ts";
 import { getEnv } from "#lib/env.ts";
 import { clearSessionCookie } from "#lib/cookies.ts";
@@ -159,7 +159,12 @@ const getSettingsPageState = async () => {
     emailApiKeyConfigured,
     emailFromAddress: emailFromAddress ?? "",
     globalWebhookUrl: getEnv("WEBHOOK_URL") ?? "",
-    mailgunFrom: getEnvMailgunConfig()?.fromAddress ?? "",
+    hostEmailLabel: (() => {
+      const hostConfig = getHostEmailConfig();
+      if (!hostConfig) return "";
+      const label = EMAIL_PROVIDER_LABELS[hostConfig.provider] ?? hostConfig.provider;
+      return `Host ${label} (${hostConfig.fromAddress})`;
+    })(),
   };
 };
 

@@ -135,20 +135,20 @@ describe("server (admin settings)", () => {
       }
     });
 
-    test("shows 'Host Mailgun account' when env mailgun is configured", async () => {
-      Deno.env.set("MAILGUN_KEY", "key-123");
-      Deno.env.set("MAILGUN_FROM", "noreply@example.com");
-      Deno.env.set("MAILGUN_EU", "false");
+    test("shows host email label when host email is configured", async () => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
       try {
         const { cookie } = await loginAsAdmin();
         const response = await awaitTestRequest("/admin/settings", { cookie });
         const html = await response.text();
-        expect(html).toContain("Host Mailgun account (noreply@example.com)");
+        expect(html).toContain("Host Resend (noreply@example.com)");
         expect(html).not.toContain("None (disabled)");
       } finally {
-        Deno.env.delete("MAILGUN_KEY");
-        Deno.env.delete("MAILGUN_FROM");
-        Deno.env.delete("MAILGUN_EU");
+        Deno.env.delete("HOST_EMAIL_PROVIDER");
+        Deno.env.delete("HOST_EMAIL_API_KEY");
+        Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
       }
     });
   });

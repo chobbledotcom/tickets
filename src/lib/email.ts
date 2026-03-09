@@ -43,13 +43,12 @@ export const getEmailConfig = async (): Promise<EmailConfig | null> => {
   return { provider, apiKey, fromAddress: from };
 };
 
-/** Read Mailgun config from environment variables. Returns null if not fully configured. */
-export const getEnvMailgunConfig = (): EmailConfig | null => {
-  const apiKey = getEnv("MAILGUN_KEY");
-  const fromAddress = getEnv("MAILGUN_FROM");
-  const eu = getEnv("MAILGUN_EU");
-  if (!apiKey || !fromAddress || eu === undefined) return null;
-  const provider = eu === "true" ? "mailgun-eu" : "mailgun-us";
+/** Read host-level email config from environment variables. Returns null if not fully configured. */
+export const getHostEmailConfig = (): EmailConfig | null => {
+  const provider = getEnv("HOST_EMAIL_PROVIDER");
+  const apiKey = getEnv("HOST_EMAIL_API_KEY");
+  const fromAddress = getEnv("HOST_EMAIL_FROM_ADDRESS");
+  if (!provider || !apiKey || !fromAddress) return null;
   return { provider, apiKey, fromAddress };
 };
 
@@ -170,7 +169,7 @@ export const sendRegistrationEmails = async (
   entries: RegistrationEntry[],
   currency: string,
 ): Promise<void> => {
-  const config = await getEmailConfig() ?? getEnvMailgunConfig();
+  const config = await getEmailConfig() ?? getHostEmailConfig();
   if (!config) return;
 
   const businessEmail = await getBusinessEmailFromDb();

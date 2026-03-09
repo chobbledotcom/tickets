@@ -5,7 +5,7 @@ import {
   type EmailConfig,
   type EmailMessage,
   getEmailConfig,
-  getEnvMailgunConfig,
+  getHostEmailConfig,
   sendEmail,
   sendRegistrationEmails,
   sendTestEmail,
@@ -314,51 +314,51 @@ describe("email", () => {
     });
   });
 
-  describe("getEnvMailgunConfig", () => {
+  describe("getHostEmailConfig", () => {
     afterEach(() => {
-      Deno.env.delete("MAILGUN_KEY");
-      Deno.env.delete("MAILGUN_FROM");
-      Deno.env.delete("MAILGUN_EU");
+      Deno.env.delete("HOST_EMAIL_PROVIDER");
+      Deno.env.delete("HOST_EMAIL_API_KEY");
+      Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
     });
 
     test("returns null when no env vars set", () => {
-      expect(getEnvMailgunConfig()).toBeNull();
+      expect(getHostEmailConfig()).toBeNull();
     });
 
-    test("returns null when MAILGUN_KEY missing", () => {
-      Deno.env.set("MAILGUN_FROM", "noreply@example.com");
-      Deno.env.set("MAILGUN_EU", "false");
-      expect(getEnvMailgunConfig()).toBeNull();
+    test("returns null when HOST_EMAIL_PROVIDER missing", () => {
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
+      expect(getHostEmailConfig()).toBeNull();
     });
 
-    test("returns null when MAILGUN_FROM missing", () => {
-      Deno.env.set("MAILGUN_KEY", "key-123");
-      Deno.env.set("MAILGUN_EU", "false");
-      expect(getEnvMailgunConfig()).toBeNull();
+    test("returns null when HOST_EMAIL_API_KEY missing", () => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
+      expect(getHostEmailConfig()).toBeNull();
     });
 
-    test("returns null when MAILGUN_EU missing", () => {
-      Deno.env.set("MAILGUN_KEY", "key-123");
-      Deno.env.set("MAILGUN_FROM", "noreply@example.com");
-      expect(getEnvMailgunConfig()).toBeNull();
+    test("returns null when HOST_EMAIL_FROM_ADDRESS missing", () => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
+      expect(getHostEmailConfig()).toBeNull();
     });
 
-    test("returns mailgun-us config when MAILGUN_EU is false", () => {
-      Deno.env.set("MAILGUN_KEY", "key-123");
-      Deno.env.set("MAILGUN_FROM", "noreply@example.com");
-      Deno.env.set("MAILGUN_EU", "false");
-      expect(getEnvMailgunConfig()).toEqual({
-        provider: "mailgun-us",
+    test("returns config with specified provider", () => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
+      expect(getHostEmailConfig()).toEqual({
+        provider: "resend",
         apiKey: "key-123",
         fromAddress: "noreply@example.com",
       });
     });
 
-    test("returns mailgun-eu config when MAILGUN_EU is true", () => {
-      Deno.env.set("MAILGUN_KEY", "key-123");
-      Deno.env.set("MAILGUN_FROM", "noreply@example.com");
-      Deno.env.set("MAILGUN_EU", "true");
-      expect(getEnvMailgunConfig()).toEqual({
+    test("supports mailgun-eu provider", () => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun-eu");
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
+      expect(getHostEmailConfig()).toEqual({
         provider: "mailgun-eu",
         apiKey: "key-123",
         fromAddress: "noreply@example.com",
@@ -368,9 +368,9 @@ describe("email", () => {
 
   describe("sendRegistrationEmails", () => {
     afterEach(() => {
-      Deno.env.delete("MAILGUN_KEY");
-      Deno.env.delete("MAILGUN_FROM");
-      Deno.env.delete("MAILGUN_EU");
+      Deno.env.delete("HOST_EMAIL_PROVIDER");
+      Deno.env.delete("HOST_EMAIL_API_KEY");
+      Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
     });
 
     test("skips when email not configured", async () => {
@@ -378,10 +378,10 @@ describe("email", () => {
       expect(fetchStub.calls.length).toBe(0);
     });
 
-    test("falls back to env mailgun config when no DB email provider", async () => {
-      Deno.env.set("MAILGUN_KEY", "key-123");
-      Deno.env.set("MAILGUN_FROM", "noreply@example.com");
-      Deno.env.set("MAILGUN_EU", "false");
+    test("falls back to host email config when no DB email provider", async () => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun-us");
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
       invalidateSettingsCache();
 
       await sendRegistrationEmails([makeEntry()], "GBP");
@@ -391,10 +391,10 @@ describe("email", () => {
       expect(url).toBe("https://api.mailgun.net/v3/example.com/messages");
     });
 
-    test("prefers DB email provider over env mailgun config", async () => {
-      Deno.env.set("MAILGUN_KEY", "key-123");
-      Deno.env.set("MAILGUN_FROM", "noreply@example.com");
-      Deno.env.set("MAILGUN_EU", "false");
+    test("prefers DB email provider over host email config", async () => {
+      Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun-us");
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
       await updateEmailProvider("resend");
       await updateEmailApiKey("test-key");
       await updateEmailFromAddress("from@test.com");

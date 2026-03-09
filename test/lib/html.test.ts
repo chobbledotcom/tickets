@@ -1719,7 +1719,7 @@ describe("html", () => {
       emailApiKeyConfigured: false,
       emailFromAddress: "",
       globalWebhookUrl: "",
-      mailgunFrom: "",
+      hostEmailLabel: "",
     };
 
     test("shows square webhook configured message when key is set", () => {
@@ -1777,15 +1777,15 @@ describe("html", () => {
       expect(html).toContain('placeholder="tickets@yourdomain.com"');
     });
 
-    test("shows Host Mailgun account option when mailgunFrom is set", () => {
+    test("shows host email label when hostEmailLabel is set", () => {
       const html = adminSettingsPage(
         TEST_SESSION,
-        { ...defaultState, mailgunFrom: "noreply@example.com" },
+        { ...defaultState, hostEmailLabel: "Host Resend (noreply@example.com)" },
       );
-      expect(html).toContain("Host Mailgun account (noreply@example.com)");
+      expect(html).toContain("Host Resend (noreply@example.com)");
     });
 
-    test("shows default webhook option when globalWebhookUrl set but no mailgunFrom", () => {
+    test("shows default webhook option when globalWebhookUrl set but no hostEmailLabel", () => {
       const html = adminSettingsPage(
         TEST_SESSION,
         { ...defaultState, globalWebhookUrl: "https://hook.example.com/notify" },
@@ -1793,16 +1793,16 @@ describe("html", () => {
       expect(html).toContain("Default webhook (hook.example.com)");
     });
 
-    test("prefers mailgunFrom over globalWebhookUrl in no-selection option", () => {
+    test("prefers hostEmailLabel over globalWebhookUrl in no-selection option", () => {
       const html = adminSettingsPage(
         TEST_SESSION,
-        { ...defaultState, mailgunFrom: "noreply@example.com", globalWebhookUrl: "https://hook.example.com/notify" },
+        { ...defaultState, hostEmailLabel: "Host Resend (noreply@example.com)", globalWebhookUrl: "https://hook.example.com/notify" },
       );
-      expect(html).toContain("Host Mailgun account (noreply@example.com)");
+      expect(html).toContain("Host Resend (noreply@example.com)");
       expect(html).not.toContain("Default webhook");
     });
 
-    test("shows None disabled when neither mailgunFrom nor globalWebhookUrl set", () => {
+    test("shows None disabled when neither hostEmailLabel nor globalWebhookUrl set", () => {
       const html = adminSettingsPage(TEST_SESSION, defaultState);
       expect(html).toContain("None (disabled)");
     });

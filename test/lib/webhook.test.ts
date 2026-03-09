@@ -488,11 +488,11 @@ describe("webhook", () => {
       expect(fetchSpy.calls.length).toBe(0);
     });
 
-    test("excludes WEBHOOK_URL when env mailgun is configured", async () => {
+    test("excludes WEBHOOK_URL when host email is configured", async () => {
       Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
-      Deno.env.set("MAILGUN_KEY", "key-123");
-      Deno.env.set("MAILGUN_FROM", "noreply@example.com");
-      Deno.env.set("MAILGUN_EU", "false");
+      Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun-us");
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
 
       await sendRegistrationWebhooks(
         [makeEntry({ webhook_url: "https://event-hook.com" })],
@@ -502,16 +502,16 @@ describe("webhook", () => {
       expect(fetchSpy.calls.length).toBe(1);
       const [url] = fetchSpy.calls[0].args as [string, RequestInit];
       expect(url).toBe("https://event-hook.com");
-      Deno.env.delete("MAILGUN_KEY");
-      Deno.env.delete("MAILGUN_FROM");
-      Deno.env.delete("MAILGUN_EU");
+      Deno.env.delete("HOST_EMAIL_PROVIDER");
+      Deno.env.delete("HOST_EMAIL_API_KEY");
+      Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
     });
 
-    test("sends no webhooks when env mailgun is set and no per-event URLs", async () => {
+    test("sends no webhooks when host email is set and no per-event URLs", async () => {
       Deno.env.set("WEBHOOK_URL", "https://global-hook.com");
-      Deno.env.set("MAILGUN_KEY", "key-123");
-      Deno.env.set("MAILGUN_FROM", "noreply@example.com");
-      Deno.env.set("MAILGUN_EU", "false");
+      Deno.env.set("HOST_EMAIL_PROVIDER", "mailgun-us");
+      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
+      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
 
       await sendRegistrationWebhooks(
         [makeEntry({ webhook_url: "" })],
@@ -519,9 +519,9 @@ describe("webhook", () => {
       );
 
       expect(fetchSpy.calls.length).toBe(0);
-      Deno.env.delete("MAILGUN_KEY");
-      Deno.env.delete("MAILGUN_FROM");
-      Deno.env.delete("MAILGUN_EU");
+      Deno.env.delete("HOST_EMAIL_PROVIDER");
+      Deno.env.delete("HOST_EMAIL_API_KEY");
+      Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
     });
 
     test("includes WEBHOOK_URL when email provider is cleared", async () => {

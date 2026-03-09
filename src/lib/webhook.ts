@@ -5,7 +5,7 @@
 
 import { compact, unique } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
-import { getEnvMailgunConfig, sendRegistrationEmails } from "#lib/email.ts";
+import { getHostEmailConfig, sendRegistrationEmails } from "#lib/email.ts";
 import { getEmailProviderFromDb } from "#lib/db/settings.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
@@ -141,8 +141,8 @@ export const sendRegistrationWebhooks = async (
 ): Promise<void> => {
   const envWebhookUrl = getEnv("WEBHOOK_URL");
   const emailProvider = envWebhookUrl ? await getEmailProviderFromDb() : null;
-  const envMailgun = envWebhookUrl && !emailProvider ? getEnvMailgunConfig() : null;
-  const globalUrl = envWebhookUrl && !emailProvider && !envMailgun ? envWebhookUrl : null;
+  const hostEmail = envWebhookUrl && !emailProvider ? getHostEmailConfig() : null;
+  const globalUrl = envWebhookUrl && !emailProvider && !hostEmail ? envWebhookUrl : null;
   const webhookUrls = unique(compact([
     ...entries.map((e) => e.event.webhook_url || null),
     globalUrl,
