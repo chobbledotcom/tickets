@@ -308,6 +308,125 @@ describe("server (webhooks)", () => {
       }
     });
 
+    test("multi-ticket webhook processes items without per-item price", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Legacy Multi 1",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+      const event2 = await createTestEvent({
+        name: "Legacy Multi 2",
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      // Items without p field — legacy sessions created before per-item price tracking
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
+        valid: true,
+        event: {
+          id: "evt_legacy_multi",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_legacy_multi",
+              payment_status: "paid",
+              payment_intent: "pi_legacy_multi",
+              amount_total: 2000,
+              metadata: webhookMeta({
+                name: "Legacy User",
+                email: "legacy@example.com",
+                multi: "1",
+                items: JSON.stringify([
+                  { e: event1.id, q: 2 },
+                  { e: event2.id, q: 1 },
+                ]),
+              }),
+            },
+          },
+        },
+      }));
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.received).toBe(true);
+        expect(json.processed).toBe(true);
+
+        // Verify attendees were created for both events
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees1 = await getAttendeesRaw(event1.id);
+        const attendees2 = await getAttendeesRaw(event2.id);
+        expect(attendees1.length).toBe(1);
+        expect(attendees1[0]?.quantity).toBe(2);
+        expect(attendees2.length).toBe(1);
+        expect(attendees2[0]?.quantity).toBe(1);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("multi-ticket webhook without per-item prices refunds when amount too low", async () => {
+      await setupStripe();
+
+      const event1 = await createTestEvent({
+        name: "Underpaid Multi",
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
+        valid: true,
+        event: {
+          id: "evt_underpaid",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_underpaid",
+              payment_status: "paid",
+              payment_intent: "pi_underpaid",
+              amount_total: 100, // Far less than expected 500
+              metadata: webhookMeta({
+                name: "Underpaid User",
+                email: "underpaid@example.com",
+                multi: "1",
+                items: JSON.stringify([{ e: event1.id, q: 1 }]),
+              }),
+            },
+          },
+        },
+      }));
+
+      const mockRefund = stub(stripeApi, "refundPayment", () => Promise.resolve({ id: "re_test" } as unknown as Awaited<
+        ReturnType<typeof stripeApi.refundPayment>
+      >));
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(false);
+        expect(json.error).toContain("price");
+      } finally {
+        mockVerify.restore();
+        mockRefund.restore();
+      }
+    });
+
     test("webhook returns error for invalid multi-ticket items", async () => {
       await setupStripe();
 
