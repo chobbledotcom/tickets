@@ -2404,6 +2404,106 @@ describe("server (webhooks)", () => {
         mockRefund.restore();
       }
     });
+
+    test("webhook single-ticket defaults email to empty when metadata email is not a string", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 1000,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
+        valid: true,
+        event: {
+          id: "evt_no_email_single",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_wh_no_email_single",
+              payment_status: "paid",
+              payment_intent: "pi_wh_no_email_single",
+              amount_total: 1000,
+              metadata: webhookMeta({
+                event_id: String(event.id),
+                name: "No Email Single",
+                email: 12345, // not a string -> undefined in extractSessionFromEvent -> "" in extractIntent
+                quantity: "1",
+              }),
+            },
+          },
+        },
+      }));
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+      } finally {
+        mockVerify.restore();
+      }
+    });
+
+    test("webhook multi-ticket defaults email to empty when metadata email is not a string", async () => {
+      await setupStripe();
+
+      const event = await createTestEvent({
+        maxAttendees: 50,
+        unitPrice: 500,
+      });
+
+      const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
+      const mockVerify = stub(stripePaymentProvider, "verifyWebhookSignature", () => Promise.resolve({
+        valid: true,
+        event: {
+          id: "evt_no_email_multi",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_wh_no_email_multi",
+              payment_status: "paid",
+              payment_intent: "pi_wh_no_email_multi",
+              amount_total: 500,
+              metadata: webhookMeta({
+                name: "No Email Multi",
+                email: true, // not a string -> undefined in extractSessionFromEvent -> "" in extractMultiIntent
+                multi: "1",
+                items: JSON.stringify([{ e: event.id, q: 1, p: 500 }]),
+              }),
+            },
+          },
+        },
+      }));
+
+      try {
+        const response = await handleRequest(
+          mockWebhookRequest(
+            {},
+            { "stripe-signature": "sig_valid" },
+          ),
+        );
+        expect(response.status).toBe(200);
+        const json = await response.json();
+        expect(json.processed).toBe(true);
+
+        const { getAttendeesRaw } = await import("#lib/db/attendees.ts");
+        const attendees = await getAttendeesRaw(event.id);
+        expect(attendees.length).toBe(1);
+      } finally {
+        mockVerify.restore();
+      }
+    });
   });
 
   describe("closes_at in payment processing", () => {
