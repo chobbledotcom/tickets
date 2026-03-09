@@ -60,6 +60,10 @@ type RawMultiItem = { e: number; q: number; p?: number };
 /** Multi-ticket item with p defaulted to 0 */
 type MultiItem = { e: number; q: number; p: number };
 
+/** User-facing message when the event price changed between checkout and payment */
+const PRICE_CHANGED_MESSAGE =
+  "The price for this event changed while you were completing payment.";
+
 /** Check if session is a multi-ticket session */
 const isMultiSession = (metadata: SessionMetadata): boolean =>
   metadata.multi === "1" && typeof metadata.items === "string";
@@ -353,7 +357,7 @@ const priceMismatchRefund = (
   logError({ code: ErrorCode.PAYMENT_SESSION, eventId, detail });
   return refundAndFail(
     session,
-    "The price for one or more events changed while you were completing payment.",
+    PRICE_CHANGED_MESSAGE,
     undefined,
     eventId,
   );
@@ -541,7 +545,7 @@ const processPaymentSession = async (
     });
     return refundAndFail(
       session,
-      "The price for this event changed while you were completing payment.",
+      PRICE_CHANGED_MESSAGE,
     );
   }
 
