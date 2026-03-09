@@ -50,7 +50,7 @@ import {
 } from "#routes/utils.ts";
 import { getEmailConfig, getHostEmailConfig } from "#lib/email.ts";
 import { extractContact, mergeEventFields, tryValidateTicketFields } from "#templates/fields.ts";
-import { checkoutPopupPage, reservationSuccessPage } from "#templates/payment.tsx";
+import { checkoutPopupPage, successPage } from "#templates/payment.tsx";
 import {
   buildMultiTicketEvent,
   homepagePage,
@@ -744,10 +744,9 @@ const handleReservedGet = async (request: Request): Promise<Response> => {
   const tokens = normalizedTokens.split("+").filter((t) => t.length > 0);
   const ticketUrl = tokens.length > 0 ? `/t/${tokens.join("+")}` : null;
   const inIframe = isIframeRequest(request.url);
-
   const fromEmail = tokens.length > 0 ? await getFromEmailIfConfigured() : "";
 
-  return htmlResponse(reservationSuccessPage(ticketUrl, inIframe, fromEmail));
+  return htmlResponse(successPage({ ticketUrl, inIframe, fromEmail }));
 };
 
 /** Create a slug route that dispatches single vs multi-ticket requests */

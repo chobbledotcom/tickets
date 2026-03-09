@@ -51,7 +51,7 @@ import {
   redirectResponse,
 } from "#routes/utils.ts";
 import { getFromEmailIfConfigured } from "#routes/public.ts";
-import { paymentCancelPage, paymentSuccessPage } from "#templates/payment.tsx";
+import { paymentCancelPage, successPage } from "#templates/payment.tsx";
 
 /** Raw multi-ticket item from metadata (p may be absent in old webhooks) */
 type RawMultiItem = { e: number; q: number; p?: number };
@@ -607,7 +607,7 @@ const processSessionAndRedirect = async (sessionId: string): Promise<Response> =
   // Already-processed session (no tokens available) - render directly
   const thankYouUrl =
     data.type === "single" ? result.event.thank_you_url : "";
-  return htmlResponse(paymentSuccessPage(thankYouUrl, null));
+  return htmlResponse(successPage({ ticketUrl: null, thankYouUrl, paid: true }));
 };
 
 /**
@@ -644,7 +644,7 @@ const renderSuccessFromTokens = async (tokensParam: string): Promise<Response> =
 
   const fromEmail = await getFromEmailIfConfigured();
 
-  return htmlResponse(paymentSuccessPage(thankYouUrl, ticketUrl, fromEmail));
+  return htmlResponse(successPage({ ticketUrl, thankYouUrl, paid: true, fromEmail }));
 };
 
 /**

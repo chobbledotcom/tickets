@@ -16,8 +16,7 @@ import {
   paymentCancelPage,
   paymentErrorPage,
   paymentPage,
-  paymentSuccessPage,
-  reservationSuccessPage,
+  successPage,
 } from "#templates/payment.tsx";
 import { eventFields } from "#templates/fields.ts";
 import { buildMultiTicketEvent, buildOgTags, multiTicketPage, notFoundPage, renderEventImage, temporaryErrorPage, ticketPage } from "#templates/public.tsx";
@@ -678,39 +677,51 @@ describe("html", () => {
     });
   });
 
-  describe("paymentSuccessPage", () => {
-    test("renders success message", () => {
-      const html = paymentSuccessPage("https://example.com/thanks", null);
+  describe("successPage", () => {
+    test("renders payment success message when paid", () => {
+      const html = successPage({ ticketUrl: null, thankYouUrl: "https://example.com/thanks", paid: true });
       expect(html).toContain("Payment Successful");
       expect(html).toContain("https://example.com/thanks");
     });
 
+    test("renders reservation success message when not paid", () => {
+      const html = successPage({ ticketUrl: "/t/abc123" });
+      expect(html).toContain("Ticket Reserved");
+      expect(html).toContain("Ticket reserved successfully.");
+      expect(html).not.toContain("Payment Successful");
+    });
+
     test("includes meta refresh redirect", () => {
-      const html = paymentSuccessPage("https://example.com/thanks", null);
+      const html = successPage({ ticketUrl: null, thankYouUrl: "https://example.com/thanks", paid: true });
       expect(html).toContain('http-equiv="refresh"');
       expect(html).toContain("3;url=https://example.com/thanks");
     });
 
     test("includes data-payment-result attribute for popup postMessage", () => {
-      const html = paymentSuccessPage("", null);
+      const html = successPage({ ticketUrl: null, paid: true });
       expect(html).toContain('data-payment-result="success"');
     });
 
+    test("excludes data-payment-result attribute when not paid", () => {
+      const html = successPage({ ticketUrl: null });
+      expect(html).not.toContain("data-payment-result");
+    });
+
     test("renders without redirect when thankYouUrl is empty", () => {
-      const html = paymentSuccessPage("", null);
+      const html = successPage({ ticketUrl: null, paid: true });
       expect(html).not.toContain('http-equiv="refresh"');
       expect(html).not.toContain("redirected");
     });
 
     test("renders ticket link when ticketUrl is provided", () => {
-      const html = paymentSuccessPage("", "/t/abc123+def456");
+      const html = successPage({ ticketUrl: "/t/abc123+def456", paid: true });
       expect(html).toContain('href="/t/abc123+def456"');
       expect(html).toContain('target="_blank"');
       expect(html).toContain("Click here to view your tickets");
     });
 
     test("renders both ticket link and redirect when both provided", () => {
-      const html = paymentSuccessPage("https://example.com/thanks", "/t/abc123");
+      const html = successPage({ ticketUrl: "/t/abc123", thankYouUrl: "https://example.com/thanks", paid: true });
       expect(html).toContain('href="/t/abc123"');
       expect(html).toContain("Click here to view your tickets");
       expect(html).toContain("https://example.com/thanks");
@@ -718,18 +729,40 @@ describe("html", () => {
     });
 
     test("does not render ticket link when ticketUrl is null", () => {
-      const html = paymentSuccessPage("", null);
+      const html = successPage({ ticketUrl: null, paid: true });
       expect(html).not.toContain("view your tickets");
     });
 
+    test("includes iframe-resizer child script in iframe mode", () => {
+      const html = successPage({ ticketUrl: "/t/abc123", inIframe: true });
+      expect(html).toContain("iframe-resizer-child.js");
+      expect(html).toContain('class="iframe"');
+    });
+
+    test("excludes iframe-resizer child script when not in iframe mode", () => {
+      const html = successPage({ ticketUrl: "/t/abc123" });
+      expect(html).not.toContain("iframe-resizer-child.js");
+      expect(html).not.toContain('class="iframe"');
+    });
+
+    test("includes scroll-into-view marker in iframe mode", () => {
+      const html = successPage({ ticketUrl: "/t/abc123", inIframe: true });
+      expect(html).toContain("data-scroll-into-view");
+    });
+
+    test("excludes scroll-into-view marker when not in iframe mode", () => {
+      const html = successPage({ ticketUrl: "/t/abc123" });
+      expect(html).not.toContain("data-scroll-into-view");
+    });
+
     test("shows email notice when fromEmail is provided", () => {
-      const html = paymentSuccessPage("", "/t/abc123", "tickets@example.com");
+      const html = successPage({ ticketUrl: "/t/abc123", paid: true, fromEmail: "tickets@example.com" });
       expect(html).toContain("tickets@example.com");
       expect(html).toContain("Junk/Spam");
     });
 
     test("does not show email notice when fromEmail is empty", () => {
-      const html = paymentSuccessPage("", "/t/abc123");
+      const html = successPage({ ticketUrl: "/t/abc123", paid: true });
       expect(html).not.toContain("Junk/Spam");
     });
   });
@@ -790,40 +823,16 @@ describe("html", () => {
     });
   });
 
-  describe("reservationSuccessPage", () => {
-    test("includes iframe-resizer child script in iframe mode", () => {
-      const html = reservationSuccessPage("/t/abc123", true);
-      expect(html).toContain("iframe-resizer-child.js");
-      expect(html).toContain('class="iframe"');
-    });
-
-    test("excludes iframe-resizer child script when not in iframe mode", () => {
-      const html = reservationSuccessPage("/t/abc123");
-      expect(html).not.toContain("iframe-resizer-child.js");
-      expect(html).not.toContain('class="iframe"');
-    });
-
-    test("includes scroll-into-view marker in iframe mode", () => {
-      const html = reservationSuccessPage("/t/abc123", true);
-      expect(html).toContain("data-scroll-into-view");
-    });
-
-    test("excludes scroll-into-view marker when not in iframe mode", () => {
-      const html = reservationSuccessPage("/t/abc123");
-      expect(html).not.toContain("data-scroll-into-view");
-    });
-
-    test("shows email notice when fromEmail is provided", () => {
-      const html = reservationSuccessPage("/t/abc123", false, "tickets@example.com");
+    test("shows email notice for reservation when fromEmail is provided", () => {
+      const html = successPage({ ticketUrl: "/t/abc123", fromEmail: "tickets@example.com" });
       expect(html).toContain("tickets@example.com");
       expect(html).toContain("Junk/Spam");
     });
 
-    test("does not show email notice when fromEmail is empty", () => {
-      const html = reservationSuccessPage("/t/abc123");
+    test("does not show email notice for reservation when fromEmail is empty", () => {
+      const html = successPage({ ticketUrl: "/t/abc123" });
       expect(html).not.toContain("Junk/Spam");
     });
-  });
 
   describe("paymentErrorPage", () => {
     test("renders error message", () => {
