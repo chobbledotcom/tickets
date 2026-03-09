@@ -294,22 +294,22 @@ export const adminEditAttendeePage = (
   );
 
 /**
- * Admin re-send webhook confirmation page
+ * Admin re-send notification confirmation page
  */
-export const adminResendWebhookPage = (
+export const adminResendNotificationPage = (
   { event, attendee }: { event: EventWithCount; attendee: Attendee },
   session: AdminSession,
   error?: string,
   returnUrl?: string,
 ): string =>
   String(
-    <Layout title={`Re-send Webhook: ${attendee.name}`}>
+    <Layout title={`Re-send Notification: ${attendee.name}`}>
       <AdminNav session={session} active="/admin/" />
         {error && <div class="error">{error}</div>}
 
         <article>
           <aside>
-            <p><strong>Note:</strong> This will re-send the registration webhook for this attendee to all configured webhook URLs.</p>
+            <p><strong>Note:</strong> This will re-send the registration notification for this attendee.</p>
           </aside>
         </article>
 
@@ -324,9 +324,9 @@ export const adminResendWebhookPage = (
           <p><strong>Registered:</strong> {new Date(attendee.created).toLocaleString()}</p>
         </article>
 
-        <p>To re-send the webhook for this attendee, you must type their name "{attendee.name}" into the box below:</p>
+        <p>To re-send the notification for this attendee, you must type their name "{attendee.name}" into the box below:</p>
 
-        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-webhook`}>
+        <CsrfForm action={`/admin/event/${event.id}/attendee/${attendee.id}/resend-notification`}>
           {returnUrl && <input type="hidden" name="return_url" value={returnUrl} />}
           <label for="confirm_name">Attendee name</label>
           <input
@@ -338,7 +338,7 @@ export const adminResendWebhookPage = (
             required
           />
           <button type="submit">
-            Re-send Webhook
+            Re-send Notification
           </button>
         </CsrfForm>
     </Layout>

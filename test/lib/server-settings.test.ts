@@ -113,6 +113,27 @@ describe("server (admin settings)", () => {
       expect(html).toContain('id="settings-theme"');
       expect(html).toContain('id="settings-reset-database"');
     });
+
+    test("shows 'None (disabled)' when WEBHOOK_URL is not set", async () => {
+      Deno.env.delete("WEBHOOK_URL");
+      const { cookie } = await loginAsAdmin();
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain("None (disabled)");
+    });
+
+    test("shows 'Default webhook (hostname)' when WEBHOOK_URL is set", async () => {
+      Deno.env.set("WEBHOOK_URL", "https://hooks.example.com/notify");
+      try {
+        const { cookie } = await loginAsAdmin();
+        const response = await awaitTestRequest("/admin/settings", { cookie });
+        const html = await response.text();
+        expect(html).toContain("Default webhook (hooks.example.com)");
+        expect(html).not.toContain("None (disabled)");
+      } finally {
+        Deno.env.delete("WEBHOOK_URL");
+      }
+    });
   });
 
   describe("POST /admin/settings", () => {
