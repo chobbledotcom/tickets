@@ -103,7 +103,6 @@ const pullZonePost = async (
 
 /** Request a free Let's Encrypt certificate for a hostname on a pull zone. */
 const loadFreeCertificate = async (
-  _pullZoneId: number,
   hostname: string,
 ): Promise<BunnyApiResult> => {
   const url =
@@ -147,7 +146,7 @@ const validateCustomDomainImpl = async (
     return hostnameResult;
   }
 
-  const certResult = await loadFreeCertificate(pullZoneId, hostname);
+  const certResult = await loadFreeCertificate(hostname);
   if (!certResult.ok) {
     logError({ code: ErrorCode.CDN_REQUEST, detail: certResult.error });
     return certResult;
