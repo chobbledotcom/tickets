@@ -16,6 +16,7 @@ import {
   squareWebhookFields,
   stripeKeyFields,
 } from "#templates/fields.ts";
+import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import { Layout } from "#templates/layout.tsx";
 import { AdminNav } from "#templates/admin/nav.tsx";
 
@@ -170,7 +171,7 @@ export const adminSettingsPage = (
 
         <CsrfForm action="/admin/settings/email-templates/confirmation" id="settings-email-tpl-confirmation">
             <h2>Confirmation Email Template</h2>
-          <p>Customize the registration confirmation email sent to attendees. Uses <a href="https://liquidjs.com/" target="_blank" rel="noopener">Liquid</a> template syntax. Leave blank to use the default template.</p>
+          <p>Customise the registration confirmation email sent to attendees. Uses <a href="https://liquidjs.com/" target="_blank" rel="noopener">Liquid</a> template syntax. Leave blank to use the default template.</p>
           <details>
             <summary>Available variables</summary>
             <table>
@@ -195,7 +196,7 @@ export const adminSettingsPage = (
             type="text"
             id="confirmation_subject"
             name="subject"
-            placeholder="Your tickets for {{ event_names }}"
+            placeholder={DEFAULT_TEMPLATES.confirmation.subject}
             value={s.confirmationTemplates.subject}
             autocomplete="off"
           />
@@ -204,32 +205,27 @@ export const adminSettingsPage = (
             id="confirmation_html"
             name="html"
             rows="8"
-            placeholder="Leave blank to use the default HTML template"
+            placeholder={DEFAULT_TEMPLATES.confirmation.html}
           >{s.confirmationTemplates.html}</textarea>
           <label for="confirmation_text">Plain Text Body</label>
           <textarea
             id="confirmation_text"
             name="text"
             rows="6"
-            placeholder="Leave blank to use the default plain text template"
+            placeholder={DEFAULT_TEMPLATES.confirmation.text}
           >{s.confirmationTemplates.text}</textarea>
           <button type="submit">Save Confirmation Template</button>
         </CsrfForm>
-        {(s.confirmationTemplates.subject || s.confirmationTemplates.html || s.confirmationTemplates.text) && (
-        <CsrfForm action="/admin/settings/email-templates/confirmation/reset" id="settings-email-tpl-confirmation-reset">
-          <button type="submit" class="secondary">Reset Confirmation Template to Default</button>
-        </CsrfForm>
-        )}
 
         <CsrfForm action="/admin/settings/email-templates/admin" id="settings-email-tpl-admin">
             <h2>Admin Notification Email Template</h2>
-          <p>Customize the notification email sent to the business email when a registration comes in. Leave blank to use the default template.</p>
+          <p>Customise the notification email sent to the business email when a registration comes in. Leave blank to use the default template.</p>
           <label for="admin_subject">Subject</label>
           <input
             type="text"
             id="admin_subject"
             name="subject"
-            placeholder="New registration: {{ attendee.name }} for {{ event_names }}"
+            placeholder={DEFAULT_TEMPLATES.admin.subject}
             value={s.adminTemplates.subject}
             autocomplete="off"
           />
@@ -238,22 +234,17 @@ export const adminSettingsPage = (
             id="admin_html"
             name="html"
             rows="8"
-            placeholder="Leave blank to use the default HTML template"
+            placeholder={DEFAULT_TEMPLATES.admin.html}
           >{s.adminTemplates.html}</textarea>
           <label for="admin_text">Plain Text Body</label>
           <textarea
             id="admin_text"
             name="text"
             rows="6"
-            placeholder="Leave blank to use the default plain text template"
+            placeholder={DEFAULT_TEMPLATES.admin.text}
           >{s.adminTemplates.text}</textarea>
           <button type="submit">Save Admin Notification Template</button>
         </CsrfForm>
-        {(s.adminTemplates.subject || s.adminTemplates.html || s.adminTemplates.text) && (
-        <CsrfForm action="/admin/settings/email-templates/admin/reset" id="settings-email-tpl-admin-reset">
-          <button type="submit" class="secondary">Reset Admin Template to Default</button>
-        </CsrfForm>
-        )}
 
         <CsrfForm action="/admin/settings/payment-provider" id="settings-payment-provider">
             <h2>Payment Provider</h2>

@@ -14,7 +14,6 @@ import { setCurrencyCodeForTest, resetCurrencyCode } from "#lib/currency.ts";
 import {
   invalidateSettingsCache,
   updateEmailTemplate,
-  resetEmailTemplate,
 } from "#lib/db/settings.ts";
 import { spy, stub } from "@std/testing/mock";
 import { map } from "#fp";
@@ -420,11 +419,11 @@ describe("email-renderer", () => {
       }
     });
 
-    test("resets to defaults after resetEmailTemplate", async () => {
+    test("resets to defaults after clearing custom template", async () => {
       await updateEmailTemplate("confirmation", "subject", "Custom Subject");
       invalidateSettingsCache();
 
-      await resetEmailTemplate("confirmation");
+      await updateEmailTemplate("confirmation", "subject", "");
       invalidateSettingsCache();
 
       const entries = [makeEntry()];

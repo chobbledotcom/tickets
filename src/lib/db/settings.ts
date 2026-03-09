@@ -822,7 +822,7 @@ const emailTemplateKey = (type: EmailTemplateType, format: EmailTemplateFormat):
 /** Max length for email templates */
 export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
 
-/** Get a custom email template. Returns null if not customized (use default). */
+/** Get a custom email template. Returns null if not customised (use default). */
 export const getEmailTemplate = (type: EmailTemplateType, format: EmailTemplateFormat): Promise<string | null> =>
   getSetting(emailTemplateKey(type, format));
 
@@ -842,15 +842,6 @@ export const getEmailTemplateSet = async (type: EmailTemplateType): Promise<{
     getEmailTemplate(type, "text"),
   ]);
   return { subject, html, text };
-};
-
-/** Delete all 3 parts of a custom email template (reset to defaults). */
-export const resetEmailTemplate = async (type: EmailTemplateType): Promise<void> => {
-  await Promise.all([
-    updateEmailTemplate(type, "subject", ""),
-    updateEmailTemplate(type, "html", ""),
-    updateEmailTemplate(type, "text", ""),
-  ]);
 };
 
 /** Get the custom domain from database. Returns null if not set. */
@@ -936,7 +927,6 @@ export const settingsApi = {
   getEmailTemplate,
   updateEmailTemplate,
   getEmailTemplateSet,
-  resetEmailTemplate,
   getCustomDomainFromDb,
   updateCustomDomain,
   getCustomDomainLastValidatedFromDb,

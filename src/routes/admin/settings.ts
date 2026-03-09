@@ -65,7 +65,6 @@ import {
   type EmailTemplateType,
   getEmailTemplateSet,
   updateEmailTemplate,
-  resetEmailTemplate,
   MAX_EMAIL_TEMPLATE_LENGTH,
 } from "#lib/db/settings.ts";
 import { getUserById, verifyUserPassword } from "#lib/db/users.ts";
@@ -866,19 +865,6 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
     return redirectWithSuccess("/admin/settings", `${label} email template updated`, formId);
   });
 
-/** Handle POST /admin/settings/email-templates/:type/reset - reset to defaults */
-const handleEmailTemplateResetPost = (type: EmailTemplateType) =>
-  settingsRoute(async () => {
-    await resetEmailTemplate(type);
-    const label = type === "confirmation" ? "Confirmation" : "Admin notification";
-    await logActivity(`${label} email template reset to default`);
-    return redirectWithSuccess(
-      "/admin/settings",
-      `${label} email template reset to default`,
-      `settings-email-tpl-${type}`,
-    );
-  });
-
 /** Handle POST /admin/settings/email-templates/preview - render template with sample data */
 const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
   withOwnerAuthForm(request, async (_session, form) => {
@@ -1030,8 +1016,6 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/email/test": handleEmailTestPost,
   "POST /admin/settings/email-templates/confirmation": handleEmailTemplatePost("confirmation"),
   "POST /admin/settings/email-templates/admin": handleEmailTemplatePost("admin"),
-  "POST /admin/settings/email-templates/confirmation/reset": handleEmailTemplateResetPost("confirmation"),
-  "POST /admin/settings/email-templates/admin/reset": handleEmailTemplateResetPost("admin"),
   "POST /admin/settings/email-templates/preview": handleEmailTemplatePreviewPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,

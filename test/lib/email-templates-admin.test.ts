@@ -45,28 +45,11 @@ describe("admin email templates", () => {
       await expectHtmlResponse(response, 200, "Confirmation Email Template", "Admin Notification Email Template");
     });
 
-    test("shows reset button when custom template is set", async () => {
-      await updateEmailTemplate("confirmation", "subject", "Custom subject");
-      invalidateSettingsCache();
-
+    test("shows default templates as placeholders", async () => {
       const response = await awaitTestRequest("/admin/settings", { cookie });
       const html = await response.text();
-      expect(html).toContain("Reset Confirmation Template to Default");
-    });
-
-    test("hides reset button when no custom template is set", async () => {
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).not.toContain("Reset Confirmation Template to Default");
-    });
-
-    test("shows admin reset button when custom admin template is set", async () => {
-      await updateEmailTemplate("admin", "subject", "Custom admin subject");
-      invalidateSettingsCache();
-
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).toContain("Reset Admin Template to Default");
+      expect(html).toContain("Your tickets for");
+      expect(html).toContain("New registration");
     });
   });
 
@@ -174,44 +157,6 @@ describe("admin email templates", () => {
       expect(response.status).toBe(302);
       const templates = await getEmailTemplateSet("admin");
       expect(templates.subject).toBe("New: {{ attendee.name }}");
-    });
-  });
-
-  describe("POST /admin/settings/email-templates/confirmation/reset", () => {
-    test("resets confirmation template to defaults", async () => {
-      await updateEmailTemplate("confirmation", "subject", "Custom");
-      await updateEmailTemplate("confirmation", "html", "<b>Custom</b>");
-      await updateEmailTemplate("confirmation", "text", "Custom text");
-      invalidateSettingsCache();
-
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/confirmation/reset", {
-          csrf_token: csrfToken,
-        }, cookie),
-      );
-
-      expect(response.status).toBe(302);
-      const templates = await getEmailTemplateSet("confirmation");
-      expect(templates.subject).toBeNull();
-      expect(templates.html).toBeNull();
-      expect(templates.text).toBeNull();
-    });
-  });
-
-  describe("POST /admin/settings/email-templates/admin/reset", () => {
-    test("resets admin template to defaults", async () => {
-      await updateEmailTemplate("admin", "subject", "Custom");
-      invalidateSettingsCache();
-
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/email-templates/admin/reset", {
-          csrf_token: csrfToken,
-        }, cookie),
-      );
-
-      expect(response.status).toBe(302);
-      const templates = await getEmailTemplateSet("admin");
-      expect(templates.subject).toBeNull();
     });
   });
 

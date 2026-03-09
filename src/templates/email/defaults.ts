@@ -1,6 +1,6 @@
 /**
  * Default Liquid email templates
- * These are the built-in templates used when the admin has not customized them.
+ * These are the built-in templates used when the admin has not customised them.
  */
 
 export const DEFAULT_CONFIRMATION_SUBJECT =
