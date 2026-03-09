@@ -73,6 +73,16 @@ export const CONFIG_KEYS = {
 } as const;
 
 /**
+ * Sentinel value rendered in password fields for configured secrets.
+ * The actual secret is never sent to the browser — only this placeholder.
+ * On form submission, if the value equals the sentinel, the update is skipped.
+ */
+export const MASK_SENTINEL = "••••••••";
+
+/** Check whether a submitted form value is the mask sentinel (i.e. unchanged) */
+export const isMaskSentinel = (value: string): boolean => value === MASK_SENTINEL;
+
+/**
  * In-memory settings cache. Loads all rows in a single query and
  * serves subsequent reads from memory until the TTL expires or a
  * write invalidates the cache.
@@ -757,6 +767,12 @@ export const getEmailProviderFromDb = (): Promise<string | null> =>
 export const updateEmailProvider = (provider: string): Promise<void> =>
   setOrDeleteSetting(CONFIG_KEYS.EMAIL_PROVIDER, provider);
 
+/** Check if an email API key has been configured in the database */
+export const hasEmailApiKey = async (): Promise<boolean> => {
+  const value = await getSetting(CONFIG_KEYS.EMAIL_API_KEY);
+  return value !== null;
+};
+
 /** Get email API key from database (decrypted). Returns null if not configured. */
 export const getEmailApiKeyFromDb = (): Promise<string | null> =>
   getEncryptedSetting(CONFIG_KEYS.EMAIL_API_KEY);
@@ -832,6 +848,7 @@ export const settingsApi = {
   updateHeaderImageUrl,
   getEmailProviderFromDb,
   updateEmailProvider,
+  hasEmailApiKey,
   getEmailApiKeyFromDb,
   updateEmailApiKey,
   getEmailFromAddressFromDb,

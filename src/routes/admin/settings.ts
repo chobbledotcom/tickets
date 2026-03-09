@@ -28,8 +28,10 @@ import {
   getTermsAndConditionsFromDb,
   getThemeFromDb,
   getTimezoneFromDb,
+  hasEmailApiKey,
   hasSquareToken,
   hasStripeKey,
+  isMaskSentinel,
   MAX_TERMS_LENGTH,
   setPaymentProvider,
   setStripeWebhookConfig,
@@ -58,7 +60,6 @@ import {
 } from "#lib/demo.ts";
 import { parseEmbedHosts, validateEmbedHosts } from "#lib/embed-hosts.ts";
 import {
-  type Field,
   setFormError,
   setFormSuccess,
   validateForm,
@@ -90,12 +91,6 @@ import { adminSettingsPage } from "#templates/admin/settings.tsx";
 import {
   type ChangePasswordFormValues,
   changePasswordFields,
-  type SquareTokenFormValues,
-  type SquareWebhookFormValues,
-  type StripeKeyFormValues,
-  squareAccessTokenFields,
-  squareWebhookFields,
-  stripeKeyFields,
 } from "#templates/fields.ts";
 
 /** Build the webhook URL from the configured domain */
@@ -124,6 +119,7 @@ const getSettingsPageState = async () => {
     phonePrefix,
     headerImageUrl,
     emailProvider,
+    emailApiKeyConfigured,
     emailFromAddress,
   ] = await Promise.all([
     hasStripeKey(),
@@ -140,6 +136,7 @@ const getSettingsPageState = async () => {
     getPhonePrefixFromDb(),
     getHeaderImageUrlFromDb(),
     getEmailProviderFromDb(),
+    hasEmailApiKey(),
     getEmailFromAddressFromDb(),
   ]);
   return {
@@ -159,6 +156,7 @@ const getSettingsPageState = async () => {
     headerImageUrl: headerImageUrl ?? "",
     storageEnabled: isStorageEnabled(),
     emailProvider: emailProvider ?? "",
+    emailApiKeyConfigured,
     emailFromAddress: emailFromAddress ?? "",
     globalWebhookUrl: getEnv("WEBHOOK_URL") ?? "",
   };
@@ -197,19 +195,6 @@ const settingsRoute =
     withOwnerAuthForm(request, (session, form) =>
       handler(form, settingsPageWithError(session), session),
     );
-
-/** Validate form and return values, or an error response */
-const validateSettingsForm = async <T>(
-  form: URLSearchParams,
-  fields: Field[],
-  errorPage: ErrorPageFn,
-  formId: string,
-): Promise<{ values: T } | { response: Response }> => {
-  const result = validateForm<T>(form, fields);
-  if (result.valid) return { values: result.values };
-  const response = await errorPage(result.error, 400, formId);
-  return { response };
-};
 
 /**
  * Handle GET /admin/settings - owner only
@@ -355,15 +340,34 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  const validated = await validateSettingsForm<StripeKeyFormValues>(
-    form,
-    stripeKeyFields,
-    errorPage,
-    "settings-stripe",
-  );
-  if ("response" in validated) return validated.response;
+  const stripeSecretKey = (form.get("stripe_secret_key") || "").trim();
 
-  const { stripe_secret_key: stripeSecretKey } = validated.values;
+  // Sentinel means "keep existing" — no-op
+  if (isMaskSentinel(stripeSecretKey)) {
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Stripe settings unchanged",
+      "settings-stripe",
+    );
+  }
+
+  // Require a key when none is configured
+  if (!stripeSecretKey && !(await hasStripeKey())) {
+    return errorPage(
+      "Stripe Secret Key is required",
+      400,
+      "settings-stripe",
+    );
+  }
+
+  // Empty with existing key = no change
+  if (!stripeSecretKey) {
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Stripe settings unchanged",
+      "settings-stripe",
+    );
+  }
 
   // Set up webhook endpoint automatically
   const webhookUrl = getWebhookUrl();
@@ -410,19 +414,29 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  const validated = await validateSettingsForm<SquareTokenFormValues>(
-    form,
-    squareAccessTokenFields,
-    errorPage,
-    "settings-square",
-  );
-  if ("response" in validated) return validated.response;
-
-  const { square_access_token: accessToken, square_location_id: locationId } =
-    validated.values;
+  const accessToken = (form.get("square_access_token") || "").trim();
+  const locationId = (form.get("square_location_id") || "").trim();
   const sandbox = form.get("square_sandbox") === "on";
 
-  await updateSquareAccessToken(accessToken);
+  if (!locationId) {
+    return errorPage("Location ID is required", 400, "settings-square");
+  }
+
+  // Require a token when none is configured
+  if (!accessToken && !(await hasSquareToken())) {
+    return errorPage(
+      "Square Access Token is required",
+      400,
+      "settings-square",
+    );
+  }
+
+  // Only update the token if it's not the sentinel (i.e. user entered a new value)
+  if (!isMaskSentinel(accessToken) && accessToken) {
+    await updateSquareAccessToken(accessToken);
+  }
+
+  // Always allow updating non-secret fields
   await updateSquareLocationId(locationId);
   await updateSquareSandbox(sandbox);
 
@@ -441,17 +455,27 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/square-webhook - owner only
  */
 const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
-  const validated = await validateSettingsForm<SquareWebhookFormValues>(
-    form,
-    squareWebhookFields,
-    errorPage,
-    "settings-square-webhook",
-  );
-  if ("response" in validated) return validated.response;
+  const signatureKey = (form.get("square_webhook_signature_key") || "").trim();
 
-  const { square_webhook_signature_key: signatureKey } = validated.values;
+  // Sentinel means "keep existing" — no-op
+  if (isMaskSentinel(signatureKey)) {
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Square webhook settings unchanged",
+      "settings-square-webhook",
+    );
+  }
+
+  if (!signatureKey) {
+    return errorPage(
+      "Webhook Signature Key is required",
+      400,
+      "settings-square-webhook",
+    );
+  }
 
   await updateSquareWebhookSignatureKey(signatureKey);
+
 
   await logActivity("Square webhook signature key configured");
   return redirectWithSuccess(
@@ -738,7 +762,7 @@ const handleEmailPost = settingsRoute(async (form, errorPage) => {
   }
 
   await updateEmailProvider(provider);
-  if (apiKey) await updateEmailApiKey(apiKey);
+  if (apiKey && !isMaskSentinel(apiKey)) await updateEmailApiKey(apiKey);
   if (fromAddress) await updateEmailFromAddress(fromAddress);
   await logActivity(`Email provider set to ${provider}`);
   return redirectWithSuccess("/admin/settings", "Email settings updated", "settings-email");

@@ -2,6 +2,7 @@
  * Admin settings page template
  */
 
+import { MASK_SENTINEL } from "#lib/db/settings.ts";
 import { EMAIL_PROVIDER_LABELS, VALID_EMAIL_PROVIDERS } from "#lib/email.ts";
 import { CsrfForm, renderFields } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
@@ -35,6 +36,7 @@ export type SettingsPageState = {
   headerImageUrl: string;
   storageEnabled: boolean;
   emailProvider: string;
+  emailApiKeyConfigured: boolean;
   emailFromAddress: string;
   globalWebhookUrl: string;
 };
@@ -134,6 +136,7 @@ export const adminSettingsPage = (
             id="email_api_key"
             name="email_api_key"
             placeholder="Enter API key"
+            value={s.emailApiKeyConfigured ? MASK_SENTINEL : undefined}
             autocomplete="off"
           />
           <label for="email_from_address">From Address</label>
@@ -197,7 +200,7 @@ export const adminSettingsPage = (
               : "No Stripe key is configured. Enter your Stripe secret key to enable Stripe payments."}
           </p>
           <p><small><a href="/admin/guide#payment-setup">Where do I find this?</a></small></p>
-          <Raw html={renderFields(stripeKeyFields)} />
+          <Raw html={renderFields(stripeKeyFields, s.stripeKeyConfigured ? { stripe_secret_key: MASK_SENTINEL } : {})} />
           <button type="submit">Update Stripe Key</button>
           {s.stripeKeyConfigured && (
             <button type="button" id="stripe-test-btn" class="secondary">Test Connection</button>
@@ -215,7 +218,7 @@ export const adminSettingsPage = (
               : "No Square access token is configured. Enter your Square credentials to enable Square payments."}
           </p>
           <p><small><a href="/admin/guide#payment-setup">Where do I find these?</a></small></p>
-          <Raw html={renderFields(squareAccessTokenFields)} />
+          <Raw html={renderFields(squareAccessTokenFields, s.squareTokenConfigured ? { square_access_token: MASK_SENTINEL } : {})} />
           <label>
             <input
               type="checkbox"
@@ -253,7 +256,7 @@ export const adminSettingsPage = (
               ? "A webhook signature key is currently configured. Enter a new key below to replace it."
               : "No webhook signature key is configured. Follow the steps above to set one up."}
           </p>
-          <Raw html={renderFields(squareWebhookFields)} />
+          <Raw html={renderFields(squareWebhookFields, s.squareWebhookConfigured ? { square_webhook_signature_key: MASK_SENTINEL } : {})} />
           <button type="submit">Update Webhook Key</button>
         </CsrfForm>
         )}

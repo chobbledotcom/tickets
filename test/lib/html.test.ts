@@ -1716,6 +1716,7 @@ describe("html", () => {
       headerImageUrl: "",
       storageEnabled: false,
       emailProvider: "",
+      emailApiKeyConfigured: false,
       emailFromAddress: "",
       globalWebhookUrl: "",
     };
