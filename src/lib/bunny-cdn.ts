@@ -1,23 +1,75 @@
 /**
  * Bunny CDN pull zone API integration.
  * Adds a custom hostname to a pull zone and enables force SSL.
- * Only used when BUNNY_API_KEY and BUNNY_PULL_ZONE_ID env vars are set.
+ * Only used when BUNNY_API_KEY env var is set.
+ * The pull zone ID is discovered automatically by matching hostnames.
  */
 
-import { getBunnyApiKey, getBunnyPullZoneId } from "#lib/config.ts";
+import { getBunnyApiKey, getCdnHostname } from "#lib/config.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 
 const BUNNY_API_BASE = "https://api.bunny.net";
 
 type BunnyApiResult = { ok: true } | { ok: false; error: string };
 
+interface BunnyHostname {
+  Value: string;
+}
+
+interface BunnyPullZone {
+  Id: number;
+  Hostnames: BunnyHostname[];
+}
+
+interface BunnyPullZoneListResponse {
+  Items: BunnyPullZone[];
+  HasMoreItems: boolean;
+}
+
+/**
+ * Find the pull zone ID by searching pull zones for the CDN hostname
+ * (ALLOWED_DOMAIN with .bunny.run replaced by .b-cdn.net).
+ */
+const findPullZoneIdImpl = async (): Promise<
+  { ok: true; id: number } | { ok: false; error: string }
+> => {
+  const cdnHostname = getCdnHostname();
+  const response = await fetch(
+    `${BUNNY_API_BASE}/pullzone?search=${encodeURIComponent(cdnHostname)}`,
+    { headers: { AccessKey: getBunnyApiKey() } },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    return {
+      ok: false,
+      error: `List pull zones failed (${response.status}): ${text}`,
+    };
+  }
+
+  const data: BunnyPullZoneListResponse = await response.json();
+  const zone = data.Items.find((z) =>
+    z.Hostnames.some((h) => h.Value === cdnHostname)
+  );
+
+  if (!zone) {
+    return {
+      ok: false,
+      error: `No pull zone found with hostname ${cdnHostname}`,
+    };
+  }
+
+  return { ok: true, id: zone.Id };
+};
+
 /** POST to a Bunny CDN pull zone endpoint with JSON body. */
 const pullZonePost = async (
+  pullZoneId: number,
   action: string,
   body: Record<string, unknown>,
   label: string,
 ): Promise<BunnyApiResult> => {
-  const url = `${BUNNY_API_BASE}/pullzone/${getBunnyPullZoneId()}/${action}`;
+  const url = `${BUNNY_API_BASE}/pullzone/${pullZoneId}/${action}`;
 
   const response = await fetch(url, {
     method: "POST",
@@ -38,7 +90,16 @@ const pullZonePost = async (
 const validateCustomDomainImpl = async (
   hostname: string,
 ): Promise<BunnyApiResult> => {
+  const zoneResult = await bunnyCdnApi.findPullZoneId();
+  if (!zoneResult.ok) {
+    logError({ code: ErrorCode.CDN_REQUEST, detail: zoneResult.error });
+    return zoneResult;
+  }
+
+  const pullZoneId = zoneResult.id;
+
   const hostnameResult = await pullZonePost(
+    pullZoneId,
     "addHostname",
     { Hostname: hostname },
     "Add hostname",
@@ -49,6 +110,7 @@ const validateCustomDomainImpl = async (
   }
 
   const sslResult = await pullZonePost(
+    pullZoneId,
     "setForceSSL",
     { Hostname: hostname, ForceSSL: true },
     "Set force SSL",
@@ -64,6 +126,7 @@ const validateCustomDomainImpl = async (
 /** Stubbable API for testing */
 export const bunnyCdnApi = {
   validateCustomDomain: validateCustomDomainImpl,
+  findPullZoneId: findPullZoneIdImpl,
 };
 
 /** Validate a custom domain (delegates to bunnyCdnApi for testability). */
