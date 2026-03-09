@@ -2522,6 +2522,47 @@ describe("server (admin settings)", () => {
       );
     });
 
+    test("empty Stripe key with existing key is a no-op", async () => {
+      const { getStripeSecretKeyFromDb } = await import("#lib/db/settings.ts");
+      await setPaymentProvider("stripe");
+
+      await withMocks(
+        () =>
+          stub(stripeApi, "setupWebhookEndpoint", () =>
+            Promise.resolve({
+              success: true,
+              endpointId: "we_test_123",
+              secret: "whsec_test_secret",
+            }),
+          ),
+        async () => {
+          const { cookie, csrfToken } = await loginAsAdmin();
+
+          // Configure a Stripe key first
+          await handleRequest(
+            mockFormRequest(
+              "/admin/settings/stripe",
+              { stripe_secret_key: "sk_test_keep_me", csrf_token: csrfToken },
+              cookie,
+            ),
+          );
+
+          // Submit empty — should preserve existing key
+          const response = await handleRequest(
+            mockFormRequest(
+              "/admin/settings/stripe",
+              { stripe_secret_key: "", csrf_token: csrfToken },
+              cookie,
+            ),
+          );
+
+          expect(response.status).toBe(302);
+          expect(decodeURIComponent(response.headers.get("location")!)).toContain("unchanged");
+          expect(await getStripeSecretKeyFromDb()).toBe("sk_test_keep_me");
+        },
+      );
+    });
+
     test("empty Stripe key rejected when no key is configured", async () => {
       await setPaymentProvider("stripe");
       const { cookie, csrfToken } = await loginAsAdmin();

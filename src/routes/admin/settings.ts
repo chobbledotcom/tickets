@@ -352,10 +352,19 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   }
 
   // Require a key when none is configured
-  if (!stripeSecretKey) {
+  if (!stripeSecretKey && !(await hasStripeKey())) {
     return errorPage(
       "Stripe Secret Key is required",
       400,
+      "settings-stripe",
+    );
+  }
+
+  // Empty with existing key = no change
+  if (!stripeSecretKey) {
+    return redirectWithSuccess(
+      "/admin/settings",
+      "Stripe settings unchanged",
       "settings-stripe",
     );
   }
@@ -414,7 +423,7 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   }
 
   // Require a token when none is configured
-  if (!accessToken && !isMaskSentinel(accessToken) && !(await hasSquareToken())) {
+  if (!accessToken && !(await hasSquareToken())) {
     return errorPage(
       "Square Access Token is required",
       400,
@@ -466,6 +475,7 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
   }
 
   await updateSquareWebhookSignatureKey(signatureKey);
+
 
   await logActivity("Square webhook signature key configured");
   return redirectWithSuccess(
