@@ -835,8 +835,11 @@ const handleEmailTestPost = settingsRoute(async (_form, errorPage) => {
   return redirect("/admin/settings", `Test email sent (status ${status})`, true, { formId: "settings-email-test" });
 });
 
-/** Valid template types for form submissions */
-const VALID_TEMPLATE_TYPES: ReadonlySet<string> = new Set(["confirmation", "admin"]);
+/** Valid template types for form submissions — derived from the EmailTemplateType union */
+const VALID_TEMPLATE_TYPES: ReadonlySet<EmailTemplateType> = new Set<EmailTemplateType>(["confirmation", "admin"]);
+
+/** Type guard: narrows a string to EmailTemplateType after Set membership check */
+const isEmailTemplateType = (v: string): v is EmailTemplateType => VALID_TEMPLATE_TYPES.has(v as EmailTemplateType);
 
 /** Handle POST /admin/settings/email-templates/:type - save custom email templates */
 const handleEmailTemplatePost = (type: EmailTemplateType) =>
@@ -885,7 +888,7 @@ const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
     const template = form.get("template") ?? "";
     const format = form.get("format") ?? "html";
 
-    if (!VALID_TEMPLATE_TYPES.has(type)) {
+    if (!isEmailTemplateType(type)) {
       return jsonResponse({ error: "Invalid template type" }, 400);
     }
 
