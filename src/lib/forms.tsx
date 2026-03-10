@@ -5,6 +5,7 @@
 import { map, pipe, reduce } from "#fp";
 import { getCurrentCsrfToken } from "#lib/csrf.ts";
 import { appendIframeParam } from "#lib/iframe.ts";
+
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 
 const escapeHtml = (str: string): string =>
@@ -308,16 +309,15 @@ export const setFormError = (formId: string, message: string): void => {
  * Shows a success or error message when the form's id matches the current state.
  */
 export const CsrfForm = (
-  { action, inIframe, children, ...rest }: {
+  { action, children, ...rest }: {
     action: string;
-    inIframe?: boolean;
     children?: Child;
     id?: string;
     class?: string;
     enctype?: string;
   },
 ): JSX.Element => (
-  <form method="POST" action={appendIframeParam(action, inIframe ?? false)} {...rest}>
+  <form method="POST" action={appendIframeParam(action)} {...rest}>
     <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
     {rest.id && rest.id === _successStore.formId && <Raw html={renderSuccess(_successStore.message)} />}
     {rest.id && rest.id === _errorStore.formId && <Raw html={renderError(_errorStore.message)} />}

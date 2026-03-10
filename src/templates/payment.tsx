@@ -2,6 +2,7 @@
  * Payment page templates - success, cancel, error pages
  */
 
+import { getIframeMode } from "#lib/iframe.ts";
 import type { Attendee, Event } from "#lib/types.ts";
 import { escapeHtml, Layout } from "#templates/layout.tsx";
 
@@ -35,16 +36,15 @@ export const paymentPage = (
 export const successPage = ({
   ticketUrl,
   thankYouUrl = "",
-  inIframe = false,
   paid = false,
   fromEmail = "",
 }: {
   ticketUrl: string | null;
   thankYouUrl?: string;
-  inIframe?: boolean;
   paid?: boolean;
   fromEmail?: string;
 }): string => {
+  const inIframe = getIframeMode();
   const title = paid ? "Payment Successful" : "Ticket Reserved";
   const heading = paid ? "Payment Successful!" : "Ticket reserved successfully.";
   return String(

@@ -1,43 +1,55 @@
-import { describe, it as test } from "@std/testing/bdd";
+import { describe, it as test, afterEach } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { appendIframeParam, isIframeRequest } from "#lib/iframe.ts";
+import { appendIframeParam, detectIframeMode, getIframeMode } from "#lib/iframe.ts";
 
 describe("iframe", () => {
-  describe("isIframeRequest", () => {
-    test("returns true when iframe=true is present", () => {
-      expect(isIframeRequest("https://example.com/ticket/test?iframe=true")).toBe(true);
+  afterEach(() => {
+    detectIframeMode("https://example.com/");
+  });
+
+  describe("detectIframeMode", () => {
+    test("sets iframe mode to true when iframe=true is present", () => {
+      detectIframeMode("https://example.com/ticket/test?iframe=true");
+      expect(getIframeMode()).toBe(true);
     });
 
-    test("returns false when iframe param is absent", () => {
-      expect(isIframeRequest("https://example.com/ticket/test")).toBe(false);
+    test("sets iframe mode to false when iframe param is absent", () => {
+      detectIframeMode("https://example.com/ticket/test");
+      expect(getIframeMode()).toBe(false);
     });
 
-    test("returns false when iframe param has a different value", () => {
-      expect(isIframeRequest("https://example.com/ticket/test?iframe=false")).toBe(false);
+    test("sets iframe mode to false when iframe param has a different value", () => {
+      detectIframeMode("https://example.com/ticket/test?iframe=false");
+      expect(getIframeMode()).toBe(false);
     });
 
-    test("returns true with additional query params", () => {
-      expect(isIframeRequest("https://example.com/ticket/test?foo=bar&iframe=true")).toBe(true);
+    test("sets iframe mode to true with additional query params", () => {
+      detectIframeMode("https://example.com/ticket/test?foo=bar&iframe=true");
+      expect(getIframeMode()).toBe(true);
     });
   });
 
   describe("appendIframeParam", () => {
-    test("appends ?iframe=true when inIframe is true and no existing query", () => {
-      expect(appendIframeParam("/ticket/test", true)).toBe("/ticket/test?iframe=true");
+    test("appends ?iframe=true when in iframe mode and no existing query", () => {
+      detectIframeMode("https://example.com/?iframe=true");
+      expect(appendIframeParam("/ticket/test")).toBe("/ticket/test?iframe=true");
     });
 
-    test("appends &iframe=true when inIframe is true and query exists", () => {
-      expect(appendIframeParam("/ticket/reserved?tokens=abc", true)).toBe(
+    test("appends &iframe=true when in iframe mode and query exists", () => {
+      detectIframeMode("https://example.com/?iframe=true");
+      expect(appendIframeParam("/ticket/reserved?tokens=abc")).toBe(
         "/ticket/reserved?tokens=abc&iframe=true",
       );
     });
 
-    test("returns url unchanged when inIframe is false", () => {
-      expect(appendIframeParam("/ticket/test", false)).toBe("/ticket/test");
+    test("returns url unchanged when not in iframe mode", () => {
+      detectIframeMode("https://example.com/");
+      expect(appendIframeParam("/ticket/test")).toBe("/ticket/test");
     });
 
-    test("returns url with existing query unchanged when inIframe is false", () => {
-      expect(appendIframeParam("/ticket/reserved?tokens=abc", false)).toBe(
+    test("returns url with existing query unchanged when not in iframe mode", () => {
+      detectIframeMode("https://example.com/");
+      expect(appendIframeParam("/ticket/reserved?tokens=abc")).toBe(
         "/ticket/reserved?tokens=abc",
       );
     });

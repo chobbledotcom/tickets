@@ -1,6 +1,7 @@
-import { beforeAll, describe, it as test } from "@std/testing/bdd";
+import { afterEach, beforeAll, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
+import { detectIframeMode } from "#lib/iframe.ts";
 import {
   CsrfForm,
   type Field,
@@ -1184,18 +1185,15 @@ describe("forms", () => {
       setFormError("", "");
     });
 
-    test("appends ?iframe=true to action when inIframe is true", () => {
-      const html = String(CsrfForm({ action: "/ticket/test", inIframe: true }));
+    test("appends ?iframe=true to action when iframe mode is active", () => {
+      detectIframeMode("https://example.com/?iframe=true");
+      const html = String(CsrfForm({ action: "/ticket/test" }));
       expect(html).toContain('action="/ticket/test?iframe=true"');
+      detectIframeMode("https://example.com/");
     });
 
-    test("does not append iframe param when inIframe is false", () => {
-      const html = String(CsrfForm({ action: "/ticket/test", inIframe: false }));
-      expect(html).toContain('action="/ticket/test"');
-      expect(html).not.toContain("iframe");
-    });
-
-    test("does not append iframe param when inIframe is omitted", () => {
+    test("does not append iframe param when iframe mode is inactive", () => {
+      detectIframeMode("https://example.com/");
       const html = String(CsrfForm({ action: "/ticket/test" }));
       expect(html).toContain('action="/ticket/test"');
       expect(html).not.toContain("iframe");

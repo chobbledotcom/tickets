@@ -7,6 +7,7 @@ import {
   isValidContentType,
   normalizeHostname,
 } from "#routes";
+import { detectIframeMode } from "#lib/iframe.ts";
 import { redirect, redirectResponse, temporaryErrorResponse } from "#routes/utils.ts";
 import {
   createTestDb,
@@ -324,18 +325,21 @@ describe("server (misc)", () => {
       expect(response.headers.get("location")).toBe("/ticket/test");
     });
 
-    test("appends iframe=true when inIframe is true", () => {
-      const response = redirectResponse("/ticket/reserved?tokens=abc", { inIframe: true });
+    test("appends iframe=true when iframe mode is active", () => {
+      detectIframeMode("https://example.com/?iframe=true");
+      const response = redirectResponse("/ticket/reserved?tokens=abc");
       expect(response.headers.get("location")).toBe("/ticket/reserved?tokens=abc&iframe=true");
+      detectIframeMode("https://example.com/");
     });
 
-    test("does not append iframe param when inIframe is false", () => {
-      const response = redirectResponse("/ticket/test", { inIframe: false });
+    test("does not append iframe param when iframe mode is inactive", () => {
+      detectIframeMode("https://example.com/");
+      const response = redirectResponse("/ticket/test");
       expect(response.headers.get("location")).toBe("/ticket/test");
     });
 
-    test("sets cookie header when cookie option is provided", () => {
-      const response = redirectResponse("/admin", { cookie: "session=abc; Path=/" });
+    test("sets cookie header when cookie is provided", () => {
+      const response = redirectResponse("/admin", "session=abc; Path=/");
       expect(response.headers.get("set-cookie")).toBe("session=abc; Path=/");
     });
   });

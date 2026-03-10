@@ -18,12 +18,9 @@ import { getCachedSession, setCachedSession } from "#lib/session-context.ts";
 import { nowMs } from "#lib/now.ts";
 import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { isIframeRequest, appendIframeParam } from "#lib/iframe.ts";
+import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
 import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
 import { notFoundPage, temporaryErrorPage } from "#templates/public.tsx";
-
-// Re-export for use by other modules
-export { isIframeRequest };
 
 // Re-export for use by other route modules
 export { generateSecureToken };
@@ -198,28 +195,25 @@ export const temporaryErrorResponse = (): Response =>
  * Respond with checkout: popup page in iframe mode, 302 redirect otherwise.
  * Stripe Checkout cannot run inside iframes, so we show a page that opens
  * the checkout URL in a popup window instead.
+ * Reads iframe mode from the per-request store (set by detectIframeMode).
  */
-export const checkoutResponse = (checkoutUrl: string, inIframe: boolean): Response =>
-  inIframe ? htmlResponse(checkoutPopupPage(checkoutUrl)) : redirectResponse(checkoutUrl);
-
-/** Options for redirectResponse */
-type RedirectResponseOpts = { cookie?: string; inIframe?: boolean };
+export const checkoutResponse = (checkoutUrl: string): Response =>
+  getIframeMode() ? htmlResponse(checkoutPopupPage(checkoutUrl)) : redirectResponse(checkoutUrl);
 
 /**
  * Create bare 302 redirect response (no message).
  * Use for external URLs, setup flow, public pages, and other cases
  * where the target page doesn't render success/error banners.
  * For admin redirects that should show a message, use `redirect` instead.
- * When inIframe is true, appends ?iframe=true to the target URL.
+ * Automatically appends ?iframe=true when the current request is in iframe mode.
  */
-export const redirectResponse = (url: string, opts?: RedirectResponseOpts): Response => {
-  const location = appendIframeParam(url, opts?.inIframe ?? false);
+export const redirectResponse = (url: string, cookie?: string): Response => {
   const headers: HeadersInit = {
-    location,
+    location: appendIframeParam(url),
     "content-type": "text/html; charset=utf-8",
   };
-  if (opts?.cookie) {
-    headers["set-cookie"] = opts.cookie;
+  if (cookie) {
+    headers["set-cookie"] = cookie;
   }
   return new Response(null, { status: 302, headers });
 };
@@ -243,7 +237,7 @@ export const redirect = (
     u.searchParams.set("form", opts.formId);
     u.hash = opts.formId;
   }
-  return redirectResponse(u.pathname + u.search + u.hash, { cookie: opts?.cookie });
+  return redirectResponse(u.pathname + u.search + u.hash, opts?.cookie);
 };
 
 /**
