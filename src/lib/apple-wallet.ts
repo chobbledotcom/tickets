@@ -16,15 +16,17 @@ import { zipSync } from "fflate";
 export type PassData = {
   /** Unique token identifying this ticket */
   serialNumber: string;
-  /** Platform/domain name shown on the pass */
+  /** Platform/domain name shown on the pass header */
   organizationName: string;
-  /** Accessibility description */
+  /** VoiceOver accessibility description for the pass */
   description: string;
-  /** Event details */
+  /** Event name displayed in the primary field */
   eventName: string;
+  /** ISO 8601 date used for relevantDate and secondary field */
   eventDate: string;
+  /** Venue shown in secondary field */
   eventLocation: string;
-  /** Booking date for daily events (null for standard events) */
+  /** Selected date for daily/recurring events (null for one-off events) */
   attendeeDate: string | null;
   /** Ticket quantity and price (in minor units, e.g. pence) */
   quantity: number;
