@@ -18,7 +18,8 @@ import { getCachedSession, setCachedSession } from "#lib/session-context.ts";
 import { nowMs } from "#lib/now.ts";
 import type { AdminLevel, AdminSession, EventWithCount } from "#lib/types.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { paymentErrorPage } from "#templates/payment.tsx";
+import { appendIframeParam, getIframeMode } from "#lib/iframe.ts";
+import { checkoutPopupPage, paymentErrorPage } from "#templates/payment.tsx";
 import { notFoundPage, temporaryErrorPage } from "#templates/public.tsx";
 
 // Re-export for use by other route modules
@@ -191,14 +192,24 @@ export const temporaryErrorResponse = (): Response =>
   htmlResponse(temporaryErrorPage(), 503);
 
 /**
+ * Respond with checkout: popup page in iframe mode, 302 redirect otherwise.
+ * Stripe Checkout cannot run inside iframes, so we show a page that opens
+ * the checkout URL in a popup window instead.
+ * Reads iframe mode from the per-request store (set by detectIframeMode).
+ */
+export const checkoutResponse = (checkoutUrl: string): Response =>
+  getIframeMode() ? htmlResponse(checkoutPopupPage(checkoutUrl)) : redirectResponse(checkoutUrl);
+
+/**
  * Create bare 302 redirect response (no message).
  * Use for external URLs, setup flow, public pages, and other cases
  * where the target page doesn't render success/error banners.
  * For admin redirects that should show a message, use `redirect` instead.
+ * Automatically appends ?iframe=true when the current request is in iframe mode.
  */
 export const redirectResponse = (url: string, cookie?: string): Response => {
   const headers: HeadersInit = {
-    location: url,
+    location: appendIframeParam(url),
     "content-type": "text/html; charset=utf-8",
   };
   if (cookie) {

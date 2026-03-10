@@ -4,6 +4,8 @@
 
 import { map, pipe, reduce } from "#fp";
 import { getCurrentCsrfToken } from "#lib/csrf.ts";
+import { appendIframeParam } from "#lib/iframe.ts";
+
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 
 const escapeHtml = (str: string): string =>
@@ -315,7 +317,7 @@ export const CsrfForm = (
     enctype?: string;
   },
 ): JSX.Element => (
-  <form method="POST" action={action} {...rest}>
+  <form method="POST" action={appendIframeParam(action)} {...rest}>
     <input type="hidden" name="csrf_token" value={getCurrentCsrfToken()} />
     {rest.id && rest.id === _successStore.formId && <Raw html={renderSuccess(_successStore.message)} />}
     {rest.id && rest.id === _errorStore.formId && <Raw html={renderError(_errorStore.message)} />}
