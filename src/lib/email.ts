@@ -78,73 +78,22 @@ export const getHostEmailConfig = (): EmailConfig | null => {
   return { provider, apiKey, fromAddress };
 };
 
-/** Build provider-specific request: [url, extra-headers, body] */
-type ProviderRequest = (config: EmailConfig, msg: EmailMessage) => [string, Record<string, string>, unknown];
+type Headers = Record<string, string>;
+type ProviderRequest = (config: EmailConfig, msg: EmailMessage) => [url: string, headers: Headers, body: unknown];
 
-const resendAttachments = (msg: EmailMessage) =>
-  msg.attachments?.map((a) => ({ filename: a.filename, content: a.content }));
-
-const resendRequest: ProviderRequest = (config, msg) => [
-  "https://api.resend.com/emails",
-  { "Authorization": `Bearer ${config.apiKey}` },
-  {
-    from: config.fromAddress,
-    to: [msg.to],
-    reply_to: msg.replyTo,
-    subject: msg.subject,
-    html: msg.html,
-    text: msg.text,
-    attachments: resendAttachments(msg),
-  },
+const provider = (
+  url: string | ((config: EmailConfig) => string),
+  headers: (apiKey: string) => Headers,
+  body: (config: EmailConfig, msg: EmailMessage) => unknown,
+): ProviderRequest => (config, msg) => [
+  typeof url === "string" ? url : url(config),
+  headers(config.apiKey),
+  body(config, msg),
 ];
 
-const postmarkAttachments = (msg: EmailMessage) =>
-  msg.attachments?.map((a) => ({
-    Name: a.filename,
-    Content: a.content,
-    ContentType: a.contentType,
-  }));
+const bearerAuth = (apiKey: string): Headers => ({ Authorization: `Bearer ${apiKey}` });
 
-const postmarkRequest: ProviderRequest = (config, msg) => [
-  "https://api.postmarkapp.com/email",
-  { "X-Postmark-Server-Token": config.apiKey, "Accept": "application/json" },
-  {
-    From: config.fromAddress,
-    To: msg.to,
-    ReplyTo: msg.replyTo,
-    Subject: msg.subject,
-    HtmlBody: msg.html,
-    TextBody: msg.text,
-    Attachments: postmarkAttachments(msg),
-  },
-];
-
-const sendgridAttachments = (msg: EmailMessage) =>
-  msg.attachments?.map((a) => ({
-    content: a.content,
-    filename: a.filename,
-    type: a.contentType,
-    disposition: "attachment",
-  }));
-
-const sendgridRequest: ProviderRequest = (config, msg) => [
-  "https://api.sendgrid.com/v3/mail/send",
-  { "Authorization": `Bearer ${config.apiKey}` },
-  {
-    personalizations: [{ to: [{ email: msg.to }] }],
-    from: { email: config.fromAddress },
-    reply_to: msg.replyTo ? { email: msg.replyTo } : undefined,
-    subject: msg.subject,
-    content: [
-      { type: "text/plain", value: msg.text },
-      { type: "text/html", value: msg.html },
-    ],
-    attachments: sendgridAttachments(msg),
-  },
-];
-
-const mailgunRequest = (host: string): ProviderRequest => (config, msg) => {
-  const domain = config.fromAddress.split("@")[1];
+const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
   const form = new FormData();
   form.append("from", config.fromAddress);
   form.append("to", msg.to);
@@ -156,19 +105,47 @@ const mailgunRequest = (host: string): ProviderRequest => (config, msg) => {
     const bytes = Uint8Array.from(atob(a.content), (c) => c.charCodeAt(0));
     form.append("attachment", new Blob([bytes], { type: a.contentType }), a.filename);
   }
-  return [
-    `https://${host}/v3/${domain}/messages`,
-    { "Authorization": `Basic ${btoa("api:" + config.apiKey)}` },
-    form,
-  ];
+  return form;
 };
 
+const mailgun = (host: string) => provider(
+  (config) => `https://${host}/v3/${config.fromAddress.split("@")[1]}/messages`,
+  (apiKey) => ({ Authorization: `Basic ${btoa("api:" + apiKey)}` }),
+  mailgunBody,
+);
+
 const PROVIDERS = {
-  resend: resendRequest,
-  postmark: postmarkRequest,
-  sendgrid: sendgridRequest,
-  "mailgun-us": mailgunRequest("api.mailgun.net"),
-  "mailgun-eu": mailgunRequest("api.eu.mailgun.net"),
+  resend: provider("https://api.resend.com/emails", bearerAuth, (config, msg) => ({
+    from: config.fromAddress, to: [msg.to], reply_to: msg.replyTo,
+    subject: msg.subject, html: msg.html, text: msg.text,
+    attachments: msg.attachments?.map((a) => ({ filename: a.filename, content: a.content })),
+  })),
+  postmark: provider(
+    "https://api.postmarkapp.com/email",
+    (apiKey) => ({ "X-Postmark-Server-Token": apiKey, Accept: "application/json" }),
+    (config, msg) => ({
+      From: config.fromAddress, To: msg.to, ReplyTo: msg.replyTo,
+      Subject: msg.subject, HtmlBody: msg.html, TextBody: msg.text,
+      Attachments: msg.attachments?.map((a) => ({
+        Name: a.filename, Content: a.content, ContentType: a.contentType,
+      })),
+    }),
+  ),
+  sendgrid: provider("https://api.sendgrid.com/v3/mail/send", bearerAuth, (config, msg) => ({
+    personalizations: [{ to: [{ email: msg.to }] }],
+    from: { email: config.fromAddress },
+    reply_to: msg.replyTo ? { email: msg.replyTo } : undefined,
+    subject: msg.subject,
+    content: [
+      { type: "text/plain", value: msg.text },
+      { type: "text/html", value: msg.html },
+    ],
+    attachments: msg.attachments?.map((a) => ({
+      content: a.content, filename: a.filename, type: a.contentType, disposition: "attachment",
+    })),
+  })),
+  "mailgun-us": mailgun("api.mailgun.net"),
+  "mailgun-eu": mailgun("api.eu.mailgun.net"),
 } as const satisfies Record<string, ProviderRequest>;
 
 /** Union of all supported email provider keys, derived from the PROVIDERS map */

@@ -143,16 +143,7 @@ const safeRender = async (
       code: ErrorCode.EMAIL_TEMPLATE_RENDER,
       detail: `template render error (${type}/${format}): ${error instanceof Error ? error.message : String(error)}`,
     });
-    // If the custom template failed and it differs from the default, try the default
-    if (template !== fallbackTemplate) {
-      try {
-        return await renderTemplate(fallbackTemplate, data);
-      } catch {
-        // Even default failed — return a minimal fallback
-        return format === "subject" ? "Registration confirmation" : "";
-      }
-    }
-    return format === "subject" ? "Registration confirmation" : "";
+    return await renderTemplate(fallbackTemplate, data);
   }
 };
 

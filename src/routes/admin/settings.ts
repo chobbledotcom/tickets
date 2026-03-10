@@ -235,6 +235,27 @@ type SettingsFormHandler = (
   session: AuthSession,
 ) => Response | Promise<Response>;
 
+/**
+ * Result of processing a secret form field.
+ * - "unchanged": sentinel detected → keep existing value
+ * - "cleared": empty value submitted → caller decides (error if required, skip if optional)
+ * - "provided": new non-empty value submitted → update
+ */
+export type SecretFieldResult =
+  | { action: "unchanged" }
+  | { action: "cleared" }
+  | { action: "provided"; value: string };
+
+/** Extract and classify a secret field from a form submission.
+ * Consistently handles: trim → sentinel detection → empty vs provided.
+ */
+export const processSecretField = (form: URLSearchParams, fieldName: string): SecretFieldResult => {
+  const raw = (form.get(fieldName) ?? "").trim();
+  if (isMaskSentinel(raw)) return { action: "unchanged" };
+  if (!raw) return { action: "cleared" };
+  return { action: "provided", value: raw };
+};
+
 /** Owner auth form route that provides the errorPage helper and session */
 const settingsRoute =
   (handler: SettingsFormHandler) =>
@@ -385,27 +406,25 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  const stripeSecretKey = (form.get("stripe_secret_key") || "").trim();
+  const field = processSecretField(form, "stripe_secret_key");
 
-  // Sentinel means "keep existing" — no-op
-  if (isMaskSentinel(stripeSecretKey)) {
+  if (field.action === "unchanged") {
     return redirect(
       "/admin/settings", "Stripe settings unchanged", true,
       { formId: "settings-stripe" },
     );
   }
 
-  // Require a key when none is configured
-  if (!stripeSecretKey && !(await hasStripeKey())) {
-    return errorPage(
-      "Stripe Secret Key is required",
-      400,
-      "settings-stripe",
-    );
-  }
-
-  // Empty with existing key = no change
-  if (!stripeSecretKey) {
+  if (field.action === "cleared") {
+    // Require a key when none is configured
+    if (!(await hasStripeKey())) {
+      return errorPage(
+        "Stripe Secret Key is required",
+        400,
+        "settings-stripe",
+      );
+    }
+    // Empty with existing key = no change
     return redirect(
       "/admin/settings", "Stripe settings unchanged", true,
       { formId: "settings-stripe" },
@@ -417,7 +436,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   const existingEndpointId = await getStripeWebhookEndpointId();
 
   const webhookResult = await setupWebhookEndpoint(
-    stripeSecretKey,
+    field.value,
     webhookUrl,
     existingEndpointId,
   );
@@ -431,7 +450,7 @@ const handleAdminStripePost = settingsRoute(async (form, errorPage) => {
   }
 
   // Store both the Stripe key and webhook config
-  await updateStripeKey(stripeSecretKey);
+  await updateStripeKey(field.value);
   await setStripeWebhookConfig(webhookResult);
 
   // Auto-set payment provider to stripe when key is configured
@@ -456,7 +475,7 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  const accessToken = (form.get("square_access_token") || "").trim();
+  const tokenField = processSecretField(form, "square_access_token");
   const locationId = (form.get("square_location_id") || "").trim();
   const sandbox = form.get("square_sandbox") === "on";
 
@@ -465,7 +484,7 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
   }
 
   // Require a token when none is configured
-  if (!accessToken && !(await hasSquareToken())) {
+  if (tokenField.action === "cleared" && !(await hasSquareToken())) {
     return errorPage(
       "Square Access Token is required",
       400,
@@ -473,9 +492,9 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  // Only update the token if it's not the sentinel (i.e. user entered a new value)
-  if (!isMaskSentinel(accessToken) && accessToken) {
-    await updateSquareAccessToken(accessToken);
+  // Only update the token when a new value is provided
+  if (tokenField.action === "provided") {
+    await updateSquareAccessToken(tokenField.value);
   }
 
   // Always allow updating non-secret fields
@@ -496,17 +515,16 @@ const handleAdminSquarePost = settingsRoute(async (form, errorPage) => {
  * Handle POST /admin/settings/square-webhook - owner only
  */
 const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
-  const signatureKey = (form.get("square_webhook_signature_key") || "").trim();
+  const field = processSecretField(form, "square_webhook_signature_key");
 
-  // Sentinel means "keep existing" — no-op
-  if (isMaskSentinel(signatureKey)) {
+  if (field.action === "unchanged") {
     return redirect(
       "/admin/settings", "Square webhook settings unchanged", true,
       { formId: "settings-square-webhook" },
     );
   }
 
-  if (!signatureKey) {
+  if (field.action === "cleared") {
     return errorPage(
       "Webhook Signature Key is required",
       400,
@@ -514,8 +532,7 @@ const handleAdminSquareWebhookPost = settingsRoute(async (form, errorPage) => {
     );
   }
 
-  await updateSquareWebhookSignatureKey(signatureKey);
-
+  await updateSquareWebhookSignatureKey(field.value);
 
   await logActivity("Square webhook signature key configured");
   return redirect(
@@ -789,7 +806,7 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
 /** Handle POST /admin/settings/email - owner only */
 const handleEmailPost = settingsRoute(async (form, errorPage) => {
   const provider = (form.get("email_provider") ?? "").trim();
-  const apiKey = (form.get("email_api_key") ?? "").trim();
+  const apiKeyField = processSecretField(form, "email_api_key");
   const fromAddress = (form.get("email_from_address") ?? "").trim();
 
   if (provider === "") {
@@ -813,7 +830,7 @@ const handleEmailPost = settingsRoute(async (form, errorPage) => {
   }
 
   await updateEmailProvider(provider);
-  if (apiKey && !isMaskSentinel(apiKey)) await updateEmailApiKey(apiKey);
+  if (apiKeyField.action === "provided") await updateEmailApiKey(apiKeyField.value);
   if (fromAddress) await updateEmailFromAddress(fromAddress);
   await logActivity(`Email provider set to ${provider}`);
   return redirect("/admin/settings", "Email settings updated", true, { formId: "settings-email" });

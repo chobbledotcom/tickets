@@ -359,65 +359,20 @@ describe("email-renderer", () => {
       expect(result.text).toContain("Thanks for registering!");
     });
 
-    test("returns minimal fallback when both custom and default templates fail", async () => {
-      // Set a custom template so template !== fallbackTemplate
-      await updateEmailTemplate("confirmation", "subject", "Custom {{ event_names }}");
-      await updateEmailTemplate("confirmation", "html", "<p>Custom {{ event_names }}</p>");
-      await updateEmailTemplate("confirmation", "text", "Custom {{ event_names }}");
-      invalidateSettingsCache();
-
-      // Stub parseAndRender to always throw, so both custom and default fail
-      const parseAndRenderStub = stub(
-        Liquid.prototype,
-        "parseAndRender",
-        () => { throw new Error("engine broken"); },
-      );
-      const errorSpy = spy(console, "error");
-      try {
-        const entries = [makeEntry()];
-        const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
-        const result = await renderEmailContent("confirmation", data);
-
-        expect(result.subject).toBe("Registration confirmation");
-        expect(result.html).toBe("");
-        expect(result.text).toBe("");
-      } finally {
-        parseAndRenderStub.restore();
-        errorSpy.restore();
-      }
-    });
-
-    test("returns minimal fallback when default template fails (no custom set)", async () => {
-      // No custom template set, so template === fallbackTemplate
-      const parseAndRenderStub = stub(
-        Liquid.prototype,
-        "parseAndRender",
-        () => { throw new Error("engine broken"); },
-      );
-      const errorSpy = spy(console, "error");
-      try {
-        const entries = [makeEntry()];
-        const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
-        const result = await renderEmailContent("confirmation", data);
-
-        expect(result.subject).toBe("Registration confirmation");
-        expect(result.html).toBe("");
-        expect(result.text).toBe("");
-      } finally {
-        parseAndRenderStub.restore();
-        errorSpy.restore();
-      }
-    });
-
     test("logs non-Error thrown values as strings", async () => {
       await updateEmailTemplate("confirmation", "subject", "Custom {{ event_names }}");
       invalidateSettingsCache();
 
-      // Stub parseAndRender to throw a non-Error value
+      // Stub parseAndRender to throw a non-Error value on first call, then succeed
+      let callCount = 0;
+      const original = Liquid.prototype.parseAndRender;
       const parseAndRenderStub = stub(
         Liquid.prototype,
         "parseAndRender",
-        () => { throw "string error value"; },
+        function (this: InstanceType<typeof Liquid>, ...args: Parameters<typeof original>) {
+          if (callCount++ === 0) throw "string error value";
+          return original.apply(this, args);
+        },
       );
       const errorSpy = spy(console, "error");
       try {
