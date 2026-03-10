@@ -12,7 +12,7 @@ export const DEFAULT_CONFIRMATION_HTML =
 <p>You're confirmed for <strong>{{ event_names }}</strong>.</p>
 <table style="width:100%;border-collapse:collapse;margin:16px 0">
 <tr style="border-bottom:1px solid #ddd"><th style="text-align:left;padding:8px">Event</th><th style="padding:8px">Qty</th><th style="padding:8px">Price</th></tr>
-{% for entry in entries %}<tr><td>{{ entry.event.name }}{% if entry.attendee.date %} <small>({{ entry.attendee.date }})</small>{% endif %}</td><td>{{ entry.attendee.quantity }}</td><td>{% if entry.event.is_paid %}{{ entry.attendee.price_paid | currency }}{% endif %}</td></tr>
+{% for entry in entries %}<tr><td>{{ entry.event.name }}{% if entry.attendee.date %} <small>({{ entry.attendee.date }})</small>{% endif %}</td><td style="text-align:center">{{ entry.attendee.quantity }}</td><td style="text-align:center">{% if entry.event.is_paid %}{{ entry.attendee.price_paid | currency }}{% endif %}</td></tr>
 {% endfor %}</table>
 <p><a href="{{ ticket_url }}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;text-decoration:none;border-radius:4px">View your tickets</a></p>
 <p style="color:#666;font-size:14px">Or copy this link: {{ ticket_url }}</p>
@@ -42,7 +42,7 @@ export const DEFAULT_ADMIN_HTML =
 </ul>
 <table style="width:100%;border-collapse:collapse;margin:16px 0">
 <tr style="border-bottom:1px solid #ddd"><th style="text-align:left;padding:8px">Event</th><th style="padding:8px">Qty</th><th style="padding:8px">Price</th></tr>
-{% for entry in entries %}<tr><td>{{ entry.event.name }}{% if entry.attendee.date %} <small>({{ entry.attendee.date }})</small>{% endif %}</td><td>{{ entry.attendee.quantity }}</td><td>{% if entry.event.is_paid %}{{ entry.attendee.price_paid | currency }}{% endif %}</td></tr>
+{% for entry in entries %}<tr><td>{{ entry.event.name }}{% if entry.attendee.date %} <small>({{ entry.attendee.date }})</small>{% endif %}</td><td style="text-align:center">{{ entry.attendee.quantity }}</td><td style="text-align:center">{% if entry.event.is_paid %}{{ entry.attendee.price_paid | currency }}{% endif %}</td></tr>
 {% endfor %}</table>
 </div>`;
 
