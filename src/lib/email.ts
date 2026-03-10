@@ -16,7 +16,19 @@ import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { generateSvgTicket, type SvgTicketData } from "#lib/svg-ticket.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
-import type { RegistrationEntry } from "#lib/webhook.ts";
+import type { WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";
+
+/** Event data needed for email rendering (extends webhook event with display fields) */
+export type EmailEvent = WebhookEvent & {
+  date: string;
+  location: string;
+};
+
+/** Attendee + event pair for email rendering */
+export type EmailEntry = {
+  event: EmailEvent;
+  attendee: WebhookAttendee;
+};
 
 /** A base64-encoded email attachment */
 export type EmailAttachment = {
@@ -208,11 +220,11 @@ export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise
   }
 };
 
-/** Build SVG ticket data from a registration entry (non-PII only) */
-export const buildSvgTicketData = (entry: RegistrationEntry, currency: string): SvgTicketData => ({
+/** Build SVG ticket data from an email entry (non-PII only) */
+export const buildSvgTicketData = (entry: EmailEntry, currency: string): SvgTicketData => ({
   eventName: entry.event.name,
-  eventDate: "",
-  eventLocation: "",
+  eventDate: entry.event.date,
+  eventLocation: entry.event.location,
   attendeeDate: entry.attendee.date,
   quantity: entry.attendee.quantity,
   pricePaid: entry.attendee.price_paid,
@@ -222,11 +234,11 @@ export const buildSvgTicketData = (entry: RegistrationEntry, currency: string): 
 
 /** Generate SVG ticket attachments for all entries */
 export const buildTicketAttachments = async (
-  entries: RegistrationEntry[],
+  entries: EmailEntry[],
   currency: string,
 ): Promise<EmailAttachment[]> => {
   const ticketDataList = map(
-    (entry: RegistrationEntry) => buildSvgTicketData(entry, currency),
+    (entry: EmailEntry) => buildSvgTicketData(entry, currency),
   )(entries);
   const svgs = await Promise.all(
     ticketDataList.map((data) => generateSvgTicket(data)),
@@ -245,7 +257,7 @@ export const buildTicketAttachments = async (
  * Attaches one SVG ticket per entry to the confirmation email.
  */
 export const sendRegistrationEmails = async (
-  entries: RegistrationEntry[],
+  entries: EmailEntry[],
   currency: string,
 ): Promise<void> => {
   const attendeeEmail = entries[0]!.attendee.email;

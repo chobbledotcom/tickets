@@ -3,12 +3,11 @@
  */
 
 import { map } from "#fp";
-import type { RegistrationEntry } from "#lib/webhook.ts";
-export type { RegistrationEntry };
+import type { EmailEntry } from "#lib/email.ts";
 
 export type EmailContent = { subject: string; html: string; text: string };
 
 const listFormat = new Intl.ListFormat("en", { type: "conjunction" });
 
-export const eventNames = (entries: RegistrationEntry[]): string =>
-  listFormat.format(map(({ event }: RegistrationEntry) => event.name)(entries));
+export const eventNames = (entries: EmailEntry[]): string =>
+  listFormat.format(map(({ event }: EmailEntry) => event.name)(entries));

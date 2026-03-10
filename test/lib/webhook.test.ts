@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { spy, stub } from "@std/testing/mock";
+import type { EmailEntry, EmailEvent } from "#lib/email.ts";
 import {
   buildWebhookPayload,
   type RegistrationEntry,
@@ -14,8 +15,8 @@ import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import { createTestDbWithSetup, createTestEvent, resetDb } from "#test-utils";
 import { bracket, map } from "#fp";
 
-/** Helper to build a WebhookEvent with sensible defaults */
-const makeEvent = (overrides: Partial<WebhookEvent> = {}): WebhookEvent => ({
+/** Helper to build an EmailEvent with sensible defaults */
+const makeEvent = (overrides: Partial<EmailEvent> = {}): EmailEvent => ({
   id: 1,
   name: "Test Event",
   slug: "test-event",
@@ -24,6 +25,8 @@ const makeEvent = (overrides: Partial<WebhookEvent> = {}): WebhookEvent => ({
   attendee_count: 10,
   unit_price: 0,
   can_pay_more: false,
+  date: "",
+  location: "",
   ...overrides,
 });
 
@@ -43,17 +46,17 @@ const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee
   ...overrides,
 });
 
-/** Build a RegistrationEntry from event/attendee overrides */
+/** Build an EmailEntry from event/attendee overrides */
 const makeEntry = (
-  eventOverrides?: Partial<WebhookEvent>,
+  eventOverrides?: Partial<EmailEvent>,
   attendeeOverrides?: Partial<WebhookAttendee>,
-): RegistrationEntry => ({
+): EmailEntry => ({
   event: makeEvent(eventOverrides),
   attendee: makeAttendee(attendeeOverrides),
 });
 
 /** Default single-entry registration (free event, default attendee) */
-const defaultEntries = (): RegistrationEntry[] => [makeEntry()];
+const defaultEntries = (): EmailEntry[] => [makeEntry()];
 
 /** Extract first arg (as string) from each spy call */
 const spyFirstArgs = map((c: { args: unknown[] }) => c.args[0] as string);

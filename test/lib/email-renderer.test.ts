@@ -8,7 +8,8 @@ import {
   validateTemplate,
 } from "#lib/email-renderer.ts";
 import type { TemplateData } from "#lib/email-renderer.ts";
-import type { RegistrationEntry, WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";
+import type { EmailEntry, EmailEvent } from "#lib/email.ts";
+import type { WebhookAttendee } from "#lib/webhook.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils";
 import { setCurrencyCodeForTest, resetCurrencyCode } from "#lib/currency.ts";
 import {
@@ -19,7 +20,7 @@ import { spy, stub } from "@std/testing/mock";
 import { map } from "#fp";
 import { Liquid } from "liquidjs";
 
-const makeEvent = (overrides: Partial<WebhookEvent> = {}): WebhookEvent => ({
+const makeEvent = (overrides: Partial<EmailEvent> = {}): EmailEvent => ({
   id: 1,
   name: "Test Event",
   slug: "test-event",
@@ -28,6 +29,8 @@ const makeEvent = (overrides: Partial<WebhookEvent> = {}): WebhookEvent => ({
   attendee_count: 10,
   unit_price: 0,
   can_pay_more: false,
+  date: "",
+  location: "",
   ...overrides,
 });
 
@@ -47,9 +50,9 @@ const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee
 });
 
 const makeEntry = (
-  eventOverrides?: Partial<WebhookEvent>,
+  eventOverrides?: Partial<EmailEvent>,
   attendeeOverrides?: Partial<WebhookAttendee>,
-): RegistrationEntry => ({
+): EmailEntry => ({
   event: makeEvent(eventOverrides),
   attendee: makeAttendee(attendeeOverrides),
 });

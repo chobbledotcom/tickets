@@ -14,7 +14,8 @@ import {
   sendRegistrationEmails,
   sendTestEmail,
 } from "#lib/email.ts";
-import type { RegistrationEntry, WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";
+import type { EmailEntry, EmailEvent } from "#lib/email.ts";
+import type { WebhookAttendee } from "#lib/webhook.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils";
 import {
   invalidateSettingsCache,
@@ -25,7 +26,7 @@ import {
 import { updateBusinessEmail } from "#lib/business-email.ts";
 import { bracket, map } from "#fp";
 
-const makeEvent = (overrides: Partial<WebhookEvent> = {}): WebhookEvent => ({
+const makeEvent = (overrides: Partial<EmailEvent> = {}): EmailEvent => ({
   id: 1,
   name: "Test Event",
   slug: "test-event",
@@ -34,6 +35,8 @@ const makeEvent = (overrides: Partial<WebhookEvent> = {}): WebhookEvent => ({
   attendee_count: 10,
   unit_price: 0,
   can_pay_more: false,
+  date: "",
+  location: "",
   ...overrides,
 });
 
@@ -53,9 +56,9 @@ const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee
 });
 
 const makeEntry = (
-  eventOverrides?: Partial<WebhookEvent>,
+  eventOverrides?: Partial<EmailEvent>,
   attendeeOverrides?: Partial<WebhookAttendee>,
-): RegistrationEntry => ({
+): EmailEntry => ({
   event: makeEvent(eventOverrides),
   attendee: makeAttendee(attendeeOverrides),
 });
@@ -347,6 +350,15 @@ describe("email", () => {
     test("includes attendee date for daily events", () => {
       const data = buildSvgTicketData(makeEntry({}, { date: "2026-06-15" }), "GBP");
       expect(data.attendeeDate).toBe("2026-06-15");
+    });
+
+    test("includes event date and location from event", () => {
+      const data = buildSvgTicketData(
+        makeEntry({ date: "2026-07-01T19:00:00Z", location: "Town Hall" }),
+        "GBP",
+      );
+      expect(data.eventDate).toBe("2026-07-01T19:00:00Z");
+      expect(data.eventLocation).toBe("Town Hall");
     });
   });
 

@@ -887,6 +887,7 @@ const PREVIEW_BOOKINGS = [{
     id: 1, name: "Summer Concert", slug: "summer-concert",
     webhook_url: "", max_attendees: 100, attendee_count: 42,
     unit_price: 2500, can_pay_more: false,
+    date: "2026-07-15T19:00:00Z", location: "Town Hall",
   },
   attendee: {
     id: 1, name: "Jane Smith", email: "jane@example.com",
@@ -900,6 +901,7 @@ const PREVIEW_BOOKINGS = [{
     id: 2, name: "Workshop", slug: "workshop",
     webhook_url: "", max_attendees: 20, attendee_count: 8,
     unit_price: 0, can_pay_more: false,
+    date: "", location: "",
   },
   attendee: {
     id: 2, name: "Jane Smith", email: "jane@example.com",
