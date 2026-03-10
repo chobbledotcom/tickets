@@ -12,7 +12,7 @@ import type { EmailTemplateFormat, EmailTemplateType } from "#lib/db/settings.ts
 import { getEmailTemplateSet } from "#lib/db/settings.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { isPaidEvent } from "#lib/types.ts";
-import type { RegistrationEntry } from "#lib/webhook.ts";
+import type { EmailEntry } from "#lib/email.ts";
 import { DEFAULT_TEMPLATES } from "#templates/email/defaults.ts";
 import { eventNames } from "#templates/email/shared.ts";
 import type { EmailContent } from "#templates/email/shared.ts";
@@ -69,12 +69,12 @@ export type TemplateData = {
 
 /** Build the data object exposed to Liquid templates */
 export const buildTemplateData = (
-  entries: RegistrationEntry[],
+  entries: EmailEntry[],
   currency: string,
   ticketUrl: string,
 ): TemplateData => {
   const templateEntries: TemplateEntry[] = map(
-    ({ event, attendee }: RegistrationEntry): TemplateEntry => ({
+    ({ event, attendee }: EmailEntry): TemplateEntry => ({
       event: {
         name: event.name,
         slug: event.slug,

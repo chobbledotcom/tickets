@@ -5,7 +5,7 @@
 
 import { compact, unique } from "#fp";
 import { logActivity } from "#lib/db/activityLog.ts";
-import { sendRegistrationEmails } from "#lib/email.ts";
+import { type EmailEntry, sendRegistrationEmails } from "#lib/email.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { addPendingWork } from "#lib/pending-work.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
@@ -158,12 +158,12 @@ export const sendRegistrationWebhooks = async (
  * but complete before the edge runtime tears down the request context.
  */
 export const logAndNotifyRegistration = async (
-  event: WebhookEvent,
+  event: EmailEntry["event"],
   attendee: WebhookAttendee,
   currency: string,
 ): Promise<void> => {
   await logActivity(`Attendee registered for '${event.name}'`, event);
-  const entries = [{ event, attendee }];
+  const entries: EmailEntry[] = [{ event, attendee }];
   addPendingWork(sendRegistrationWebhooks(entries, currency));
   addPendingWork(sendRegistrationEmails(entries, currency));
 };
@@ -172,7 +172,7 @@ export const logAndNotifyRegistration = async (
  * Log and send consolidated webhook for multi-event registrations
  */
 export const logAndNotifyMultiRegistration = async (
-  entries: RegistrationEntry[],
+  entries: EmailEntry[],
   currency: string,
 ): Promise<void> => {
   for (const { event } of entries) {

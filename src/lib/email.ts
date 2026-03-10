@@ -3,7 +3,9 @@
  * Sends registration emails via HTTP email APIs (Resend, Postmark, SendGrid, Mailgun)
  */
 
+import { map } from "#fp";
 import { getBusinessEmailFromDb } from "#lib/business-email.ts";
+import { getAllowedDomain } from "#lib/config.ts";
 import {
   getEmailApiKeyFromDb,
   getEmailFromAddressFromDb,
@@ -12,8 +14,28 @@ import {
 import { buildTemplateData, renderEmailContent } from "#lib/email-renderer.ts";
 import { getEnv } from "#lib/env.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
+import { generateSvgTicket, type SvgTicketData } from "#lib/svg-ticket.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
-import type { RegistrationEntry } from "#lib/webhook.ts";
+import type { WebhookAttendee, WebhookEvent } from "#lib/webhook.ts";
+
+/** Event data needed for email rendering (extends webhook event with display fields) */
+export type EmailEvent = WebhookEvent & {
+  date: string;
+  location: string;
+};
+
+/** Attendee + event pair for email rendering */
+export type EmailEntry = {
+  event: EmailEvent;
+  attendee: WebhookAttendee;
+};
+
+/** A base64-encoded email attachment */
+export type EmailAttachment = {
+  filename: string;
+  content: string;
+  contentType: string;
+};
 
 export type EmailMessage = {
   to: string;
@@ -21,6 +43,7 @@ export type EmailMessage = {
   html: string;
   text: string;
   replyTo?: string;
+  attachments?: EmailAttachment[];
 };
 
 export type EmailConfig = {
@@ -78,6 +101,10 @@ const mailgunBody = (config: EmailConfig, msg: EmailMessage): FormData => {
   form.append("html", msg.html);
   form.append("text", msg.text);
   if (msg.replyTo) form.append("h:Reply-To", msg.replyTo);
+  for (const a of msg.attachments ?? []) {
+    const bytes = Uint8Array.from(atob(a.content), (c) => c.charCodeAt(0));
+    form.append("attachment", new Blob([bytes], { type: a.contentType }), a.filename);
+  }
   return form;
 };
 
@@ -91,6 +118,7 @@ const PROVIDERS = {
   resend: provider("https://api.resend.com/emails", bearerAuth, (config, msg) => ({
     from: config.fromAddress, to: [msg.to], reply_to: msg.replyTo,
     subject: msg.subject, html: msg.html, text: msg.text,
+    attachments: msg.attachments?.map((a) => ({ filename: a.filename, content: a.content })),
   })),
   postmark: provider(
     "https://api.postmarkapp.com/email",
@@ -98,6 +126,9 @@ const PROVIDERS = {
     (config, msg) => ({
       From: config.fromAddress, To: msg.to, ReplyTo: msg.replyTo,
       Subject: msg.subject, HtmlBody: msg.html, TextBody: msg.text,
+      Attachments: msg.attachments?.map((a) => ({
+        Name: a.filename, Content: a.content, ContentType: a.contentType,
+      })),
     }),
   ),
   sendgrid: provider("https://api.sendgrid.com/v3/mail/send", bearerAuth, (config, msg) => ({
@@ -109,6 +140,9 @@ const PROVIDERS = {
       { type: "text/plain", value: msg.text },
       { type: "text/html", value: msg.html },
     ],
+    attachments: msg.attachments?.map((a) => ({
+      content: a.content, filename: a.filename, type: a.contentType, disposition: "attachment",
+    })),
   })),
   "mailgun-us": mailgun("api.mailgun.net"),
   "mailgun-eu": mailgun("api.eu.mailgun.net"),
@@ -163,13 +197,44 @@ export const sendEmail = async (config: EmailConfig, msg: EmailMessage): Promise
   }
 };
 
+/** Build SVG ticket data from an email entry (non-PII only) */
+export const buildSvgTicketData = (entry: EmailEntry, currency: string): SvgTicketData => ({
+  eventName: entry.event.name,
+  eventDate: entry.event.date,
+  eventLocation: entry.event.location,
+  attendeeDate: entry.attendee.date,
+  quantity: entry.attendee.quantity,
+  pricePaid: entry.attendee.price_paid,
+  currency,
+  checkinUrl: `https://${getAllowedDomain()}/checkin/${entry.attendee.ticket_token}`,
+});
+
+/** Generate SVG ticket attachments for all entries */
+export const buildTicketAttachments = async (
+  entries: EmailEntry[],
+  currency: string,
+): Promise<EmailAttachment[]> => {
+  const ticketDataList = map(
+    (entry: EmailEntry) => buildSvgTicketData(entry, currency),
+  )(entries);
+  const svgs = await Promise.all(
+    ticketDataList.map((data) => generateSvgTicket(data)),
+  );
+  return svgs.map((svg, i) => ({
+    filename: entries.length === 1 ? "ticket.svg" : `ticket-${i + 1}.svg`,
+    content: btoa(svg),
+    contentType: "image/svg+xml",
+  }));
+};
+
 /**
  * Send registration confirmation + admin notification emails.
  * Entries is an array because one registration can cover multiple events.
  * Silently skips if email is not configured.
+ * Attaches one SVG ticket per entry to the confirmation email.
  */
 export const sendRegistrationEmails = async (
-  entries: RegistrationEntry[],
+  entries: EmailEntry[],
   currency: string,
 ): Promise<void> => {
   const attendeeEmail = entries[0]!.attendee.email;
@@ -183,9 +248,12 @@ export const sendRegistrationEmails = async (
   const replyTo = businessEmail || undefined;
   const data = buildTemplateData(entries, currency, ticketUrl);
 
-  const confirmation = await renderEmailContent("confirmation", data);
+  const [confirmation, attachments] = await Promise.all([
+    renderEmailContent("confirmation", data),
+    buildTicketAttachments(entries, currency),
+  ]);
   const promises: Promise<number | undefined>[] = [
-    sendEmail(config, { to: attendeeEmail, ...confirmation, replyTo }),
+    sendEmail(config, { to: attendeeEmail, ...confirmation, replyTo, attachments }),
   ];
 
   if (businessEmail) {

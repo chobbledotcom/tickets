@@ -33,10 +33,8 @@ import {
 } from "#lib/payments.ts";
 import type { ContactInfo, EventFields, EventWithCount, Group } from "#lib/types.ts";
 import { logDebug } from "#lib/logger.ts";
-import {
-  logAndNotifyMultiRegistration,
-  type RegistrationEntry,
-} from "#lib/webhook.ts";
+import type { EmailEntry } from "#lib/email.ts";
+import { logAndNotifyMultiRegistration } from "#lib/webhook.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   checkoutResponse,
@@ -673,7 +671,7 @@ const processMultiFreeReservation = async (
   contact: ContactInfo,
   date: string | null,
 ): Promise<{ success: true; tokens: string[] } | { success: false; error: string }> => {
-  const entries: RegistrationEntry[] = [];
+  const entries: EmailEntry[] = [];
   for (const { event, qty } of eventsWithQuantity(events, quantities)) {
     const eventDate = event.event_type === "daily" ? date : null;
     const result = await createAttendeeAtomic({ eventId: event.id, ...contact, quantity: qty, date: eventDate });
