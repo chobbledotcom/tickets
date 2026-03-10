@@ -83,6 +83,12 @@ export const CONFIG_KEYS = {
   CUSTOM_DOMAIN: "custom_domain",
   // Custom domain last validated timestamp (plaintext - ISO 8601 UTC)
   CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
+  // Apple Wallet configuration
+  APPLE_WALLET_PASS_TYPE_ID: "apple_wallet_pass_type_id",
+  APPLE_WALLET_TEAM_ID: "apple_wallet_team_id",
+  APPLE_WALLET_SIGNING_CERT: "apple_wallet_signing_cert",
+  APPLE_WALLET_SIGNING_KEY: "apple_wallet_signing_key",
+  APPLE_WALLET_WWDR_CERT: "apple_wallet_wwdr_cert",
 } as const;
 
 /**
@@ -874,6 +880,77 @@ export const getCustomDomainLastValidatedFromDb = (): Promise<string | null> =>
 export const updateCustomDomainLastValidated = (): Promise<void> =>
   setSetting(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, new Date().toISOString());
 
+/** Check if Apple Wallet is fully configured (all 5 settings present). */
+export const hasAppleWalletConfig = async (): Promise<boolean> => {
+  const [passTypeId, teamId, cert, key, wwdr] = await Promise.all([
+    getSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID),
+    getSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID),
+    getSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT),
+    getSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY),
+    getSetting(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT),
+  ]);
+  return passTypeId !== null && teamId !== null && cert !== null && key !== null && wwdr !== null;
+};
+
+/** Get Apple Wallet Pass Type ID (plaintext). Returns null if not configured. */
+export const getAppleWalletPassTypeIdFromDb = (): Promise<string | null> =>
+  getSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID);
+
+/** Update Apple Wallet Pass Type ID. Pass empty string to clear. */
+export const updateAppleWalletPassTypeId = (value: string): Promise<void> =>
+  setOrDeleteSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID, value);
+
+/** Get Apple Wallet Team ID (plaintext). Returns null if not configured. */
+export const getAppleWalletTeamIdFromDb = (): Promise<string | null> =>
+  getSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID);
+
+/** Update Apple Wallet Team ID. Pass empty string to clear. */
+export const updateAppleWalletTeamId = (value: string): Promise<void> =>
+  setOrDeleteSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID, value);
+
+/** Get Apple Wallet signing certificate PEM (decrypted). Returns null if not configured. */
+export const getAppleWalletSigningCertFromDb = (): Promise<string | null> =>
+  getEncryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT);
+
+/** Update Apple Wallet signing certificate PEM (encrypted at rest). */
+export const updateAppleWalletSigningCert = (pem: string): Promise<void> =>
+  updateEncryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT, pem);
+
+/** Get Apple Wallet signing private key PEM (decrypted). Returns null if not configured. */
+export const getAppleWalletSigningKeyFromDb = (): Promise<string | null> =>
+  getEncryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY);
+
+/** Update Apple Wallet signing private key PEM (encrypted at rest). */
+export const updateAppleWalletSigningKey = (pem: string): Promise<void> =>
+  updateEncryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY, pem);
+
+/** Get Apple WWDR intermediate certificate PEM (decrypted). Returns null if not configured. */
+export const getAppleWalletWwdrCertFromDb = (): Promise<string | null> =>
+  getEncryptedSetting(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT);
+
+/** Update Apple WWDR intermediate certificate PEM (encrypted at rest). */
+export const updateAppleWalletWwdrCert = (pem: string): Promise<void> =>
+  updateEncryptedSetting(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT, pem);
+
+/** Get all Apple Wallet config (decrypted) for pass generation. Returns null if incomplete. */
+export const getAppleWalletConfig = async (): Promise<{
+  passTypeId: string;
+  teamId: string;
+  signingCert: string;
+  signingKey: string;
+  wwdrCert: string;
+} | null> => {
+  const [passTypeId, teamId, signingCert, signingKey, wwdrCert] = await Promise.all([
+    getAppleWalletPassTypeIdFromDb(),
+    getAppleWalletTeamIdFromDb(),
+    getAppleWalletSigningCertFromDb(),
+    getAppleWalletSigningKeyFromDb(),
+    getAppleWalletWwdrCertFromDb(),
+  ]);
+  if (!passTypeId || !teamId || !signingCert || !signingKey || !wwdrCert) return null;
+  return { passTypeId, teamId, signingCert, signingKey, wwdrCert };
+};
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
@@ -947,4 +1024,16 @@ export const settingsApi = {
   updateCustomDomain,
   getCustomDomainLastValidatedFromDb,
   updateCustomDomainLastValidated,
+  hasAppleWalletConfig,
+  getAppleWalletPassTypeIdFromDb,
+  updateAppleWalletPassTypeId,
+  getAppleWalletTeamIdFromDb,
+  updateAppleWalletTeamId,
+  getAppleWalletSigningCertFromDb,
+  updateAppleWalletSigningCert,
+  getAppleWalletSigningKeyFromDb,
+  updateAppleWalletSigningKey,
+  getAppleWalletWwdrCertFromDb,
+  updateAppleWalletWwdrCert,
+  getAppleWalletConfig,
 };

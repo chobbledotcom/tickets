@@ -47,6 +47,14 @@ import {
   setStripeWebhookConfig,
   updateCustomDomain,
   updateCustomDomainLastValidated,
+  hasAppleWalletConfig,
+  getAppleWalletPassTypeIdFromDb,
+  getAppleWalletTeamIdFromDb,
+  updateAppleWalletPassTypeId,
+  updateAppleWalletTeamId,
+  updateAppleWalletSigningCert,
+  updateAppleWalletSigningKey,
+  updateAppleWalletWwdrCert,
   updateEmbedHosts,
   updateEmailApiKey,
   updateEmailFromAddress,
@@ -143,6 +151,9 @@ const getSettingsPageState = async () => {
     adminTemplates,
     customDomain,
     customDomainLastValidated,
+    appleWalletConfigured,
+    appleWalletPassTypeId,
+    appleWalletTeamId,
   ] = await Promise.all([
     hasStripeKey(),
     getPaymentProviderFromDb(),
@@ -165,6 +176,9 @@ const getSettingsPageState = async () => {
     getEmailTemplateSet("admin"),
     bunnyCdnConfigured ? getCustomDomainFromDb() : Promise.resolve(null),
     bunnyCdnConfigured ? getCustomDomainLastValidatedFromDb() : Promise.resolve(null),
+    hasAppleWalletConfig(),
+    getAppleWalletPassTypeIdFromDb(),
+    getAppleWalletTeamIdFromDb(),
   ]);
   return {
     stripeKeyConfigured,
@@ -206,6 +220,9 @@ const getSettingsPageState = async () => {
     customDomain: customDomain ?? "",
     customDomainLastValidated: customDomainLastValidated ?? "",
     cdnHostname: bunnyCdnConfigured ? getCdnHostname() : "",
+    appleWalletConfigured,
+    appleWalletPassTypeId: appleWalletPassTypeId ?? "",
+    appleWalletTeamId: appleWalletTeamId ?? "",
   };
 };
 
@@ -1037,6 +1054,61 @@ const handleCustomDomainValidatePost = settingsRoute(async (_form, errorPage) =>
 });
 
 /**
+ * Handle POST /admin/settings/apple-wallet - owner only
+ */
+const handleAppleWalletPost = settingsRoute(async (form, errorPage) => {
+  const passTypeId = `${form.get("apple_wallet_pass_type_id")}`.trim();
+  const teamId = `${form.get("apple_wallet_team_id")}`.trim();
+  const certField = processSecretField(form, "apple_wallet_signing_cert");
+  const keyField = processSecretField(form, "apple_wallet_signing_key");
+  const wwdrField = processSecretField(form, "apple_wallet_wwdr_cert");
+
+  // If everything is cleared, remove all settings
+  if (!passTypeId && !teamId && certField.action === "cleared" && keyField.action === "cleared" && wwdrField.action === "cleared") {
+    await Promise.all([
+      updateAppleWalletPassTypeId(""),
+      updateAppleWalletTeamId(""),
+      updateAppleWalletSigningCert(""),
+      updateAppleWalletSigningKey(""),
+      updateAppleWalletWwdrCert(""),
+    ]);
+    await logActivity("Apple Wallet configuration cleared");
+    return redirect("/admin/settings", "Apple Wallet configuration cleared", true, { formId: "settings-apple-wallet" });
+  }
+
+  if (!passTypeId) {
+    return errorPage("Pass Type ID is required", 400, "settings-apple-wallet");
+  }
+
+  if (!teamId) {
+    return errorPage("Team ID is required", 400, "settings-apple-wallet");
+  }
+
+  // For initial setup, require all three PEM fields
+  const isConfigured = await hasAppleWalletConfig();
+  if (!isConfigured) {
+    if (certField.action !== "provided") {
+      return errorPage("Signing certificate is required", 400, "settings-apple-wallet");
+    }
+    if (keyField.action !== "provided") {
+      return errorPage("Signing private key is required", 400, "settings-apple-wallet");
+    }
+    if (wwdrField.action !== "provided") {
+      return errorPage("WWDR certificate is required", 400, "settings-apple-wallet");
+    }
+  }
+
+  await updateAppleWalletPassTypeId(passTypeId);
+  await updateAppleWalletTeamId(teamId);
+  if (certField.action === "provided") await updateAppleWalletSigningCert(certField.value);
+  if (keyField.action === "provided") await updateAppleWalletSigningKey(keyField.value);
+  if (wwdrField.action === "provided") await updateAppleWalletWwdrCert(wwdrField.value);
+
+  await logActivity("Apple Wallet configuration updated");
+  return redirect("/admin/settings", "Apple Wallet settings updated", true, { formId: "settings-apple-wallet" });
+});
+
+/**
  * Handle POST /admin/settings/reset-database - owner only
  */
 const handleResetDatabasePost = settingsRoute(async (form, errorPage) => {
@@ -1077,5 +1149,6 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/email-templates/preview": handleEmailTemplatePreviewPost,
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
+  "POST /admin/settings/apple-wallet": handleAppleWalletPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

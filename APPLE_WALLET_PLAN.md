@@ -72,36 +72,7 @@ Maps directly to our existing `SvgTicketData` fields:
 
 ## PNG Image Strategy
 
-### The Problem
-
-Apple Wallet requires PNG images. We currently generate SVGs. Our existing SVG ticket is a composite document (text + QR code) designed for email — it doesn't map to Apple Wallet's image slots which are just branding images (logo, icon, strip), not full ticket renders.
-
-### What Images We Actually Need
-
-Apple Wallet passes render their own text layout from `pass.json` fields. The images are **branding only**:
-
-| Image | Purpose | Size | Source |
-|-------|---------|------|--------|
-| `icon.png` | Lock screen / notifications | 29×29 (+ @2x, @3x) | Static platform asset |
-| `logo.png` | Top-left corner of pass | ~160×50 (+ @2x, @3x) | Static platform asset OR event image |
-| `strip.png` | Banner behind primary fields | 375×98 (+ @2x, @3x) | Optional — event image if available |
-
-### Approach: Static Assets + Optional Event Image
-
-**icon.png / logo.png**: Ship as static assets bundled with the app. These are the platform's branding — they don't change per ticket. Store as base64-encoded constants or load from the filesystem/CDN at startup.
-
-**strip.png** (optional): If the event has an `image_url`, download it from Bunny CDN (already decrypted via `downloadImage()`), resize/crop to strip dimensions. If no event image, omit the strip — Apple Wallet handles this gracefully.
-
-### Image Resizing for strip.png
-
-For resizing event images to strip dimensions, options compatible with Bunny Edge (Deno-based):
-
-1. **`@aspect-build/pngs` / `pngjs`** — Pure JS PNG encode/decode. Sufficient for basic crop/resize of an already-decoded image.
-2. **`resvg-wasm`** — WASM-based SVG→PNG renderer ([deno.land/x/resvg_wasm](https://deno.land/x/resvg_wasm@0.2.0)). Useful if we wanted to render an SVG to PNG, but overkill for simple image resizing.
-3. **`@resvg/resvg-js`** — Higher-level resvg bindings ([github.com/thx/resvg-js](https://github.com/thx/resvg-js)). Has both WASM and native builds.
-4. **Skip resizing entirely** — Apple Wallet crops/scales images itself. We could serve the event image at a reasonable resolution and let iOS handle it.
-
-**Recommendation**: Start with **no resizing** — just serve existing event images as strip.png and let Apple handle scaling. Add resizing later only if the visual result is poor. For icon/logo, use pre-made static PNGs at the correct sizes.
+**v1: No images.** Apple Wallet passes work without images — the pass renders text fields from `pass.json` and the QR code. Images (icon, logo, strip) are branding-only and optional for functionality. We skip them entirely in v1 to keep the implementation simple. Images can be added later as static assets or admin-uploadable files.
 
 ## Signing
 
@@ -146,45 +117,40 @@ All stored encrypted in the database via the existing settings system.
 
 New files:
 - `src/lib/apple-wallet.ts` — Core pass generation logic
-  - `generatePassJson(event, attendee, domain)` → `pass.json` content
+  - `generatePassJson(data)` → `pass.json` content
   - `createManifest(files: Record<string, Uint8Array>)` → manifest with SHA-1 hashes
   - `signManifest(manifest, cert, key, wwdr)` → PKCS#7 signature bytes
-  - `buildPkpass(passJson, images, cert, key, wwdr)` → complete `.pkpass` Uint8Array
-- `src/lib/apple-wallet.test.ts` — Tests
+  - `buildPkpass(data, cert, key, wwdr)` → complete `.pkpass` Uint8Array (no images in v1)
+- `test/lib/apple-wallet.test.ts` — Tests
 
 Dependencies to add:
 - `npm:node-forge` (signing)
-- A ZIP library — `npm:fflate` (lightweight, pure JS, works everywhere) or `npm:jszip`
+- `npm:fflate` (lightweight, pure JS ZIP creation)
 
 ### Phase 2: Route + UI
 
-- `GET /pass/:token` route → generates and returns `.pkpass` with `Content-Type: application/vnd.apple.pkpass`
-- Add "Add to Apple Wallet" button to ticket view page (`/t/:tokens`)
-  - Use Apple's official badge artwork
-  - Only show on iOS/macOS or as a download link elsewhere
-- Update `src/routes/index.ts` with the new route
+- `GET /wallet/:token` route → generates `.pkpass` with `Content-Type: application/vnd.apple.pkpass`
+- CDN caching: set `Cache-Control` headers so the CDN caches generated passes
+- Add "Add to Apple Wallet" button/link to ticket view page (`/t/:tokens`)
+- Update `src/routes/index.ts` with the new route (lazy-loaded)
 
 ### Phase 3: Admin Settings
 
 - Add Apple Wallet configuration fields to `/admin/settings`:
   - Pass Type ID
   - Team ID
-  - Signing certificate (PEM textarea or file upload)
-  - Private key (PEM textarea or file upload)
+  - Signing certificate (PEM textarea)
+  - Private key (PEM textarea)
+  - WWDR certificate (PEM textarea)
 - Store encrypted in settings DB (existing pattern)
-- Wallet features only enabled when all four settings are configured
+- Wallet button only shown on ticket view when all settings are configured
 
-### Phase 4: Email Integration
+### Out of Scope (v1)
 
-- Attach `.pkpass` file to confirmation emails alongside existing SVG
-- MIME type: `application/vnd.apple.pkpass`
-- Filename: `ticket.pkpass`
-
-### Phase 5: Static Assets
-
-- Add pre-made PNG assets for icon and logo at required sizes
-- Either bundle as base64 constants or store on CDN
-- Consider: admin-uploadable logo/icon for per-deployment branding
+- **Images**: No icon, logo, or strip images. Pass renders text + QR only.
+- **Pass updates**: No push-based pass updates after check-in.
+- **Google Wallet**: Separate follow-up.
+- **Email attachment**: Can be added later.
 
 ## Data Flow
 
@@ -203,12 +169,12 @@ Attendee views /t/<token>
   → return .pkpass with correct Content-Type
 ```
 
-## Open Questions
+## Decisions
 
-1. **Event image as strip**: Do we want to use the event's uploaded image as the strip background? It would look great but adds complexity (format conversion, sizing). Could start without it.
-2. **Caching**: Should we cache generated `.pkpass` files? They're deterministic for a given ticket + settings combo. Could store on CDN.
-3. **Pass updates**: Apple Wallet supports push-based pass updates via a web service. Out of scope for v1 but worth noting — would allow marking passes as "used" after check-in.
-4. **Google Wallet**: Similar concept but different format (JWT-based, no signing certs needed, uses Google Pay API). Could be a follow-up.
+1. **No images in v1** — skip icon/logo/strip PNGs entirely
+2. **CDN caching** — set long `Cache-Control` on `/wallet/:token` responses; site already runs through CDN
+3. **Pass updates** — out of scope for v1
+4. **Google Wallet** — separate follow-up, handled later
 
 ## Dependencies Summary
 
@@ -217,4 +183,4 @@ Attendee views /t/<token>
 | `npm:node-forge` | PKCS#7 signing, SHA-1 | Yes (confirmed) |
 | `npm:fflate` | ZIP archive creation | Yes (pure JS) |
 
-No WASM or native dependencies required for the core flow. Image resizing (if needed later) would be the only part requiring WASM.
+No WASM or native dependencies required.
