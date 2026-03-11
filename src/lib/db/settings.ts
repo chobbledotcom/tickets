@@ -4,6 +4,7 @@
 
 import { lazyRef } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
+import { getEnv } from "#lib/env.ts";
 import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
 import {
   decrypt,
@@ -880,8 +881,28 @@ export const getCustomDomainLastValidatedFromDb = (): Promise<string | null> =>
 export const updateCustomDomainLastValidated = (): Promise<void> =>
   setSetting(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, new Date().toISOString());
 
-/** Check if Apple Wallet is fully configured (all 5 settings present). */
-export const hasAppleWalletConfig = async (): Promise<boolean> => {
+/** Apple Wallet configuration shape (used by both DB and env var sources) */
+type AppleWalletConfig = {
+  passTypeId: string;
+  teamId: string;
+  signingCert: string;
+  signingKey: string;
+  wwdrCert: string;
+};
+
+/** Read Apple Wallet config from environment variables. Returns null if not fully configured. */
+export const getHostAppleWalletConfig = (): AppleWalletConfig | null => {
+  const passTypeId = getEnv("APPLE_WALLET_PASS_TYPE_ID");
+  const teamId = getEnv("APPLE_WALLET_TEAM_ID");
+  const signingCert = getEnv("APPLE_WALLET_SIGNING_CERT");
+  const signingKey = getEnv("APPLE_WALLET_SIGNING_KEY");
+  const wwdrCert = getEnv("APPLE_WALLET_WWDR_CERT");
+  if (!passTypeId || !teamId || !signingCert || !signingKey || !wwdrCert) return null;
+  return { passTypeId, teamId, signingCert, signingKey, wwdrCert };
+};
+
+/** Check if Apple Wallet DB settings are fully configured (all 5 settings present). */
+export const hasAppleWalletDbConfig = async (): Promise<boolean> => {
   const [passTypeId, teamId, cert, key, wwdr] = await Promise.all([
     getSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID),
     getSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID),
@@ -891,6 +912,10 @@ export const hasAppleWalletConfig = async (): Promise<boolean> => {
   ]);
   return passTypeId !== null && teamId !== null && cert !== null && key !== null && wwdr !== null;
 };
+
+/** Check if Apple Wallet is configured (DB settings or env vars). */
+export const hasAppleWalletConfig = async (): Promise<boolean> =>
+  await hasAppleWalletDbConfig() || getHostAppleWalletConfig() !== null;
 
 /** Get Apple Wallet Pass Type ID (plaintext). Returns null if not configured. */
 export const getAppleWalletPassTypeIdFromDb = (): Promise<string | null> =>
@@ -932,14 +957,8 @@ export const getAppleWalletWwdrCertFromDb = (): Promise<string | null> =>
 export const updateAppleWalletWwdrCert = (pem: string): Promise<void> =>
   updateEncryptedSetting(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT, pem);
 
-/** Get all Apple Wallet config (decrypted) for pass generation. Returns null if incomplete. */
-export const getAppleWalletConfig = async (): Promise<{
-  passTypeId: string;
-  teamId: string;
-  signingCert: string;
-  signingKey: string;
-  wwdrCert: string;
-} | null> => {
+/** Get Apple Wallet config from DB (decrypted). Returns null if incomplete. */
+export const getAppleWalletDbConfig = async (): Promise<AppleWalletConfig | null> => {
   const [passTypeId, teamId, signingCert, signingKey, wwdrCert] = await Promise.all([
     getAppleWalletPassTypeIdFromDb(),
     getAppleWalletTeamIdFromDb(),
@@ -950,6 +969,10 @@ export const getAppleWalletConfig = async (): Promise<{
   if (!passTypeId || !teamId || !signingCert || !signingKey || !wwdrCert) return null;
   return { passTypeId, teamId, signingCert, signingKey, wwdrCert };
 };
+
+/** Get Apple Wallet config for pass generation. DB settings take priority, falls back to env vars. */
+export const getAppleWalletConfig = async (): Promise<AppleWalletConfig | null> =>
+  await getAppleWalletDbConfig() ?? getHostAppleWalletConfig();
 
 /**
  * Stubbable API for testing - allows mocking in ES modules
@@ -1025,6 +1048,8 @@ export const settingsApi = {
   getCustomDomainLastValidatedFromDb,
   updateCustomDomainLastValidated,
   hasAppleWalletConfig,
+  hasAppleWalletDbConfig,
+  getHostAppleWalletConfig,
   getAppleWalletPassTypeIdFromDb,
   updateAppleWalletPassTypeId,
   getAppleWalletTeamIdFromDb,
@@ -1036,4 +1061,5 @@ export const settingsApi = {
   getAppleWalletWwdrCertFromDb,
   updateAppleWalletWwdrCert,
   getAppleWalletConfig,
+  getAppleWalletDbConfig,
 };

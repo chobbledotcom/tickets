@@ -47,7 +47,8 @@ import {
   setStripeWebhookConfig,
   updateCustomDomain,
   updateCustomDomainLastValidated,
-  hasAppleWalletConfig,
+  hasAppleWalletDbConfig,
+  getHostAppleWalletConfig,
   getAppleWalletPassTypeIdFromDb,
   getAppleWalletTeamIdFromDb,
   updateAppleWalletPassTypeId,
@@ -176,7 +177,7 @@ const getSettingsPageState = async () => {
     getEmailTemplateSet("admin"),
     bunnyCdnConfigured ? getCustomDomainFromDb() : Promise.resolve(null),
     bunnyCdnConfigured ? getCustomDomainLastValidatedFromDb() : Promise.resolve(null),
-    hasAppleWalletConfig(),
+    hasAppleWalletDbConfig(),
     getAppleWalletPassTypeIdFromDb(),
     getAppleWalletTeamIdFromDb(),
   ]);
@@ -223,6 +224,11 @@ const getSettingsPageState = async () => {
     appleWalletConfigured,
     appleWalletPassTypeId: appleWalletPassTypeId ?? "",
     appleWalletTeamId: appleWalletTeamId ?? "",
+    hostAppleWalletLabel: (() => {
+      const hostConfig = getHostAppleWalletConfig();
+      if (!hostConfig) return "";
+      return `Host env (${hostConfig.passTypeId})`;
+    })(),
   };
 };
 
@@ -1085,7 +1091,7 @@ const handleAppleWalletPost = settingsRoute(async (form, errorPage) => {
   }
 
   // For initial setup, require all three PEM fields
-  const isConfigured = await hasAppleWalletConfig();
+  const isConfigured = await hasAppleWalletDbConfig();
   if (!isConfigured) {
     if (certField.action !== "provided") {
       return errorPage("Signing certificate is required", 400, "settings-apple-wallet");

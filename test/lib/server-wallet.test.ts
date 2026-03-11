@@ -16,6 +16,9 @@ import {
 import { handleRequest } from "#routes";
 import {
   hasAppleWalletConfig,
+  hasAppleWalletDbConfig,
+  getHostAppleWalletConfig,
+  getAppleWalletConfig,
   getAppleWalletPassTypeIdFromDb,
   getAppleWalletTeamIdFromDb,
   updateAppleWalletPassTypeId,
@@ -365,5 +368,133 @@ describe("POST /admin/settings/apple-wallet", () => {
     expect(body).toContain("TESTTEAM01");
     // Configured secrets should show mask sentinel
     expect(body).toContain("••••••••");
+  });
+});
+
+const WALLET_ENV_KEYS = [
+  "APPLE_WALLET_PASS_TYPE_ID",
+  "APPLE_WALLET_TEAM_ID",
+  "APPLE_WALLET_SIGNING_CERT",
+  "APPLE_WALLET_SIGNING_KEY",
+  "APPLE_WALLET_WWDR_CERT",
+] as const;
+
+/** Set all Apple Wallet env vars using real test certificates */
+const setWalletEnvVars = () => {
+  const certs = generateTestCerts();
+  Deno.env.set("APPLE_WALLET_PASS_TYPE_ID", "pass.com.env.tickets");
+  Deno.env.set("APPLE_WALLET_TEAM_ID", "ENVTEAM001");
+  Deno.env.set("APPLE_WALLET_SIGNING_CERT", certs.signingCert);
+  Deno.env.set("APPLE_WALLET_SIGNING_KEY", certs.signingKey);
+  Deno.env.set("APPLE_WALLET_WWDR_CERT", certs.wwdrCert);
+};
+
+/** Clear all Apple Wallet env vars */
+const clearWalletEnvVars = () => {
+  for (const key of WALLET_ENV_KEYS) Deno.env.delete(key);
+};
+
+describe("getHostAppleWalletConfig", () => {
+  afterEach(() => {
+    clearWalletEnvVars();
+  });
+
+  test("returns null when no env vars are set", () => {
+    clearWalletEnvVars();
+    expect(getHostAppleWalletConfig()).toBeNull();
+  });
+
+  test("returns null when only some env vars are set", () => {
+    Deno.env.set("APPLE_WALLET_PASS_TYPE_ID", "pass.com.test");
+    Deno.env.set("APPLE_WALLET_TEAM_ID", "TEAM01");
+    expect(getHostAppleWalletConfig()).toBeNull();
+  });
+
+  test("returns config when all env vars are set", () => {
+    setWalletEnvVars();
+    const config = getHostAppleWalletConfig();
+    expect(config).not.toBeNull();
+    expect(config!.passTypeId).toBe("pass.com.env.tickets");
+    expect(config!.teamId).toBe("ENVTEAM001");
+    expect(config!.signingCert).toContain("BEGIN CERTIFICATE");
+    expect(config!.signingKey).toContain("BEGIN RSA PRIVATE KEY");
+    expect(config!.wwdrCert).toContain("BEGIN CERTIFICATE");
+  });
+});
+
+describe("Apple Wallet env var fallback", () => {
+  beforeEach(async () => {
+    resetTestSlugCounter();
+    await createTestDbWithSetup();
+  });
+
+  afterEach(() => {
+    resetDb();
+    clearWalletEnvVars();
+  });
+
+  test("hasAppleWalletConfig returns true with env vars when DB not configured", async () => {
+    setWalletEnvVars();
+    expect(await hasAppleWalletDbConfig()).toBe(false);
+    expect(await hasAppleWalletConfig()).toBe(true);
+  });
+
+  test("getAppleWalletConfig falls back to env vars when DB not configured", async () => {
+    setWalletEnvVars();
+    const config = await getAppleWalletConfig();
+    expect(config).not.toBeNull();
+    expect(config!.passTypeId).toBe("pass.com.env.tickets");
+    expect(config!.teamId).toBe("ENVTEAM001");
+  });
+
+  test("getAppleWalletConfig prefers DB config over env vars", async () => {
+    setWalletEnvVars();
+    await configureAppleWallet();
+    const config = await getAppleWalletConfig();
+    expect(config).not.toBeNull();
+    expect(config!.passTypeId).toBe("pass.com.test.tickets");
+    expect(config!.teamId).toBe("TESTTEAM01");
+  });
+
+  test("wallet route works with env var config", async () => {
+    setWalletEnvVars();
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const response = await awaitTestRequest(`/wallet/${token}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("application/vnd.apple.pkpass");
+
+    const body = new Uint8Array(await response.arrayBuffer());
+    const files = unzipSync(body);
+    const passJson = JSON.parse(new TextDecoder().decode(files["pass.json"]!));
+    expect(passJson.passTypeIdentifier).toBe("pass.com.env.tickets");
+    expect(passJson.teamIdentifier).toBe("ENVTEAM001");
+  });
+
+  test("ticket view shows wallet link with env var config", async () => {
+    setWalletEnvVars();
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const response = await awaitTestRequest(`/t/${token}`);
+    const body = await response.text();
+    expect(body).toContain("wallet-link");
+    expect(body).toContain("Add to Apple Wallet");
+  });
+
+  test("settings page shows host Apple Wallet label when env vars configured", async () => {
+    setWalletEnvVars();
+    const { cookie } = await loginAsAdmin();
+    const response = await awaitTestRequest("/admin/settings", { cookie });
+    const body = await response.text();
+    expect(body).toContain("Host env (pass.com.env.tickets)");
+    expect(body).toContain("Currently using");
+  });
+
+  test("settings page shows overriding label when both DB and env configured", async () => {
+    setWalletEnvVars();
+    await configureAppleWallet();
+    const { cookie } = await loginAsAdmin();
+    const response = await awaitTestRequest("/admin/settings", { cookie });
+    const body = await response.text();
+    expect(body).toContain("Host env (pass.com.env.tickets)");
+    expect(body).toContain("Overriding");
   });
 });

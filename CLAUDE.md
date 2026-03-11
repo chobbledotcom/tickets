@@ -92,6 +92,13 @@ Environment variables are configured as **Bunny native secrets** in the Bunny Ed
 - `STORAGE_ZONE_NAME` - Bunny CDN storage zone name (required for image uploads)
 - `STORAGE_ZONE_KEY` - Bunny CDN storage zone access key (required for image uploads)
 - `NTFY_URL` - Ntfy endpoint URL for error notifications (e.g. `https://ntfy.sh/your-topic`). Sends domain and error code only, no personal or encrypted data.
+- `APPLE_WALLET_PASS_TYPE_ID` - Apple Wallet Pass Type ID (e.g. `pass.com.example.tickets`)
+- `APPLE_WALLET_TEAM_ID` - Apple Developer Team ID (e.g. `ABC1234567`)
+- `APPLE_WALLET_SIGNING_CERT` - PEM-encoded signing certificate
+- `APPLE_WALLET_SIGNING_KEY` - PEM-encoded signing private key
+- `APPLE_WALLET_WWDR_CERT` - PEM-encoded Apple WWDR intermediate certificate
+
+Apple Wallet can be configured via env vars (all 5 required) or via the admin settings page. Admin settings (encrypted) take priority over env vars. If neither is configured, the feature is disabled.
 
 ### Stripe Configuration
 

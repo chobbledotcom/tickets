@@ -56,6 +56,7 @@ export type SettingsPageState = {
   appleWalletConfigured: boolean;
   appleWalletPassTypeId: string;
   appleWalletTeamId: string;
+  hostAppleWalletLabel: string;
 };
 
 /**
@@ -534,7 +535,13 @@ export const adminSettingsPage = (
 
         <CsrfForm action="/admin/settings/apple-wallet" id="settings-apple-wallet">
             <h2>Apple Wallet</h2>
-          <p>Configure Apple Wallet pass signing to show an "Add to Apple Wallet" button on ticket pages.</p>
+          <p>Configure Apple Wallet pass signing to show an &ldquo;Add to Apple Wallet&rdquo; button on ticket pages.{
+            s.hostAppleWalletLabel && !s.appleWalletConfigured
+              ? ` Currently using: ${s.hostAppleWalletLabel}. Override below or leave empty to keep using host config.`
+              : s.hostAppleWalletLabel && s.appleWalletConfigured
+                ? ` Overriding: ${s.hostAppleWalletLabel}.`
+                : ""
+          }</p>
           <label for="apple_wallet_pass_type_id">Pass Type ID</label>
           <input
             type="text"
