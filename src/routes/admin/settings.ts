@@ -98,6 +98,7 @@ import {
   uploadImage,
   validateImage,
 } from "#lib/storage.ts";
+import { isValidPemCertificate, isValidPemPrivateKey } from "#lib/apple-wallet.ts";
 import { setupWebhookEndpoint, testStripeConnection } from "#lib/stripe.ts";
 import { isValidTimezone } from "#lib/timezone.ts";
 import { validateResetPhrase } from "#routes/admin/database-reset.ts";
@@ -1102,6 +1103,17 @@ const handleAppleWalletPost = settingsRoute(async (form, errorPage) => {
     if (wwdrField.action !== "provided") {
       return errorPage("WWDR certificate is required", 400, "settings-apple-wallet");
     }
+  }
+
+  // Validate PEM format for any newly provided fields
+  if (certField.action === "provided" && !isValidPemCertificate(certField.value)) {
+    return errorPage("Signing certificate is not a valid PEM certificate", 400, "settings-apple-wallet");
+  }
+  if (keyField.action === "provided" && !isValidPemPrivateKey(keyField.value)) {
+    return errorPage("Signing private key is not a valid PEM private key", 400, "settings-apple-wallet");
+  }
+  if (wwdrField.action === "provided" && !isValidPemCertificate(wwdrField.value)) {
+    return errorPage("WWDR certificate is not a valid PEM certificate", 400, "settings-apple-wallet");
   }
 
   await updateAppleWalletPassTypeId(passTypeId);

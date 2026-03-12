@@ -4,7 +4,9 @@
 
 import { type Client, createClient } from "@libsql/client";
 import { stub } from "@std/testing/mock";
+import forge from "node-forge";
 import { bracket } from "#fp";
+import type { SigningCredentials } from "#lib/apple-wallet.ts";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { clearEncryptionKeyCache } from "#lib/crypto.ts";
 import { signCsrfToken } from "#lib/csrf.ts";
@@ -1935,4 +1937,42 @@ export const stubRefundPayment = async () => {
         ReturnType<typeof stripeApi.refundPayment>
       >),
   );
+};
+
+/** Generate self-signed test certificates for Apple Wallet PKCS#7 signing */
+export const generateTestCerts = (): SigningCredentials => {
+  const keys = forge.pki.rsa.generateKeyPair(2048);
+
+  // Create a CA cert (WWDR stand-in)
+  const caCert = forge.pki.createCertificate();
+  caCert.publicKey = keys.publicKey;
+  caCert.serialNumber = "01";
+  caCert.validity.notBefore = new Date();
+  caCert.validity.notAfter = new Date();
+  caCert.validity.notAfter.setFullYear(caCert.validity.notAfter.getFullYear() + 1);
+  const caAttrs = [{ name: "commonName", value: "Test WWDR CA" }];
+  caCert.setSubject(caAttrs);
+  caCert.setIssuer(caAttrs);
+  caCert.setExtensions([{ name: "basicConstraints", cA: true }]);
+  caCert.sign(keys.privateKey, forge.md.sha256.create());
+
+  // Create a signing cert
+  const signingKeys = forge.pki.rsa.generateKeyPair(2048);
+  const signingCert = forge.pki.createCertificate();
+  signingCert.publicKey = signingKeys.publicKey;
+  signingCert.serialNumber = "02";
+  signingCert.validity.notBefore = new Date();
+  signingCert.validity.notAfter = new Date();
+  signingCert.validity.notAfter.setFullYear(signingCert.validity.notAfter.getFullYear() + 1);
+  signingCert.setSubject([{ name: "commonName", value: "Test Pass Signing" }]);
+  signingCert.setIssuer(caAttrs);
+  signingCert.sign(keys.privateKey, forge.md.sha256.create());
+
+  return {
+    passTypeId: "pass.com.test.tickets",
+    teamId: "TESTTEAM01",
+    signingCert: forge.pki.certificateToPem(signingCert),
+    signingKey: forge.pki.privateKeyToPem(signingKeys.privateKey),
+    wwdrCert: forge.pki.certificateToPem(caCert),
+  };
 };

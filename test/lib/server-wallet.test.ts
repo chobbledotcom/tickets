@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import forge from "node-forge";
 import { unzipSync } from "fflate";
 import {
   awaitTestRequest,
@@ -8,6 +7,7 @@ import {
   createTestDbWithSetup,
   expectAdminRedirect,
   expectHtmlResponse,
+  generateTestCerts,
   loginAsAdmin,
   mockFormRequest,
   resetDb,
@@ -27,40 +27,6 @@ import {
   updateAppleWalletSigningKey,
   updateAppleWalletWwdrCert,
 } from "#lib/db/settings.ts";
-
-/** Generate self-signed test certificates */
-const generateTestCerts = () => {
-  const keys = forge.pki.rsa.generateKeyPair(2048);
-
-  const caCert = forge.pki.createCertificate();
-  caCert.publicKey = keys.publicKey;
-  caCert.serialNumber = "01";
-  caCert.validity.notBefore = new Date();
-  caCert.validity.notAfter = new Date();
-  caCert.validity.notAfter.setFullYear(caCert.validity.notAfter.getFullYear() + 1);
-  const caAttrs = [{ name: "commonName", value: "Test WWDR CA" }];
-  caCert.setSubject(caAttrs);
-  caCert.setIssuer(caAttrs);
-  caCert.setExtensions([{ name: "basicConstraints", cA: true }]);
-  caCert.sign(keys.privateKey, forge.md.sha256.create());
-
-  const signingKeys = forge.pki.rsa.generateKeyPair(2048);
-  const signingCert = forge.pki.createCertificate();
-  signingCert.publicKey = signingKeys.publicKey;
-  signingCert.serialNumber = "02";
-  signingCert.validity.notBefore = new Date();
-  signingCert.validity.notAfter = new Date();
-  signingCert.validity.notAfter.setFullYear(signingCert.validity.notAfter.getFullYear() + 1);
-  signingCert.setSubject([{ name: "commonName", value: "Test Pass Signing" }]);
-  signingCert.setIssuer(caAttrs);
-  signingCert.sign(keys.privateKey, forge.md.sha256.create());
-
-  return {
-    signingCert: forge.pki.certificateToPem(signingCert),
-    signingKey: forge.pki.privateKeyToPem(signingKeys.privateKey),
-    wwdrCert: forge.pki.certificateToPem(caCert),
-  };
-};
 
 /** Configure all Apple Wallet settings in the database */
 const configureAppleWallet = async () => {
@@ -160,6 +126,20 @@ describe("wallet route (/wallet/:token)", () => {
     expect(passJson.teamIdentifier).toBe("TESTTEAM01");
     expect(passJson.serialNumber).toBe(token);
     expect(passJson.eventTicket.primaryFields[0].value).toBe(event.name);
+  });
+
+  test("returns 404 when signing fails due to corrupt certificates", async () => {
+    // Store invalid PEM data directly in the database (bypassing validation)
+    await Promise.all([
+      updateAppleWalletPassTypeId("pass.com.test.tickets"),
+      updateAppleWalletTeamId("TESTTEAM01"),
+      updateAppleWalletSigningCert("not-a-real-cert"),
+      updateAppleWalletSigningKey("not-a-real-key"),
+      updateAppleWalletWwdrCert("not-a-real-cert"),
+    ]);
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const response = await awaitTestRequest(`/wallet/${token}`);
+    expect(response.status).toBe(404);
   });
 
   test("returns null for non-GET methods", async () => {
@@ -303,6 +283,57 @@ describe("POST /admin/settings/apple-wallet", () => {
       }, cookie),
     );
     await expectHtmlResponse(response, 400, "WWDR certificate is required");
+  });
+
+  test("rejects invalid PEM signing certificate", async () => {
+    const certs = generateTestCerts();
+    const { cookie, csrfToken } = await loginAsAdmin();
+
+    const response = await handleRequest(
+      mockFormRequest("/admin/settings/apple-wallet", {
+        apple_wallet_pass_type_id: "pass.com.test",
+        apple_wallet_team_id: "TESTTEAM01",
+        apple_wallet_signing_cert: "not a valid cert",
+        apple_wallet_signing_key: certs.signingKey,
+        apple_wallet_wwdr_cert: certs.wwdrCert,
+        csrf_token: csrfToken,
+      }, cookie),
+    );
+    await expectHtmlResponse(response, 400, "Signing certificate is not a valid PEM certificate");
+  });
+
+  test("rejects invalid PEM signing key", async () => {
+    const certs = generateTestCerts();
+    const { cookie, csrfToken } = await loginAsAdmin();
+
+    const response = await handleRequest(
+      mockFormRequest("/admin/settings/apple-wallet", {
+        apple_wallet_pass_type_id: "pass.com.test",
+        apple_wallet_team_id: "TESTTEAM01",
+        apple_wallet_signing_cert: certs.signingCert,
+        apple_wallet_signing_key: "not a valid key",
+        apple_wallet_wwdr_cert: certs.wwdrCert,
+        csrf_token: csrfToken,
+      }, cookie),
+    );
+    await expectHtmlResponse(response, 400, "Signing private key is not a valid PEM private key");
+  });
+
+  test("rejects invalid PEM WWDR certificate", async () => {
+    const certs = generateTestCerts();
+    const { cookie, csrfToken } = await loginAsAdmin();
+
+    const response = await handleRequest(
+      mockFormRequest("/admin/settings/apple-wallet", {
+        apple_wallet_pass_type_id: "pass.com.test",
+        apple_wallet_team_id: "TESTTEAM01",
+        apple_wallet_signing_cert: certs.signingCert,
+        apple_wallet_signing_key: certs.signingKey,
+        apple_wallet_wwdr_cert: "not a valid cert",
+        csrf_token: csrfToken,
+      }, cookie),
+    );
+    await expectHtmlResponse(response, 400, "WWDR certificate is not a valid PEM certificate");
   });
 
   test("saves all settings successfully", async () => {

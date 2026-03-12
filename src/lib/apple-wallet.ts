@@ -11,6 +11,7 @@
 
 import forge from "node-forge";
 import { zipSync } from "fflate";
+import { getDecimalPlaces } from "#lib/currency.ts";
 
 /** Data needed to generate a pass — maps to existing ticket/event data */
 export type PassData = {
@@ -82,7 +83,14 @@ export const generatePassJson = (
 };
 
 /** Pass field entry */
-type PassField = Record<string, unknown>;
+type PassField = {
+  key: string;
+  label: string;
+  value: string | number;
+  dateStyle?: string;
+  timeStyle?: string;
+  currencyCode?: string;
+};
 
 /** eventTicket field groups with typed arrays */
 type EventTicketFields = {
@@ -135,7 +143,7 @@ const buildEventTicketFields = (
     fields.auxiliaryFields.push({
       key: "qty",
       label: "QTY",
-      value: String(data.quantity),
+      value: data.quantity,
     });
   }
 
@@ -143,12 +151,32 @@ const buildEventTicketFields = (
     fields.auxiliaryFields.push({
       key: "price",
       label: "PRICE",
-      value: data.pricePaid / 100,
+      value: data.pricePaid / (10 ** getDecimalPlaces(data.currencyCode)),
       currencyCode: data.currencyCode,
     });
   }
 
   return fields;
+};
+
+/** Validate that a string is a parseable PEM certificate */
+export const isValidPemCertificate = (pem: string): boolean => {
+  try {
+    forge.pki.certificateFromPem(pem);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Validate that a string is a parseable PEM private key */
+export const isValidPemPrivateKey = (pem: string): boolean => {
+  try {
+    forge.pki.privateKeyFromPem(pem);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 /** Compute SHA-1 hex digest of a Uint8Array */
@@ -167,6 +195,13 @@ export const createManifest = (
     manifest[name] = sha1Hex(data);
   }
   return JSON.stringify(manifest);
+};
+
+/** Round a date down to the start of the current hour for cache-stable signatures */
+const startOfHour = (date: Date): Date => {
+  const d = new Date(date);
+  d.setMinutes(0, 0, 0);
+  return d;
 };
 
 /** Sign the manifest with PKCS#7 detached signature */
@@ -191,7 +226,7 @@ export const signManifest = (
     authenticatedAttributes: [
       { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
       { type: forge.pki.oids.messageDigest },
-      { type: forge.pki.oids.signingTime, value: new Date() },
+      { type: forge.pki.oids.signingTime, value: startOfHour(new Date()) },
     ],
   });
   p7.sign({ detached: true });

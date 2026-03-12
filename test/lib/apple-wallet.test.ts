@@ -4,12 +4,14 @@ import {
   buildPkpass,
   createManifest,
   generatePassJson,
+  isValidPemCertificate,
+  isValidPemPrivateKey,
   type PassData,
   sha1Hex,
   signManifest,
   type SigningCredentials,
 } from "#lib/apple-wallet.ts";
-import { createTestDbWithSetup, resetDb } from "#test-utils";
+import { createTestDbWithSetup, generateTestCerts, resetDb } from "#test-utils";
 import { unzipSync } from "fflate";
 import forge from "node-forge";
 
@@ -19,44 +21,6 @@ type TicketFields = {
   secondaryFields: Array<Record<string, unknown>>;
   auxiliaryFields: Array<Record<string, unknown>>;
   backFields: Array<Record<string, unknown>>;
-};
-
-/** Generate self-signed test certificates for PKCS#7 signing */
-const generateTestCerts = (): SigningCredentials => {
-  const keys = forge.pki.rsa.generateKeyPair(2048);
-
-  // Create a CA cert (WWDR stand-in)
-  const caCert = forge.pki.createCertificate();
-  caCert.publicKey = keys.publicKey;
-  caCert.serialNumber = "01";
-  caCert.validity.notBefore = new Date();
-  caCert.validity.notAfter = new Date();
-  caCert.validity.notAfter.setFullYear(caCert.validity.notAfter.getFullYear() + 1);
-  const caAttrs = [{ name: "commonName", value: "Test WWDR CA" }];
-  caCert.setSubject(caAttrs);
-  caCert.setIssuer(caAttrs);
-  caCert.setExtensions([{ name: "basicConstraints", cA: true }]);
-  caCert.sign(keys.privateKey, forge.md.sha256.create());
-
-  // Create a signing cert
-  const signingKeys = forge.pki.rsa.generateKeyPair(2048);
-  const signingCert = forge.pki.createCertificate();
-  signingCert.publicKey = signingKeys.publicKey;
-  signingCert.serialNumber = "02";
-  signingCert.validity.notBefore = new Date();
-  signingCert.validity.notAfter = new Date();
-  signingCert.validity.notAfter.setFullYear(signingCert.validity.notAfter.getFullYear() + 1);
-  signingCert.setSubject([{ name: "commonName", value: "Test Pass Signing" }]);
-  signingCert.setIssuer(caAttrs);
-  signingCert.sign(keys.privateKey, forge.md.sha256.create());
-
-  return {
-    passTypeId: "pass.com.test.tickets",
-    teamId: "TESTTEAM01",
-    signingCert: forge.pki.certificateToPem(signingCert),
-    signingKey: forge.pki.privateKeyToPem(signingKeys.privateKey),
-    wwdrCert: forge.pki.certificateToPem(caCert),
-  };
 };
 
 const makePassData = (overrides: Partial<PassData> = {}): PassData => ({
@@ -146,7 +110,7 @@ describe("apple-wallet", () => {
       const ticket = pass.eventTicket as TicketFields;
       const qtyField = ticket.auxiliaryFields.find((f) => f.key === "qty");
       expect(qtyField).toBeDefined();
-      expect(qtyField!.value).toBe("3");
+      expect(qtyField!.value).toBe(3);
     });
 
     test("omits quantity when equal to 1", () => {
@@ -302,6 +266,52 @@ describe("apple-wallet", () => {
       const bJson = JSON.parse(new TextDecoder().decode(unzipSync(b)["pass.json"]!));
       expect(aJson.serialNumber).toBe("AAA");
       expect(bJson.serialNumber).toBe("BBB");
+    });
+  });
+
+  describe("isValidPemCertificate", () => {
+    test("returns true for a valid PEM certificate", () => {
+      expect(isValidPemCertificate(creds.signingCert)).toBe(true);
+    });
+
+    test("returns false for a private key PEM", () => {
+      expect(isValidPemCertificate(creds.signingKey)).toBe(false);
+    });
+
+    test("returns false for garbage input", () => {
+      expect(isValidPemCertificate("not a certificate")).toBe(false);
+    });
+  });
+
+  describe("isValidPemPrivateKey", () => {
+    test("returns true for a valid PEM private key", () => {
+      expect(isValidPemPrivateKey(creds.signingKey)).toBe(true);
+    });
+
+    test("returns false for a certificate PEM", () => {
+      expect(isValidPemPrivateKey(creds.signingCert)).toBe(false);
+    });
+
+    test("returns false for garbage input", () => {
+      expect(isValidPemPrivateKey("not a key")).toBe(false);
+    });
+  });
+
+  describe("currency-aware price formatting", () => {
+    test("converts price using currency decimal places for JPY (0 decimals)", () => {
+      const pass = generatePassJson(makePassData({ pricePaid: 1000, currencyCode: "JPY" }), creds);
+      const ticket = pass.eventTicket as TicketFields;
+      const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
+      expect(priceField!.value).toBe(1000);
+      expect(priceField!.currencyCode).toBe("JPY");
+    });
+
+    test("converts price using currency decimal places for GBP (2 decimals)", () => {
+      const pass = generatePassJson(makePassData({ pricePaid: 2500, currencyCode: "GBP" }), creds);
+      const ticket = pass.eventTicket as TicketFields;
+      const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
+      expect(priceField!.value).toBe(25);
+      expect(priceField!.currencyCode).toBe("GBP");
     });
   });
 });
