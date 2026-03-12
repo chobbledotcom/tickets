@@ -73,7 +73,8 @@ export const initDb = async (): Promise<void> => {
     )
   `);
 
-  // Create events table
+  // Create events table (includes all columns for fresh installs;
+  // ALTER TABLE migrations below are no-ops for new databases)
   await runMigration(`
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,7 +89,20 @@ export const initDb = async (): Promise<void> => {
       group_id INTEGER NOT NULL DEFAULT 0,
       active INTEGER NOT NULL DEFAULT 1,
       fields TEXT NOT NULL DEFAULT 'email',
-      closes_at TEXT
+      closes_at TEXT,
+      name TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      event_type TEXT NOT NULL DEFAULT 'standard',
+      bookable_days TEXT NOT NULL DEFAULT '["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]',
+      minimum_days_before INTEGER NOT NULL DEFAULT 1,
+      maximum_days_after INTEGER NOT NULL DEFAULT 90,
+      date TEXT NOT NULL DEFAULT '',
+      location TEXT NOT NULL DEFAULT '',
+      image_url TEXT NOT NULL DEFAULT '',
+      non_transferable INTEGER NOT NULL DEFAULT 0,
+      can_pay_more INTEGER NOT NULL DEFAULT 0,
+      hidden INTEGER NOT NULL DEFAULT 0,
+      max_price INTEGER NOT NULL DEFAULT 0
     )
   `);
 
@@ -97,7 +111,8 @@ export const initDb = async (): Promise<void> => {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug_index ON events(slug_index)
   `);
 
-  // Create attendees table (new installs use payment_id)
+  // Create attendees table (includes all columns for fresh installs;
+  // ALTER TABLE migrations below are no-ops for new databases)
   await runMigration(`
     CREATE TABLE IF NOT EXISTS attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -109,6 +124,13 @@ export const initDb = async (): Promise<void> => {
       quantity INTEGER NOT NULL DEFAULT 1,
       phone TEXT NOT NULL DEFAULT '',
       ticket_token TEXT NOT NULL DEFAULT '',
+      price_paid TEXT,
+      checked_in TEXT NOT NULL DEFAULT '',
+      date TEXT DEFAULT NULL,
+      address TEXT NOT NULL DEFAULT '',
+      special_instructions TEXT NOT NULL DEFAULT '',
+      ticket_token_index TEXT,
+      refunded TEXT NOT NULL DEFAULT '',
       FOREIGN KEY (event_id) REFERENCES events(id)
     )
   `);
@@ -116,13 +138,14 @@ export const initDb = async (): Promise<void> => {
   // Migration: rename stripe_payment_id -> payment_id for existing databases
   await runMigration(`ALTER TABLE attendees RENAME COLUMN stripe_payment_id TO payment_id`);
 
-  // Create sessions table
+  // Create sessions table (includes all columns for fresh installs)
   await runMigration(`
     CREATE TABLE IF NOT EXISTS sessions (
       token TEXT PRIMARY KEY,
       csrf_token TEXT NOT NULL,
       expires INTEGER NOT NULL,
-      wrapped_data_key TEXT
+      wrapped_data_key TEXT,
+      user_id INTEGER
     )
   `);
 
