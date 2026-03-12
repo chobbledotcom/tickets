@@ -24,8 +24,13 @@ export type TicketCard = {
 const ticketCount = (count: number): string =>
   count === 1 ? "1 Ticket" : `${count} Tickets`;
 
+/** Render an "Add to Apple Wallet" link for a token */
+const renderWalletLink = (token: string): string =>
+  `<a href="/wallet/${escapeHtml(token)}" class="wallet-link">Add to Apple Wallet</a>`;
+
 /** Render a single ticket card */
-const renderTicketCard = ({ entry, qrSvg, token }: TicketCard): string => {
+const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
+  const { entry, qrSvg, token } = card;
   const { event, attendee } = entry;
   const imageHtml = renderEventImage(event, "ticket-card-image");
   const eventDateHtml = event.date
@@ -53,6 +58,8 @@ const renderTicketCard = ({ entry, qrSvg, token }: TicketCard): string => {
     ? `<div class="ticket-card-notice">Non-transferable &mdash; ID required at entry</div>`
     : "";
 
+  const walletHtml = walletEnabled ? renderWalletLink(token) : "";
+
   return `
     <div class="ticket-card">
       ${imageHtml}
@@ -66,6 +73,7 @@ const renderTicketCard = ({ entry, qrSvg, token }: TicketCard): string => {
       ${priceHtml}
       <div class="ticket-card-qr">${qrSvg}</div>
       <div class="ticket-card-token">${escapeHtml(token)}</div>
+      ${walletHtml}
     </div>
   `;
 };
@@ -74,9 +82,9 @@ const renderTicketCard = ({ entry, qrSvg, token }: TicketCard): string => {
  * Ticket view page - shows individual cards for each ticket with its own QR code
  * The QR code encodes the /checkin/:token URL for admin scanning
  */
-export const ticketViewPage = (cards: TicketCard[]): string => {
+export const ticketViewPage = (cards: TicketCard[], walletEnabled = false): string => {
   const cardHtml = pipe(
-    map(renderTicketCard),
+    map((card: TicketCard) => renderTicketCard(card, walletEnabled)),
     (c: string[]) => c.join(""),
   )(cards);
 

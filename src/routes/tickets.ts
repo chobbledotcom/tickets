@@ -6,6 +6,7 @@
 
 import { getAllowedDomain } from "#lib/config.ts";
 import { decrypt } from "#lib/crypto.ts";
+import { hasAppleWalletConfig } from "#lib/db/settings.ts";
 import { generateQrSvg } from "#lib/qr.ts";
 import { ticketViewPage, type TicketCard } from "#templates/tickets.tsx";
 import { htmlResponse } from "#routes/utils.ts";
@@ -27,14 +28,17 @@ const handleTicketView = async (_request: Request, tokens: string[]): Promise<Re
   const result = await lookupAttendees(tokens);
   if (!result.ok) return result.response;
 
-  const entries = await resolveEntries(result.attendees);
+  const [entries, walletEnabled] = await Promise.all([
+    resolveEntries(result.attendees),
+    hasAppleWalletConfig(),
+  ]);
   for (const entry of entries) {
     entry.attendee.price_paid = await decrypt(entry.attendee.price_paid);
   }
   const cards = await Promise.all(
     entries.map((entry, index) => buildTicketCard(entry, tokens[index]!))
   );
-  return htmlResponse(ticketViewPage(cards));
+  return htmlResponse(ticketViewPage(cards, walletEnabled));
 };
 
 /** Route ticket view requests */

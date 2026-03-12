@@ -1774,6 +1774,10 @@ describe("html", () => {
       customDomain: "",
       customDomainLastValidated: "",
       cdnHostname: "",
+      appleWalletConfigured: false,
+      appleWalletPassTypeId: "",
+      appleWalletTeamId: "",
+      hostAppleWalletLabel: "",
     };
 
     test("shows square webhook configured message when key is set", () => {

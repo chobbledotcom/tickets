@@ -4,6 +4,8 @@
 
 import { lazyRef } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
+import type { SigningCredentials } from "#lib/apple-wallet.ts";
+import { getEnv } from "#lib/env.ts";
 import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
 import {
   decrypt,
@@ -83,6 +85,12 @@ export const CONFIG_KEYS = {
   CUSTOM_DOMAIN: "custom_domain",
   // Custom domain last validated timestamp (plaintext - ISO 8601 UTC)
   CUSTOM_DOMAIN_LAST_VALIDATED: "custom_domain_last_validated",
+  // Apple Wallet configuration
+  APPLE_WALLET_PASS_TYPE_ID: "apple_wallet_pass_type_id",
+  APPLE_WALLET_TEAM_ID: "apple_wallet_team_id",
+  APPLE_WALLET_SIGNING_CERT: "apple_wallet_signing_cert",
+  APPLE_WALLET_SIGNING_KEY: "apple_wallet_signing_key",
+  APPLE_WALLET_WWDR_CERT: "apple_wallet_wwdr_cert",
 } as const;
 
 /**
@@ -240,6 +248,37 @@ const setOrDeleteSetting = async (key: string, value: string): Promise<void> => 
   await setSetting(key, value);
 };
 
+// ---------------------------------------------------------------------------
+// Setting factories — generate typed get/update pairs from a config key
+// ---------------------------------------------------------------------------
+
+/** Encrypted setting: get decrypts, update encrypts (empty string clears). */
+const encryptedSetting = (key: string) => ({
+  get: (): Promise<string | null> => getEncryptedSetting(key),
+  update: (value: string): Promise<void> => updateEncryptedSetting(key, value),
+});
+
+/** Optional plaintext setting: get returns null if unset, update clears on empty. */
+const optionalTextSetting = (key: string) => ({
+  get: (): Promise<string | null> => getSetting(key),
+  update: (value: string): Promise<void> => setOrDeleteSetting(key, value),
+});
+
+/** Boolean setting stored as "true"/"false" string. */
+const booleanSetting = (key: string) => ({
+  get: (): Promise<boolean> => getBoolSetting(key),
+  update: (value: boolean): Promise<void> => setBoolSetting(key, value),
+});
+
+/** Encrypted setting with 30-minute page content cache. */
+const cachedEncryptedSetting = (key: string) => ({
+  get: (): Promise<string | null> => getCachedPageSetting(key),
+  update: async (text: string): Promise<void> => {
+    await updateEncryptedSetting(key, text);
+    invalidatePageCacheEntry(key);
+  },
+});
+
 /**
  * Cached setup complete status using lazyRef pattern.
  * Once setup is complete (true), it can never go back to false,
@@ -368,35 +407,11 @@ export const hasStripeKey = async (): Promise<boolean> => {
   return value !== null;
 };
 
-/**
- * Get Stripe secret key from database (decrypted)
- * Returns null if not configured
- */
-export const getStripeSecretKeyFromDb = async (): Promise<string | null> => {
-  const value = await getSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
-  if (!value) return null;
-  return decrypt(value);
-};
+const { get: getStripeSecretKeyFromDb, update: updateStripeKey } =
+  encryptedSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
+export { getStripeSecretKeyFromDb, updateStripeKey };
 
-/**
- * Update Stripe secret key (encrypted at rest)
- */
-export const updateStripeKey = async (
-  stripeSecretKey: string,
-): Promise<void> => {
-  const encryptedKey = await encrypt(stripeSecretKey);
-  await setSetting(CONFIG_KEYS.STRIPE_SECRET_KEY, encryptedKey);
-};
-
-/**
- * Get Stripe webhook secret from database (decrypted)
- * Returns null if not configured
- */
-export const getStripeWebhookSecretFromDb = async (): Promise<string | null> => {
-  const value = await getSetting(CONFIG_KEYS.STRIPE_WEBHOOK_SECRET);
-  if (!value) return null;
-  return decrypt(value);
-};
+export const getStripeWebhookSecretFromDb = encryptedSetting(CONFIG_KEYS.STRIPE_WEBHOOK_SECRET).get;
 
 /**
  * Get Stripe webhook endpoint ID from database
@@ -480,45 +495,11 @@ export const hasSquareToken = async (): Promise<boolean> => {
   return value !== null;
 };
 
-/**
- * Get Square access token from database (decrypted)
- * Returns null if not configured
- */
-export const getSquareAccessTokenFromDb = async (): Promise<string | null> => {
-  const value = await getSetting(CONFIG_KEYS.SQUARE_ACCESS_TOKEN);
-  if (!value) return null;
-  return decrypt(value);
-};
+export const { get: getSquareAccessTokenFromDb, update: updateSquareAccessToken } =
+  encryptedSetting(CONFIG_KEYS.SQUARE_ACCESS_TOKEN);
 
-/**
- * Update Square access token (encrypted at rest)
- */
-export const updateSquareAccessToken = async (
-  accessToken: string,
-): Promise<void> => {
-  const encryptedToken = await encrypt(accessToken);
-  await setSetting(CONFIG_KEYS.SQUARE_ACCESS_TOKEN, encryptedToken);
-};
-
-/**
- * Get Square webhook signature key from database (decrypted)
- * Returns null if not configured
- */
-export const getSquareWebhookSignatureKeyFromDb = async (): Promise<string | null> => {
-  const value = await getSetting(CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY);
-  if (!value) return null;
-  return decrypt(value);
-};
-
-/**
- * Store Square webhook signature key (encrypted at rest)
- */
-export const updateSquareWebhookSignatureKey = async (
-  signatureKey: string,
-): Promise<void> => {
-  const encryptedKey = await encrypt(signatureKey);
-  await setSetting(CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY, encryptedKey);
-};
+export const { get: getSquareWebhookSignatureKeyFromDb, update: updateSquareWebhookSignatureKey } =
+  encryptedSetting(CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY);
 
 /**
  * Get Square location ID from database
@@ -536,18 +517,8 @@ export const updateSquareLocationId = async (
   await setSetting(CONFIG_KEYS.SQUARE_LOCATION_ID, locationId);
 };
 
-/**
- * Get Square sandbox mode from database.
- * Returns true if sandbox mode is enabled, false otherwise.
- */
-export const getSquareSandboxFromDb = (): Promise<boolean> =>
-  getBoolSetting(CONFIG_KEYS.SQUARE_SANDBOX);
-
-/**
- * Update Square sandbox mode setting.
- */
-export const updateSquareSandbox = (sandbox: boolean): Promise<void> =>
-  setBoolSetting(CONFIG_KEYS.SQUARE_SANDBOX, sandbox);
+export const { get: getSquareSandboxFromDb, update: updateSquareSandbox } =
+  booleanSetting(CONFIG_KEYS.SQUARE_SANDBOX);
 
 /**
  * Get allowed embed hosts from database (decrypted)
@@ -663,12 +634,8 @@ export const updateTheme = async (theme: string): Promise<void> => {
   await setSetting(CONFIG_KEYS.THEME, validTheme);
 };
 
-/**
- * Get the "show public site" setting from database.
- * Returns true if the setting is "true", false otherwise.
- */
-export const getShowPublicSiteFromDb = (): Promise<boolean> =>
-  getBoolSetting(CONFIG_KEYS.SHOW_PUBLIC_SITE);
+export const { get: getShowPublicSiteFromDb, update: updateShowPublicSite } =
+  booleanSetting(CONFIG_KEYS.SHOW_PUBLIC_SITE);
 
 /**
  * Get the "show public site" setting synchronously from cache.
@@ -683,23 +650,8 @@ export const getShowPublicSiteCached = (): boolean => {
   return false;
 };
 
-/**
- * Update the "show public site" setting.
- */
-export const updateShowPublicSite = (show: boolean): Promise<void> =>
-  setBoolSetting(CONFIG_KEYS.SHOW_PUBLIC_SITE, show);
-
-/**
- * Get the "show public API" setting from database.
- */
-export const getShowPublicApiFromDb = (): Promise<boolean> =>
-  getBoolSetting(CONFIG_KEYS.SHOW_PUBLIC_API);
-
-/**
- * Update the "show public API" setting.
- */
-export const updateShowPublicApi = (show: boolean): Promise<void> =>
-  setBoolSetting(CONFIG_KEYS.SHOW_PUBLIC_API, show);
+export const { get: getShowPublicApiFromDb, update: updateShowPublicApi } =
+  booleanSetting(CONFIG_KEYS.SHOW_PUBLIC_API);
 
 /** Get an encrypted optional setting (decrypted). Returns null if not set. */
 const getEncryptedSetting = async (key: string): Promise<string | null> => {
@@ -729,35 +681,14 @@ const getCachedPageSetting = async (key: string): Promise<string | null> => {
   return value;
 };
 
-/** Get the website title from database (decrypted, 30m cached). */
-export const getWebsiteTitleFromDb = (): Promise<string | null> =>
-  getCachedPageSetting(CONFIG_KEYS.WEBSITE_TITLE);
+export const { get: getWebsiteTitleFromDb, update: updateWebsiteTitle } =
+  cachedEncryptedSetting(CONFIG_KEYS.WEBSITE_TITLE);
 
-/** Update the website title (encrypted at rest). Pass empty string to clear. */
-export const updateWebsiteTitle = async (text: string): Promise<void> => {
-  await updateEncryptedSetting(CONFIG_KEYS.WEBSITE_TITLE, text);
-  invalidatePageCacheEntry(CONFIG_KEYS.WEBSITE_TITLE);
-};
+export const { get: getHomepageTextFromDb, update: updateHomepageText } =
+  cachedEncryptedSetting(CONFIG_KEYS.HOMEPAGE_TEXT);
 
-/** Get the homepage text from database (decrypted, 30m cached). */
-export const getHomepageTextFromDb = (): Promise<string | null> =>
-  getCachedPageSetting(CONFIG_KEYS.HOMEPAGE_TEXT);
-
-/** Update the homepage text (encrypted at rest). Pass empty string to clear. */
-export const updateHomepageText = async (text: string): Promise<void> => {
-  await updateEncryptedSetting(CONFIG_KEYS.HOMEPAGE_TEXT, text);
-  invalidatePageCacheEntry(CONFIG_KEYS.HOMEPAGE_TEXT);
-};
-
-/** Get the contact page text from database (decrypted, 30m cached). */
-export const getContactPageTextFromDb = (): Promise<string | null> =>
-  getCachedPageSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT);
-
-/** Update the contact page text (encrypted at rest). Pass empty string to clear. */
-export const updateContactPageText = async (text: string): Promise<void> => {
-  await updateEncryptedSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT, text);
-  invalidatePageCacheEntry(CONFIG_KEYS.CONTACT_PAGE_TEXT);
-};
+export const { get: getContactPageTextFromDb, update: updateContactPageText } =
+  cachedEncryptedSetting(CONFIG_KEYS.CONTACT_PAGE_TEXT);
 
 /**
  * Get the configured phone prefix from database.
@@ -775,22 +706,11 @@ export const updatePhonePrefix = async (prefix: string): Promise<void> => {
   await setSetting(CONFIG_KEYS.PHONE_PREFIX, prefix);
 };
 
-/** Get header image URL from database (decrypted). Returns null if not set. */
-export const getHeaderImageUrlFromDb = (): Promise<string | null> =>
-  getEncryptedSetting(CONFIG_KEYS.HEADER_IMAGE_URL);
+export const { get: getHeaderImageUrlFromDb, update: updateHeaderImageUrl } =
+  encryptedSetting(CONFIG_KEYS.HEADER_IMAGE_URL);
 
-/** Update header image URL (encrypted at rest). Pass empty string to clear. */
-export const updateHeaderImageUrl = async (url: string): Promise<void> => {
-  await updateEncryptedSetting(CONFIG_KEYS.HEADER_IMAGE_URL, url);
-};
-
-/** Get the configured email provider. Returns null if not configured. */
-export const getEmailProviderFromDb = (): Promise<string | null> =>
-  getSetting(CONFIG_KEYS.EMAIL_PROVIDER);
-
-/** Update the configured email provider. Pass empty string to clear. */
-export const updateEmailProvider = (provider: string): Promise<void> =>
-  setOrDeleteSetting(CONFIG_KEYS.EMAIL_PROVIDER, provider);
+export const { get: getEmailProviderFromDb, update: updateEmailProvider } =
+  optionalTextSetting(CONFIG_KEYS.EMAIL_PROVIDER);
 
 /** Check if an email API key has been configured in the database */
 export const hasEmailApiKey = async (): Promise<boolean> => {
@@ -798,21 +718,11 @@ export const hasEmailApiKey = async (): Promise<boolean> => {
   return value !== null;
 };
 
-/** Get email API key from database (decrypted). Returns null if not configured. */
-export const getEmailApiKeyFromDb = (): Promise<string | null> =>
-  getEncryptedSetting(CONFIG_KEYS.EMAIL_API_KEY);
+export const { get: getEmailApiKeyFromDb, update: updateEmailApiKey } =
+  encryptedSetting(CONFIG_KEYS.EMAIL_API_KEY);
 
-/** Update email API key (encrypted at rest). Pass empty string to clear. */
-export const updateEmailApiKey = (key: string): Promise<void> =>
-  updateEncryptedSetting(CONFIG_KEYS.EMAIL_API_KEY, key);
-
-/** Get email from address from database (decrypted). Returns null if not configured. */
-export const getEmailFromAddressFromDb = (): Promise<string | null> =>
-  getEncryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS);
-
-/** Update email from address (encrypted at rest). Pass empty string to clear. */
-export const updateEmailFromAddress = (address: string): Promise<void> =>
-  updateEncryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS, address);
+export const { get: getEmailFromAddressFromDb, update: updateEmailFromAddress } =
+  encryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS);
 
 /** Valid email template types */
 export type EmailTemplateType = "confirmation" | "admin";
@@ -858,13 +768,8 @@ export const getEmailTemplateSet = async (type: EmailTemplateType): Promise<{
   return { subject, html, text };
 };
 
-/** Get the custom domain from database. Returns null if not set. */
-export const getCustomDomainFromDb = (): Promise<string | null> =>
-  getSetting(CONFIG_KEYS.CUSTOM_DOMAIN);
-
-/** Update the custom domain. Pass empty string to clear. */
-export const updateCustomDomain = (domain: string): Promise<void> =>
-  setOrDeleteSetting(CONFIG_KEYS.CUSTOM_DOMAIN, domain);
+export const { get: getCustomDomainFromDb, update: updateCustomDomain } =
+  optionalTextSetting(CONFIG_KEYS.CUSTOM_DOMAIN);
 
 /** Get the custom domain last validated timestamp. Returns null if never validated. */
 export const getCustomDomainLastValidatedFromDb = (): Promise<string | null> =>
@@ -873,6 +778,71 @@ export const getCustomDomainLastValidatedFromDb = (): Promise<string | null> =>
 /** Update the custom domain last validated timestamp to now (UTC ISO 8601). */
 export const updateCustomDomainLastValidated = (): Promise<void> =>
   setSetting(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, new Date().toISOString());
+
+/** Return SigningCredentials if all 5 fields are present, null otherwise. */
+const toCredentials = (
+  passTypeId: string | null | undefined, teamId: string | null | undefined,
+  signingCert: string | null | undefined, signingKey: string | null | undefined,
+  wwdrCert: string | null | undefined,
+): SigningCredentials | null =>
+  passTypeId && teamId && signingCert && signingKey && wwdrCert
+    ? { passTypeId, teamId, signingCert, signingKey, wwdrCert }
+    : null;
+
+/** Read Apple Wallet config from environment variables. Returns null if not fully configured. */
+export const getHostAppleWalletConfig = (): SigningCredentials | null =>
+  toCredentials(
+    getEnv("APPLE_WALLET_PASS_TYPE_ID"), getEnv("APPLE_WALLET_TEAM_ID"),
+    getEnv("APPLE_WALLET_SIGNING_CERT"), getEnv("APPLE_WALLET_SIGNING_KEY"),
+    getEnv("APPLE_WALLET_WWDR_CERT"),
+  );
+
+/** Check if Apple Wallet DB settings are fully configured (all 5 settings present). */
+export const hasAppleWalletDbConfig = async (): Promise<boolean> => {
+  const [passTypeId, teamId, cert, key, wwdr] = await Promise.all([
+    getSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID),
+    getSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID),
+    getSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT),
+    getSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY),
+    getSetting(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT),
+  ]);
+  return passTypeId !== null && teamId !== null && cert !== null && key !== null && wwdr !== null;
+};
+
+/** Check if Apple Wallet is configured (DB settings or env vars). */
+export const hasAppleWalletConfig = async (): Promise<boolean> =>
+  await hasAppleWalletDbConfig() || getHostAppleWalletConfig() !== null;
+
+export const { get: getAppleWalletPassTypeIdFromDb, update: updateAppleWalletPassTypeId } =
+  optionalTextSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID);
+
+export const { get: getAppleWalletTeamIdFromDb, update: updateAppleWalletTeamId } =
+  optionalTextSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID);
+
+export const { get: getAppleWalletSigningCertFromDb, update: updateAppleWalletSigningCert } =
+  encryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT);
+
+export const { get: getAppleWalletSigningKeyFromDb, update: updateAppleWalletSigningKey } =
+  encryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY);
+
+export const { get: getAppleWalletWwdrCertFromDb, update: updateAppleWalletWwdrCert } =
+  encryptedSetting(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT);
+
+/** Get Apple Wallet config from DB (decrypted). Returns null if incomplete. */
+export const getAppleWalletDbConfig = async (): Promise<SigningCredentials | null> => {
+  const [passTypeId, teamId, signingCert, signingKey, wwdrCert] = await Promise.all([
+    getAppleWalletPassTypeIdFromDb(),
+    getAppleWalletTeamIdFromDb(),
+    getAppleWalletSigningCertFromDb(),
+    getAppleWalletSigningKeyFromDb(),
+    getAppleWalletWwdrCertFromDb(),
+  ]);
+  return toCredentials(passTypeId, teamId, signingCert, signingKey, wwdrCert);
+};
+
+/** Get Apple Wallet config for pass generation. DB settings take priority, falls back to env vars. */
+export const getAppleWalletConfig = async (): Promise<SigningCredentials | null> =>
+  await getAppleWalletDbConfig() ?? getHostAppleWalletConfig();
 
 /**
  * Stubbable API for testing - allows mocking in ES modules
@@ -947,4 +917,19 @@ export const settingsApi = {
   updateCustomDomain,
   getCustomDomainLastValidatedFromDb,
   updateCustomDomainLastValidated,
+  hasAppleWalletConfig,
+  hasAppleWalletDbConfig,
+  getHostAppleWalletConfig,
+  getAppleWalletPassTypeIdFromDb,
+  updateAppleWalletPassTypeId,
+  getAppleWalletTeamIdFromDb,
+  updateAppleWalletTeamId,
+  getAppleWalletSigningCertFromDb,
+  updateAppleWalletSigningCert,
+  getAppleWalletSigningKeyFromDb,
+  updateAppleWalletSigningKey,
+  getAppleWalletWwdrCertFromDb,
+  updateAppleWalletWwdrCert,
+  getAppleWalletConfig,
+  getAppleWalletDbConfig,
 };
