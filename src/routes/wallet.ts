@@ -9,7 +9,6 @@ import { getAllowedDomain } from "#lib/config.ts";
 import { decrypt } from "#lib/crypto.ts";
 import { getCurrencyCodeFromDb } from "#lib/db/settings.ts";
 import { getAppleWalletConfig } from "#lib/db/settings.ts";
-import { ErrorCode, logError } from "#lib/logger.ts";
 import { createTokenRoute, lookupAttendees, resolveEntries, type TokenEntry } from "#routes/token-utils.ts";
 import { notFoundResponse } from "#routes/utils.ts";
 
@@ -55,20 +54,15 @@ const handleWalletGet = async (_request: Request, tokens: string[]): Promise<Res
 
   const entries = await resolveEntries(result.attendees);
   const passData = await buildPassData(entries[0]!, token);
+  const pkpass = buildPkpass(passData, config);
 
-  try {
-    const pkpass = buildPkpass(passData, config);
-    return new Response(pkpass as Uint8Array<ArrayBuffer>, {
-      headers: {
-        "Content-Type": PKPASS_CONTENT_TYPE,
-        "Content-Disposition": `attachment; filename="ticket.pkpass"`,
-        "Cache-Control": CACHE_CONTROL,
-      },
-    });
-  } catch (error) {
-    logError({ code: ErrorCode.WALLET_SIGNING, detail: String(error) });
-    return notFoundResponse();
-  }
+  return new Response(pkpass as Uint8Array<ArrayBuffer>, {
+    headers: {
+      "Content-Type": PKPASS_CONTENT_TYPE,
+      "Content-Disposition": `attachment; filename="ticket.pkpass"`,
+      "Cache-Control": CACHE_CONTROL,
+    },
+  });
 };
 
 /** Route wallet pass requests */

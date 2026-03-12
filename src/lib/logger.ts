@@ -100,9 +100,6 @@ const ERROR_DEFS = {
   // Domain validation errors
   DOMAIN_REJECTED: ["E_DOMAIN_REJECTED", "Domain rejected"],
 
-  // Apple Wallet errors
-  WALLET_SIGNING: ["E_WALLET_SIGNING", "Wallet pass signing failed"],
-
   // CDN/network errors (transient edge failures)
   CDN_REQUEST: ["E_CDN_REQUEST", "CDN request failed"],
 } as const;

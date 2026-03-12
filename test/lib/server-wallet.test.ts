@@ -128,20 +128,6 @@ describe("wallet route (/wallet/:token)", () => {
     expect(passJson.eventTicket.primaryFields[0].value).toBe(event.name);
   });
 
-  test("returns 404 when signing fails due to corrupt certificates", async () => {
-    // Store invalid PEM data directly in the database (bypassing validation)
-    await Promise.all([
-      updateAppleWalletPassTypeId("pass.com.test.tickets"),
-      updateAppleWalletTeamId("TESTTEAM01"),
-      updateAppleWalletSigningCert("not-a-real-cert"),
-      updateAppleWalletSigningKey("not-a-real-key"),
-      updateAppleWalletWwdrCert("not-a-real-cert"),
-    ]);
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
-    const response = await awaitTestRequest(`/wallet/${token}`);
-    expect(response.status).toBe(404);
-  });
-
   test("returns null for non-GET methods", async () => {
     const { routeWallet } = await import("#routes/wallet.ts");
     const request = new Request("http://localhost/wallet/some-token", {

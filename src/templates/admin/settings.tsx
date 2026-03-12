@@ -542,45 +542,50 @@ export const adminSettingsPage = (
                 ? ` Overriding: ${s.hostAppleWalletLabel}.`
                 : ""
           }</p>
-          <label for="apple_wallet_pass_type_id">Pass Type ID</label>
-          <input
-            type="text"
-            id="apple_wallet_pass_type_id"
-            name="apple_wallet_pass_type_id"
-            placeholder="pass.com.example.tickets"
-            value={s.appleWalletPassTypeId}
-            autocomplete="off"
-          />
-          <label for="apple_wallet_team_id">Team ID</label>
-          <input
-            type="text"
-            id="apple_wallet_team_id"
-            name="apple_wallet_team_id"
-            placeholder="ABC1234567"
-            value={s.appleWalletTeamId}
-            autocomplete="off"
-          />
-          <label for="apple_wallet_signing_cert">Signing Certificate (PEM)</label>
-          <textarea
-            id="apple_wallet_signing_cert"
-            name="apple_wallet_signing_cert"
-            rows={4}
-            placeholder="-----BEGIN CERTIFICATE-----"
-          >{s.appleWalletConfigured ? MASK_SENTINEL : ""}</textarea>
-          <label for="apple_wallet_signing_key">Signing Private Key (PEM)</label>
-          <textarea
-            id="apple_wallet_signing_key"
-            name="apple_wallet_signing_key"
-            rows={4}
-            placeholder="-----BEGIN PRIVATE KEY-----"
-          >{s.appleWalletConfigured ? MASK_SENTINEL : ""}</textarea>
-          <label for="apple_wallet_wwdr_cert">WWDR Certificate (PEM)</label>
-          <textarea
-            id="apple_wallet_wwdr_cert"
-            name="apple_wallet_wwdr_cert"
-            rows={4}
-            placeholder="-----BEGIN CERTIFICATE-----"
-          >{s.appleWalletConfigured ? MASK_SENTINEL : ""}</textarea>
+          <label>
+            Pass Type ID
+            <input
+              type="text"
+              name="apple_wallet_pass_type_id"
+              placeholder="pass.com.example.tickets"
+              value={s.appleWalletPassTypeId}
+              autocomplete="off"
+            />
+          </label>
+          <label>
+            Team ID
+            <input
+              type="text"
+              name="apple_wallet_team_id"
+              placeholder="ABC1234567"
+              value={s.appleWalletTeamId}
+              autocomplete="off"
+            />
+          </label>
+          <label>
+            Signing Certificate (PEM)
+            <textarea
+              name="apple_wallet_signing_cert"
+              rows={4}
+              placeholder="-----BEGIN CERTIFICATE-----"
+            >{s.appleWalletConfigured ? MASK_SENTINEL : ""}</textarea>
+          </label>
+          <label>
+            Signing Private Key (PEM)
+            <textarea
+              name="apple_wallet_signing_key"
+              rows={4}
+              placeholder="-----BEGIN PRIVATE KEY-----"
+            >{s.appleWalletConfigured ? MASK_SENTINEL : ""}</textarea>
+          </label>
+          <label>
+            WWDR Certificate (PEM)
+            <textarea
+              name="apple_wallet_wwdr_cert"
+              rows={4}
+              placeholder="-----BEGIN CERTIFICATE-----"
+            >{s.appleWalletConfigured ? MASK_SENTINEL : ""}</textarea>
+          </label>
           <button type="submit">Save Apple Wallet Settings</button>
         </CsrfForm>
 
