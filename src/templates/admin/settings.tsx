@@ -69,12 +69,13 @@ export const adminSettingsPage = (
         <CsrfForm action="/admin/settings/timezone" id="settings-timezone">
             <h2>Timezone</h2>
           <p>All dates and times will be interpreted and displayed in this timezone.</p>
-          <label for="timezone">IANA Timezone</label>
-          <select id="timezone" name="timezone" required>
-            {Intl.supportedValuesOf("timeZone").map((tz: string) => (
-              <option value={tz} selected={tz === s.timezone}>{tz}</option>
-            ))}
-          </select>
+          <label>IANA Timezone
+            <select name="timezone" required>
+              {Intl.supportedValuesOf("timeZone").map((tz: string) => (
+                <option value={tz} selected={tz === s.timezone}>{tz}</option>
+              ))}
+            </select>
+          </label>
           <button type="submit">Save Timezone</button>
         </CsrfForm>
 
@@ -91,13 +92,13 @@ export const adminSettingsPage = (
           <CsrfForm action="/admin/settings/header-image" enctype="multipart/form-data" id="settings-header-image">
             <h2>Header Image</h2>
             <p>An optional image displayed at the top of every page. JPEG, PNG, GIF, or WebP — max 256KB.</p>
-            <label for="header_image">{s.headerImageUrl ? "Replace Image" : "Upload Image"}</label>
-            <input
-              type="file"
-              id="header_image"
-              name="header_image"
-              accept="image/jpeg,image/png,image/gif,image/webp"
-            />
+            <label>{s.headerImageUrl ? "Replace Image" : "Upload Image"}
+              <input
+                type="file"
+                name="header_image"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+              />
+            </label>
             <button type="submit">Upload</button>
           </CsrfForm>
         </div>
@@ -106,62 +107,63 @@ export const adminSettingsPage = (
         <CsrfForm action="/admin/settings/phone-prefix" id="settings-phone-prefix">
             <h2>Phone Prefix</h2>
           <p>Country calling code used when normalizing phone numbers that start with 0 (e.g. 44 for UK, 1 for US).</p>
-          <label for="phone_prefix">Phone Prefix</label>
-          <input
-            type="number"
-            id="phone_prefix"
-            name="phone_prefix"
-            step="1"
-            min="1"
-            value={s.phonePrefix}
-            required
-          />
+          <label>Phone Prefix
+            <input
+              type="number"
+              name="phone_prefix"
+              step="1"
+              min="1"
+              value={s.phonePrefix}
+              required
+            />
+          </label>
           <button type="submit">Save Phone Prefix</button>
         </CsrfForm>
 
         <CsrfForm action="/admin/settings/business-email" id="settings-business-email">
             <h2>Business Email</h2>
           <p>This email will be included in webhook notifications and used as the reply-to address for automated emails.</p>
-          <label for="business_email">Business Email</label>
-          <input
-            type="email"
-            id="business_email"
-            name="business_email"
-            placeholder="contact@example.com"
-            value={s.businessEmail}
-            autocomplete="email"
-          />
+          <label>Business Email
+            <input
+              type="email"
+              name="business_email"
+              placeholder="contact@example.com"
+              value={s.businessEmail}
+              autocomplete="email"
+            />
+          </label>
           <button type="submit">Save Business Email</button>
         </CsrfForm>
 
         <CsrfForm action="/admin/settings/email" id="settings-email">
             <h2>Email Notifications</h2>
           <p>Send confirmation emails to attendees and admin notifications when registrations come in.</p>
-          <label for="email_provider">Email Provider</label>
-          <select id="email_provider" name="email_provider">
-            <option value="" selected={!s.emailProvider}>{s.hostEmailLabel || "None (disabled)"}</option>
-            {Array.from(VALID_EMAIL_PROVIDERS).map((p) => (
-              <option value={p} selected={s.emailProvider === p}>{EMAIL_PROVIDER_LABELS[p]}</option>
-            ))}
-          </select>
-          <label for="email_api_key">API Key</label>
-          <input
-            type="password"
-            id="email_api_key"
-            name="email_api_key"
-            placeholder="Enter API key"
-            value={s.emailApiKeyConfigured ? MASK_SENTINEL : undefined}
-            autocomplete="off"
-          />
-          <label for="email_from_address">From Address</label>
-          <input
-            type="email"
-            id="email_from_address"
-            name="email_from_address"
-            placeholder={s.businessEmail || "tickets@yourdomain.com"}
-            value={s.emailFromAddress}
-            autocomplete="off"
-          />
+          <label>Email Provider
+            <select name="email_provider">
+              <option value="" selected={!s.emailProvider}>{s.hostEmailLabel || "None (disabled)"}</option>
+              {Array.from(VALID_EMAIL_PROVIDERS).map((p) => (
+                <option value={p} selected={s.emailProvider === p}>{EMAIL_PROVIDER_LABELS[p]}</option>
+              ))}
+            </select>
+          </label>
+          <label>API Key
+            <input
+              type="password"
+              name="email_api_key"
+              placeholder="Enter API key"
+              value={s.emailApiKeyConfigured ? MASK_SENTINEL : undefined}
+              autocomplete="off"
+            />
+          </label>
+          <label>From Address
+            <input
+              type="email"
+              name="email_from_address"
+              placeholder={s.businessEmail || "tickets@yourdomain.com"}
+              value={s.emailFromAddress}
+              autocomplete="off"
+            />
+          </label>
           <button type="submit">Save Email Settings</button>
         </CsrfForm>
         {s.emailProvider && (
@@ -192,32 +194,34 @@ export const adminSettingsPage = (
               <tr><td><code>{`{{ 2 | pluralize: "ticket", "tickets" }}`}</code></td><td>Pluralize based on count</td></tr>
             </table>
           </details>
-          <label for="confirmation_subject">Subject</label>
-          <input
-            type="text"
-            id="confirmation_subject"
-            name="subject"
-            placeholder={DEFAULT_TEMPLATES.confirmation.subject}
-            value={s.confirmationTemplates.subject}
-            autocomplete="off"
-          />
-          <label for="confirmation_html">HTML Body</label>
-          <textarea
-            id="confirmation_html"
-            name="html"
-            rows="8"
-            placeholder="Leave blank to use default template"
-            data-default-tpl={DEFAULT_TEMPLATES.confirmation.html}
-          >{s.confirmationTemplates.html}</textarea>
+          <label>Subject
+            <input
+              type="text"
+              name="subject"
+              placeholder={DEFAULT_TEMPLATES.confirmation.subject}
+              value={s.confirmationTemplates.subject}
+              autocomplete="off"
+            />
+          </label>
+          <label>HTML Body
+            <textarea
+              id="confirmation_html"
+              name="html"
+              rows="8"
+              placeholder="Leave blank to use default template"
+              data-default-tpl={DEFAULT_TEMPLATES.confirmation.html}
+            >{s.confirmationTemplates.html}</textarea>
+          </label>
           <a href="#" data-fill-default="confirmation_html"><small>Edit default template</small></a>
-          <label for="confirmation_text">Plain Text Body</label>
-          <textarea
-            id="confirmation_text"
-            name="text"
-            rows="6"
-            placeholder="Leave blank to use default template"
-            data-default-tpl={DEFAULT_TEMPLATES.confirmation.text}
-          >{s.confirmationTemplates.text}</textarea>
+          <label>Plain Text Body
+            <textarea
+              id="confirmation_text"
+              name="text"
+              rows="6"
+              placeholder="Leave blank to use default template"
+              data-default-tpl={DEFAULT_TEMPLATES.confirmation.text}
+            >{s.confirmationTemplates.text}</textarea>
+          </label>
           <a href="#" data-fill-default="confirmation_text"><small>Edit default template</small></a>
           <br />
           <button type="submit">Save Confirmation Template</button>
@@ -226,32 +230,34 @@ export const adminSettingsPage = (
         <CsrfForm action="/admin/settings/email-templates/admin" id="settings-email-tpl-admin">
             <h2>Admin Notification Email Template</h2>
           <p>Customise the notification email sent to the business email when a registration comes in. Leave blank to use the default template.</p>
-          <label for="admin_subject">Subject</label>
-          <input
-            type="text"
-            id="admin_subject"
-            name="subject"
-            placeholder={DEFAULT_TEMPLATES.admin.subject}
-            value={s.adminTemplates.subject}
-            autocomplete="off"
-          />
-          <label for="admin_html">HTML Body</label>
-          <textarea
-            id="admin_html"
-            name="html"
-            rows="8"
-            placeholder="Leave blank to use default template"
-            data-default-tpl={DEFAULT_TEMPLATES.admin.html}
-          >{s.adminTemplates.html}</textarea>
+          <label>Subject
+            <input
+              type="text"
+              name="subject"
+              placeholder={DEFAULT_TEMPLATES.admin.subject}
+              value={s.adminTemplates.subject}
+              autocomplete="off"
+            />
+          </label>
+          <label>HTML Body
+            <textarea
+              id="admin_html"
+              name="html"
+              rows="8"
+              placeholder="Leave blank to use default template"
+              data-default-tpl={DEFAULT_TEMPLATES.admin.html}
+            >{s.adminTemplates.html}</textarea>
+          </label>
           <a href="#" data-fill-default="admin_html"><small>Edit default template</small></a>
-          <label for="admin_text">Plain Text Body</label>
-          <textarea
-            id="admin_text"
-            name="text"
-            rows="6"
-            placeholder="Leave blank to use default template"
-            data-default-tpl={DEFAULT_TEMPLATES.admin.text}
-          >{s.adminTemplates.text}</textarea>
+          <label>Plain Text Body
+            <textarea
+              id="admin_text"
+              name="text"
+              rows="6"
+              placeholder="Leave blank to use default template"
+              data-default-tpl={DEFAULT_TEMPLATES.admin.text}
+            >{s.adminTemplates.text}</textarea>
+          </label>
           <a href="#" data-fill-default="admin_text"><small>Edit default template</small></a>
           <br />
           <button type="submit">Save Admin Notification Template</button>
@@ -365,15 +371,15 @@ export const adminSettingsPage = (
         <CsrfForm action="/admin/settings/embed-hosts" id="settings-embed-hosts">
             <h2>Only allow embedding on these hosts</h2>
           <p>Restrict which websites can embed your booking forms in an iframe. Leave blank to allow embedding from any site.</p>
-          <label for="embed_hosts">Hosts (comma-separated)</label>
-          <input
-            type="text"
-            id="embed_hosts"
-            name="embed_hosts"
-            placeholder="example.com, *.mysite.org"
-            value={s.embedHosts}
-            autocomplete="off"
-          />
+          <label>Hosts (comma-separated)
+            <input
+              type="text"
+              name="embed_hosts"
+              placeholder="example.com, *.mysite.org"
+              value={s.embedHosts}
+              autocomplete="off"
+            />
+          </label>
           <p><small>Use <code>*.example.com</code> to allow all subdomains. Direct visits to the booking page are always allowed.</small></p>
           <button type="submit">Save Embed Hosts</button>
         </CsrfForm>
@@ -381,14 +387,14 @@ export const adminSettingsPage = (
         <CsrfForm action="/admin/settings/terms" id="settings-terms">
             <h2>Terms and Conditions</h2>
           <p>If set, users must agree to these terms before reserving tickets.</p>
-          <label for="terms_and_conditions">Terms and Conditions</label>
-          <p><small><Raw html={FORMATTING_HINT} /></small></p>
-          <textarea
-            id="terms_and_conditions"
-            name="terms_and_conditions"
-            rows="4"
-            placeholder="Enter terms and conditions that attendees must agree to before registering. Leave blank to disable."
-          >{s.termsAndConditions}</textarea>
+          <label>Terms and Conditions
+            <p><small><Raw html={FORMATTING_HINT} /></small></p>
+            <textarea
+              name="terms_and_conditions"
+              rows="4"
+              placeholder="Enter terms and conditions that attendees must agree to before registering. Leave blank to disable."
+            >{s.termsAndConditions}</textarea>
+          </label>
           <button type="submit">Save Terms</button>
         </CsrfForm>
 
@@ -485,15 +491,15 @@ export const adminSettingsPage = (
           <CsrfForm action="/admin/settings/custom-domain" id="settings-custom-domain">
             <h2>Custom Domain</h2>
             <p>Set a custom domain for your booking site.</p>
-            <label for="custom_domain">Domain</label>
-            <input
-              type="text"
-              id="custom_domain"
-              name="custom_domain"
-              placeholder="tickets.yourdomain.com"
-              value={s.customDomain}
-              autocomplete="off"
-            />
+            <label>Domain
+              <input
+                type="text"
+                name="custom_domain"
+                placeholder="tickets.yourdomain.com"
+                value={s.customDomain}
+                autocomplete="off"
+              />
+            </label>
             <button type="submit">Save Custom Domain</button>
           </CsrfForm>
 
