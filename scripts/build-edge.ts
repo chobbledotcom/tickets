@@ -231,6 +231,28 @@ const nodeExternals = [
   ...builtinModules.map((m) => `node:${m}`),
 ];
 
+/**
+ * Plugin to shim bare "crypto" imports with an empty module.
+ * node-forge uses `require("crypto")` internally and falls back to its own
+ * pure-JS implementation when it's unavailable. By returning an empty module
+ * we let the fallback kick in, avoiding the "Dynamic require of 'crypto' is
+ * not supported" error in the Bunny Edge ESM runtime. The node:-prefixed
+ * "node:crypto" stays external for code that needs it.
+ */
+const shimBareNodeCryptoPlugin: Plugin = {
+  name: "shim-bare-node-crypto",
+  setup(build) {
+    build.onResolve({ filter: /^crypto$/ }, () => ({
+      path: "crypto",
+      namespace: "shim-bare-crypto",
+    }));
+    build.onLoad({ filter: /.*/, namespace: "shim-bare-crypto" }, () => ({
+      contents: "export default {};",
+      loader: "js",
+    }));
+  },
+};
+
 // Banner to inject Node.js globals that many packages expect (per Bunny docs)
 // process.env is populated by Bunny's native secrets at runtime
 const NODEJS_GLOBALS_BANNER = `import * as process from "node:process";
@@ -249,7 +271,7 @@ await esbuild.build({
   bundle: true,
   external: nodeExternals,
   define: { "process.env.NODE_ENV": '"production"' },
-  plugins: [denoNpmResolverPlugin, inlineAssetsPlugin],
+  plugins: [shimBareNodeCryptoPlugin, denoNpmResolverPlugin, inlineAssetsPlugin],
   banner: { js: NODEJS_GLOBALS_BANNER },
 });
 
