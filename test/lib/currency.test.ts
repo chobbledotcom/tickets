@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   formatCurrency,
   getDecimalPlaces,
@@ -9,7 +9,11 @@ import {
   toMajorUnits,
   toMinorUnits,
 } from "#lib/currency.ts";
-import { createTestDbWithSetup, resetDb, setupTestEncryptionKey } from "#test-utils";
+import {
+  createTestDbWithSetup,
+  resetDb,
+  setupTestEncryptionKey,
+} from "#test-utils";
 
 describe("currency", () => {
   afterEach(() => {
@@ -41,7 +45,10 @@ describe("currency", () => {
       const orig = Intl.NumberFormat.prototype.resolvedOptions;
       Intl.NumberFormat.prototype.resolvedOptions = function () {
         const opts = orig.call(this);
-        return { ...opts, minimumFractionDigits: undefined as unknown as number };
+        return {
+          ...opts,
+          minimumFractionDigits: undefined as unknown as number,
+        };
       };
       try {
         expect(getDecimalPlaces("GBP")).toBe(2);
@@ -99,7 +106,7 @@ describe("currency", () => {
   describe("toMinorUnits", () => {
     test("converts GBP major to minor units", () => {
       setCurrencyCodeForTest("GBP");
-      expect(toMinorUnits(10.50)).toBe(1050);
+      expect(toMinorUnits(10.5)).toBe(1050);
     });
 
     test("converts whole number", () => {
@@ -119,7 +126,7 @@ describe("currency", () => {
 
     test("converts KWD (3 decimals)", () => {
       setCurrencyCodeForTest("KWD");
-      expect(toMinorUnits(1.050)).toBe(1050);
+      expect(toMinorUnits(1.05)).toBe(1050);
     });
   });
 

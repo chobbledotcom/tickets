@@ -1,8 +1,13 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { decryptWithKey, importPrivateKey } from "#lib/crypto.ts";
+import {
+  decryptWithKey,
+  deriveKEK,
+  importPrivateKey,
+  unwrapKey,
+} from "#lib/crypto.ts";
 import {
   getAllActivityLog,
   getEventActivityLog,
@@ -53,7 +58,6 @@ import {
   recordFailedLogin,
 } from "#lib/db/login-attempts.ts";
 import { initDb, LATEST_UPDATE, resetDatabase } from "#lib/db/migrations.ts";
-import { nowMs } from "#lib/now.ts";
 import {
   finalizeSession as finalizePaymentSession,
   isSessionProcessed,
@@ -69,8 +73,8 @@ import {
   getSession,
 } from "#lib/db/sessions.ts";
 import {
-  clearPaymentProvider,
   CONFIG_KEYS,
+  clearPaymentProvider,
   completeSetup,
   getCurrencyCodeFromDb,
   getPublicKey,
@@ -88,7 +92,7 @@ import {
   updateTimezone,
 } from "#lib/db/settings.ts";
 import { getUserByUsername, verifyUserPassword } from "#lib/db/users.ts";
-import { deriveKEK, unwrapKey } from "#lib/crypto.ts";
+import { nowMs } from "#lib/now.ts";
 import {
   createTestAttendee,
   createTestDbWithSetup,
@@ -106,7 +110,8 @@ const getTestPrivateKey = async (): Promise<CryptoKey> => {
   if (!user) throw new Error("Test setup failed: user not found");
   const passwordHash = await verifyUserPassword(user, TEST_ADMIN_PASSWORD);
   if (!passwordHash) throw new Error("Test setup failed: invalid password");
-  if (!user.wrapped_data_key) throw new Error("Test setup failed: no wrapped data key");
+  if (!user.wrapped_data_key)
+    throw new Error("Test setup failed: no wrapped data key");
   const kek = await deriveKEK(passwordHash);
   const dataKey = await unwrapKey(user.wrapped_data_key, kek);
   const wrappedPrivateKey = await getWrappedPrivateKey();
@@ -187,7 +192,13 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createSession("test-token", "test-csrf", Date.now() + 1000, null, 1);
+      await createSession(
+        "test-token",
+        "test-csrf",
+        Date.now() + 1000,
+        null,
+        1,
+      );
 
       // Reset the database
       await resetDatabase();
@@ -362,10 +373,14 @@ describe("db", () => {
       expect(updatedUser!.wrapped_data_key).not.toBe(oldWrappedKey);
 
       // Old password should no longer work
-      expect(await verifyUserPassword(updatedUser!, TEST_ADMIN_PASSWORD)).toBeNull();
+      expect(
+        await verifyUserPassword(updatedUser!, TEST_ADMIN_PASSWORD),
+      ).toBeNull();
 
       // New password should work
-      expect(await verifyUserPassword(updatedUser!, "newpassword456")).toBeTruthy();
+      expect(
+        await verifyUserPassword(updatedUser!, "newpassword456"),
+      ).toBeTruthy();
     });
 
     test("updateUserPassword fails with wrong old password hash", async () => {
@@ -384,7 +399,9 @@ describe("db", () => {
 
       // Original password should still work
       const unchanged = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(await verifyUserPassword(unchanged!, TEST_ADMIN_PASSWORD)).toBeTruthy();
+      expect(
+        await verifyUserPassword(unchanged!, TEST_ADMIN_PASSWORD),
+      ).toBeTruthy();
     });
 
     test("password change allows decryption of both old and new attendee records", async () => {
@@ -436,7 +453,10 @@ describe("db", () => {
       // Get the private key using the NEW password
       const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(updatedUser).not.toBeNull();
-      const newPasswordHash = await verifyUserPassword(updatedUser!, newPassword);
+      const newPasswordHash = await verifyUserPassword(
+        updatedUser!,
+        newPassword,
+      );
       expect(newPasswordHash).toBeTruthy();
 
       const kek = await deriveKEK(newPasswordHash!);
@@ -634,8 +654,18 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
-      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "John",
+        "john@example.com",
+      );
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Jane",
+        "jane@example.com",
+      );
 
       await deleteEvent(event.id);
 
@@ -812,8 +842,18 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
-      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "John",
+        "john@example.com",
+      );
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Jane",
+        "jane@example.com",
+      );
 
       const privateKey = await getTestPrivateKey();
       const raw = await getAttendeesRaw(event.id);
@@ -824,9 +864,24 @@ describe("db", () => {
     test("getNewestAttendeesRaw returns attendees across events ordered by newest first", async () => {
       const event1 = await createTestEvent({ maxAttendees: 50 });
       const event2 = await createTestEvent({ maxAttendees: 50 });
-      await createTestAttendee(event1.id, event1.slug, "First", "first@example.com");
-      await createTestAttendee(event2.id, event2.slug, "Second", "second@example.com");
-      await createTestAttendee(event1.id, event1.slug, "Third", "third@example.com");
+      await createTestAttendee(
+        event1.id,
+        event1.slug,
+        "First",
+        "first@example.com",
+      );
+      await createTestAttendee(
+        event2.id,
+        event2.slug,
+        "Second",
+        "second@example.com",
+      );
+      await createTestAttendee(
+        event1.id,
+        event1.slug,
+        "Third",
+        "third@example.com",
+      );
 
       const raw = await getNewestAttendeesRaw(10);
       expect(raw.length).toBe(3);
@@ -856,7 +911,12 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "John",
+        "john@example.com",
+      );
 
       const fetched = await getEventWithCount(event.id);
       expect(fetched?.attendee_count).toBe(1);
@@ -867,8 +927,18 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
-      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "John",
+        "john@example.com",
+      );
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Jane",
+        "jane@example.com",
+      );
 
       const events = await getAllEvents();
       expect(events[0]?.attendee_count).toBe(2);
@@ -901,7 +971,11 @@ describe("db", () => {
         thankYouUrl: "https://example.com",
       });
       // Use createAttendeeAtomic to fill capacity (production code path)
-      await createAttendeeAtomic({ eventId: event.id, name: "First", email: "first@example.com" });
+      await createAttendeeAtomic({
+        eventId: event.id,
+        name: "First",
+        email: "first@example.com",
+      });
 
       const result = await createAttendeeAtomic({
         eventId: event.id,
@@ -962,7 +1036,12 @@ describe("db", () => {
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "John",
+        "john@example.com",
+      );
 
       const result = await hasAvailableSpots(event.id);
       expect(result).toBe(true);
@@ -973,8 +1052,18 @@ describe("db", () => {
         maxAttendees: 2,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(event.id, event.slug, "John", "john@example.com");
-      await createTestAttendee(event.id, event.slug, "Jane", "jane@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "John",
+        "john@example.com",
+      );
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Jane",
+        "jane@example.com",
+      );
 
       const result = await hasAvailableSpots(event.id);
       expect(result).toBe(false);
@@ -984,7 +1073,15 @@ describe("db", () => {
       const event = await createTestEvent({
         maxAttendees: 1,
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -1012,7 +1109,15 @@ describe("db", () => {
       const event = await createTestEvent({
         maxAttendees: 10,
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -1024,7 +1129,15 @@ describe("db", () => {
       const event = await createTestEvent({
         maxAttendees: 10,
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -1052,7 +1165,15 @@ describe("db", () => {
       const event = await createTestEvent({
         maxAttendees: 10,
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -1088,7 +1209,15 @@ describe("db", () => {
       const event = await createTestEvent({
         maxAttendees: 2,
         eventType: "daily",
-        bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        bookableDays: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ],
         minimumDaysBefore: 0,
         maximumDaysAfter: 14,
       });
@@ -1158,7 +1287,13 @@ describe("db", () => {
     });
 
     test("deleteSession removes session", async () => {
-      await createSession("delete-me", "csrf-delete", Date.now() + 1000, null, 1);
+      await createSession(
+        "delete-me",
+        "csrf-delete",
+        Date.now() + 1000,
+        null,
+        1,
+      );
       await deleteSession("delete-me");
 
       const session = await getSession("delete-me");
@@ -1202,7 +1337,13 @@ describe("db", () => {
     });
 
     test("deleteOtherSessions removes all sessions except current", async () => {
-      await createSession("current", "csrf-current", Date.now() + 10000, null, 1);
+      await createSession(
+        "current",
+        "csrf-current",
+        Date.now() + 10000,
+        null,
+        1,
+      );
       await createSession("other1", "csrf-other1", Date.now() + 10000, null, 1);
       await createSession("other2", "csrf-other2", Date.now() + 10000, null, 1);
 
@@ -1276,11 +1417,17 @@ describe("db", () => {
 
       // Verify new password works
       const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
-      const newValid = await verifyUserPassword(updatedUser!, "new-password-123");
+      const newValid = await verifyUserPassword(
+        updatedUser!,
+        "new-password-123",
+      );
       expect(newValid).toBeTruthy();
 
       // Verify old password no longer works
-      const oldValid = await verifyUserPassword(updatedUser!, TEST_ADMIN_PASSWORD);
+      const oldValid = await verifyUserPassword(
+        updatedUser!,
+        TEST_ADMIN_PASSWORD,
+      );
       expect(oldValid).toBeNull();
 
       // Verify all sessions were invalidated
@@ -1764,14 +1911,18 @@ describe("db", () => {
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.attendee.special_instructions).toBe("No nuts please\nAllergic to dairy");
+        expect(result.attendee.special_instructions).toBe(
+          "No nuts please\nAllergic to dairy",
+        );
       }
 
       const privateKey = await getTestPrivateKey();
       const raw = await getAttendeesRaw(event.id);
       const attendees = await decryptAttendees(raw, privateKey);
       expect(attendees.length).toBe(1);
-      expect(attendees[0]?.special_instructions).toBe("No nuts please\nAllergic to dairy");
+      expect(attendees[0]?.special_instructions).toBe(
+        "No nuts please\nAllergic to dairy",
+      );
     });
 
     test("encrypts and decrypts non-empty address", async () => {
@@ -1790,7 +1941,9 @@ describe("db", () => {
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.attendee.address).toBe("123 Main St\nSpringfield\nIL 62701");
+        expect(result.attendee.address).toBe(
+          "123 Main St\nSpringfield\nIL 62701",
+        );
       }
 
       const privateKey = await getTestPrivateKey();
@@ -1850,7 +2003,11 @@ describe("db", () => {
       const raw = await getAttendeesRaw(event.id);
 
       // Only decrypt email - phone, address, special_instructions should be ""
-      const attendees = await decryptAttendeesForTable(raw, privateKey, "email");
+      const attendees = await decryptAttendeesForTable(
+        raw,
+        privateKey,
+        "email",
+      );
       expect(attendees.length).toBe(1);
       expect(attendees[0]?.name).toBe("Full Contact");
       expect(attendees[0]?.email).toBe("full@example.com");
@@ -1877,7 +2034,11 @@ describe("db", () => {
 
       const privateKey = await getTestPrivateKey();
       const raw = await getAttendeesRaw(event.id);
-      const attendees = await decryptAttendeesForTable(raw, privateKey, "email,phone,address,special_instructions");
+      const attendees = await decryptAttendeesForTable(
+        raw,
+        privateKey,
+        "email,phone,address,special_instructions",
+      );
       expect(attendees[0]?.name).toBe("All Fields");
       expect(attendees[0]?.email).toBe("all@example.com");
       expect(attendees[0]?.phone).toBe("+1-555-1234");
@@ -1924,7 +2085,11 @@ describe("db", () => {
       });
       const privateKey = await getTestPrivateKey();
       const raw = await getAttendeesRaw(event.id);
-      const attendees = await decryptAttendeesForTable(raw, privateKey, "email");
+      const attendees = await decryptAttendeesForTable(
+        raw,
+        privateKey,
+        "email",
+      );
       expect(attendees).toEqual([]);
     });
 
@@ -1946,7 +2111,11 @@ describe("db", () => {
 
       const privateKey = await getTestPrivateKey();
       const raw = await getAttendeesRaw(event.id);
-      const attendees = await decryptAttendeesForTable(raw, privateKey, "email,phone");
+      const attendees = await decryptAttendeesForTable(
+        raw,
+        privateKey,
+        "email,phone",
+      );
       expect(attendees[0]?.email).toBe("partial@example.com");
       expect(attendees[0]?.phone).toBe("+1-555-9876");
       expect(attendees[0]?.address).toBe("");
@@ -1968,7 +2137,12 @@ describe("db", () => {
 
       const privateKey = await getTestPrivateKey();
       const raw = await getAttendeesRaw(event.id);
-      const attendees = await decryptAttendeesForTable(raw, privateKey, "email", false);
+      const attendees = await decryptAttendeesForTable(
+        raw,
+        privateKey,
+        "email",
+        false,
+      );
       expect(attendees[0]?.name).toBe("Free Attendee");
       expect(attendees[0]?.email).toBe("free@example.com");
       expect(attendees[0]?.ticket_token).toBeTruthy();
@@ -1997,7 +2171,12 @@ describe("db", () => {
 
       const privateKey = await getTestPrivateKey();
       const raw = await getAttendeesRaw(event.id);
-      const attendees = await decryptAttendeesForTable(raw, privateKey, "email", true);
+      const attendees = await decryptAttendeesForTable(
+        raw,
+        privateKey,
+        "email",
+        true,
+      );
       expect(attendees[0]?.payment_id).toBe("pi_test_paid");
       expect(attendees[0]?.price_paid).toBe("2000");
       expect(attendees[0]?.refunded).toBe(false);
@@ -2010,7 +2189,12 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      await createTestAttendee(event.id, event.slug, "Alice", "alice@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Alice",
+        "alice@example.com",
+      );
 
       const result = await getEventWithAttendeesRaw(event.id);
       expect(result).not.toBeNull();
@@ -2029,7 +2213,12 @@ describe("db", () => {
         maxAttendees: 50,
         thankYouUrl: "https://example.com",
       });
-      const attendee = await createTestAttendee(event.id, event.slug, "Bob", "bob@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Bob",
+        "bob@example.com",
+      );
 
       const result = await getEventWithAttendeeRaw(event.id, attendee.id);
       expect(result).not.toBeNull();
@@ -2084,8 +2273,16 @@ describe("db", () => {
 
       // Create attendees directly and get plaintext tokens (matches production flow)
       const { createTestAttendeeDirect } = await import("#test-utils");
-      const { attendee: a1, token: token1 } = await createTestAttendeeDirect(event.id, "Tok1", "tok1@example.com");
-      const { attendee: a2, token: token2 } = await createTestAttendeeDirect(event.id, "Tok2", "tok2@example.com");
+      const { attendee: a1, token: token1 } = await createTestAttendeeDirect(
+        event.id,
+        "Tok1",
+        "tok1@example.com",
+      );
+      const { attendee: a2, token: token2 } = await createTestAttendeeDirect(
+        event.id,
+        "Tok2",
+        "tok2@example.com",
+      );
 
       const results = await getAttendeesByTokens([token2, token1]);
       expect(results.length).toBe(2);
@@ -2178,7 +2375,9 @@ describe("db", () => {
 
     test("reserveSession retries when stale reservation detected", async () => {
       // Insert a reservation with a timestamp old enough relative to frozen nowMs
-      const oldTimestamp = new Date(nowMs() - STALE_RESERVATION_MS - 1000).toISOString();
+      const oldTimestamp = new Date(
+        nowMs() - STALE_RESERVATION_MS - 1000,
+      ).toISOString();
       await getDb().execute({
         sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
         args: ["sess_stale", oldTimestamp],
@@ -2214,7 +2413,9 @@ describe("db", () => {
 
     test("reserveSession retries when stale reservation is detected (recursive path)", async () => {
       // Insert a reservation with a timestamp old enough relative to frozen nowMs
-      const oldTimestamp = new Date(nowMs() - STALE_RESERVATION_MS - 1000).toISOString();
+      const oldTimestamp = new Date(
+        nowMs() - STALE_RESERVATION_MS - 1000,
+      ).toISOString();
       await getDb().execute({
         sql: "INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at) VALUES (?, NULL, ?)",
         args: ["sess_race", oldTimestamp],
@@ -2265,7 +2466,10 @@ describe("db", () => {
 
     test("getTimezoneFromDb returns default when no timezone is stored", async () => {
       // Remove the timezone setting that createTestDbWithSetup inserted
-      await getDb().execute({ sql: "DELETE FROM settings WHERE key = ?", args: [CONFIG_KEYS.TIMEZONE] });
+      await getDb().execute({
+        sql: "DELETE FROM settings WHERE key = ?",
+        args: [CONFIG_KEYS.TIMEZONE],
+      });
       invalidateSettingsCache();
       const value = await getTimezoneFromDb();
       expect(value).toBe("Europe/London");
@@ -2273,7 +2477,10 @@ describe("db", () => {
 
     test("getTimezoneCached reads default from TTL cache when no timezone is stored", async () => {
       // Remove the timezone setting that createTestDbWithSetup inserted
-      await getDb().execute({ sql: "DELETE FROM settings WHERE key = ?", args: [CONFIG_KEYS.TIMEZONE] });
+      await getDb().execute({
+        sql: "DELETE FROM settings WHERE key = ?",
+        args: [CONFIG_KEYS.TIMEZONE],
+      });
       invalidateSettingsCache();
       // Load the settings cache (without timezone key)
       await getSetting(CONFIG_KEYS.TIMEZONE);
@@ -2327,7 +2534,10 @@ describe("db", () => {
         },
       });
 
-      const row = await kvTable.insert({ key: "test-key", value: "test-value" });
+      const row = await kvTable.insert({
+        key: "test-key",
+        value: "test-value",
+      });
       expect(row.key).toBe("test-key");
       expect(row.value).toBe("test-value");
 
@@ -2397,8 +2607,14 @@ describe("db", () => {
 
   describe("getEventsBySlugsBatch returns null for non-existent slugs", () => {
     test("returns null entries for slugs not in database", async () => {
-      const event = await createTestEvent({ name: "Batch Exists", maxAttendees: 10 });
-      const results = await getEventsBySlugsBatch([event.slug, "nonexistent-slug"]);
+      const event = await createTestEvent({
+        name: "Batch Exists",
+        maxAttendees: 10,
+      });
+      const results = await getEventsBySlugsBatch([
+        event.slug,
+        "nonexistent-slug",
+      ]);
       expect(results.length).toBe(2);
       expect(results[0]?.name).toBe("Batch Exists");
       expect(results[1]).toBeNull();
@@ -2422,7 +2638,12 @@ describe("db", () => {
   describe("updateCheckedIn", () => {
     test("updates checked_in to true for existing attendee", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "Check User", "check@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Check User",
+        "check@example.com",
+      );
 
       await updateCheckedIn(attendee.id, true);
 
@@ -2434,7 +2655,12 @@ describe("db", () => {
 
     test("updates checked_in back to false", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      const attendee = await createTestAttendee(event.id, event.slug, "Check User", "check@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Check User",
+        "check@example.com",
+      );
 
       await updateCheckedIn(attendee.id, true);
       await updateCheckedIn(attendee.id, false);
@@ -2449,7 +2675,12 @@ describe("db", () => {
   describe("decryptAttendees with empty checked_in", () => {
     test("treats empty checked_in as false for pre-migration attendees", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(event.id, event.slug, "Old User", "old@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Old User",
+        "old@example.com",
+      );
 
       // Simulate pre-migration state: set checked_in to empty string directly
       await getDb().execute({
@@ -2470,7 +2701,12 @@ describe("db", () => {
     test("backfills empty checked_in with encrypted false during migration", async () => {
       // Create an attendee, then simulate pre-migration state
       const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(event.id, event.slug, "Backfill User", "backfill@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Backfill User",
+        "backfill@example.com",
+      );
 
       // Set checked_in to empty string to simulate pre-migration data
       await getDb().execute({
@@ -2501,7 +2737,12 @@ describe("db", () => {
   describe("initDb ticket_token backfill", () => {
     test("backfills empty ticket_token with random tokens during migration", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(event.id, event.slug, "Token User", "token@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Token User",
+        "token@example.com",
+      );
 
       // Set ticket_token to empty string to simulate pre-migration data
       await getDb().execute({
@@ -2526,7 +2767,12 @@ describe("db", () => {
 
     test("encrypts plaintext ticket_token and generates HMAC index during migration", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(event.id, event.slug, "Migration User", "migration@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Migration User",
+        "migration@example.com",
+      );
 
       // Simulate pre-encryption state: set ticket_token to plaintext and NULL index
       const plaintextToken = "plaintext-token-abc123";
@@ -2541,7 +2787,9 @@ describe("db", () => {
       expect(before[0]?.ticket_token_index).toBeNull();
 
       // Clear version marker and re-run migrations
-      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      await getDb().execute(
+        "DELETE FROM settings WHERE key = 'latest_db_update'",
+      );
       invalidateSettingsCache();
       await initDb();
 
@@ -2557,7 +2805,12 @@ describe("db", () => {
   describe("initDb invalid empty string migration", () => {
     test("fixes attendee records with empty strings in hybrid-encrypted fields", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(event.id, event.slug, "Valid User", "valid@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Valid User",
+        "valid@example.com",
+      );
 
       // Simulate corrupted state: set multiple hybrid-encrypted fields to empty strings
       await getDb().execute({
@@ -2574,7 +2827,9 @@ describe("db", () => {
       expect(before[0]?.checked_in as unknown).toBe("");
 
       // Clear version marker and re-run migrations
-      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      await getDb().execute(
+        "DELETE FROM settings WHERE key = 'latest_db_update'",
+      );
       invalidateSettingsCache();
       await initDb();
 
@@ -2603,7 +2858,12 @@ describe("db", () => {
 
     test("handles partial corruption gracefully", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(event.id, event.slug, "Partial User", "partial@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Partial User",
+        "partial@example.com",
+      );
 
       // Simulate partially corrupted state: only some fields have empty strings
       await getDb().execute({
@@ -2619,7 +2879,9 @@ describe("db", () => {
       expect(before[0]?.special_instructions).not.toBe("");
 
       // Clear version marker and re-run migrations
-      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      await getDb().execute(
+        "DELETE FROM settings WHERE key = 'latest_db_update'",
+      );
       invalidateSettingsCache();
       await initDb();
 
@@ -2641,7 +2903,12 @@ describe("db", () => {
 
     test("handles name field with empty string", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(event.id, event.slug, "Name User", "name@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Name User",
+        "name@example.com",
+      );
 
       // Simulate corrupted state: set name to empty string
       await getDb().execute({
@@ -2654,7 +2921,9 @@ describe("db", () => {
       expect(before[0]?.name).toBe("");
 
       // Clear version marker and re-run migrations
-      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      await getDb().execute(
+        "DELETE FROM settings WHERE key = 'latest_db_update'",
+      );
       invalidateSettingsCache();
       await initDb();
 
@@ -2671,7 +2940,12 @@ describe("db", () => {
 
     test("skips attendees with no empty strings", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(event.id, event.slug, "Valid User", "valid@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Valid User",
+        "valid@example.com",
+      );
 
       // Get the encrypted values before migration
       const before = await getAttendeesRaw(event.id);
@@ -2680,7 +2954,9 @@ describe("db", () => {
       const beforePhone = before[0]?.phone;
 
       // Clear version marker and re-run migrations
-      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      await getDb().execute(
+        "DELETE FROM settings WHERE key = 'latest_db_update'",
+      );
       invalidateSettingsCache();
       await initDb();
 
@@ -2693,7 +2969,12 @@ describe("db", () => {
 
     test("handles single field with empty string", async () => {
       const event = await createTestEvent({ maxAttendees: 100 });
-      await createTestAttendee(event.id, event.slug, "Single Field User", "singlefield@example.com");
+      await createTestAttendee(
+        event.id,
+        event.slug,
+        "Single Field User",
+        "singlefield@example.com",
+      );
 
       // Simulate corrupted state: set only checked_in to empty string
       await getDb().execute({
@@ -2706,7 +2987,9 @@ describe("db", () => {
       expect(before[0]?.checked_in as unknown).toBe("");
 
       // Clear version marker and re-run migrations
-      await getDb().execute("DELETE FROM settings WHERE key = 'latest_db_update'");
+      await getDb().execute(
+        "DELETE FROM settings WHERE key = 'latest_db_update'",
+      );
       invalidateSettingsCache();
       await initDb();
 
@@ -2721,7 +3004,6 @@ describe("db", () => {
       expect(decrypted[0]?.checked_in).toBe(false);
     });
   });
-
 
   describe("writeClosesAt", () => {
     test("encrypts empty string for no deadline", async () => {
@@ -2811,9 +3093,12 @@ describe("db", () => {
   describe("event date read transform", () => {
     test("returns empty string for no-date event", async () => {
       const event = await eventsTable.insert({
-        name: "test", slug: "test-date-read-1",
+        name: "test",
+        slug: "test-date-read-1",
         slugIndex: await computeSlugIndex("test-date-read-1"),
-        maxAttendees: 100, maxPrice: 10000, date: "",
+        maxAttendees: 100,
+        maxPrice: 10000,
+        date: "",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.date).toBe("");
@@ -2821,9 +3106,12 @@ describe("db", () => {
 
     test("returns normalized ISO string for valid datetime", async () => {
       const event = await eventsTable.insert({
-        name: "test", slug: "test-date-read-2",
+        name: "test",
+        slug: "test-date-read-2",
         slugIndex: await computeSlugIndex("test-date-read-2"),
-        maxAttendees: 100, maxPrice: 10000, date: "2026-06-15T14:00",
+        maxAttendees: 100,
+        maxPrice: 10000,
+        date: "2026-06-15T14:00",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.date).toBe("2026-06-15T14:00:00.000Z");
@@ -2833,9 +3121,12 @@ describe("db", () => {
   describe("closes_at read transform", () => {
     test("returns null for no-deadline event", async () => {
       const event = await eventsTable.insert({
-        name: "test", slug: "test-read-1",
+        name: "test",
+        slug: "test-read-1",
         slugIndex: await computeSlugIndex("test-read-1"),
-        maxAttendees: 100, maxPrice: 10000, closesAt: "",
+        maxAttendees: 100,
+        maxPrice: 10000,
+        closesAt: "",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.closes_at).toBeNull();
@@ -2843,27 +3134,30 @@ describe("db", () => {
 
     test("returns normalized ISO string for valid datetime", async () => {
       const event = await eventsTable.insert({
-        name: "test", slug: "test-read-2",
+        name: "test",
+        slug: "test-read-2",
         slugIndex: await computeSlugIndex("test-read-2"),
-        maxAttendees: 100, maxPrice: 10000, closesAt: "2099-12-31T23:59",
+        maxAttendees: 100,
+        maxPrice: 10000,
+        closesAt: "2099-12-31T23:59",
       });
       const saved = await getEventWithCount(event.id);
       expect(saved?.closes_at).toBe("2099-12-31T23:59:00.000Z");
     });
-
-
   });
 
   describe("bookable_days read transform", () => {
     test("returns empty array when DB contains non-array JSON", async () => {
       const event = await eventsTable.insert({
-        name: "test-bd", slug: "test-bd-1",
+        name: "test-bd",
+        slug: "test-bd-1",
         slugIndex: await computeSlugIndex("test-bd-1"),
-        maxAttendees: 100, maxPrice: 10000,
+        maxAttendees: 100,
+        maxPrice: 10000,
       });
       // Overwrite bookable_days with non-array JSON directly in DB
       await getDb().execute({
-        sql: `UPDATE events SET bookable_days = ? WHERE id = ?`,
+        sql: "UPDATE events SET bookable_days = ? WHERE id = ?",
         args: ['"not-an-array"', event.id],
       });
       const saved = await getEventWithCount(event.id);
@@ -2875,7 +3169,7 @@ describe("db", () => {
     test("backfills NULL closes_at to encrypted empty string", async () => {
       const slugIdx = await computeSlugIndex("test-mig-1");
       await getDb().execute({
-        sql: `INSERT INTO events (name, slug, slug_index, max_attendees, created, closes_at) VALUES (?, ?, ?, ?, ?, NULL)`,
+        sql: "INSERT INTO events (name, slug, slug_index, max_attendees, created, closes_at) VALUES (?, ?, ?, ?, ?, NULL)",
         args: ["raw-name", "raw-slug", slugIdx, 100, new Date().toISOString()],
       });
 
@@ -2888,7 +3182,7 @@ describe("db", () => {
 
       // Verify the event now has encrypted closes_at (not NULL)
       const rows = await getDb().execute(
-        `SELECT closes_at FROM events WHERE slug_index = ?`,
+        "SELECT closes_at FROM events WHERE slug_index = ?",
         [slugIdx],
       );
       const raw = rows.rows[0]?.closes_at as string | null;
@@ -2904,8 +3198,15 @@ describe("db", () => {
       const encrypted = await encrypt("2099-06-15T14:30:00.000Z");
       const slugIdx = await computeSlugIndex("test-mig-2");
       await getDb().execute({
-        sql: `INSERT INTO events (name, slug, slug_index, max_attendees, created, closes_at) VALUES (?, ?, ?, ?, ?, ?)`,
-        args: ["enc-name", "enc-slug", slugIdx, 100, new Date().toISOString(), encrypted],
+        sql: "INSERT INTO events (name, slug, slug_index, max_attendees, created, closes_at) VALUES (?, ?, ?, ?, ?, ?)",
+        args: [
+          "enc-name",
+          "enc-slug",
+          slugIdx,
+          100,
+          new Date().toISOString(),
+          encrypted,
+        ],
       });
 
       await getDb().execute(
@@ -2916,7 +3217,7 @@ describe("db", () => {
 
       // Verify it still decrypts correctly (not double-encrypted)
       const rows = await getDb().execute(
-        `SELECT closes_at FROM events WHERE slug_index = ?`,
+        "SELECT closes_at FROM events WHERE slug_index = ?",
         [slugIdx],
       );
       const raw = rows.rows[0]?.closes_at as string | null;
@@ -3012,14 +3313,27 @@ describe("db", () => {
         termsAndConditions: "",
       });
 
-      const e1 = await createTestEvent({ name: "Active In Group", maxAttendees: 10, groupId: group.id });
-      const e2 = await createTestEvent({ name: "Inactive In Group", maxAttendees: 10, groupId: group.id });
+      const e1 = await createTestEvent({
+        name: "Active In Group",
+        maxAttendees: 10,
+        groupId: group.id,
+      });
+      const e2 = await createTestEvent({
+        name: "Inactive In Group",
+        maxAttendees: 10,
+        groupId: group.id,
+      });
       await getDb().execute({
         sql: "UPDATE events SET active = 0 WHERE id = ?",
         args: [e2.id],
       });
 
-      const attendee = await createAttendeeAtomic({ eventId: e1.id, name: "A", email: "a@example.com", quantity: 3 });
+      const attendee = await createAttendeeAtomic({
+        eventId: e1.id,
+        name: "A",
+        email: "a@example.com",
+        quantity: 3,
+      });
       if (!attendee.success) throw new Error("Failed to create attendee");
 
       const events = await getActiveEventsByGroupId(group.id);
@@ -3035,7 +3349,11 @@ describe("db", () => {
         slugIndex: await computeGroupSlugIndex("reset-group"),
         termsAndConditions: "",
       });
-      const event = await createTestEvent({ name: "Reset Event", groupId: group.id, maxAttendees: 10 });
+      const event = await createTestEvent({
+        name: "Reset Event",
+        groupId: group.id,
+        maxAttendees: 10,
+      });
       await resetGroupEvents(group.id);
       expect((await getEvent(event.id))?.group_id).toBe(0);
     });
@@ -3062,7 +3380,11 @@ describe("db", () => {
       const rows = await getDb().execute("SELECT * FROM users");
       expect(rows.rows.length).toBe(1);
 
-      const user = rows.rows[0] as unknown as { password_hash: string; wrapped_data_key: string; admin_level: string };
+      const user = rows.rows[0] as unknown as {
+        password_hash: string;
+        wrapped_data_key: string;
+        admin_level: string;
+      };
       const decryptedLevel = await decrypt(user.admin_level);
       expect(decryptedLevel).toBe("owner");
       expect(user.wrapped_data_key).toBe("test-wrapped-key");
@@ -3077,8 +3399,11 @@ describe("db", () => {
       await setSetting("admin_password", "old-hash");
       await setSetting("wrapped_data_key", "old-key");
 
-      const beforeCount = await getDb().execute("SELECT COUNT(*) as count FROM users");
-      const countBefore = (beforeCount.rows[0] as unknown as { count: number }).count;
+      const beforeCount = await getDb().execute(
+        "SELECT COUNT(*) as count FROM users",
+      );
+      const countBefore = (beforeCount.rows[0] as unknown as { count: number })
+        .count;
 
       // Force re-migration
       await getDb().execute(
@@ -3088,8 +3413,12 @@ describe("db", () => {
       await initDb();
 
       // Verify no additional user was created
-      const afterCount = await getDb().execute("SELECT COUNT(*) as count FROM users");
-      expect((afterCount.rows[0] as unknown as { count: number }).count).toBe(countBefore);
+      const afterCount = await getDb().execute(
+        "SELECT COUNT(*) as count FROM users",
+      );
+      expect((afterCount.rows[0] as unknown as { count: number }).count).toBe(
+        countBefore,
+      );
     });
 
     test("skips migration when no admin_password in settings", async () => {

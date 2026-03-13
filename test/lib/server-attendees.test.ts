@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#lib/db/attendees.ts";
+import { paymentsApi } from "#lib/payments.ts";
 import { handleRequest } from "#routes";
 import {
   adminAttendeeAction,
@@ -24,7 +25,6 @@ import {
   setupEventAndLogin,
   withMocks,
 } from "#test-utils";
-import { paymentsApi } from "#lib/payments.ts";
 
 describe("server (admin attendees)", () => {
   beforeEach(async () => {
@@ -128,9 +128,9 @@ describe("server (admin attendees)", () => {
     test("includes return_url as hidden field when provided", async () => {
       const { response } = await adminEventPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete?return_url=${
-            encodeURIComponent("/admin/calendar#attendees")
-          }`,
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/delete?return_url=${encodeURIComponent(
+            "/admin/calendar#attendees",
+          )}`,
       )();
       await expectHtmlResponse(
         response,
@@ -229,7 +229,9 @@ describe("server (admin attendees)", () => {
         confirm_name: "john doe",
       })();
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?success=Attendee+deleted`);
+      expect(response.headers.get("location")).toBe(
+        `/admin/event/${event.id}?success=Attendee+deleted`,
+      );
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
@@ -348,18 +350,39 @@ describe("server (admin attendees)", () => {
 
   describe("POST /admin/event/:eventId/attendee/:attendeeId/delete-incomplete", () => {
     test("redirects to login when not authenticated", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, unitPrice: 1000 });
-      const attendee = await createPaidTestAttendee(event.id, "John Doe", "john@example.com", "", 1000);
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        unitPrice: 1000,
+      });
+      const attendee = await createPaidTestAttendee(
+        event.id,
+        "John Doe",
+        "john@example.com",
+        "",
+        1000,
+      );
 
       const response = await handleRequest(
-        mockFormRequest(`/admin/event/${event.id}/attendee/${attendee.id}/delete-incomplete`, {}),
+        mockFormRequest(
+          `/admin/event/${event.id}/attendee/${attendee.id}/delete-incomplete`,
+          {},
+        ),
       );
       expectAdminRedirect(response);
     });
 
     test("deletes incomplete attendee without name confirmation", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100, unitPrice: 1000 });
-      const attendee = await createPaidTestAttendee(event.id, "Jane Stuck", "jane@example.com", "", 1000);
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        maxAttendees: 100,
+        unitPrice: 1000,
+      });
+      const attendee = await createPaidTestAttendee(
+        event.id,
+        "Jane Stuck",
+        "jane@example.com",
+        "",
+        1000,
+      );
 
       const response = await handleRequest(
         mockFormRequest(
@@ -368,7 +391,9 @@ describe("server (admin attendees)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Incomplete+registration+removed`)(response);
+      expectRedirect(
+        `/admin/event/${event.id}?success=Incomplete+registration+removed`,
+      )(response);
 
       // Verify attendee was deleted
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
@@ -377,8 +402,17 @@ describe("server (admin attendees)", () => {
     });
 
     test("refuses to delete complete attendee via delete-incomplete", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100, unitPrice: 1000 });
-      const attendee = await createPaidTestAttendee(event.id, "John Paid", "john@example.com", "pi_test_123", 1000);
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        maxAttendees: 100,
+        unitPrice: 1000,
+      });
+      const attendee = await createPaidTestAttendee(
+        event.id,
+        "John Paid",
+        "john@example.com",
+        "pi_test_123",
+        1000,
+      );
 
       const response = await handleRequest(
         mockFormRequest(
@@ -388,7 +422,9 @@ describe("server (admin attendees)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(`/admin/event/${event.id}`);
+      expect(response.headers.get("location")).toContain(
+        `/admin/event/${event.id}`,
+      );
       expect(response.headers.get("location")).toContain("error=");
 
       // Verify attendee was NOT deleted (still exists)
@@ -397,9 +433,17 @@ describe("server (admin attendees)", () => {
     });
 
     test("refuses to delete admin-added attendee on paid event via delete-incomplete", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100, unitPrice: 1000 });
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        maxAttendees: 100,
+        unitPrice: 1000,
+      });
       // Admin-added attendee: no payment_id and price_paid=0
-      const attendee = await createTestAttendee(event.id, event.slug, "Admin Added", "admin@example.com");
+      const attendee = await createTestAttendee(
+        event.id,
+        event.slug,
+        "Admin Added",
+        "admin@example.com",
+      );
 
       const response = await handleRequest(
         mockFormRequest(
@@ -409,7 +453,9 @@ describe("server (admin attendees)", () => {
         ),
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toContain(`/admin/event/${event.id}`);
+      expect(response.headers.get("location")).toContain(
+        `/admin/event/${event.id}`,
+      );
       expect(response.headers.get("location")).toContain("error=");
 
       // Verify attendee was NOT deleted
@@ -418,8 +464,18 @@ describe("server (admin attendees)", () => {
     });
 
     test("deletes incomplete attendee on free can_pay_more event", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100, unitPrice: 0, canPayMore: true });
-      const attendee = await createPaidTestAttendee(event.id, "Jane Stuck", "jane@example.com", "", 500);
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        maxAttendees: 100,
+        unitPrice: 0,
+        canPayMore: true,
+      });
+      const attendee = await createPaidTestAttendee(
+        event.id,
+        "Jane Stuck",
+        "jane@example.com",
+        "",
+        500,
+      );
 
       const response = await handleRequest(
         mockFormRequest(
@@ -428,7 +484,9 @@ describe("server (admin attendees)", () => {
           cookie,
         ),
       );
-      expectRedirect(`/admin/event/${event.id}?success=Incomplete+registration+removed`)(response);
+      expectRedirect(
+        `/admin/event/${event.id}?success=Incomplete+registration+removed`,
+      )(response);
 
       const { getAttendeeRaw } = await import("#lib/db/attendees.ts");
       const deleted = await getAttendeeRaw(attendee.id);
@@ -436,7 +494,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("returns 404 for non-existent attendee", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100, unitPrice: 1000 });
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        maxAttendees: 100,
+        unitPrice: 1000,
+      });
 
       const response = await handleRequest(
         mockFormRequest(
@@ -587,8 +648,8 @@ describe("server (admin attendees)", () => {
     });
 
     test("event page shows Check in button for unchecked attendee", async () => {
-      const { response } = await adminEventPage((ctx) =>
-        `/admin/event/${ctx.event.id}`
+      const { response } = await adminEventPage(
+        (ctx) => `/admin/event/${ctx.event.id}`,
       )();
       await expectHtmlResponse(response, 200, "Check in", "/checkin");
     });
@@ -633,10 +694,9 @@ describe("server (admin attendees)", () => {
       // Check in first, then view the event page
       const { event, cookie } = await checkinAction({})();
 
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}`,
-        { cookie },
-      );
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
       await expectHtmlResponse(response, 200, "Check out");
     });
   });
@@ -771,7 +831,9 @@ describe("server (admin attendees)", () => {
     });
 
     test("redirects with error on validation failure", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100 });
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        maxAttendees: 100,
+      });
 
       const response = await handleRequest(
         mockFormRequest(
@@ -820,7 +882,9 @@ describe("server (admin attendees)", () => {
     });
 
     test("redirects with error on encryption failure", async () => {
-      const { event, cookie, csrfToken } = await setupEventAndLogin({ maxAttendees: 100 });
+      const { event, cookie, csrfToken } = await setupEventAndLogin({
+        maxAttendees: 100,
+      });
 
       await withMocks(
         () =>
@@ -894,10 +958,9 @@ describe("server (admin attendees)", () => {
     test("event page shows add attendee form", async () => {
       const { event, cookie } = await setupEventAndLogin({ maxAttendees: 100 });
 
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}`,
-        { cookie },
-      );
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
       await expectHtmlResponse(
         response,
         200,
@@ -948,10 +1011,9 @@ describe("server (admin attendees)", () => {
     test("returns 404 for non-existent attendee", async () => {
       const { cookie } = await loginAsAdmin();
 
-      const response = await awaitTestRequest(
-        "/admin/attendees/999",
-        { cookie },
-      );
+      const response = await awaitTestRequest("/admin/attendees/999", {
+        cookie,
+      });
       expect(response.status).toBe(404);
     });
 
@@ -999,9 +1061,9 @@ describe("server (admin attendees)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}?return_url=${
-          encodeURIComponent("/admin/calendar#attendees")
-        }`,
+        `/admin/attendees/${attendee.id}?return_url=${encodeURIComponent(
+          "/admin/calendar#attendees",
+        )}`,
         { cookie },
       );
       await expectHtmlResponse(
@@ -1394,10 +1456,9 @@ describe("server (admin attendees)", () => {
       );
       const { cookie } = await loginAsAdmin();
 
-      const response = await awaitTestRequest(
-        `/admin/event/${event.id}`,
-        { cookie },
-      );
+      const response = await awaitTestRequest(`/admin/event/${event.id}`, {
+        cookie,
+      });
       await expectHtmlResponse(
         response,
         200,
@@ -1566,7 +1627,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("updates attendee quantity", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -1599,7 +1663,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("shows quantity field on edit form", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -1616,7 +1683,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("clamps quantity to event max_quantity", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 3 });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        maxQuantity: 3,
+      });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -1678,7 +1748,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("allows decreasing quantity without capacity check", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -1712,7 +1785,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("rejects non-existent event_id on quantity update", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -1741,7 +1817,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("treats invalid quantity as 1", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -1774,7 +1853,10 @@ describe("server (admin attendees)", () => {
     });
 
     test("defaults missing quantity to 1", async () => {
-      const event = await createTestEvent({ maxAttendees: 100, maxQuantity: 5 });
+      const event = await createTestEvent({
+        maxAttendees: 100,
+        maxQuantity: 5,
+      });
       const attendee = await createTestAttendee(
         event.id,
         event.slug,
@@ -1863,9 +1945,9 @@ describe("server (admin attendees)", () => {
     test("includes return_url as hidden field when provided", async () => {
       const { response } = await adminEventPage(
         (ctx) =>
-          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-notification?return_url=${
-            encodeURIComponent("/admin/calendar#attendees")
-          }`,
+          `/admin/event/${ctx.event.id}/attendee/${ctx.attendee.id}/resend-notification?return_url=${encodeURIComponent(
+            "/admin/calendar#attendees",
+          )}`,
       )();
       await expectHtmlResponse(
         response,
@@ -1984,10 +2066,8 @@ describe("server (admin attendees)", () => {
     });
 
     test("re-sends notification with matching name", async () => {
-      const webhookFetch = stub(
-        globalThis,
-        "fetch",
-        () => Promise.resolve(new Response(null, { status: 200 })),
+      const webhookFetch = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response(null, { status: 200 })),
       );
 
       try {
@@ -1997,7 +2077,9 @@ describe("server (admin attendees)", () => {
           webhookUrl: "https://example.com/webhook",
         });
         expect(response.status).toBe(302);
-        expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?success=Notification+re-sent`);
+        expect(response.headers.get("location")).toBe(
+          `/admin/event/${event.id}?success=Notification+re-sent`,
+        );
 
         // Verify webhook was sent
         expect(webhookFetch.calls.length).toBeGreaterThan(0);
@@ -2007,10 +2089,8 @@ describe("server (admin attendees)", () => {
     });
 
     test("logs activity when notification is re-sent", async () => {
-      const webhookFetch = stub(
-        globalThis,
-        "fetch",
-        () => Promise.resolve(new Response(null, { status: 200 })),
+      const webhookFetch = stub(globalThis, "fetch", () =>
+        Promise.resolve(new Response(null, { status: 200 })),
       );
 
       try {
@@ -2025,7 +2105,7 @@ describe("server (admin attendees)", () => {
         const { getEventActivityLog } = await import("#lib/db/activityLog.ts");
         const logs = await getEventActivityLog(event.id);
         const resendLog = logs.find((l: { message: string }) =>
-          l.message.includes("Notification re-sent")
+          l.message.includes("Notification re-sent"),
         );
         expect(resendLog).toBeDefined();
         expect(resendLog?.message).toContain("John Doe");
@@ -2102,9 +2182,9 @@ describe("server (admin attendees)", () => {
       );
       const { cookie } = await loginAsAdmin();
       const response = await awaitTestRequest(
-        `/admin/attendees/${attendee.id}?success=${
-          encodeURIComponent("Payment status is up to date")
-        }`,
+        `/admin/attendees/${attendee.id}?success=${encodeURIComponent(
+          "Payment status is up to date",
+        )}`,
         { cookie },
       );
       await expectHtmlResponse(response, 200, "Payment status is up to date");
@@ -2298,9 +2378,7 @@ describe("server (admin attendees)", () => {
               `/admin/attendees/${attendee.id}`,
             );
             expect(response.headers.get("location")).toContain("success=");
-            expect(response.headers.get("location")).toContain(
-              "up+to+date",
-            );
+            expect(response.headers.get("location")).toContain("up+to+date");
           } finally {
             mockRefunded.restore();
           }

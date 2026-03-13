@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 
 import { handleRequest } from "#routes";
 import {
@@ -45,11 +45,15 @@ describe("server (admin holidays)", () => {
         await loginAsAdmin();
       // Create a manager invite
       const inviteResponse = await handleRequest(
-        mockFormRequest("/admin/users", {
-          username: "manager1",
-          admin_level: "manager",
-          csrf_token: ownerCsrf,
-        }, ownerCookie),
+        mockFormRequest(
+          "/admin/users",
+          {
+            username: "manager1",
+            admin_level: "manager",
+            csrf_token: ownerCsrf,
+          },
+          ownerCookie,
+        ),
       );
       expect(inviteResponse.status).toBe(302);
       const inviteUrl = inviteResponse.headers.get("location") ?? "";
@@ -79,9 +83,13 @@ describe("server (admin holidays)", () => {
 
       // Owner activates the manager
       const activateResponse = await handleRequest(
-        mockFormRequest("/admin/users/2/activate", {
-          csrf_token: ownerCsrf,
-        }, ownerCookie),
+        mockFormRequest(
+          "/admin/users/2/activate",
+          {
+            csrf_token: ownerCsrf,
+          },
+          ownerCookie,
+        ),
       );
       expect(activateResponse.status).toBe(302);
 
@@ -402,7 +410,9 @@ describe("server (admin holidays)", () => {
         },
       );
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/holidays?success=Holiday+deleted");
+      expect(response.headers.get("location")).toBe(
+        "/admin/holidays?success=Holiday+deleted",
+      );
     });
 
     test("returns 404 for non-existent holiday", async () => {

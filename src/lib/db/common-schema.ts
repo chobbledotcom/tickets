@@ -1,7 +1,7 @@
 import { col } from "#lib/db/table.ts";
 
-export { defineIdTable } from "#lib/db/define-id-table.ts";
 export { registerCache } from "#lib/cache-registry.ts";
+export { defineIdTable } from "#lib/db/define-id-table.ts";
 
 type EncryptFn = (v: string) => Promise<string>;
 type DecryptFn = (v: string) => Promise<string>;

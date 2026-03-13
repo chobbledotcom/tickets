@@ -1,5 +1,5 @@
-import { describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   boundedLru,
   bracket,
@@ -15,7 +15,6 @@ import {
   map,
   mapParallel,
   mapSequential,
-
   ok,
   once,
   pick,
@@ -42,8 +41,14 @@ const expectEmptyPassthrough = (curriedFn: (arr: number[]) => unknown) => {
 const logBracket = (asPromise = false) => {
   const log: string[] = [];
   const withResource = bracket(
-    () => { log.push("acquire"); return asPromise ? Promise.resolve("resource") : "resource"; },
-    () => { log.push("release"); if (asPromise) return Promise.resolve(); },
+    () => {
+      log.push("acquire");
+      return asPromise ? Promise.resolve("resource") : "resource";
+    },
+    () => {
+      log.push("release");
+      if (asPromise) return Promise.resolve();
+    },
   );
   return { log, withResource };
 };
@@ -71,7 +76,12 @@ const seededLru = (capacity: number) => {
 const timedTtl = (ttl: number) => {
   let time = 0;
   const cache = ttlCache<string, number>(ttl, () => time);
-  return { cache, setTime: (t: number) => { time = t; } };
+  return {
+    cache,
+    setTime: (t: number) => {
+      time = t;
+    },
+  };
 };
 
 /** Create a collectionCache with call tracking and controllable clock */
@@ -84,7 +94,13 @@ const trackedCollection = (fetchFn?: (n: number) => unknown[]) => {
     return Promise.resolve(items);
   };
   const cache = collectionCache(fetcher, 100, () => time);
-  return { cache, calls, setTime: (t: number) => { time = t; } };
+  return {
+    cache,
+    calls,
+    setTime: (t: number) => {
+      time = t;
+    },
+  };
 };
 
 /** Create a dynamic tracked collection and do the initial fetch */
@@ -118,14 +134,7 @@ describe("fp", () => {
 
     test("works with 6+ functions (recursive type catch-all)", () => {
       const addOne = (x: number) => x + 1;
-      const result = pipe(
-        addOne,
-        double,
-        addOne,
-        double,
-        addOne,
-        double,
-      )(0); // (((((0+1)*2)+1)*2)+1)*2 = ((((1*2)+1)*2)+1)*2 = (((2+1)*2)+1)*2 = ((3*2)+1)*2 = (6+1)*2 = 14
+      const result = pipe(addOne, double, addOne, double, addOne, double)(0); // (((((0+1)*2)+1)*2)+1)*2 = ((((1*2)+1)*2)+1)*2 = (((2+1)*2)+1)*2 = ((3*2)+1)*2 = (6+1)*2 = 14
       expect(result).toBe(14);
     });
   });
@@ -248,7 +257,9 @@ describe("fp", () => {
         { id: 2, name: "b" },
         { id: 1, name: "c" },
       ];
-      expect(uniqueBy((x: { id: number; name: string }) => x.id)(items)).toEqual([
+      expect(
+        uniqueBy((x: { id: number; name: string }) => x.id)(items),
+      ).toEqual([
         { id: 1, name: "a" },
         { id: 2, name: "b" },
       ]);
@@ -354,7 +365,10 @@ describe("fp", () => {
   describe("once", () => {
     test("computes value once and caches", () => {
       let callCount = 0;
-      const getValue = once(() => { callCount++; return "computed"; });
+      const getValue = once(() => {
+        callCount++;
+        return "computed";
+      });
       const first = getValue();
       const second = getValue();
       expect(first).toBe("computed");
@@ -425,7 +439,10 @@ describe("fp", () => {
     test("releases resource even on error", async () => {
       const { log, withResource } = logBracket();
       await expect(
-        withResource(() => { log.push("use"); throw new Error("boom"); }),
+        withResource(() => {
+          log.push("use");
+          throw new Error("boom");
+        }),
       ).rejects.toThrow("boom");
       expect(log).toEqual(["acquire", "use", "release"]);
     });

@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { addDays } from "#lib/dates.ts";
 import { todayInTz } from "#lib/timezone.ts";
 import {
@@ -346,7 +346,9 @@ describe("admin calendar", () => {
         cookie,
       });
       expect(response.status).toBe(302);
-      expect(response.headers.get("location")).toBe("/admin/calendar?error=Select+a+date+to+export");
+      expect(response.headers.get("location")).toBe(
+        "/admin/calendar?error=Select+a+date+to+export",
+      );
     });
 
     test("returns CSV with correct headers", async () => {

@@ -1,5 +1,5 @@
-import { describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
 import {
   computeHmacSha256,
   hmacToBase64,
@@ -96,7 +96,7 @@ describe("payment-crypto", () => {
     });
 
     test("produces lowercase hex", () => {
-      const buf = new Uint8Array([0xAB, 0xCD]).buffer;
+      const buf = new Uint8Array([0xab, 0xcd]).buffer;
       expect(hmacToHex(buf)).toBe("abcd");
     });
   });

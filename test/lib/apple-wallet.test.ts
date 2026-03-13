@@ -1,5 +1,7 @@
-import { describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
+import { unzipSync } from "fflate";
+import forge from "node-forge";
 import {
   buildPkpass,
   createManifest,
@@ -7,14 +9,12 @@ import {
   isValidPemCertificate,
   isValidPemPrivateKey,
   type PassData,
+  type SigningCredentials,
   sha1Hex,
   signManifest,
-  type SigningCredentials,
 } from "#lib/apple-wallet.ts";
 import { WALLET_ICONS } from "#lib/wallet-icons.ts";
 import { generateTestCerts } from "#test-utils";
-import { unzipSync } from "fflate";
-import forge from "node-forge";
 
 /** Type for eventTicket field groups in pass.json */
 type TicketFields = {
@@ -80,7 +80,9 @@ describe("apple-wallet", () => {
     test("includes location in secondary fields", () => {
       const pass = generatePassJson(makePassData(), creds);
       const ticket = pass.eventTicket as TicketFields;
-      const locationField = ticket.secondaryFields.find((f) => f.key === "location");
+      const locationField = ticket.secondaryFields.find(
+        (f) => f.key === "location",
+      );
       expect(locationField).toBeDefined();
       expect(locationField!.value).toBe("Town Hall");
     });
@@ -88,14 +90,18 @@ describe("apple-wallet", () => {
     test("omits date when eventDate is empty", () => {
       const pass = generatePassJson(makePassData({ eventDate: "" }), creds);
       const ticket = pass.eventTicket as TicketFields;
-      expect(ticket.secondaryFields.find((f) => f.key === "date")).toBeUndefined();
+      expect(
+        ticket.secondaryFields.find((f) => f.key === "date"),
+      ).toBeUndefined();
       expect(pass.relevantDate).toBeUndefined();
     });
 
     test("omits location when eventLocation is empty", () => {
       const pass = generatePassJson(makePassData({ eventLocation: "" }), creds);
       const ticket = pass.eventTicket as TicketFields;
-      expect(ticket.secondaryFields.find((f) => f.key === "location")).toBeUndefined();
+      expect(
+        ticket.secondaryFields.find((f) => f.key === "location"),
+      ).toBeUndefined();
     });
 
     test("includes quantity when greater than 1", () => {
@@ -109,11 +115,16 @@ describe("apple-wallet", () => {
     test("omits quantity when equal to 1", () => {
       const pass = generatePassJson(makePassData({ quantity: 1 }), creds);
       const ticket = pass.eventTicket as TicketFields;
-      expect(ticket.auxiliaryFields.find((f) => f.key === "qty")).toBeUndefined();
+      expect(
+        ticket.auxiliaryFields.find((f) => f.key === "qty"),
+      ).toBeUndefined();
     });
 
     test("includes price when greater than 0", () => {
-      const pass = generatePassJson(makePassData({ pricePaid: 2500, currencyCode: "EUR" }), creds);
+      const pass = generatePassJson(
+        makePassData({ pricePaid: 2500, currencyCode: "EUR" }),
+        creds,
+      );
       const ticket = pass.eventTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
       expect(priceField).toBeDefined();
@@ -124,13 +135,20 @@ describe("apple-wallet", () => {
     test("omits price when zero", () => {
       const pass = generatePassJson(makePassData({ pricePaid: 0 }), creds);
       const ticket = pass.eventTicket as TicketFields;
-      expect(ticket.auxiliaryFields.find((f) => f.key === "price")).toBeUndefined();
+      expect(
+        ticket.auxiliaryFields.find((f) => f.key === "price"),
+      ).toBeUndefined();
     });
 
     test("includes attendee booking date when present", () => {
-      const pass = generatePassJson(makePassData({ attendeeDate: "2026-06-15" }), creds);
+      const pass = generatePassJson(
+        makePassData({ attendeeDate: "2026-06-15" }),
+        creds,
+      );
       const ticket = pass.eventTicket as TicketFields;
-      const dateField = ticket.auxiliaryFields.find((f) => f.key === "booking-date");
+      const dateField = ticket.auxiliaryFields.find(
+        (f) => f.key === "booking-date",
+      );
       expect(dateField).toBeDefined();
       expect(dateField!.value).toBe("2026-06-15");
     });
@@ -199,8 +217,18 @@ describe("apple-wallet", () => {
     test("produces valid DER-encoded PKCS#7 signatures", () => {
       const manifest1 = '{"pass.json":"abc123"}';
       const manifest2 = '{"pass.json":"def456"}';
-      const sig1 = signManifest(manifest1, creds.signingCert, creds.signingKey, creds.wwdrCert);
-      const sig2 = signManifest(manifest2, creds.signingCert, creds.signingKey, creds.wwdrCert);
+      const sig1 = signManifest(
+        manifest1,
+        creds.signingCert,
+        creds.signingKey,
+        creds.wwdrCert,
+      );
+      const sig2 = signManifest(
+        manifest2,
+        creds.signingCert,
+        creds.signingKey,
+        creds.wwdrCert,
+      );
 
       // Non-empty Uint8Array
       expect(sig1).toBeInstanceOf(Uint8Array);
@@ -230,12 +258,16 @@ describe("apple-wallet", () => {
       expect(files["signature"]).toBeDefined();
 
       // pass.json matches generatePassJson
-      const passJson = JSON.parse(new TextDecoder().decode(files["pass.json"]!));
+      const passJson = JSON.parse(
+        new TextDecoder().decode(files["pass.json"]!),
+      );
       const expected = generatePassJson(data, creds);
       expect(passJson).toEqual(expected);
 
       // manifest SHA-1 hashes are correct for all content files
-      const manifest = JSON.parse(new TextDecoder().decode(files["manifest.json"]!));
+      const manifest = JSON.parse(
+        new TextDecoder().decode(files["manifest.json"]!),
+      );
       expect(manifest["pass.json"]).toBe(sha1Hex(files["pass.json"]!));
       expect(manifest["icon.png"]).toBe(sha1Hex(files["icon.png"]!));
       expect(manifest["icon@2x.png"]).toBe(sha1Hex(files["icon@2x.png"]!));
@@ -245,8 +277,12 @@ describe("apple-wallet", () => {
     test("produces different pkpass for different serial numbers", () => {
       const a = buildPkpass(makePassData({ serialNumber: "AAA" }), creds);
       const b = buildPkpass(makePassData({ serialNumber: "BBB" }), creds);
-      const aJson = JSON.parse(new TextDecoder().decode(unzipSync(a)["pass.json"]!));
-      const bJson = JSON.parse(new TextDecoder().decode(unzipSync(b)["pass.json"]!));
+      const aJson = JSON.parse(
+        new TextDecoder().decode(unzipSync(a)["pass.json"]!),
+      );
+      const bJson = JSON.parse(
+        new TextDecoder().decode(unzipSync(b)["pass.json"]!),
+      );
       expect(aJson.serialNumber).toBe("AAA");
       expect(bJson.serialNumber).toBe("BBB");
     });
@@ -300,7 +336,10 @@ describe("apple-wallet", () => {
 
   describe("currency-aware price formatting", () => {
     test("converts price using currency decimal places for JPY (0 decimals)", () => {
-      const pass = generatePassJson(makePassData({ pricePaid: 1000, currencyCode: "JPY" }), creds);
+      const pass = generatePassJson(
+        makePassData({ pricePaid: 1000, currencyCode: "JPY" }),
+        creds,
+      );
       const ticket = pass.eventTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
       expect(priceField!.value).toBe(1000);
@@ -308,7 +347,10 @@ describe("apple-wallet", () => {
     });
 
     test("converts price using currency decimal places for GBP (2 decimals)", () => {
-      const pass = generatePassJson(makePassData({ pricePaid: 2500, currencyCode: "GBP" }), creds);
+      const pass = generatePassJson(
+        makePassData({ pricePaid: 2500, currencyCode: "GBP" }),
+        creds,
+      );
       const ticket = pass.eventTicket as TicketFields;
       const priceField = ticket.auxiliaryFields.find((f) => f.key === "price");
       expect(priceField!.value).toBe(25);

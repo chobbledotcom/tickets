@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import process from "node:process";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import {
   getAllowedDomain,
   getCurrencyCode,
@@ -13,8 +14,6 @@ import {
   isPaymentsEnabled,
   isSetupComplete,
 } from "#lib/config.ts";
-import { getEnv } from "#lib/env.ts";
-import { getActivePaymentProvider } from "#lib/payments.ts";
 import {
   completeSetup,
   setPaymentProvider,
@@ -24,8 +23,9 @@ import {
   updateSquareWebhookSignatureKey,
   updateStripeKey,
 } from "#lib/db/settings.ts";
+import { getEnv } from "#lib/env.ts";
+import { getActivePaymentProvider } from "#lib/payments.ts";
 import { createTestDb, resetDb, setupStripe } from "#test-utils";
-import process from "node:process";
 
 describe("config", () => {
   const originalEnv = { ...process.env };
@@ -200,7 +200,6 @@ describe("config", () => {
       expect(getStripePublishableKey()).toBeNull();
     });
   });
-
 });
 
 describe("env", () => {
@@ -209,7 +208,11 @@ describe("env", () => {
     // Ensure it's not in process.env
     delete process.env[uniqueKey];
     // Ensure it's not in Deno.env
-    try { Deno.env.delete(uniqueKey); } catch { /* may not exist */ }
+    try {
+      Deno.env.delete(uniqueKey);
+    } catch {
+      /* may not exist */
+    }
 
     const result = getEnv(uniqueKey);
     expect(result).toBeUndefined();
@@ -270,6 +273,4 @@ describe("payments", () => {
   test("getTz returns default timezone when cache is empty", () => {
     expect(getTz()).toBe("Europe/London");
   });
-
-
 });
