@@ -14,7 +14,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   expectHtmlResponse,
-  loginAsAdmin,
+  getTestSession,
   resetDb,
   resetTestSlugCounter,
   setupEventAndLogin,
@@ -50,7 +50,7 @@ const setupScanTest = async (
     email,
     eventOverrides,
   );
-  const session = await loginAsAdmin();
+  const session = await getTestSession();
   return { event, token, session };
 };
 
@@ -225,7 +225,7 @@ describe("QR Scanner", () => {
         "carol@test.com",
       );
       const eventB = await createTestEvent({ maxAttendees: 10 });
-      const session = await loginAsAdmin();
+      const session = await getTestSession();
 
       // Scan token from event A while on event B's scanner
       const response = await handleRequest(
@@ -250,7 +250,7 @@ describe("QR Scanner", () => {
         "dave@test.com",
       );
       const eventB = await createTestEvent({ maxAttendees: 10 });
-      const session = await loginAsAdmin();
+      const session = await getTestSession();
 
       // Force check-in from event B's scanner
       const response = await handleRequest(
@@ -276,7 +276,7 @@ describe("QR Scanner", () => {
         "frank@test.com",
       );
       const eventB = await createTestEvent({ maxAttendees: 10 });
-      const session = await loginAsAdmin();
+      const session = await getTestSession();
 
       // Compute HMAC index for lookup (ticket_token is encrypted, we use index)
       const tokenIndex = await computeTicketTokenIndex(token);
@@ -486,7 +486,7 @@ describe("QR Scanner", () => {
         "eve@test.com",
       );
       const eventB = await createTestEvent({ maxAttendees: 10 });
-      const session = await loginAsAdmin();
+      const session = await getTestSession();
 
       // Point attendee at a non-existent event to simulate orphan
       // Keep foreign keys off for the full request since logActivity also references event_id

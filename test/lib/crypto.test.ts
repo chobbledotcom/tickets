@@ -124,10 +124,6 @@ describe("encryption", () => {
     setupTestEncryptionKey();
   });
 
-  afterEach(() => {
-    clearTestEncryptionKey();
-  });
-
   describe("validateEncryptionKey", () => {
     it("succeeds with valid 32-byte key", () => {
       expect(() => validateEncryptionKey()).not.toThrow();
@@ -314,10 +310,6 @@ describe("hmacHash", () => {
     setupTestEncryptionKey();
   });
 
-  afterEach(() => {
-    clearTestEncryptionKey();
-  });
-
   it("produces consistent hash for same IP", async () => {
     const ip = "192.168.1.1";
     const hash1 = await hmacHash(ip);
@@ -375,10 +367,6 @@ describe("KEK derivation", () => {
     setupTestEncryptionKey();
   });
 
-  afterEach(() => {
-    clearTestEncryptionKey();
-  });
-
   it("derives a usable CryptoKey", async () => {
     const passwordHash = "pbkdf2:1000:c2FsdA==:aGFzaA==";
     const kek = await deriveKEK(passwordHash);
@@ -413,10 +401,6 @@ describe("KEK derivation", () => {
 describe("key wrapping", () => {
   beforeEach(() => {
     setupTestEncryptionKey();
-  });
-
-  afterEach(() => {
-    clearTestEncryptionKey();
   });
 
   describe("wrapKey and unwrapKey", () => {

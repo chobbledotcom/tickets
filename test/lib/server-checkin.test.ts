@@ -10,7 +10,7 @@ import {
   createTestAttendeeWithToken,
   createTestDbWithSetup,
   createTestEvent,
-  loginAsAdmin,
+  getTestSession,
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
@@ -19,7 +19,7 @@ import {
 /** Create attendee + login, returning token + session for check-in tests */
 const setupCheckinTest = async (name: string, email: string, eventOverrides = {}, quantity = 1, phone = "") => {
   const { event, token } = await createTestAttendeeWithToken(name, email, eventOverrides, quantity, phone);
-  const session = await loginAsAdmin();
+  const session = await getTestSession();
   return { event, token, session };
 };
 
@@ -80,7 +80,7 @@ describe("check-in (/checkin/:tokens)", () => {
       const { event: eventA, token: tokenA } = await createTestAttendeeWithToken("Carol", "carol@test.com");
       const { event: eventB, token: tokenB } = await createTestAttendeeWithToken("Carol", "carol@test.com");
 
-      const session = await loginAsAdmin();
+      const session = await getTestSession();
       const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
         cookie: session.cookie,
       });
@@ -137,7 +137,7 @@ describe("check-in (/checkin/:tokens)", () => {
       });
       if (!result.success) throw new Error("Failed to create attendee");
 
-      const session = await loginAsAdmin();
+      const session = await getTestSession();
       const response = await awaitTestRequest(`/checkin/${result.attendee.ticket_token}`, {
         cookie: session.cookie,
       });
@@ -167,7 +167,7 @@ describe("check-in (/checkin/:tokens)", () => {
       if (!dailyResult.success) throw new Error("Failed to create attendee");
       const tokenA = dailyResult.attendee.ticket_token;
 
-      const session = await loginAsAdmin();
+      const session = await getTestSession();
       const response = await awaitTestRequest(`/checkin/${tokenA}+${tokenB}`, {
         cookie: session.cookie,
       });
@@ -371,7 +371,7 @@ describe("check-in (/checkin/:tokens)", () => {
     });
 
     test("returns 404 for invalid tokens on POST", async () => {
-      const session = await loginAsAdmin();
+      const session = await getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/checkin/bad-token",

@@ -14,7 +14,7 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   extractCsrfToken,
-  loginAsAdmin,
+  getTestSession,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -25,7 +25,7 @@ import {
 
 /** Create a manager user and return their session cookie */
 const loginAsManager = async (): Promise<string> => {
-  const { cookie: ownerCookie, csrfToken: ownerCsrf } = await loginAsAdmin();
+  const { cookie: ownerCookie, csrfToken: ownerCsrf } = await getTestSession();
 
   // Create a manager invite
   const inviteResponse = await handleRequest(
@@ -125,7 +125,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("creates seed events with no attendees", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -144,7 +144,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("creates seed events with attendees including paid and free", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -185,7 +185,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("clamps event count to max", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -200,7 +200,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("clamps attendees per event to max", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       // Request more than SEED_MAX_ATTENDEES but create 0 events to avoid slow creation
       // We verify clamping by checking a single event with attendees
@@ -217,7 +217,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("clamps negative values to minimum", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -232,7 +232,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { cookie } = await loginAsAdmin();
+      const { cookie } = await getTestSession();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -246,7 +246,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("created events are active", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       await handleRequest(
         mockFormRequest(
@@ -263,7 +263,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("returns 500 when seed creation fails", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       // Remove public key to cause createSeeds to fail
       await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");
@@ -282,7 +282,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("handles non-numeric event count as 1", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -297,7 +297,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("handles non-numeric attendees per event as 0", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       const response = await handleRequest(
         mockFormRequest(
@@ -320,7 +320,7 @@ describe("server (admin seeds)", () => {
     });
 
     test("can seed multiple times additively", async () => {
-      const { cookie } = await loginAsAdmin();
+      const { cookie } = await getTestSession();
 
       // First seed
       const get1 = await handleRequest(mockRequest("/admin/seeds", {

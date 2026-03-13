@@ -17,7 +17,7 @@ import {
   createTestDbWithSetup,
   createTestManagerSession,
   expectHtmlResponse,
-  loginAsAdmin,
+  getTestSession,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
@@ -195,7 +195,7 @@ describe("server (header image settings)", () => {
 
   describe("POST /admin/settings/header-image", () => {
     test("uploads header image successfully", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       await withStorageMock(async () => {
         const request = mockMultipartRequest(
@@ -220,7 +220,7 @@ describe("server (header image settings)", () => {
     });
 
     test("rejects invalid image type", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       await withStorageMock(async () => {
         const request = mockMultipartRequest(
@@ -240,7 +240,7 @@ describe("server (header image settings)", () => {
     });
 
     test("rejects oversized image", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       const oversized = new Uint8Array(257 * 1024);
       oversized[0] = 0xFF;
@@ -284,7 +284,7 @@ describe("server (header image settings)", () => {
     });
 
     test("rejects request with no file", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       const request = mockMultipartRequest(
         "/admin/settings/header-image",
@@ -298,7 +298,7 @@ describe("server (header image settings)", () => {
     test("returns error when storage is not configured", async () => {
       Deno.env.delete("STORAGE_ZONE_NAME");
       Deno.env.delete("STORAGE_ZONE_KEY");
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       const request = mockMultipartRequest(
         "/admin/settings/header-image",
@@ -317,7 +317,7 @@ describe("server (header image settings)", () => {
 
     test("deletes old header image when uploading new one", async () => {
       await updateHeaderImageUrl("old-header.jpg");
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       await withStorageMock(async (fetchCalls) => {
         const request = mockMultipartRequest(
@@ -347,7 +347,7 @@ describe("server (header image settings)", () => {
     });
 
     test("rejects mismatched magic bytes", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       await withStorageMock(async () => {
         const request = mockMultipartRequest(
@@ -370,7 +370,7 @@ describe("server (header image settings)", () => {
   describe("POST /admin/settings/header-image/delete", () => {
     test("removes header image", async () => {
       await updateHeaderImageUrl("to-delete.jpg");
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       await withStorageMock(async () => {
         const request = mockFormRequest(
@@ -388,7 +388,7 @@ describe("server (header image settings)", () => {
     });
 
     test("returns error when no header image exists", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       const request = mockFormRequest(
         "/admin/settings/header-image/delete",
@@ -401,7 +401,7 @@ describe("server (header image settings)", () => {
 
     test("succeeds even when storage delete throws", async () => {
       await updateHeaderImageUrl("failing.jpg");
-      const { cookie, csrfToken } = await loginAsAdmin();
+      const { cookie, csrfToken } = await getTestSession();
 
       const originalFetch = globalThis.fetch;
       globalThis.fetch = (): Promise<Response> => {

@@ -12,7 +12,7 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   expectStatus,
-  loginAsAdmin,
+  getTestSession,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -42,7 +42,7 @@ describe("server (admin holidays)", () => {
     test("returns 403 for non-owner", async () => {
       // Create a manager user and login
       const { cookie: ownerCookie, csrfToken: ownerCsrf } =
-        await loginAsAdmin();
+        await getTestSession();
       // Create a manager invite
       const inviteResponse = await handleRequest(
         mockFormRequest("/admin/users", {

@@ -6,7 +6,7 @@ import {
   awaitTestRequest,
   createTestDbWithSetup,
   createTestEvent,
-  loginAsAdmin,
+  getTestSession,
   mockAdminLoginRequest,
   mockFormRequest,
   mockRequest,
@@ -82,7 +82,7 @@ describe("admin debug footer", () => {
 
   test("manager sees footer", async () => {
     // Create and activate a manager user
-    const { cookie: ownerCookie, csrfToken: ownerCsrf } = await loginAsAdmin();
+    const { cookie: ownerCookie, csrfToken: ownerCsrf } = await getTestSession();
 
     const inviteResponse = await handleRequest(
       mockFormRequest("/admin/users", {
@@ -133,7 +133,7 @@ describe("admin debug footer", () => {
   });
 
   test("footer not injected for POST responses", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const { cookie, csrfToken } = await getTestSession();
     // POST to logout — it returns a redirect, not HTML, so no footer
     const response = await handleRequest(
       mockFormRequest("/admin/logout", { csrf_token: csrfToken }, cookie),

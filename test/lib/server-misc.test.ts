@@ -14,7 +14,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   expectHtmlResponse,
-  loginAsAdmin,
+  getTestSession,
   mockFormRequest,
   mockRequest,
   mockRequestWithHost,
@@ -358,7 +358,7 @@ describe("server (misc)", () => {
 
   describe("routes/utils.ts (CSRF token validation)", () => {
     test("empty csrf_token from form falls back to empty string", async () => {
-      const { cookie } = await loginAsAdmin();
+      const { cookie } = await getTestSession();
 
       // Send form without csrf_token field at all
       const response = await handleRequest(
@@ -701,7 +701,7 @@ describe("server (misc)", () => {
     });
 
     test("SessionKeyError clears cookie and redirects to /admin", async () => {
-      const { cookie } = await loginAsAdmin();
+      const { cookie } = await getTestSession();
       const { getDb: getDbFn } = await import("#lib/db/client.ts");
       const { invalidateSettingsCache } = await import("#lib/db/settings.ts");
 

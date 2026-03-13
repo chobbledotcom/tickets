@@ -23,7 +23,7 @@ import {
   expectHtmlResponse,
   expectRedirect,
   getTicketCsrfToken,
-  loginAsAdmin,
+  getTestSession,
   mockFormRequest,
   mockRequest,
   resetDb,
@@ -3757,7 +3757,7 @@ describe("server (public routes)", () => {
 
     test("admin edit page shows can_pay_more checked for enabled event", async () => {
       const event = await payMoreEvent();
-      const { cookie } = await loginAsAdmin();
+      const { cookie } = await getTestSession();
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie });
       const html = await response.text();
       expect(html).toContain('name="can_pay_more" value="1" checked');
@@ -3765,7 +3765,7 @@ describe("server (public routes)", () => {
 
     test("admin edit page shows can_pay_more unchecked for disabled event", async () => {
       const event = await createTestEvent({ unitPrice: 1000, maxAttendees: 50 });
-      const { cookie } = await loginAsAdmin();
+      const { cookie } = await getTestSession();
       const response = await awaitTestRequest(`/admin/event/${event.id}/edit`, { cookie });
       const html = await response.text();
       expect(html).toContain('name="can_pay_more"');

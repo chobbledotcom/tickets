@@ -745,12 +745,12 @@ export const setupEventAndLogin = async (
   csrfToken: string;
 }> => {
   const event = await createTestEvent(overrides);
-  const { cookie, csrfToken } = await loginAsAdmin();
+  const { cookie, csrfToken } = await getTestSession();
   return { event, cookie, csrfToken };
 };
 
 /** Get or create an authenticated session for test helpers (cached) */
-const getTestSession = async (): Promise<{
+export const getTestSession = async (): Promise<{
   cookie: string;
   csrfToken: string;
 }> => {
@@ -1329,7 +1329,7 @@ export const createTestInvite = async (
   username: string,
   adminLevel = "manager",
 ): Promise<{ inviteCode: string; cookie: string; csrfToken: string }> => {
-  const { cookie, csrfToken } = await loginAsAdmin();
+  const { cookie, csrfToken } = await getTestSession();
   const { handleRequest } = await import("#routes");
   const inviteResponse = await handleRequest(
     mockFormRequest(
@@ -1684,7 +1684,7 @@ export const adminFormPost = async (
   path: string,
   data: Record<string, string> = {},
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
-  const { cookie, csrfToken } = await loginAsAdmin();
+  const { cookie, csrfToken } = await getTestSession();
   const { handleRequest } = await import("#routes");
   const response = await handleRequest(
     mockFormRequest(path, { csrf_token: csrfToken, ...data }, cookie),
@@ -1698,7 +1698,7 @@ export const adminFormPost = async (
 export const adminGet = async (
   path: string,
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
-  const { cookie, csrfToken } = await loginAsAdmin();
+  const { cookie, csrfToken } = await getTestSession();
   const response = await awaitTestRequest(path, { cookie });
   return { response, cookie, csrfToken };
 };
@@ -1790,7 +1790,7 @@ export const setupAdminTest = async (
     "John Doe",
     "john@example.com",
   );
-  const { cookie, csrfToken } = await loginAsAdmin();
+  const { cookie, csrfToken } = await getTestSession();
   return { event, attendee, cookie, csrfToken };
 };
 

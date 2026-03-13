@@ -8,7 +8,7 @@ import {
   createTestDbWithSetup,
   createTestEvent,
   expectHtmlResponse,
-  loginAsAdmin,
+  getTestSession,
   resetDb,
   resetTestSlugCounter,
   submitTicketForm,
@@ -20,7 +20,7 @@ describe("admin calendar", () => {
   beforeEach(async () => {
     resetTestSlugCounter();
     await createTestDbWithSetup();
-    const session = await loginAsAdmin();
+    const session = await getTestSession();
     cookie = session.cookie;
   });
 

@@ -8,7 +8,7 @@ import {
   expectAdminRedirect,
   expectHtmlResponse,
   generateTestCerts,
-  loginAsAdmin,
+  getTestSession,
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
@@ -209,7 +209,7 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("requires Pass Type ID", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const { cookie, csrfToken } = await getTestSession();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
@@ -225,7 +225,7 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("requires Team ID", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const { cookie, csrfToken } = await getTestSession();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
@@ -241,7 +241,7 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("requires signing certificate on initial setup", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const { cookie, csrfToken } = await getTestSession();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
@@ -257,7 +257,7 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("requires signing key on initial setup", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const { cookie, csrfToken } = await getTestSession();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
@@ -273,7 +273,7 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("requires WWDR certificate on initial setup", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const { cookie, csrfToken } = await getTestSession();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
@@ -289,7 +289,7 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("rejects invalid PEM signing certificate", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const { cookie, csrfToken } = await getTestSession();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
@@ -305,7 +305,7 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("rejects invalid PEM signing key", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const { cookie, csrfToken } = await getTestSession();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
@@ -321,7 +321,7 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("rejects invalid PEM WWDR certificate", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const { cookie, csrfToken } = await getTestSession();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
@@ -337,7 +337,7 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("saves all settings successfully", async () => {
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const { cookie, csrfToken } = await getTestSession();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
@@ -363,7 +363,7 @@ describe("POST /admin/settings/apple-wallet", () => {
     await configureAppleWallet();
     expect(await hasAppleWalletConfig()).toBe(true);
 
-    const { cookie, csrfToken } = await loginAsAdmin();
+    const { cookie, csrfToken } = await getTestSession();
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "",
@@ -383,7 +383,7 @@ describe("POST /admin/settings/apple-wallet", () => {
 
   test("shows Apple Wallet section with masked values when configured", async () => {
     await configureAppleWallet();
-    const { cookie } = await loginAsAdmin();
+    const { cookie } = await getTestSession();
     const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
     const body = await response.text();
     // Section exists
@@ -506,7 +506,7 @@ describe("Apple Wallet env var fallback", () => {
 
   test("settings page shows host Apple Wallet label when env vars configured", async () => {
     setWalletEnvVars();
-    const { cookie } = await loginAsAdmin();
+    const { cookie } = await getTestSession();
     const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
     const body = await response.text();
     expect(body).toContain("Host env (pass.com.env.tickets)");
@@ -516,7 +516,7 @@ describe("Apple Wallet env var fallback", () => {
   test("settings page shows overriding label when both DB and env configured", async () => {
     setWalletEnvVars();
     await configureAppleWallet();
-    const { cookie } = await loginAsAdmin();
+    const { cookie } = await getTestSession();
     const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
     const body = await response.text();
     expect(body).toContain("Host env (pass.com.env.tickets)");

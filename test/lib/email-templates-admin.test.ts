@@ -13,7 +13,7 @@ import {
   createTestDbWithSetup,
   expectAdminRedirect,
   expectHtmlResponse,
-  loginAsAdmin,
+  getTestSession,
   mockFormRequest,
   resetDb,
   resetTestSlugCounter,
@@ -30,7 +30,7 @@ describe("admin email templates", () => {
     setCurrencyCodeForTest("GBP");
     resetEngine();
     await createTestDbWithSetup();
-    const session = await loginAsAdmin();
+    const session = await getTestSession();
     cookie = session.cookie;
     csrfToken = session.csrfToken;
   });
