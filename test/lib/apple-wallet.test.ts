@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import {
   buildPkpass,
@@ -11,7 +11,7 @@ import {
   signManifest,
   type SigningCredentials,
 } from "#lib/apple-wallet.ts";
-import { createTestDbWithSetup, generateTestCerts, resetDb } from "#test-utils";
+import { generateTestCerts } from "#test-utils";
 import { unzipSync } from "fflate";
 import forge from "node-forge";
 
@@ -39,16 +39,8 @@ const makePassData = (overrides: Partial<PassData> = {}): PassData => ({
 });
 
 describe("apple-wallet", () => {
-  let creds: SigningCredentials;
-
-  beforeEach(async () => {
-    await createTestDbWithSetup();
-    creds = generateTestCerts();
-  });
-
-  afterEach(() => {
-    resetDb();
-  });
+  // Certs are cached in generateTestCerts — no per-test RSA keygen
+  const creds: SigningCredentials = generateTestCerts();
 
   describe("generatePassJson", () => {
     test("includes required top-level fields", () => {
@@ -203,65 +195,49 @@ describe("apple-wallet", () => {
   });
 
   describe("signManifest", () => {
-    test("produces a non-empty PKCS#7 signature", () => {
-      const manifest = '{"pass.json":"abc123"}';
-      const sig = signManifest(manifest, creds.signingCert, creds.signingKey, creds.wwdrCert);
-      expect(sig).toBeInstanceOf(Uint8Array);
-      expect(sig.length).toBeGreaterThan(0);
-    });
+    test("produces valid DER-encoded PKCS#7 signatures", () => {
+      const manifest1 = '{"pass.json":"abc123"}';
+      const manifest2 = '{"pass.json":"def456"}';
+      const sig1 = signManifest(manifest1, creds.signingCert, creds.signingKey, creds.wwdrCert);
+      const sig2 = signManifest(manifest2, creds.signingCert, creds.signingKey, creds.wwdrCert);
 
-    test("produces valid DER-encoded ASN.1", () => {
-      const manifest = '{"pass.json":"abc123"}';
-      const sig = signManifest(manifest, creds.signingCert, creds.signingKey, creds.wwdrCert);
-      // Should be parseable as ASN.1
-      const der = forge.util.binary.raw.encode(sig);
-      const asn1 = forge.asn1.fromDer(der);
-      expect(asn1).toBeDefined();
-    });
-
-    test("different manifests produce different signatures", () => {
-      const sig1 = signManifest('{"a":"1"}', creds.signingCert, creds.signingKey, creds.wwdrCert);
-      const sig2 = signManifest('{"b":"2"}', creds.signingCert, creds.signingKey, creds.wwdrCert);
-      // Binary comparison — signatures contain timestamps so they always differ
+      // Non-empty Uint8Array
+      expect(sig1).toBeInstanceOf(Uint8Array);
       expect(sig1.length).toBeGreaterThan(0);
       expect(sig2.length).toBeGreaterThan(0);
+
+      // Parseable as ASN.1
+      const der = forge.util.binary.raw.encode(sig1);
+      const asn1 = forge.asn1.fromDer(der);
+      expect(asn1).toBeDefined();
     });
   });
 
   describe("buildPkpass", () => {
-    test("produces a valid ZIP archive", () => {
-      const pkpass = buildPkpass(makePassData(), creds);
+    test("produces a valid ZIP with correct pass.json and manifest hashes", () => {
+      const data = makePassData();
+      const pkpass = buildPkpass(data, creds);
       expect(pkpass).toBeInstanceOf(Uint8Array);
       expect(pkpass.length).toBeGreaterThan(0);
 
-      // Should be unzippable
       const files = unzipSync(pkpass);
       expect(files["pass.json"]).toBeDefined();
       expect(files["manifest.json"]).toBeDefined();
       expect(files["signature"]).toBeDefined();
-    });
 
-    test("pass.json in archive matches generatePassJson output", () => {
-      const data = makePassData();
-      const pkpass = buildPkpass(data, creds);
-      const files = unzipSync(pkpass);
+      // pass.json matches generatePassJson
       const passJson = JSON.parse(new TextDecoder().decode(files["pass.json"]!));
       const expected = generatePassJson(data, creds);
       expect(passJson).toEqual(expected);
-    });
 
-    test("manifest.json contains correct SHA-1 of pass.json", () => {
-      const pkpass = buildPkpass(makePassData(), creds);
-      const files = unzipSync(pkpass);
+      // manifest SHA-1 is correct
       const manifest = JSON.parse(new TextDecoder().decode(files["manifest.json"]!));
-      const passJsonHash = sha1Hex(files["pass.json"]!);
-      expect(manifest["pass.json"]).toBe(passJsonHash);
+      expect(manifest["pass.json"]).toBe(sha1Hex(files["pass.json"]!));
     });
 
     test("produces different pkpass for different serial numbers", () => {
       const a = buildPkpass(makePassData({ serialNumber: "AAA" }), creds);
       const b = buildPkpass(makePassData({ serialNumber: "BBB" }), creds);
-      // Different serial numbers → different pass.json → different archive
       const aJson = JSON.parse(new TextDecoder().decode(unzipSync(a)["pass.json"]!));
       const bJson = JSON.parse(new TextDecoder().decode(unzipSync(b)["pass.json"]!));
       expect(aJson.serialNumber).toBe("AAA");

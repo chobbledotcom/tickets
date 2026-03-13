@@ -1939,8 +1939,14 @@ export const stubRefundPayment = async () => {
   );
 };
 
-/** Generate self-signed test certificates for Apple Wallet PKCS#7 signing */
+/** Cached test certs — RSA-2048 keygen in pure JS is very slow (~5s per keypair) */
+let _cachedCerts: SigningCredentials | null = null;
+
+/** Generate self-signed test certificates for Apple Wallet PKCS#7 signing.
+ *  Results are cached since RSA key generation in pure JS is expensive. */
 export const generateTestCerts = (): SigningCredentials => {
+  if (_cachedCerts) return _cachedCerts;
+
   const keys = forge.pki.rsa.generateKeyPair(2048);
 
   // Create a CA cert (WWDR stand-in)
@@ -1968,11 +1974,12 @@ export const generateTestCerts = (): SigningCredentials => {
   signingCert.setIssuer(caAttrs);
   signingCert.sign(keys.privateKey, forge.md.sha256.create());
 
-  return {
+  _cachedCerts = {
     passTypeId: "pass.com.test.tickets",
     teamId: "TESTTEAM01",
     signingCert: forge.pki.certificateToPem(signingCert),
     signingKey: forge.pki.privateKeyToPem(signingKeys.privateKey),
     wwdrCert: forge.pki.certificateToPem(caCert),
   };
+  return _cachedCerts;
 };
