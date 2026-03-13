@@ -40,11 +40,17 @@ const buildPassData = async (entry: TokenEntry, token: string): Promise<PassData
   };
 };
 
-/** Handle GET /wallet/:token — generate and return .pkpass */
+/** Strip .pkpass extension from token for iOS URL compatibility */
+const stripPkpassExtension = (token: string): string =>
+  token.endsWith(".pkpass") ? token.slice(0, -7) : token;
+
+/** Handle GET /wallet/:token[.pkpass] — generate and return .pkpass */
 const handleWalletGet = async (_request: Request, tokens: string[]): Promise<Response> => {
   // Only support single-token downloads
-  const token = tokens[0];
-  if (!token || tokens.length > 1) return notFoundResponse();
+  const raw = tokens[0];
+  if (!raw || tokens.length > 1) return notFoundResponse();
+
+  const token = stripPkpassExtension(raw);
 
   const config = await getAppleWalletConfig();
   if (!config) return notFoundResponse();
@@ -55,11 +61,13 @@ const handleWalletGet = async (_request: Request, tokens: string[]): Promise<Res
   const entries = await resolveEntries(result.attendees);
   const passData = await buildPassData(entries[0]!, token);
   const pkpass = buildPkpass(passData, config);
+  const body = pkpass as Uint8Array<ArrayBuffer>;
 
-  return new Response(pkpass as Uint8Array<ArrayBuffer>, {
+  return new Response(body, {
     headers: {
       "Content-Type": PKPASS_CONTENT_TYPE,
       "Content-Disposition": `inline; filename="ticket.pkpass"`,
+      "Content-Length": String(body.byteLength),
       "Cache-Control": CACHE_CONTROL,
     },
   });

@@ -101,6 +101,31 @@ describe("wallet route (/wallet/:token)", () => {
     expect(disposition).toContain("ticket.pkpass");
   });
 
+  test("returns pkpass with Content-Length header for iOS compatibility", async () => {
+    await configureAppleWallet();
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+
+    const response = await awaitTestRequest(`/wallet/${token}`);
+    const contentLength = response.headers.get("Content-Length");
+    expect(contentLength).not.toBeNull();
+    const body = new Uint8Array(await response.arrayBuffer());
+    expect(Number(contentLength)).toBe(body.byteLength);
+  });
+
+  test("serves pkpass when URL has .pkpass extension", async () => {
+    await configureAppleWallet();
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+
+    const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("application/vnd.apple.pkpass");
+
+    const body = new Uint8Array(await response.arrayBuffer());
+    const files = unzipSync(body);
+    const passJson = JSON.parse(new TextDecoder().decode(files["pass.json"]!));
+    expect(passJson.serialNumber).toBe(token);
+  });
+
   test("pkpass is a valid ZIP containing pass.json, manifest.json, and signature", async () => {
     await configureAppleWallet();
     const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
@@ -167,7 +192,7 @@ describe("ticket view wallet link", () => {
     const body = await response.text();
     expect(body).toContain("wallet-link");
     expect(body).toContain("Add to Apple Wallet");
-    expect(body).toContain(`/wallet/${token}`);
+    expect(body).toContain(`/wallet/${token}.pkpass`);
   });
 });
 

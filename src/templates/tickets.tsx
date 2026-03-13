@@ -24,9 +24,9 @@ export type TicketCard = {
 const ticketCount = (count: number): string =>
   count === 1 ? "1 Ticket" : `${count} Tickets`;
 
-/** Render an "Add to Apple Wallet" link for a token */
+/** Render an "Add to Apple Wallet" link for a token (.pkpass extension aids iOS detection) */
 const renderWalletLink = (token: string): string =>
-  `<a href="/wallet/${escapeHtml(token)}" class="wallet-link">Add to Apple Wallet</a>`;
+  `<a href="/wallet/${escapeHtml(token)}.pkpass" class="wallet-link">Add to Apple Wallet</a>`;
 
 /** Render a single ticket card */
 const renderTicketCard = (card: TicketCard, walletEnabled: boolean): string => {
