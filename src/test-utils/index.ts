@@ -1939,8 +1939,10 @@ export const stubRefundPayment = async () => {
   );
 };
 
-/** Generate self-signed test certificates for Apple Wallet PKCS#7 signing */
-export const generateTestCerts = (): SigningCredentials => {
+/** Pre-built test certificates for Apple Wallet PKCS#7 signing.
+ *  Generated once at module load since RSA-2048 keygen in pure JS is slow (~5s per keypair).
+ *  Safe because #test-utils is only imported by test files, and Deno loads it once per process. */
+const _testCerts: SigningCredentials = (() => {
   const keys = forge.pki.rsa.generateKeyPair(2048);
 
   // Create a CA cert (WWDR stand-in)
@@ -1975,4 +1977,7 @@ export const generateTestCerts = (): SigningCredentials => {
     signingKey: forge.pki.privateKeyToPem(signingKeys.privateKey),
     wwdrCert: forge.pki.certificateToPem(caCert),
   };
-};
+})();
+
+/** Return pre-built test certificates for Apple Wallet signing */
+export const generateTestCerts = (): SigningCredentials => _testCerts;
