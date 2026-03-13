@@ -89,12 +89,14 @@ describe("wallet route (/wallet/:token)", () => {
     expect(cacheControl).toContain("s-maxage=3600");
   });
 
-  test("returns pkpass with content-disposition header", async () => {
+  test("returns pkpass with inline content-disposition for iOS compatibility", async () => {
     await configureAppleWallet();
     const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
 
     const response = await awaitTestRequest(`/wallet/${token}`);
-    expect(response.headers.get("Content-Disposition")).toContain("ticket.pkpass");
+    const disposition = response.headers.get("Content-Disposition")!;
+    expect(disposition).toContain("inline");
+    expect(disposition).toContain("ticket.pkpass");
   });
 
   test("pkpass is a valid ZIP containing pass.json, manifest.json, and signature", async () => {
