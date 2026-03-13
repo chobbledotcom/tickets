@@ -72,7 +72,49 @@ describe("wallet route (/wallet/:token)", () => {
     expect(response.status).toBe(404);
   });
 
-  test("returns pkpass with correct headers and valid ZIP content", async () => {
+  test("returns pkpass with correct content type", async () => {
+    await configureAppleWallet();
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+
+    const response = await awaitTestRequest(`/wallet/${token}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("application/vnd.apple.pkpass");
+  });
+
+  test("returns pkpass with cache-control headers", async () => {
+    await configureAppleWallet();
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+
+    const response = await awaitTestRequest(`/wallet/${token}`);
+    const cacheControl = response.headers.get("Cache-Control");
+    expect(cacheControl).toContain("public");
+    expect(cacheControl).toContain("s-maxage=3600");
+  });
+
+  test("returns pkpass with inline content-disposition for iOS compatibility", async () => {
+    await configureAppleWallet();
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+
+    const response = await awaitTestRequest(`/wallet/${token}`);
+    const disposition = response.headers.get("Content-Disposition")!;
+    expect(disposition).toContain("inline");
+    expect(disposition).toContain("ticket.pkpass");
+  });
+
+  test("pkpass is a valid ZIP containing pass.json, manifest.json, and signature", async () => {
+    await configureAppleWallet();
+    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+
+    const response = await awaitTestRequest(`/wallet/${token}`);
+    const body = new Uint8Array(await response.arrayBuffer());
+    const files = unzipSync(body);
+
+    expect(files["pass.json"]).toBeDefined();
+    expect(files["manifest.json"]).toBeDefined();
+    expect(files["signature"]).toBeDefined();
+  });
+
+  test("pass.json contains correct event data", async () => {
     await configureAppleWallet();
     const { event, token } = await createTestAttendeeWithToken("Alice", "alice@test.com", {
       date: "2026-06-15T19:00",
@@ -80,28 +122,10 @@ describe("wallet route (/wallet/:token)", () => {
     });
 
     const response = await awaitTestRequest(`/wallet/${token}`);
-    expect(response.status).toBe(200);
-
-    // Content type
-    expect(response.headers.get("Content-Type")).toBe("application/vnd.apple.pkpass");
-
-    // Cache headers
-    const cacheControl = response.headers.get("Cache-Control");
-    expect(cacheControl).toContain("public");
-    expect(cacheControl).toContain("s-maxage=3600");
-
-    // Content disposition
-    expect(response.headers.get("Content-Disposition")).toContain("ticket.pkpass");
-
-    // Valid ZIP with required files
     const body = new Uint8Array(await response.arrayBuffer());
     const files = unzipSync(body);
-    expect(files["pass.json"]).toBeDefined();
-    expect(files["manifest.json"]).toBeDefined();
-    expect(files["signature"]).toBeDefined();
-
-    // Correct event data in pass.json
     const passJson = JSON.parse(new TextDecoder().decode(files["pass.json"]!));
+
     expect(passJson.passTypeIdentifier).toBe("pass.com.test.tickets");
     expect(passJson.teamIdentifier).toBe("TESTTEAM01");
     expect(passJson.serialNumber).toBe(token);
