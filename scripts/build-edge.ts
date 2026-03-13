@@ -232,12 +232,13 @@ const nodeExternals = [
 ];
 
 /**
- * Plugin to shim bare "crypto" imports with an empty module.
- * node-forge uses `require("crypto")` internally and falls back to its own
- * pure-JS implementation when it's unavailable. By returning an empty module
- * we let the fallback kick in, avoiding the "Dynamic require of 'crypto' is
- * not supported" error in the Bunny Edge ESM runtime. The node:-prefixed
- * "node:crypto" stays external for code that needs it.
+ * Plugin to shim bare "crypto" imports with a Web Crypto API adapter.
+ * node-forge's prng.js calls `require("crypto")` at module load time (before
+ * `forge.options.usePureJavaScript` can be set) and uses `randomBytes()` for
+ * seeding its Fortuna PRNG. We provide a shim that delegates to the Web Crypto
+ * API (`globalThis.crypto.getRandomValues`), which is available in both Deno
+ * and Bunny Edge runtimes. The node:-prefixed "node:crypto" stays external for
+ * code that needs the full Node.js crypto API.
  */
 const shimBareNodeCryptoPlugin: Plugin = {
   name: "shim-bare-node-crypto",
@@ -247,7 +248,15 @@ const shimBareNodeCryptoPlugin: Plugin = {
       namespace: "shim-bare-crypto",
     }));
     build.onLoad({ filter: /.*/, namespace: "shim-bare-crypto" }, () => ({
-      contents: "export default {};",
+      contents: `
+        export function randomBytes(size, cb) {
+          var b = Buffer.alloc(size);
+          globalThis.crypto.getRandomValues(b);
+          if (cb) { cb(null, b); return; }
+          return b;
+        }
+        export default { randomBytes };
+      `,
       loader: "js",
     }));
   },
