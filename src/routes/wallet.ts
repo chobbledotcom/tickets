@@ -40,17 +40,18 @@ const buildPassData = async (entry: TokenEntry, token: string): Promise<PassData
   };
 };
 
-/** Strip .pkpass extension from token for iOS URL compatibility */
-const stripPkpassExtension = (token: string): string =>
-  token.endsWith(".pkpass") ? token.slice(0, -7) : token;
+/** .pkpass suffix required on all wallet URLs for iOS compatibility */
+const PKPASS_EXT = ".pkpass";
 
-/** Handle GET /wallet/:token[.pkpass] — generate and return .pkpass */
+/** Handle GET /wallet/:token.pkpass — generate and return .pkpass */
 const handleWalletGet = async (_request: Request, tokens: string[]): Promise<Response> => {
   // Only support single-token downloads
   const raw = tokens[0];
   if (!raw || tokens.length > 1) return notFoundResponse();
 
-  const token = stripPkpassExtension(raw);
+  // Require .pkpass extension
+  if (!raw.endsWith(PKPASS_EXT)) return notFoundResponse();
+  const token = raw.slice(0, -PKPASS_EXT.length);
 
   const config = await getAppleWalletConfig();
   if (!config) return notFoundResponse();
