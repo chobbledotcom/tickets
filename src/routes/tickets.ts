@@ -6,7 +6,10 @@
 
 import { getAllowedDomain } from "#lib/config.ts";
 import { decrypt } from "#lib/crypto.ts";
-import { hasAppleWalletConfig } from "#lib/db/settings.ts";
+import {
+  hasAppleWalletConfig,
+  hasGoogleWalletConfig,
+} from "#lib/db/settings.ts";
 import { generateQrSvg } from "#lib/qr.ts";
 import {
   createTokenRoute,
@@ -39,9 +42,10 @@ const handleTicketView = async (
   const result = await lookupAttendees(tokens);
   if (!result.ok) return result.response;
 
-  const [entries, walletEnabled] = await Promise.all([
+  const [entries, appleWalletEnabled, googleWalletEnabled] = await Promise.all([
     resolveEntries(result.attendees),
     hasAppleWalletConfig(),
+    hasGoogleWalletConfig(),
   ]);
   for (const entry of entries) {
     entry.attendee.price_paid = await decrypt(entry.attendee.price_paid);
@@ -49,7 +53,9 @@ const handleTicketView = async (
   const cards = await Promise.all(
     entries.map((entry, index) => buildTicketCard(entry, tokens[index]!)),
   );
-  return htmlResponse(ticketViewPage(cards, walletEnabled));
+  return htmlResponse(
+    ticketViewPage(cards, appleWalletEnabled, googleWalletEnabled),
+  );
 };
 
 /** Route ticket view requests */

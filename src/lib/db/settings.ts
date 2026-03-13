@@ -20,6 +20,7 @@ import { getDb, queryAll } from "#lib/db/client.ts";
 import { deleteAllSessions } from "#lib/db/sessions.ts";
 import { createUser, invalidateUsersCache } from "#lib/db/users.ts";
 import { getEnv } from "#lib/env.ts";
+import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import { nowMs } from "#lib/now.ts";
 import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
 import type { Settings } from "#lib/types.ts";
@@ -91,6 +92,10 @@ export const CONFIG_KEYS = {
   APPLE_WALLET_SIGNING_CERT: "apple_wallet_signing_cert",
   APPLE_WALLET_SIGNING_KEY: "apple_wallet_signing_key",
   APPLE_WALLET_WWDR_CERT: "apple_wallet_wwdr_cert",
+  // Google Wallet configuration
+  GOOGLE_WALLET_ISSUER_ID: "google_wallet_issuer_id",
+  GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL: "google_wallet_service_account_email",
+  GOOGLE_WALLET_SERVICE_ACCOUNT_KEY: "google_wallet_service_account_key",
 } as const;
 
 /**
@@ -895,6 +900,78 @@ export const getAppleWalletConfig =
   async (): Promise<SigningCredentials | null> =>
     (await getAppleWalletDbConfig()) ?? getHostAppleWalletConfig();
 
+// ---------------------------------------------------------------------------
+// Google Wallet configuration
+// ---------------------------------------------------------------------------
+
+/** Return GoogleWalletCredentials if all 3 fields are present, null otherwise. */
+const toGoogleCredentials = (
+  issuerId: string | null | undefined,
+  serviceAccountEmail: string | null | undefined,
+  serviceAccountKey: string | null | undefined,
+): GoogleWalletCredentials | null =>
+  issuerId && serviceAccountEmail && serviceAccountKey
+    ? { issuerId, serviceAccountEmail, serviceAccountKey }
+    : null;
+
+/** Read Google Wallet config from environment variables. Returns null if not fully configured. */
+export const getHostGoogleWalletConfig = (): GoogleWalletCredentials | null =>
+  toGoogleCredentials(
+    getEnv("GOOGLE_WALLET_ISSUER_ID"),
+    getEnv("GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL"),
+    getEnv("GOOGLE_WALLET_SERVICE_ACCOUNT_KEY"),
+  );
+
+/** Check if Google Wallet DB settings are fully configured (all 3 settings present). */
+export const hasGoogleWalletDbConfig = async (): Promise<boolean> => {
+  const [issuerId, email, key] = await Promise.all([
+    getSetting(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID),
+    getSetting(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL),
+    getSetting(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY),
+  ]);
+  return issuerId !== null && email !== null && key !== null;
+};
+
+/** Check if Google Wallet is configured (DB settings or env vars). */
+export const hasGoogleWalletConfig = async (): Promise<boolean> =>
+  (await hasGoogleWalletDbConfig()) || getHostGoogleWalletConfig() !== null;
+
+export const {
+  get: getGoogleWalletIssuerIdFromDb,
+  update: updateGoogleWalletIssuerId,
+} = optionalTextSetting(CONFIG_KEYS.GOOGLE_WALLET_ISSUER_ID);
+
+export const {
+  get: getGoogleWalletServiceAccountEmailFromDb,
+  update: updateGoogleWalletServiceAccountEmail,
+} = optionalTextSetting(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL);
+
+export const {
+  get: getGoogleWalletServiceAccountKeyFromDb,
+  update: updateGoogleWalletServiceAccountKey,
+} = encryptedSetting(CONFIG_KEYS.GOOGLE_WALLET_SERVICE_ACCOUNT_KEY);
+
+/** Get Google Wallet config from DB (decrypted). Returns null if incomplete. */
+export const getGoogleWalletDbConfig =
+  async (): Promise<GoogleWalletCredentials | null> => {
+    const [issuerId, serviceAccountEmail, serviceAccountKey] =
+      await Promise.all([
+        getGoogleWalletIssuerIdFromDb(),
+        getGoogleWalletServiceAccountEmailFromDb(),
+        getGoogleWalletServiceAccountKeyFromDb(),
+      ]);
+    return toGoogleCredentials(
+      issuerId,
+      serviceAccountEmail,
+      serviceAccountKey,
+    );
+  };
+
+/** Get Google Wallet config for pass generation. DB settings take priority, falls back to env vars. */
+export const getGoogleWalletConfig =
+  async (): Promise<GoogleWalletCredentials | null> =>
+    (await getGoogleWalletDbConfig()) ?? getHostGoogleWalletConfig();
+
 /**
  * Stubbable API for testing - allows mocking in ES modules
  * Use spyOn(settingsApi, "method") instead of spyOn(settingsModule, "method")
@@ -983,4 +1060,15 @@ export const settingsApi = {
   updateAppleWalletWwdrCert,
   getAppleWalletConfig,
   getAppleWalletDbConfig,
+  hasGoogleWalletConfig,
+  hasGoogleWalletDbConfig,
+  getHostGoogleWalletConfig,
+  getGoogleWalletIssuerIdFromDb,
+  updateGoogleWalletIssuerId,
+  getGoogleWalletServiceAccountEmailFromDb,
+  updateGoogleWalletServiceAccountEmail,
+  getGoogleWalletServiceAccountKeyFromDb,
+  updateGoogleWalletServiceAccountKey,
+  getGoogleWalletConfig,
+  getGoogleWalletDbConfig,
 };

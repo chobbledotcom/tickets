@@ -33,6 +33,7 @@ import {
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
 import { resetDemoMode } from "#lib/demo.ts";
+import type { GoogleWalletCredentials } from "#lib/google-wallet.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
 /**
@@ -1979,3 +1980,31 @@ const _testCerts: SigningCredentials = (() => {
 
 /** Return pre-built test certificates for Apple Wallet signing */
 export const generateTestCerts = (): SigningCredentials => _testCerts;
+
+/** Pre-generate Google Wallet test credentials (PKCS8 RSA key) */
+let _googleTestCreds: GoogleWalletCredentials | null = null;
+
+/** Generate and cache Google Wallet test credentials */
+export const generateGoogleTestCreds =
+  async (): Promise<GoogleWalletCredentials> => {
+    if (_googleTestCreds) return _googleTestCreds;
+    const keyPair = await crypto.subtle.generateKey(
+      {
+        name: "RSASSA-PKCS1-v1_5",
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: "SHA-256",
+      },
+      true,
+      ["sign", "verify"],
+    );
+    const pkcs8 = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(pkcs8)));
+    const pem = `-----BEGIN PRIVATE KEY-----\n${b64.match(/.{1,64}/g)!.join("\n")}\n-----END PRIVATE KEY-----`;
+    _googleTestCreds = {
+      issuerId: "1234567890",
+      serviceAccountEmail: "test@test-project.iam.gserviceaccount.com",
+      serviceAccountKey: pem,
+    };
+    return _googleTestCreds;
+  };
