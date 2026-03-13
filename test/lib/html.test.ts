@@ -9,6 +9,7 @@ import { adminEventActivityLogPage, adminGlobalActivityLogPage } from "#template
 import { Breadcrumb } from "#templates/admin/nav.tsx";
 import { adminSessionsPage } from "#templates/admin/sessions.tsx";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
+import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import { adminUserDeletePage, adminUsersPage, type DisplayUser } from "#templates/admin/users.tsx";
 import { type CsvEventInfo, generateAttendeesCsv, generateCalendarCsv } from "#templates/csv.ts";
 import { adminCalendarPage, type CalendarAttendeeRow } from "#templates/admin/calendar.tsx";
@@ -1756,28 +1757,12 @@ describe("html", () => {
       webhookUrl: "https://example.com/payment/webhook",
       embedHosts: "",
       termsAndConditions: "",
-      timezone: "Europe/London",
       businessEmail: "",
       theme: "light",
       showPublicSite: false,
       phonePrefix: "44",
       headerImageUrl: "",
       storageEnabled: false,
-      emailProvider: "",
-      emailApiKeyConfigured: false,
-      emailFromAddress: "",
-      showPublicApi: false,
-      hostEmailLabel: "",
-      confirmationTemplates: { subject: "", html: "", text: "" },
-      adminTemplates: { subject: "", html: "", text: "" },
-      bunnyCdnEnabled: false,
-      customDomain: "",
-      customDomainLastValidated: "",
-      cdnHostname: "",
-      appleWalletConfigured: false,
-      appleWalletPassTypeId: "",
-      appleWalletTeamId: "",
-      hostAppleWalletLabel: "",
     };
 
     test("shows square webhook configured message when key is set", () => {
@@ -1807,10 +1792,39 @@ describe("html", () => {
       expect(html).toContain('name="square_sandbox"');
     });
 
+    test("shows link to advanced settings", () => {
+      const html = adminSettingsPage(TEST_SESSION, defaultState);
+      expect(html).toContain('href="/admin/settings-advanced"');
+      expect(html).toContain("advanced settings");
+    });
+  });
+
+  describe("adminAdvancedSettingsPage", () => {
+    const advancedDefaultState: import("#templates/admin/settings-advanced.tsx").AdvancedSettingsPageState = {
+      timezone: "Europe/London",
+      showPublicApi: false,
+      emailProvider: "",
+      emailApiKeyConfigured: false,
+      emailFromAddress: "",
+      hostEmailLabel: "",
+      businessEmail: "",
+      confirmationTemplates: { subject: "", html: "", text: "" },
+      adminTemplates: { subject: "", html: "", text: "" },
+      bunnyCdnEnabled: false,
+      customDomain: "",
+      customDomainLastValidated: "",
+      cdnHostname: "",
+      appleWalletConfigured: false,
+      appleWalletPassTypeId: "",
+      appleWalletTeamId: "",
+      hostAppleWalletLabel: "",
+      theme: "light",
+    };
+
     test("shows email provider selection when configured", () => {
-      const html = adminSettingsPage(
+      const html = adminAdvancedSettingsPage(
         TEST_SESSION,
-        { ...defaultState, emailProvider: "resend", emailFromAddress: "from@test.com" },
+        { ...advancedDefaultState, emailProvider: "resend", emailFromAddress: "from@test.com" },
       );
       expect(html).toContain('value="resend"');
       expect(html).toContain("Send Test Email");
@@ -1818,34 +1832,44 @@ describe("html", () => {
     });
 
     test("hides test button when no email provider configured", () => {
-      const html = adminSettingsPage(TEST_SESSION, defaultState);
+      const html = adminAdvancedSettingsPage(TEST_SESSION, advancedDefaultState);
       expect(html).not.toContain("Send Test Email");
     });
 
     test("uses business email as from address placeholder", () => {
-      const html = adminSettingsPage(
+      const html = adminAdvancedSettingsPage(
         TEST_SESSION,
-        { ...defaultState, businessEmail: "biz@example.com" },
+        { ...advancedDefaultState, businessEmail: "biz@example.com" },
       );
       expect(html).toContain('placeholder="biz@example.com"');
     });
 
     test("uses default placeholder when no business email", () => {
-      const html = adminSettingsPage(TEST_SESSION, defaultState);
+      const html = adminAdvancedSettingsPage(TEST_SESSION, advancedDefaultState);
       expect(html).toContain('placeholder="tickets@yourdomain.com"');
     });
 
     test("shows host email label when hostEmailLabel is set", () => {
-      const html = adminSettingsPage(
+      const html = adminAdvancedSettingsPage(
         TEST_SESSION,
-        { ...defaultState, hostEmailLabel: "Host Resend (noreply@example.com)" },
+        { ...advancedDefaultState, hostEmailLabel: "Host Resend (noreply@example.com)" },
       );
       expect(html).toContain("Host Resend (noreply@example.com)");
     });
 
     test("shows None disabled when no hostEmailLabel set", () => {
-      const html = adminSettingsPage(TEST_SESSION, defaultState);
+      const html = adminAdvancedSettingsPage(TEST_SESSION, advancedDefaultState);
       expect(html).toContain("None (disabled)");
+    });
+
+    test("shows warning about careful changes", () => {
+      const html = adminAdvancedSettingsPage(TEST_SESSION, advancedDefaultState);
+      expect(html).toContain("Be careful changing settings on this page");
+    });
+
+    test("shows breadcrumb back to settings", () => {
+      const html = adminAdvancedSettingsPage(TEST_SESSION, advancedDefaultState);
+      expect(html).toContain('href="/admin/settings"');
     });
   });
 
