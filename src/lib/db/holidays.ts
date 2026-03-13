@@ -4,11 +4,11 @@
 
 import { collectionCache, filter } from "#fp";
 import { registerCache } from "#lib/cache-registry.ts";
-import { decrypt, encrypt } from "#lib/crypto.ts";
 import { getTz } from "#lib/config.ts";
-import { todayInTz } from "#lib/timezone.ts";
+import { decrypt, encrypt } from "#lib/crypto.ts";
 import { queryAndMap } from "#lib/db/query.ts";
 import { col, defineTable } from "#lib/db/table.ts";
+import { todayInTz } from "#lib/timezone.ts";
 import type { Holiday } from "#lib/types.ts";
 
 /** Holiday input fields for create/update (camelCase) */
@@ -38,7 +38,9 @@ const rawHolidaysTable = defineTable<Holiday, HolidayInput>({
 });
 
 /** Execute a query and decrypt the resulting holiday rows */
-const queryHolidays = queryAndMap<Holiday, Holiday>((row) => rawHolidaysTable.fromDb(row));
+const queryHolidays = queryAndMap<Holiday, Holiday>((row) =>
+  rawHolidaysTable.fromDb(row),
+);
 
 const holidaysCache = collectionCache(
   () => queryHolidays("SELECT * FROM holidays ORDER BY start_date ASC"),
@@ -74,8 +76,7 @@ export const holidaysTable: typeof rawHolidaysTable = {
 /**
  * Get all holidays, decrypted, ordered by start_date (from cache)
  */
-export const getAllHolidays = (): Promise<Holiday[]> =>
-  holidaysCache.getAll();
+export const getAllHolidays = (): Promise<Holiday[]> => holidaysCache.getAll();
 
 /**
  * Get active holidays (end_date >= today) for date computation (from cache).

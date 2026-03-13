@@ -26,12 +26,13 @@ import type { PaymentProviderType } from "#lib/payments.ts";
  * Get the configured payment provider type
  * Returns null if no provider is configured
  */
-export const getPaymentProvider = async (): Promise<PaymentProviderType | null> => {
-  const provider = await getPaymentProviderFromDb();
-  if (provider === "stripe") return "stripe";
-  if (provider === "square") return "square";
-  return null;
-};
+export const getPaymentProvider =
+  async (): Promise<PaymentProviderType | null> => {
+    const provider = await getPaymentProviderFromDb();
+    if (provider === "stripe") return "stripe";
+    if (provider === "square") return "square";
+    return null;
+  };
 
 /**
  * Get Stripe secret key from database (encrypted)

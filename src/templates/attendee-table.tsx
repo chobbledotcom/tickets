@@ -6,9 +6,9 @@
 import { map, pipe, reduce, sort } from "#fp";
 import { formatDateLabel } from "#lib/dates.ts";
 import { CsrfForm } from "#lib/forms.tsx";
+import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import { normalizePhone } from "#lib/phone.ts";
 import type { Attendee } from "#lib/types.ts";
-import { Raw } from "#lib/jsx/jsx-runtime.ts";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -65,7 +65,10 @@ const formatInstructionsInline = (instructions: string): string => {
 };
 
 /** Compute which optional columns have data */
-const computeVisibility = (rows: AttendeeTableRow[], opts: AttendeeTableOptions): Visibility => ({
+const computeVisibility = (
+  rows: AttendeeTableRow[],
+  opts: AttendeeTableOptions,
+): Visibility => ({
   showEvent: opts.showEvent,
   showDate: opts.showDate,
   showEmail: rows.some((r) => !!r.attendee.email),
@@ -88,7 +91,10 @@ const countColumns = (vis: Visibility, showActions: boolean): number => {
 };
 
 /** Compare attendee rows for deterministic table ordering */
-const compareAttendeeRows = (a: AttendeeTableRow, b: AttendeeTableRow): number => {
+const compareAttendeeRows = (
+  a: AttendeeTableRow,
+  b: AttendeeTableRow,
+): number => {
   // 1. Event date: rows with dates first, then ascending
   const dateA = a.attendee.date ?? "";
   const dateB = b.attendee.date ?? "";
@@ -112,15 +118,21 @@ const compareAttendeeRows = (a: AttendeeTableRow, b: AttendeeTableRow): number =
 };
 
 /** Sort attendee rows by date, event name, attendee name, then id */
-export const sortAttendeeRows: (rows: AttendeeTableRow[]) => AttendeeTableRow[] =
-  sort(compareAttendeeRows);
+export const sortAttendeeRows: (
+  rows: AttendeeTableRow[],
+) => AttendeeTableRow[] = sort(compareAttendeeRows);
 
 /** Build a return_url query suffix for action links */
 const returnSuffix = (returnUrl: string | undefined): string =>
   returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : "";
 
 /** Render the check-in/check-out button form */
-const CheckinButton = ({ a, eventId, activeFilter, returnUrl }: {
+const CheckinButton = ({
+  a,
+  eventId,
+  activeFilter,
+  returnUrl,
+}: {
   a: Attendee;
   eventId: number;
   activeFilter: string;
@@ -128,7 +140,9 @@ const CheckinButton = ({ a, eventId, activeFilter, returnUrl }: {
 }): string => {
   const isCheckedIn = a.checked_in;
   const label = isCheckedIn ? "Check out" : "Check in";
-  const buttonClass = isCheckedIn ? "link-button checkout" : "link-button checkin";
+  const buttonClass = isCheckedIn
+    ? "link-button checkout"
+    : "link-button checkin";
   return String(
     <CsrfForm
       action={`/admin/event/${eventId}/attendee/${a.id}/checkin`}
@@ -139,7 +153,7 @@ const CheckinButton = ({ a, eventId, activeFilter, returnUrl }: {
       <button type="submit" class={buttonClass}>
         {label}
       </button>
-    </CsrfForm>
+    </CsrfForm>,
   );
 };
 
@@ -148,34 +162,47 @@ const isRefundable = (row: AttendeeTableRow): boolean =>
   !!row.attendee.payment_id && !row.attendee.refunded;
 
 /** Render the actions cell for a row */
-const ActionsCell = ({ row, returnUrl }: { row: AttendeeTableRow; returnUrl: string | undefined }): string => {
+const ActionsCell = ({
+  row,
+  returnUrl,
+}: {
+  row: AttendeeTableRow;
+  returnUrl: string | undefined;
+}): string => {
   const a = row.attendee;
   const suffix = returnSuffix(returnUrl);
   return String(
     <>
       {isRefundable(row) && (
-        <a href={`/admin/event/${row.eventId}/attendee/${a.id}/refund${suffix}`} class="danger">
+        <a
+          href={`/admin/event/${row.eventId}/attendee/${a.id}/refund${suffix}`}
+          class="danger"
+        >
           Refund
         </a>
       )}
       {isRefundable(row) && " "}
-      <a href={`/admin/attendees/${a.id}${suffix}`}>
-        Edit
-      </a>
-      {" "}
-      <a href={`/admin/event/${row.eventId}/attendee/${a.id}/delete${suffix}`} class="danger">
+      <a href={`/admin/attendees/${a.id}${suffix}`}>Edit</a>{" "}
+      <a
+        href={`/admin/event/${row.eventId}/attendee/${a.id}/delete${suffix}`}
+        class="danger"
+      >
         Delete
-      </a>
-      {" "}
-      <a href={`/admin/event/${row.eventId}/attendee/${a.id}/resend-notification${suffix}`}>
+      </a>{" "}
+      <a
+        href={`/admin/event/${row.eventId}/attendee/${a.id}/resend-notification${suffix}`}
+      >
         Re-send Notification
       </a>
-    </>
+    </>,
   );
 };
 
 /** Render the first column: refunded badge or check-in/out button */
-const StatusCell = ({ row, opts }: {
+const StatusCell = ({
+  row,
+  opts,
+}: {
   row: AttendeeTableRow;
   opts: AttendeeTableOptions;
 }): string => {
@@ -191,7 +218,11 @@ const StatusCell = ({ row, opts }: {
 };
 
 /** Render a single attendee row */
-const AttendeeRow = ({ row, vis, opts }: {
+const AttendeeRow = ({
+  row,
+  vis,
+  opts,
+}: {
   row: AttendeeTableRow;
   vis: Visibility;
   opts: AttendeeTableOptions;
@@ -205,22 +236,44 @@ const AttendeeRow = ({ row, vis, opts }: {
           <Raw html={StatusCell({ row, opts })} />
         </td>
       )}
-      {vis.showEvent && <td><a href={`/admin/event/${row.eventId}`}>{row.eventName}</a></td>}
+      {vis.showEvent && (
+        <td>
+          <a href={`/admin/event/${row.eventId}`}>{row.eventName}</a>
+        </td>
+      )}
       {vis.showDate && <td>{a.date ? formatDateLabel(a.date) : ""}</td>}
       <td>{a.name}</td>
       {vis.showEmail && <td>{a.email || ""}</td>}
-      {vis.showPhone && <td>{a.phone ? <a href={`tel:${normalizePhone(a.phone, opts.phonePrefix || "44")}`}>{a.phone}</a> : ""}</td>}
+      {vis.showPhone && (
+        <td>
+          {a.phone ? (
+            <a
+              href={`tel:${normalizePhone(a.phone, opts.phonePrefix || "44")}`}
+            >
+              {a.phone}
+            </a>
+          ) : (
+            ""
+          )}
+        </td>
+      )}
       {vis.showAddress && <td>{formatAddressInline(a.address)}</td>}
-      {vis.showSpecialInstructions && <td>{formatInstructionsInline(a.special_instructions)}</td>}
+      {vis.showSpecialInstructions && (
+        <td>{formatInstructionsInline(a.special_instructions)}</td>
+      )}
       <td>{a.quantity}</td>
-      <td><a href={`https://${opts.allowedDomain}/t/${a.ticket_token}`}>{a.ticket_token}</a></td>
+      <td>
+        <a href={`https://${opts.allowedDomain}/t/${a.ticket_token}`}>
+          {a.ticket_token}
+        </a>
+      </td>
       <td>{new Date(a.created).toLocaleString()}</td>
       {showActions && (
         <td>
           <Raw html={ActionsCell({ row, returnUrl: opts.returnUrl })} />
         </td>
       )}
-    </tr>
+    </tr>,
   );
 };
 
@@ -231,12 +284,13 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
   const showActions = opts.showActions !== false;
   const colCount = countColumns(vis, showActions);
 
-  const rows = orderedRows.length > 0
-    ? pipe(
-        map((row: AttendeeTableRow) => AttendeeRow({ row, vis, opts })),
-        joinStrings,
-      )(orderedRows)
-    : `<tr><td colspan="${colCount}">${opts.emptyMessage ?? "No attendees yet"}</td></tr>`;
+  const rows =
+    orderedRows.length > 0
+      ? pipe(
+          map((row: AttendeeTableRow) => AttendeeRow({ row, vis, opts })),
+          joinStrings,
+        )(orderedRows)
+      : `<tr><td colspan="${colCount}">${opts.emptyMessage ?? "No attendees yet"}</td></tr>`;
 
   return String(
     <table>
@@ -259,6 +313,6 @@ export const AttendeeTable = (opts: AttendeeTableOptions): string => {
       <tbody>
         <Raw html={rows} />
       </tbody>
-    </table>
+    </table>,
   );
 };

@@ -8,9 +8,9 @@
 import { decrypt, encrypt } from "#lib/crypto.ts";
 import { queryAll, queryBatch, resultRows } from "#lib/db/client.ts";
 import { eventsTable } from "#lib/db/events.ts";
+import { col, defineTable } from "#lib/db/table.ts";
 import { nowIso } from "#lib/now.ts";
 import type { Event, EventWithCount } from "#lib/types.ts";
-import { col, defineTable } from "#lib/db/table.ts";
 
 /** Activity log entry */
 export interface ActivityLogEntry {
@@ -50,7 +50,11 @@ export const logActivity = (
   message: string,
   event?: number | { id: number } | null,
 ): Promise<ActivityLogEntry> =>
-  activityLogTable.insert({ message, eventId: (typeof event === "object" && event !== null ? event.id : event) ?? null });
+  activityLogTable.insert({
+    message,
+    eventId:
+      (typeof event === "object" && event !== null ? event.id : event) ?? null,
+  });
 
 /** Query activity log with optional event filter, decrypts messages */
 const queryActivityLog = async (
@@ -104,7 +108,7 @@ export const getEventWithActivityLog = async (
       args: [eventId],
     },
     {
-      sql: `SELECT * FROM activity_log WHERE event_id = ? ORDER BY created DESC, id DESC LIMIT ?`,
+      sql: "SELECT * FROM activity_log WHERE event_id = ? ORDER BY created DESC, id DESC LIMIT ?",
       args: [eventId, limit],
     },
   ]);

@@ -9,8 +9,8 @@
  * No images in v1 — pass renders text fields and QR code only.
  */
 
-import forge from "node-forge";
 import { zipSync } from "fflate";
+import forge from "node-forge";
 import { getDecimalPlaces } from "#lib/currency.ts";
 
 // Force pure-JS mode so node-forge never attempts require("crypto").
@@ -107,13 +107,9 @@ type EventTicketFields = {
 };
 
 /** Build the eventTicket field groups */
-const buildEventTicketFields = (
-  data: PassData,
-): EventTicketFields => {
+const buildEventTicketFields = (data: PassData): EventTicketFields => {
   const fields: EventTicketFields = {
-    primaryFields: [
-      { key: "event", label: "EVENT", value: data.eventName },
-    ],
+    primaryFields: [{ key: "event", label: "EVENT", value: data.eventName }],
     secondaryFields: [],
     auxiliaryFields: [],
     backFields: [],
@@ -157,7 +153,7 @@ const buildEventTicketFields = (
     fields.auxiliaryFields.push({
       key: "price",
       label: "PRICE",
-      value: data.pricePaid / (10 ** getDecimalPlaces(data.currencyCode)),
+      value: data.pricePaid / 10 ** getDecimalPlaces(data.currencyCode),
       currencyCode: data.currencyCode,
     });
   }
@@ -193,9 +189,7 @@ export const sha1Hex = (data: Uint8Array): string => {
 };
 
 /** Create manifest.json mapping filenames to SHA-1 hashes */
-export const createManifest = (
-  files: Record<string, Uint8Array>,
-): string => {
+export const createManifest = (files: Record<string, Uint8Array>): string => {
   const manifest: Record<string, string> = {};
   for (const [name, data] of Object.entries(files)) {
     manifest[name] = sha1Hex(data);
@@ -267,6 +261,6 @@ export const buildPkpass = (
   return zipSync({
     "pass.json": passJsonBytes,
     "manifest.json": manifestBytes,
-    "signature": signature,
+    signature: signature,
   });
 };

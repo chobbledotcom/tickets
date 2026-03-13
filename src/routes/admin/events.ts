@@ -75,7 +75,12 @@ import type {
   EventEditFormValues,
   EventFormValues,
 } from "#templates/fields.ts";
-import { eventFields, groupIdField, slugField } from "#templates/fields.ts";
+import {
+  eventFields,
+  groupIdField,
+  slugField,
+  splitCsv,
+} from "#templates/fields.ts";
 
 /** Generate a unique event slug, retrying on collision */
 const generateUniqueEventSlug = (excludeEventId?: number) =>
@@ -85,12 +90,7 @@ const generateUniqueEventSlug = (excludeEventId?: number) =>
 
 /** Parse comma-separated day names to string array */
 const parseBookableDays = (value: string): string[] | undefined =>
-  value
-    ? value
-        .split(",")
-        .map((d) => d.trim())
-        .filter((d) => d)
-    : undefined;
+  value ? splitCsv(value) : undefined;
 
 /** Extract common event fields from validated form values, normalizing datetimes to UTC */
 const extractCommonFields = (values: EventFormValues) => {
@@ -248,7 +248,11 @@ const handleCreateEvent: TypedRouteHandler<"POST /admin/event"> = (request) =>
     await logActivity(`Event '${result.row.name}' created`, result.row);
     const errorMessage = await processFormImage(formData, result.row.id);
     if (errorMessage) {
-      return redirect("/admin", `Event created but image was not saved: ${errorMessage}`, false);
+      return redirect(
+        "/admin",
+        `Event created but image was not saved: ${errorMessage}`,
+        false,
+      );
     }
     return redirect("/admin", "Event created", true);
   });
@@ -265,7 +269,6 @@ const getCheckinMessage = (
   }
   return null;
 };
-
 
 /** Filter attendees by date for daily events */
 const filterByDate = (
@@ -428,12 +431,12 @@ const handleAdminEventEditPost: TypedRouteHandler<
       );
       if (errorMessage) {
         return redirect(
-          `/admin/event/${result.row.id}`, `Event updated but image was not saved: ${errorMessage}`, false,
+          `/admin/event/${result.row.id}`,
+          `Event updated but image was not saved: ${errorMessage}`,
+          false,
         );
       }
-      return redirect(
-        `/admin/event/${result.row.id}`, "Event updated", true,
-      );
+      return redirect(`/admin/event/${result.row.id}`, "Event updated", true);
     }
     if ("notFound" in result) return notFoundResponse();
 

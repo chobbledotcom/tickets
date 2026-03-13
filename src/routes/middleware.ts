@@ -153,8 +153,10 @@ export const isValidContentType = (request: Request, path: string): boolean => {
   }
 
   // All other POST endpoints require form-urlencoded or multipart (for file uploads)
-  return contentType.startsWith("application/x-www-form-urlencoded") ||
-    contentType.startsWith("multipart/form-data");
+  return (
+    contentType.startsWith("application/x-www-form-urlencoded") ||
+    contentType.startsWith("multipart/form-data")
+  );
 };
 
 /**
@@ -195,8 +197,7 @@ const TRACKING_PARAMS = [
 ];
 
 /** Check if a query parameter key is a tracking parameter */
-const isTrackingParam = (key: string): boolean =>
-  TRACKING_PARAMS.includes(key);
+const isTrackingParam = (key: string): boolean => TRACKING_PARAMS.includes(key);
 
 /**
  * Get clean URL path with tracking parameters stripped.
@@ -259,7 +260,10 @@ export const applySecurityHeaders = async (
     const frameAncestors = buildFrameAncestors(await getEmbedHosts());
     if (frameAncestors) {
       const csp = response.headers.get("content-security-policy");
-      response.headers.set("content-security-policy", `${frameAncestors}; ${csp}`);
+      response.headers.set(
+        "content-security-policy",
+        `${frameAncestors}; ${csp}`,
+      );
     }
   }
 

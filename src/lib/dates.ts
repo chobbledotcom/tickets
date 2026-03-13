@@ -65,17 +65,24 @@ const dateRange = (start: string, end: string): string[] => {
 };
 
 /** Compute bookable date range for a daily event */
-const bookableRange = (event: Event): { bookableDays: string[]; start: string; end: string } => {
+const bookableRange = (
+  event: Event,
+): { bookableDays: string[]; start: string; end: string } => {
   const tz = getTz();
   const todayStr = todayInTz(tz);
   const start = addDays(todayStr, event.minimum_days_before);
-  const maxDays = event.maximum_days_after === 0 ? MAX_FUTURE_DAYS : event.maximum_days_after;
+  const maxDays =
+    event.maximum_days_after === 0 ? MAX_FUTURE_DAYS : event.maximum_days_after;
   const end = addDays(todayStr, maxDays);
   return { bookableDays: event.bookable_days, start, end };
 };
 
 /** Check if a date is bookable (matches allowed day and not a holiday) */
-const isBookable = (dateStr: string, bookableDays: string[], holidays: Holiday[]): boolean =>
+const isBookable = (
+  dateStr: string,
+  bookableDays: string[],
+  holidays: Holiday[],
+): boolean =>
   bookableDays.includes(getDayName(dateStr)) && !isHoliday(dateStr, holidays);
 
 /**
@@ -88,7 +95,9 @@ export const getAvailableDates = (
   holidays: Holiday[],
 ): string[] => {
   const { bookableDays, start, end } = bookableRange(event);
-  return filter((d: string) => isBookable(d, bookableDays, holidays))(dateRange(start, end));
+  return filter((d: string) => isBookable(d, bookableDays, holidays))(
+    dateRange(start, end),
+  );
 };
 
 /**
@@ -145,9 +154,7 @@ export const formatDatetimeLabel = (iso: string): string =>
  * Returns null if the input is empty or invalid.
  * Used by the calendar view to map standard event dates to calendar days.
  */
-export const eventDateToCalendarDate = (
-  utcIso: string,
-): string | null => {
+export const eventDateToCalendarDate = (utcIso: string): string | null => {
   const tz = getTz();
   if (!utcIso) return null;
   try {

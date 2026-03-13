@@ -25,14 +25,22 @@
 
   const initResize = () => {
     if (!scriptLoaded || !iframeLoaded) return;
-    const iframeResize = (window as unknown as {
-      iframeResize: (options: {
-        license: string;
-      }, target: HTMLIFrameElement) => void;
-    }).iframeResize;
-    iframeResize({
-      license: "GPLv3",
-    }, iframe);
+    const iframeResize = (
+      window as unknown as {
+        iframeResize: (
+          options: {
+            license: string;
+          },
+          target: HTMLIFrameElement,
+        ) => void;
+      }
+    ).iframeResize;
+    iframeResize(
+      {
+        license: "GPLv3",
+      },
+      iframe,
+    );
   };
 
   parentScript.onload = () => {

@@ -28,7 +28,10 @@ const withHashedIpAttempts = async <T>(
 };
 
 /** Check if lockout is active, resetting expired locks */
-const checkLockout = async (hashedIp: string, row: LoginAttemptRow | null): Promise<boolean> => {
+const checkLockout = async (
+  hashedIp: string,
+  row: LoginAttemptRow | null,
+): Promise<boolean> => {
   if (!row) return false;
 
   const currentMs = nowMs();
@@ -47,7 +50,10 @@ const checkLockout = async (hashedIp: string, row: LoginAttemptRow | null): Prom
 };
 
 /** Record attempt and return whether account is now locked */
-const recordAttempt = async (hashedIp: string, row: LoginAttemptRow | null): Promise<boolean> => {
+const recordAttempt = async (
+  hashedIp: string,
+  row: LoginAttemptRow | null,
+): Promise<boolean> => {
   const newAttempts = (row?.attempts ?? 0) + 1;
 
   if (newAttempts >= MAX_LOGIN_ATTEMPTS) {

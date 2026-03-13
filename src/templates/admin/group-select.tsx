@@ -9,16 +9,19 @@ interface EventGroupSelectProps {
   selectedGroupId: number;
 }
 
-export const EventGroupSelect = (
-  { groups, selectedGroupId }: EventGroupSelectProps,
-): JSX.Element | null => {
+export const EventGroupSelect = ({
+  groups,
+  selectedGroupId,
+}: EventGroupSelectProps): JSX.Element | null => {
   if (groups.length === 0) return null;
 
   return (
     <label>
       Group
       <select name="group_id" id="group_id">
-        <option value="0" selected={selectedGroupId === 0}>No Group</option>
+        <option value="0" selected={selectedGroupId === 0}>
+          No Group
+        </option>
         {groups.map((g) => (
           <option value={String(g.id)} selected={g.id === selectedGroupId}>
             {g.name}

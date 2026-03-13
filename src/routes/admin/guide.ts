@@ -10,9 +10,7 @@ import { adminGuidePage } from "#templates/admin/guide.tsx";
  * Handle GET /admin/guide
  */
 const handleAdminGuideGet = (request: Request): Promise<Response> =>
-  requireSessionOr(request, (session) =>
-    htmlResponse(adminGuidePage(session)),
-  );
+  requireSessionOr(request, (session) => htmlResponse(adminGuidePage(session)));
 
 /** Guide routes */
 export const guideRoutes = defineRoutes({

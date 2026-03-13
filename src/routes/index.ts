@@ -5,15 +5,23 @@
 
 import { once } from "#fp";
 import { isSetupComplete } from "#lib/config.ts";
+import { clearSessionCookie } from "#lib/cookies.ts";
 import { loadCurrencyCode } from "#lib/currency.ts";
+import { runWithQueryLogContext } from "#lib/db/query-log.ts";
+import { getShowPublicApiFromDb } from "#lib/db/settings.ts";
 import { loadHeaderImage } from "#lib/header-image.ts";
 import { detectIframeMode } from "#lib/iframe.ts";
-import { loadTheme } from "#lib/theme.ts";
-import { runWithQueryLogContext } from "#lib/db/query-log.ts";
-import { createRequestTimer, ErrorCode, logDebug, logError, logRequest, runWithRequestId } from "#lib/logger.ts";
+import {
+  createRequestTimer,
+  ErrorCode,
+  logDebug,
+  logError,
+  logRequest,
+  runWithRequestId,
+} from "#lib/logger.ts";
 import { flushPendingWork } from "#lib/pending-work.ts";
 import { runWithSessionContext } from "#lib/session-context.ts";
-import { getShowPublicApiFromDb } from "#lib/db/settings.ts";
+import { loadTheme } from "#lib/theme.ts";
 import {
   applySecurityHeaders,
   buildDomainRedirectUrl,
@@ -28,8 +36,13 @@ import {
 import type { createRouter } from "#routes/router.ts";
 import { routeStatic } from "#routes/static.ts";
 import type { ServerContext } from "#routes/types.ts";
-import { notFoundResponse, parseRequest, redirectResponse, SessionKeyError, temporaryErrorResponse } from "#routes/utils.ts";
-import { clearSessionCookie } from "#lib/cookies.ts";
+import {
+  notFoundResponse,
+  parseRequest,
+  redirectResponse,
+  SessionKeyError,
+  temporaryErrorResponse,
+} from "#routes/utils.ts";
 
 /** Router function type - reuse from router.ts */
 type RouterFn = ReturnType<typeof createRouter>;
@@ -48,7 +61,12 @@ const loadPublicPages = once(async () => {
     handlePublicTerms,
     handlePublicContact,
   } = await import("#routes/public.ts");
-  return { handleHome, handlePublicEvents, handlePublicTerms, handlePublicContact };
+  return {
+    handleHome,
+    handlePublicEvents,
+    handlePublicTerms,
+    handlePublicContact,
+  };
 });
 
 /** Lazy-load ticket reservation router */
@@ -101,7 +119,9 @@ const loadFeedRoutes = once(async () => {
 
 /** Lazy-load demo reset routes */
 const loadDemoResetRoutes = once(async () => {
-  const { routeDatabaseReset } = await import("#routes/admin/database-reset.ts");
+  const { routeDatabaseReset } = await import(
+    "#routes/admin/database-reset.ts"
+  );
   return routeDatabaseReset;
 });
 
@@ -177,7 +197,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   wallet: lazyRoute(loadWalletRoutes),
   demo: lazyRoute(loadDemoResetRoutes),
   api: async (request, path, method, server) =>
-    await getShowPublicApiFromDb()
+    (await getShowPublicApiFromDb())
       ? (await loadApiRoutes())(request, path, method, server)
       : null,
 };
@@ -189,7 +209,10 @@ const prefixHandlers: Record<string, RouterFn> = {
 const routeMainApp: RouterFn = async (request, path, method, server) => {
   const prefix = getPrefix(path);
   if (!Object.hasOwn(prefixHandlers, prefix)) return notFoundResponse();
-  return (await prefixHandlers[prefix]!(request, path, method, server)) ?? notFoundResponse();
+  return (
+    (await prefixHandlers[prefix]!(request, path, method, server)) ??
+    notFoundResponse()
+  );
 };
 
 /**
@@ -231,7 +254,12 @@ const logAndReturn = (
   path: string,
   getElapsed: () => number,
 ): Response => {
-  logRequest({ method, path, status: response.status, durationMs: getElapsed() });
+  logRequest({
+    method,
+    path,
+    status: response.status,
+    durationMs: getElapsed(),
+  });
   return response;
 };
 
@@ -242,50 +270,92 @@ export const handleRequest = (
   request: Request,
   server?: ServerContext,
 ): Promise<Response> => {
-  return runWithRequestId(() => runWithQueryLogContext(() => runWithSessionContext(async () => {
-  const { url, path, method } = parseRequest(request);
-  const getElapsed = createRequestTimer();
-  detectIframeMode(request.url);
+  return runWithRequestId(() =>
+    runWithQueryLogContext(() =>
+      runWithSessionContext(async () => {
+        const { url, path, method } = parseRequest(request);
+        const getElapsed = createRequestTimer();
+        detectIframeMode(request.url);
 
-  try {
-  // Strip tracking parameters (fbclid, utm_*, etc.) to avoid CDN caching issues
-  if (method === "GET") {
-    const cleanUrl = getCleanUrl(url);
-    if (cleanUrl) {
-      return logAndReturn(
-        new Response(null, { status: 301, headers: { location: cleanUrl } }),
-        method, path, getElapsed,
-      );
-    }
-  }
+        try {
+          // Strip tracking parameters (fbclid, utm_*, etc.) to avoid CDN caching issues
+          if (method === "GET") {
+            const cleanUrl = getCleanUrl(url);
+            if (cleanUrl) {
+              return logAndReturn(
+                new Response(null, {
+                  status: 301,
+                  headers: { location: cleanUrl },
+                }),
+                method,
+                path,
+                getElapsed,
+              );
+            }
+          }
 
-  // Domain validation: redirect requests from unauthorized domains to the allowed domain
-  if (!isValidDomain(request)) {
-    const redirectUrl = buildDomainRedirectUrl(request);
-    logDebug("Domain", `Redirecting to ${redirectUrl} (${getDomainRejectionReason(request)})`);
-    return logAndReturn(domainRedirectResponse(redirectUrl), method, path, getElapsed);
-  }
+          // Domain validation: redirect requests from unauthorized domains to the allowed domain
+          if (!isValidDomain(request)) {
+            const redirectUrl = buildDomainRedirectUrl(request);
+            logDebug(
+              "Domain",
+              `Redirecting to ${redirectUrl} (${getDomainRejectionReason(request)})`,
+            );
+            return logAndReturn(
+              domainRedirectResponse(redirectUrl),
+              method,
+              path,
+              getElapsed,
+            );
+          }
 
-  const embeddable = isEmbeddablePath(path);
+          const embeddable = isEmbeddablePath(path);
 
-  // Content-Type validation: reject POST requests without proper Content-Type
-  // (webhook endpoints accept JSON, all others require form-urlencoded)
-  if (!isValidContentType(request, path)) {
-    return logAndReturn(contentTypeRejectionResponse(), method, path, getElapsed);
-  }
+          // Content-Type validation: reject POST requests without proper Content-Type
+          // (webhook endpoints accept JSON, all others require form-urlencoded)
+          if (!isValidContentType(request, path)) {
+            return logAndReturn(
+              contentTypeRejectionResponse(),
+              method,
+              path,
+              getElapsed,
+            );
+          }
 
-  try {
-    const response = await handleRequestInternal(request, path, method, server);
-    return logAndReturn(await applySecurityHeaders(response, embeddable), method, path, getElapsed);
-  } catch (error) {
-    logError({ code: ErrorCode.CDN_REQUEST, detail: String(error) });
-    if (error instanceof SessionKeyError) {
-      return logAndReturn(redirectResponse("/admin", clearSessionCookie()), method, path, getElapsed);
-    }
-    return logAndReturn(temporaryErrorResponse(), method, path, getElapsed);
-  }
-  } finally {
-    await flushPendingWork();
-  }
-  })));
+          try {
+            const response = await handleRequestInternal(
+              request,
+              path,
+              method,
+              server,
+            );
+            return logAndReturn(
+              await applySecurityHeaders(response, embeddable),
+              method,
+              path,
+              getElapsed,
+            );
+          } catch (error) {
+            logError({ code: ErrorCode.CDN_REQUEST, detail: String(error) });
+            if (error instanceof SessionKeyError) {
+              return logAndReturn(
+                redirectResponse("/admin", clearSessionCookie()),
+                method,
+                path,
+                getElapsed,
+              );
+            }
+            return logAndReturn(
+              temporaryErrorResponse(),
+              method,
+              path,
+              getElapsed,
+            );
+          }
+        } finally {
+          await flushPendingWork();
+        }
+      }),
+    ),
+  );
 };

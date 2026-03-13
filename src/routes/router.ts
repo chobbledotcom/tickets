@@ -10,7 +10,9 @@ import type { ServerContext } from "#routes/types.ts";
 // =============================================================================
 
 /** Extract path part from "METHOD /path" pattern */
-type ExtractPath<S extends string> = S extends `${string} ${infer Path}` ? Path : S;
+type ExtractPath<S extends string> = S extends `${string} ${infer Path}`
+  ? Path
+  : S;
 
 /** Recursively extract param names from a URL path pattern */
 type ExtractParamNames<Path extends string> =
@@ -21,10 +23,11 @@ type ExtractParamNames<Path extends string> =
       : never;
 
 /** Infer runtime type from param name (mirrors isNumericParam convention) */
-type InferParamType<Name extends string> =
-  Name extends `${string}Id` ? number :
-  Name extends "id" ? number :
-  string;
+type InferParamType<Name extends string> = Name extends `${string}Id`
+  ? number
+  : Name extends "id"
+    ? number
+    : string;
 
 /** Build typed params object from a route pattern string */
 export type RouteParamsFor<Pattern extends string> = {
@@ -125,7 +128,10 @@ const compileRoutes = (
   routes: Record<string, RouteHandlerFn>,
 ): Map<string, CompiledRoute[]> =>
   reduce(
-    (compiled: Map<string, CompiledRoute[]>, [pattern, handler]: [string, RouteHandlerFn]) => {
+    (
+      compiled: Map<string, CompiledRoute[]>,
+      [pattern, handler]: [string, RouteHandlerFn],
+    ) => {
       const { method, path } = parseRoutePattern(pattern);
       const { regex, paramNames, numericParams } = compilePattern(path);
       const methodRoutes = compiled.get(method) ?? [];
@@ -215,4 +221,5 @@ export const createRouter = (
  */
 export const defineRoutes = <T extends string>(
   routes: { [K in T]: TypedRouteHandler<K> },
-): Record<string, RouteHandlerFn> => routes as unknown as Record<string, RouteHandlerFn>;
+): Record<string, RouteHandlerFn> =>
+  routes as unknown as Record<string, RouteHandlerFn>;

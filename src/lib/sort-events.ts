@@ -7,7 +7,9 @@
  */
 
 import { getNextBookableDate } from "#lib/dates.ts";
-import type { Event, Holiday } from "#lib/types.ts";
+import type { Event, EventWithCount, Holiday } from "#lib/types.ts";
+
+export type { EventWithCount };
 
 /** Tier assignment: no-date standard=0, dated standard=1, daily=2 */
 const eventTier = (event: Event): number => {

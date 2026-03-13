@@ -4,14 +4,14 @@
  */
 
 import { compact, unique } from "#fp";
+import { getBusinessEmailFromDb } from "#lib/business-email.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import { type EmailEntry, sendRegistrationEmails } from "#lib/email.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
+import { nowIso } from "#lib/now.ts";
 import { addPendingWork } from "#lib/pending-work.ts";
 import { buildTicketUrl } from "#lib/ticket-url.ts";
-import { isPaidEvent, type ContactInfo } from "#lib/types.ts";
-import { nowIso } from "#lib/now.ts";
-import { getBusinessEmailFromDb } from "#lib/business-email.ts";
+import { type ContactInfo, isPaidEvent } from "#lib/types.ts";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -71,8 +71,10 @@ export const buildWebhookPayload = async (
   currency: string,
 ): Promise<WebhookPayload> => {
   const first = entries[0]!;
-  const totalPricePaid = entries.reduce((sum, { attendee }) =>
-    sum + Number.parseInt(attendee.price_paid, 10), 0);
+  const totalPricePaid = entries.reduce(
+    (sum, { attendee }) => sum + Number.parseInt(attendee.price_paid, 10),
+    0,
+  );
 
   const hasPaidEvent = entries.some(({ event }) => isPaidEvent(event));
   const businessEmail = await getBusinessEmailFromDb();
@@ -140,14 +142,16 @@ export const sendRegistrationWebhooks = async (
   entries: RegistrationEntry[],
   currency: string,
 ): Promise<void> => {
-  const webhookUrls = unique(compact(
-    entries.map((e) => e.event.webhook_url || null),
-  ));
+  const webhookUrls = unique(
+    compact(entries.map((e) => e.event.webhook_url || null)),
+  );
   if (webhookUrls.length === 0) return;
 
   const payload = await buildWebhookPayload(entries, currency);
   const firstEventId = entries[0]?.event.id;
-  await Promise.allSettled(webhookUrls.map((url) => sendWebhook(url, payload, firstEventId)));
+  await Promise.allSettled(
+    webhookUrls.map((url) => sendWebhook(url, payload, firstEventId)),
+  );
 };
 
 /**

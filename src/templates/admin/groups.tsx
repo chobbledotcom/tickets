@@ -5,15 +5,34 @@
 import { map, pipe, reduce } from "#fp";
 import { formatCurrency } from "#lib/currency.ts";
 import { buildEmbedSnippets } from "#lib/embed.ts";
-import { CsrfForm, renderError, renderFields, renderSuccess } from "#lib/forms.tsx";
+import {
+  CsrfForm,
+  renderError,
+  renderFields,
+  renderSuccess,
+} from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { isPaidEvent, type AdminSession, type Attendee, type EventWithCount, type Group } from "#lib/types.ts";
+import {
+  type AdminSession,
+  type Attendee,
+  type EventWithCount,
+  type Group,
+  isPaidEvent,
+} from "#lib/types.ts";
+import { EventRow } from "#templates/admin/dashboard.tsx";
+import {
+  calculateTotalRevenue,
+  countCheckedIn,
+  countCheckedInRows,
+  sumQuantity,
+} from "#templates/admin/events.tsx";
+import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
+import {
+  AttendeeTable,
+  type AttendeeTableRow,
+} from "#templates/attendee-table.tsx";
 import { groupCreateFields, groupFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-import { EventRow } from "#templates/admin/dashboard.tsx";
-import { calculateTotalRevenue, countCheckedIn, countCheckedInRows, sumQuantity } from "#templates/admin/events.tsx";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
-import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -30,35 +49,38 @@ export const adminGroupsPage = (
       <AdminNav session={session} active="/admin/groups" />
       <h1>Groups</h1>
       <Raw html={renderSuccess(successMessage)} />
-      <p><a href="/admin/group/new">Add Group</a></p>
-      {groups.length === 0
-        ? <p>No groups configured.</p>
-        : (
-          <div class="table-scroll">
-            <table>
-              <thead>
+      <p>
+        <a href="/admin/group/new">Add Group</a>
+      </p>
+      {groups.length === 0 ? (
+        <p>No groups configured.</p>
+      ) : (
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Slug</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map((g) => (
                 <tr>
-                  <th>Name</th>
-                  <th>Slug</th>
-                  <th>Actions</th>
+                  <td>
+                    <a href={`/admin/group/${g.id}`}>{g.name}</a>
+                  </td>
+                  <td>{g.slug}</td>
+                  <td>
+                    <a href={`/admin/group/${g.id}/edit`}>Edit</a>{" "}
+                    <a href={`/admin/group/${g.id}/delete`}>Delete</a>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {groups.map((g) => (
-                  <tr>
-                    <td><a href={`/admin/group/${g.id}`}>{g.name}</a></td>
-                    <td>{g.slug}</td>
-                    <td>
-                      <a href={`/admin/group/${g.id}/edit`}>Edit</a>
-                      {" "}
-                      <a href={`/admin/group/${g.id}/delete`}>Delete</a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Layout>,
   );
 
@@ -130,10 +152,12 @@ export const adminGroupDeletePage = (
       <h1>Delete Group</h1>
       <Raw html={renderError(error)} />
       <p>
-        Are you sure you want to delete the group <strong>{group.name}</strong> ({group.slug})?
+        Are you sure you want to delete the group <strong>{group.name}</strong>{" "}
+        ({group.slug})?
       </p>
       <p>
-        Events in this group will not be deleted -- they will be moved out of the group.
+        Events in this group will not be deleted -- they will be moved out of
+        the group.
       </p>
       <p>Type the group name to confirm:</p>
       <CsrfForm action={`/admin/group/${group.id}/delete`}>
@@ -151,7 +175,9 @@ const buildAttendeeRows = (
   attendees: Attendee[],
   events: EventWithCount[],
 ): AttendeeTableRow[] => {
-  const eventMap = new Map(map((e: EventWithCount) => [e.id, e] as const)(events));
+  const eventMap = new Map(
+    map((e: EventWithCount) => [e.id, e] as const)(events),
+  );
   return pipe(
     map((a: Attendee): AttendeeTableRow => {
       const event = eventMap.get(a.event_id)!;
@@ -166,7 +192,8 @@ const buildAttendeeRows = (
 
 /** Sum attendee_count across all events in the group */
 const totalAttendeeCount = reduce(
-  (sum: number, e: EventWithCount) => sum + e.attendee_count, 0,
+  (sum: number, e: EventWithCount) => sum + e.attendee_count,
+  0,
 );
 
 /**
@@ -184,11 +211,15 @@ export const adminGroupDetailPage = (
 ): string => {
   const eventRows =
     events.length > 0
-      ? pipe(map((e: EventWithCount) => EventRow({ e })), joinStrings)(events)
+      ? pipe(
+          map((e: EventWithCount) => EventRow({ e })),
+          joinStrings,
+        )(events)
       : '<tr><td colspan="5">No events in this group</td></tr>';
 
   const ticketUrl = `https://${allowedDomain}/ticket/${group.slug}`;
-  const { script: embedScriptCode, iframe: embedIframeCode } = buildEmbedSnippets(ticketUrl);
+  const { script: embedScriptCode, iframe: embedIframeCode } =
+    buildEmbedSnippets(ticketUrl);
   const hasPaidEvent = events.some(isPaidEvent);
   const attendeeQuantitySum = sumQuantity(attendees);
   const hasMultiQuantity = attendeeQuantitySum !== attendees.length;
@@ -209,8 +240,7 @@ export const adminGroupDetailPage = (
         <p>Terms and Conditions: {group.terms_and_conditions}</p>
       )}
       <p>
-        <a href={`/admin/group/${group.id}/edit`}>Edit Group</a>
-        {" "}
+        <a href={`/admin/group/${group.id}/edit`}>Edit Group</a>{" "}
         <a href={`/admin/group/${group.id}/delete`}>Delete Group</a>
       </p>
 
@@ -222,7 +252,9 @@ export const adminGroupDetailPage = (
               <tr>
                 <th>Public URL</th>
                 <td>
-                  <a href={ticketUrl}>{`${allowedDomain}/ticket/${group.slug}`}</a>
+                  <a
+                    href={ticketUrl}
+                  >{`${allowedDomain}/ticket/${group.slug}`}</a>
                 </td>
               </tr>
               <tr>
@@ -233,17 +265,26 @@ export const adminGroupDetailPage = (
                 <>
                   <tr>
                     <th>Tickets Checked In</th>
-                    <td>{attendeesCheckedIn} / {attendees.length} &mdash; {attendeesCheckedInRemaining} remain</td>
+                    <td>
+                      {attendeesCheckedIn} / {attendees.length} &mdash;{" "}
+                      {attendeesCheckedInRemaining} remain
+                    </td>
                   </tr>
                   <tr>
                     <th>Attendees Checked In</th>
-                    <td>{ticketsCheckedIn} / {attendeeQuantitySum} &mdash; {ticketsCheckedInRemaining} remain</td>
+                    <td>
+                      {ticketsCheckedIn} / {attendeeQuantitySum} &mdash;{" "}
+                      {ticketsCheckedInRemaining} remain
+                    </td>
                   </tr>
                 </>
               ) : (
                 <tr>
                   <th>Checked In</th>
-                  <td>{ticketsCheckedIn} / {attendeeQuantitySum} &mdash; {ticketsCheckedInRemaining} remain</td>
+                  <td>
+                    {ticketsCheckedIn} / {attendeeQuantitySum} &mdash;{" "}
+                    {ticketsCheckedInRemaining} remain
+                  </td>
                 </tr>
               )}
               {hasPaidEvent && (
@@ -253,7 +294,9 @@ export const adminGroupDetailPage = (
                 </tr>
               )}
               <tr>
-                <th><label for={`embed-script-${group.id}`}>Embed Script</label></th>
+                <th>
+                  <label for={`embed-script-${group.id}`}>Embed Script</label>
+                </th>
                 <td>
                   <input
                     type="text"
@@ -265,7 +308,9 @@ export const adminGroupDetailPage = (
                 </td>
               </tr>
               <tr>
-                <th><label for={`embed-iframe-${group.id}`}>Embed Iframe</label></th>
+                <th>
+                  <label for={`embed-iframe-${group.id}`}>Embed Iframe</label>
+                </th>
                 <td>
                   <input
                     type="text"
@@ -302,14 +347,16 @@ export const adminGroupDetailPage = (
       <article>
         <h2 id="attendees">Attendees</h2>
         <div class="table-scroll">
-          <Raw html={AttendeeTable({
-            rows: tableRows,
-            allowedDomain,
-            showEvent: true,
-            showDate: events.some((e) => e.event_type === "daily"),
-            returnUrl: `/admin/group/${group.id}#attendees`,
-            phonePrefix,
-          })} />
+          <Raw
+            html={AttendeeTable({
+              rows: tableRows,
+              allowedDomain,
+              showEvent: true,
+              showDate: events.some((e) => e.event_type === "daily"),
+              returnUrl: `/admin/group/${group.id}#attendees`,
+              phonePrefix,
+            })}
+          />
         </div>
       </article>
 

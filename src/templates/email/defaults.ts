@@ -4,10 +4,9 @@
  */
 
 export const DEFAULT_CONFIRMATION_SUBJECT =
-  `Your tickets for {{ event_names }}`;
+  "Your tickets for {{ event_names }}";
 
-export const DEFAULT_CONFIRMATION_HTML =
-  `<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+export const DEFAULT_CONFIRMATION_HTML = `<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
 <h2>Thanks for registering!</h2>
 <p>You're confirmed for <strong>{{ event_names }}</strong>.</p>
 <table style="width:100%;border-collapse:collapse;margin:16px 0">
@@ -18,8 +17,7 @@ export const DEFAULT_CONFIRMATION_HTML =
 <p style="color:#666;font-size:14px">Or copy this link: {{ ticket_url }}</p>
 </div>`;
 
-export const DEFAULT_CONFIRMATION_TEXT =
-  `Thanks for registering!
+export const DEFAULT_CONFIRMATION_TEXT = `Thanks for registering!
 
 You're confirmed for {{ event_names }}.
 
@@ -28,10 +26,9 @@ You're confirmed for {{ event_names }}.
 View your tickets: {{ ticket_url }}`;
 
 export const DEFAULT_ADMIN_SUBJECT =
-  `New registration: {{ attendee.name }} for {{ event_names }}`;
+  "New registration: {{ attendee.name }} for {{ event_names }}";
 
-export const DEFAULT_ADMIN_HTML =
-  `<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+export const DEFAULT_ADMIN_HTML = `<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
 <h2>New registration</h2>
 <ul style="list-style:none;padding:0">
 <li>Name: {{ attendee.name }}</li>
@@ -46,8 +43,7 @@ export const DEFAULT_ADMIN_HTML =
 {% endfor %}</table>
 </div>`;
 
-export const DEFAULT_ADMIN_TEXT =
-  `New registration
+export const DEFAULT_ADMIN_TEXT = `New registration
 
 Name: {{ attendee.name }}
 {% if attendee.email != "" %}Email: {{ attendee.email }}

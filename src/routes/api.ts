@@ -7,12 +7,13 @@
 
 import { filter, map, pipe } from "#fp";
 import { processBooking } from "#lib/booking.ts";
+import { validatePrice } from "#lib/currency.ts";
 import { getAvailableDates } from "#lib/dates.ts";
 import { hasAvailableSpots } from "#lib/db/attendees.ts";
 import { getAllEvents, getEventWithCountBySlug } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import type { EventWithCount } from "#lib/types.ts";
 import { sortEvents } from "#lib/sort-events.ts";
+import type { EventWithCount } from "#lib/types.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   getBaseUrl,
@@ -20,7 +21,6 @@ import {
   jsonResponse,
 } from "#routes/utils.ts";
 import { extractContact, tryValidateTicketFields } from "#templates/fields.ts";
-import { validatePrice } from "#lib/currency.ts";
 
 // =============================================================================
 // CORS
@@ -70,12 +70,15 @@ export type PublicEvent = {
 };
 
 /** Serialize an event to the public API shape (same data the web UI renders) */
-export const toPublicEvent = (event: EventWithCount, closed = false, availableDates?: string[]): PublicEvent => {
+export const toPublicEvent = (
+  event: EventWithCount,
+  closed = false,
+  availableDates?: string[],
+): PublicEvent => {
   const spotsRemaining = event.max_attendees - event.attendee_count;
   const isSoldOut = spotsRemaining <= 0;
-  const maxPurchasable = isSoldOut || closed
-    ? 0
-    : Math.min(event.max_quantity, spotsRemaining);
+  const maxPurchasable =
+    isSoldOut || closed ? 0 : Math.min(event.max_quantity, spotsRemaining);
 
   const result: PublicEvent = {
     name: event.name,
@@ -128,9 +131,8 @@ const parseJsonBody = async (
 };
 
 /** Wrap a handler that needs an active event — handles slug lookup + 404 */
-const withActiveEvent = (
-  handler: (request: Request, event: EventWithCount) => Promise<Response>,
-) =>
+const withActiveEvent =
+  (handler: (request: Request, event: EventWithCount) => Promise<Response>) =>
   async (request: Request, { slug }: { slug: string }): Promise<Response> => {
     const result = await findActiveEvent(slug);
     return result instanceof Response ? result : handler(request, result);
@@ -165,9 +167,14 @@ const handleGetEvent = withActiveEvent(async (_request, event) => {
 /** GET /api/events/:slug/availability — check if spots are available */
 const handleCheckAvailability = withActiveEvent(async (request, event) => {
   const url = new URL(request.url);
-  const quantity = Math.max(1, Number.parseInt(url.searchParams.get("quantity") || "1", 10) || 1);
+  const quantity = Math.max(
+    1,
+    Number.parseInt(url.searchParams.get("quantity") || "1", 10) || 1,
+  );
   const date = url.searchParams.get("date") || undefined;
-  return apiResponse({ available: await hasAvailableSpots(event.id, quantity, date) });
+  return apiResponse({
+    available: await hasAvailableSpots(event.id, quantity, date),
+  });
 });
 
 /** Convert JSON body fields to URLSearchParams for validation compatibility */
@@ -182,14 +189,17 @@ const parseCustomPrice = (
   priceRaw: unknown,
   minPrice: number,
   maxPrice: number,
-) => validatePrice(
-  priceRaw === undefined || priceRaw === null ? "" : String(priceRaw),
-  minPrice,
-  maxPrice,
-);
+) =>
+  validatePrice(
+    priceRaw === undefined || priceRaw === null ? "" : String(priceRaw),
+    minPrice,
+    maxPrice,
+  );
 
 /** Map a BookingResult to an API JSON response */
-const bookingResultToResponse = (result: import("#lib/booking.ts").BookingResult): Response => {
+const bookingResultToResponse = (
+  result: import("#lib/booking.ts").BookingResult,
+): Response => {
   switch (result.type) {
     case "success":
       return apiResponse({
@@ -223,7 +233,8 @@ const handleBook = withActiveEvent(async (request, event) => {
 
   // Validate fields using the same form validation as the web
   const valResult = tryValidateTicketFields(
-    toFormParams(body), event.fields,
+    toFormParams(body),
+    event.fields,
     (msg) => apiResponse({ error: msg }, 400),
   );
   if (valResult instanceof Response) return valResult;
@@ -231,9 +242,10 @@ const handleBook = withActiveEvent(async (request, event) => {
 
   // Parse quantity
   const rawQuantity = Number.parseInt(String(body.quantity ?? "1"), 10);
-  const quantity = Number.isNaN(rawQuantity) || rawQuantity < 1
-    ? 1
-    : Math.min(rawQuantity, event.max_quantity);
+  const quantity =
+    Number.isNaN(rawQuantity) || rawQuantity < 1
+      ? 1
+      : Math.min(rawQuantity, event.max_quantity);
 
   // Validate date for daily events
   let date: string | null = null;
@@ -250,7 +262,11 @@ const handleBook = withActiveEvent(async (request, event) => {
   // Parse custom price for pay-more events
   let customUnitPrice: number | undefined;
   if (event.can_pay_more) {
-    const priceResult = parseCustomPrice(body.customPrice, event.unit_price, event.max_price);
+    const priceResult = parseCustomPrice(
+      body.customPrice,
+      event.unit_price,
+      event.max_price,
+    );
     if (!priceResult.ok) {
       return apiResponse({ error: priceResult.error }, 400);
     }
@@ -259,7 +275,14 @@ const handleBook = withActiveEvent(async (request, event) => {
 
   const contact = extractContact(values);
   return bookingResultToResponse(
-    await processBooking(event, contact, quantity, date, getBaseUrl(request), customUnitPrice),
+    await processBooking(
+      event,
+      contact,
+      quantity,
+      date,
+      getBaseUrl(request),
+      customUnitPrice,
+    ),
   );
 });
 

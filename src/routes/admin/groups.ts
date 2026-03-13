@@ -3,34 +3,41 @@
  */
 
 import { map } from "#fp";
-import { logActivity } from "#lib/db/activityLog.ts";
-import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
-import { decryptAttendeesForTable } from "#lib/db/attendees.ts";
 import { getAllowedDomain } from "#lib/config.ts";
+import { logActivity } from "#lib/db/activityLog.ts";
+import { decryptAttendeesForTable } from "#lib/db/attendees.ts";
 import { getAttendeesByEventIds } from "#lib/db/events.ts";
-import { mergeEventFields } from "#lib/event-fields.ts";
 import {
   assignEventsToGroup,
   computeGroupSlugIndex,
+  type GroupInput,
   getAllGroups,
   getEventsByGroupId,
   getUngroupedEvents,
   groupsTable,
   isGroupSlugTaken,
   resetGroupEvents,
-  type GroupInput,
 } from "#lib/db/groups.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
+import { GROUP_DEMO_FIELDS, wrapResourceForDemo } from "#lib/demo.ts";
+import { mergeEventFields } from "#lib/event-fields.ts";
 import { defineNamedResource } from "#lib/rest/resource.ts";
 import { generateUniqueSlug, normalizeSlug } from "#lib/slug.ts";
 import { sortEvents } from "#lib/sort-events.ts";
-import { isPaidEvent, type Attendee, type Group } from "#lib/types.ts";
+import { type Attendee, type Group, isPaidEvent } from "#lib/types.ts";
 import { createOwnerCrudHandlers } from "#routes/admin/owner-crud.ts";
 import { requirePrivateKey } from "#routes/admin/utils.ts";
-import { defineRoutes } from "#routes/router.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
-import { getSearchParam, htmlResponse, orNotFound, redirect, requireOwnerOr, withOwnerAuthForm } from "#routes/utils.ts";
+import { defineRoutes } from "#routes/router.ts";
+import {
+  getSearchParam,
+  htmlResponse,
+  orNotFound,
+  redirect,
+  requireOwnerOr,
+  withOwnerAuthForm,
+} from "#routes/utils.ts";
 import {
   adminGroupDeletePage,
   adminGroupDetailPage,
@@ -38,7 +45,12 @@ import {
   adminGroupNewPage,
   adminGroupsPage,
 } from "#templates/admin/groups.tsx";
-import { groupCreateFields, groupFields, type GroupCreateFormValues, type GroupFormValues } from "#templates/fields.ts";
+import {
+  type GroupCreateFormValues,
+  type GroupFormValues,
+  groupCreateFields,
+  groupFields,
+} from "#templates/fields.ts";
 
 /** Generate a unique group slug, retrying on collision */
 const generateUniqueGroupSlug = () =>
@@ -87,7 +99,8 @@ const crudConfig = {
   renderEdit: adminGroupEditPage,
   renderDelete: adminGroupDeletePage,
   getName: (g: Group) => g.name,
-  deleteConfirmError: "Group name does not match. Please type the exact name to confirm deletion.",
+  deleteConfirmError:
+    "Group name does not match. Please type the exact name to confirm deletion.",
 } as const;
 
 /** Groups resource for REST create operations (auto-generated slug) */
@@ -112,8 +125,14 @@ const groupsResource = defineNamedResource({
   onDelete: deleteGroup,
 });
 
-const crudCreate = createOwnerCrudHandlers({ ...crudConfig, resource: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS) });
-const crud = createOwnerCrudHandlers({ ...crudConfig, resource: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS) });
+const crudCreate = createOwnerCrudHandlers({
+  ...crudConfig,
+  resource: wrapResourceForDemo(groupsCreateResource, GROUP_DEMO_FIELDS),
+});
+const crud = createOwnerCrudHandlers({
+  ...crudConfig,
+  resource: wrapResourceForDemo(groupsResource, GROUP_DEMO_FIELDS),
+});
 
 /** Look up group by id, return 404 if not found */
 const withGroup = (
@@ -122,7 +141,10 @@ const withGroup = (
 ): Promise<Response> => orNotFound(groupsTable.findById(id), handler);
 
 /** Handle GET /admin/group/:id - group detail page */
-const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (request, { id }) =>
+const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (
+  request,
+  { id },
+) =>
   requireOwnerOr(request, (session) =>
     withGroup(id, async (group) => {
       const [events, ungroupedEvents, holidays] = await Promise.all([
@@ -136,31 +158,58 @@ const handleGroupDetail: TypedRouteHandler<"GET /admin/group/:id"> = (request, {
       let phonePrefix: string | undefined;
       if (eventIds.length > 0) {
         const privateKey = await requirePrivateKey(session);
-        const fields = mergeEventFields(map((e: { fields: string }) => e.fields)(sortedEvents));
+        const fields = mergeEventFields(
+          map((e: { fields: string }) => e.fields)(sortedEvents),
+        );
         const hasPaidEvent = sortedEvents.some(isPaidEvent);
         const [rawAttendees, prefix] = await Promise.all([
           getAttendeesByEventIds(eventIds),
           getPhonePrefixFromDb(),
         ]);
-        attendees = await decryptAttendeesForTable(rawAttendees, privateKey, fields, hasPaidEvent);
+        attendees = await decryptAttendeesForTable(
+          rawAttendees,
+          privateKey,
+          fields,
+          hasPaidEvent,
+        );
         phonePrefix = prefix;
       }
       const allowedDomain = getAllowedDomain();
       const successMessage = getSearchParam(request, "success") || undefined;
-      return htmlResponse(adminGroupDetailPage(group, sortedEvents, sortEvents(ungroupedEvents, holidays), attendees, session, allowedDomain, phonePrefix, successMessage));
-    }));
+      return htmlResponse(
+        adminGroupDetailPage(
+          group,
+          sortedEvents,
+          sortEvents(ungroupedEvents, holidays),
+          attendees,
+          session,
+          allowedDomain,
+          phonePrefix,
+          successMessage,
+        ),
+      );
+    }),
+  );
 
 /** Handle POST /admin/group/:id/add-events - assign ungrouped events to group */
-const handleAddEventsToGroup: TypedRouteHandler<"POST /admin/group/:id/add-events"> = (request, { id }) =>
+const handleAddEventsToGroup: TypedRouteHandler<
+  "POST /admin/group/:id/add-events"
+> = (request, { id }) =>
   withOwnerAuthForm(request, (_session, form) =>
     withGroup(id, async (group) => {
-      const eventIds = form.getAll("event_ids").map(Number).filter((n) => n > 0);
+      const eventIds = form
+        .getAll("event_ids")
+        .map(Number)
+        .filter((n) => n > 0);
       if (eventIds.length > 0) {
         await assignEventsToGroup(eventIds, id);
-        await logActivity(`${eventIds.length} event(s) added to group '${group.name}'`);
+        await logActivity(
+          `${eventIds.length} event(s) added to group '${group.name}'`,
+        );
       }
       return redirect(`/admin/group/${id}`, "Events added to group", true);
-    }));
+    }),
+  );
 
 /** Group routes */
 export const groupsRoutes = defineRoutes({
@@ -170,7 +219,9 @@ export const groupsRoutes = defineRoutes({
   "GET /admin/group/:id": handleGroupDetail,
   "GET /admin/group/:id/edit": (request, { id }) => crud.editGet(request, id),
   "POST /admin/group/:id/edit": (request, { id }) => crud.editPost(request, id),
-  "GET /admin/group/:id/delete": (request, { id }) => crud.deleteGet(request, id),
-  "POST /admin/group/:id/delete": (request, { id }) => crud.deletePost(request, id),
+  "GET /admin/group/:id/delete": (request, { id }) =>
+    crud.deleteGet(request, id),
+  "POST /admin/group/:id/delete": (request, { id }) =>
+    crud.deletePost(request, id),
   "POST /admin/group/:id/add-events": handleAddEventsToGroup,
 });
