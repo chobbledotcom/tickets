@@ -3,14 +3,14 @@
  */
 
 import { collectionCache, mapParallel } from "#fp";
-import { registerCache } from "#lib/cache-registry.ts";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
 import {
+  defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
+  registerCache,
 } from "#lib/db/common-schema.ts";
-import { defineIdTable } from "#lib/db/define-id-table.ts";
 import { eventsTable, invalidateEventsCache } from "#lib/db/events.ts";
 import { queryAndMap } from "#lib/db/query.ts";
 import type { Event, EventWithCount, Group } from "#lib/types.ts";

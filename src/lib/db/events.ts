@@ -4,7 +4,6 @@
 
 import type { ResultSet } from "@libsql/client";
 import { collectionCache, filter as fpFilter } from "#fp";
-import { registerCache } from "#lib/cache-registry.ts";
 import { decrypt, encrypt, hmacHash } from "#lib/crypto.ts";
 import {
   executeBatch,
@@ -15,10 +14,11 @@ import {
   resultRows,
 } from "#lib/db/client.ts";
 import {
+  defineIdTable,
   encryptedNameSchema,
   idAndEncryptedSlugSchema,
+  registerCache,
 } from "#lib/db/common-schema.ts";
-import { defineIdTable } from "#lib/db/define-id-table.ts";
 import { col } from "#lib/db/table.ts";
 import { ErrorCode, logError } from "#lib/logger.ts";
 import { nowIso, nowMs } from "#lib/now.ts";

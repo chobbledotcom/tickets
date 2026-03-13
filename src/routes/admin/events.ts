@@ -75,7 +75,12 @@ import type {
   EventEditFormValues,
   EventFormValues,
 } from "#templates/fields.ts";
-import { eventFields, groupIdField, slugField } from "#templates/fields.ts";
+import {
+  eventFields,
+  groupIdField,
+  slugField,
+  splitCsv,
+} from "#templates/fields.ts";
 
 /** Generate a unique event slug, retrying on collision */
 const generateUniqueEventSlug = (excludeEventId?: number) =>
@@ -85,12 +90,7 @@ const generateUniqueEventSlug = (excludeEventId?: number) =>
 
 /** Parse comma-separated day names to string array */
 const parseBookableDays = (value: string): string[] | undefined =>
-  value
-    ? value
-        .split(",")
-        .map((d) => d.trim())
-        .filter((d) => d)
-    : undefined;
+  value ? splitCsv(value) : undefined;
 
 /** Extract common event fields from validated form values, normalizing datetimes to UTC */
 const extractCommonFields = (values: EventFormValues) => {

@@ -76,6 +76,22 @@ const renderUsersPage = async (
   return adminUsersPage(displayUsers, session, opts);
 };
 
+/** Render users page with an error message and return an HTML response */
+const usersErrorResponse = async (
+  session: AuthSession,
+  error: string,
+  status: number,
+): Promise<Response> =>
+  htmlResponse(
+    await renderUsersPage(session, {
+      inviteLink: "",
+      success: "",
+      error,
+      currentUserId: session.userId,
+    }),
+    status,
+  );
+
 /**
  * Handle GET /admin/users
  */
@@ -160,18 +176,8 @@ const withUserAction = (
   handler: UserActionHandler,
 ): Promise<Response> =>
   withOwnerAuthForm(request, async (session) => {
-    const errorPage = async (
-      error: string,
-      status: number,
-    ): Promise<Response> => {
-      const html = await renderUsersPage(session, {
-        inviteLink: "",
-        success: "",
-        error,
-        currentUserId: session.userId,
-      });
-      return htmlResponse(html, status);
-    };
+    const errorPage: UserErrorPageFn = (error, status) =>
+      usersErrorResponse(session, error, status);
     const user = await getUserById(userId);
     if (!user) return errorPage("User not found", 404);
     return handler(user, session, errorPage);
@@ -226,15 +232,7 @@ const handleUserDeleteGet: TypedRouteHandler<"GET /admin/users/:id/delete"> = (
 ) =>
   requireOwnerOr(request, async (session) => {
     if (id === session.userId) {
-      return htmlResponse(
-        await renderUsersPage(session, {
-          inviteLink: "",
-          success: "",
-          error: "Cannot delete your own account",
-          currentUserId: session.userId,
-        }),
-        400,
-      );
+      return usersErrorResponse(session, "Cannot delete your own account", 400);
     }
     const user = await getUserById(id);
     if (!user) return htmlResponse("Not Found", 404);
@@ -251,24 +249,16 @@ const handleUserDeletePost: TypedRouteHandler<
   withOwnerAuthForm(request, async (session, form) => {
     const user = await getUserById(id);
     if (!user) {
-      const html = await renderUsersPage(session, {
-        inviteLink: "",
-        success: "",
-        error: "User not found",
-        currentUserId: session.userId,
-      });
-      return htmlResponse(html, 404);
+      return usersErrorResponse(session, "User not found", 404);
     }
 
     // Cannot delete your own account
     if (user.id === session.userId) {
-      const html = await renderUsersPage(session, {
-        inviteLink: "",
-        success: "",
-        error: "Cannot delete your own account",
-        currentUserId: session.userId,
-      });
-      return htmlResponse(html, 400);
+      return usersErrorResponse(
+        session,
+        "Cannot delete your own account",
+        400,
+      );
     }
 
     const username = await decryptUsername(user);

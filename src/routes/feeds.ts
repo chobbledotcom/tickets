@@ -11,8 +11,7 @@ import {
   getShowPublicSiteFromDb,
   getWebsiteTitleFromDb,
 } from "#lib/db/settings.ts";
-import { sortEvents } from "#lib/sort-events.ts";
-import type { EventWithCount } from "#lib/types.ts";
+import { type EventWithCount, sortEvents } from "#lib/sort-events.ts";
 import { createRouter, defineRoutes } from "#routes/router.ts";
 import {
   icsResponse,

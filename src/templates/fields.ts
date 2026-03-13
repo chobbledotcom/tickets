@@ -248,12 +248,16 @@ export const VALID_DAY_NAMES = [...DAY_NAMES.slice(1), DAY_NAMES[0]!];
 const isValidDayName = (s: string): boolean =>
   (VALID_DAY_NAMES as readonly string[]).includes(s);
 
-/** Validate bookable days (comma-separated day names) */
-export const validateBookableDays = (value: string): string | null => {
-  const days = value
+/** Split a comma-separated string into trimmed, non-empty tokens */
+export const splitCsv = (value: string): string[] =>
+  value
     .split(",")
     .map((d) => d.trim())
     .filter((d) => d);
+
+/** Validate bookable days (comma-separated day names) */
+export const validateBookableDays = (value: string): string | null => {
+  const days = splitCsv(value);
   if (days.length === 0) return "At least one day is required";
   for (const day of days) {
     if (!isValidDayName(day)) {
