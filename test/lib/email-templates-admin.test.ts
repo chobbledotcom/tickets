@@ -43,25 +43,25 @@ describe("admin email templates", () => {
 
   describe("settings page", () => {
     test("shows email template sections", async () => {
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
       await expectHtmlResponse(response, 200, "Confirmation Email Template", "Admin Notification Email Template");
     });
 
     test("shows default templates as placeholders", async () => {
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
       const html = await response.text();
       expect(html).toContain("Your tickets for");
       expect(html).toContain("New registration");
     });
 
     test("uses 'Leave blank' placeholder for html/text bodies", async () => {
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
       const html = await response.text();
       expect(html).toContain('placeholder="Leave blank to use default template"');
     });
 
     test("shows edit default template links for html/text bodies", async () => {
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
       const html = await response.text();
       expect(html).toContain('data-fill-default="confirmation_html"');
       expect(html).toContain('data-fill-default="confirmation_text"');
@@ -71,7 +71,7 @@ describe("admin email templates", () => {
     });
 
     test("includes default templates as data attributes", async () => {
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
       const html = await response.text();
       expect(html).toContain("data-default-tpl=");
     });

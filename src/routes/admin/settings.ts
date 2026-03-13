@@ -114,6 +114,7 @@ import {
   withOwnerAuthMultipartForm,
 } from "#routes/utils.ts";
 import { adminSettingsPage } from "#templates/admin/settings.tsx";
+import { adminAdvancedSettingsPage } from "#templates/admin/settings-advanced.tsx";
 import {
   type ChangePasswordFormValues,
   changePasswordFields,
@@ -130,7 +131,6 @@ const getWebhookUrl = (): string => {
  * to reduce sequential await overhead (especially for calls that decrypt).
  */
 const getSettingsPageState = async () => {
-  const bunnyCdnConfigured = isBunnyCdnEnabled();
   const [
     stripeKeyConfigured,
     paymentProvider,
@@ -139,23 +139,11 @@ const getSettingsPageState = async () => {
     squareWebhookKey,
     embedHosts,
     termsAndConditions,
-    timezone,
     businessEmail,
     theme,
     showPublicSite,
-    showPublicApi,
     phonePrefix,
     headerImageUrl,
-    emailProvider,
-    emailApiKeyConfigured,
-    emailFromAddress,
-    confirmationTemplates,
-    adminTemplates,
-    customDomain,
-    customDomainLastValidated,
-    appleWalletConfigured,
-    appleWalletPassTypeId,
-    appleWalletTeamId,
   ] = await Promise.all([
     hasStripeKey(),
     getPaymentProviderFromDb(),
@@ -164,23 +152,11 @@ const getSettingsPageState = async () => {
     getSquareWebhookSignatureKey(),
     getEmbedHostsFromDb(),
     getTermsAndConditionsFromDb(),
-    getTimezoneFromDb(),
     getBusinessEmailFromDb(),
     getThemeFromDb(),
     getShowPublicSiteFromDb(),
-    getShowPublicApiFromDb(),
     getPhonePrefixFromDb(),
     getHeaderImageUrlFromDb(),
-    getEmailProviderFromDb(),
-    hasEmailApiKey(),
-    getEmailFromAddressFromDb(),
-    getEmailTemplateSet("confirmation"),
-    getEmailTemplateSet("admin"),
-    bunnyCdnConfigured ? getCustomDomainFromDb() : Promise.resolve(null),
-    bunnyCdnConfigured ? getCustomDomainLastValidatedFromDb() : Promise.resolve(null),
-    hasAppleWalletDbConfig(),
-    getAppleWalletPassTypeIdFromDb(),
-    getAppleWalletTeamIdFromDb(),
   ]);
   return {
     stripeKeyConfigured,
@@ -191,14 +167,52 @@ const getSettingsPageState = async () => {
     webhookUrl: getWebhookUrl(),
     embedHosts: embedHosts ?? "",
     termsAndConditions: termsAndConditions ?? "",
-    timezone,
     businessEmail,
     theme,
     showPublicSite,
-    showPublicApi,
     phonePrefix,
     headerImageUrl: headerImageUrl ?? "",
     storageEnabled: isStorageEnabled(),
+  };
+};
+
+/** Gather state for the advanced settings page */
+const getAdvancedSettingsPageState = async () => {
+  const bunnyCdnConfigured = isBunnyCdnEnabled();
+  const [
+    timezone,
+    showPublicApi,
+    emailProvider,
+    emailApiKeyConfigured,
+    emailFromAddress,
+    businessEmail,
+    confirmationTemplates,
+    adminTemplates,
+    customDomain,
+    customDomainLastValidated,
+    appleWalletConfigured,
+    appleWalletPassTypeId,
+    appleWalletTeamId,
+    theme,
+  ] = await Promise.all([
+    getTimezoneFromDb(),
+    getShowPublicApiFromDb(),
+    getEmailProviderFromDb(),
+    hasEmailApiKey(),
+    getEmailFromAddressFromDb(),
+    getBusinessEmailFromDb(),
+    getEmailTemplateSet("confirmation"),
+    getEmailTemplateSet("admin"),
+    bunnyCdnConfigured ? getCustomDomainFromDb() : Promise.resolve(null),
+    bunnyCdnConfigured ? getCustomDomainLastValidatedFromDb() : Promise.resolve(null),
+    hasAppleWalletDbConfig(),
+    getAppleWalletPassTypeIdFromDb(),
+    getAppleWalletTeamIdFromDb(),
+    getThemeFromDb(),
+  ]);
+  return {
+    timezone,
+    showPublicApi,
     emailProvider: emailProvider ?? "",
     emailApiKeyConfigured,
     emailFromAddress: emailFromAddress ?? "",
@@ -208,6 +222,7 @@ const getSettingsPageState = async () => {
       const label = EMAIL_PROVIDER_LABELS[hostConfig.provider];
       return `Host ${label} (${hostConfig.fromAddress})`;
     })(),
+    businessEmail,
     confirmationTemplates: {
       subject: confirmationTemplates.subject ?? "",
       html: confirmationTemplates.html ?? "",
@@ -230,6 +245,7 @@ const getSettingsPageState = async () => {
       if (!hostConfig) return "";
       return `Host env (${hostConfig.passTypeId})`;
     })(),
+    theme,
   };
 };
 
@@ -239,12 +255,27 @@ const renderSettingsPage = async (session: AuthSession) => {
   return adminSettingsPage(session, state);
 };
 
+/** Render the advanced settings page with current state */
+const renderAdvancedSettingsPage = async (session: AuthSession) => {
+  const state = await getAdvancedSettingsPageState();
+  return adminAdvancedSettingsPage(session, state);
+};
+
 /** Render settings page with error on a specific form */
 const settingsPageWithError =
   (session: AuthSession) =>
   async (error: string, status: number, formId: string): Promise<Response> => {
     setFormError(formId, error);
     const html = await renderSettingsPage(session);
+    return htmlResponse(html, status);
+  };
+
+/** Render advanced settings page with error on a specific form */
+const advancedSettingsPageWithError =
+  (session: AuthSession) =>
+  async (error: string, status: number, formId: string): Promise<Response> => {
+    setFormError(formId, error);
+    const html = await renderAdvancedSettingsPage(session);
     return htmlResponse(html, status);
   };
 
@@ -288,6 +319,14 @@ const settingsRoute =
       handler(form, settingsPageWithError(session), session),
     );
 
+/** Owner auth form route for advanced settings - errors render the advanced page */
+const advancedSettingsRoute =
+  (handler: SettingsFormHandler) =>
+  (request: Request): Promise<Response> =>
+    withOwnerAuthForm(request, (session, form) =>
+      handler(form, advancedSettingsPageWithError(session), session),
+    );
+
 /**
  * Handle GET /admin/settings - owner only
  */
@@ -300,6 +339,20 @@ const handleAdminSettingsGet: TypedRouteHandler<"GET /admin/settings"> = (
       getSearchParam(request, "success"),
     );
     return htmlResponse(await renderSettingsPage(session));
+  });
+
+/**
+ * Handle GET /admin/settings-advanced - owner only
+ */
+const handleAdminSettingsAdvancedGet: TypedRouteHandler<"GET /admin/settings-advanced"> = (
+  request,
+) =>
+  requireOwnerOr(request, async (session) => {
+    setFormSuccess(
+      getSearchParam(request, "form"),
+      getSearchParam(request, "success"),
+    );
+    return htmlResponse(await renderAdvancedSettingsPage(session));
   });
 
 /**
@@ -651,13 +704,13 @@ const processTimezoneForm: SettingsFormHandler = async (form, errorPage) => {
   await updateTimezone(trimmed);
   await logActivity(`Timezone set to ${trimmed}`);
   return redirect(
-    "/admin/settings", "Timezone updated", true,
+    "/admin/settings-advanced", "Timezone updated", true,
     { formId: "settings-timezone" },
   );
 };
 
 /** Handle POST /admin/settings/timezone - owner only */
-const handleTimezonePost = settingsRoute(processTimezoneForm);
+const handleTimezonePost = advancedSettingsRoute(processTimezoneForm);
 
 /** Validate and save business email from form submission */
 const processBusinessEmailForm: SettingsFormHandler = async (
@@ -735,7 +788,7 @@ const processShowPublicApiForm: SettingsFormHandler = async (form) => {
   await updateShowPublicApi(value);
   await logActivity(`Public API ${value ? "enabled" : "disabled"}`);
   return redirect(
-    "/admin/settings",
+    "/admin/settings-advanced",
     value ? "Public API enabled" : "Public API disabled",
     true,
     { formId: "settings-show-public-api" },
@@ -743,7 +796,7 @@ const processShowPublicApiForm: SettingsFormHandler = async (form) => {
 };
 
 /** Handle POST /admin/settings/show-public-api - owner only */
-const handleShowPublicApiPost = settingsRoute(processShowPublicApiForm);
+const handleShowPublicApiPost = advancedSettingsRoute(processShowPublicApiForm);
 
 /** Validate and save phone prefix from form submission */
 const processPhonePrefixForm: SettingsFormHandler = async (form, errorPage) => {
@@ -828,7 +881,7 @@ const handleHeaderImageDeletePost = settingsRoute(async (_form, _errorPage) => {
 
 
 /** Handle POST /admin/settings/email - owner only */
-const handleEmailPost = settingsRoute(async (form, errorPage) => {
+const handleEmailPost = advancedSettingsRoute(async (form, errorPage) => {
   const provider = (form.get("email_provider") ?? "").trim();
   const apiKeyField = processSecretField(form, "email_api_key");
   const fromAddress = (form.get("email_from_address") ?? "").trim();
@@ -838,7 +891,7 @@ const handleEmailPost = settingsRoute(async (form, errorPage) => {
     await updateEmailApiKey("");
     await updateEmailFromAddress("");
     await logActivity("Email provider disabled");
-    return redirect("/admin/settings", "Email provider disabled", true, { formId: "settings-email" });
+    return redirect("/admin/settings-advanced", "Email provider disabled", true, { formId: "settings-email" });
   }
 
   if (!isEmailProvider(provider)) {
@@ -857,11 +910,11 @@ const handleEmailPost = settingsRoute(async (form, errorPage) => {
   if (apiKeyField.action === "provided") await updateEmailApiKey(apiKeyField.value);
   if (fromAddress) await updateEmailFromAddress(fromAddress);
   await logActivity(`Email provider set to ${provider}`);
-  return redirect("/admin/settings", "Email settings updated", true, { formId: "settings-email" });
+  return redirect("/admin/settings-advanced", "Email settings updated", true, { formId: "settings-email" });
 });
 
 /** Handle POST /admin/settings/email/test - send test email to business email */
-const handleEmailTestPost = settingsRoute(async (_form, errorPage) => {
+const handleEmailTestPost = advancedSettingsRoute(async (_form, errorPage) => {
   const config = await getEmailConfig();
   if (!config) return errorPage("Email not configured", 400, "settings-email");
   const businessEmail = await getBusinessEmailFromDb();
@@ -873,7 +926,7 @@ const handleEmailTestPost = settingsRoute(async (_form, errorPage) => {
   if (status >= 300) {
     return errorPage(`Test email failed (status ${status})`, 502, "settings-email-test");
   }
-  return redirect("/admin/settings", `Test email sent (status ${status})`, true, { formId: "settings-email-test" });
+  return redirect("/admin/settings-advanced", `Test email sent (status ${status})`, true, { formId: "settings-email-test" });
 });
 
 /** Valid template types for form submissions — derived from the EmailTemplateType union */
@@ -884,7 +937,7 @@ const isEmailTemplateType = (v: string): v is EmailTemplateType => VALID_TEMPLAT
 
 /** Handle POST /admin/settings/email-templates/:type - save custom email templates */
 const handleEmailTemplatePost = (type: EmailTemplateType) =>
-  settingsRoute(async (form, errorPage) => {
+  advancedSettingsRoute(async (form, errorPage) => {
     const formId = `settings-email-tpl-${type}`;
     const subject = form.get("subject") ?? "";
     const html = form.get("html") ?? "";
@@ -919,7 +972,7 @@ const handleEmailTemplatePost = (type: EmailTemplateType) =>
 
     const label = type === "confirmation" ? "Confirmation" : "Admin notification";
     await logActivity(`${label} email template updated`);
-    return redirect("/admin/settings", `${label} email template updated`, true, { formId });
+    return redirect("/admin/settings-advanced", `${label} email template updated`, true, { formId });
   });
 
 /** Sample booking data used for email template previews */
@@ -987,7 +1040,7 @@ const handleEmailTemplatePreviewPost = (request: Request): Promise<Response> =>
   });
 
 /** Handle POST /admin/settings/custom-domain - save custom domain */
-const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
+const handleCustomDomainPost = advancedSettingsRoute(async (form, errorPage) => {
   if (!isBunnyCdnEnabled()) {
     return errorPage("Bunny CDN is not configured", 400, "settings-custom-domain");
   }
@@ -998,7 +1051,7 @@ const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
     await updateCustomDomain("");
     await logActivity("Custom domain cleared");
     return redirect(
-      "/admin/settings",
+      "/admin/settings-advanced",
       "Custom domain cleared",
       true,
       { formId: "settings-custom-domain" },
@@ -1019,7 +1072,7 @@ const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
     await updateCustomDomainLastValidated();
     await logActivity(`Custom domain validated: ${raw}`);
     return redirect(
-      "/admin/settings",
+      "/admin/settings-advanced",
       "Custom domain saved and validated",
       true,
       { formId: "settings-custom-domain" },
@@ -1027,7 +1080,7 @@ const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
   }
 
   return redirect(
-    "/admin/settings",
+    "/admin/settings-advanced",
     `Custom domain saved but validation failed: ${result.error}`,
     false,
     { formId: "settings-custom-domain" },
@@ -1035,7 +1088,7 @@ const handleCustomDomainPost = settingsRoute(async (form, errorPage) => {
 });
 
 /** Handle POST /admin/settings/custom-domain/validate - validate with Bunny CDN */
-const handleCustomDomainValidatePost = settingsRoute(async (_form, errorPage) => {
+const handleCustomDomainValidatePost = advancedSettingsRoute(async (_form, errorPage) => {
   if (!isBunnyCdnEnabled()) {
     return errorPage("Bunny CDN is not configured", 400, "settings-custom-domain-validate");
   }
@@ -1053,7 +1106,7 @@ const handleCustomDomainValidatePost = settingsRoute(async (_form, errorPage) =>
   await updateCustomDomainLastValidated();
   await logActivity(`Custom domain validated: ${customDomain}`);
   return redirect(
-    "/admin/settings",
+    "/admin/settings-advanced",
     "Custom domain validated successfully",
     true,
     { formId: "settings-custom-domain-validate" },
@@ -1063,7 +1116,7 @@ const handleCustomDomainValidatePost = settingsRoute(async (_form, errorPage) =>
 /**
  * Handle POST /admin/settings/apple-wallet - owner only
  */
-const handleAppleWalletPost = settingsRoute(async (form, errorPage) => {
+const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
   const passTypeId = `${form.get("apple_wallet_pass_type_id")}`.trim();
   const teamId = `${form.get("apple_wallet_team_id")}`.trim();
   const certField = processSecretField(form, "apple_wallet_signing_cert");
@@ -1080,7 +1133,7 @@ const handleAppleWalletPost = settingsRoute(async (form, errorPage) => {
       updateAppleWalletWwdrCert(""),
     ]);
     await logActivity("Apple Wallet configuration cleared");
-    return redirect("/admin/settings", "Apple Wallet configuration cleared", true, { formId: "settings-apple-wallet" });
+    return redirect("/admin/settings-advanced", "Apple Wallet configuration cleared", true, { formId: "settings-apple-wallet" });
   }
 
   if (!passTypeId) {
@@ -1123,13 +1176,13 @@ const handleAppleWalletPost = settingsRoute(async (form, errorPage) => {
   if (wwdrField.action === "provided") await updateAppleWalletWwdrCert(wwdrField.value);
 
   await logActivity("Apple Wallet configuration updated");
-  return redirect("/admin/settings", "Apple Wallet settings updated", true, { formId: "settings-apple-wallet" });
+  return redirect("/admin/settings-advanced", "Apple Wallet settings updated", true, { formId: "settings-apple-wallet" });
 });
 
 /**
  * Handle POST /admin/settings/reset-database - owner only
  */
-const handleResetDatabasePost = settingsRoute(async (form, errorPage) => {
+const handleResetDatabasePost = advancedSettingsRoute(async (form, errorPage) => {
   const phraseError = validateResetPhrase(form);
   if (phraseError)
     return errorPage(phraseError, 400, "settings-reset-database");
@@ -1144,6 +1197,7 @@ const handleResetDatabasePost = settingsRoute(async (form, errorPage) => {
 /** Settings routes */
 export const settingsRoutes = defineRoutes({
   "GET /admin/settings": handleAdminSettingsGet,
+  "GET /admin/settings-advanced": handleAdminSettingsAdvancedGet,
   "POST /admin/settings": handleAdminSettingsPost,
   "POST /admin/settings/payment-provider": handlePaymentProviderPost,
   "POST /admin/settings/stripe": handleAdminStripePost,

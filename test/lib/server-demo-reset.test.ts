@@ -184,7 +184,7 @@ describe("server (demo reset)", () => {
   describe("shared form component", () => {
     test("admin settings page uses shared reset form", async () => {
       const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(RESET_DATABASE_PHRASE);
       expect(html).toContain("confirm_phrase");

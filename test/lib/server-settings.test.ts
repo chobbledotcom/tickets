@@ -1,16 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { bunnyCdnApi } from "#lib/bunny-cdn.ts";
 import { getAllActivityLog } from "#lib/db/activityLog.ts";
 import {
-  getCustomDomainFromDb,
-  getCustomDomainLastValidatedFromDb,
   getEmbedHostsFromDb,
-  getTimezoneFromDb,
   setPaymentProvider,
-  updateCustomDomain,
-  updateCustomDomainLastValidated,
   updateTermsAndConditions,
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
@@ -29,7 +23,6 @@ import {
   mockRequest,
   resetDb,
   resetTestSlugCounter,
-  setupEventAndLogin,
   TEST_ADMIN_PASSWORD,
   withMocks,
 } from "#test-utils";
@@ -74,18 +67,18 @@ describe("server (admin settings)", () => {
       const { cookie } = await loginAsAdmin();
 
       const response = await awaitTestRequest(
-        "/admin/settings?success=Timezone+updated&form=settings-timezone",
+        "/admin/settings?success=Phone+prefix+updated&form=settings-phone-prefix",
         { cookie },
       );
       const html = await response.text();
-      expect(html).toContain('id="settings-timezone"');
-      expect(html).toContain("Timezone updated");
-      // The success message should be inside the timezone form, not as a global banner
-      const timezoneFormMatch = html.match(
-        /id="settings-timezone"[\s\S]*?<\/form>/,
+      expect(html).toContain('id="settings-phone-prefix"');
+      expect(html).toContain("Phone prefix updated");
+      // The success message should be inside the form, not as a global banner
+      const formMatch = html.match(
+        /id="settings-phone-prefix"[\s\S]*?<\/form>/,
       );
-      expect(timezoneFormMatch).toBeDefined();
-      expect(timezoneFormMatch![0]).toContain("Timezone updated");
+      expect(formMatch).toBeDefined();
+      expect(formMatch![0]).toContain("Phone prefix updated");
     });
 
     test("does not show success on non-matching forms", async () => {
@@ -107,7 +100,6 @@ describe("server (admin settings)", () => {
 
       const response = await awaitTestRequest("/admin/settings", { cookie });
       const html = await response.text();
-      expect(html).toContain('id="settings-timezone"');
       expect(html).toContain('id="settings-phone-prefix"');
       expect(html).toContain('id="settings-business-email"');
       expect(html).toContain('id="settings-payment-provider"');
@@ -115,43 +107,18 @@ describe("server (admin settings)", () => {
       expect(html).toContain('id="settings-terms"');
       expect(html).toContain('id="settings-password"');
       expect(html).toContain('id="settings-show-public-site"');
-      expect(html).toContain('id="settings-show-public-api"');
       expect(html).toContain('id="settings-theme"');
-      expect(html).toContain('id="settings-reset-database"');
     });
 
-    test("shows host email label when host email is configured", async () => {
-      Deno.env.set("HOST_EMAIL_PROVIDER", "resend");
-      Deno.env.set("HOST_EMAIL_API_KEY", "key-123");
-      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "noreply@example.com");
-      try {
-        const { cookie } = await loginAsAdmin();
-        const response = await awaitTestRequest("/admin/settings", { cookie });
-        const html = await response.text();
-        expect(html).toContain("Host Resend (noreply@example.com)");
-        expect(html).not.toContain("None (disabled)");
-      } finally {
-        Deno.env.delete("HOST_EMAIL_PROVIDER");
-        Deno.env.delete("HOST_EMAIL_API_KEY");
-        Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
-      }
+    test("shows link to advanced settings", async () => {
+      const { cookie } = await loginAsAdmin();
+
+      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const html = await response.text();
+      expect(html).toContain('href="/admin/settings-advanced"');
+      expect(html).toContain("advanced settings");
     });
 
-    test("shows no host config when host email provider is invalid", async () => {
-      Deno.env.set("HOST_EMAIL_PROVIDER", "custom-smtp");
-      Deno.env.set("HOST_EMAIL_API_KEY", "key-456");
-      Deno.env.set("HOST_EMAIL_FROM_ADDRESS", "mail@example.com");
-      try {
-        const { cookie } = await loginAsAdmin();
-        const response = await awaitTestRequest("/admin/settings", { cookie });
-        const html = await response.text();
-        expect(html).not.toContain("Host custom-smtp");
-      } finally {
-        Deno.env.delete("HOST_EMAIL_PROVIDER");
-        Deno.env.delete("HOST_EMAIL_API_KEY");
-        Deno.env.delete("HOST_EMAIL_FROM_ADDRESS");
-      }
-    });
   });
 
   describe("POST /admin/settings", () => {
@@ -838,90 +805,6 @@ describe("server (admin settings)", () => {
     });
   });
 
-  describe("POST /admin/settings/reset-database", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/reset-database", {
-          confirm_phrase:
-            "The site will be fully reset and all data will be lost.",
-        }),
-      );
-      expectAdminRedirect(response);
-    });
-
-    test("rejects invalid CSRF token", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/reset-database",
-          {
-            confirm_phrase:
-              "The site will be fully reset and all data will be lost.",
-            csrf_token: "invalid-csrf-token",
-          },
-          cookie,
-        ),
-      );
-      await expectHtmlResponse(response, 403, "Invalid CSRF token");
-    });
-
-    test("rejects wrong confirmation phrase", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/reset-database",
-          {
-            confirm_phrase: "wrong phrase",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-      await expectHtmlResponse(
-        response,
-        400,
-        "Confirmation phrase does not match",
-      );
-    });
-
-    test("resets database and redirects to setup on correct phrase", async () => {
-      // Create some data first
-      const { cookie, csrfToken } = await setupEventAndLogin({
-        name: "Test Event",
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com/thanks",
-      });
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/reset-database",
-          {
-            confirm_phrase:
-              "The site will be fully reset and all data will be lost.",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-
-      // Should redirect to setup page with session cleared
-      expectRedirect("/setup/?success=Database+reset")(response);
-      expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
-    });
-
-    test("settings page shows reset database section", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await expectHtmlResponse(response, 200, "Reset Database");
-      expect(html).toContain(
-        "The site will be fully reset and all data will be lost.",
-      );
-      expect(html).toContain("confirm_phrase");
-    });
-  });
 
   describe("POST /admin/settings/payment-provider", () => {
     test("redirects to login when not authenticated", async () => {
@@ -1025,27 +908,6 @@ describe("server (admin settings)", () => {
     });
   });
 
-  describe("POST /admin/settings/reset-database (confirm phrase)", () => {
-    test("rejects empty confirm phrase", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/reset-database",
-          {
-            confirm_phrase: "",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-      await expectHtmlResponse(
-        response,
-        400,
-        "Confirmation phrase does not match",
-      );
-    });
-  });
 
   describe("admin/settings.ts (form.get fallbacks)", () => {
     test("payment provider POST without payment_provider field uses empty fallback", async () => {
@@ -1280,94 +1142,6 @@ describe("server (admin settings)", () => {
     });
   });
 
-  describe("POST /admin/settings/timezone", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/timezone", {
-          timezone: "America/New_York",
-        }),
-      );
-      expectAdminRedirect(response);
-    });
-
-    test("rejects invalid CSRF token", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/timezone",
-          { timezone: "America/New_York", csrf_token: "invalid-csrf-token" },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(403);
-    });
-
-    test("saves valid timezone", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/timezone",
-          { timezone: "America/New_York", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(location).toContain("/admin/settings");
-      expect(location).toContain("form=settings-timezone");
-      expect(location).toContain("#settings-timezone");
-      const saved = await getTimezoneFromDb();
-      expect(saved).toBe("America/New_York");
-    });
-
-    test("rejects empty timezone", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/timezone",
-          { timezone: "", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      await expectHtmlResponse(response, 400, "Timezone is required");
-    });
-
-    test("rejects invalid timezone identifier", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/timezone",
-          { timezone: "Not/A_Timezone", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      await expectHtmlResponse(response, 400, "Invalid timezone");
-    });
-
-    test("shows error on the timezone form only", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/timezone",
-          { timezone: "", csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-      const html = await response.text();
-      const timezoneForm = html.match(/id="settings-timezone"[\s\S]*?<\/form>/);
-      expect(timezoneForm).toBeDefined();
-      expect(timezoneForm![0]).toContain("Timezone is required");
-      // Other forms should not have the error
-      const themeForm = html.match(/id="settings-theme"[\s\S]*?<\/form>/);
-      expect(themeForm).toBeDefined();
-      expect(themeForm![0]).not.toContain("Timezone is required");
-    });
-  });
 
   describe("POST /admin/settings/business-email", () => {
     test("redirects to login when not authenticated", async () => {
@@ -1937,102 +1711,6 @@ describe("server (admin settings)", () => {
     });
   });
 
-  describe("POST /admin/settings/show-public-api", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/show-public-api", {
-          show_public_api: "true",
-        }),
-      );
-      expectAdminRedirect(response);
-    });
-
-    test("rejects invalid CSRF token", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/show-public-api",
-          {
-            show_public_api: "true",
-            csrf_token: "invalid-csrf-token",
-          },
-          cookie,
-        ),
-      );
-      await expectHtmlResponse(response, 403, "Invalid CSRF token");
-    });
-
-    test("enables public API", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/show-public-api",
-          {
-            show_public_api: "true",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public API enabled");
-    });
-
-    test("disables public API", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/show-public-api",
-          {
-            show_public_api: "false",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Public API disabled");
-    });
-
-    test("setting persists in database", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      expect(await settingsApi.getShowPublicApiFromDb()).toBe(false);
-
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/show-public-api",
-          {
-            show_public_api: "true",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-
-      expect(await settingsApi.getShowPublicApiFromDb()).toBe(true);
-    });
-
-    test("settings page displays enable public API section", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      await expectHtmlResponse(
-        response,
-        200,
-        "Enable public API?",
-        "show_public_api",
-      );
-    });
-  });
 
   describe("POST /admin/settings/phone-prefix", () => {
     test("redirects to login when not authenticated", async () => {
@@ -2181,294 +1859,8 @@ describe("server (admin settings)", () => {
     });
   });
 
-  describe("POST /admin/settings/email", () => {
-    test("redirects to login when not authenticated", async () => {
-      const response = await handleRequest(
-        mockFormRequest("/admin/settings/email", {
-          email_provider: "resend",
-        }),
-      );
-      expectAdminRedirect(response);
-    });
 
-    test("saves email provider settings", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
 
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email",
-          {
-            email_provider: "resend",
-            email_api_key: "re_test_123",
-            email_from_address: "tickets@example.com",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Email settings updated");
-    });
-
-    test("disables email when provider is empty", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email",
-          {
-            email_provider: "",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location")!;
-      expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Email provider disabled");
-    });
-
-    test("rejects invalid email provider", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email",
-          {
-            email_provider: "invalid-provider",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-
-      await expectHtmlResponse(response, 400, "Invalid email provider");
-    });
-
-    test("rejects invalid from-address format", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email",
-          {
-            email_provider: "resend",
-            email_api_key: "re_test_123",
-            email_from_address: "not-an-email",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-
-      await expectHtmlResponse(response, 400, "Invalid from-address format");
-    });
-
-    test("disables email when provider field is missing", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-
-      expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("Email provider disabled");
-    });
-
-    test("saves provider without updating key when key is empty", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email",
-          {
-            email_provider: "postmark",
-            email_api_key: "",
-            email_from_address: "",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-
-      expect(response.status).toBe(302);
-      expect(decodeURIComponent(response.headers.get("location")!.replaceAll("+", " "))).toContain("Email settings updated");
-    });
-
-    test("logs activity when email provider is set", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email",
-          {
-            email_provider: "sendgrid",
-            email_api_key: "sg_key",
-            email_from_address: "from@test.com",
-            csrf_token: csrfToken,
-          },
-          cookie,
-        ),
-      );
-
-      const logs = await getAllActivityLog();
-      expect(logs.some((l) => l.message.includes("Email provider set to sendgrid"))).toBe(true);
-    });
-
-    test("settings page displays email configuration section", async () => {
-      const { cookie } = await loginAsAdmin();
-
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).toContain('id="settings-email"');
-      expect(html).toContain("email_provider");
-      expect(html).toContain("Email Notifications");
-    });
-  });
-
-  describe("POST /admin/settings/email/test", () => {
-    test("shows error when email not configured", async () => {
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email/test",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-
-      await expectHtmlResponse(response, 400, "Email not configured");
-    });
-
-    test("shows error when no business email set", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await settingsApi.updateEmailProvider("resend");
-      await settingsApi.updateEmailApiKey("re_test_key");
-      await settingsApi.updateEmailFromAddress("from@test.com");
-
-      const response = await handleRequest(
-        mockFormRequest(
-          "/admin/settings/email/test",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
-
-      await expectHtmlResponse(response, 400, "No business email set");
-    });
-
-    test("sends test email and redirects with success including status code", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
-      const { updateBusinessEmail: setBizEmail } = await import("#lib/business-email.ts");
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await settingsApi.updateEmailProvider("resend");
-      await settingsApi.updateEmailApiKey("re_test_key");
-      await settingsApi.updateEmailFromAddress("from@test.com");
-      await setBizEmail("admin@test.com");
-      settingsApi.invalidateSettingsCache();
-
-      await withMocks(
-        () => stub(globalThis, "fetch", () => Promise.resolve(new Response())),
-        async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              "/admin/settings/email/test",
-              { csrf_token: csrfToken },
-              cookie,
-            ),
-          );
-
-          expect(response.status).toBe(302);
-          const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Test email sent (status 200)");
-        },
-      );
-    });
-
-    test("shows error when email API returns non-2xx status", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
-      const { updateBusinessEmail: setBizEmail } = await import("#lib/business-email.ts");
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await settingsApi.updateEmailProvider("resend");
-      await settingsApi.updateEmailApiKey("re_test_key");
-      await settingsApi.updateEmailFromAddress("from@test.com");
-      await setBizEmail("admin@test.com");
-      settingsApi.invalidateSettingsCache();
-
-      await withMocks(
-        () => stub(globalThis, "fetch", () => Promise.resolve(new Response("Forbidden", { status: 403 }))),
-        async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              "/admin/settings/email/test",
-              { csrf_token: csrfToken },
-              cookie,
-            ),
-          );
-
-          const html = await response.text();
-          expect(response.status).toBe(502);
-          expect(html).toContain("Test email failed (status 403)");
-        },
-      );
-    });
-
-    test("shows error when email send encounters network error", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
-      const { updateBusinessEmail: setBizEmail } = await import("#lib/business-email.ts");
-      const { cookie, csrfToken } = await loginAsAdmin();
-
-      await settingsApi.updateEmailProvider("resend");
-      await settingsApi.updateEmailApiKey("re_test_key");
-      await settingsApi.updateEmailFromAddress("from@test.com");
-      await setBizEmail("admin@test.com");
-      settingsApi.invalidateSettingsCache();
-
-      await withMocks(
-        () => stub(globalThis, "fetch", () => Promise.reject(new Error("Network error"))),
-        async () => {
-          const response = await handleRequest(
-            mockFormRequest(
-              "/admin/settings/email/test",
-              { csrf_token: csrfToken },
-              cookie,
-            ),
-          );
-
-          const html = await response.text();
-          expect(response.status).toBe(502);
-          expect(html).toContain("Test email failed (no response)");
-        },
-      );
-    });
-  });
-
-  describe("settings page email provider display", () => {
-    test("shows email provider when configured", async () => {
-      const { settingsApi } = await import("#lib/db/settings.ts");
-      const { cookie } = await loginAsAdmin();
-
-      await settingsApi.updateEmailProvider("resend");
-      await settingsApi.updateEmailFromAddress("from@test.com");
-
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).toContain('value="resend"');
-      expect(html).toContain("Send Test Email");
-    });
-  });
 
   describe("sensitive field masking", () => {
     test("shows mask sentinel for configured Stripe key", async () => {
@@ -2536,7 +1928,7 @@ describe("server (admin settings)", () => {
       await settingsApi.updateEmailProvider("resend");
       await settingsApi.updateEmailApiKey("re_real_secret_key");
 
-      const response = await awaitTestRequest("/admin/settings", { cookie });
+      const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
       const html = await response.text();
       expect(html).toContain(MASK_SENTINEL);
       expect(html).not.toContain("re_real_secret_key");
@@ -2866,329 +2258,4 @@ describe("server (admin settings)", () => {
     });
   });
 
-  describe("custom domain", () => {
-    const setBunnyEnv = () => {
-      Deno.env.set("BUNNY_API_KEY", "test-bunny-key");
-    };
-    const clearBunnyEnv = () => {
-      Deno.env.delete("BUNNY_API_KEY");
-    };
-
-    afterEach(() => {
-      clearBunnyEnv();
-    });
-
-    test("does not show custom domain form when Bunny CDN is not configured", async () => {
-      clearBunnyEnv();
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).not.toContain('id="settings-custom-domain"');
-    });
-
-    test("shows custom domain form when Bunny CDN is configured", async () => {
-      setBunnyEnv();
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).toContain('id="settings-custom-domain"');
-      expect(html).toContain("Custom Domain");
-    });
-
-    test("does not show validate form when no custom domain is saved", async () => {
-      setBunnyEnv();
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).not.toContain('id="settings-custom-domain-validate"');
-    });
-
-    test("shows validate form and CNAME instructions when custom domain is saved", async () => {
-      setBunnyEnv();
-      await updateCustomDomain("tickets.example.com");
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).toContain('id="settings-custom-domain-validate"');
-      expect(html).toContain("CNAME");
-      expect(html).toContain("tickets.example.com");
-      // CDN hostname is derived from ALLOWED_DOMAIN (localhost in tests)
-      expect(html).toContain("localhost");
-    });
-
-    test("shows warning when custom domain is not validated", async () => {
-      setBunnyEnv();
-      await updateCustomDomain("tickets.example.com");
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).toContain("not yet validated");
-      expect(html).toContain("will not work until validation is complete");
-    });
-
-    test("does not show warning when custom domain is validated", async () => {
-      setBunnyEnv();
-      await updateCustomDomain("tickets.example.com");
-      await updateCustomDomainLastValidated();
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).not.toContain("not yet validated");
-    });
-
-    test("shows last validated timestamp when domain has been validated", async () => {
-      setBunnyEnv();
-      await updateCustomDomain("tickets.example.com");
-      await updateCustomDomainLastValidated();
-      const { cookie } = await loginAsAdmin();
-      const response = await awaitTestRequest("/admin/settings", { cookie });
-      const html = await response.text();
-      expect(html).toContain("Last validated:");
-    });
-
-    describe("POST /admin/settings/custom-domain", () => {
-      test("rejects when Bunny CDN is not configured", async () => {
-        clearBunnyEnv();
-        const { cookie, csrfToken } = await loginAsAdmin();
-        const response = await handleRequest(
-          mockFormRequest("/admin/settings/custom-domain", {
-            custom_domain: "tickets.example.com",
-            csrf_token: csrfToken,
-          }, cookie),
-        );
-        expect(response.status).toBe(400);
-      });
-
-      test("saves and validates domain when validation succeeds", async () => {
-        setBunnyEnv();
-        const original = bunnyCdnApi.validateCustomDomain;
-        bunnyCdnApi.validateCustomDomain = () => Promise.resolve({ ok: true as const });
-        try {
-          const { cookie, csrfToken } = await loginAsAdmin();
-          const response = await handleRequest(
-            mockFormRequest("/admin/settings/custom-domain", {
-              custom_domain: "tickets.example.com",
-              csrf_token: csrfToken,
-            }, cookie),
-          );
-          expect(response.status).toBe(302);
-          const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain saved and validated");
-          expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
-          expect(await getCustomDomainLastValidatedFromDb()).not.toBeNull();
-        } finally {
-          bunnyCdnApi.validateCustomDomain = original;
-        }
-      });
-
-      test("saves domain with error message when validation fails", async () => {
-        setBunnyEnv();
-        const original = bunnyCdnApi.validateCustomDomain;
-        bunnyCdnApi.validateCustomDomain = () =>
-          Promise.resolve({ ok: false as const, error: "DNS not configured" });
-        try {
-          const { cookie, csrfToken } = await loginAsAdmin();
-          const response = await handleRequest(
-            mockFormRequest("/admin/settings/custom-domain", {
-              custom_domain: "tickets.example.com",
-              csrf_token: csrfToken,
-            }, cookie),
-          );
-          expect(response.status).toBe(302);
-          const location = response.headers.get("location")!;
-          const decoded = decodeURIComponent(location.replaceAll("+", " "));
-          expect(decoded).toContain("validation failed");
-          expect(decoded).toContain("DNS not configured");
-          expect(decoded).toContain("error=");
-          expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
-          expect(await getCustomDomainLastValidatedFromDb()).toBeNull();
-        } finally {
-          bunnyCdnApi.validateCustomDomain = original;
-        }
-      });
-
-      test("normalizes domain to lowercase", async () => {
-        setBunnyEnv();
-        const original = bunnyCdnApi.validateCustomDomain;
-        bunnyCdnApi.validateCustomDomain = () => Promise.resolve({ ok: true as const });
-        try {
-          const { cookie, csrfToken } = await loginAsAdmin();
-          await handleRequest(
-            mockFormRequest("/admin/settings/custom-domain", {
-              custom_domain: "Tickets.Example.COM",
-              csrf_token: csrfToken,
-            }, cookie),
-          );
-          expect(await getCustomDomainFromDb()).toBe("tickets.example.com");
-        } finally {
-          bunnyCdnApi.validateCustomDomain = original;
-        }
-      });
-
-      test("clears custom domain when empty", async () => {
-        setBunnyEnv();
-        await updateCustomDomain("tickets.example.com");
-        const { cookie, csrfToken } = await loginAsAdmin();
-        const response = await handleRequest(
-          mockFormRequest("/admin/settings/custom-domain", {
-            custom_domain: "",
-            csrf_token: csrfToken,
-          }, cookie),
-        );
-        expect(response.status).toBe(302);
-        const location = response.headers.get("location")!;
-        expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain cleared");
-        expect(await getCustomDomainFromDb()).toBeNull();
-      });
-
-      test("clears domain when field is missing from form", async () => {
-        setBunnyEnv();
-        await updateCustomDomain("tickets.example.com");
-        const { cookie, csrfToken } = await loginAsAdmin();
-        const response = await handleRequest(
-          mockFormRequest("/admin/settings/custom-domain", {
-            csrf_token: csrfToken,
-          }, cookie),
-        );
-        expect(response.status).toBe(302);
-        const location = response.headers.get("location")!;
-        expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain cleared");
-        expect(await getCustomDomainFromDb()).toBeNull();
-      });
-
-      test("rejects invalid domain format", async () => {
-        setBunnyEnv();
-        const { cookie, csrfToken } = await loginAsAdmin();
-        const response = await handleRequest(
-          mockFormRequest("/admin/settings/custom-domain", {
-            custom_domain: "not a domain!",
-            csrf_token: csrfToken,
-          }, cookie),
-        );
-        await expectHtmlResponse(response, 400, "Invalid domain format");
-      });
-
-      test("logs activity when domain is set", async () => {
-        setBunnyEnv();
-        const original = bunnyCdnApi.validateCustomDomain;
-        bunnyCdnApi.validateCustomDomain = () => Promise.resolve({ ok: true as const });
-        try {
-          const { cookie, csrfToken } = await loginAsAdmin();
-          await handleRequest(
-            mockFormRequest("/admin/settings/custom-domain", {
-              custom_domain: "tickets.example.com",
-              csrf_token: csrfToken,
-            }, cookie),
-          );
-          const log = await getAllActivityLog();
-          expect(log.some((e) => e.message.includes("Custom domain set to tickets.example.com"))).toBe(true);
-        } finally {
-          bunnyCdnApi.validateCustomDomain = original;
-        }
-      });
-
-      test("logs validation activity when save triggers successful validation", async () => {
-        setBunnyEnv();
-        const original = bunnyCdnApi.validateCustomDomain;
-        bunnyCdnApi.validateCustomDomain = () => Promise.resolve({ ok: true as const });
-        try {
-          const { cookie, csrfToken } = await loginAsAdmin();
-          await handleRequest(
-            mockFormRequest("/admin/settings/custom-domain", {
-              custom_domain: "tickets.example.com",
-              csrf_token: csrfToken,
-            }, cookie),
-          );
-          const log = await getAllActivityLog();
-          expect(log.some((e) => e.message.includes("Custom domain validated"))).toBe(true);
-        } finally {
-          bunnyCdnApi.validateCustomDomain = original;
-        }
-      });
-    });
-
-    describe("POST /admin/settings/custom-domain/validate", () => {
-      test("rejects when Bunny CDN is not configured", async () => {
-        clearBunnyEnv();
-        const { cookie, csrfToken } = await loginAsAdmin();
-        const response = await handleRequest(
-          mockFormRequest("/admin/settings/custom-domain/validate", {
-            csrf_token: csrfToken,
-          }, cookie),
-        );
-        expect(response.status).toBe(400);
-      });
-
-      test("rejects when no custom domain is saved", async () => {
-        setBunnyEnv();
-        const { cookie, csrfToken } = await loginAsAdmin();
-        const response = await handleRequest(
-          mockFormRequest("/admin/settings/custom-domain/validate", {
-            csrf_token: csrfToken,
-          }, cookie),
-        );
-        expect(response.status).toBe(400);
-      });
-
-      test("calls Bunny API and saves timestamp on success", async () => {
-        setBunnyEnv();
-        await updateCustomDomain("tickets.example.com");
-        const original = bunnyCdnApi.validateCustomDomain;
-        bunnyCdnApi.validateCustomDomain = () => Promise.resolve({ ok: true as const });
-        try {
-          const { cookie, csrfToken } = await loginAsAdmin();
-          const response = await handleRequest(
-            mockFormRequest("/admin/settings/custom-domain/validate", {
-              csrf_token: csrfToken,
-            }, cookie),
-          );
-          expect(response.status).toBe(302);
-          const location = response.headers.get("location")!;
-          expect(decodeURIComponent(location.replaceAll("+", " "))).toContain("Custom domain validated successfully");
-          const lastValidated = await getCustomDomainLastValidatedFromDb();
-          expect(lastValidated).not.toBeNull();
-        } finally {
-          bunnyCdnApi.validateCustomDomain = original;
-        }
-      });
-
-      test("returns error when Bunny API fails", async () => {
-        setBunnyEnv();
-        await updateCustomDomain("tickets.example.com");
-        const original = bunnyCdnApi.validateCustomDomain;
-        bunnyCdnApi.validateCustomDomain = () =>
-          Promise.resolve({ ok: false as const, error: "Add hostname failed (400): Hostname already exists" });
-        try {
-          const { cookie, csrfToken } = await loginAsAdmin();
-          const response = await handleRequest(
-            mockFormRequest("/admin/settings/custom-domain/validate", {
-              csrf_token: csrfToken,
-            }, cookie),
-          );
-          await expectHtmlResponse(response, 502, "Add hostname failed");
-        } finally {
-          bunnyCdnApi.validateCustomDomain = original;
-        }
-      });
-
-      test("logs activity on successful validation", async () => {
-        setBunnyEnv();
-        await updateCustomDomain("tickets.example.com");
-        const original = bunnyCdnApi.validateCustomDomain;
-        bunnyCdnApi.validateCustomDomain = () => Promise.resolve({ ok: true as const });
-        try {
-          const { cookie, csrfToken } = await loginAsAdmin();
-          await handleRequest(
-            mockFormRequest("/admin/settings/custom-domain/validate", {
-              csrf_token: csrfToken,
-            }, cookie),
-          );
-          const log = await getAllActivityLog();
-          expect(log.some((e) => e.message.includes("Custom domain validated"))).toBe(true);
-        } finally {
-          bunnyCdnApi.validateCustomDomain = original;
-        }
-      });
-    });
-  });
 });
