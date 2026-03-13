@@ -117,6 +117,7 @@ const main = async (): Promise<void> => {
     "--allow-run",
     "--allow-sys",
     "--allow-ffi",
+    "--parallel",
   ];
 
   if (useCoverage) {
