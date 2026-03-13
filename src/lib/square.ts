@@ -19,22 +19,25 @@ import {
   getSquareWebhookSignatureKey,
 } from "#lib/config.ts";
 import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
-import { normalizePhone } from "#lib/phone.ts";
 import { ErrorCode, logDebug, logError } from "#lib/logger.ts";
+import {
+  computeHmacSha256,
+  hmacToBase64,
+  secureCompare,
+} from "#lib/payment-crypto.ts";
 import {
   buildMultiIntentMetadata,
   buildSingleIntentMetadata,
   createWithClient,
   PaymentUserError,
 } from "#lib/payment-helpers.ts";
-
-import { computeHmacSha256, hmacToBase64, secureCompare } from "#lib/payment-crypto.ts";
 import type {
   MultiRegistrationIntent,
   RegistrationIntent,
   WebhookEvent,
   WebhookVerifyResult,
 } from "#lib/payments.ts";
+import { normalizePhone } from "#lib/phone.ts";
 import type { Event } from "#lib/types.ts";
 
 /**
@@ -47,7 +50,10 @@ const SQUARE_METADATA_MAX_VALUE_LENGTH = 255;
 
 /** Extract tender id and paymentId from raw tender data (handles both snake_case and camelCase) */
 // deno-lint-ignore no-explicit-any
-const mapTender = (t: any) => ({ id: t.id, paymentId: t.paymentId ?? t.payment_id });
+const mapTender = (t: any) => ({
+  id: t.id,
+  paymentId: t.paymentId ?? t.payment_id,
+});
 
 /** A single error entry from Square's API error response */
 type SquareApiErrorEntry = {
@@ -78,7 +84,9 @@ const parseSquareApiErrors = (err: Error): SquareApiErrorEntry[] | null => {
 
 /** Convert Square INVALID_REQUEST_ERROR entries on user-provided fields
  * to a user-facing message, or null if no user-facing errors found. */
-const toUserFacingSquareError = (errors: SquareApiErrorEntry[]): string | null => {
+const toUserFacingSquareError = (
+  errors: SquareApiErrorEntry[],
+): string | null => {
   for (const err of errors) {
     if (err.category !== "INVALID_REQUEST_ERROR" || !err.field) continue;
     const label = SQUARE_FIELD_LABELS[err.field];
@@ -123,7 +131,10 @@ export const enforceMetadataLimits = (
 
   const name = metadata.name;
   if (name && name.length > SQUARE_METADATA_MAX_VALUE_LENGTH) {
-    return { ...metadata, name: name.slice(0, SQUARE_METADATA_MAX_VALUE_LENGTH) };
+    return {
+      ...metadata,
+      name: name.slice(0, SQUARE_METADATA_MAX_VALUE_LENGTH),
+    };
   }
 
   return metadata;
@@ -140,7 +151,7 @@ const SQUARE_BASE_URL = {
 
 /** JSON.stringify with BigInt → Number conversion for Square money fields */
 const jsonStringify = (obj: unknown): string =>
-  JSON.stringify(obj, (_, v) => typeof v === "bigint" ? Number(v) : v);
+  JSON.stringify(obj, (_, v) => (typeof v === "bigint" ? Number(v) : v));
 
 /** Make an authenticated request to the Square REST API */
 const squareFetch = async (
@@ -153,7 +164,7 @@ const squareFetch = async (
   const response = await fetch(`${baseUrl}${path}`, {
     method: options?.method ?? "GET",
     headers: {
-      "Authorization": `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
       "Square-Version": SQUARE_API_VERSION,
     },
@@ -220,9 +231,7 @@ const createSquareClient = (accessToken: string, sandbox: boolean) => {
     },
     orders: {
       get: async (p: { orderId: string }) => {
-        const data = await get(
-          `/v2/orders/${encodeURIComponent(p.orderId)}`,
-        );
+        const data = await get(`/v2/orders/${encodeURIComponent(p.orderId)}`);
         const o = data?.order;
         if (!o) return { order: null };
         return {
@@ -312,7 +321,10 @@ const getClientImpl = async () => {
     // Cache not initialized
   }
 
-  logDebug("Square", `Creating new Square client (${sandbox ? "sandbox" : "production"})`);
+  logDebug(
+    "Square",
+    `Creating new Square client (${sandbox ? "sandbox" : "production"})`,
+  );
   setCache({ accessToken, sandbox });
   return createSquareClient(accessToken, sandbox);
 };
@@ -395,9 +407,9 @@ type PaymentLinkParams = {
 const createPaymentLinkImpl = (
   params: PaymentLinkParams,
 ): Promise<PaymentLinkResult> =>
-  withClient(
-    async (client) => {
-      const response = await client.checkout.paymentLinks.create({
+  withClient(async (client) => {
+    const response = await client.checkout.paymentLinks
+      .create({
         idempotencyKey: crypto.randomUUID(),
         order: {
           locationId: params.locationId,
@@ -411,24 +423,25 @@ const createPaymentLinkImpl = (
           buyerEmail: params.email,
           ...(params.phone ? { buyerPhoneNumber: params.phone } : {}),
         },
-      }).catch(rethrowAsUserError);
+      })
+      .catch(rethrowAsUserError);
 
-      const link = response.paymentLink;
-      const orderId = link?.orderId;
-      const url = link?.url;
+    const link = response.paymentLink;
+    const orderId = link?.orderId;
+    const url = link?.url;
 
-      if (!orderId || !url) {
-        logDebug("Square", `${params.label} response missing orderId or url`);
-        return null;
-      }
+    if (!orderId || !url) {
+      logDebug("Square", `${params.label} response missing orderId or url`);
+      return null;
+    }
 
-      return { orderId, url };
-    },
-    ErrorCode.SQUARE_CHECKOUT,
-  );
+    return { orderId, url };
+  }, ErrorCode.SQUARE_CHECKOUT);
 
 /** Normalize a phone number for Square pre-populated checkout data */
-const normalizeCheckoutPhone = async (phone: string | undefined): Promise<string | undefined> => {
+const normalizeCheckoutPhone = async (
+  phone: string | undefined,
+): Promise<string | undefined> => {
   if (!phone) return undefined;
   const prefix = await getPhonePrefixFromDb();
   return normalizePhone(phone, prefix);
@@ -452,7 +465,10 @@ const buildCheckoutOptions = async (
 const preparePaymentLink = async (
   rawMetadata: Record<string, string>,
   label: string,
-): Promise<{ config: NonNullable<Awaited<ReturnType<typeof getPaymentLinkConfig>>>; metadata: Record<string, string> } | null> => {
+): Promise<{
+  config: NonNullable<Awaited<ReturnType<typeof getPaymentLinkConfig>>>;
+  metadata: Record<string, string>;
+} | null> => {
   const config = await getPaymentLinkConfig();
   if (!config) return null;
 
@@ -506,13 +522,26 @@ export const squareApi: {
           name: `Ticket: ${event.name}`,
           quantity: String(intent.quantity),
           note: intent.quantity > 1 ? `${intent.quantity} Tickets` : "Ticket",
-          basePriceMoney: { amount: BigInt(intent.customUnitPrice ?? event.unit_price), currency: prep.config.currency },
+          basePriceMoney: {
+            amount: BigInt(intent.customUnitPrice ?? event.unit_price),
+            currency: prep.config.currency,
+          },
         },
       ],
-      ...await buildCheckoutOptions(intent, prep.metadata, baseUrl, "Payment link"),
+      ...(await buildCheckoutOptions(
+        intent,
+        prep.metadata,
+        baseUrl,
+        "Payment link",
+      )),
     });
 
-    logDebug("Square", result ? `Payment link created orderId=${result.orderId}` : "Payment link creation failed");
+    logDebug(
+      "Square",
+      result
+        ? `Payment link created orderId=${result.orderId}`
+        : "Payment link creation failed",
+    );
     return result;
   },
 
@@ -531,74 +560,81 @@ export const squareApi: {
       name: `Ticket: ${item.name}`,
       quantity: String(item.quantity),
       note: item.quantity > 1 ? `${item.quantity} Tickets` : "Ticket",
-      basePriceMoney: { amount: BigInt(item.unitPrice), currency: prep.config.currency },
+      basePriceMoney: {
+        amount: BigInt(item.unitPrice),
+        currency: prep.config.currency,
+      },
     }))(intent.items);
 
     const result = await createPaymentLinkImpl({
       ...prep.config,
       lineItems,
-      ...await buildCheckoutOptions(intent, prep.metadata, baseUrl, "Multi payment link"),
+      ...(await buildCheckoutOptions(
+        intent,
+        prep.metadata,
+        baseUrl,
+        "Multi payment link",
+      )),
     });
 
-    logDebug("Square", result ? `Multi payment link created orderId=${result.orderId}` : "Multi payment link creation failed");
+    logDebug(
+      "Square",
+      result
+        ? `Multi payment link created orderId=${result.orderId}`
+        : "Multi payment link creation failed",
+    );
     return result;
   },
 
   /** Retrieve an order by ID */
   retrieveOrder: (orderId: string): Promise<SquareOrder | null> =>
-    withClient(
-      async (client) => {
-        const response = await client.orders.get({ orderId });
-        const order = response.order;
-        if (!order) return null;
+    withClient(async (client) => {
+      const response = await client.orders.get({ orderId });
+      const order = response.order;
+      if (!order) return null;
 
-        // Convert nullable metadata values to plain string record
-        const metadata: Record<string, string> | undefined = order.metadata
-          ? Object.fromEntries(
-              Object.entries(order.metadata).filter(
-                (entry): entry is [string, string] =>
-                  typeof entry[1] === "string",
-              ),
-            )
-          : undefined;
+      // Convert nullable metadata values to plain string record
+      const metadata: Record<string, string> | undefined = order.metadata
+        ? Object.fromEntries(
+            Object.entries(order.metadata).filter(
+              (entry): entry is [string, string] =>
+                typeof entry[1] === "string",
+            ),
+          )
+        : undefined;
 
-        return {
-          id: order.id,
-          metadata,
-          tenders: order.tenders?.map(mapTender),
-          state: order.state,
-          totalMoney: {
-            amount: order.totalMoney!.amount!,
-            currency: order.totalMoney!.currency!,
-          },
-        };
-      },
-      ErrorCode.SQUARE_ORDER,
-    ),
+      return {
+        id: order.id,
+        metadata,
+        tenders: order.tenders?.map(mapTender),
+        state: order.state,
+        totalMoney: {
+          amount: order.totalMoney!.amount!,
+          currency: order.totalMoney!.currency!,
+        },
+      };
+    }, ErrorCode.SQUARE_ORDER),
 
   /** Retrieve a payment by ID */
   retrievePayment: (paymentId: string): Promise<SquarePayment | null> =>
-    withClient(
-      async (client) => {
-        const response = await client.payments.get({ paymentId });
-        const payment = response.payment;
-        if (!payment) return null;
-        return {
-          id: payment.id,
-          status: payment.status,
-          orderId: payment.orderId,
-          amountMoney: {
-            amount: payment.amountMoney?.amount as bigint | undefined,
-            currency: payment.amountMoney?.currency as string | undefined,
-          },
-          refundedMoney: {
-            amount: payment.refundedMoney?.amount as bigint | undefined,
-            currency: payment.refundedMoney?.currency as string | undefined,
-          },
-        };
-      },
-      ErrorCode.SQUARE_SESSION,
-    ),
+    withClient(async (client) => {
+      const response = await client.payments.get({ paymentId });
+      const payment = response.payment;
+      if (!payment) return null;
+      return {
+        id: payment.id,
+        status: payment.status,
+        orderId: payment.orderId,
+        amountMoney: {
+          amount: payment.amountMoney?.amount as bigint | undefined,
+          currency: payment.amountMoney?.currency as string | undefined,
+        },
+        refundedMoney: {
+          amount: payment.refundedMoney?.amount as bigint | undefined,
+          currency: payment.refundedMoney?.currency as string | undefined,
+        },
+      };
+    }, ErrorCode.SQUARE_SESSION),
 
   /** Refund a payment (full amount) */
   refundPayment: async (paymentId: string): Promise<boolean> => {
@@ -611,20 +647,17 @@ export const squareApi: {
       return false;
     }
 
-    const result = await withClient(
-      async (client) => {
-        await client.refunds.refundPayment({
-          idempotencyKey: crypto.randomUUID(),
-          paymentId,
-          amountMoney: {
-            amount: payment.amountMoney!.amount,
-            currency: payment.amountMoney!.currency as string,
-          },
-        });
-        return true;
-      },
-      ErrorCode.SQUARE_REFUND,
-    );
+    const result = await withClient(async (client) => {
+      await client.refunds.refundPayment({
+        idempotencyKey: crypto.randomUUID(),
+        paymentId,
+        amountMoney: {
+          amount: payment.amountMoney!.amount,
+          currency: payment.amountMoney!.currency as string,
+        },
+      });
+      return true;
+    }, ErrorCode.SQUARE_REFUND);
 
     return result ?? false;
   },
@@ -687,7 +720,10 @@ export const verifyWebhookSignature = async (
 ): Promise<WebhookVerifyResult> => {
   const secret = await getSquareWebhookSignatureKey();
   if (!secret) {
-    logError({ code: ErrorCode.CONFIG_MISSING, detail: "Square webhook signature key" });
+    logError({
+      code: ErrorCode.CONFIG_MISSING,
+      detail: "Square webhook signature key",
+    });
     return { valid: false, error: "Webhook signature key not configured" };
   }
 

@@ -3,10 +3,8 @@
  */
 
 import { lazyRef } from "#fp";
-import { registerCache } from "#lib/cache-registry.ts";
 import type { SigningCredentials } from "#lib/apple-wallet.ts";
-import { getEnv } from "#lib/env.ts";
-import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
+import { registerCache } from "#lib/cache-registry.ts";
 import {
   decrypt,
   deriveKEK,
@@ -19,9 +17,11 @@ import {
   wrapKey,
 } from "#lib/crypto.ts";
 import { getDb, queryAll } from "#lib/db/client.ts";
-import { nowMs } from "#lib/now.ts";
 import { deleteAllSessions } from "#lib/db/sessions.ts";
 import { createUser, invalidateUsersCache } from "#lib/db/users.ts";
+import { getEnv } from "#lib/env.ts";
+import { nowMs } from "#lib/now.ts";
+import { DEFAULT_TIMEZONE } from "#lib/timezone.ts";
 import type { Settings } from "#lib/types.ts";
 
 /**
@@ -101,7 +101,8 @@ export const CONFIG_KEYS = {
 export const MASK_SENTINEL = "••••••••";
 
 /** Check whether a submitted form value is the mask sentinel (i.e. unchanged) */
-export const isMaskSentinel = (value: string): boolean => value === MASK_SENTINEL;
+export const isMaskSentinel = (value: string): boolean =>
+  value === MASK_SENTINEL;
 
 /**
  * In-memory settings cache. Loads all rows in a single query and
@@ -153,9 +154,8 @@ type SettingsCacheState = {
   time: number;
 };
 
-const [getSettingsCacheState, setSettingsCacheState] = lazyRef<SettingsCacheState>(
-  () => ({ entries: null, time: 0 }),
-);
+const [getSettingsCacheState, setSettingsCacheState] =
+  lazyRef<SettingsCacheState>(() => ({ entries: null, time: 0 }));
 
 const isCacheValid = (): boolean => {
   const state = getSettingsCacheState();
@@ -236,7 +236,10 @@ const setBoolSetting = async (key: string, value: boolean): Promise<void> => {
  * Set a setting value, or delete it if value is empty.
  * Common pattern for optional text settings.
  */
-const setOrDeleteSetting = async (key: string, value: string): Promise<void> => {
+const setOrDeleteSetting = async (
+  key: string,
+  value: string,
+): Promise<void> => {
   if (value === "") {
     await getDb().execute({
       sql: "DELETE FROM settings WHERE key = ?",
@@ -382,9 +385,7 @@ export const getPaymentProviderFromDb = (): Promise<string | null> =>
 /**
  * Set the active payment provider type
  */
-export const setPaymentProvider = async (
-  provider: string,
-): Promise<void> => {
+export const setPaymentProvider = async (provider: string): Promise<void> => {
   await setSetting(CONFIG_KEYS.PAYMENT_PROVIDER, provider);
 };
 
@@ -411,7 +412,9 @@ const { get: getStripeSecretKeyFromDb, update: updateStripeKey } =
   encryptedSetting(CONFIG_KEYS.STRIPE_SECRET_KEY);
 export { getStripeSecretKeyFromDb, updateStripeKey };
 
-export const getStripeWebhookSecretFromDb = encryptedSetting(CONFIG_KEYS.STRIPE_WEBHOOK_SECRET).get;
+export const getStripeWebhookSecretFromDb = encryptedSetting(
+  CONFIG_KEYS.STRIPE_WEBHOOK_SECRET,
+).get;
 
 /**
  * Get Stripe webhook endpoint ID from database
@@ -424,9 +427,10 @@ export const getStripeWebhookEndpointId = (): Promise<string | null> => {
 /**
  * Store Stripe webhook configuration (secret encrypted, endpoint ID plaintext)
  */
-export const setStripeWebhookConfig = async (
-  config: { secret: string; endpointId: string },
-): Promise<void> => {
+export const setStripeWebhookConfig = async (config: {
+  secret: string;
+  endpointId: string;
+}): Promise<void> => {
   const encryptedSecret = await encrypt(config.secret);
   await setSetting(CONFIG_KEYS.STRIPE_WEBHOOK_SECRET, encryptedSecret);
   await setSetting(CONFIG_KEYS.STRIPE_WEBHOOK_ENDPOINT_ID, config.endpointId);
@@ -495,11 +499,15 @@ export const hasSquareToken = async (): Promise<boolean> => {
   return value !== null;
 };
 
-export const { get: getSquareAccessTokenFromDb, update: updateSquareAccessToken } =
-  encryptedSetting(CONFIG_KEYS.SQUARE_ACCESS_TOKEN);
+export const {
+  get: getSquareAccessTokenFromDb,
+  update: updateSquareAccessToken,
+} = encryptedSetting(CONFIG_KEYS.SQUARE_ACCESS_TOKEN);
 
-export const { get: getSquareWebhookSignatureKeyFromDb, update: updateSquareWebhookSignatureKey } =
-  encryptedSetting(CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY);
+export const {
+  get: getSquareWebhookSignatureKeyFromDb,
+  update: updateSquareWebhookSignatureKey,
+} = encryptedSetting(CONFIG_KEYS.SQUARE_WEBHOOK_SIGNATURE_KEY);
 
 /**
  * Get Square location ID from database
@@ -661,7 +669,10 @@ const getEncryptedSetting = async (key: string): Promise<string | null> => {
 };
 
 /** Update an encrypted optional setting. Pass empty string to clear. */
-const updateEncryptedSetting = async (key: string, text: string): Promise<void> => {
+const updateEncryptedSetting = async (
+  key: string,
+  text: string,
+): Promise<void> => {
   if (text === "") return setOrDeleteSetting(key, "");
   await setSetting(key, await encrypt(text));
 };
@@ -721,8 +732,10 @@ export const hasEmailApiKey = async (): Promise<boolean> => {
 export const { get: getEmailApiKeyFromDb, update: updateEmailApiKey } =
   encryptedSetting(CONFIG_KEYS.EMAIL_API_KEY);
 
-export const { get: getEmailFromAddressFromDb, update: updateEmailFromAddress } =
-  encryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS);
+export const {
+  get: getEmailFromAddressFromDb,
+  update: updateEmailFromAddress,
+} = encryptedSetting(CONFIG_KEYS.EMAIL_FROM_ADDRESS);
 
 /** Valid email template types */
 export type EmailTemplateType = "confirmation" | "admin";
@@ -731,7 +744,10 @@ export type EmailTemplateType = "confirmation" | "admin";
 export type EmailTemplateFormat = "subject" | "html" | "text";
 
 /** Config key for a given template type+format */
-const emailTemplateKey = (type: EmailTemplateType, format: EmailTemplateFormat): string => {
+const emailTemplateKey = (
+  type: EmailTemplateType,
+  format: EmailTemplateFormat,
+): string => {
   const keys: Record<`${EmailTemplateType}:${EmailTemplateFormat}`, string> = {
     "confirmation:subject": CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_SUBJECT,
     "confirmation:html": CONFIG_KEYS.EMAIL_TPL_CONFIRMATION_HTML,
@@ -747,15 +763,24 @@ const emailTemplateKey = (type: EmailTemplateType, format: EmailTemplateFormat):
 export const MAX_EMAIL_TEMPLATE_LENGTH = 51_200;
 
 /** Get a custom email template (decrypted). Returns null if not customised (use default). */
-export const getEmailTemplate = (type: EmailTemplateType, format: EmailTemplateFormat): Promise<string | null> =>
+export const getEmailTemplate = (
+  type: EmailTemplateType,
+  format: EmailTemplateFormat,
+): Promise<string | null> =>
   getEncryptedSetting(emailTemplateKey(type, format));
 
 /** Update a custom email template (encrypted at rest). Pass empty string to clear (revert to default). */
-export const updateEmailTemplate = (type: EmailTemplateType, format: EmailTemplateFormat, content: string): Promise<void> =>
+export const updateEmailTemplate = (
+  type: EmailTemplateType,
+  format: EmailTemplateFormat,
+  content: string,
+): Promise<void> =>
   updateEncryptedSetting(emailTemplateKey(type, format), content);
 
 /** Get all 3 parts of a custom email template (subject, html, text). Nulls mean "use default". */
-export const getEmailTemplateSet = async (type: EmailTemplateType): Promise<{
+export const getEmailTemplateSet = async (
+  type: EmailTemplateType,
+): Promise<{
   subject: string | null;
   html: string | null;
   text: string | null;
@@ -777,12 +802,17 @@ export const getCustomDomainLastValidatedFromDb = (): Promise<string | null> =>
 
 /** Update the custom domain last validated timestamp to now (UTC ISO 8601). */
 export const updateCustomDomainLastValidated = (): Promise<void> =>
-  setSetting(CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED, new Date().toISOString());
+  setSetting(
+    CONFIG_KEYS.CUSTOM_DOMAIN_LAST_VALIDATED,
+    new Date().toISOString(),
+  );
 
 /** Return SigningCredentials if all 5 fields are present, null otherwise. */
 const toCredentials = (
-  passTypeId: string | null | undefined, teamId: string | null | undefined,
-  signingCert: string | null | undefined, signingKey: string | null | undefined,
+  passTypeId: string | null | undefined,
+  teamId: string | null | undefined,
+  signingCert: string | null | undefined,
+  signingKey: string | null | undefined,
   wwdrCert: string | null | undefined,
 ): SigningCredentials | null =>
   passTypeId && teamId && signingCert && signingKey && wwdrCert
@@ -792,8 +822,10 @@ const toCredentials = (
 /** Read Apple Wallet config from environment variables. Returns null if not fully configured. */
 export const getHostAppleWalletConfig = (): SigningCredentials | null =>
   toCredentials(
-    getEnv("APPLE_WALLET_PASS_TYPE_ID"), getEnv("APPLE_WALLET_TEAM_ID"),
-    getEnv("APPLE_WALLET_SIGNING_CERT"), getEnv("APPLE_WALLET_SIGNING_KEY"),
+    getEnv("APPLE_WALLET_PASS_TYPE_ID"),
+    getEnv("APPLE_WALLET_TEAM_ID"),
+    getEnv("APPLE_WALLET_SIGNING_CERT"),
+    getEnv("APPLE_WALLET_SIGNING_KEY"),
     getEnv("APPLE_WALLET_WWDR_CERT"),
   );
 
@@ -806,43 +838,62 @@ export const hasAppleWalletDbConfig = async (): Promise<boolean> => {
     getSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY),
     getSetting(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT),
   ]);
-  return passTypeId !== null && teamId !== null && cert !== null && key !== null && wwdr !== null;
+  return (
+    passTypeId !== null &&
+    teamId !== null &&
+    cert !== null &&
+    key !== null &&
+    wwdr !== null
+  );
 };
 
 /** Check if Apple Wallet is configured (DB settings or env vars). */
 export const hasAppleWalletConfig = async (): Promise<boolean> =>
-  await hasAppleWalletDbConfig() || getHostAppleWalletConfig() !== null;
+  (await hasAppleWalletDbConfig()) || getHostAppleWalletConfig() !== null;
 
-export const { get: getAppleWalletPassTypeIdFromDb, update: updateAppleWalletPassTypeId } =
-  optionalTextSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID);
+export const {
+  get: getAppleWalletPassTypeIdFromDb,
+  update: updateAppleWalletPassTypeId,
+} = optionalTextSetting(CONFIG_KEYS.APPLE_WALLET_PASS_TYPE_ID);
 
-export const { get: getAppleWalletTeamIdFromDb, update: updateAppleWalletTeamId } =
-  optionalTextSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID);
+export const {
+  get: getAppleWalletTeamIdFromDb,
+  update: updateAppleWalletTeamId,
+} = optionalTextSetting(CONFIG_KEYS.APPLE_WALLET_TEAM_ID);
 
-export const { get: getAppleWalletSigningCertFromDb, update: updateAppleWalletSigningCert } =
-  encryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT);
+export const {
+  get: getAppleWalletSigningCertFromDb,
+  update: updateAppleWalletSigningCert,
+} = encryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_CERT);
 
-export const { get: getAppleWalletSigningKeyFromDb, update: updateAppleWalletSigningKey } =
-  encryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY);
+export const {
+  get: getAppleWalletSigningKeyFromDb,
+  update: updateAppleWalletSigningKey,
+} = encryptedSetting(CONFIG_KEYS.APPLE_WALLET_SIGNING_KEY);
 
-export const { get: getAppleWalletWwdrCertFromDb, update: updateAppleWalletWwdrCert } =
-  encryptedSetting(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT);
+export const {
+  get: getAppleWalletWwdrCertFromDb,
+  update: updateAppleWalletWwdrCert,
+} = encryptedSetting(CONFIG_KEYS.APPLE_WALLET_WWDR_CERT);
 
 /** Get Apple Wallet config from DB (decrypted). Returns null if incomplete. */
-export const getAppleWalletDbConfig = async (): Promise<SigningCredentials | null> => {
-  const [passTypeId, teamId, signingCert, signingKey, wwdrCert] = await Promise.all([
-    getAppleWalletPassTypeIdFromDb(),
-    getAppleWalletTeamIdFromDb(),
-    getAppleWalletSigningCertFromDb(),
-    getAppleWalletSigningKeyFromDb(),
-    getAppleWalletWwdrCertFromDb(),
-  ]);
-  return toCredentials(passTypeId, teamId, signingCert, signingKey, wwdrCert);
-};
+export const getAppleWalletDbConfig =
+  async (): Promise<SigningCredentials | null> => {
+    const [passTypeId, teamId, signingCert, signingKey, wwdrCert] =
+      await Promise.all([
+        getAppleWalletPassTypeIdFromDb(),
+        getAppleWalletTeamIdFromDb(),
+        getAppleWalletSigningCertFromDb(),
+        getAppleWalletSigningKeyFromDb(),
+        getAppleWalletWwdrCertFromDb(),
+      ]);
+    return toCredentials(passTypeId, teamId, signingCert, signingKey, wwdrCert);
+  };
 
 /** Get Apple Wallet config for pass generation. DB settings take priority, falls back to env vars. */
-export const getAppleWalletConfig = async (): Promise<SigningCredentials | null> =>
-  await getAppleWalletDbConfig() ?? getHostAppleWalletConfig();
+export const getAppleWalletConfig =
+  async (): Promise<SigningCredentials | null> =>
+    (await getAppleWalletDbConfig()) ?? getHostAppleWalletConfig();
 
 /**
  * Stubbable API for testing - allows mocking in ES modules

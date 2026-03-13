@@ -29,7 +29,9 @@ export const adminSeedsPage = (
       </p>
 
       <Raw html={renderError(error)} />
-      <Raw html={renderSuccess(result ? formatSeedResult(result) : undefined)} />
+      <Raw
+        html={renderSuccess(result ? formatSeedResult(result) : undefined)}
+      />
 
       <CsrfForm action="/admin/seeds">
         <label for="event_count">Number of events</label>

@@ -24,8 +24,10 @@ export const loadCurrencyCode = async (): Promise<string> => {
 
 /** Get the number of decimal places for a currency code */
 export const getDecimalPlaces = (currencyCode: string): number =>
-  new Intl.NumberFormat("en", { style: "currency", currency: currencyCode })
-    .resolvedOptions().minimumFractionDigits ?? 2;
+  new Intl.NumberFormat("en", {
+    style: "currency",
+    currency: currencyCode,
+  }).resolvedOptions().minimumFractionDigits ?? 2;
 
 /**
  * Format an amount in minor units (pence/cents) as a currency string.
@@ -47,7 +49,7 @@ export const formatCurrency = (minorUnits: number | string): string => {
  */
 export const toMinorUnits = (majorUnits: number): number => {
   const places = getDecimalPlaces(state.code);
-  return Math.round(majorUnits * (10 ** places));
+  return Math.round(majorUnits * 10 ** places);
 };
 
 /**
@@ -56,11 +58,13 @@ export const toMinorUnits = (majorUnits: number): number => {
  */
 export const toMajorUnits = (minorUnits: number): string => {
   const places = getDecimalPlaces(state.code);
-  return (minorUnits / (10 ** places)).toFixed(places);
+  return (minorUnits / 10 ** places).toFixed(places);
 };
 
 /** Result type for price validation */
-export type PriceResult = { ok: true; price: number } | { ok: false; error: string };
+export type PriceResult =
+  | { ok: true; price: number }
+  | { ok: false; error: string };
 
 /**
  * Validate and convert a raw price string to minor units.
@@ -73,7 +77,9 @@ export const validatePrice = (
   maxPrice: number,
 ): PriceResult => {
   if (!raw) {
-    return minPrice === 0 ? { ok: true, price: 0 } : { ok: false, error: "Please enter a price" };
+    return minPrice === 0
+      ? { ok: true, price: 0 }
+      : { ok: false, error: "Please enter a price" };
   }
   const parsed = Number.parseFloat(raw);
   if (Number.isNaN(parsed) || parsed < 0) {
@@ -81,7 +87,10 @@ export const validatePrice = (
   }
   const priceMinor = toMinorUnits(parsed);
   if (priceMinor < minPrice) {
-    return { ok: false, error: "Price must be at least the minimum ticket price" };
+    return {
+      ok: false,
+      error: "Price must be at least the minimum ticket price",
+    };
   }
   if (priceMinor > maxPrice) {
     return { ok: false, error: "Price exceeds the maximum allowed" };

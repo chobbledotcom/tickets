@@ -10,16 +10,24 @@ import { AsyncLocalStorage } from "node:async_hooks";
 /** A single logged query */
 export type QueryLogEntry = { sql: string; durationMs: number };
 
-type QueryLogState = { enabled: boolean; entries: QueryLogEntry[]; startTime: number };
+type QueryLogState = {
+  enabled: boolean;
+  entries: QueryLogEntry[];
+  startTime: number;
+};
 
 const asyncLocalStorage = new AsyncLocalStorage<QueryLogState>();
-const fallbackState: QueryLogState = { enabled: false, entries: [], startTime: 0 };
+const fallbackState: QueryLogState = {
+  enabled: false,
+  entries: [],
+  startTime: 0,
+};
 
-const getState = (): QueryLogState => asyncLocalStorage.getStore() ?? fallbackState;
+const getState = (): QueryLogState =>
+  asyncLocalStorage.getStore() ?? fallbackState;
 
-export const runWithQueryLogContext = <T>(
-  fn: () => T,
-): T => asyncLocalStorage.run({ enabled: false, entries: [], startTime: 0 }, fn);
+export const runWithQueryLogContext = <T>(fn: () => T): T =>
+  asyncLocalStorage.run({ enabled: false, entries: [], startTime: 0 }, fn);
 
 /** Enable query logging and clear previous entries */
 export const enableQueryLog = (): void => {

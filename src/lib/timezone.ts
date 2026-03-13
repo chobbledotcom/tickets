@@ -8,8 +8,8 @@
 
 import {
   fromAbsolute,
-  parseDateTime,
   today as libToday,
+  parseDateTime,
   toZoned,
 } from "@internationalized/date";
 
@@ -26,8 +26,7 @@ const utcToZoned = (utcIso: string, tz: string) =>
 /**
  * Get today's date as YYYY-MM-DD in the given timezone.
  */
-export const todayInTz = (tz: string): string =>
-  libToday(tz).toString();
+export const todayInTz = (tz: string): string => libToday(tz).toString();
 
 /**
  * Convert a naive datetime-local value (YYYY-MM-DDTHH:MM) to a UTC ISO string,

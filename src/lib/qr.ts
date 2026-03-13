@@ -6,7 +6,12 @@
 import { once } from "#fp";
 
 /** QR code module shape (subset of the qrcode npm package API) */
-type QRCodeModule = { toString(text: string, opts: { type: string; margin?: number }): Promise<string> };
+type QRCodeModule = {
+  toString(
+    text: string,
+    opts: { type: string; margin?: number },
+  ): Promise<string>;
+};
 
 const loadQRCode = once(async (): Promise<QRCodeModule> => {
   const { default: QRCode } = await import("qrcode");

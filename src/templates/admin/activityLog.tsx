@@ -4,10 +4,10 @@
 
 import { map, pipe, reduce } from "#fp";
 import type { ActivityLogEntry } from "#lib/db/activityLog.ts";
-import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { Layout } from "#templates/layout.tsx";
+import type { AdminSession, EventWithCount } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
+import { Layout } from "#templates/layout.tsx";
 
 const joinStrings = reduce((acc: string, s: string) => acc + s, "");
 
@@ -16,7 +16,7 @@ const ActivityLogRow = ({ entry }: { entry: ActivityLogEntry }): string =>
     <tr>
       <td>{new Date(entry.created).toLocaleString()}</td>
       <td>{entry.message}</td>
-    </tr>
+    </tr>,
   );
 
 /** Generate activity log table rows */
@@ -39,21 +39,21 @@ export const adminEventActivityLogPage = (
   String(
     <Layout title={`Log: ${event.name}`}>
       <AdminNav session={session} active="/admin/log" />
-        <h2>Log</h2>
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Activity</th>
-              </tr>
-            </thead>
-            <tbody>
-              <Raw html={activityLogRows(entries)} />
-            </tbody>
-          </table>
-        </div>
-    </Layout>
+      <h2>Log</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Activity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={activityLogRows(entries)} />
+          </tbody>
+        </table>
+      </div>
+    </Layout>,
   );
 
 /**
@@ -67,20 +67,20 @@ export const adminGlobalActivityLogPage = (
   String(
     <Layout title="Log">
       <AdminNav session={session} active="/admin/log" />
-        <h2>Log</h2>
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Activity</th>
-              </tr>
-            </thead>
-            <tbody>
-              <Raw html={activityLogRows(entries)} />
-            </tbody>
-          </table>
-        </div>
-        {truncated && <p>Showing the most recent 200 entries.</p>}
-    </Layout>
+      <h2>Log</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Activity</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Raw html={activityLogRows(entries)} />
+          </tbody>
+        </table>
+      </div>
+      {truncated && <p>Showing the most recent 200 entries.</p>}
+    </Layout>,
   );

@@ -4,11 +4,19 @@
 
 import { formatCurrency } from "#lib/currency.ts";
 import { DAY_NAMES } from "#lib/dates.ts";
-import { isValidDatetime } from "#lib/timezone.ts";
-import { type Field, validateForm } from "#lib/forms.tsx";
-import { isContactField, isEventType, type AdminLevel, type ContactField, type ContactInfo, type EventFields, type EventType } from "#lib/types.ts";
 import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
+import { type Field, validateForm } from "#lib/forms.tsx";
 import { normalizeSlug, validateSlug } from "#lib/slug.ts";
+import { isValidDatetime } from "#lib/timezone.ts";
+import {
+  type AdminLevel,
+  type ContactField,
+  type ContactInfo,
+  type EventFields,
+  type EventType,
+  isContactField,
+  isEventType,
+} from "#lib/types.ts";
 
 // ---------------------------------------------------------------------------
 // Typed form value interfaces
@@ -190,19 +198,33 @@ export const validateUsername = (value: string): string | null => {
 };
 
 /** Base username field shared across login and invite forms */
-const usernameFieldBase: Field = { name: "username", label: "Username", type: "text", required: true };
+const usernameFieldBase: Field = {
+  name: "username",
+  label: "Username",
+  type: "text",
+  required: true,
+};
 
 /**
  * Login form field definitions
  */
 export const loginFields: Field[] = [
   { ...usernameFieldBase, autocomplete: "username" },
-  { name: "password", label: "Password", type: "password", required: true, autocomplete: "current-password" },
+  {
+    name: "password",
+    label: "Password",
+    type: "password",
+    required: true,
+    autocomplete: "current-password",
+  },
 ];
 
 /** Validate event fields setting (comma-separated contact field names) */
 const validateEventFields = (value: string): string | null => {
-  const parts = value.split(",").map((v) => v.trim()).filter((v) => v);
+  const parts = value
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => v);
   for (const part of parts) {
     if (!isContactField(part)) {
       return `Invalid contact field: ${part}`;
@@ -228,7 +250,10 @@ const isValidDayName = (s: string): boolean =>
 
 /** Validate bookable days (comma-separated day names) */
 export const validateBookableDays = (value: string): string | null => {
-  const days = value.split(",").map((d) => d.trim()).filter((d) => d);
+  const days = value
+    .split(",")
+    .map((d) => d.trim())
+    .filter((d) => d);
   if (days.length === 0) return "At least one day is required";
   for (const day of days) {
     if (!isValidDayName(day)) {
@@ -239,7 +264,8 @@ export const validateBookableDays = (value: string): string | null => {
 };
 
 /** Shared formatting hint linking to the admin guide */
-export const FORMATTING_HINT = '<a href="/admin/guide#text-formatting">Formatting help</a>';
+export const FORMATTING_HINT =
+  '<a href="/admin/guide#text-formatting">Formatting help</a>';
 
 /** Max length for event description */
 const MAX_DESCRIPTION_LENGTH = 256;
@@ -423,7 +449,8 @@ export const eventFields: Field[] = [
 
 /** Validate date format (YYYY-MM-DD) */
 export const validateDate = (value: string): string | null => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "Please enter a valid date (YYYY-MM-DD)";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value))
+    return "Please enter a valid date (YYYY-MM-DD)";
   const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return "Please enter a valid date";
   return null;
@@ -598,7 +625,10 @@ export const tryValidateTicketFields = (
   fieldsSetting: EventFields,
   onError: (message: string) => Response,
 ): TicketFormValues | Response => {
-  const result = validateForm<TicketFormValues>(form, getTicketFields(fieldsSetting));
+  const result = validateForm<TicketFormValues>(
+    form,
+    getTicketFields(fieldsSetting),
+  );
   return result.valid ? result.values : onError(result.error);
 };
 
@@ -634,12 +664,14 @@ const addAttendeeDateField: Field = {
  * Includes contact fields (name + email/phone per setting), quantity,
  * and a date field for daily events.
  */
-export const getAddAttendeeFields = (fields: EventFields, isDaily: boolean): Field[] => {
+export const getAddAttendeeFields = (
+  fields: EventFields,
+  isDaily: boolean,
+): Field[] => {
   const result = [...getTicketFields(fields), addAttendeeQuantityField];
   if (isDaily) result.push(addAttendeeDateField);
   return result;
 };
-
 
 /**
  * Setup form field definitions
@@ -760,7 +792,11 @@ export const squareWebhookFields: Field[] = [
  * Invite user form field definitions
  */
 export const inviteUserFields: Field[] = [
-  { ...usernameFieldBase, hint: "Letters, numbers, hyphens, underscores (2-32 chars)", validate: validateUsername },
+  {
+    ...usernameFieldBase,
+    hint: "Letters, numbers, hyphens, underscores (2-32 chars)",
+    validate: validateUsername,
+  },
   {
     name: "admin_level",
     label: "Role",

@@ -906,13 +906,8 @@ export const priceFormValue = (minorUnits: number): string =>
   toMajorUnits(minorUnits);
 
 /** Format optional price field for form submission (converts minor → major units) */
-const formatPrice = (
-  update: number | undefined,
-  existing: number,
-): string =>
-  update !== undefined
-    ? priceFormValue(update)
-    : priceFormValue(existing);
+const formatPrice = (update: number | undefined, existing: number): string =>
+  update !== undefined ? priceFormValue(update) : priceFormValue(existing);
 
 /** Format optional string field for form submission */
 const formatOptional = (update: string | undefined, existing: string): string =>
@@ -980,11 +975,9 @@ export const updateTestEvent = async (
       ),
       non_transferable:
         (updates.nonTransferable ?? existing.non_transferable) ? "1" : "",
-      can_pay_more:
-        (updates.canPayMore ?? existing.can_pay_more) ? "1" : "",
+      can_pay_more: (updates.canPayMore ?? existing.can_pay_more) ? "1" : "",
       max_price: priceFormValue(updates.maxPrice ?? existing.max_price),
-      hidden:
-        (updates.hidden ?? existing.hidden) ? "1" : "",
+      hidden: (updates.hidden ?? existing.hidden) ? "1" : "",
     },
     async () => (await getEventWithCount(eventId)) as EventWithCount,
     "update event",
@@ -1381,7 +1374,11 @@ export const submitMultiTicketForm = async (
   const getResponse = await handleRequest(mockRequest(path));
   const csrfToken = extractCsrfToken(await getResponse.text())!;
   return handleRequest(
-    mockFormRequest(path, { ...data, csrf_token: csrfToken }, `csrf_token=${csrfToken}`),
+    mockFormRequest(
+      path,
+      { ...data, csrf_token: csrfToken },
+      `csrf_token=${csrfToken}`,
+    ),
   );
 };
 
@@ -1912,14 +1909,14 @@ export const createTestManagerSession = async (
  * Stub `stripePaymentProvider.verifyWebhookSignature` to return a valid event.
  * Returns the stub (call `.restore()` in a `finally` block).
  */
-export const stubWebhookVerify = async (
-  eventData: { id: string; type: string; data: { object: Record<string, unknown> } },
-) => {
+export const stubWebhookVerify = async (eventData: {
+  id: string;
+  type: string;
+  data: { object: Record<string, unknown> };
+}) => {
   const { stripePaymentProvider } = await import("#lib/stripe-provider.ts");
-  return stub(
-    stripePaymentProvider,
-    "verifyWebhookSignature",
-    () => Promise.resolve({ valid: true as const, event: eventData }),
+  return stub(stripePaymentProvider, "verifyWebhookSignature", () =>
+    Promise.resolve({ valid: true as const, event: eventData }),
   );
 };
 
@@ -1929,13 +1926,10 @@ export const stubWebhookVerify = async (
  */
 export const stubRefundPayment = async () => {
   const { stripeApi } = await import("#lib/stripe.ts");
-  return stub(
-    stripeApi,
-    "refundPayment",
-    () =>
-      Promise.resolve({ id: "re_stub" } as unknown as Awaited<
-        ReturnType<typeof stripeApi.refundPayment>
-      >),
+  return stub(stripeApi, "refundPayment", () =>
+    Promise.resolve({ id: "re_stub" } as unknown as Awaited<
+      ReturnType<typeof stripeApi.refundPayment>
+    >),
   );
 };
 
@@ -1951,7 +1945,9 @@ const _testCerts: SigningCredentials = (() => {
   caCert.serialNumber = "01";
   caCert.validity.notBefore = new Date();
   caCert.validity.notAfter = new Date();
-  caCert.validity.notAfter.setFullYear(caCert.validity.notAfter.getFullYear() + 1);
+  caCert.validity.notAfter.setFullYear(
+    caCert.validity.notAfter.getFullYear() + 1,
+  );
   const caAttrs = [{ name: "commonName", value: "Test WWDR CA" }];
   caCert.setSubject(caAttrs);
   caCert.setIssuer(caAttrs);
@@ -1965,7 +1961,9 @@ const _testCerts: SigningCredentials = (() => {
   signingCert.serialNumber = "02";
   signingCert.validity.notBefore = new Date();
   signingCert.validity.notAfter = new Date();
-  signingCert.validity.notAfter.setFullYear(signingCert.validity.notAfter.getFullYear() + 1);
+  signingCert.validity.notAfter.setFullYear(
+    signingCert.validity.notAfter.getFullYear() + 1,
+  );
   signingCert.setSubject([{ name: "commonName", value: "Test Pass Signing" }]);
   signingCert.setIssuer(caAttrs);
   signingCert.sign(keys.privateKey, forge.md.sha256.create());

@@ -2,6 +2,7 @@
  * Admin user management routes - owner only
  */
 
+import { getAllowedDomain } from "#lib/config.ts";
 import { unwrapKeyWithToken } from "#lib/crypto.ts";
 import { logActivity } from "#lib/db/activityLog.ts";
 import {
@@ -18,8 +19,8 @@ import {
   isUsernameTaken,
 } from "#lib/db/users.ts";
 import { validateForm } from "#lib/forms.tsx";
-import { getAllowedDomain } from "#lib/config.ts";
 import { nowMs } from "#lib/now.ts";
+import type { User } from "#lib/types.ts";
 import { defineRoutes, type TypedRouteHandler } from "#routes/router.ts";
 import {
   type AuthSession,
@@ -30,7 +31,6 @@ import {
   requireOwnerOr,
   withOwnerAuthForm,
 } from "#routes/utils.ts";
-import type { User } from "#lib/types.ts";
 import {
   adminUserDeletePage,
   adminUserNewPage,
@@ -38,7 +38,10 @@ import {
   type DisplayUser,
   type UsersPageOpts,
 } from "#templates/admin/users.tsx";
-import { inviteUserFields, type InviteUserFormValues } from "#templates/fields.ts";
+import {
+  type InviteUserFormValues,
+  inviteUserFields,
+} from "#templates/fields.ts";
 
 /** Invite link expiry: 7 days */
 const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
@@ -49,9 +52,7 @@ const VALID_ADMIN_LEVELS = ["owner", "manager"] as const;
 /**
  * Decrypt user data for display
  */
-const toDisplayUser = async (
-  user: User,
-): Promise<DisplayUser> => {
+const toDisplayUser = async (user: User): Promise<DisplayUser> => {
   const userHasPassword = await hasPassword(user);
   return {
     id: user.id,
@@ -96,8 +97,7 @@ const handleUsersGet: TypedRouteHandler<"GET /admin/users"> = (request) =>
  * Handle GET /admin/user/new - show invite user form
  */
 const handleUserNewGet = (request: Request): Promise<Response> =>
-  requireOwnerOr(request, (session) =>
-    htmlResponse(adminUserNewPage(session)));
+  requireOwnerOr(request, (session) => htmlResponse(adminUserNewPage(session)));
 
 /**
  * Handle POST /admin/users - create invited user
@@ -109,46 +109,49 @@ const handleUsersPostForm = async (
   session: AuthSession,
   form: URLSearchParams,
 ): Promise<Response> => {
-    const validation = validateForm<InviteUserFormValues>(form, inviteUserFields);
-    if (!validation.valid) {
-      return htmlResponse(adminUserNewPage(session, validation.error), 400);
-    }
+  const validation = validateForm<InviteUserFormValues>(form, inviteUserFields);
+  if (!validation.valid) {
+    return htmlResponse(adminUserNewPage(session, validation.error), 400);
+  }
 
-    const { username, admin_level: adminLevel } = validation.values;
+  const { username, admin_level: adminLevel } = validation.values;
 
-    if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
-      return htmlResponse(adminUserNewPage(session, "Invalid role"), 400);
-    }
+  if (!VALID_ADMIN_LEVELS.includes(adminLevel)) {
+    return htmlResponse(adminUserNewPage(session, "Invalid role"), 400);
+  }
 
-    // Check if username is taken
-    if (await isUsernameTaken(username)) {
-      return htmlResponse(
-        adminUserNewPage(session, "Username is already taken"),
-        400,
-      );
-    }
-
-    // Generate invite code
-    const inviteCode = generateSecureToken();
-    const codeHash = await hashInviteCode(inviteCode);
-    const expiry = new Date(nowMs() + INVITE_EXPIRY_MS).toISOString();
-
-    await createInvitedUser(
-      username,
-      adminLevel,
-      codeHash,
-      expiry,
+  // Check if username is taken
+  if (await isUsernameTaken(username)) {
+    return htmlResponse(
+      adminUserNewPage(session, "Username is already taken"),
+      400,
     );
+  }
 
-    const domain = getAllowedDomain();
-    const inviteLink = `https://${domain}/join/${inviteCode}`;
+  // Generate invite code
+  const inviteCode = generateSecureToken();
+  const codeHash = await hashInviteCode(inviteCode);
+  const expiry = new Date(nowMs() + INVITE_EXPIRY_MS).toISOString();
 
-    await logActivity(`User '${username}' invited as ${adminLevel}`);
-    return redirect(`/admin/users?invite=${encodeURIComponent(inviteLink)}`, "User invited", true);
+  await createInvitedUser(username, adminLevel, codeHash, expiry);
+
+  const domain = getAllowedDomain();
+  const inviteLink = `https://${domain}/join/${inviteCode}`;
+
+  await logActivity(`User '${username}' invited as ${adminLevel}`);
+  return redirect(
+    `/admin/users?invite=${encodeURIComponent(inviteLink)}`,
+    "User invited",
+    true,
+  );
 };
 
 type UserErrorPageFn = (error: string, status: number) => Promise<Response>;
-type UserActionHandler = (user: User, session: AuthSession, errorPage: UserErrorPageFn) => Response | Promise<Response>;
+type UserActionHandler = (
+  user: User,
+  session: AuthSession,
+  errorPage: UserErrorPageFn,
+) => Response | Promise<Response>;
 
 /** Owner auth + fetch user by ID, providing session, errorPage and user to handler */
 const withUserAction = (
@@ -157,8 +160,16 @@ const withUserAction = (
   handler: UserActionHandler,
 ): Promise<Response> =>
   withOwnerAuthForm(request, async (session) => {
-    const errorPage = async (error: string, status: number): Promise<Response> => {
-      const html = await renderUsersPage(session, { inviteLink: "", success: "", error, currentUserId: session.userId });
+    const errorPage = async (
+      error: string,
+      status: number,
+    ): Promise<Response> => {
+      const html = await renderUsersPage(session, {
+        inviteLink: "",
+        success: "",
+        error,
+        currentUserId: session.userId,
+      });
       return htmlResponse(html, status);
     };
     const user = await getUserById(userId);
@@ -169,7 +180,11 @@ const withUserAction = (
 /**
  * Handle POST /admin/users/:id/activate
  */
-const handleUserActivate: UserActionHandler = async (user, session, errorPage) => {
+const handleUserActivate: UserActionHandler = async (
+  user,
+  session,
+  errorPage,
+) => {
   // User must have a password set
   const userHasPassword = await hasPassword(user);
   if (!userHasPassword) {
@@ -205,12 +220,18 @@ const handleUserActivate: UserActionHandler = async (user, session, errorPage) =
 /**
  * Handle GET /admin/users/:id/delete - show delete confirmation page
  */
-const handleUserDeleteGet: TypedRouteHandler<"GET /admin/users/:id/delete"> = (request, { id }) =>
+const handleUserDeleteGet: TypedRouteHandler<"GET /admin/users/:id/delete"> = (
+  request,
+  { id },
+) =>
   requireOwnerOr(request, async (session) => {
     if (id === session.userId) {
       return htmlResponse(
         await renderUsersPage(session, {
-          inviteLink: "", success: "", error: "Cannot delete your own account", currentUserId: session.userId,
+          inviteLink: "",
+          success: "",
+          error: "Cannot delete your own account",
+          currentUserId: session.userId,
         }),
         400,
       );
@@ -224,17 +245,29 @@ const handleUserDeleteGet: TypedRouteHandler<"GET /admin/users/:id/delete"> = (r
 /**
  * Handle POST /admin/users/:id/delete
  */
-const handleUserDeletePost: TypedRouteHandler<"POST /admin/users/:id/delete"> = (request, { id }) =>
+const handleUserDeletePost: TypedRouteHandler<
+  "POST /admin/users/:id/delete"
+> = (request, { id }) =>
   withOwnerAuthForm(request, async (session, form) => {
     const user = await getUserById(id);
     if (!user) {
-      const html = await renderUsersPage(session, { inviteLink: "", success: "", error: "User not found", currentUserId: session.userId });
+      const html = await renderUsersPage(session, {
+        inviteLink: "",
+        success: "",
+        error: "User not found",
+        currentUserId: session.userId,
+      });
       return htmlResponse(html, 404);
     }
 
     // Cannot delete your own account
     if (user.id === session.userId) {
-      const html = await renderUsersPage(session, { inviteLink: "", success: "", error: "Cannot delete your own account", currentUserId: session.userId });
+      const html = await renderUsersPage(session, {
+        inviteLink: "",
+        success: "",
+        error: "Cannot delete your own account",
+        currentUserId: session.userId,
+      });
       return htmlResponse(html, 400);
     }
 
@@ -243,7 +276,11 @@ const handleUserDeletePost: TypedRouteHandler<"POST /admin/users/:id/delete"> = 
     if (confirmName.trim().toLowerCase() !== username.trim().toLowerCase()) {
       const displayUser = await toDisplayUser(user);
       return htmlResponse(
-        adminUserDeletePage(displayUser, session, "Username does not match. Please type the exact username to confirm deletion."),
+        adminUserDeletePage(
+          displayUser,
+          session,
+          "Username does not match. Please type the exact username to confirm deletion.",
+        ),
         400,
       );
     }
@@ -255,8 +292,12 @@ const handleUserDeletePost: TypedRouteHandler<"POST /admin/users/:id/delete"> = 
   });
 
 /** Create a route handler that runs a user action by ID */
-const userActionRoute = (handler: UserActionHandler): TypedRouteHandler<"POST /admin/users/:id/activate"> =>
-  (request, { id }) => withUserAction(request, id, handler);
+const userActionRoute =
+  (
+    handler: UserActionHandler,
+  ): TypedRouteHandler<"POST /admin/users/:id/activate"> =>
+  (request, { id }) =>
+    withUserAction(request, id, handler);
 
 /** Handle POST /admin/users/:id/activate */
 const handleUserActivatePost = userActionRoute(handleUserActivate);

@@ -4,11 +4,14 @@
 
 import { map, pipe } from "#fp";
 import { formatDateLabel } from "#lib/dates.ts";
-import type { AdminSession, Attendee } from "#lib/types.ts";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
-import { Layout } from "#templates/layout.tsx";
+import type { AdminSession, Attendee } from "#lib/types.ts";
 import { AdminNav } from "#templates/admin/nav.tsx";
-import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
+import {
+  AttendeeTable,
+  type AttendeeTableRow,
+} from "#templates/attendee-table.tsx";
+import { Layout } from "#templates/layout.tsx";
 
 /** Calendar date option for the date filter dropdown */
 export type CalendarDateOption = {
@@ -26,13 +29,20 @@ export type CalendarAttendeeRow = Attendee & {
 };
 
 /** Build date selector dropdown for calendar view */
-const CalendarDateSelector = ({ dateFilter, dates, today }: { dateFilter: string | null; dates: CalendarDateOption[]; today: string }): string => {
+const CalendarDateSelector = ({
+  dateFilter,
+  dates,
+  today,
+}: {
+  dateFilter: string | null;
+  dates: CalendarDateOption[];
+  today: string;
+}): string => {
   const selectOption = `<option value="/admin/calendar#attendees"${!dateFilter ? " selected" : ""}>Select a date</option>`;
-  const dateOptions = dates.map(
-    (d) =>
-      d.hasBookings
-        ? `<option value="/admin/calendar?date=${d.value}#attendees"${dateFilter === d.value ? " selected" : ""}>${d.label}</option>`
-        : `<option disabled>${d.label}</option>`,
+  const dateOptions = dates.map((d) =>
+    d.hasBookings
+      ? `<option value="/admin/calendar?date=${d.value}#attendees"${dateFilter === d.value ? " selected" : ""}>${d.label}</option>`
+      : `<option disabled>${d.label}</option>`,
   );
   // Insert "Select a date" before the first current/future date to split past from future
   const splitIndex = dates.findIndex((d) => d.value >= today);
@@ -54,11 +64,13 @@ export const adminCalendarPage = (
   phonePrefix?: string,
 ): string => {
   const tableRows: AttendeeTableRow[] = pipe(
-    map((a: CalendarAttendeeRow): AttendeeTableRow => ({
-      attendee: a,
-      eventId: a.eventId,
-      eventName: a.eventName,
-    })),
+    map(
+      (a: CalendarAttendeeRow): AttendeeTableRow => ({
+        attendee: a,
+        eventId: a.eventId,
+        eventName: a.eventName,
+      }),
+    ),
   )(attendees);
 
   const returnUrl = dateFilter
@@ -73,19 +85,30 @@ export const adminCalendarPage = (
     <Layout title="Calendar">
       <AdminNav session={session} active="/admin/calendar" />
 
-        <h1>Calendar</h1>
+      <h1>Calendar</h1>
 
-        <article>
-          <h2 id="attendees">Attendees by Date</h2>
-          <Raw html={CalendarDateSelector({ dateFilter, dates: availableDates, today })} />
-          {dateFilter && (
-            <p><strong>{formatDateLabel(dateFilter)}</strong></p>
-          )}
-          {dateFilter && attendees.length > 0 && (
-            <p><a href={`/admin/calendar/export?date=${dateFilter}`}>Export CSV</a></p>
-          )}
-          <div class="table-scroll">
-            <Raw html={AttendeeTable({
+      <article>
+        <h2 id="attendees">Attendees by Date</h2>
+        <Raw
+          html={CalendarDateSelector({
+            dateFilter,
+            dates: availableDates,
+            today,
+          })}
+        />
+        {dateFilter && (
+          <p>
+            <strong>{formatDateLabel(dateFilter)}</strong>
+          </p>
+        )}
+        {dateFilter && attendees.length > 0 && (
+          <p>
+            <a href={`/admin/calendar/export?date=${dateFilter}`}>Export CSV</a>
+          </p>
+        )}
+        <div class="table-scroll">
+          <Raw
+            html={AttendeeTable({
               rows: tableRows,
               allowedDomain,
               showEvent: true,
@@ -93,9 +116,10 @@ export const adminCalendarPage = (
               returnUrl,
               emptyMessage,
               phonePrefix,
-            })} />
-          </div>
-        </article>
-    </Layout>
+            })}
+          />
+        </div>
+      </article>
+    </Layout>,
   );
 };

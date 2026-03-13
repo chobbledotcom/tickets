@@ -8,7 +8,10 @@ import { map, pipe } from "#fp";
 import { CsrfForm } from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { TokenEntry } from "#routes/token-utils.ts";
-import { AttendeeTable, type AttendeeTableRow } from "#templates/attendee-table.tsx";
+import {
+  AttendeeTable,
+  type AttendeeTableRow,
+} from "#templates/attendee-table.tsx";
 import { Layout } from "#templates/layout.tsx";
 
 /** Re-export for backwards compatibility */
@@ -26,11 +29,13 @@ export const checkinAdminPage = (
 ): string => {
   const showDate = entries.some((e) => e.attendee.date !== null);
   const tableRows: AttendeeTableRow[] = pipe(
-    map((e: TokenEntry): AttendeeTableRow => ({
-      attendee: e.attendee,
-      eventId: e.event.id,
-      eventName: e.event.name,
-    })),
+    map(
+      (e: TokenEntry): AttendeeTableRow => ({
+        attendee: e.attendee,
+        eventId: e.event.id,
+        eventName: e.event.name,
+      }),
+    ),
   )(entries);
 
   const allCheckedIn = entries.every((e) => e.attendee.checked_in);
@@ -44,19 +49,23 @@ export const checkinAdminPage = (
       {message && <p class="success">{message}</p>}
       <CsrfForm action={checkinPath}>
         <input type="hidden" name="check_in" value={nextValue} />
-        <button type="submit" class={buttonClass}>{buttonLabel}</button>
+        <button type="submit" class={buttonClass}>
+          {buttonLabel}
+        </button>
       </CsrfForm>
       <div class="table-scroll">
-        <Raw html={AttendeeTable({
-          rows: tableRows,
-          allowedDomain,
-          showEvent: true,
-          showDate,
-          returnUrl: checkinPath,
-          phonePrefix,
-        })} />
+        <Raw
+          html={AttendeeTable({
+            rows: tableRows,
+            allowedDomain,
+            showEvent: true,
+            showDate,
+            returnUrl: checkinPath,
+            phonePrefix,
+          })}
+        />
       </div>
-    </Layout>
+    </Layout>,
   );
 };
 
@@ -68,5 +77,5 @@ export const checkinPublicPage = (): string =>
     <Layout title="Check-in">
       <h1>Check-in</h1>
       <p>Please show this QR code to an event administrator to check in.</p>
-    </Layout>
+    </Layout>,
   );

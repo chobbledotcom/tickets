@@ -18,7 +18,12 @@ const extractToken = (data) => {
 };
 
 /** POST to scan API */
-const postScan = async (eventId, token, csrfToken, { force, idVerified } = {}) => {
+const postScan = async (
+  eventId,
+  token,
+  csrfToken,
+  { force, idVerified } = {},
+) => {
   const body = { token };
   if (force) body.force = true;
   if (idVerified) body.id_verified = true;
@@ -46,7 +51,13 @@ let fadeTimer = 0;
 const showStatus = (el, message, type) => {
   clearTimeout(fadeTimer);
   el.textContent = message;
-  el.classList.remove("hidden", "scanner-status-success", "scanner-status-warning", "scanner-status-error", "scanner-status-fade-out");
+  el.classList.remove(
+    "hidden",
+    "scanner-status-success",
+    "scanner-status-warning",
+    "scanner-status-error",
+    "scanner-status-fade-out",
+  );
   el.classList.add("scanner-status", `scanner-status-${type}`);
 
   if (type === "success" || type === "warning") {
@@ -60,7 +71,11 @@ const showStatus = (el, message, type) => {
 const handleResult = (el, result) => {
   switch (result.status) {
     case "checked_in":
-      showStatus(el, `${result.name} checked in (${formatTicketCount(result.quantity)})`, "success");
+      showStatus(
+        el,
+        `${result.name} checked in (${formatTicketCount(result.quantity)})`,
+        "success",
+      );
       break;
     case "already_checked_in":
       showStatus(
@@ -129,7 +144,9 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
     lastScanTime = Date.now();
     clearTimeout(lastTokenTimer);
     lastToken = token;
-    lastTokenTimer = setTimeout(() => { lastToken = null; }, FADE_DELAY_MS);
+    lastTokenTimer = setTimeout(() => {
+      lastToken = null;
+    }, FADE_DELAY_MS);
 
     postScan(eventId, token, csrfToken)
       .then(async (result) => {
@@ -138,17 +155,19 @@ const startScanner = (video, canvas, statusEl, eventId, csrfToken) => {
             `${result.name} is registered for "${result.eventName}", not this event. Check in anyway?`,
           );
           if (ok) {
-            const forced = await postScan(eventId, token, csrfToken, { force: true });
+            const forced = await postScan(eventId, token, csrfToken, {
+              force: true,
+            });
             handleResult(statusEl, forced);
           } else {
             showStatus(statusEl, `Skipped ${result.name}`, "warning");
           }
         } else if (result.status === "verify_id") {
-          const ok = await showConfirm(
-            `Does their ID match "${result.name}"?`,
-          );
+          const ok = await showConfirm(`Does their ID match "${result.name}"?`);
           if (ok) {
-            const verified = await postScan(eventId, token, csrfToken, { idVerified: true });
+            const verified = await postScan(eventId, token, csrfToken, {
+              idVerified: true,
+            });
             handleResult(statusEl, verified);
           } else {
             showStatus(statusEl, `ID does not match ${result.name}`, "error");

@@ -6,10 +6,14 @@
 
 import { filter, map } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
-import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import { decryptAttendees, updateCheckedIn } from "#lib/db/attendees.ts";
+import { getPhonePrefixFromDb } from "#lib/db/settings.ts";
 import type { Attendee } from "#lib/types.ts";
-import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
+import {
+  createTokenRoute,
+  lookupAttendees,
+  resolveEntries,
+} from "#routes/token-utils.ts";
 import {
   type AuthSession,
   getAuthenticatedSession,
@@ -19,7 +23,7 @@ import {
   redirectResponse,
   withAuthForm,
 } from "#routes/utils.ts";
-import { createTokenRoute, lookupAttendees, resolveEntries } from "#routes/token-utils.ts";
+import { checkinAdminPage, checkinPublicPage } from "#templates/checkin.tsx";
 
 const formatTicketCount = (count: number): string => {
   const suffix = count === 1 ? "" : "s";
@@ -38,7 +42,10 @@ const sumTicketCount = (
 };
 
 /** Decrypt attendees using the session's private key */
-const decryptWithSession = async (rawAttendees: Attendee[], session: AuthSession) => {
+const decryptWithSession = async (
+  rawAttendees: Attendee[],
+  session: AuthSession,
+) => {
   const privateKey = (await getPrivateKey(session))!;
   return decryptAttendees(rawAttendees, privateKey);
 };
@@ -53,7 +60,15 @@ const renderAdminView = async (
   const decrypted = await decryptWithSession(rawAttendees, session);
   const entries = await resolveEntries(decrypted);
   const phonePrefix = await getPhonePrefixFromDb();
-  return htmlResponse(checkinAdminPage(entries, `/checkin/${tokens.join("+")}`, message, getAllowedDomain(), phonePrefix));
+  return htmlResponse(
+    checkinAdminPage(
+      entries,
+      `/checkin/${tokens.join("+")}`,
+      message,
+      getAllowedDomain(),
+      phonePrefix,
+    ),
+  );
 };
 
 /** Look up attendees by tokens, returning early with error response if not found */
@@ -79,7 +94,10 @@ const handleCheckinGet = (
   });
 
 /** Handle POST /checkin/:tokens - set check-in status from form field */
-const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response> =>
+const handleCheckinPost = (
+  request: Request,
+  tokens: string[],
+): Promise<Response> =>
   withAuthForm(request, (session, form) =>
     withLookup(tokens, async (rawAttendees) => {
       const checkedIn = form.get("check_in") === "true";
@@ -87,7 +105,9 @@ const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response
       const eligible = filter((a: Attendee) => !a.refunded)(decrypted);
 
       if (eligible.length === 0) {
-        return redirectResponse(`/checkin/${tokens.join("+")}?message=${encodeURIComponent("Cannot check in refunded tickets")}`);
+        return redirectResponse(
+          `/checkin/${tokens.join("+")}?message=${encodeURIComponent("Cannot check in refunded tickets")}`,
+        );
       }
 
       const totalTickets = sumTicketCount(eligible);
@@ -95,7 +115,9 @@ const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response
         eligible,
         (attendee) => !attendee.checked_in,
       );
-      await Promise.all(map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(eligible));
+      await Promise.all(
+        map((a: Attendee) => updateCheckedIn(a.id, checkedIn))(eligible),
+      );
 
       let message: string;
       if (!checkedIn) {
@@ -105,8 +127,11 @@ const handleCheckinPost = (request: Request, tokens: string[]): Promise<Response
       } else {
         message = `Checked in ${formatTicketCount(uncheckedTickets)}`;
       }
-      return redirectResponse(`/checkin/${tokens.join("+")}?message=${encodeURIComponent(message)}`);
-    }));
+      return redirectResponse(
+        `/checkin/${tokens.join("+")}?message=${encodeURIComponent(message)}`,
+      );
+    }),
+  );
 
 /** Route check-in requests */
 export const routeCheckin = createTokenRoute("checkin", {

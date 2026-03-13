@@ -7,12 +7,20 @@ import { map, pipe } from "#fp";
 import { getAllowedDomain } from "#lib/config.ts";
 import { getAllEvents } from "#lib/db/events.ts";
 import { getActiveHolidays } from "#lib/db/holidays.ts";
-import { getShowPublicSiteFromDb, getWebsiteTitleFromDb } from "#lib/db/settings.ts";
+import {
+  getShowPublicSiteFromDb,
+  getWebsiteTitleFromDb,
+} from "#lib/db/settings.ts";
 import { sortEvents } from "#lib/sort-events.ts";
 import type { EventWithCount } from "#lib/types.ts";
-import { escapeHtml } from "#templates/layout.tsx";
 import { createRouter, defineRoutes } from "#routes/router.ts";
-import { icsResponse, isRegistrationClosed, redirectResponse, rssResponse } from "#routes/utils.ts";
+import {
+  icsResponse,
+  isRegistrationClosed,
+  redirectResponse,
+  rssResponse,
+} from "#routes/utils.ts";
+import { escapeHtml } from "#templates/layout.tsx";
 
 /** Escape text for ICS (RFC 5545): backslash-escape special characters */
 export const escapeIcs = (text: string): string =>
@@ -28,7 +36,10 @@ export const escapeXml = (text: string): string =>
 
 /** Format a date string as ICS UTC timestamp (YYYYMMDDTHHMMSSZ) */
 const formatIcsDate = (dateStr: string): string =>
-  new Date(dateStr).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  new Date(dateStr)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}/, "");
 
 /** Format a date string as RFC 822 (for RSS pubDate) */
 const formatRfc822 = (dateStr: string): string =>
@@ -48,15 +59,25 @@ const loadFeedData = async (): Promise<FeedData> => {
     allEvents.filter((e) => e.active && !e.hidden && !isRegistrationClosed(e)),
     holidays,
   );
-  return { events, domain: getAllowedDomain(), title: websiteTitle || "Events" };
+  return {
+    events,
+    domain: getAllowedDomain(),
+    title: websiteTitle || "Events",
+  };
 };
 
 /** Guard: redirect to admin if public site is disabled */
-const requirePublicSite = async <T>(fn: () => Promise<T>): Promise<T | Response> =>
-  await getShowPublicSiteFromDb() ? fn() : redirectResponse("/admin/");
+const requirePublicSite = async <T>(
+  fn: () => Promise<T>,
+): Promise<T | Response> =>
+  (await getShowPublicSiteFromDb()) ? fn() : redirectResponse("/admin/");
 
 /** Build a single VEVENT block */
-const buildVEvent = (event: EventWithCount, domain: string, dtstamp: string): string => {
+const buildVEvent = (
+  event: EventWithCount,
+  domain: string,
+  dtstamp: string,
+): string => {
   const lines = [
     "BEGIN:VEVENT",
     `UID:${event.id}@${domain}`,
@@ -64,7 +85,8 @@ const buildVEvent = (event: EventWithCount, domain: string, dtstamp: string): st
     `SUMMARY:${escapeIcs(event.name)}`,
     `URL:https://${domain}/ticket/${event.slug}`,
   ];
-  if (event.description) lines.push(`DESCRIPTION:${escapeIcs(event.description)}`);
+  if (event.description)
+    lines.push(`DESCRIPTION:${escapeIcs(event.description)}`);
   if (event.date) lines.push(`DTSTART:${formatIcsDate(event.date)}`);
   if (event.location) lines.push(`LOCATION:${escapeIcs(event.location)}`);
   lines.push("END:VEVENT");
@@ -113,9 +135,9 @@ const buildRssItem = (event: EventWithCount, domain: string): string => {
 
 /** Build the full RSS document */
 const buildRss = ({ events, domain, title }: FeedData): string => {
-  const items = pipe(
-    map((e: EventWithCount) => buildRssItem(e, domain)),
-  )(events);
+  const items = pipe(map((e: EventWithCount) => buildRssItem(e, domain)))(
+    events,
+  );
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -143,7 +165,9 @@ const handleRss = (): Promise<Response> =>
   ) as Promise<Response>;
 
 /** Feed routes */
-export const routeFeed = createRouter(defineRoutes({
-  "GET /feeds/events.ics": handleIcs,
-  "GET /feeds/events.rss": handleRss,
-}));
+export const routeFeed = createRouter(
+  defineRoutes({
+    "GET /feeds/events.ics": handleIcs,
+    "GET /feeds/events.rss": handleRss,
+  }),
+);

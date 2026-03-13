@@ -6,7 +6,9 @@
  * - Bunny Edge: uses process.env (Node.js compatibility)
  */
 
-declare const Deno: { env: { get(key: string): string | undefined } } | undefined;
+declare const Deno:
+  | { env: { get(key: string): string | undefined } }
+  | undefined;
 
 /** Augment globalThis to include optional process.env (Bunny Edge runtime) */
 declare const process: { env: Record<string, string | undefined> } | undefined;

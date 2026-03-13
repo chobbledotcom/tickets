@@ -2,12 +2,17 @@
  * Admin holiday management page templates
  */
 
-import { CsrfForm, renderError, renderFields, renderSuccess } from "#lib/forms.tsx";
+import {
+  CsrfForm,
+  renderError,
+  renderFields,
+  renderSuccess,
+} from "#lib/forms.tsx";
 import { Raw } from "#lib/jsx/jsx-runtime.ts";
 import type { AdminSession, Holiday } from "#lib/types.ts";
+import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 import { holidayFields } from "#templates/fields.ts";
 import { Layout } from "#templates/layout.tsx";
-import { AdminNav, Breadcrumb } from "#templates/admin/nav.tsx";
 
 /**
  * Admin holidays list page
@@ -22,37 +27,38 @@ export const adminHolidaysPage = (
       <AdminNav session={session} active="/admin/holidays" />
       <h1>Holidays</h1>
       <Raw html={renderSuccess(successMessage)} />
-      <p><a href="/admin/holiday/new">Add Holiday</a></p>
-      {holidays.length === 0
-        ? <p>No holidays configured.</p>
-        : (
-          <div class="table-scroll">
-            <table>
-              <thead>
+      <p>
+        <a href="/admin/holiday/new">Add Holiday</a>
+      </p>
+      {holidays.length === 0 ? (
+        <p>No holidays configured.</p>
+      ) : (
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holidays.map((holiday) => (
                 <tr>
-                  <th>Name</th>
-                  <th>Start Date</th>
-                  <th>End Date</th>
-                  <th>Actions</th>
+                  <td>{holiday.name}</td>
+                  <td>{holiday.start_date}</td>
+                  <td>{holiday.end_date}</td>
+                  <td>
+                    <a href={`/admin/holiday/${holiday.id}/edit`}>Edit</a>{" "}
+                    <a href={`/admin/holiday/${holiday.id}/delete`}>Delete</a>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {holidays.map((holiday) => (
-                  <tr>
-                    <td>{holiday.name}</td>
-                    <td>{holiday.start_date}</td>
-                    <td>{holiday.end_date}</td>
-                    <td>
-                      <a href={`/admin/holiday/${holiday.id}/edit`}>Edit</a>
-                      {" "}
-                      <a href={`/admin/holiday/${holiday.id}/delete`}>Delete</a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Layout>,
   );
 
@@ -102,7 +108,9 @@ export const adminHolidayEditPage = (
       <h1>Edit Holiday</h1>
       <Raw html={renderError(error)} />
       <CsrfForm action={`/admin/holiday/${holiday.id}/edit`}>
-        <Raw html={renderFields(holidayFields, holidayToFieldValues(holiday))} />
+        <Raw
+          html={renderFields(holidayFields, holidayToFieldValues(holiday))}
+        />
         <button type="submit">Save Changes</button>
       </CsrfForm>
     </Layout>,
@@ -123,7 +131,9 @@ export const adminHolidayDeletePage = (
       <h1>Delete Holiday</h1>
       <Raw html={renderError(error)} />
       <p>
-        Are you sure you want to delete the holiday <strong>{holiday.name}</strong> ({holiday.start_date} to {holiday.end_date})?
+        Are you sure you want to delete the holiday{" "}
+        <strong>{holiday.name}</strong> ({holiday.start_date} to{" "}
+        {holiday.end_date})?
       </p>
       <p>Type the holiday name to confirm:</p>
       <CsrfForm action={`/admin/holiday/${holiday.id}/delete`}>

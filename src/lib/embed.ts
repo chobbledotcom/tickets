@@ -29,10 +29,8 @@ export type EmbedSnippets = {
 export const buildEmbedSnippets = (url: string): EmbedSnippets => {
   const origin = new URL(url).origin;
   const events = extractEventSlugs(url).join("+");
-  const script =
-    `<script async src="${origin}${EMBED_JS_PATH}" data-events="${events}"></script>`;
-  const iframe =
-    `<iframe src="${appendIframeParam(url)}" loading="lazy" style="border: none; width: 100%; height: ${DEFAULT_IFRAME_HEIGHT};">Loading..</iframe>`;
+  const script = `<script async src="${origin}${EMBED_JS_PATH}" data-events="${events}"></script>`;
+  const iframe = `<iframe src="${appendIframeParam(url)}" loading="lazy" style="border: none; width: 100%; height: ${DEFAULT_IFRAME_HEIGHT};">Loading..</iframe>`;
 
   return { script, iframe };
 };
