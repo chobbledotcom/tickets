@@ -370,7 +370,7 @@ describe("POST /admin/settings/apple-wallet", () => {
 
   test("shows Apple Wallet section on settings page", async () => {
     const { cookie } = await loginAsAdmin();
-    const response = await awaitTestRequest("/admin/settings", { cookie });
+    const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
     const body = await response.text();
     expect(body).toContain("Apple Wallet");
     expect(body).toContain("apple_wallet_pass_type_id");
@@ -379,7 +379,7 @@ describe("POST /admin/settings/apple-wallet", () => {
   test("shows masked values on settings page when configured", async () => {
     await configureAppleWallet();
     const { cookie } = await loginAsAdmin();
-    const response = await awaitTestRequest("/admin/settings", { cookie });
+    const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
     const body = await response.text();
     expect(body).toContain("pass.com.test.tickets");
     expect(body).toContain("TESTTEAM01");
@@ -499,7 +499,7 @@ describe("Apple Wallet env var fallback", () => {
   test("settings page shows host Apple Wallet label when env vars configured", async () => {
     setWalletEnvVars();
     const { cookie } = await loginAsAdmin();
-    const response = await awaitTestRequest("/admin/settings", { cookie });
+    const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
     const body = await response.text();
     expect(body).toContain("Host env (pass.com.env.tickets)");
     expect(body).toContain("Currently using");
@@ -509,7 +509,7 @@ describe("Apple Wallet env var fallback", () => {
     setWalletEnvVars();
     await configureAppleWallet();
     const { cookie } = await loginAsAdmin();
-    const response = await awaitTestRequest("/admin/settings", { cookie });
+    const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
     const body = await response.text();
     expect(body).toContain("Host env (pass.com.env.tickets)");
     expect(body).toContain("Overriding");
