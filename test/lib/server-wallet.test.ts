@@ -119,7 +119,7 @@ describe("wallet route (/wallet/:token)", () => {
     expect(Number(contentLength)).toBe(body.byteLength);
   });
 
-  test("pkpass is a valid ZIP containing pass.json, manifest.json, and signature", async () => {
+  test("pkpass is a valid ZIP containing pass.json, icons, manifest.json, and signature", async () => {
     await configureAppleWallet();
     const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
 
@@ -128,6 +128,9 @@ describe("wallet route (/wallet/:token)", () => {
     const files = unzipSync(body);
 
     expect(files["pass.json"]).toBeDefined();
+    expect(files["icon.png"]).toBeDefined();
+    expect(files["icon@2x.png"]).toBeDefined();
+    expect(files["icon@3x.png"]).toBeDefined();
     expect(files["manifest.json"]).toBeDefined();
     expect(files["signature"]).toBeDefined();
   });
