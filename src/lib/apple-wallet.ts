@@ -3,15 +3,15 @@
  *
  * Generates signed .pkpass files (ZIP archives) containing:
  * - pass.json: Declarative pass content (event name, date, QR code, etc.)
+ * - icon.png / icon@2x.png / icon@3x.png: Pre-rendered pass icons
  * - manifest.json: SHA-1 hashes of all files
  * - signature: PKCS#7 detached signature of manifest.json
- *
- * No images in v1 — pass renders text fields and QR code only.
  */
 
 import forge from "node-forge";
 import { zipSync } from "fflate";
 import { getDecimalPlaces } from "#lib/currency.ts";
+import { WALLET_ICONS } from "#lib/wallet-icons.ts";
 
 // Force pure-JS mode so node-forge never attempts require("crypto").
 // The Bunny Edge runtime sets process.versions.node (via the node:process
@@ -252,6 +252,7 @@ export const buildPkpass = (
 
   const files: Record<string, Uint8Array> = {
     "pass.json": passJsonBytes,
+    ...WALLET_ICONS,
   };
 
   const manifestJson = createManifest(files);
@@ -265,7 +266,7 @@ export const buildPkpass = (
   );
 
   return zipSync({
-    "pass.json": passJsonBytes,
+    ...files,
     "manifest.json": manifestBytes,
     "signature": signature,
   });
