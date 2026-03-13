@@ -13,6 +13,12 @@ import forge from "node-forge";
 import { zipSync } from "fflate";
 import { getDecimalPlaces } from "#lib/currency.ts";
 
+// Force pure-JS mode so node-forge never attempts require("crypto").
+// The Bunny Edge runtime sets process.versions.node (via the node:process
+// global), which makes node-forge think it's running in Node and try to
+// load native crypto — causing "Dynamic require of 'crypto' is not supported".
+forge.options.usePureJavaScript = true;
+
 /** Data needed to generate a pass — maps to existing ticket/event data */
 export type PassData = {
   /** Unique token identifying this ticket */
