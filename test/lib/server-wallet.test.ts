@@ -28,15 +28,17 @@ import {
   updateAppleWalletWwdrCert,
 } from "#lib/db/settings.ts";
 
+/** Reuse cached certs for all wallet configuration */
+const testCerts = generateTestCerts();
+
 /** Configure all Apple Wallet settings in the database */
 const configureAppleWallet = async () => {
-  const certs = generateTestCerts();
   await Promise.all([
     updateAppleWalletPassTypeId("pass.com.test.tickets"),
     updateAppleWalletTeamId("TESTTEAM01"),
-    updateAppleWalletSigningCert(certs.signingCert),
-    updateAppleWalletSigningKey(certs.signingKey),
-    updateAppleWalletWwdrCert(certs.wwdrCert),
+    updateAppleWalletSigningCert(testCerts.signingCert),
+    updateAppleWalletSigningKey(testCerts.signingKey),
+    updateAppleWalletWwdrCert(testCerts.wwdrCert),
   ]);
 };
 
@@ -89,12 +91,14 @@ describe("wallet route (/wallet/:token)", () => {
     expect(cacheControl).toContain("s-maxage=3600");
   });
 
-  test("returns pkpass with content-disposition header", async () => {
+  test("returns pkpass with inline content-disposition for iOS compatibility", async () => {
     await configureAppleWallet();
     const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
 
     const response = await awaitTestRequest(`/wallet/${token}`);
-    expect(response.headers.get("Content-Disposition")).toContain("ticket.pkpass");
+    const disposition = response.headers.get("Content-Disposition")!;
+    expect(disposition).toContain("inline");
+    expect(disposition).toContain("ticket.pkpass");
   });
 
   test("pkpass is a valid ZIP containing pass.json, manifest.json, and signature", async () => {
@@ -187,16 +191,15 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("requires Pass Type ID", async () => {
-    const certs = generateTestCerts();
     const { cookie, csrfToken } = await loginAsAdmin();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "",
         apple_wallet_team_id: "TESTTEAM01",
-        apple_wallet_signing_cert: certs.signingCert,
-        apple_wallet_signing_key: certs.signingKey,
-        apple_wallet_wwdr_cert: certs.wwdrCert,
+        apple_wallet_signing_cert: testCerts.signingCert,
+        apple_wallet_signing_key: testCerts.signingKey,
+        apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: csrfToken,
       }, cookie),
     );
@@ -204,16 +207,15 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("requires Team ID", async () => {
-    const certs = generateTestCerts();
     const { cookie, csrfToken } = await loginAsAdmin();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
         apple_wallet_team_id: "",
-        apple_wallet_signing_cert: certs.signingCert,
-        apple_wallet_signing_key: certs.signingKey,
-        apple_wallet_wwdr_cert: certs.wwdrCert,
+        apple_wallet_signing_cert: testCerts.signingCert,
+        apple_wallet_signing_key: testCerts.signingKey,
+        apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: csrfToken,
       }, cookie),
     );
@@ -221,7 +223,6 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("requires signing certificate on initial setup", async () => {
-    const certs = generateTestCerts();
     const { cookie, csrfToken } = await loginAsAdmin();
 
     const response = await handleRequest(
@@ -229,8 +230,8 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_pass_type_id: "pass.com.test",
         apple_wallet_team_id: "TESTTEAM01",
         apple_wallet_signing_cert: "",
-        apple_wallet_signing_key: certs.signingKey,
-        apple_wallet_wwdr_cert: certs.wwdrCert,
+        apple_wallet_signing_key: testCerts.signingKey,
+        apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: csrfToken,
       }, cookie),
     );
@@ -238,16 +239,15 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("requires signing key on initial setup", async () => {
-    const certs = generateTestCerts();
     const { cookie, csrfToken } = await loginAsAdmin();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
         apple_wallet_team_id: "TESTTEAM01",
-        apple_wallet_signing_cert: certs.signingCert,
+        apple_wallet_signing_cert: testCerts.signingCert,
         apple_wallet_signing_key: "",
-        apple_wallet_wwdr_cert: certs.wwdrCert,
+        apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: csrfToken,
       }, cookie),
     );
@@ -255,15 +255,14 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("requires WWDR certificate on initial setup", async () => {
-    const certs = generateTestCerts();
     const { cookie, csrfToken } = await loginAsAdmin();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
         apple_wallet_team_id: "TESTTEAM01",
-        apple_wallet_signing_cert: certs.signingCert,
-        apple_wallet_signing_key: certs.signingKey,
+        apple_wallet_signing_cert: testCerts.signingCert,
+        apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: "",
         csrf_token: csrfToken,
       }, cookie),
@@ -272,7 +271,6 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("rejects invalid PEM signing certificate", async () => {
-    const certs = generateTestCerts();
     const { cookie, csrfToken } = await loginAsAdmin();
 
     const response = await handleRequest(
@@ -280,8 +278,8 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_pass_type_id: "pass.com.test",
         apple_wallet_team_id: "TESTTEAM01",
         apple_wallet_signing_cert: "not a valid cert",
-        apple_wallet_signing_key: certs.signingKey,
-        apple_wallet_wwdr_cert: certs.wwdrCert,
+        apple_wallet_signing_key: testCerts.signingKey,
+        apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: csrfToken,
       }, cookie),
     );
@@ -289,16 +287,15 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("rejects invalid PEM signing key", async () => {
-    const certs = generateTestCerts();
     const { cookie, csrfToken } = await loginAsAdmin();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
         apple_wallet_team_id: "TESTTEAM01",
-        apple_wallet_signing_cert: certs.signingCert,
+        apple_wallet_signing_cert: testCerts.signingCert,
         apple_wallet_signing_key: "not a valid key",
-        apple_wallet_wwdr_cert: certs.wwdrCert,
+        apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: csrfToken,
       }, cookie),
     );
@@ -306,15 +303,14 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("rejects invalid PEM WWDR certificate", async () => {
-    const certs = generateTestCerts();
     const { cookie, csrfToken } = await loginAsAdmin();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test",
         apple_wallet_team_id: "TESTTEAM01",
-        apple_wallet_signing_cert: certs.signingCert,
-        apple_wallet_signing_key: certs.signingKey,
+        apple_wallet_signing_cert: testCerts.signingCert,
+        apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: "not a valid cert",
         csrf_token: csrfToken,
       }, cookie),
@@ -323,16 +319,15 @@ describe("POST /admin/settings/apple-wallet", () => {
   });
 
   test("saves all settings successfully", async () => {
-    const certs = generateTestCerts();
     const { cookie, csrfToken } = await loginAsAdmin();
 
     const response = await handleRequest(
       mockFormRequest("/admin/settings/apple-wallet", {
         apple_wallet_pass_type_id: "pass.com.test.tickets",
         apple_wallet_team_id: "TESTTEAM01",
-        apple_wallet_signing_cert: certs.signingCert,
-        apple_wallet_signing_key: certs.signingKey,
-        apple_wallet_wwdr_cert: certs.wwdrCert,
+        apple_wallet_signing_cert: testCerts.signingCert,
+        apple_wallet_signing_key: testCerts.signingKey,
+        apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: csrfToken,
       }, cookie),
     );
@@ -368,22 +363,18 @@ describe("POST /admin/settings/apple-wallet", () => {
     expect(await hasAppleWalletConfig()).toBe(false);
   });
 
-  test("shows Apple Wallet section on settings page", async () => {
-    const { cookie } = await loginAsAdmin();
-    const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
-    const body = await response.text();
-    expect(body).toContain("Apple Wallet");
-    expect(body).toContain("apple_wallet_pass_type_id");
-  });
-
-  test("shows masked values on settings page when configured", async () => {
+  test("shows Apple Wallet section with masked values when configured", async () => {
     await configureAppleWallet();
     const { cookie } = await loginAsAdmin();
     const response = await awaitTestRequest("/admin/settings-advanced", { cookie });
     const body = await response.text();
+    // Section exists
+    expect(body).toContain("Apple Wallet");
+    expect(body).toContain("apple_wallet_pass_type_id");
+    // Configured values shown
     expect(body).toContain("pass.com.test.tickets");
     expect(body).toContain("TESTTEAM01");
-    // Configured secrets should show mask sentinel
+    // Secrets are masked
     expect(body).toContain("••••••••");
   });
 });
@@ -396,14 +387,13 @@ const WALLET_ENV_KEYS = [
   "APPLE_WALLET_WWDR_CERT",
 ] as const;
 
-/** Set all Apple Wallet env vars using real test certificates */
+/** Set all Apple Wallet env vars using cached test certificates */
 const setWalletEnvVars = () => {
-  const certs = generateTestCerts();
   Deno.env.set("APPLE_WALLET_PASS_TYPE_ID", "pass.com.env.tickets");
   Deno.env.set("APPLE_WALLET_TEAM_ID", "ENVTEAM001");
-  Deno.env.set("APPLE_WALLET_SIGNING_CERT", certs.signingCert);
-  Deno.env.set("APPLE_WALLET_SIGNING_KEY", certs.signingKey);
-  Deno.env.set("APPLE_WALLET_WWDR_CERT", certs.wwdrCert);
+  Deno.env.set("APPLE_WALLET_SIGNING_CERT", testCerts.signingCert);
+  Deno.env.set("APPLE_WALLET_SIGNING_KEY", testCerts.signingKey);
+  Deno.env.set("APPLE_WALLET_WWDR_CERT", testCerts.wwdrCert);
 };
 
 /** Clear all Apple Wallet env vars */

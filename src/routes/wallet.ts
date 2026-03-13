@@ -59,7 +59,7 @@ const handleWalletGet = async (_request: Request, tokens: string[]): Promise<Res
   return new Response(pkpass as Uint8Array<ArrayBuffer>, {
     headers: {
       "Content-Type": PKPASS_CONTENT_TYPE,
-      "Content-Disposition": `attachment; filename="ticket.pkpass"`,
+      "Content-Disposition": `inline; filename="ticket.pkpass"`,
       "Cache-Control": CACHE_CONTROL,
     },
   });
