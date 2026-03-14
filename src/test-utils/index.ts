@@ -214,8 +214,6 @@ export const createTestDbWithSetup = async (
       }
     }
     setCurrencyCodeForTest(currency);
-    // Eagerly restore session so tests can use testCookie/testCsrfToken directly
-    await getTestSession();
     return;
   }
 
@@ -787,18 +785,14 @@ export const resetTestSession = (): void => {
 };
 
 /**
- * Synchronous accessors for the cached admin session.
- * Only usable after createTestDbWithSetup() has been called in beforeEach.
- * Throws if no session is cached (i.e. before setup or after resetDb).
+ * Convenience accessors for the cached admin session.
+ * Lazily initializes via getTestSession() on first call per test.
+ * Use instead of `const { cookie, csrfToken } = await getTestSession()`.
  */
-export const testCookie = (): string => {
-  if (!testSession) throw new Error("No cached session — call createTestDbWithSetup() first");
-  return testSession.cookie;
-};
-export const testCsrfToken = (): string => {
-  if (!testSession) throw new Error("No cached session — call createTestDbWithSetup() first");
-  return testSession.csrfToken;
-};
+export const testCookie = async (): Promise<string> =>
+  (await getTestSession()).cookie;
+export const testCsrfToken = async (): Promise<string> =>
+  (await getTestSession()).csrfToken;
 
 /**
  * Execute an authenticated request expecting a redirect.

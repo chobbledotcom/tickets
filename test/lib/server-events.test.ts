@@ -77,8 +77,6 @@ describe("server (admin events)", () => {
     });
 
     test("creates event when authenticated", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockMultipartRequest(
           "/admin/event",
@@ -87,9 +85,9 @@ describe("server (admin events)", () => {
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expectRedirect("/admin?success=Event+created")(response);
@@ -106,8 +104,6 @@ describe("server (admin events)", () => {
       resetDemoMode();
 
       try {
-        const { cookie, csrfToken } = await getTestSession();
-
         const response = await handleRequest(
           mockMultipartRequest(
             "/admin/event",
@@ -116,9 +112,9 @@ describe("server (admin events)", () => {
               max_attendees: "50",
               max_quantity: "1",
               webhook_url: "https://example.com/webhook",
-              csrf_token: csrfToken,
+              csrf_token: await testCsrfToken(),
             },
-            cookie,
+            await testCookie(),
           ),
         );
         expectRedirect("/admin?success=Event+created")(response);
@@ -139,8 +135,6 @@ describe("server (admin events)", () => {
         name: "Event Group",
         slug: "event-group",
       });
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockMultipartRequest(
           "/admin/event",
@@ -150,9 +144,9 @@ describe("server (admin events)", () => {
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
             group_id: String(group.id),
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expectRedirect("/admin?success=Event+created")(response);
@@ -163,8 +157,6 @@ describe("server (admin events)", () => {
     });
 
     test("rejects non-existent group_id on create", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockMultipartRequest(
           "/admin/event",
@@ -174,9 +166,9 @@ describe("server (admin events)", () => {
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
             group_id: "999",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expectStatus(400)(response);
@@ -188,8 +180,6 @@ describe("server (admin events)", () => {
     });
 
     test("rejects invalid CSRF token", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await handleRequest(
         mockMultipartRequest(
           "/admin/event",
@@ -200,15 +190,13 @@ describe("server (admin events)", () => {
             thank_you_url: "https://example.com/thanks",
             csrf_token: "invalid-csrf-token",
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("rejects missing CSRF token", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await handleRequest(
         mockMultipartRequest(
           "/admin/event",
@@ -218,15 +206,13 @@ describe("server (admin events)", () => {
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("stays on form with error on validation failure", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockMultipartRequest(
           "/admin/event",
@@ -234,9 +220,9 @@ describe("server (admin events)", () => {
             name: "",
             max_attendees: "",
             thank_you_url: "",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(response, 400, "Add Event");
@@ -276,10 +262,8 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest("/admin/event/999", {
-        cookie: cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(404);
     });
@@ -325,10 +309,8 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest("/admin/event/999/duplicate", {
-        cookie: cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(404);
     });
@@ -389,10 +371,8 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest("/admin/event/999/in", {
-        cookie: cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(404);
     });
@@ -444,10 +424,8 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest("/admin/event/999/out", {
-        cookie: cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(404);
     });
@@ -503,10 +481,8 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest("/admin/event/999/export", {
-        cookie: cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(404);
     });
@@ -625,10 +601,8 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest("/admin/event/999/edit", {
-        cookie: cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(404);
     });
@@ -677,8 +651,6 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/edit",
@@ -688,9 +660,9 @@ describe("server (admin events)", () => {
             max_attendees: "50",
             max_quantity: "1",
             thank_you_url: "https://example.com/updated",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -954,8 +926,6 @@ describe("server (admin events)", () => {
     });
 
     test("rejects duplicate slug used by another event", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const event1 = await createTestEvent({
         name: "Event One",
         maxAttendees: 50,
@@ -974,9 +944,9 @@ describe("server (admin events)", () => {
             slug: event1.slug,
             max_attendees: "50",
             max_quantity: "1",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(
@@ -1059,10 +1029,8 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest("/admin/event/999/deactivate", {
-        cookie: cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(404);
     });
@@ -1230,10 +1198,8 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest("/admin/event/999/delete", {
-        cookie: cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(404);
     });
@@ -1274,16 +1240,14 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/delete",
           {
             confirm_identifier: "Test Event",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -1422,17 +1386,14 @@ describe("server (admin events)", () => {
         thankYouUrl: "https://example.com",
       });
 
-      // Login and get CSRF token
-      const { cookie, csrfToken } = await getTestSession();
-
       // Delete with verify_identifier=false - no need for confirm_identifier
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/1/delete?verify_identifier=false",
           {
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1444,12 +1405,11 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 when event not found with verify_identifier=false", async () => {
-      const { cookie, csrfToken } = await getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/9999/delete?verify_identifier=false",
-          { csrf_token: csrfToken },
-          cookie,
+          { csrf_token: await testCsrfToken() },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -1464,9 +1424,6 @@ describe("server (admin events)", () => {
         thankYouUrl: "https://example.com",
       });
 
-      // Login and get CSRF token
-      const { cookie, csrfToken } = await getTestSession();
-
       // Use DELETE method with verify_identifier=false
       const response = await handleRequest(
         new Request(
@@ -1475,11 +1432,11 @@ describe("server (admin events)", () => {
             method: "DELETE",
             headers: {
               "content-type": "application/x-www-form-urlencoded",
-              cookie: cookie,
+              cookie: await testCookie(),
               host: "localhost",
             },
             body: new URLSearchParams({
-              csrf_token: csrfToken,
+              csrf_token: await testCsrfToken(),
             }).toString(),
           },
         ),
@@ -1495,8 +1452,6 @@ describe("server (admin events)", () => {
 
   describe("POST /admin/event with unit_price", () => {
     test("creates event with unit_price when authenticated", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event",
@@ -1506,9 +1461,9 @@ describe("server (admin events)", () => {
             max_quantity: "1",
             thank_you_url: "https://example.com/thanks",
             unit_price: "10.00",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1517,8 +1472,6 @@ describe("server (admin events)", () => {
 
   describe("POST /admin/event with can_pay_more", () => {
     test("creates event with can_pay_more enabled", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         await mockMultipartRequest(
           "/admin/event",
@@ -1528,9 +1481,9 @@ describe("server (admin events)", () => {
             max_quantity: "1",
             unit_price: "10.00",
             can_pay_more: "1",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1542,8 +1495,6 @@ describe("server (admin events)", () => {
     });
 
     test("creates event with can_pay_more disabled by default", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         await mockMultipartRequest(
           "/admin/event",
@@ -1552,9 +1503,9 @@ describe("server (admin events)", () => {
             max_attendees: "50",
             max_quantity: "1",
             unit_price: "5.00",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1566,7 +1517,6 @@ describe("server (admin events)", () => {
 
     test("updates event can_pay_more via edit", async () => {
       const event = await createTestEvent({ unitPrice: 1000 });
-      const { cookie, csrfToken } = await getTestSession();
 
       const response = await handleRequest(
         await mockMultipartRequest(
@@ -1578,9 +1528,9 @@ describe("server (admin events)", () => {
             max_quantity: String(event.max_quantity),
             unit_price: "10.00",
             can_pay_more: "1",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(302);
@@ -1608,7 +1558,6 @@ describe("server (admin events)", () => {
     });
 
     test("rejects max_price less than unit_price + 100 when can_pay_more", async () => {
-      const { cookie, csrfToken } = await getTestSession();
       const response = await handleRequest(
         mockMultipartRequest(
           "/admin/event",
@@ -1619,9 +1568,9 @@ describe("server (admin events)", () => {
             unit_price: "10.00",
             max_price: "10.50",
             can_pay_more: "1",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       await expectHtmlResponse(
@@ -1659,27 +1608,23 @@ describe("server (admin events)", () => {
     });
 
     test("shows log page when authenticated", async () => {
-      const { cookie } = await getTestSession();
-
       // Create an event to generate activity
       await createTestEvent({
         name: "Log Test",
         maxAttendees: 50,
       });
 
-      const response = await awaitTestRequest("/admin/log", { cookie });
+      const response = await awaitTestRequest("/admin/log", { cookie: await testCookie() });
       await expectHtmlResponse(response, 200, "Log");
     });
 
     test("shows truncation message when more than 200 entries", async () => {
-      const { cookie } = await getTestSession();
-
       // Create 201 log entries to trigger truncation
       for (let i = 0; i < 201; i++) {
         await logActivity(`Action ${i}`);
       }
 
-      const response = await awaitTestRequest("/admin/log", { cookie });
+      const response = await awaitTestRequest("/admin/log", { cookie: await testCookie() });
       const html = await response.text();
       expect(html).toContain("Showing the most recent 200 entries");
     });
@@ -1692,10 +1637,8 @@ describe("server (admin events)", () => {
     });
 
     test("returns 404 for non-existent event", async () => {
-      const { cookie } = await getTestSession();
-
       const response = await awaitTestRequest("/admin/event/999/log", {
-        cookie,
+        cookie: await testCookie(),
       });
       expect(response.status).toBe(404);
     });
@@ -1715,13 +1658,11 @@ describe("server (admin events)", () => {
 
   describe("POST /admin/event/:id/deactivate (event not found)", () => {
     test("returns 404 when event does not exist", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/deactivate",
-          { csrf_token: csrfToken, confirm_identifier: "something" },
-          cookie,
+          { csrf_token: await testCsrfToken(), confirm_identifier: "something" },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -1730,13 +1671,11 @@ describe("server (admin events)", () => {
 
   describe("POST /admin/event/:id/reactivate (event not found)", () => {
     test("returns 404 when event does not exist", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/reactivate",
-          { csrf_token: csrfToken, confirm_identifier: "something" },
-          cookie,
+          { csrf_token: await testCsrfToken(), confirm_identifier: "something" },
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -1861,16 +1800,15 @@ describe("server (admin events)", () => {
 
   describe("POST /admin/event/:id/edit validation error", () => {
     test("shows error when editing non-existent event", async () => {
-      const { cookie, csrfToken } = await getTestSession();
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/99999/edit",
           {
             name: "Updated Name",
             max_attendees: "50",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expect(response.status).toBe(404);
@@ -1987,7 +1925,6 @@ describe("server (admin events)", () => {
 
   describe("routes/admin/events.ts (eventErrorPage notFound)", () => {
     test("event edit validation error returns 404 when event was deleted", async () => {
-      const { cookie, csrfToken } = await getTestSession();
       const { eventsTable } = await import("#lib/db/events.ts");
 
       const event1 = await createTestEvent({
@@ -2025,9 +1962,9 @@ describe("server (admin events)", () => {
               name: "",
               max_attendees: "50",
               max_quantity: "1",
-              csrf_token: csrfToken,
+              csrf_token: await testCsrfToken(),
             },
-            cookie,
+            await testCookie(),
           ),
         );
         // requireExists sees the row (first findById). Validation fails (empty name).
@@ -2061,8 +1998,6 @@ describe("server (admin events)", () => {
 
   describe("slug collision on create", () => {
     test("throws when all slug generation attempts collide", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       // Spy on db.execute to make isSlugTaken always return true
       const db = getDb();
       const originalExecute = db.execute.bind(db);
@@ -2095,9 +2030,9 @@ describe("server (admin events)", () => {
               max_attendees: "50",
               max_quantity: "1",
               thank_you_url: "https://example.com",
-              csrf_token: csrfToken,
+              csrf_token: await testCsrfToken(),
             },
-            cookie,
+            await testCookie(),
           ),
         );
         await expectHtmlResponse(response, 503, "Temporary Error");
@@ -2237,7 +2172,6 @@ describe("server (admin events)", () => {
     });
 
     test("admin event detail page shows days-only countdown", async () => {
-      const { cookie } = await getTestSession();
       const future = new Date(
         Date.now() + 3 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000,
       );
@@ -2245,31 +2179,29 @@ describe("server (admin events)", () => {
       const event = await createTestEvent({ closesAt });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
+        cookie: await testCookie(),
       });
       await expectHtmlResponse(response, 200, "days from now");
     });
 
     test("admin event detail page shows hours-only countdown", async () => {
-      const { cookie } = await getTestSession();
       const future = new Date(Date.now() + 5 * 60 * 60 * 1000 + 10 * 60 * 1000);
       const closesAt = future.toISOString().slice(0, 16);
       const event = await createTestEvent({ closesAt });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
+        cookie: await testCookie(),
       });
       await expectHtmlResponse(response, 200, "hours from now");
     });
 
     test("admin event detail page shows minutes-only countdown", async () => {
-      const { cookie } = await getTestSession();
       const future = new Date(Date.now() + 30 * 60 * 1000);
       const closesAt = future.toISOString().slice(0, 16);
       const event = await createTestEvent({ closesAt });
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
+        cookie: await testCookie(),
       });
       await expectHtmlResponse(response, 200, "minute");
     });
@@ -2686,8 +2618,6 @@ describe("server (admin events)", () => {
     });
 
     test("rejects invalid event_type value", async () => {
-      const { cookie, csrfToken } = await getTestSession();
-
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event",
@@ -2697,9 +2627,9 @@ describe("server (admin events)", () => {
             max_quantity: "1",
             thank_you_url: "https://example.com",
             event_type: "invalid",
-            csrf_token: csrfToken,
+            csrf_token: await testCsrfToken(),
           },
-          cookie,
+          await testCookie(),
         ),
       );
       expectStatus(400)(response);
@@ -2872,11 +2802,10 @@ describe("server (admin events)", () => {
     };
 
     test("shows date selector dropdown for daily events", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
+        cookie: await testCookie(),
       });
       await expectHtmlResponse(
         response,
@@ -2889,11 +2818,10 @@ describe("server (admin events)", () => {
     });
 
     test("shows Date column header for daily events", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain("<th>Date</th>");
@@ -2910,13 +2838,12 @@ describe("server (admin events)", () => {
     });
 
     test("filters attendees by ?date= parameter", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       // Filter to date1 — should show 2 attendees (User A and User B)
       const response = await awaitTestRequest(
         `/admin/event/${event.id}?date=${validDate1}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain("User A");
@@ -2925,13 +2852,12 @@ describe("server (admin events)", () => {
     });
 
     test("filters attendees by ?date= showing other date", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       // Filter to date2 — should show 1 attendee (User C)
       const response = await awaitTestRequest(
         `/admin/event/${event.id}?date=${validDate2}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain("User C");
@@ -2939,12 +2865,11 @@ describe("server (admin events)", () => {
     });
 
     test("shows per-date capacity when date filter is active", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}?date=${validDate1}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       const html = await response.text();
       // Should show "2 / 100" for the 2 attendees on date1
@@ -2953,11 +2878,10 @@ describe("server (admin events)", () => {
     });
 
     test("shows total count without date filter", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       const response = await awaitTestRequest(`/admin/event/${event.id}`, {
-        cookie,
+        cookie: await testCookie(),
       });
       const html = await response.text();
       expect(html).toContain("(total)");
@@ -2965,13 +2889,12 @@ describe("server (admin events)", () => {
     });
 
     test("date filter composes with check-in filter", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       // Filter to date1 + checked out — should show both since none are checked in
       const response = await awaitTestRequest(
         `/admin/event/${event.id}/out?date=${validDate1}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain("User A");
@@ -2999,12 +2922,11 @@ describe("server (admin events)", () => {
     });
 
     test("CSV export includes Date column for daily events", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}/export`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       await expectHtmlResponse(response, 200, "Date,Name,Email");
     });
@@ -3027,12 +2949,11 @@ describe("server (admin events)", () => {
     });
 
     test("CSV export filters by ?date= for daily events", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}/export?date=${validDate2}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       const csv = await response.text();
       expect(csv).toContain("User C");
@@ -3040,12 +2961,11 @@ describe("server (admin events)", () => {
     });
 
     test("CSV export filename includes date when filtered", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}/export?date=${validDate1}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       const disposition = response.headers.get("content-disposition") ?? "";
       expect(disposition).toContain(validDate1);
@@ -3053,12 +2973,11 @@ describe("server (admin events)", () => {
     });
 
     test("Export CSV link includes ?date= when filter is active", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}?date=${validDate1}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain(
@@ -3067,12 +2986,11 @@ describe("server (admin events)", () => {
     });
 
     test("filter links preserve ?date= query parameter", async () => {
-      const { cookie } = await getTestSession();
       const event = await createDailyEventWithAttendees();
 
       const response = await awaitTestRequest(
         `/admin/event/${event.id}?date=${validDate1}`,
-        { cookie },
+        { cookie: await testCookie() },
       );
       const html = await response.text();
       expect(html).toContain(
