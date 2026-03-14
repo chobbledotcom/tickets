@@ -22,6 +22,13 @@ export const isDemoMode = (): boolean => getDemoMode();
 /** Reset cached demo mode value (for testing and cache invalidation) */
 export const resetDemoMode = (): void => setDemoMode(null);
 
+/**
+ * Explicitly set demo mode on or off (for testing).
+ * Bypasses Deno.env to avoid races between parallel test workers.
+ */
+export const setDemoModeForTest = (enabled: boolean): void =>
+  setDemoMode(enabled);
+
 // ---------------------------------------------------------------------------
 // Sample data arrays
 // ---------------------------------------------------------------------------

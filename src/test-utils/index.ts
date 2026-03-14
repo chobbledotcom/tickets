@@ -32,7 +32,7 @@ import {
   updateTimezone,
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
-import { resetDemoMode } from "#lib/demo.ts";
+import { setDemoModeForTest } from "#lib/demo.ts";
 import type { Attendee, Event, EventWithCount, Group } from "#lib/types.ts";
 
 /**
@@ -270,7 +270,7 @@ export const resetDb = (): void => {
   resetSessionCache();
   resetTestSession();
   resetCurrencyCode();
-  resetDemoMode();
+  setDemoModeForTest(false);
 };
 
 /**

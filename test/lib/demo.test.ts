@@ -21,6 +21,7 @@ import {
   EVENT_DEMO_FIELDS,
   isDemoMode,
   resetDemoMode,
+  setDemoModeForTest,
   wrapResourceForDemo,
 } from "#lib/demo.ts";
 import { handleRequest } from "#routes";
@@ -33,16 +34,19 @@ import {
 
 describe("demo", () => {
   beforeEach(() => {
-    Deno.env.delete("DEMO_MODE");
-    resetDemoMode();
+    setDemoModeForTest(false);
   });
 
   afterEach(() => {
-    Deno.env.delete("DEMO_MODE");
-    resetDemoMode();
+    setDemoModeForTest(false);
   });
 
   describe("isDemoMode", () => {
+    afterEach(() => {
+      Deno.env.delete("DEMO_MODE");
+      setDemoModeForTest(false);
+    });
+
     test("returns false when DEMO_MODE is not set", () => {
       expect(isDemoMode()).toBe(false);
     });
@@ -90,8 +94,7 @@ describe("demo", () => {
     });
 
     test("replaces fields that exist in the form when demo mode is on", () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const form = new URLSearchParams({
         name: "Real Name",
         email: "real@example.com",
@@ -104,8 +107,7 @@ describe("demo", () => {
     });
 
     test("skips fields not present in the form", () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const form = new URLSearchParams({ name: "Real Name" });
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       expect(form.has("email")).toBe(false);
@@ -113,8 +115,7 @@ describe("demo", () => {
     });
 
     test("skips empty-string fields", () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const form = new URLSearchParams({ name: "Real Name", email: "" });
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       expect(form.get("email")).toBe("");
@@ -122,24 +123,21 @@ describe("demo", () => {
     });
 
     test("returns the same form instance", () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const form = new URLSearchParams({ name: "Test" });
       const result = applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       expect(result).toBe(form);
     });
 
     test("does not modify fields not in the mapping", () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const form = new URLSearchParams({ name: "Real", csrf_token: "abc123" });
       applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
       expect(form.get("csrf_token")).toBe("abc123");
     });
 
     test("works with event demo fields", () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const form = new URLSearchParams({
         name: "My Event",
         description: "My description",
@@ -193,8 +191,7 @@ describe("demo", () => {
     };
 
     test("delegates create with demo overrides applied", () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
 
       const { resource, getLastCreateForm } = makeFakeResource();
       const wrapped = wrapResourceForDemo(resource, {
@@ -211,8 +208,7 @@ describe("demo", () => {
     });
 
     test("delegates update with demo overrides applied", () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
 
       const { resource, getLastUpdateForm } = makeFakeResource();
       const wrapped = wrapResourceForDemo(resource, {
@@ -260,8 +256,7 @@ describe("demo", () => {
     });
 
     test("renders demo banner in page when demo mode is active", async () => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
       const response = await handleRequest(mockRequest("/admin/login"));
       const html = await response.text();
       expect(response.status).toBe(200);

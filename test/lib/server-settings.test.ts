@@ -8,7 +8,7 @@ import {
   updateTermsAndConditions,
 } from "#lib/db/settings.ts";
 import { invalidateUsersCache } from "#lib/db/users.ts";
-import { resetDemoMode } from "#lib/demo.ts";
+import { setDemoModeForTest } from "#lib/demo.ts";
 import { stripeApi } from "#lib/stripe.ts";
 import { handleRequest } from "#routes";
 import {
@@ -35,8 +35,7 @@ describe("server (admin settings)", () => {
   });
 
   afterEach(() => {
-    Deno.env.delete("DEMO_MODE");
-    resetDemoMode();
+    setDemoModeForTest(false);
     resetDb();
   });
 
@@ -2116,13 +2115,11 @@ describe("server (admin settings)", () => {
 
   describe("demo mode restrictions", () => {
     beforeEach(() => {
-      Deno.env.set("DEMO_MODE", "true");
-      resetDemoMode();
+      setDemoModeForTest(true);
     });
 
     afterEach(() => {
-      Deno.env.delete("DEMO_MODE");
-      resetDemoMode();
+      setDemoModeForTest(false);
     });
 
     test("rejects Stripe key configuration", async () => {

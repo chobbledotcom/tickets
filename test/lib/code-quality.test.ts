@@ -318,6 +318,7 @@ describe("code quality", () => {
       "lib/cache-registry.ts:resetCacheRegistry",
       // Reset cached demo mode between tests
       "lib/demo.ts:resetDemoMode",
+      "lib/demo.ts:setDemoModeForTest",
       // Reset cached Liquid engine between tests (currency changes need fresh filters)
       "lib/email-renderer.ts:resetEngine",
     ];
