@@ -42,6 +42,9 @@ jobs:
           src/docs/webhooks.ts
           src/docs/demo.ts
 
+      - name: Disable Jekyll processing
+        run: touch docs-output/.nojekyll
+
       - name: Add root redirect to overview page
         run: |
           cat > docs-output/index.html << 'HTMLEOF'
