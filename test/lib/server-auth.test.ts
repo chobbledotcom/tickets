@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getSessionCookieName } from "#lib/cookies.ts";
 import { createSession, getSession } from "#lib/db/sessions.ts";
 import { handleRequest } from "#routes";
+import { setSkipLoginDelayForTest } from "#routes/admin/auth.ts";
 import {
   awaitTestRequest,
   createTestDbWithSetup,
@@ -440,8 +441,12 @@ describe("server (admin auth)", () => {
   });
 
   describe("login timing delay", () => {
+    afterEach(() => {
+      setSkipLoginDelayForTest(true);
+    });
+
     test("applies random delay when TEST_SKIP_LOGIN_DELAY is not set", async () => {
-      Deno.env.delete("TEST_SKIP_LOGIN_DELAY");
+      setSkipLoginDelayForTest(false);
       const start = Date.now();
       const response = await handleRequest(
         await mockAdminLoginRequest({
@@ -453,7 +458,6 @@ describe("server (admin auth)", () => {
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/admin?success=Logged+in");
       expect(elapsed).toBeGreaterThanOrEqual(100);
-      Deno.env.set("TEST_SKIP_LOGIN_DELAY", "1");
     });
   });
 

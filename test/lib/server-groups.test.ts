@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 
 import { signCsrfToken } from "#lib/csrf.ts";
+import { setDemoModeForTest } from "#lib/demo.ts";
 
 import { handleRequest } from "#routes";
 import {
@@ -29,11 +30,13 @@ import {
 
 describe("server (admin groups)", () => {
   beforeEach(async () => {
+    setDemoModeForTest(false);
     resetTestSlugCounter();
     await createTestDbWithSetup();
   });
 
   afterEach(() => {
+    setDemoModeForTest(false);
     resetDb();
   });
 

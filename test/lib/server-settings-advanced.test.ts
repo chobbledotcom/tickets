@@ -10,7 +10,7 @@ import {
   updateCustomDomain,
   updateCustomDomainLastValidated,
 } from "#lib/db/settings.ts";
-import { resetDemoMode } from "#lib/demo.ts";
+import { setDemoModeForTest } from "#lib/demo.ts";
 import { handleRequest } from "#routes";
 import {
   awaitTestRequest,
@@ -35,8 +35,7 @@ describe("server (admin settings-advanced)", () => {
   });
 
   afterEach(() => {
-    Deno.env.delete("DEMO_MODE");
-    resetDemoMode();
+    setDemoModeForTest(false);
     resetDb();
   });
 
