@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { handleRequest } from "#routes";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { resetDemoMode } from "#lib/demo.ts";
+import { handleRequest } from "#routes";
 import {
   RESET_DATABASE_PHRASE,
   RESET_PHRASE_MISMATCH_ERROR,
@@ -13,12 +13,12 @@ import {
   expectRedirect,
   extractCsrfToken,
   invalidateTestDbCache,
-  testCookie,
-  testCsrfToken,
   mockFormRequest,
   mockRequest,
   resetDb,
   resetTestSlugCounter,
+  testCookie,
+  testCsrfToken,
 } from "#test-utils";
 
 describe("server (demo reset)", () => {
@@ -40,7 +40,9 @@ describe("server (demo reset)", () => {
     });
 
     test("returns 404 when demo mode is off even for authenticated admin", async () => {
-      const response = await awaitTestRequest("/demo/reset", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/demo/reset", {
+        cookie: await testCookie(),
+      });
       expect(response.status).toBe(404);
     });
 
@@ -76,7 +78,10 @@ describe("server (demo reset)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/demo/reset",
-          { confirm_phrase: RESET_DATABASE_PHRASE, csrf_token: await testCsrfToken() },
+          {
+            confirm_phrase: RESET_DATABASE_PHRASE,
+            csrf_token: await testCsrfToken(),
+          },
           await testCookie(),
         ),
       );
@@ -160,7 +165,6 @@ describe("server (demo reset)", () => {
       expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
       invalidateTestDbCache();
     });
-
   });
 
   describe("login page demo reset link", () => {
@@ -182,7 +186,9 @@ describe("server (demo reset)", () => {
 
   describe("shared form component", () => {
     test("admin settings page uses shared reset form", async () => {
-      const response = await awaitTestRequest("/admin/settings-advanced", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/settings-advanced", {
+        cookie: await testCookie(),
+      });
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expect(html).toContain(RESET_DATABASE_PHRASE);
       expect(html).toContain("confirm_phrase");

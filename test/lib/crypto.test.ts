@@ -1,5 +1,5 @@
-import { beforeEach, describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { beforeEach, describe, it } from "@std/testing/bdd";
 import {
   clearEncryptionKeyCache,
   constantTimeEqual,
@@ -591,7 +591,9 @@ describe("RSA key pair and hybrid encryption", () => {
     it("throws on wrong number of parts", async () => {
       await ensureSharedKeyPair();
 
-      await expect(hybridDecrypt("hyb:1:only:two", sharedPrivKey)).rejects.toThrow(
+      await expect(
+        hybridDecrypt("hyb:1:only:two", sharedPrivKey),
+      ).rejects.toThrow(
         "Invalid hybrid encrypted data format: wrong number of parts",
       );
     });

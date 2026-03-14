@@ -1620,7 +1620,9 @@ describe("server (admin events)", () => {
         maxAttendees: 50,
       });
 
-      const response = await awaitTestRequest("/admin/log", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/log", {
+        cookie: await testCookie(),
+      });
       await expectHtmlResponse(response, 200, "Log");
     });
 
@@ -1630,7 +1632,9 @@ describe("server (admin events)", () => {
         await logActivity(`Action ${i}`);
       }
 
-      const response = await awaitTestRequest("/admin/log", { cookie: await testCookie() });
+      const response = await awaitTestRequest("/admin/log", {
+        cookie: await testCookie(),
+      });
       const html = await response.text();
       expect(html).toContain("Showing the most recent 200 entries");
     });
@@ -1667,7 +1671,10 @@ describe("server (admin events)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/deactivate",
-          { csrf_token: await testCsrfToken(), confirm_identifier: "something" },
+          {
+            csrf_token: await testCsrfToken(),
+            confirm_identifier: "something",
+          },
           await testCookie(),
         ),
       );
@@ -1680,7 +1687,10 @@ describe("server (admin events)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/event/999/reactivate",
-          { csrf_token: await testCsrfToken(), confirm_identifier: "something" },
+          {
+            csrf_token: await testCsrfToken(),
+            confirm_identifier: "something",
+          },
           await testCookie(),
         ),
       );
