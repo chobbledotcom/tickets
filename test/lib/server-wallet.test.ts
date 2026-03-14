@@ -219,7 +219,7 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "Pass Type ID is required");
   });
@@ -234,7 +234,7 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "Team ID is required");
   });
@@ -249,7 +249,7 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "Signing certificate is required");
   });
@@ -264,7 +264,7 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: "",
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "Signing private key is required");
   });
@@ -279,7 +279,7 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: "",
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "WWDR certificate is required");
   });
@@ -294,7 +294,7 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "Signing certificate is not a valid PEM certificate");
   });
@@ -309,7 +309,7 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: "not a valid key",
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "Signing private key is not a valid PEM private key");
   });
@@ -324,7 +324,7 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: "not a valid cert",
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
     await expectHtmlResponse(response, 400, "WWDR certificate is not a valid PEM certificate");
   });
@@ -339,7 +339,7 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: testCerts.signingKey,
         apple_wallet_wwdr_cert: testCerts.wwdrCert,
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
 
     expect(response.status).toBe(302);
@@ -363,7 +363,7 @@ describe("POST /admin/settings/apple-wallet", () => {
         apple_wallet_signing_key: "",
         apple_wallet_wwdr_cert: "",
         csrf_token: await testCsrfToken(),
-      }, cookie),
+      }, await testCookie()),
     );
 
     expect(response.status).toBe(302);

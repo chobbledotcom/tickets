@@ -279,7 +279,7 @@ describe("server (admin refunds)", () => {
 
     test("returns 404 for non-existent event", async () => {
       const response = await handleRequest(
-        mockFormRequest(refundAllUrl(999), { confirm_name: "Test", csrf_token: await testCsrfToken() }, cookie),
+        mockFormRequest(refundAllUrl(999), { confirm_name: "Test", csrf_token: await testCsrfToken() }, await testCookie()),
       );
       expect(response.status).toBe(404);
     });
@@ -323,7 +323,7 @@ describe("server (admin refunds)", () => {
       await createPaidTestAttendee(event.id, "User Two", "two@example.com", "pi_all_2");
       await withRefundMock(true, async (mockRefund) => {
         const response = await handleRequest(
-          mockFormRequest(refundAllUrl(event.id), { confirm_name: event.name, csrf_token: await testCsrfToken() }, cookie),
+          mockFormRequest(refundAllUrl(event.id), { confirm_name: event.name, csrf_token: await testCsrfToken() }, await testCookie()),
         );
         expect(response.status).toBe(302);
         expect(response.headers.get("location")).toBe(`/admin/event/${event.id}?success=All+attendees+refunded`);
@@ -340,7 +340,7 @@ describe("server (admin refunds)", () => {
         () => Promise.resolve(++callNum <= 1),
         async () => {
           const response = await handleRequest(
-            mockFormRequest(refundAllUrl(event.id), { confirm_name: event.name, csrf_token: await testCsrfToken() }, cookie),
+            mockFormRequest(refundAllUrl(event.id), { confirm_name: event.name, csrf_token: await testCsrfToken() }, await testCookie()),
           );
           await expectHtmlResponse(response, 400, "1 refund(s) succeeded", "1 failed");
         },
