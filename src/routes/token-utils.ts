@@ -3,8 +3,11 @@
  */
 
 import { compact, map } from "#fp";
+import { getAllowedDomain } from "#lib/config.ts";
+import { decrypt } from "#lib/crypto.ts";
 import { getAttendeesByTokens } from "#lib/db/attendees.ts";
 import { getEventWithCount } from "#lib/db/events.ts";
+import { getCurrencyCodeFromDb } from "#lib/db/settings.ts";
 import type { Attendee, EventWithCount } from "#lib/types.ts";
 import { notFoundResponse } from "#routes/utils.ts";
 
@@ -12,6 +15,68 @@ import { notFoundResponse } from "#routes/utils.ts";
 export type TokenEntry = {
   attendee: Attendee;
   event: EventWithCount;
+};
+
+/** Shared wallet pass data common to both Apple and Google Wallet */
+export type WalletPassData = {
+  serialNumber: string;
+  organizationName: string;
+  eventName: string;
+  eventDate: string;
+  eventLocation: string;
+  attendeeDate: string | null;
+  quantity: number;
+  pricePaid: number;
+  currencyCode: string;
+  checkinUrl: string;
+};
+
+/** Cache wallet responses for 1 hour on CDN, 5 minutes in browser */
+export const WALLET_CACHE_CONTROL = "public, max-age=300, s-maxage=3600";
+
+/** Build shared wallet pass data from a resolved token entry */
+export const buildWalletPassData = async (
+  entry: TokenEntry,
+  token: string,
+): Promise<WalletPassData> => {
+  const { event, attendee } = entry;
+  const domain = getAllowedDomain();
+  const currencyCode = await getCurrencyCodeFromDb();
+  const pricePaid = Number(await decrypt(attendee.price_paid));
+
+  return {
+    serialNumber: token,
+    organizationName: domain,
+    eventName: event.name,
+    eventDate: event.date,
+    eventLocation: event.location,
+    attendeeDate: attendee.date,
+    quantity: attendee.quantity,
+    pricePaid,
+    currencyCode,
+    checkinUrl: `https://${domain}/checkin/${token}`,
+  };
+};
+
+/** Result of looking up a single token's wallet pass data */
+export type SingleTokenResult =
+  | { ok: true; passData: WalletPassData }
+  | { ok: false; response: Response };
+
+/** Look up a single token and build wallet pass data, returning 404 on failure */
+export const lookupSingleTokenPassData = async (
+  tokens: string[],
+): Promise<SingleTokenResult> => {
+  const token = tokens[0];
+  if (!token || tokens.length > 1)
+    return { ok: false, response: notFoundResponse() };
+
+  const result = await lookupAttendees([token]);
+  if (!result.ok) return { ok: false, response: result.response };
+
+  const entries = await resolveEntries(result.attendees);
+  const passData = await buildWalletPassData(entries[0]!, token);
+  return { ok: true, passData };
 };
 
 /** Handler type for token-based route methods */

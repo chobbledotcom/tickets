@@ -131,6 +131,12 @@ const loadWalletRoutes = once(async () => {
   return routeWallet;
 });
 
+/** Lazy-load Google Wallet pass routes */
+const loadGoogleWalletRoutes = once(async () => {
+  const { routeGoogleWallet } = await import("#routes/google-wallet.ts");
+  return routeGoogleWallet;
+});
+
 /** Lazy-load public API routes */
 const loadApiRoutes = once(async () => {
   const { routeApi } = await import("#routes/api.ts");
@@ -195,6 +201,7 @@ const prefixHandlers: Record<string, RouterFn> = {
   join: lazyRoute(loadJoinRoutes),
   feeds: lazyRoute(loadFeedRoutes),
   wallet: lazyRoute(loadWalletRoutes),
+  gwallet: lazyRoute(loadGoogleWalletRoutes),
   demo: lazyRoute(loadDemoResetRoutes),
   api: async (request, path, method, server) =>
     (await getShowPublicApiFromDb())

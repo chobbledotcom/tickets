@@ -4,51 +4,17 @@
  * CDN-cacheable — passes are deterministic for a given token + settings.
  */
 
-import { buildPkpass, type PassData } from "#lib/apple-wallet.ts";
-import { getAllowedDomain } from "#lib/config.ts";
-import { decrypt } from "#lib/crypto.ts";
-import {
-  getAppleWalletConfig,
-  getCurrencyCodeFromDb,
-} from "#lib/db/settings.ts";
+import { buildPkpass } from "#lib/apple-wallet.ts";
+import { getAppleWalletConfig } from "#lib/db/settings.ts";
 import {
   createTokenRoute,
-  lookupAttendees,
-  resolveEntries,
-  type TokenEntry,
+  lookupSingleTokenPassData,
+  WALLET_CACHE_CONTROL,
 } from "#routes/token-utils.ts";
 import { notFoundResponse } from "#routes/utils.ts";
 
-/** Cache pkpass responses for 1 hour on CDN, 5 minutes in browser */
-const CACHE_CONTROL = "public, max-age=300, s-maxage=3600";
-
 /** MIME type for Apple Wallet passes */
 const PKPASS_CONTENT_TYPE = "application/vnd.apple.pkpass";
-
-/** Build PassData from a resolved token entry */
-const buildPassData = async (
-  entry: TokenEntry,
-  token: string,
-): Promise<PassData> => {
-  const { event, attendee } = entry;
-  const domain = getAllowedDomain();
-  const currencyCode = await getCurrencyCodeFromDb();
-  const pricePaid = Number(await decrypt(attendee.price_paid));
-
-  return {
-    serialNumber: token,
-    organizationName: domain,
-    description: `Ticket for ${event.name}`,
-    eventName: event.name,
-    eventDate: event.date,
-    eventLocation: event.location,
-    attendeeDate: attendee.date,
-    quantity: attendee.quantity,
-    pricePaid,
-    currencyCode,
-    checkinUrl: `https://${domain}/checkin/${token}`,
-  };
-};
 
 /** .pkpass suffix required on all wallet URLs for iOS compatibility */
 const PKPASS_EXT = ".pkpass";
@@ -58,7 +24,6 @@ const handleWalletGet = async (
   _request: Request,
   tokens: string[],
 ): Promise<Response> => {
-  // Only support single-token downloads
   const raw = tokens[0];
   if (!raw || tokens.length > 1) return notFoundResponse();
 
@@ -69,11 +34,14 @@ const handleWalletGet = async (
   const config = await getAppleWalletConfig();
   if (!config) return notFoundResponse();
 
-  const result = await lookupAttendees([token]);
+  // Apple needs the token without .pkpass extension for lookup
+  const result = await lookupSingleTokenPassData([token]);
   if (!result.ok) return result.response;
 
-  const entries = await resolveEntries(result.attendees);
-  const passData = await buildPassData(entries[0]!, token);
+  const passData = {
+    ...result.passData,
+    description: `Ticket for ${result.passData.eventName}`,
+  };
   const pkpass = buildPkpass(passData, config);
   const body = pkpass as Uint8Array<ArrayBuffer>;
 
@@ -82,7 +50,7 @@ const handleWalletGet = async (
       "Content-Type": PKPASS_CONTENT_TYPE,
       "Content-Disposition": `inline; filename="ticket.pkpass"`,
       "Content-Length": String(body.byteLength),
-      "Cache-Control": CACHE_CONTROL,
+      "Cache-Control": WALLET_CACHE_CONTROL,
     },
   });
 };

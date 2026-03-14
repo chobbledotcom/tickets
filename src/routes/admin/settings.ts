@@ -33,8 +33,11 @@ import {
   getEmailProviderFromDb,
   getEmailTemplateSet,
   getEmbedHostsFromDb,
+  getGoogleWalletIssuerIdFromDb,
+  getGoogleWalletServiceAccountEmailFromDb,
   getHeaderImageUrlFromDb,
   getHostAppleWalletConfig,
+  getHostGoogleWalletConfig,
   getPaymentProviderFromDb,
   getPhonePrefixFromDb,
   getShowPublicApiFromDb,
@@ -46,6 +49,7 @@ import {
   getTimezoneFromDb,
   hasAppleWalletDbConfig,
   hasEmailApiKey,
+  hasGoogleWalletDbConfig,
   hasSquareToken,
   hasStripeKey,
   isMaskSentinel,
@@ -65,6 +69,9 @@ import {
   updateEmailProvider,
   updateEmailTemplate,
   updateEmbedHosts,
+  updateGoogleWalletIssuerId,
+  updateGoogleWalletServiceAccountEmail,
+  updateGoogleWalletServiceAccountKey,
   updateHeaderImageUrl,
   updatePhonePrefix,
   updateShowPublicApi,
@@ -103,6 +110,7 @@ import {
   validateEmbedHosts,
 } from "#lib/embed-hosts.ts";
 import { setFormError, setFormSuccess, validateForm } from "#lib/forms.tsx";
+import { isValidGooglePrivateKey } from "#lib/google-wallet.ts";
 import type { PaymentProviderType } from "#lib/payments.ts";
 import {
   IMAGE_ERROR_MESSAGES,
@@ -205,6 +213,9 @@ const getAdvancedSettingsPageState = async () => {
     appleWalletConfigured,
     appleWalletPassTypeId,
     appleWalletTeamId,
+    googleWalletConfigured,
+    googleWalletIssuerId,
+    googleWalletServiceAccountEmail,
     theme,
   ] = await Promise.all([
     getTimezoneFromDb(),
@@ -222,6 +233,9 @@ const getAdvancedSettingsPageState = async () => {
     hasAppleWalletDbConfig(),
     getAppleWalletPassTypeIdFromDb(),
     getAppleWalletTeamIdFromDb(),
+    hasGoogleWalletDbConfig(),
+    getGoogleWalletIssuerIdFromDb(),
+    getGoogleWalletServiceAccountEmailFromDb(),
     getThemeFromDb(),
   ]);
   return {
@@ -258,6 +272,14 @@ const getAdvancedSettingsPageState = async () => {
       const hostConfig = getHostAppleWalletConfig();
       if (!hostConfig) return "";
       return `Host env (${hostConfig.passTypeId})`;
+    })(),
+    googleWalletConfigured,
+    googleWalletIssuerId: googleWalletIssuerId ?? "",
+    googleWalletServiceAccountEmail: googleWalletServiceAccountEmail ?? "",
+    hostGoogleWalletLabel: (() => {
+      const hostConfig = getHostGoogleWalletConfig();
+      if (!hostConfig) return "";
+      return `Host env (${hostConfig.issuerId})`;
     })(),
     theme,
   };
@@ -1325,6 +1347,83 @@ const handleAppleWalletPost = advancedSettingsRoute(async (form, errorPage) => {
 });
 
 /**
+ * Handle POST /admin/settings/google-wallet - owner only
+ */
+const handleGoogleWalletPost = advancedSettingsRoute(
+  async (form, errorPage) => {
+    const issuerId = `${form.get("google_wallet_issuer_id")}`.trim();
+    const email = `${form.get("google_wallet_service_account_email")}`.trim();
+    const keyField = processSecretField(
+      form,
+      "google_wallet_service_account_key",
+    );
+
+    // If everything is cleared, remove all settings
+    if (!issuerId && !email && keyField.action === "cleared") {
+      await Promise.all([
+        updateGoogleWalletIssuerId(""),
+        updateGoogleWalletServiceAccountEmail(""),
+        updateGoogleWalletServiceAccountKey(""),
+      ]);
+      await logActivity("Google Wallet configuration cleared");
+      return redirect(
+        "/admin/settings-advanced",
+        "Google Wallet configuration cleared",
+        true,
+        { formId: "settings-google-wallet" },
+      );
+    }
+
+    if (!issuerId) {
+      return errorPage("Issuer ID is required", 400, "settings-google-wallet");
+    }
+
+    if (!email) {
+      return errorPage(
+        "Service account email is required",
+        400,
+        "settings-google-wallet",
+      );
+    }
+
+    // For initial setup, require the private key
+    const isConfigured = await hasGoogleWalletDbConfig();
+    if (!isConfigured && keyField.action !== "provided") {
+      return errorPage(
+        "Service account private key is required",
+        400,
+        "settings-google-wallet",
+      );
+    }
+
+    // Validate PEM format for newly provided key
+    if (
+      keyField.action === "provided" &&
+      !(await isValidGooglePrivateKey(keyField.value))
+    ) {
+      return errorPage(
+        "Service account private key is not a valid PEM private key",
+        400,
+        "settings-google-wallet",
+      );
+    }
+
+    await updateGoogleWalletIssuerId(issuerId);
+    await updateGoogleWalletServiceAccountEmail(email);
+    if (keyField.action === "provided")
+      await updateGoogleWalletServiceAccountKey(keyField.value);
+
+    await logActivity("Google Wallet configuration updated");
+    return redirect(
+      "/admin/settings-advanced",
+      "Google Wallet settings updated",
+      true,
+      { formId: "settings-google-wallet" },
+    );
+  },
+);
+
+/**
  * Handle POST /admin/settings/reset-database - owner only
  */
 const handleResetDatabasePost = advancedSettingsRoute(
@@ -1374,5 +1473,6 @@ export const settingsRoutes = defineRoutes({
   "POST /admin/settings/custom-domain": handleCustomDomainPost,
   "POST /admin/settings/custom-domain/validate": handleCustomDomainValidatePost,
   "POST /admin/settings/apple-wallet": handleAppleWalletPost,
+  "POST /admin/settings/google-wallet": handleGoogleWalletPost,
   "POST /admin/settings/reset-database": handleResetDatabasePost,
 });

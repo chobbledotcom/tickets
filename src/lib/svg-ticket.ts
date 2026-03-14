@@ -7,19 +7,19 @@
 import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel, formatDatetimeLabel } from "#lib/dates.ts";
 import { generateQrSvg } from "#lib/qr.ts";
+import type { WalletPassData } from "#routes/token-utils.ts";
 import { escapeHtml } from "#templates/layout.tsx";
 
-/** Non-PII ticket data for SVG rendering */
-export type SvgTicketData = {
-  eventName: string;
-  eventDate: string;
-  eventLocation: string;
-  attendeeDate: string | null;
-  quantity: number;
-  pricePaid: string;
-  currency: string;
-  checkinUrl: string;
-};
+/** Non-PII ticket data for SVG rendering (extends shared wallet fields with display-formatted values) */
+export type SvgTicketData = Pick<
+  WalletPassData,
+  | "eventName"
+  | "eventDate"
+  | "eventLocation"
+  | "attendeeDate"
+  | "quantity"
+  | "checkinUrl"
+> & { pricePaid: string; currency: string };
 
 /** SVG dimensions */
 const WIDTH = 400;

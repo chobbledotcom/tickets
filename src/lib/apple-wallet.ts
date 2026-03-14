@@ -11,6 +11,7 @@
 import { zipSync } from "fflate";
 import forge from "node-forge";
 import { getDecimalPlaces } from "#lib/currency.ts";
+import { startOfHour } from "#lib/dates.ts";
 import { WALLET_ICONS } from "#lib/wallet-icons.ts";
 
 // Force pure-JS mode so node-forge never attempts require("crypto").
@@ -195,13 +196,6 @@ export const createManifest = (files: Record<string, Uint8Array>): string => {
     manifest[name] = sha1Hex(data);
   }
   return JSON.stringify(manifest);
-};
-
-/** Round a date down to the start of the current hour for cache-stable signatures */
-const startOfHour = (date: Date): Date => {
-  const d = new Date(date);
-  d.setMinutes(0, 0, 0);
-  return d;
 };
 
 /** Sign the manifest with PKCS#7 detached signature */

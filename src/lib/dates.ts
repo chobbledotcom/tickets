@@ -35,6 +35,13 @@ const MONTH_NAMES = [
   "December",
 ] as const;
 
+/** Round a date down to the start of the current hour for cache-stable signatures */
+export const startOfHour = (date: Date): Date => {
+  const d = new Date(date);
+  d.setMinutes(0, 0, 0);
+  return d;
+};
+
 /** Maximum future range when maximum_days_after is 0 (no limit) */
 const MAX_FUTURE_DAYS = 730;
 
