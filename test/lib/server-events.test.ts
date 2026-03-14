@@ -22,7 +22,6 @@ import {
   expectHtmlResponse,
   expectRedirect,
   expectStatus,
-  getTestSession,
   mockFormRequest,
   mockMultipartRequest,
   mockRequest,
@@ -30,6 +29,8 @@ import {
   resetTestSlugCounter,
   setupEventAndLogin,
   submitTicketForm,
+  testCookie,
+  testCsrfToken,
   updateTestEvent,
 } from "#test-utils";
 
