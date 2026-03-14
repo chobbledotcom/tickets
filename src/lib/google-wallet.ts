@@ -13,7 +13,6 @@ import { getDecimalPlaces } from "#lib/currency.ts";
 import { startOfHour } from "#lib/dates.ts";
 import type { WalletPassData } from "#routes/token-utils.ts";
 
-export type { WalletPassData as GooglePassData } from "#routes/token-utils.ts";
 
 /** Google Wallet credentials from service account */
 export type GoogleWalletCredentials = {

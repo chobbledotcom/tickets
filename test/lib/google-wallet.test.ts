@@ -5,16 +5,16 @@ import {
   buildEventTicketObject,
   buildGoogleWalletUrl,
   buildJwtPayload,
-  type GooglePassData,
   type GoogleWalletCredentials,
   isValidGooglePrivateKey,
   signJwt,
 } from "#lib/google-wallet.ts";
+import type { WalletPassData } from "#routes/token-utils.ts";
 import { generateGoogleTestCreds } from "#test-utils";
 
 const makePassData = (
-  overrides: Partial<GooglePassData> = {},
-): GooglePassData => ({
+  overrides: Partial<WalletPassData> = {},
+): WalletPassData => ({
   serialNumber: "ABC123",
   organizationName: "Test Platform",
   eventName: "Summer Concert",
