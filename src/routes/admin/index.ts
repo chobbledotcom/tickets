@@ -13,6 +13,7 @@ import { attendeesRoutes } from "#routes/admin/attendees.ts";
 import { authRoutes } from "#routes/admin/auth.ts";
 import { calendarRoutes } from "#routes/admin/calendar.ts";
 import { dashboardRoutes } from "#routes/admin/dashboard.ts";
+import { debugRoutes } from "#routes/admin/debug.ts";
 import { eventsRoutes } from "#routes/admin/events.ts";
 import { groupsRoutes } from "#routes/admin/groups.ts";
 import { guideRoutes } from "#routes/admin/guide.ts";
@@ -31,6 +32,7 @@ const adminRoutes = {
   ...dashboardRoutes,
   ...authRoutes,
   ...settingsRoutes,
+  ...debugRoutes,
   ...siteRoutes,
   ...sessionsRoutes,
   ...calendarRoutes,
