@@ -1,5 +1,5 @@
-import { describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { describe, it as test } from "@std/testing/bdd";
 import { mergeEventFields, parseEventFields } from "#lib/event-fields.ts";
 
 describe("event-fields", () => {
@@ -25,8 +25,9 @@ describe("event-fields", () => {
     });
 
     test("parses all four contact fields", () => {
-      expect(parseEventFields("email,phone,address,special_instructions"))
-        .toEqual(["email", "phone", "address", "special_instructions"]);
+      expect(
+        parseEventFields("email,phone,address,special_instructions"),
+      ).toEqual(["email", "phone", "address", "special_instructions"]);
     });
   });
 
@@ -40,11 +41,15 @@ describe("event-fields", () => {
     });
 
     test("deduplicates across settings", () => {
-      expect(mergeEventFields(["email,phone", "email,phone"])).toBe("email,phone");
+      expect(mergeEventFields(["email,phone", "email,phone"])).toBe(
+        "email,phone",
+      );
     });
 
     test("merges disjoint field sets", () => {
-      expect(mergeEventFields(["email", "phone,address"])).toBe("email,phone,address");
+      expect(mergeEventFields(["email", "phone,address"])).toBe(
+        "email,phone,address",
+      );
     });
 
     test("returns single field from single setting", () => {

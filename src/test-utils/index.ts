@@ -1609,9 +1609,7 @@ export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
   );
 };
 
-export type { HolidayInput };
-
-export type { GroupInput };
+export type { GroupInput, HolidayInput };
 
 /**
  * Create an attendee directly using createAttendeeAtomic (bypasses HTTP layer).

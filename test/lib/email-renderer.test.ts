@@ -1,5 +1,15 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { spy, stub } from "@std/testing/mock";
+import { Liquid } from "liquidjs";
+import { map } from "#fp";
+import { resetCurrencyCode, setCurrencyCodeForTest } from "#lib/currency.ts";
+import {
+  invalidateSettingsCache,
+  updateEmailTemplate,
+} from "#lib/db/settings.ts";
+import type { EmailEntry, EmailEvent } from "#lib/email.ts";
+import type { TemplateData } from "#lib/email-renderer.ts";
 import {
   buildTemplateData,
   renderEmailContent,
@@ -7,18 +17,8 @@ import {
   resetEngine,
   validateTemplate,
 } from "#lib/email-renderer.ts";
-import type { TemplateData } from "#lib/email-renderer.ts";
-import type { EmailEntry, EmailEvent } from "#lib/email.ts";
 import type { WebhookAttendee } from "#lib/webhook.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils";
-import { setCurrencyCodeForTest, resetCurrencyCode } from "#lib/currency.ts";
-import {
-  invalidateSettingsCache,
-  updateEmailTemplate,
-} from "#lib/db/settings.ts";
-import { spy, stub } from "@std/testing/mock";
-import { map } from "#fp";
-import { Liquid } from "liquidjs";
 
 const makeEvent = (overrides: Partial<EmailEvent> = {}): EmailEvent => ({
   id: 1,
@@ -34,7 +34,9 @@ const makeEvent = (overrides: Partial<EmailEvent> = {}): EmailEvent => ({
   ...overrides,
 });
 
-const makeAttendee = (overrides: Partial<WebhookAttendee> = {}): WebhookAttendee => ({
+const makeAttendee = (
+  overrides: Partial<WebhookAttendee> = {},
+): WebhookAttendee => ({
   id: 42,
   quantity: 1,
   name: "Jane Doe",
@@ -73,7 +75,11 @@ describe("email-renderer", () => {
   describe("buildTemplateData", () => {
     test("builds correct data shape from single entry", () => {
       const entries = [makeEntry()];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
 
       expect(data.event_names).toBe("Test Event");
       expect(data.ticket_url).toBe("https://example.com/t/ABC");
@@ -91,7 +97,11 @@ describe("email-renderer", () => {
         makeEntry({ name: "Event A" }),
         makeEntry({ name: "Event B" }),
       ];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC+DEF");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC+DEF",
+      );
 
       expect(data.event_names).toBe("Event A and Event B");
       expect(data.entries.length).toBe(2);
@@ -104,28 +114,44 @@ describe("email-renderer", () => {
         makeEntry({ name: "Event B" }),
         makeEntry({ name: "Event C" }),
       ];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC+DEF+GHI");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC+DEF+GHI",
+      );
 
       expect(data.event_names).toBe("Event A, Event B, and Event C");
     });
 
     test("marks paid events correctly", () => {
       const entries = [makeEntry({ unit_price: 1000 })];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
 
       expect(data.entries[0]!.event.is_paid).toBe(true);
     });
 
     test("marks can_pay_more events as paid", () => {
       const entries = [makeEntry({ unit_price: 0, can_pay_more: true })];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
 
       expect(data.entries[0]!.event.is_paid).toBe(true);
     });
 
     test("includes attendee date when present", () => {
       const entries = [makeEntry({}, { date: "2026-04-15" })];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
 
       expect(data.entries[0]!.attendee.date).toBe("2026-04-15");
     });
@@ -133,26 +159,41 @@ describe("email-renderer", () => {
 
   describe("renderTemplate", () => {
     const sampleData: TemplateData = {
-      entries: [{
-        event: { name: "Concert", slug: "concert", is_paid: true },
-        attendee: {
-          name: "Jane", email: "jane@test.com", phone: "555",
-          address: "123 St", special_instructions: "",
-          quantity: 2, price_paid: "2000", date: null,
+      entries: [
+        {
+          event: { name: "Concert", slug: "concert", is_paid: true },
+          attendee: {
+            name: "Jane",
+            email: "jane@test.com",
+            phone: "555",
+            address: "123 St",
+            special_instructions: "",
+            quantity: 2,
+            price_paid: "2000",
+            date: null,
+          },
         },
-      }],
+      ],
       event_names: "Concert",
       attendee: {
-        name: "Jane", email: "jane@test.com", phone: "555",
-        address: "123 St", special_instructions: "",
-        quantity: 2, price_paid: "2000", date: null,
+        name: "Jane",
+        email: "jane@test.com",
+        phone: "555",
+        address: "123 St",
+        special_instructions: "",
+        quantity: 2,
+        price_paid: "2000",
+        date: null,
       },
       ticket_url: "https://example.com/t/ABC",
       currency: "GBP",
     };
 
     test("renders simple variable interpolation", async () => {
-      const result = await renderTemplate("Hello {{ attendee.name }}", sampleData);
+      const result = await renderTemplate(
+        "Hello {{ attendee.name }}",
+        sampleData,
+      );
       expect(result).toBe("Hello Jane");
     });
 
@@ -180,9 +221,17 @@ describe("email-renderer", () => {
     });
 
     test("renders pluralize filter for singular", async () => {
-      const data = { ...sampleData, entries: [{ ...sampleData.entries[0]!, attendee: { ...sampleData.entries[0]!.attendee, quantity: 1 } }] };
+      const data = {
+        ...sampleData,
+        entries: [
+          {
+            ...sampleData.entries[0]!,
+            attendee: { ...sampleData.entries[0]!.attendee, quantity: 1 },
+          },
+        ],
+      };
       const result = await renderTemplate(
-        "{% for entry in entries %}{{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: \"ticket\", \"tickets\" }}{% endfor %}",
+        '{% for entry in entries %}{{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: "ticket", "tickets" }}{% endfor %}',
         data,
       );
       expect(result).toBe("1 ticket");
@@ -190,7 +239,7 @@ describe("email-renderer", () => {
 
     test("renders pluralize filter for plural", async () => {
       const result = await renderTemplate(
-        "{% for entry in entries %}{{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: \"ticket\", \"tickets\" }}{% endfor %}",
+        '{% for entry in entries %}{{ entry.attendee.quantity }} {{ entry.attendee.quantity | pluralize: "ticket", "tickets" }}{% endfor %}',
         sampleData,
       );
       expect(result).toBe("2 tickets");
@@ -200,8 +249,14 @@ describe("email-renderer", () => {
       const data: TemplateData = {
         ...sampleData,
         entries: [
-          { ...sampleData.entries[0]!, event: { name: "Event A", slug: "a", is_paid: false } },
-          { ...sampleData.entries[0]!, event: { name: "Event B", slug: "b", is_paid: false } },
+          {
+            ...sampleData.entries[0]!,
+            event: { name: "Event A", slug: "a", is_paid: false },
+          },
+          {
+            ...sampleData.entries[0]!,
+            event: { name: "Event B", slug: "b", is_paid: false },
+          },
         ],
       };
       const result = await renderTemplate(
@@ -222,7 +277,15 @@ describe("email-renderer", () => {
     test("renders conditional on attendee date", async () => {
       const data: TemplateData = {
         ...sampleData,
-        entries: [{ ...sampleData.entries[0]!, attendee: { ...sampleData.entries[0]!.attendee, date: "2026-04-15" } }],
+        entries: [
+          {
+            ...sampleData.entries[0]!,
+            attendee: {
+              ...sampleData.entries[0]!.attendee,
+              date: "2026-04-15",
+            },
+          },
+        ],
       };
       const result = await renderTemplate(
         "{% for entry in entries %}{% if entry.attendee.date %}{{ entry.attendee.date }}{% endif %}{% endfor %}",
@@ -240,7 +303,11 @@ describe("email-renderer", () => {
   describe("renderEmailContent", () => {
     test("uses default templates when no custom templates are set", async () => {
       const entries = [makeEntry()];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
 
       const result = await renderEmailContent("confirmation", data);
 
@@ -252,13 +319,29 @@ describe("email-renderer", () => {
     });
 
     test("uses custom templates when set", async () => {
-      await updateEmailTemplate("confirmation", "subject", "Custom: {{ event_names }}");
-      await updateEmailTemplate("confirmation", "html", "<b>Custom HTML for {{ attendee.name }}</b>");
-      await updateEmailTemplate("confirmation", "text", "Custom text for {{ attendee.name }}");
+      await updateEmailTemplate(
+        "confirmation",
+        "subject",
+        "Custom: {{ event_names }}",
+      );
+      await updateEmailTemplate(
+        "confirmation",
+        "html",
+        "<b>Custom HTML for {{ attendee.name }}</b>",
+      );
+      await updateEmailTemplate(
+        "confirmation",
+        "text",
+        "Custom text for {{ attendee.name }}",
+      );
       invalidateSettingsCache();
 
       const entries = [makeEntry()];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
       const result = await renderEmailContent("confirmation", data);
 
       expect(result.subject).toBe("Custom: Test Event");
@@ -267,20 +350,36 @@ describe("email-renderer", () => {
     });
 
     test("falls back to default on custom template render error", async () => {
-      await updateEmailTemplate("confirmation", "subject", "{{ invalid | nonexistent_filter }}");
+      await updateEmailTemplate(
+        "confirmation",
+        "subject",
+        "{{ invalid | nonexistent_filter }}",
+      );
       invalidateSettingsCache();
 
       const errorSpy = spy(console, "error");
       try {
         const entries = [makeEntry()];
-        const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+        const data = buildTemplateData(
+          entries,
+          "GBP",
+          "https://example.com/t/ABC",
+        );
         const result = await renderEmailContent("confirmation", data);
 
         // Should fall back to default subject
         expect(result.subject).toContain("Test Event");
         // Should have logged the error
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
-        expect(logs.some((l) => l.includes("E_EMAIL_TEMPLATE_RENDER") && l.includes("template render error"))).toBe(true);
+        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
+          errorSpy.calls,
+        );
+        expect(
+          logs.some(
+            (l) =>
+              l.includes("E_EMAIL_TEMPLATE_RENDER") &&
+              l.includes("template render error"),
+          ),
+        ).toBe(true);
       } finally {
         errorSpy.restore();
       }
@@ -288,7 +387,11 @@ describe("email-renderer", () => {
 
     test("renders admin notification defaults correctly", async () => {
       const entries = [makeEntry()];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
 
       const result = await renderEmailContent("admin", data);
 
@@ -299,12 +402,21 @@ describe("email-renderer", () => {
     });
 
     test("renders admin notification with contact details", async () => {
-      const entries = [makeEntry({}, {
-        phone: "555-1234",
-        address: "123 Main St",
-        special_instructions: "Wheelchair",
-      })];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const entries = [
+        makeEntry(
+          {},
+          {
+            phone: "555-1234",
+            address: "123 Main St",
+            special_instructions: "Wheelchair",
+          },
+        ),
+      ];
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
 
       const result = await renderEmailContent("admin", data);
 
@@ -314,8 +426,14 @@ describe("email-renderer", () => {
     });
 
     test("omits empty contact fields in admin notification", async () => {
-      const entries = [makeEntry({}, { phone: "", address: "", special_instructions: "" })];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const entries = [
+        makeEntry({}, { phone: "", address: "", special_instructions: "" }),
+      ];
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
 
       const result = await renderEmailContent("admin", data);
 
@@ -325,8 +443,14 @@ describe("email-renderer", () => {
     });
 
     test("renders paid event with currency in confirmation", async () => {
-      const entries = [makeEntry({ unit_price: 1000 }, { price_paid: "2000", quantity: 2 })];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const entries = [
+        makeEntry({ unit_price: 1000 }, { price_paid: "2000", quantity: 2 }),
+      ];
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
 
       const result = await renderEmailContent("confirmation", data);
 
@@ -336,7 +460,11 @@ describe("email-renderer", () => {
 
     test("shows date when attendee has date", async () => {
       const entries = [makeEntry({}, { date: "2026-07-15" })];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
 
       const result = await renderEmailContent("confirmation", data);
 
@@ -345,12 +473,20 @@ describe("email-renderer", () => {
     });
 
     test("uses mix of custom and default parts", async () => {
-      await updateEmailTemplate("confirmation", "subject", "Custom Subject: {{ event_names }}");
+      await updateEmailTemplate(
+        "confirmation",
+        "subject",
+        "Custom Subject: {{ event_names }}",
+      );
       // html and text remain default
       invalidateSettingsCache();
 
       const entries = [makeEntry()];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
       const result = await renderEmailContent("confirmation", data);
 
       expect(result.subject).toBe("Custom Subject: Test Event");
@@ -360,7 +496,11 @@ describe("email-renderer", () => {
     });
 
     test("logs non-Error thrown values as strings", async () => {
-      await updateEmailTemplate("confirmation", "subject", "Custom {{ event_names }}");
+      await updateEmailTemplate(
+        "confirmation",
+        "subject",
+        "Custom {{ event_names }}",
+      );
       invalidateSettingsCache();
 
       // Stub parseAndRender to throw a non-Error value on first call, then succeed
@@ -369,7 +509,10 @@ describe("email-renderer", () => {
       const parseAndRenderStub = stub(
         Liquid.prototype,
         "parseAndRender",
-        function (this: InstanceType<typeof Liquid>, ...args: Parameters<typeof original>) {
+        function (
+          this: InstanceType<typeof Liquid>,
+          ...args: Parameters<typeof original>
+        ) {
           if (callCount++ === 0) throw "string error value";
           return original.apply(this, args);
         },
@@ -377,10 +520,16 @@ describe("email-renderer", () => {
       const errorSpy = spy(console, "error");
       try {
         const entries = [makeEntry()];
-        const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+        const data = buildTemplateData(
+          entries,
+          "GBP",
+          "https://example.com/t/ABC",
+        );
         await renderEmailContent("confirmation", data);
 
-        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(errorSpy.calls);
+        const logs = map((c: { args: unknown[] }) => c.args[0] as string)(
+          errorSpy.calls,
+        );
         expect(logs.some((l) => l.includes("string error value"))).toBe(true);
       } finally {
         parseAndRenderStub.restore();
@@ -396,7 +545,11 @@ describe("email-renderer", () => {
       invalidateSettingsCache();
 
       const entries = [makeEntry()];
-      const data = buildTemplateData(entries, "GBP", "https://example.com/t/ABC");
+      const data = buildTemplateData(
+        entries,
+        "GBP",
+        "https://example.com/t/ABC",
+      );
       const result = await renderEmailContent("confirmation", data);
 
       expect(result.subject).toContain("Test Event");
@@ -409,7 +562,9 @@ describe("email-renderer", () => {
     });
 
     test("returns null for template with for loop", () => {
-      expect(validateTemplate("{% for x in items %}{{ x }}{% endfor %}")).toBeNull();
+      expect(
+        validateTemplate("{% for x in items %}{{ x }}{% endfor %}"),
+      ).toBeNull();
     });
 
     test("returns error for unclosed tag", () => {
@@ -427,11 +582,9 @@ describe("email-renderer", () => {
     });
 
     test("returns string representation of non-Error thrown value", () => {
-      const parseStub = stub(
-        Liquid.prototype,
-        "parse",
-        () => { throw "raw string parse error"; },
-      );
+      const parseStub = stub(Liquid.prototype, "parse", () => {
+        throw "raw string parse error";
+      });
       try {
         const result = validateTemplate("anything");
         expect(result).toBe("raw string parse error");

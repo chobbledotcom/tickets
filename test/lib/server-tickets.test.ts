@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { formatCurrency } from "#lib/currency.ts";
 import { formatDateLabel } from "#lib/dates.ts";
 import { createAttendeeAtomic } from "#lib/db/attendees.ts";
@@ -291,7 +291,10 @@ describe("ticket view (/t/:tokens)", () => {
   });
 
   test("displays ticket token on ticket page", async () => {
-    const { token } = await createTestAttendeeWithToken("Alice", "alice@test.com");
+    const { token } = await createTestAttendeeWithToken(
+      "Alice",
+      "alice@test.com",
+    );
 
     const response = await awaitTestRequest(`/t/${token}`);
     const body = await response.text();

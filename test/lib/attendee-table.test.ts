@@ -1,8 +1,13 @@
-import { beforeAll } from "@std/testing/bdd";
-import { describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { getCurrentCsrfToken, signCsrfToken } from "#lib/csrf.ts";
-import { AttendeeTable, type AttendeeTableOptions, type AttendeeTableRow, formatAddressInline, sortAttendeeRows } from "#templates/attendee-table.tsx";
+import {
+  AttendeeTable,
+  type AttendeeTableOptions,
+  type AttendeeTableRow,
+  formatAddressInline,
+  sortAttendeeRows,
+} from "#templates/attendee-table.tsx";
 import { setupTestEncryptionKey, testAttendee } from "#test-utils";
 
 const ALLOWED_DOMAIN = "example.com";
@@ -12,14 +17,18 @@ beforeAll(async () => {
   await signCsrfToken();
 });
 
-const makeRow = (overrides: Partial<AttendeeTableRow> = {}): AttendeeTableRow => ({
+const makeRow = (
+  overrides: Partial<AttendeeTableRow> = {},
+): AttendeeTableRow => ({
   attendee: testAttendee(),
   eventId: 1,
   eventName: "Test Event",
   ...overrides,
 });
 
-const makeOpts = (overrides: Partial<AttendeeTableOptions> = {}): AttendeeTableOptions => ({
+const makeOpts = (
+  overrides: Partial<AttendeeTableOptions> = {},
+): AttendeeTableOptions => ({
   rows: [makeRow()],
   allowedDomain: ALLOWED_DOMAIN,
   showEvent: false,
@@ -69,14 +78,36 @@ describe("AttendeeTable", () => {
 
   describe("column order", () => {
     test("renders columns in correct order", () => {
-      const rows = [makeRow({
-        attendee: testAttendee({ email: "a@b.com", phone: "555", address: "123 Main", special_instructions: "VIP" }),
-        eventName: "Gala",
-      })];
-      const html = AttendeeTable(makeOpts({ rows, showEvent: true, showDate: true }));
-      const headers = [...html.matchAll(/<th>(.*?)<\/th>/g)].map(m => m[1]);
+      const rows = [
+        makeRow({
+          attendee: testAttendee({
+            email: "a@b.com",
+            phone: "555",
+            address: "123 Main",
+            special_instructions: "VIP",
+          }),
+          eventName: "Gala",
+        }),
+      ];
+      const html = AttendeeTable(
+        makeOpts({ rows, showEvent: true, showDate: true }),
+      );
+      const headers = [...html.matchAll(/<th>(.*?)<\/th>/g)].map((m) => m[1]);
       // Empty headers are for Checked In (first) and Actions (last)
-      expect(headers).toEqual(["", "Event", "Date", "Name", "Email", "Phone", "Address", "Special Instructions", "Qty", "Ticket", "Registered", ""]);
+      expect(headers).toEqual([
+        "",
+        "Event",
+        "Date",
+        "Name",
+        "Email",
+        "Phone",
+        "Address",
+        "Special Instructions",
+        "Qty",
+        "Ticket",
+        "Registered",
+        "",
+      ]);
     });
   });
 
@@ -102,7 +133,9 @@ describe("AttendeeTable", () => {
     });
 
     test("shown when showDate is true", () => {
-      const rows = [makeRow({ attendee: testAttendee({ date: "2026-03-15" }) })];
+      const rows = [
+        makeRow({ attendee: testAttendee({ date: "2026-03-15" }) }),
+      ];
       const html = AttendeeTable(makeOpts({ rows, showDate: true }));
       expect(html).toContain("<th>Date</th>");
     });
@@ -141,20 +174,26 @@ describe("AttendeeTable", () => {
     });
 
     test("renders phone as clickable tel link", () => {
-      const rows = [makeRow({ attendee: testAttendee({ phone: "07700 900000" }) })];
+      const rows = [
+        makeRow({ attendee: testAttendee({ phone: "07700 900000" }) }),
+      ];
       const html = AttendeeTable(makeOpts({ rows, phonePrefix: "44" }));
       expect(html).toContain('href="tel:+447700900000"');
       expect(html).toContain(">07700 900000</a>");
     });
 
     test("uses phonePrefix option for tel link normalization", () => {
-      const rows = [makeRow({ attendee: testAttendee({ phone: "0234 567 8900" }) })];
+      const rows = [
+        makeRow({ attendee: testAttendee({ phone: "0234 567 8900" }) }),
+      ];
       const html = AttendeeTable(makeOpts({ rows, phonePrefix: "1" }));
       expect(html).toContain('href="tel:+12345678900"');
     });
 
     test("defaults to prefix 44 when phonePrefix not provided", () => {
-      const rows = [makeRow({ attendee: testAttendee({ phone: "07700 900000" }) })];
+      const rows = [
+        makeRow({ attendee: testAttendee({ phone: "07700 900000" }) }),
+      ];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).toContain('href="tel:+447700900000"');
     });
@@ -179,7 +218,9 @@ describe("AttendeeTable", () => {
     });
 
     test("shown when at least one attendee has address", () => {
-      const rows = [makeRow({ attendee: testAttendee({ address: "123 Main St" }) })];
+      const rows = [
+        makeRow({ attendee: testAttendee({ address: "123 Main St" }) }),
+      ];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).toContain("<th>Address</th>");
       expect(html).toContain("123 Main St");
@@ -188,13 +229,19 @@ describe("AttendeeTable", () => {
 
   describe("Special Instructions column", () => {
     test("hidden when no attendees have special instructions", () => {
-      const rows = [makeRow({ attendee: testAttendee({ special_instructions: "" }) })];
+      const rows = [
+        makeRow({ attendee: testAttendee({ special_instructions: "" }) }),
+      ];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).not.toContain("<th>Special Instructions</th>");
     });
 
     test("shown when at least one attendee has special instructions", () => {
-      const rows = [makeRow({ attendee: testAttendee({ special_instructions: "Vegetarian" }) })];
+      const rows = [
+        makeRow({
+          attendee: testAttendee({ special_instructions: "Vegetarian" }),
+        }),
+      ];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).toContain("<th>Special Instructions</th>");
       expect(html).toContain("Vegetarian");
@@ -202,7 +249,9 @@ describe("AttendeeTable", () => {
 
     test("renders single-line instructions and empty cell when column is shown", () => {
       const rows = [
-        makeRow({ attendee: testAttendee({ special_instructions: "Line 1\nLine 2" }) }),
+        makeRow({
+          attendee: testAttendee({ special_instructions: "Line 1\nLine 2" }),
+        }),
         makeRow({ attendee: testAttendee({ special_instructions: "" }) }),
       ];
       const html = AttendeeTable(makeOpts({ rows }));
@@ -246,26 +295,32 @@ describe("AttendeeTable", () => {
 
   describe("actions", () => {
     test("shows Refund link when attendee has payment_id", () => {
-      const rows = [makeRow({
-        attendee: testAttendee({ payment_id: "pay_123" }),
-      })];
+      const rows = [
+        makeRow({
+          attendee: testAttendee({ payment_id: "pay_123" }),
+        }),
+      ];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).toContain("Refund");
       expect(html).toContain("/refund");
     });
 
     test("hides Refund link when attendee has no payment_id", () => {
-      const rows = [makeRow({
-        attendee: testAttendee({ payment_id: "" }),
-      })];
+      const rows = [
+        makeRow({
+          attendee: testAttendee({ payment_id: "" }),
+        }),
+      ];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).not.toContain("Refund");
     });
 
     test("hides Refund link when attendee is already refunded", () => {
-      const rows = [makeRow({
-        attendee: testAttendee({ payment_id: "pay_123", refunded: true }),
-      })];
+      const rows = [
+        makeRow({
+          attendee: testAttendee({ payment_id: "pay_123", refunded: true }),
+        }),
+      ];
       const html = AttendeeTable(makeOpts({ rows }));
       expect(html).not.toContain("/refund");
     });
@@ -317,17 +372,23 @@ describe("AttendeeTable", () => {
     });
 
     test("shows custom empty message when provided", () => {
-      const html = AttendeeTable(makeOpts({ rows: [], emptyMessage: "Select a date" }));
+      const html = AttendeeTable(
+        makeOpts({ rows: [], emptyMessage: "Select a date" }),
+      );
       expect(html).toContain("Select a date");
     });
 
     test("empty row has correct colspan for minimal columns", () => {
-      const html = AttendeeTable(makeOpts({ rows: [], showEvent: false, showDate: false }));
+      const html = AttendeeTable(
+        makeOpts({ rows: [], showEvent: false, showDate: false }),
+      );
       expect(html).toContain('colspan="6"');
     });
 
     test("empty row colspan includes optional visible columns", () => {
-      const html = AttendeeTable(makeOpts({ rows: [], showEvent: true, showDate: true }));
+      const html = AttendeeTable(
+        makeOpts({ rows: [], showEvent: true, showDate: true }),
+      );
       expect(html).toContain('colspan="8"');
     });
   });
@@ -360,10 +421,18 @@ describe("AttendeeTable", () => {
   describe("presorted option", () => {
     test("preserves row order when presorted is true", () => {
       const rows = [
-        makeRow({ attendee: testAttendee({ id: 1, name: "Zara" }), eventName: "B Event" }),
-        makeRow({ attendee: testAttendee({ id: 2, name: "Alice" }), eventName: "A Event" }),
+        makeRow({
+          attendee: testAttendee({ id: 1, name: "Zara" }),
+          eventName: "B Event",
+        }),
+        makeRow({
+          attendee: testAttendee({ id: 2, name: "Alice" }),
+          eventName: "A Event",
+        }),
       ];
-      const html = AttendeeTable(makeOpts({ rows, showEvent: true, presorted: true }));
+      const html = AttendeeTable(
+        makeOpts({ rows, showEvent: true, presorted: true }),
+      );
       const nameIdx1 = html.indexOf("Zara");
       const nameIdx2 = html.indexOf("Alice");
       expect(nameIdx1).toBeLessThan(nameIdx2);
@@ -371,8 +440,14 @@ describe("AttendeeTable", () => {
 
     test("sorts rows by default when presorted is not set", () => {
       const rows = [
-        makeRow({ attendee: testAttendee({ id: 1, name: "Zara" }), eventName: "B Event" }),
-        makeRow({ attendee: testAttendee({ id: 2, name: "Alice" }), eventName: "A Event" }),
+        makeRow({
+          attendee: testAttendee({ id: 1, name: "Zara" }),
+          eventName: "B Event",
+        }),
+        makeRow({
+          attendee: testAttendee({ id: 2, name: "Alice" }),
+          eventName: "A Event",
+        }),
       ];
       const html = AttendeeTable(makeOpts({ rows, showEvent: true }));
       const nameIdx1 = html.indexOf("Alice");
@@ -385,9 +460,18 @@ describe("AttendeeTable", () => {
 describe("sortAttendeeRows", () => {
   test("sorts by event date ascending, null dates last", () => {
     const rows = [
-      makeRow({ attendee: testAttendee({ id: 1, date: null }), eventName: "A" }),
-      makeRow({ attendee: testAttendee({ id: 2, date: "2026-03-01" }), eventName: "A" }),
-      makeRow({ attendee: testAttendee({ id: 3, date: "2026-01-15" }), eventName: "A" }),
+      makeRow({
+        attendee: testAttendee({ id: 1, date: null }),
+        eventName: "A",
+      }),
+      makeRow({
+        attendee: testAttendee({ id: 2, date: "2026-03-01" }),
+        eventName: "A",
+      }),
+      makeRow({
+        attendee: testAttendee({ id: 3, date: "2026-01-15" }),
+        eventName: "A",
+      }),
     ];
     const sorted = sortAttendeeRows(rows);
     expect(sorted.map((r) => r.attendee.id)).toEqual([3, 2, 1]);
@@ -395,8 +479,14 @@ describe("sortAttendeeRows", () => {
 
   test("sorts by event name when dates are equal", () => {
     const rows = [
-      makeRow({ attendee: testAttendee({ id: 1, date: "2026-03-01" }), eventName: "Zebra" }),
-      makeRow({ attendee: testAttendee({ id: 2, date: "2026-03-01" }), eventName: "Alpha" }),
+      makeRow({
+        attendee: testAttendee({ id: 1, date: "2026-03-01" }),
+        eventName: "Zebra",
+      }),
+      makeRow({
+        attendee: testAttendee({ id: 2, date: "2026-03-01" }),
+        eventName: "Alpha",
+      }),
     ];
     const sorted = sortAttendeeRows(rows);
     expect(sorted.map((r) => r.attendee.id)).toEqual([2, 1]);
@@ -404,8 +494,14 @@ describe("sortAttendeeRows", () => {
 
   test("sorts by attendee name when date and event name are equal", () => {
     const rows = [
-      makeRow({ attendee: testAttendee({ id: 1, name: "Zara" }), eventName: "Gala" }),
-      makeRow({ attendee: testAttendee({ id: 2, name: "Alice" }), eventName: "Gala" }),
+      makeRow({
+        attendee: testAttendee({ id: 1, name: "Zara" }),
+        eventName: "Gala",
+      }),
+      makeRow({
+        attendee: testAttendee({ id: 2, name: "Alice" }),
+        eventName: "Gala",
+      }),
     ];
     const sorted = sortAttendeeRows(rows);
     expect(sorted.map((r) => r.attendee.id)).toEqual([2, 1]);
@@ -413,8 +509,14 @@ describe("sortAttendeeRows", () => {
 
   test("sorts by id when all other fields are equal", () => {
     const rows = [
-      makeRow({ attendee: testAttendee({ id: 5, name: "Sam" }), eventName: "Gala" }),
-      makeRow({ attendee: testAttendee({ id: 2, name: "Sam" }), eventName: "Gala" }),
+      makeRow({
+        attendee: testAttendee({ id: 5, name: "Sam" }),
+        eventName: "Gala",
+      }),
+      makeRow({
+        attendee: testAttendee({ id: 2, name: "Sam" }),
+        eventName: "Gala",
+      }),
     ];
     const sorted = sortAttendeeRows(rows);
     expect(sorted.map((r) => r.attendee.id)).toEqual([2, 5]);
@@ -422,10 +524,22 @@ describe("sortAttendeeRows", () => {
 
   test("applies full multi-key sort order", () => {
     const rows = [
-      makeRow({ attendee: testAttendee({ id: 1, name: "Bob", date: "2026-02-01" }), eventName: "Concert" }),
-      makeRow({ attendee: testAttendee({ id: 2, name: "Alice", date: null }), eventName: "Gala" }),
-      makeRow({ attendee: testAttendee({ id: 3, name: "Alice", date: "2026-01-15" }), eventName: "Concert" }),
-      makeRow({ attendee: testAttendee({ id: 4, name: "Alice", date: "2026-02-01" }), eventName: "Concert" }),
+      makeRow({
+        attendee: testAttendee({ id: 1, name: "Bob", date: "2026-02-01" }),
+        eventName: "Concert",
+      }),
+      makeRow({
+        attendee: testAttendee({ id: 2, name: "Alice", date: null }),
+        eventName: "Gala",
+      }),
+      makeRow({
+        attendee: testAttendee({ id: 3, name: "Alice", date: "2026-01-15" }),
+        eventName: "Concert",
+      }),
+      makeRow({
+        attendee: testAttendee({ id: 4, name: "Alice", date: "2026-02-01" }),
+        eventName: "Concert",
+      }),
     ];
     const sorted = sortAttendeeRows(rows);
     // date 2026-01-15 first, then 2026-02-01 (Alice before Bob by name), then null date last
@@ -439,15 +553,23 @@ describe("sortAttendeeRows", () => {
     ];
     const original = [...rows];
     sortAttendeeRows(rows);
-    expect(rows.map((r) => r.attendee.id)).toEqual(original.map((r) => r.attendee.id));
+    expect(rows.map((r) => r.attendee.id)).toEqual(
+      original.map((r) => r.attendee.id),
+    );
   });
 });
 
 describe("AttendeeTable sorting", () => {
   test("renders rows in sorted order", () => {
     const rows = [
-      makeRow({ attendee: testAttendee({ id: 1, name: "Zara" }), eventName: "B Event" }),
-      makeRow({ attendee: testAttendee({ id: 2, name: "Alice" }), eventName: "A Event" }),
+      makeRow({
+        attendee: testAttendee({ id: 1, name: "Zara" }),
+        eventName: "B Event",
+      }),
+      makeRow({
+        attendee: testAttendee({ id: 2, name: "Alice" }),
+        eventName: "A Event",
+      }),
     ];
     const html = AttendeeTable(makeOpts({ rows, showEvent: true }));
     const nameIdx1 = html.indexOf("Alice");
@@ -462,18 +584,26 @@ describe("formatAddressInline", () => {
   });
 
   test("joins multi-line address with commas", () => {
-    expect(formatAddressInline("123 Main St\nApt 4\nNew York")).toBe("123 Main St, Apt 4, New York");
+    expect(formatAddressInline("123 Main St\nApt 4\nNew York")).toBe(
+      "123 Main St, Apt 4, New York",
+    );
   });
 
   test("preserves existing trailing comma", () => {
-    expect(formatAddressInline("123 Main St,\nNew York")).toBe("123 Main St, New York");
+    expect(formatAddressInline("123 Main St,\nNew York")).toBe(
+      "123 Main St, New York",
+    );
   });
 
   test("trims whitespace from lines", () => {
-    expect(formatAddressInline("  123 Main St  \n  New York  ")).toBe("123 Main St, New York");
+    expect(formatAddressInline("  123 Main St  \n  New York  ")).toBe(
+      "123 Main St, New York",
+    );
   });
 
   test("filters out blank lines", () => {
-    expect(formatAddressInline("123 Main St\n\nNew York")).toBe("123 Main St, New York");
+    expect(formatAddressInline("123 Main St\n\nNew York")).toBe(
+      "123 Main St, New York",
+    );
   });
 });

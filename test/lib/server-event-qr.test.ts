@@ -2,9 +2,10 @@
  * Tests for ticket QR code route
  */
 
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
+import { handleTicketQrGet } from "#routes/public.ts";
 import {
   createTestDbWithSetup,
   createTestEvent,
@@ -12,7 +13,6 @@ import {
   resetDb,
   resetTestSlugCounter,
 } from "#test-utils";
-import { handleTicketQrGet } from "#routes/public.ts";
 
 describe("ticket QR code", () => {
   beforeEach(async () => {
@@ -27,21 +27,27 @@ describe("ticket QR code", () => {
   describe("GET /ticket/:slug/qr", () => {
     test("returns SVG content type for valid event", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
-      const response = await handleRequest(mockRequest(`/ticket/${event.slug}/qr`));
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}/qr`),
+      );
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe("image/svg+xml");
     });
 
     test("returns valid SVG with QR code", async () => {
       const event = await createTestEvent({ maxAttendees: 50 });
-      const response = await handleRequest(mockRequest(`/ticket/${event.slug}/qr`));
+      const response = await handleRequest(
+        mockRequest(`/ticket/${event.slug}/qr`),
+      );
       const body = await response.text();
       expect(body).toContain("<svg");
       expect(body).toContain("</svg>");
     });
 
     test("returns 404 for non-existent event", async () => {
-      const response = await handleRequest(mockRequest("/ticket/no-such-event/qr"));
+      const response = await handleRequest(
+        mockRequest("/ticket/no-such-event/qr"),
+      );
       expect(response.status).toBe(404);
     });
   });
@@ -59,7 +65,9 @@ describe("ticket QR code", () => {
 
     test("returns 404 for missing event", async () => {
       const request = mockRequest("/ticket/no-such-event/qr");
-      const response = await handleTicketQrGet(request, { slug: "no-such-event" });
+      const response = await handleTicketQrGet(request, {
+        slug: "no-such-event",
+      });
       expect(response.status).toBe(404);
     });
   });

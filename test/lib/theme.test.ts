@@ -1,13 +1,17 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { updateTheme } from "#lib/db/settings.ts";
 import {
   getTheme,
   loadTheme,
   resetTheme,
   setThemeForTest,
 } from "#lib/theme.ts";
-import { createTestDbWithSetup, resetDb, setupTestEncryptionKey } from "#test-utils";
-import { updateTheme } from "#lib/db/settings.ts";
+import {
+  createTestDbWithSetup,
+  resetDb,
+  setupTestEncryptionKey,
+} from "#test-utils";
 
 describe("theme", () => {
   afterEach(() => {

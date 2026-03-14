@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
+import { setCurrencyCodeForTest } from "#lib/currency.ts";
 import {
   buildInfoLines,
   extractSvgContent,
@@ -7,10 +8,11 @@ import {
   generateSvgTicket,
   type SvgTicketData,
 } from "#lib/svg-ticket.ts";
-import { setCurrencyCodeForTest } from "#lib/currency.ts";
 import { createTestDbWithSetup, resetDb } from "#test-utils";
 
-const makeTicketData = (overrides: Partial<SvgTicketData> = {}): SvgTicketData => ({
+const makeTicketData = (
+  overrides: Partial<SvgTicketData> = {},
+): SvgTicketData => ({
   eventName: "Summer Concert",
   eventDate: "",
   eventLocation: "",
@@ -34,7 +36,8 @@ describe("svg-ticket", () => {
 
   describe("extractSvgContent", () => {
     test("extracts inner content from svg element", () => {
-      const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect/></svg>';
+      const svg =
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect/></svg>';
       expect(extractSvgContent(svg)).toBe("<rect/>");
     });
 
@@ -50,7 +53,7 @@ describe("svg-ticket", () => {
     });
 
     test("returns default size when no viewBox", () => {
-      const svg = '<svg><rect/></svg>';
+      const svg = "<svg><rect/></svg>";
       expect(extractViewBox(svg)).toEqual({ width: 180, height: 180 });
     });
 
@@ -73,18 +76,24 @@ describe("svg-ticket", () => {
     });
 
     test("includes event date when provided", () => {
-      const lines = buildInfoLines(makeTicketData({ eventDate: "2026-06-15T18:00:00.000Z" }));
+      const lines = buildInfoLines(
+        makeTicketData({ eventDate: "2026-06-15T18:00:00.000Z" }),
+      );
       expect(lines.length).toBeGreaterThan(1);
       expect(lines[0]).toContain("June");
     });
 
     test("includes location when provided", () => {
-      const lines = buildInfoLines(makeTicketData({ eventLocation: "The Venue" }));
+      const lines = buildInfoLines(
+        makeTicketData({ eventLocation: "The Venue" }),
+      );
       expect(lines).toContain("The Venue");
     });
 
     test("includes booking date for daily events", () => {
-      const lines = buildInfoLines(makeTicketData({ attendeeDate: "2026-06-15" }));
+      const lines = buildInfoLines(
+        makeTicketData({ attendeeDate: "2026-06-15" }),
+      );
       expect(lines.some((l) => l.startsWith("Booking:"))).toBe(true);
     });
 
@@ -102,12 +111,16 @@ describe("svg-ticket", () => {
     });
 
     test("includes event name", async () => {
-      const svg = await generateSvgTicket(makeTicketData({ eventName: "Jazz Night" }));
+      const svg = await generateSvgTicket(
+        makeTicketData({ eventName: "Jazz Night" }),
+      );
       expect(svg).toContain("Jazz Night");
     });
 
     test("escapes HTML in event name", async () => {
-      const svg = await generateSvgTicket(makeTicketData({ eventName: "A <B> & C" }));
+      const svg = await generateSvgTicket(
+        makeTicketData({ eventName: "A <B> & C" }),
+      );
       expect(svg).toContain("A &lt;B&gt; &amp; C");
       expect(svg).not.toContain("<B>");
     });
@@ -119,8 +132,12 @@ describe("svg-ticket", () => {
     });
 
     test("different checkin URLs produce different SVGs", async () => {
-      const svg1 = await generateSvgTicket(makeTicketData({ checkinUrl: "https://example.com/checkin/aaa" }));
-      const svg2 = await generateSvgTicket(makeTicketData({ checkinUrl: "https://example.com/checkin/bbb" }));
+      const svg1 = await generateSvgTicket(
+        makeTicketData({ checkinUrl: "https://example.com/checkin/aaa" }),
+      );
+      const svg2 = await generateSvgTicket(
+        makeTicketData({ checkinUrl: "https://example.com/checkin/bbb" }),
+      );
       expect(svg1).not.toBe(svg2);
     });
 
@@ -130,17 +147,23 @@ describe("svg-ticket", () => {
     });
 
     test("includes price for paid tickets", async () => {
-      const svg = await generateSvgTicket(makeTicketData({ pricePaid: "1500" }));
+      const svg = await generateSvgTicket(
+        makeTicketData({ pricePaid: "1500" }),
+      );
       expect(svg).toContain("Price:");
     });
 
     test("includes location when provided", async () => {
-      const svg = await generateSvgTicket(makeTicketData({ eventLocation: "Main Hall" }));
+      const svg = await generateSvgTicket(
+        makeTicketData({ eventLocation: "Main Hall" }),
+      );
       expect(svg).toContain("Main Hall");
     });
 
     test("includes event date when provided", async () => {
-      const svg = await generateSvgTicket(makeTicketData({ eventDate: "2026-06-15T18:00:00.000Z" }));
+      const svg = await generateSvgTicket(
+        makeTicketData({ eventDate: "2026-06-15T18:00:00.000Z" }),
+      );
       expect(svg).toContain("June");
     });
   });

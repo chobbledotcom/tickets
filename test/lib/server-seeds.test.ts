@@ -1,12 +1,12 @@
-import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { handleRequest } from "#routes";
-import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
-import { MAX_SEED_EVENTS } from "#routes/admin/seeds.ts";
-import { getAllEvents } from "#lib/db/events.ts";
+import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#lib/db/attendees.ts";
 import { getDb } from "#lib/db/client.ts";
+import { getAllEvents } from "#lib/db/events.ts";
 import { invalidateSettingsCache } from "#lib/db/settings.ts";
+import { createSeeds, SEED_MAX_ATTENDEES } from "#lib/seeds.ts";
+import { handleRequest } from "#routes";
+import { MAX_SEED_EVENTS } from "#routes/admin/seeds.ts";
 import {
   adminGet,
   awaitTestRequest,
@@ -29,18 +29,26 @@ const loginAsManager = async (): Promise<string> => {
 
   // Create a manager invite
   const inviteResponse = await handleRequest(
-    mockFormRequest("/admin/users", {
-      username: "manager1",
-      admin_level: "manager",
-      csrf_token: ownerCsrf,
-    }, ownerCookie),
+    mockFormRequest(
+      "/admin/users",
+      {
+        username: "manager1",
+        admin_level: "manager",
+        csrf_token: ownerCsrf,
+      },
+      ownerCookie,
+    ),
   );
   const inviteUrl = inviteResponse.headers.get("location") ?? "";
-  const inviteLink = decodeURIComponent(inviteUrl.match(/invite=([^&]+)/)![1] as string);
+  const inviteLink = decodeURIComponent(
+    inviteUrl.match(/invite=([^&]+)/)![1] as string,
+  );
   const inviteToken = inviteLink.split("/join/")[1];
 
   // Set password for manager
-  const joinHtml = await (await handleRequest(mockRequest(`/join/${inviteToken}`))).text();
+  const joinHtml = await (
+    await handleRequest(mockRequest(`/join/${inviteToken}`))
+  ).text();
   const joinCsrf = requireJoinCsrfToken(joinHtml);
   await handleRequest(
     mockFormRequest(`/join/${inviteToken}`, {
@@ -52,12 +60,19 @@ const loginAsManager = async (): Promise<string> => {
 
   // Activate the manager
   await handleRequest(
-    mockFormRequest("/admin/users/2/activate", { csrf_token: ownerCsrf }, ownerCookie),
+    mockFormRequest(
+      "/admin/users/2/activate",
+      { csrf_token: ownerCsrf },
+      ownerCookie,
+    ),
   );
 
   // Login as manager
   const loginResponse = await handleRequest(
-    await mockAdminLoginRequest({ username: "manager1", password: "managerpass123" }),
+    await mockAdminLoginRequest({
+      username: "manager1",
+      password: "managerpass123",
+    }),
   );
   return loginResponse.headers.get("set-cookie") ?? "";
 };
@@ -80,7 +95,9 @@ describe("server (admin seeds)", () => {
 
     test("returns 403 for non-owner", async () => {
       const managerCookie = await loginAsManager();
-      const response = await awaitTestRequest("/admin/seeds", { cookie: managerCookie });
+      const response = await awaitTestRequest("/admin/seeds", {
+        cookie: managerCookie,
+      });
       expect(response.status).toBe(403);
     });
 
@@ -107,7 +124,10 @@ describe("server (admin seeds)", () => {
   describe("POST /admin/seeds", () => {
     test("redirects to login when not authenticated", async () => {
       const response = await handleRequest(
-        mockFormRequest("/admin/seeds", { event_count: "1", attendees_per_event: "0" }),
+        mockFormRequest("/admin/seeds", {
+          event_count: "1",
+          attendees_per_event: "0",
+        }),
       );
       expectAdminRedirect(response);
     });
@@ -136,7 +156,7 @@ describe("server (admin seeds)", () => {
       );
 
       const html = await expectHtmlResponse(response, 200);
-      expect(html).toContain("class=\"success\"");
+      expect(html).toContain('class="success"');
       expect(html).toContain("Created 2 event(s) with 0 attendee(s) total.");
 
       const events = await getAllEvents();
@@ -161,8 +181,8 @@ describe("server (admin seeds)", () => {
       expect(events.length).toBe(2);
 
       // Verify both paid and free events are created
-      const paidEvent = events.find(e => e.unit_price > 0);
-      const freeEvent = events.find(e => e.unit_price === 0);
+      const paidEvent = events.find((e) => e.unit_price > 0);
+      const freeEvent = events.find((e) => e.unit_price === 0);
       expect(paidEvent).toBeDefined();
       expect(freeEvent).toBeDefined();
 
@@ -190,7 +210,11 @@ describe("server (admin seeds)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "999", attendees_per_event: "0", csrf_token: csrfToken },
+          {
+            event_count: "999",
+            attendees_per_event: "0",
+            csrf_token: csrfToken,
+          },
           cookie,
         ),
       );
@@ -207,7 +231,11 @@ describe("server (admin seeds)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "1", attendees_per_event: "9999", csrf_token: csrfToken },
+          {
+            event_count: "1",
+            attendees_per_event: "9999",
+            csrf_token: csrfToken,
+          },
           cookie,
         ),
       );
@@ -222,7 +250,11 @@ describe("server (admin seeds)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "-5", attendees_per_event: "-10", csrf_token: csrfToken },
+          {
+            event_count: "-5",
+            attendees_per_event: "-10",
+            csrf_token: csrfToken,
+          },
           cookie,
         ),
       );
@@ -287,7 +319,11 @@ describe("server (admin seeds)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "abc", attendees_per_event: "2", csrf_token: csrfToken },
+          {
+            event_count: "abc",
+            attendees_per_event: "2",
+            csrf_token: csrfToken,
+          },
           cookie,
         ),
       );
@@ -302,7 +338,11 @@ describe("server (admin seeds)", () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { event_count: "1", attendees_per_event: "abc", csrf_token: csrfToken },
+          {
+            event_count: "1",
+            attendees_per_event: "abc",
+            csrf_token: csrfToken,
+          },
           cookie,
         ),
       );
@@ -316,16 +356,20 @@ describe("server (admin seeds)", () => {
       await getDb().execute("DELETE FROM settings WHERE key = 'public_key'");
       invalidateSettingsCache();
 
-      await expect(createSeeds(1, 0)).rejects.toThrow("Public key not configured");
+      await expect(createSeeds(1, 0)).rejects.toThrow(
+        "Public key not configured",
+      );
     });
 
     test("can seed multiple times additively", async () => {
       const { cookie } = await loginAsAdmin();
 
       // First seed
-      const get1 = await handleRequest(mockRequest("/admin/seeds", {
-        headers: { cookie },
-      }));
+      const get1 = await handleRequest(
+        mockRequest("/admin/seeds", {
+          headers: { cookie },
+        }),
+      );
       const html1 = await get1.text();
       const csrf1 = extractCsrfToken(html1)!;
 
@@ -338,9 +382,11 @@ describe("server (admin seeds)", () => {
       );
 
       // Second seed
-      const get2 = await handleRequest(mockRequest("/admin/seeds", {
-        headers: { cookie },
-      }));
+      const get2 = await handleRequest(
+        mockRequest("/admin/seeds", {
+          headers: { cookie },
+        }),
+      );
       const html2 = await get2.text();
       const csrf2 = extractCsrfToken(html2)!;
 
